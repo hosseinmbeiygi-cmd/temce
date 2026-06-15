@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+APP_NAME = "iran-market-platform"
+APP_VERSION = "0.1.0"
+APP_DESCRIPTION = "Iran Stock Market Data Platform"
+APP_LICENSE = "Proprietary"
+
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 500
+CACHE_TTL_DEFAULT = 300
+CACHE_TTL_QUOTE = 10
+CACHE_TTL_INSTRUMENT = 3600
+CACHE_TTL_INDICATOR = 600
+
+HTTP_TIMEOUT_SECONDS = 30
+MAX_RETRIES = 3
+BACKOFF_FACTOR = 2.0
+
+API_PREFIX = "/api/v1"
+API_TITLE = "Iran Market Platform API"
+API_VERSION = "0.1.0"

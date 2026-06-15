@@ -1,0 +1,1 @@
+{"timestamp": "2026-06-10T21:37:55.496366+00:00", "level": "INFO", "name": "apps.api.app", "message": "Starting iran-market-platform", "module": "app", "function": "lifespan", "line": 21}

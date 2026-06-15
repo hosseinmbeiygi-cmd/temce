@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+import json
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any
+
+import orjson
+
+
+def loads(s: str | bytes, use_orjson: bool = True) -> Any:
+    if use_orjson:
+        try:
+            return orjson.loads(s)
+        except Exception:
+            pass
+    return json.loads(s)
+
+
+def load_json_file(path: str) -> Any:
+    with open(path, encoding="utf-8") as f:
+        return loads(f.read())
+
+
+def safe_loads(s: str | bytes, default: Any = None) -> Any:
+    try:
+        return loads(s)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return default
+
+
+def parse_datetime_iso(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+def parse_date_iso(value: str) -> date:
+    return date.fromisoformat(value)
+
+
+def parse_decimal(value: str | float | int) -> Decimal:
+    return Decimal(str(value))

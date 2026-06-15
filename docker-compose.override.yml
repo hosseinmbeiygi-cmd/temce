@@ -1,0 +1,32 @@
+services:
+  api:
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --reload
+
+  admin:
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/app
+    command: uvicorn apps.admin.app:admin_app --host 0.0.0.0 --port 8001 --reload
+
+  worker:
+    volumes:
+      - .:/app
+
+  scheduler:
+    volumes:
+      - .:/app
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: market

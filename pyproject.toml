@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iran-market-platform"
+version = "0.1.0"
+description = "Comprehensive Iran capital market data & analytics platform"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109",
+    "uvicorn[standard]>=0.25",
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "httpx>=0.26",
+    "pandas>=2.1",
+    "numpy>=1.26",
+    "redis>=5.0",
+    "apscheduler>=3.10",
+    "python-dotenv>=1.0",
+    "cryptography>=41.0",
+    "opentelemetry-api>=1.22",
+    "opentelemetry-sdk>=1.22",
+    "orjson>=3.9",
+    "aiosqlite>=0.20",
+    "asyncpg>=0.29",
+    "pyjwt>=2.8",
+    "opentelemetry-exporter-otlp>=1.22",
+    "prometheus-client>=0.19",
+    "aiohttp>=3.9",
+    "minio>=7.2",
+    "redis[hiredis]>=5.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+    "lightgbm>=4.3",
+    "catboost>=1.2",
+    "torch>=2.1",
+    "shap>=0.44",
+    "imbalanced-learn>=0.12",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.2",
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "C4"]
+ignore = ["E501", "B008", "B027", "ARG", "N803", "N805", "N806", "N818", "B904", "SIM102", "E402", "B017"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ARG", "N803", "N805", "N806", "B017"]
+"backtesting/**" = ["ARG"]
+"providers/**" = ["ARG"]
+"migrations/**" = ["E402"]
+"scripts/**" = ["ARG"]
+"models/**" = ["F401"]
+"core/enums/**" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "performance: performance tests",
+    "e2e: end-to-end tests",
+    "integration: integration tests",
+    "slow: slow tests",
+]

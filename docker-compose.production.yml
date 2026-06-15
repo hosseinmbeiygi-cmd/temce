@@ -1,0 +1,131 @@
+x-app-prod: &app-prod
+  env_file: .env.production
+  restart: always
+  networks:
+    - internal
+    - observability
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "5"
+  secrets:
+    - postgres_password
+    - secret_key
+    - api_key
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  secret_key:
+    file: ./secrets/secret_key.txt
+  api_key:
+    file: ./secrets/api_key.txt
+
+services:
+  api:
+    <<: *app-prod
+    ports:
+      - "127.0.0.1:8000:8000"
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
+        reservations:
+          cpus: "0.5"
+          memory: "256M"
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 30s
+        order: start-first
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  admin:
+    <<: *app-prod
+    ports:
+      - "127.0.0.1:8001:8001"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+  worker:
+    <<: *app-prod
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "1G"
+        reservations:
+          cpus: "0.5"
+          memory: "512M"
+
+  scheduler:
+    <<: *app-prod
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+  redis:
+    restart: always
+    networks:
+      - internal
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+  postgres:
+    restart: always
+    networks:
+      - internal
+    environment:
+      POSTGRES_DB: market
+      POSTGRES_USER: market
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "1G"
+        reservations:
+          cpus: "0.5"
+          memory: "512M"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U market"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  internal:
+    driver: overlay
+  observability:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: cloudstor:aws
+  redis_data:
