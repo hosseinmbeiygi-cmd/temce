@@ -1,26 +1,38 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query
 
 from apps.api.dependencies import get_macro_service
+from schemas.common.responses import ApiResponse
 from services.macro_service import MacroService
 
 router = APIRouter()
 
 
-@router.get("/{indicator}")
-async def get_indicator(indicator: str, service: MacroService = Depends(get_macro_service)):
-    result = await service.get_indicator(indicator)
-    return {"success": result.success, "data": result.value}
-
-
-@router.get("/")
-async def list_indicators(service: MacroService = Depends(get_macro_service)):
+@router.get("/", summary="List indicators", description="List all available macro indicators")
+async def list_indicators(
+    service: MacroService = Depends(get_macro_service),
+) -> ApiResponse[list[dict[str, Any]]]:
     result = await service.list_indicators()
-    return {"success": result.success, "data": result.value}
+    return ApiResponse[list[dict[str, Any]]](success=result.success, data=result.value)
 
 
-@router.get("/{indicator}/history")
-async def get_indicator_history(indicator: str, limit: int = 100, service: MacroService = Depends(get_macro_service)):
+@router.get("/{indicator}", summary="Get indicator", description="Get current value of a macro indicator")
+async def get_indicator(
+    indicator: str,
+    service: MacroService = Depends(get_macro_service),
+) -> ApiResponse[dict[str, Any]]:
+    result = await service.get_indicator(indicator)
+    return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
+
+
+@router.get("/{indicator}/history", summary="Indicator history", description="Get historical values of a macro indicator")
+async def get_indicator_history(
+    indicator: str,
+    limit: int = Query(100, ge=1, le=1000),
+    service: MacroService = Depends(get_macro_service),
+) -> ApiResponse[list[dict[str, Any]]]:
     result = await service.get_history(indicator, limit)
-    return {"success": result.success, "data": result.value}
+    return ApiResponse[list[dict[str, Any]]](success=result.success, data=result.value)

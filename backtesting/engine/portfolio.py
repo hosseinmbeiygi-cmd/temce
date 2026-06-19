@@ -36,10 +36,11 @@ class PortfolioManager:
         self._nav = self.get_nav()
 
     async def mark_to_market(self, prices: dict[str, float]) -> None:
-        self._nav = self.get_nav()
         for inst_id, pos in self._positions.items():
-            price = prices.get(inst_id, pos.avg_price)
-            pos.current_price = price if price else pos.avg_price
+            price = prices.get(inst_id)
+            if price is not None:
+                pos.current_price = price
+        self._nav = self.get_nav()
 
     def get_nav(self) -> float:
         positions_value = self.get_positions_value()
@@ -51,5 +52,24 @@ class PortfolioManager:
     def get_positions_value(self) -> float:
         total = 0.0
         for pos in self._positions.values():
-            total += pos.quantity * pos.avg_price
+            price = pos.current_price if pos.current_price > 0 else pos.avg_price
+            total += pos.quantity * price
         return total
+
+    def get_positions(self) -> dict[str, int]:
+        """Return current position quantities keyed by instrument_id."""
+        return {inst_id: pos.quantity for inst_id, pos in self._positions.items()}
+
+    def get_position(self, instrument_id: str) -> int:
+        """Return current position quantity for a single instrument."""
+        pos = self._positions.get(instrument_id)
+        return pos.quantity if pos else 0
+
+    def adjust_positions(self, instrument_id: str, factor: float) -> None:
+        """Adjust positions by a corporate action factor (e.g. split)."""
+        pos = self._positions.get(instrument_id)
+        if pos is None or pos.quantity == 0:
+            return
+        pos.quantity = round(pos.quantity * factor)
+        pos.avg_price = pos.avg_price / factor if factor != 0 else pos.avg_price
+        self._nav = self.get_nav()

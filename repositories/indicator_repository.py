@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.result import Result
+from core.result import PaginatedResult, Result
 from domain.analytics.indicator import Indicator
 from repositories.base_repository import InMemoryRepository
 
@@ -18,7 +20,7 @@ class IndicatorRepository:
     async def delete(self, id: str) -> Result[bool]:
         return await self._mem.delete(id)
 
-    async def list(self, page: int = 1, page_size: int = 100) -> Result[Result]:
+    async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[Indicator]]:
         return await self._mem.list(page, page_size)
 
     async def get_by_instrument(

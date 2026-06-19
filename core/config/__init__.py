@@ -53,8 +53,11 @@ class Settings(BaseSettings):
     provider_rate_limit_per_minute: int = 60
 
     tsetmc_base_url: str = "http://tsetmc.com"
+    tsetmc_api_key: str = ""
     tsetmc_ws_url: str | None = None
     codal_base_url: str = "https://codal.ir"
+    codal_api_key: str = ""
+    fipiran_api_key: str = ""
 
     ml_model_dir: str = str(Path.cwd() / "data" / "models")
     ml_default_batch_size: int = 2048

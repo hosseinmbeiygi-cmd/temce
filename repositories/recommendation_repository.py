@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.result import Result
+from core.result import PaginatedResult, Result
 from domain.analytics.recommendation import Recommendation
 from repositories.base_repository import InMemoryRepository
 
@@ -18,7 +20,7 @@ class RecommendationRepository:
     async def delete(self, id: str) -> Result[bool]:
         return await self._mem.delete(id)
 
-    async def list(self, page: int = 1, page_size: int = 100) -> Result[Result]:
+    async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[Recommendation]]:
         return await self._mem.list(page, page_size)
 
     async def get_active(self, instrument_id: str) -> Result[list[Recommendation]]:

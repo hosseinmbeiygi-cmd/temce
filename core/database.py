@@ -61,7 +61,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-def get_session_sync() -> AsyncSession:
+def get_session_blocking() -> AsyncSession:
     if async_session_factory is None:
         raise RuntimeError("Database not initialized. Call init_database() first.")
     return async_session_factory()

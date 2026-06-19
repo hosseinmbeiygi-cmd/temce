@@ -1,4 +1,13 @@
 from schemas.api.alerts import AlertCreate, AlertListResponse, AlertResponse, AlertUpdate
+from schemas.api.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateProfileRequest,
+    UserResponse,
+)
 from schemas.api.analytics import AnalyticsRequest, AnalyticsResponse, MarketAnalyticsSummary
 from schemas.api.backtest import BacktestRequest, BacktestResponse, BacktestResultResponse
 from schemas.api.bonds import BondListResponse, BondRequest, BondResponse
@@ -128,4 +137,11 @@ __all__ = [
     "WatchlistCreate",
     "WatchlistResponse",
     "WatchlistListResponse",
+    "RegisterRequest",
+    "LoginRequest",
+    "TokenResponse",
+    "RefreshRequest",
+    "UserResponse",
+    "ChangePasswordRequest",
+    "UpdateProfileRequest",
 ]

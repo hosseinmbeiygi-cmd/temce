@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")
-E = TypeVar("E", bound=BaseException)
 
 
 @dataclass(frozen=True)

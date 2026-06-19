@@ -4,8 +4,10 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
+from domain.instruments.instrument import Instrument
 from repositories.instrument_repository import InstrumentRepository
 
 logger = get_logger(__name__)
@@ -17,8 +19,26 @@ class SymbolService:
             repo = InstrumentRepository(session=session)
         self.repo = repo
 
-    async def search(self, query: str) -> Result[dict[str, Any]]:
-        result = await self.repo.search(query)
+    async def create(self, symbol: str, name: str, **kwargs: Any) -> Result[dict[str, Any]]:
+        instrument = Instrument(id=new_id("inst"), symbol=symbol, name=name, **kwargs)
+        result = await self.repo.save(instrument)
+        if not result.success:
+            return Result.fail(result.error or "Failed to create symbol")
+        return Result.ok(vars(result.value))
+
+    async def list_all(self, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
+        result = await self.repo.list(page, page_size)
+        if not result.success:
+            return Result.ok({"items": [], "total": 0})
+        return Result.ok(
+            {
+                "items": [vars(item) for item in result.value.items],
+                "total": result.value.total,
+            }
+        )
+
+    async def search(self, query: str, page: int = 1) -> Result[dict[str, Any]]:
+        result = await self.repo.search(query, page)
         if not result.success:
             return Result.ok({"items": [], "total": 0})
         return Result.ok(
@@ -33,3 +53,6 @@ class SymbolService:
         if not result.success:
             return Result.fail(f"Symbol {symbol} not found")
         return Result.ok(vars(result.value))
+
+    async def get_detail(self, symbol: str) -> Result[dict[str, Any]]:
+        return await self.get_by_symbol(symbol)

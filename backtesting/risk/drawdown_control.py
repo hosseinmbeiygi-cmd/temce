@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -22,6 +23,10 @@ class DrawdownControl:
             self._stopped = True
             return True
         return False
+
+    def is_triggered(self, positions: dict[str, int], event: Any) -> bool:
+        """Check if drawdown control is breached."""
+        return self.is_breached()
 
     def get_current_drawdown(self) -> float:
         return self._current_dd

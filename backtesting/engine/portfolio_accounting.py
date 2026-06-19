@@ -16,11 +16,12 @@ class PortfolioAccounting:
 
     def apply_fill(self, fill: FillEvent) -> None:
         self.position_manager.update(fill)
-        fill.price * fill.quantity + fill.commission
+        cost = fill.price * fill.quantity + fill.commission
         if fill.side == "buy":
-            pass
+            self.cash_manager.withdraw(cost, f"buy {fill.instrument_id}")
         else:
-            self.cash_manager.deposit(fill.price * fill.quantity - fill.commission, f"sell {fill.instrument_id}")
+            revenue = fill.price * fill.quantity - fill.commission
+            self.cash_manager.deposit(revenue, f"sell {fill.instrument_id}")
 
     def mark_to_market(self, prices: dict[str, float]) -> None:
         nav = self.get_nav()

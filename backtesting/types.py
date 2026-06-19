@@ -36,6 +36,7 @@ class PositionState:
     quantity: int = 0
     avg_price: float = 0.0
     realized_pnl: float = 0.0
+    current_price: float = 0.0
 
 
 @dataclass

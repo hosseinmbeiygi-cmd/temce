@@ -16,7 +16,7 @@ class NewsRequest(BaseModel):
 
 
 class NewsResponse(BaseModel):
-    id: str
+    id: str | int
     title: str = ""
     summary: str = ""
     source: str = ""

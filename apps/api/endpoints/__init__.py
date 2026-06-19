@@ -1,4 +1,9 @@
+from .alerts import router as alerts_router
+from .analysis import router as analysis_router
+from .auth import router as auth_router
+from .fundamental import router as fundamental_router
 from .backtests import router as backtests_router
+from .tests_runner import router as tests_router
 from .codal import router as codal_router
 from .health import router as health_router
 from .indicators import router as indicators_router
@@ -14,8 +19,12 @@ from .signals import router as signals_router
 from .smart_money import router as smart_money_router
 from .symbols import router as symbols_router
 from .trades import router as trades_router
+from .portfolios import router as portfolios_router
 
 __all__ = [
+    "alerts_router",
+    "auth_router",
+    "fundamental_router",
     "health_router",
     "market_router",
     "symbols_router",
@@ -32,4 +41,7 @@ __all__ = [
     "ml_router",
     "reports_router",
     "smart_money_router",
+    "analysis_router",
+    "tests_router",
+    "portfolios_router",
 ]

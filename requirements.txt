@@ -19,3 +19,23 @@ asyncpg>=0.29
 pyjwt>=2.8
 opentelemetry-exporter-otlp>=1.22
 prometheus-client>=0.19
+aiohttp>=3.9
+minio>=7.2
+redis[hiredis]>=5.0
+
+# ML optional dependencies (رای نصب با pip install .[ml])
+# scikit-learn>=1.4
+# xgboost>=2.0
+# lightgbm>=4.3
+# catboost>=1.2
+# torch>=2.1
+# shap>=0.44
+# imbalanced-learn>=0.12
+
+# Development dependencies (رای نصب با pip install .[dev])
+# pytest>=8.0
+# pytest-cov>=4.1
+# pytest-asyncio>=0.23
+# ruff>=0.2
+# mypy>=1.8
+# pre-commit>=3.6

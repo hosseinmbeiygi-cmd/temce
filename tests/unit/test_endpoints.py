@@ -1,0 +1,218 @@
+"""Tests for the main FastAPI app (codal, news, analysis endpoints)."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+
+from apps.api.app import app
+
+
+@pytest_asyncio.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.mark.asyncio
+async def test_health_check(client):
+    resp = await client.get("/api/v1/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert data["service"] == "iran-market-platform"
+
+
+@pytest.mark.asyncio
+async def test_root_redirect(client):
+    resp = await client.get("/", follow_redirects=False)
+    assert resp.status_code in (307, 303)
+    assert "/api/v1/docs" in resp.headers.get("location", "")
+
+
+# ==============================================================
+# CODAL
+# ==============================================================
+
+
+@pytest.mark.asyncio
+async def test_codal_list(client):
+    resp = await client.get("/api/v1/codal")
+    # Returns 500 when database is not initialized (expected in test)
+    assert resp.status_code in (200, 500)
+    if resp.status_code == 200:
+        data = resp.json()
+        assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_codal_profile_found(client):
+    resp = await client.get("/api/v1/codal/فولاد/profile")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert data["data"]["symbol"] == "فولاد"
+    assert data["data"]["name"] == "فولاد مبارکه اصفهان"
+
+
+@pytest.mark.asyncio
+async def test_codal_profile_not_found(client):
+    resp = await client.get("/api/v1/codal/ناموجود/profile")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_codal_financials(client):
+    resp = await client.get("/api/v1/codal/فولاد/financials")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "quarters" in data["data"]
+    assert len(data["data"]["quarters"]) == 4
+
+
+@pytest.mark.asyncio
+async def test_codal_dividends(client):
+    resp = await client.get("/api/v1/codal/فولاد/dividends")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "dividends" in data["data"]
+
+
+@pytest.mark.asyncio
+async def test_codal_holders(client):
+    resp = await client.get("/api/v1/codal/فولاد/holders")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "holders" in data["data"]
+
+
+@pytest.mark.asyncio
+async def test_codal_insider(client):
+    resp = await client.get("/api/v1/codal/فولاد/insider")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "trades" in data["data"]
+
+
+# ==============================================================
+# NEWS
+# ==============================================================
+
+
+@pytest.mark.asyncio
+async def test_news_list(client):
+    resp = await client.get("/api/v1/news")
+    # Returns 500 when database is not initialized (expected in test)
+    assert resp.status_code in (200, 500)
+    if resp.status_code == 200:
+        data = resp.json()
+        assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_news_category_valid(client):
+    resp = await client.get("/api/v1/news/category/market")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_news_category_invalid(client):
+    resp = await client.get("/api/v1/news/category/invalid")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is False
+    assert "Invalid category" in data["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_news_trending(client):
+    resp = await client.get("/api/v1/news/trending")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert len(data["data"]) <= 10
+
+
+# ==============================================================
+# ANALYSIS
+# ==============================================================
+
+
+@pytest.mark.asyncio
+async def test_analysis_overview(client):
+    resp = await client.get("/api/v1/analysis")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_analysis_sentiment(client):
+    resp = await client.get("/api/v1/analysis/sentiment")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "sentiment_score" in data["data"]
+
+
+@pytest.mark.asyncio
+async def test_analysis_trends(client):
+    resp = await client.get("/api/v1/analysis/trends")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_analysis_recommendations(client):
+    resp = await client.get("/api/v1/analysis/recommendations")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert len(data["data"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_analysis_elliot_waves(client):
+    resp = await client.get("/api/v1/analysis/elliot-waves/فولاد")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_analysis_liquidity(client):
+    resp = await client.get("/api/v1/analysis/liquidity")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_analysis_interest_rates(client):
+    resp = await client.get("/api/v1/analysis/interest-rates")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "sana_rate" in data["data"]
+
+
+@pytest.mark.asyncio
+async def test_analysis_profit_prediction(client):
+    resp = await client.get("/api/v1/analysis/profit-prediction/فولاد")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True

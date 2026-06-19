@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from domain.indicators.definitions import (
     MARKET_COMMODITY,
     MARKET_COMMON,

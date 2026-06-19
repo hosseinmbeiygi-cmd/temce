@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from domain.indicators.registry.commodity import COMMODITY_INDICATORS
 from domain.indicators.registry.common import COMMON_INDICATORS
 from domain.indicators.registry.debt import DEBT_INDICATORS

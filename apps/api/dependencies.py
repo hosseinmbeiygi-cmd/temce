@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
+from core.security.tokens import decode_access_token
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -61,16 +62,16 @@ def get_news_service(session: AsyncSession = Depends(get_db_session)):
     return NewsService(session=session)
 
 
-def get_backtest_service(session: AsyncSession = Depends(get_db_session)):
+def get_backtest_service():
     from services.backtest_service import BacktestService
 
-    return BacktestService(session=session)
+    return BacktestService()
 
 
-def get_inference_service(session: AsyncSession = Depends(get_db_session)):
+def get_inference_service():
     from services.inference_service import InferenceService
 
-    return InferenceService(session=session)
+    return InferenceService()
 
 
 def get_smart_money_service(session: AsyncSession = Depends(get_db_session)):
@@ -101,3 +102,37 @@ def get_report_service(session: AsyncSession = Depends(get_db_session)):
     from services.report_service import ReportService
 
     return ReportService(session=session)
+
+
+async def get_current_user(authorization: str = Header("")) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ")[1]
+    try:
+        payload = decode_access_token(token)
+        return payload
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+async def get_optional_user(authorization: str = Header("")) -> dict | None:
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ")[1]
+    try:
+        return decode_access_token(token)
+    except Exception:
+        return None
+
+
+async def require_role(role: str, current_user: dict = Depends(get_current_user)) -> dict:
+    user_roles = current_user.get("roles", [])
+    if role not in user_roles and "admin" not in user_roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    return current_user
+
+def get_portfolio_service(session: AsyncSession = Depends(get_db_session)):
+    from services.portfolio_service import PortfolioService
+
+    return PortfolioService(session=session)
+

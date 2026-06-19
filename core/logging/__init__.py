@@ -10,6 +10,20 @@ from typing import Any
 from core.config import settings
 
 
+class SafeStreamHandler(logging.StreamHandler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            super().emit(record)
+        except UnicodeEncodeError:
+            if record.exc_info and record.exc_info[0]:
+                return
+            safe_msg = self.format(record).replace(
+                record.getMessage(), "[TEXT ENCODING ERROR]", 1
+            )
+            self.stream.write(safe_msg + self.terminator)
+            self.flush()
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         data: dict[str, Any] = {
@@ -33,7 +47,7 @@ def setup_logging() -> None:
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
     handlers: list[logging.Handler] = []
 
-    console = logging.StreamHandler(sys.stdout)
+    console = SafeStreamHandler(sys.stdout)
     if fmt == "json":
         console.setFormatter(JsonFormatter())
     else:

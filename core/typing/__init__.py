@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Any, Generic, Protocol, TypeVar
 
 T = TypeVar("T")
-E = TypeVar("E", bound=BaseException)
 
 
 @dataclass(frozen=True)

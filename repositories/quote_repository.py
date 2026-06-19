@@ -122,12 +122,12 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
         return Result.ok([self._to_domain(r) for r in rows])
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
-        from sqlalchemy import func as sa_func
+        from sqlalchemy import func as sa_func, select
 
-        total_inst = await self.session.execute(
-            sa_func.count(QuoteModel.instrument_id.distinct()).select_from(QuoteModel)
-        )
-        total_q = await self.session.execute(sa_func.count().select_from(QuoteModel))
+        total_inst_stmt = select(sa_func.count(QuoteModel.instrument_id.distinct())).select_from(QuoteModel)
+        total_inst = await self.session.execute(total_inst_stmt)
+        total_q_stmt = select(sa_func.count()).select_from(QuoteModel)
+        total_q = await self.session.execute(total_q_stmt)
         return Result.ok(
             {
                 "total_instruments": total_inst.scalar() or 0,

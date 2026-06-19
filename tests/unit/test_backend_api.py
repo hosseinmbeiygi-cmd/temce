@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import pytest
 import pytest_asyncio
-from backend.main import app
+from apps.api.app import app
 from httpx import ASGITransport, AsyncClient
 
 
