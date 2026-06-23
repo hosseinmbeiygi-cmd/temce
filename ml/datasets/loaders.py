@@ -5,6 +5,9 @@ from typing import Any
 import pandas as pd
 import yfinance as yf
 import requests
+DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
 from bs4 import BeautifulSoup
 import json
 
@@ -24,6 +27,26 @@ class DataLoader:
 
     async def load_from_dict(self, data: list[dict[str, Any]]) -> pd.DataFrame:
         return pd.DataFrame(data)
+
+    async def get_realtime_data(self, symbol: str) -> Result[dict]:
+        """Get realtime market data for a symbol"""
+        try:
+            search_url = "https://search.tsetmc.com/api/Stock/GetStockSearch"
+            params = {'text': symbol, 'page': 1, 'pageSize': 1}
+            response = requests.get(search_url, params=params, headers=DEFAULT_HEADERS)
+            if response.status_code != 200 or not response.json().get('data'):
+                return Result.fail("Symbol not found")
+            
+            ins_code = response.json()['data'][0]['insCode']
+            realtime_url = f"http://cdn.tsetmc.com/api/Stock/GetStockDetail/{ins_code}"
+            response = requests.get(realtime_url, headers=DEFAULT_HEADERS)
+            
+            if response.status_code != 200:
+                return Result.fail("Failed to get realtime data")
+                
+            return Result.ok(response.json())
+        except Exception as e:
+            return Result.fail(f"Realtime data error: {str(e)}")
 
     async def load_market_data(
         self, 
@@ -56,32 +79,35 @@ class DataLoader:
         
         elif source.lower() == "tsetmc":
             try:
-                # First get instrument IDs from symbols
-                symbols_to_ids = {}
-                for symbol in instrument_ids:
-                    search_url = f"http://www.tsetmc.com/tsev2/data/search.aspx?skey={symbol}"
-                    response = requests.get(search_url)
-                    if response.status_code != 200:
-                        continue
-                    
-                    data = json.loads(response.text)
-                    if data and isinstance(data, list):
-                        symbols_to_ids[symbol] = data[0]['n']  # Assuming first match is correct
-                
-                if not symbols_to_ids:
-                    return Result.fail("No instruments found on TSE")
-                
-                # Now get historical data
+                # Get instrument info from new API
                 dfs = []
-                for symbol, inst_id in symbols_to_ids.items():
-                    hist_url = f"http://www.tsetmc.com/tsev2/data/Export-txt.aspx?t=i&a=1&b=0&i={inst_id}"
-                    response = requests.get(hist_url)
+                for symbol in instrument_ids:
+                    # Search for symbol
+                    search_url = "https://search.tsetmc.com/api/Stock/GetStockSearch"
+                    params = {
+                        'text': symbol,
+                        'page': 1,
+                        'pageSize': 1
+                    }
+                    response = requests.get(search_url, params=params, headers=DEFAULT_HEADERS)
+                    if response.status_code != 200 or not response.json().get('data'):
+                        continue
+                    
+                    inst_data = response.json()['data'][0]
+                    ins_code = inst_data['insCode']
+                    
+                    # Get historical data
+                    hist_url = f"http://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/{ins_code}/0"
+                    response = requests.get(hist_url, headers=DEFAULT_HEADERS)
                     if response.status_code != 200:
                         continue
                     
-                    # Parse the CSV data
-                    df = pd.read_csv(pd.compat.StringIO(response.text), sep=',')
+                    # Parse and process data
+                    raw_data = response.json()['closingPriceDaily']
+                    df = pd.DataFrame(raw_data)
                     df['Symbol'] = symbol
+                    df['Date'] = pd.to_datetime(df['dEven'], format='%Y%m%d')
+                    df = df.set_index('Date')
                     dfs.append(df)
                 
                 if not dfs:

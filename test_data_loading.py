@@ -5,7 +5,7 @@ async def test_data_loading():
     builder = DatasetBuilder()
     try:
         config = {
-            "instrument_ids": ["AAPL", "MSFT"],  # مثال برای نمادها
+            "instrument_ids": ["فولاد", "خودرو"],  # نمادهای بورس ایران
             "start_date": "2023-01-01",  # تاریخ گسترده‌تر
             "end_date": "2023-01-10",
             "horizon": 5,
