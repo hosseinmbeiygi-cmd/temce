@@ -9,7 +9,7 @@ async def test_data_loading():
             "start_date": "2023-01-01",  # تاریخ گسترده‌تر
             "end_date": "2023-01-10",
             "horizon": 5,
-            "data_source": "yahoo"  # Specify data source
+            "data_source": "tsetmc"  # Using TSE data source
         }
         features, targets = await builder.load(config)
         print("Data loaded successfully!")
