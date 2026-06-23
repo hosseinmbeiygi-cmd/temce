@@ -9,7 +9,7 @@ async def test_data_loading():
             "start_date": "2023-01-01",  # تاریخ گسترده‌تر
             "end_date": "2023-01-10",
             "horizon": 5,
-            "data_source": "yahoo"  # مشخص کردن منبع داده
+            "data_source": "yahoo"  # Specify data source
         }
         features, targets = await builder.load(config)
         print("Data loaded successfully!")
@@ -20,3 +20,9 @@ async def test_data_loading():
 
 if __name__ == "__main__":
     asyncio.run(test_data_loading())
+        prices = await self.loader.load_market_data(
+            config["instrument_ids"],
+            start_date,
+            end_date,
+            source=config.get("data_source", "yahoo")
+        )
