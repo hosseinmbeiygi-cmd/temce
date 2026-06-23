@@ -26,11 +26,14 @@ class DatasetBuilder(BaseDatasetBuilder):
         if not start_date or not end_date:
             raise ValueError("Both start_date and end_date must be specified")
             
+        print(f"Trying to load data for {config['instrument_ids']} from {start_date} to {end_date}")
         prices = await self.loader.load_market_data(
             config["instrument_ids"],
             start_date,
             end_date,
+            source=config.get("data_source", "yahoo")
         )
+        print(f"Received data: {prices.value.head() if prices.value is not None else 'None'}")
         if not prices.success:
             raise ValueError(f"Data loading failed: {getattr(prices, 'error', 'Unknown error')}")
         if prices.value is None or prices.value.empty:
