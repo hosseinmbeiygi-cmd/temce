@@ -6,9 +6,10 @@ async def test_data_loading():
     try:
         config = {
             "instrument_ids": ["AAPL", "MSFT"],  # مثال برای نمادها
-            "start_date": "2024-01-01",
-            "end_date": "2024-01-10",
-            "horizon": 5
+            "start_date": "2023-01-01",  # تاریخ گسترده‌تر
+            "end_date": "2023-01-10",
+            "horizon": 5,
+            "data_source": "yahoo"  # مشخص کردن منبع داده
         }
         features, targets = await builder.load(config)
         print("Data loaded successfully!")
