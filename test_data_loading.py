@@ -5,7 +5,7 @@ async def test_data_loading():
     builder = DatasetBuilder()
     try:
         config = {
-            "instrument_ids": ["فولاد", "خودرو"],  # نمادهای بورس ایران
+            "instrument_ids": ["فولاد", "خودرو"],  # نمادهای بورس ایران (با حروف فارسی)
             "start_date": "2023-01-01",  # تاریخ گسترده‌تر
             "end_date": "2023-01-10",
             "horizon": 5,
@@ -19,4 +19,7 @@ async def test_data_loading():
         print(f"Error loading data: {e}")
 
 if __name__ == "__main__":
+    import sys
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     asyncio.run(test_data_loading())

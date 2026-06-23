@@ -90,10 +90,16 @@ class DataLoader:
                         'pageSize': 1
                     }
                     response = requests.get(search_url, params=params, headers=DEFAULT_HEADERS)
-                    if response.status_code != 200 or not response.json().get('data'):
+                    response.encoding = 'utf-8'  # Ensure UTF-8 encoding
+                    try:
+                        json_data = response.json()
+                        if response.status_code != 200 or not json_data.get('data'):
+                            continue
+                        
+                        inst_data = json_data['data'][0]
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to decode JSON: {e}")
                         continue
-                    
-                    inst_data = response.json()['data'][0]
                     ins_code = inst_data['insCode']
                     
                     # Get historical data
@@ -111,9 +117,11 @@ class DataLoader:
                     dfs.append(df)
                 
                 if not dfs:
+                    logger.error("No data frames were created - check symbol names and API response")
                     return Result.fail("No historical data found on TSE")
                 
                 combined_df = pd.concat(dfs)
+                logger.info(f"Successfully loaded data for {len(dfs)} symbols")
                 return Result.ok(combined_df)
                 
             except Exception as e:
