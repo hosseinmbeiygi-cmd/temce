@@ -24,8 +24,13 @@ class OrderArrivalModel:
         return max(1, int(random.expovariate(1.0 / max(avg_trade_size, 1))))
 
     def sample_price_offset(self, reference_price: float, max_deviation_pct: float = 0.01) -> float:
+        if reference_price <= 0:
+            raise ValueError("Reference price must be positive")
+        if not 0 <= max_deviation_pct <= 1:
+            raise ValueError("Deviation percentage must be between 0 and 1")
+            
         deviation = reference_price * max_deviation_pct * (random.random() * 2 - 1)
-        return reference_price + deviation
+        return max(0.01, reference_price + deviation)  # Ensure price doesn't go below 0.01
 
     @staticmethod
     def poisson_probability(k: int, lam: float) -> float:

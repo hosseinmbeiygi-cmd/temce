@@ -18,13 +18,23 @@ class DatasetBuilder(BaseDatasetBuilder):
         self.splitter = DataSplitter()
 
     async def load(self, config: dict[str, Any]) -> tuple[FeatureMatrix, TargetVector]:
+        if not config.get("instrument_ids"):
+            raise ValueError("Instrument IDs must be specified")
+            
+        start_date = config.get("start_date", "")
+        end_date = config.get("end_date", "")
+        if not start_date or not end_date:
+            raise ValueError("Both start_date and end_date must be specified")
+            
         prices = await self.loader.load_market_data(
-            config.get("instrument_ids", []),
-            config.get("start_date", ""),
-            config.get("end_date", ""),
+            config["instrument_ids"],
+            start_date,
+            end_date,
         )
-        if not prices.success or prices.value is None or prices.value.empty:
-            raise ValueError("No data loaded")
+        if not prices.success:
+            raise ValueError(f"Data loading failed: {getattr(prices, 'error', 'Unknown error')}")
+        if prices.value is None or prices.value.empty:
+            raise ValueError("No data loaded - empty DataFrame returned")
         df = prices.value
         feat = FeatureMatrix(data=df)
         target = self.labeler.future_return(
