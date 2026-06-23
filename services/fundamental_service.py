@@ -77,7 +77,8 @@ class FundamentalService:
         wacc = random.uniform(0.15, 0.25)
 
         pv_fcf = sum(fcf * ((1 + growth) ** i) / ((1 + wacc) ** i) for i in range(1, 6))
-        terminal_value = fcf * (1 + growth) ** 5 * (1 + terminal_growth) / (wacc - terminal_growth)
+        discount_rate = wacc - terminal_growth
+        terminal_value = fcf * (1 + growth) ** 5 * (1 + terminal_growth) / discount_rate if discount_rate > 0 else 0.0
         pv_terminal = terminal_value / (1 + wacc) ** 5
         enterprise_value = pv_fcf + pv_terminal
         fair_price = enterprise_value / f["shares_outstanding"] if f["shares_outstanding"] > 0 else 0

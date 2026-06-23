@@ -11,6 +11,7 @@ from jobs.job_registry import JobRegistry
 from jobs.job_result import JobResult
 from jobs.locking import JobLocking
 from jobs.retry_policy import JobRetryPolicy
+from jobs.registry import job_registry
 
 logger = get_logger(__name__)
 
@@ -60,3 +61,13 @@ class JobDispatcher:
             return JobResult.failure(str(e), job_name=job_name)
         finally:
             await self._locking.release(lock_key, context.job_id)
+
+
+    def list_jobs(self) -> list[str]:
+        """Return names of all registered jobs."""
+        return self._registry.list_names()
+
+
+# ── Singleton Instance ──────────────────────────────────
+# Used by SchedulerApp, CLI, and other services.
+job_dispatcher = JobDispatcher(registry=job_registry)

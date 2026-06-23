@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 import secrets
 
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def generate_secret(length: int = 32) -> str:
     return secrets.token_hex(length)
@@ -35,7 +39,8 @@ class SecretsManager:
     def get_required(self, key: str) -> str:
         value = self.get(key)
         if value is None:
-            raise ValueError(f"Required secret not found: {self.env_prefix}{key.upper()}")
+            logger.debug("Required secret not found: %s%s", self.env_prefix, key.upper())
+            raise ValueError("Required secret not found")
         return value
 
     def set(self, key: str, value: str) -> None:

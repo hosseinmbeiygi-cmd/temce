@@ -33,7 +33,7 @@ DEFAULT_EARLY_STOPPING_ROUNDS = 10
 MIN_TRAIN_SAMPLES = 100
 MAX_MODEL_SIZE_MB = 500
 
-FEATURE_GROUPS = [
+FEATURE_GROUPS = (
     "price",
     "volume",
     "technical",
@@ -41,4 +41,4 @@ FEATURE_GROUPS = [
     "macro",
     "sentiment",
     "derived",
-]
+)

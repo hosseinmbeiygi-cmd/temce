@@ -10,8 +10,8 @@ class JobRunModel(TimestampMixin, Base):
     __tablename__ = "job_runs"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    job_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    status: Mapped[str | None] = mapped_column(String(20), server_default="pending")
+    job_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    status: Mapped[str | None] = mapped_column(String(20), server_default="pending", index=True)
     progress_pct: Mapped[float | None] = mapped_column(Float, server_default="0")
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)

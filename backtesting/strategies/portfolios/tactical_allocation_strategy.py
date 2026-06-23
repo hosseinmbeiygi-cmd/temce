@@ -44,9 +44,10 @@ class TacticalAllocationStrategy(BaseStrategy):
         scores: dict[str, float] = {}
         for inst_id in self.instrument_ids:
             prices = self._price_history[inst_id][-self.lookback :]
-            returns = np.diff(prices) / prices[:-1]
+            prices_arr = np.array(prices)
+            returns = np.diff(prices_arr) / np.where(prices_arr[:-1] != 0, prices_arr[:-1], 1.0)
             momentum = (prices[-1] - prices[0]) / prices[0] if prices[0] > 0 else 0
-            vol = np.std(returns) if len(returns) > 1 else 0.01
+            vol = float(np.std(returns)) if len(returns) > 1 else 0.01
             score = (momentum * self.momentum_weight) - (vol * self.vol_weight)
             scores[inst_id] = score
         total_score = sum(scores.values()) or 1.0

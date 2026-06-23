@@ -5,17 +5,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.paths import safe_ensure_dir
+from core.time import now_tehran
+
 
 class RawStorage:
     """Save raw collected data (JSON, HTML, files) to disk."""
 
     def __init__(self, base_dir: str = "data/raw") -> None:
-        self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.base_dir = safe_ensure_dir(Path.cwd(), base_dir)
 
     @property
     def timestamp(self) -> str:
-        return datetime.now().strftime("%Y%m%d_%H%M%S")
+        return now_tehran().strftime("%Y%m%d_%H%M%S")
 
     def save_json(self, source: str, name: str, data: Any) -> Path:
         folder = self.base_dir / "json" / source

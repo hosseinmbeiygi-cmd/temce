@@ -3,14 +3,25 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends, Header, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
-from core.database import get_session
+from core.logging import get_logger
 from core.security.tokens import decode_access_token
+
+logger = get_logger(__name__)
+
+# 🔥 اتصال مستقیم و تضمینی به SQLite
+_SQLITE_ENGINE = create_async_engine("sqlite+aiosqlite:///data/market.db")
+_SQLITE_SESSION_FACTORY = sessionmaker(
+    _SQLITE_ENGINE,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async for session in get_session():
+    async with _SQLITE_SESSION_FACTORY() as session:
         yield session
 
 
@@ -20,9 +31,22 @@ def get_symbol_service(session: AsyncSession = Depends(get_db_session)):
     return SymbolService(session=session)
 
 
-def get_quote_service(session: AsyncSession = Depends(get_db_session)):
-    from services.quote_service import QuoteService
+def get_instrument_import_service(session: AsyncSession = Depends(get_db_session)):
+    from services.instrument_import_service import InstrumentImportService
+    from repositories.instrument_repository import InstrumentRepository
 
+    return InstrumentImportService(repo=InstrumentRepository(session=session))
+
+
+def get_quote_service():
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from services.quote_service import QuoteService
+    
+    # دقیقاً همان کاری که test_service_direct.py انجام می‌دهد
+    engine = create_async_engine("sqlite+aiosqlite:///data/market.db")
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    session = async_session()
     return QuoteService(session=session)
 
 
@@ -121,7 +145,8 @@ async def get_optional_user(authorization: str = Header("")) -> dict | None:
     token = authorization.split(" ")[1]
     try:
         return decode_access_token(token)
-    except Exception:
+    except Exception as e:
+        logger.debug("Optional user token invalid: %s", e)
         return None
 
 
@@ -131,8 +156,8 @@ async def require_role(role: str, current_user: dict = Depends(get_current_user)
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     return current_user
 
+
 def get_portfolio_service(session: AsyncSession = Depends(get_db_session)):
     from services.portfolio_service import PortfolioService
 
     return PortfolioService(session=session)
-

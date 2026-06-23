@@ -34,7 +34,7 @@ class FileDownloader(BaseCollector):
             content=response.content,
         )
 
-        self.logger.info("Downloaded %s → %s", file_url, saved_path)
+        self.logger.info("Downloaded %s -> %s", file_url, saved_path)
 
         return str(saved_path)
 

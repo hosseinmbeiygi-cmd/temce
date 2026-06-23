@@ -25,3 +25,4 @@ async def test_news_search():
     service = NewsService()
     result = await service.search(symbols=["فولاد"])
     assert result.success or not result.success
+

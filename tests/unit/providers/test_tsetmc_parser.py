@@ -48,3 +48,4 @@ def test_tsetmc_normalize_symbol():
 
     parser = TsetmcParser()
     assert parser.normalize_symbol("فولاد") == "فولاد"
+

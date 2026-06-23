@@ -35,7 +35,8 @@ class Container:
             instance = self._factories[key]()
             self._singletons[key] = instance
             return instance
-        raise KeyError(f"No dependency registered: {key}")
+        logger.debug("Dependency not found: %s", key)
+        raise KeyError("No dependency registered")
 
     def get(self, key: str, default: Any = None) -> Any:
         try:

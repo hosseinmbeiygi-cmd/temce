@@ -15,8 +15,7 @@ async def test_ml_inference_latency():
     for _ in range(50):
         start = time.monotonic()
         await service.predict(
-            symbol="فولاد",
-            model_name="test_model",
+            model_id="test_model",
             features={"close": 15000, "volume": 5000000, "rsi": 65},
         )
         elapsed = (time.monotonic() - start) * 1000
@@ -34,11 +33,11 @@ async def test_batch_inference():
     results = []
     for i in range(batch_size):
         result = await service.predict(
-            symbol="فولاد",
-            model_name="test_model",
+            model_id="test_model",
             features={"close": 15000 + i, "volume": 5000000, "rsi": 65},
         )
         results.append(result)
     elapsed = time.monotonic() - start
     throughput = batch_size / elapsed
     assert throughput > 10, f"Inference throughput {throughput:.2f} req/s below 10 req/s threshold"
+

@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 class LocalStorage:
     def __init__(self, base_path: str | Path):
-        self._base = Path(base_path)
+        self._base = Path(base_path).resolve()
         self._base.mkdir(parents=True, exist_ok=True)
 
     async def write(self, relative_path: str, data: bytes) -> Result[str]:
@@ -47,7 +47,8 @@ class LocalStorage:
         return self._resolve(relative_path).exists()
 
     async def list(self, subdir: str = "", pattern: str = "*") -> list[str]:
-        target = self._base / subdir if subdir else self._base
+        from core.paths import safe_resolve
+        target = safe_resolve(self._base, subdir) if subdir else self._base
         if not target.is_dir():
             return []
         return [str(p.relative_to(self._base)) for p in target.glob(pattern) if p.is_file()]
@@ -77,10 +78,12 @@ class LocalStorage:
         return full.stat().st_size if full.exists() else 0
 
     def _resolve(self, relative_path: str) -> Path:
-        return (self._base / relative_path).resolve()
+        from core.paths import safe_resolve
+        return safe_resolve(self._base, relative_path)
 
     def iter_files(self, subdir: str = "", pattern: str = "**/*") -> AsyncIterator[str]:
-        target = self._base / subdir if subdir else self._base
+        from core.paths import safe_resolve
+        target = safe_resolve(self._base, subdir) if subdir else self._base
         for p in target.glob(pattern):
             if p.is_file():
                 yield str(p.relative_to(self._base))

@@ -24,11 +24,11 @@ class PortfolioAccounting:
             self.cash_manager.deposit(revenue, f"sell {fill.instrument_id}")
 
     def mark_to_market(self, prices: dict[str, float]) -> None:
-        nav = self.get_nav()
+        nav = self.get_nav(prices)
         self._nav_history.append(nav)
 
-    def get_nav(self) -> float:
-        positions_value = self.position_manager.get_total_value({})
+    def get_nav(self, prices: dict[str, float] | None = None) -> float:
+        positions_value = self.position_manager.get_total_value(prices or {})
         return self.cash_manager.cash + positions_value
 
     def get_nav_history(self) -> list[float]:

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.result import PaginatedResult, Result
 from models.portfolio import PortfolioModel, PortfolioPositionModel
-from repositories.base_repository import DbRepository
+from repositories.db_base import DbRepository
 from domain.portfolios.portfolio import Portfolio
 
 class PortfolioRepository(DbRepository[Portfolio, PortfolioModel]):

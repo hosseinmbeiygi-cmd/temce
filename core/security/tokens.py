@@ -23,8 +23,9 @@ def decode_access_token(token: str) -> dict[str, Any]:
         return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
         raise AuthenticationError("Token has expired")
-    except jwt.InvalidTokenError as e:
-        raise AuthenticationError(f"Invalid token: {e}")
+    except jwt.InvalidTokenError:
+        logger.debug("Invalid token", exc_info=True)
+        raise AuthenticationError("Invalid token")
 
 
 def create_refresh_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:

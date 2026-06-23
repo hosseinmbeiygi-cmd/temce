@@ -25,7 +25,7 @@ class MomentumStrategy(BaseStrategy):
         if len(self._prices) <= self.lookback:
             return []
         start_price = self._prices[-self.lookback - 1]
-        momentum = ((price - start_price) / start_price) * 100
+        momentum = ((price - start_price) / start_price * 100) if start_price else 0.0
         orders: list[OrderEvent] = []
         if momentum > self.threshold_pct and self._position <= 0:
             orders.append(

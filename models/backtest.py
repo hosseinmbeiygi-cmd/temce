@@ -11,9 +11,9 @@ class BacktestRunModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    strategy_type: Mapped[str | None] = mapped_column(String(100))
+    strategy_type: Mapped[str | None] = mapped_column(String(100), index=True)
     symbols: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str | None] = mapped_column(String(20), server_default="queued")
+    status: Mapped[str | None] = mapped_column(String(20), server_default="queued", index=True)
     start_date: Mapped[str | None] = mapped_column(String(20))
     end_date: Mapped[str | None] = mapped_column(String(20))
     initial_capital: Mapped[float | None] = mapped_column(Float)
@@ -26,14 +26,14 @@ class BacktestRunModel(TimestampMixin, Base):
     progress_pct: Mapped[float | None] = mapped_column(Float, server_default="0")
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime)
-    created_by: Mapped[str | None] = mapped_column(String(100), server_default="system")
+    created_by: Mapped[str | None] = mapped_column(String(100), server_default="system", index=True)
 
 
 class BacktestTradeModel(TimestampMixin, Base):
     __tablename__ = "backtest_trades"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    run_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     symbol: Mapped[str | None] = mapped_column(String(50))
     direction: Mapped[str | None] = mapped_column(String(10))
     entry_date: Mapped[str | None] = mapped_column(String(20))

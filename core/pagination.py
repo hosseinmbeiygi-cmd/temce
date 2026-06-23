@@ -22,6 +22,7 @@ class PageParams:
 
 class Page(Generic[T]):
     def __init__(self, items: list[T], total: int, page: int, page_size: int) -> None:
+        super().__init__()
         self.items = items
         self.total = total
         self.page = page

@@ -6,6 +6,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
+[![CI](https://github.com/your-username/iran-market-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/iran-market-platform/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
@@ -19,6 +21,8 @@
 - [ساختار پروژه](#ساختار-پروژه)
 - [راه‌اندازی سریع](#راه‌اندازی-سریع)
 - [استفاده با Docker](#استفاده-با-docker)
+- [فرانت‌اند Next.js](#فرانت‌اند-nextjs)
+- [CI/CD Pipeline](#cicd-pipeline)
 - [سیستم بک‌تست](#سیستم-بک‌تست)
 - [Agent-Based Modeling (ABM)](#agent-based-modeling-abm)
 - [ریزساختار بازار](#ریزساختار-بازار)
@@ -203,6 +207,37 @@
 
 ---
 
+### معماری Docker
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│  Browser     │────→│  Frontend    │────→│  API (FastAPI)   │
+│  3000        │     │  Next.js 16  │     │  port 8000       │
+│              │     │  (Proxy)     │     └────────┬─────────┘
+└─────────────┘     └──────────────┘              │
+                                           ┌──────┴──────┐
+                                           │  PostgreSQL  │
+                                           │  TimescaleDB │
+                                           │  Redis       │
+                                           │  MinIO       │
+                                           └─────────────┘
+                                                  │
+                                           ┌──────┴──────┐
+                                           │  Worker     │
+                                           │  Scheduler  │
+                                           │  Ingestion  │
+                                           └─────────────┘
+```
+
+در این معماری:
+- **مرورگر** ← `http://localhost:3000` ← **Frontend (Next.js)**
+- **درخواست‌های API** از طریق Next.js Rewrite Proxy به Backend هدایت می‌شوند
+- **Frontend** داخل Docker network می‌تواند `api:8000` را resolve کند
+- **Backend** از PostgreSQL, TimescaleDB, Redis, MinIO استفاده می‌کند
+- **Worker** و **Scheduler** وظایف پس‌زمینه را مدیریت می‌کنند
+
+---
+
 ## ساختار پروژه
 
 ```
@@ -311,13 +346,18 @@ docker compose logs -f
 
 | سرویس | پورت | توضیح |
 |-------|------|-------|
+| **API (FastAPI)** | `8000` | سرویس اصلی REST API |
+| **Admin Panel** | `8001` | پنل مدیریت |
+| **Frontend (Next.js)** | `3000` | واسط کاربری تحت وب |
 | **PostgreSQL** | `5432` | دیتابیس اصلی |
 | **TimescaleDB** | `5433` | داده‌های زمانی |
 | **MinIO** | `9000` (API) / `9001` (Console) | ذخیره‌سازی آبجکت |
-| **Redis** | `6379` | کش |
+| **Redis** | `6379` | کش و صف پیام |
+| **Worker** | — | پردازش پس‌زمینه |
+| **Scheduler** | — | زمان‌بندی وظایف |
 | **Ingestion** | — | جمع‌آوری خودکار داده |
 | **Prometheus** | `9090` | متریک |
-| **Grafana** | `3000` | داشبورد مانیتورینگ |
+| **Grafana** | `3001` | داشبورد مانیتورینگ |
 
 ### دستورات کاربردی Docker
 
@@ -327,6 +367,147 @@ make docker-build   # ساخت imageها
 make docker-down    # توقف و حذف volumeها
 make docker-logs    # مشاهده لاگ‌ها
 ```
+
+---
+
+## فرانت‌اند Next.js
+
+### نمای کلی
+
+فرانت‌اند با **Next.js 16**, **React 19**, **Tailwind CSS v4** و **Recharts** ساخته شده است.
+همه درخواست‌های API از طریق Next.js Rewrite Proxy عبور می‌کنند (هرگز مستقیم به Backend).
+
+### ویژگی‌ها
+
+- **۲۵ صفحه** شامل داشبورد، تحلیل، بک‌تست، پرتفوی، اخبار، کدال، تنظیمات
+- **نمودارهای Recharts**: Area, Bar, Pie (Donut), Candle (سفارشی)
+- **نمودار کندلاستیک** با Custom Shape و نوار حجم
+- **تحلیل تکنیکال** با RSI, MACD, MA, Bollinger Bands
+- **حالت تاریک** (Dark Mode)
+- **واکنش‌گرا** (Responsive)
+- **RTL کامل** برای زبان فارسی
+- **داده‌های Mock** برای نمایش آفلاین
+
+### کامپوننت‌های نمودار
+
+| کامپوننت | توضیح |
+|----------|---------|
+| `AreaChartCard` | نمودار مساحت با گرادیان رنگی و Tooltip فارسی |
+| `BarChartCard` | نمودار میله‌ای با رنگ‌بندی مثبت/منفی |
+| `PieChartCard` | نمودار دوناتی با Legend سفارشی |
+| `CandleChartCard` | کندلاستیک با Custom Shape, نوار حجم, اندیکاتورها |
+
+### صفحات داشبورد
+
+| مسیر | صفحه | توضیح |
+|------|-------|---------|
+| `/` | **داشبورد** | شاخص کل، حجم معاملات، ترکیب صنایع، احساسات |
+| `/markets` | **بازارها** | وضعیت لحظه‌ای بازار |
+| `/analysis` | **تحلیل** | تحلیل تکنیکال، بنیادی، احساسات، امواج الیوت |
+| `/news` | **اخبار** | اخبار و اطلاعیه‌ها |
+| `/portfolio` | **پرتفوی** | مدیریت سبد سهام |
+| `/backtest` | **بک‌تست** | اجرای استراتژی‌های معاملاتی |
+| `/alerts` | **هشدارها** | هشدارهای قیمتی |
+| `/signals` | **سیگنال‌ها** | سیگنال‌های معاملاتی |
+| `/settings` | **تنظیمات** | پیکربندی حساب |
+
+### راه‌اندازی فرانت‌اند
+
+```bash
+# نصب وابستگی‌ها
+cd frontend
+npm install --no-audit --no-fund
+
+# توسعه با hot-reload
+npm run dev
+# یا:
+npx next dev --webpack -p 3000
+
+# بیلد تولید
+npm run build
+
+# اجرای بیلد شده
+npm start
+```
+
+### معماری Proxy
+
+```
+مرورگر: fetch("/api/v1/health")
+    │
+    ▼
+Next.js Server: Rewrite Proxy
+    │  source: /api/v1/:path*
+    │  destination: http://api:8000/api/v1/:path*
+    │  (API_URL = http://api:8000, فقط سمت سرور)
+    ▼
+Backend API (FastAPI) on port 8000
+```
+
+---
+
+## CI/CD Pipeline
+
+### GitHub Actions
+
+| Workflow | ماشه (Trigger) | کارها |
+|----------|---------------|--------|
+| **CI** | Push/PR به `main`, `develop` | Lint, Test, Build & Push Docker Images |
+| **Release** | Push تگ `v*.*.*` | Build & Push با Semver Tags, GitHub Release, Deploy |
+
+### CI (ci.yml)
+
+اجرای خودکار روی هر push یا pull request:
+
+```yaml
+# ── 1. Lint & Typecheck ────────
+- ruff (Python linter)
+- mypy (Python type checker)
+- hadolint (Dockerfile lint)
+
+# ── 2. Backend Tests ───────────
+- pytest با PostgreSQL و Redis service containers
+- Code coverage → Codecov
+
+# ── 3. Docker Build & Push ─────
+- 4 imageها: api, frontend, worker, admin
+- Cache: GitHub Actions Cache (type=gha)
+- Security: Trivy vulnerability scan
+- Registry: ghcr.io (GitHub Container Registry)
+```
+
+آدرس تصاویر Docker (هر commit به `main`):
+
+```
+ghcr.io/OWNER/REPO/api:{sha,latest}
+ghcr.io/OWNER/REPO/frontend:{sha,latest}
+ghcr.io/OWNER/REPO/worker:{sha,latest}
+ghcr.io/OWNER/REPO/admin:{sha,latest}
+```
+
+### Release (release.yml)
+
+اجرا با Push تگ Semantic Version:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+- **Validate**: بررسی Semver Tag
+- **Build**: ۵ image با تگ‌های `{version}`, `{major.minor}`, `{major}`
+- **Release**: GitHub Release با Auto-Changelog
+- **Deploy**: (دستی) استقرار روی Production از طریق SSH
+
+### GitHub Secrets مورد نیاز
+
+| Secret | توضیح |
+|--------|---------|
+| `GITHUB_TOKEN` | خودکار (Push به ghcr.io) |
+| `DEPLOY_SSH_KEY` | کلید SSH برای Production |
+| `DEPLOY_HOST_KEY` | Host Key سرور |
+| `DEPLOY_USER` | نام کاربری SSH |
+| `DEPLOY_HOST` | IP/دامنه سرور |
 
 ---
 
@@ -788,21 +969,29 @@ A comprehensive, modular, and scalable platform for collecting, processing, stor
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Backend dependencies
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
+
+# Frontend dependencies
+cd frontend && npm install
 
 # Run database migrations
 alembic upgrade head
 
-# Start development server
-make dev
+# Start development servers
+make dev           # Backend API on :8000
+# In another terminal:
+cd frontend && npm run dev  # Frontend on :3000
 ```
 
 ## Docker
 
 ```bash
 docker compose up --build -d
+# Frontend: http://localhost:3000
+# API Docs:  http://localhost:8000/docs
+# Grafana:   http://localhost:3001
 ```
 
 ## Key Features
@@ -814,6 +1003,8 @@ docker compose up --build -d
 - **Experiments** — Grid Search, Walk-Forward, Monte Carlo
 - **Iran Market Support** — TSE, IFB, Base Market, ETF, Bonds, Derivatives, IME, Energy
 - **ML Pipeline** — Feature Store, Model Registry, Hyperparameter Tuning, Batch Inference
+- **Modern Frontend** — Next.js 16, React 19, Recharts, Tailwind CSS v4, Dark Mode, RTL
+- **CI/CD** — GitHub Actions, automated Docker builds, vulnerability scanning
 - **Monitoring** — Prometheus metrics, Grafana dashboards, SLA alerting
 - **Data Ingestion** — TSETMC, CODAL, manual, web scraping
 
@@ -832,13 +1023,32 @@ docker compose up --build -d
 
 ## Tech Stack
 
-**Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2, Redis, Pandas, NumPy  
+**Backend:** Python 3.11+, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2, APScheduler, Redis, Pandas, NumPy, httpx/aiohttp  
+**Frontend:** Next.js 16, React 19, TypeScript 5, Recharts 3, Tailwind CSS v4, TanStack React Query  
+**Database:** PostgreSQL 16, TimescaleDB (time-series), MinIO (S3-compatible), Redis 7  
 **ML (optional):** scikit-learn, XGBoost, LightGBM, CatBoost, PyTorch, SHAP  
-**Database:** PostgreSQL 16, TimescaleDB, MinIO (S3-compatible), Redis 7  
-**Frontend:** Next.js 16, React 19, Tailwind CSS v4  
-**Monitoring:** Prometheus, Grafana, OpenTelemetry
+**Monitoring:** Prometheus, Grafana, OpenTelemetry, Trivy (container scanning)  
+**CI/CD:** GitHub Actions, Docker Buildx, GitHub Container Registry (ghcr.io)
 
 ## Architecture Overview
+
+```
+Browser (port 3000)
+  │
+  ▼ (fetch /api/v1/*)
+Next.js Server (Rewrite Proxy)
+  │  resolves api:8000 inside Docker network
+  ▼
+FastAPI Backend (port 8000)
+  ├── PostgreSQL 16 (main DB)
+  ├── TimescaleDB (time-series data)
+  ├── Redis 7 (cache & queuing)
+  ├── MinIO (object storage)
+  ├── Worker (background processing)
+  └── Scheduler (cron jobs)
+```
+
+**Backtesting Engine (standalone):**
 
 ```
 Data Lake → Event Builder → Unified Timeline → Replay Engine
@@ -854,6 +1064,7 @@ Data Lake → Event Builder → Unified Timeline → Replay Engine
 
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
+- **Via Frontend Proxy**: `http://localhost:3000/api/v1/docs`
 
 ## Development
 
@@ -862,6 +1073,8 @@ make lint          # Run ruff linter
 make typecheck     # Run mypy type checker
 make test          # Run unit tests
 make test-all      # Run all tests
+make dev           # Start API dev server
+cd frontend && npm run dev  # Start frontend dev server
 make clean         # Clean cache files
 ```
 

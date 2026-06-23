@@ -4,6 +4,8 @@ import hashlib
 import hmac
 import secrets
 
+from core.paths import validate_safe_path
+
 
 def hash_password(password: str, rounds: int = 100_000) -> str:
     salt = secrets.token_hex(16)
@@ -27,8 +29,9 @@ def hash_data(data: str) -> str:
 
 
 def hash_file(path: str, algorithm: str = "sha256") -> str:
+    safe_path = validate_safe_path(path)
     h = hashlib.new(algorithm)
-    with open(path, "rb") as f:
+    with open(safe_path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)
     return h.hexdigest()

@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-
 from apps.api.dependencies import get_market_service
+from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.market_service import MarketService
 
@@ -42,3 +42,52 @@ async def most_active(
 ) -> ApiResponse[Any]:
     result = await service.get_most_active(limit)
     return ApiResponse[Any](success=result.success, data=result.value)
+
+
+@router.get("/watch", summary="Market watch", description="Get market watch list")
+async def market_watch(service: MarketService = Depends(get_market_service)) -> ApiResponse[PaginatedResult[Any]]:
+    result = await service.get_market_watch()
+    if not result.success:
+        return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
+    
+    items = result.value
+    return ApiResponse[PaginatedResult[Any]](
+        success=True,
+        data=PaginatedResult(
+            items=items,
+            total=len(items),
+            page=1,
+            page_size=len(items),
+            total_pages=1,
+        )
+    )
+
+
+@router.get("/bourse", summary="Bourse instruments", description="List instruments in the Bourse market")
+async def get_bourse(service: MarketService = Depends(get_market_service)) -> ApiResponse[PaginatedResult[Any]]:
+    result = await service.get_instruments_by_market("BOURS")
+    if not result.success:
+        return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
+    
+    items = result.value
+    return ApiResponse[PaginatedResult[Any]](
+        success=True,
+        data=PaginatedResult(
+            items=[vars(i) for i in items],
+            total=len(items),
+            page=1,
+            page_size=len(items),
+            total_pages=1,
+        )
+    )
+
+
+@router.get("/energy-commodity", summary="Energy & Commodity", description="List energy and commodity instruments")
+async def get_energy_commodity(service: MarketService = Depends(get_market_service)) -> dict[str, Any]:
+    result = await service.get_energy_commodity_summary()
+    return {
+        "success": result.success,
+        "summary": result.value.get("summary", {}),
+        "sub_markets": result.value.get("sub_markets", [])
+    }
+

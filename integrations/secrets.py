@@ -14,5 +14,6 @@ class SecretsManager:
     def get_required(self, key: str) -> str:
         value = os.environ.get(key)
         if value is None:
-            raise ValueError(f"Required secret not found: {key}")
+            logger.debug("Required secret not found: %s", key)
+            raise ValueError("Required secret not found")
         return value

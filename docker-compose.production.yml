@@ -25,6 +25,7 @@ secrets:
 services:
   api:
     <<: *app-prod
+    image: ghcr.io/${REPOSITORY:-iran-market-platform}/api:${VERSION:-latest}
     ports:
       - "127.0.0.1:8000:8000"
     deploy:
@@ -54,6 +55,7 @@ services:
 
   admin:
     <<: *app-prod
+    image: ghcr.io/${REPOSITORY:-iran-market-platform}/admin:${VERSION:-latest}
     ports:
       - "127.0.0.1:8001:8001"
     deploy:
@@ -64,6 +66,7 @@ services:
 
   worker:
     <<: *app-prod
+    image: ghcr.io/${REPOSITORY:-iran-market-platform}/worker:${VERSION:-latest}
     deploy:
       replicas: 2
       resources:
@@ -76,6 +79,10 @@ services:
 
   scheduler:
     <<: *app-prod
+    image: ghcr.io/${REPOSITORY:-iran-market-platform}/scheduler:${VERSION:-latest}
+    # Note: depends_on intentionally omitted — this file is used with
+    # 'docker stack deploy' (Swarm) which ignores depends_on.
+    # Startup ordering handled by application-level retry logic.
     deploy:
       resources:
         limits:

@@ -11,10 +11,15 @@ class SourceType(StrEnum):
     TSETMC_MARKETWATCH = "tsetmc_marketwatch"
     TSETMC_TRADES = "tsetmc_trades"
     TSETMC_ORDERBOOK = "tsetmc_orderbook"
+    TSETMC_OPTIONS = "tsetmc_options"
+    TSETMC_FUTURES = "tsetmc_futures"
     IFB = "ifb"
-    IME = "ime"
-    DERIVATIVES = "derivatives"
+    IME_ENERGY = "ime_energy"
     CODAL = "codal"
+    FINPY_TSE = "finpy_tse"
+    TSETMC_LIB = "tsetmc_lib"
+    TEHRAN_STOCKS = "tehran_stocks"
+    TSE_UTILS = "tse_utils"
 
 
 class StorageType(StrEnum):
@@ -48,7 +53,7 @@ class IngestionConfig(BaseSettings):
     lake_region: str = Field(default="us-east-1")
 
     db_dsn: PostgresDsn = Field(
-        default=PostgresDsn("postgresql+asyncpg://postgres:postgres@localhost:5432/marketdb"),
+        default="postgresql+asyncpg://postgres:postgres@localhost:5433/marketdb",
     )
     db_pool_size: int = Field(default=10, ge=1)
     db_max_overflow: int = Field(default=20, ge=0)

@@ -23,9 +23,9 @@ class MlModelVersionModel(TimestampMixin, Base):
     __tablename__ = "ml_model_versions"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    model_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     version: Mapped[str] = mapped_column(String(20), nullable=False)
-    stage: Mapped[str | None] = mapped_column(String(20), server_default="development")
+    stage: Mapped[str | None] = mapped_column(String(20), server_default="development", index=True)
     metrics: Mapped[str | None] = mapped_column(Text)
     parameters: Mapped[str | None] = mapped_column(Text)
     artifact_path: Mapped[str | None] = mapped_column(Text)
@@ -37,9 +37,9 @@ class MlTrainingRunModel(TimestampMixin, Base):
     __tablename__ = "ml_training_runs"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    experiment_name: Mapped[str | None] = mapped_column(String(200))
+    experiment_name: Mapped[str | None] = mapped_column(String(200), index=True)
     run_name: Mapped[str | None] = mapped_column(String(200))
-    status: Mapped[str | None] = mapped_column(String(20), server_default="pending")
+    status: Mapped[str | None] = mapped_column(String(20), server_default="pending", index=True)
     model_type: Mapped[str | None] = mapped_column(String(50))
     config: Mapped[str | None] = mapped_column(Text)
     metrics: Mapped[str | None] = mapped_column(Text)

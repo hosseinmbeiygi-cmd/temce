@@ -11,8 +11,8 @@ class MarketModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    market_type: Mapped[str | None] = mapped_column(String(20))
-    exchange_code: Mapped[str | None] = mapped_column(String(20))
+    market_type: Mapped[str | None] = mapped_column(String(20), index=True)
+    exchange_code: Mapped[str | None] = mapped_column(String(20), index=True)
     country: Mapped[str | None] = mapped_column(String(50), server_default="IR")
     timezone: Mapped[str | None] = mapped_column(String(50), server_default="Asia/Tehran")
     open_time: Mapped[str | None] = mapped_column(String(10), server_default="09:00")

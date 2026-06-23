@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
 
@@ -32,19 +34,14 @@ const FALLBACK_INSTRUMENTS: Instrument[] = [
 ];
 
 export default function InstrumentsPage() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [industryFilter, setIndustryFilter] = useState("all");
 
   const { data: instruments, isLoading } = useQuery({
     queryKey: ["instruments"],
     queryFn: async () => {
       try {
-        const res = await fetch("/api/v1/symbols?page=1&page_size=100");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data) return data.data;
-        }
+        return await apiGet<any>("/symbols?page=1&page_size=100");
       } catch {}
       return FALLBACK_INSTRUMENTS;
     },
@@ -53,7 +50,7 @@ export default function InstrumentsPage() {
   const industries = [...new Set((instruments || []).map((i: any) => i.industry))];
 
   const filtered = (instruments || []).filter((i: any) => {
-    if (industryFilter !== "all" && i.industry !== industryFilter) return false;
+    if (filter !== "all" && i.industry !== filter) return false;
     if (search) {
       const q = search.trim();
       return i.symbol.includes(q) || i.name.includes(q);
@@ -62,25 +59,27 @@ export default function InstrumentsPage() {
   });
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
-        <div className="flex flex-wrap items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-surface-100">نمادها</h1>
-            <p className="text-sm text-surface-500 mt-1">لیست نمادهای قابل معامله</p>
-          </div>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="جستجوی نماد یا نام..."
-            className="px-3 py-2 bg-surface-800 border border-surface-700 rounded text-surface-200 text-sm focus:outline-none focus:border-primary-500 w-56" />
-        </div>
+    <AppLayout title="نمادها" subtitle="لیست نمادهای قابل معامله">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="جستجوی نماد یا نام..."
+          className="px-3 py-2 bg-surface-800 border border-surface-700 rounded text-surface-200 text-sm focus:outline-none focus:border-primary-500 w-56" />
+        <Link
+          href="/instruments/import"
+          data-testid="instruments-import-link"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white text-sm rounded-lg transition-colors"
+        >
+          <span aria-hidden>📤</span>
+          ورود فایل نمادها
+        </Link>
+      </div>
 
         <div className="flex gap-2 mb-4 flex-wrap">
-          <button onClick={() => setIndustryFilter("all")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${industryFilter === "all" ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>همه</button>
+          <button onClick={() => setFilter("all")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === "all" ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>همه</button>
           {industries.map((ind) => (
-            <button key={ind} onClick={() => setIndustryFilter(ind)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${industryFilter === ind ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>{ind}</button>
+             <button key={ind as string} onClick={() => setFilter(ind as string)}
+               className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === ind ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>{ind as string}</button>
           ))}
         </div>
 
@@ -119,7 +118,6 @@ export default function InstrumentsPage() {
           </table>
         </div>
         {isLoading && <div className="text-center text-surface-500 text-sm mt-4">در حال بارگذاری...</div>}
-      </main>
-    </div>
+    </AppLayout>
   );
 }

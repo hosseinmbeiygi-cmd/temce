@@ -8,19 +8,22 @@ interface ChartProps {
   symbol?: string;
 }
 
+import { createRng, FIXED_NOW } from "@/lib/rng";
+
 function generateMockOhlcv(count: number): { time: string; open: number; high: number; low: number; close: number }[] {
+  const rng = createRng(99);
   const data: { time: string; open: number; high: number; low: number; close: number }[] = [];
   let price = 35000;
-  const now = new Date();
+  const now = new Date(FIXED_NOW);
   for (let i = count; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     if (d.getDay() === 5 || d.getDay() === 6) continue;
-    const change = price * (Math.random() - 0.48) * 0.02;
+    const change = price * (rng() - 0.48) * 0.02;
     const open = price;
     const close = price + change;
-    const high = Math.max(open, close) * (1 + Math.random() * 0.01);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.01);
+    const high = Math.max(open, close) * (1 + rng() * 0.01);
+    const low = Math.min(open, close) * (1 - rng() * 0.01);
     data.push({ time: d.toISOString().split("T")[0], open, high, low, close });
     price = close;
   }

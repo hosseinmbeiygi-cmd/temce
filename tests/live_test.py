@@ -41,3 +41,4 @@ async def test():
             print("prediction:", j3["data"].get("prediction"), "confidence:", j3["data"].get("confidence"))
 
 asyncio.run(test())
+

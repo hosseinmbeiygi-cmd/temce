@@ -21,10 +21,13 @@ class PositionSizing:
         return max(0, min(qty_from_risk, qty_from_max))
 
     def compute_kelly_fraction(self, win_rate: float, avg_win: float, avg_loss: float) -> float:
-        if avg_loss == 0:
+        if avg_loss <= 0 or avg_win <= 0:
             return 0.0
-        b = avg_win / abs(avg_loss)
         p = win_rate
         q = 1 - p
-        kelly = (b * p - q) / b if b > 0 else 0.0
+        numerator = p * avg_win - q * avg_loss
+        denominator = avg_win * avg_loss
+        if denominator <= 0:
+            return 0.0
+        kelly = numerator / denominator
         return max(0.0, min(kelly, self.max_position_pct / 100))

@@ -7,6 +7,7 @@ from backtesting.reporting.equity_curve import EquityCurveReport
 from backtesting.reporting.summary_report import SummaryReport
 from backtesting.reporting.trade_log_report import TradeLogReport
 from backtesting.types import BacktestResult
+from core.paths import validate_safe_path
 
 
 class JSONReport:
@@ -25,6 +26,6 @@ class JSONReport:
 
     @staticmethod
     def save(result: BacktestResult, filepath: str) -> None:
+        safe = validate_safe_path(filepath)
         data = JSONReport.generate(result)
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(data)
+        safe.write_text(data, encoding="utf-8")

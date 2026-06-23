@@ -32,7 +32,7 @@ class MinimumVarianceStrategy(BaseStrategy):
 
     def _optimize_weights(self) -> None:
         prices = np.array([self._price_history[inst][-self.lookback :] for inst in self.instrument_ids])
-        returns = np.diff(prices) / prices[:, :-1]
+        returns = np.diff(prices) / np.where(prices[:, :-1] != 0, prices[:, :-1], 1.0)
         cov = np.cov(returns)
         n = len(self.instrument_ids)
         from scipy.optimize import minimize

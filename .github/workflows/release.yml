@@ -1,0 +1,188 @@
+# ── Release Pipeline ──────────────────────────────────────────
+# Triggered by pushing a semver tag: v1.2.3, v1.2.3-rc.1
+# - Builds & pushes all Docker images with semver tags
+# - Creates a GitHub Release with changelog
+# - Deploys to production (optional, manual gate)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── Validate Tag ──────────────────────────────────────────
+  validate:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semver.outputs.version }}
+      prerelease: ${{ steps.semver.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse semver tag
+        id: semver
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          if [[ "$TAG" == *-* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+          echo "Tag: $TAG"
+
+      - name: Check CHANGELOG exists
+        run: |
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::warning::No CHANGELOG.md found. Consider adding one."
+          fi
+
+  # ── Build & Push All Images ───────────────────────────────
+  build:
+    name: Build & Push ${{ matrix.service.name }}
+    runs-on: ubuntu-latest
+    needs: [validate]
+    strategy:
+      matrix:
+        service:
+          - name: api
+            dockerfile: Dockerfile.api
+            context: .
+          - name: frontend
+            dockerfile: Dockerfile.frontend
+            context: .
+          - name: worker
+            dockerfile: Dockerfile.worker
+            context: .
+          - name: admin
+            dockerfile: Dockerfile.admin
+            context: .
+          - name: ingestion
+            dockerfile: Dockerfile
+            context: .
+          - name: scheduler
+            dockerfile: Dockerfile.scheduler
+            context: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,format=long,prefix=
+          labels: |
+            org.opencontainers.image.title=${{ matrix.service.name }}
+            org.opencontainers.image.description=Iran Market Platform - ${{ matrix.service.name }}
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service.name }}
+          provenance: true
+          sbom: true
+
+  # ── Create GitHub Release ─────────────────────────────────
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: tags } = await github.rest.repos.listTags({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 2
+            });
+            const prevTag = tags.length > 1 ? tags[1].name : '';
+            const { data: commits } = await github.rest.repos.compareCommitsWithBasehead({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              basehead: prevTag ? `${prevTag}...${context.ref.replace('refs/tags/', '')}` : 'HEAD~5..HEAD',
+              per_page: 50
+            });
+            const lines = commits.commits.map(c => {
+              const msg = c.commit.message.split('\n')[0];
+              return `- ${msg} ([${c.sha.slice(0,7)}](${c.html_url}))`;
+            });
+            const header = `## Release ${context.ref.replace('refs/tags/', '')}\n\n### Commits\n`;
+            return header + (lines.length ? lines.join('\n') : '- No commits found');
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          body: ${{ steps.changelog.outputs.result }}
+          prerelease: ${{ needs.validate.outputs.prerelease }}
+          generate_release_notes: true
+          make_latest: true
+
+  # ── Deploy to Production (manual gate) ────────────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, release]
+    environment:
+      name: production
+      url: https://your-domain.com
+    if: needs.validate.outputs.prerelease == 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_HOST_KEY }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy via Docker Compose
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd /opt/market-platform && \
+             docker compose -f docker-compose.yml -f docker-compose.production.yml pull && \
+             docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --remove-orphans && \
+             docker image prune -f"

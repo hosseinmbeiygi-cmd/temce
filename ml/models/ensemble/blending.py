@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 
 from core.logging import get_logger
+from core.paths import validate_safe_path
 from ml.models.base import BaseModel
 from ml.models.ensemble.base_ensemble import BaseEnsembleModel
 from ml.types import FeatureMatrix, PredictionResult, TargetVector
@@ -108,9 +109,8 @@ class BlendingEnsemble(BaseEnsembleModel):
         return np.mean(base_predictions, axis=0)
 
     def save(self, path: str) -> None:
-        import os
-
-        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
+        safe = validate_safe_path(path)
+        safe.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "name": self.name,
             "params": self.params,
@@ -127,15 +127,14 @@ class BlendingEnsemble(BaseEnsembleModel):
                     "is_fitted": model.is_fitted,
                 }
             )
-        with open(path, "wb") as f:
-            pickle.dump(payload, f)
-        logger.info("Blending ensemble saved to %s", path)
+        safe.write_bytes(pickle.dumps(payload))
+        logger.info("Blending ensemble saved to %s", safe)
 
     def load(self, path: str) -> None:
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
+        safe = validate_safe_path(path)
+        payload = pickle.loads(safe.read_bytes())
         self.name = payload.get("name", self.name)
         self.params = payload.get("params", self.params)
         self._is_fitted = payload.get("is_fitted", False)
         self._base_models = []
-        logger.info("Blending ensemble loaded from %s", path)
+        logger.info("Blending ensemble loaded from %s", safe)

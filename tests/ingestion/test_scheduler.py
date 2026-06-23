@@ -15,3 +15,4 @@ class TestMarketScheduler:
         scheduler = MarketScheduler(config)
         if not scheduler._in_market_hours():
             pass
+

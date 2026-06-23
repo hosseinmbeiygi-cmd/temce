@@ -40,7 +40,7 @@ class AlphaGenerator:
             return 0.0
         return imbalance / spread
 
-    def generate_combination_alpha(self, features: dict[str, float], template: str = "zscore") -> float:
+    def generate_combination_alpha(self, features: dict[str, Any], template: str = "zscore") -> float:
         """Generate alpha using a template."""
         if template == "mean_reversion":
             price = features.get("mid_price", 0) or features.get("last_price", 0)
@@ -51,7 +51,7 @@ class AlphaGenerator:
             lag = features.get("price_lag_20", price)
             return self.momentum(price, lag)
         elif template == "zscore":
-            feature_name = features.get("_feature_name", "queue_imbalance")
+            feature_name = str(features.get("_feature_name", "queue_imbalance"))
             value = features.get(feature_name, 0)
             mean = features.get(f"{feature_name}_mean", 0)
             std = features.get(f"{feature_name}_std", 1)

@@ -38,7 +38,8 @@ class RetentionManager:
                     result = await self._storage.delete(filepath)
                     if result.success:
                         deleted += 1
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to process file %s during retention: %s", filepath, e)
                 continue
         logger.info("Retention: deleted %d files matching %s", deleted, pattern)
         return deleted

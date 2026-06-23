@@ -22,3 +22,4 @@ class TestRateLimiter:
         await limiter.acquire()
         elapsed = time.monotonic() - start
         assert elapsed >= 2.5
+

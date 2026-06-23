@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from apps.api.dependencies import get_inference_service
+from apps.api.dependencies import get_current_user, get_inference_service
 from schemas.api.ml import MlTrainRequest, MlTrainResponse
 from schemas.common.responses import ApiResponse
 from services.inference_service import InferenceService
@@ -16,6 +16,7 @@ router = APIRouter()
 async def predict(
     model_id: str,
     features: dict[str, Any],
+    current_user: dict = Depends(get_current_user),
     service: InferenceService = Depends(get_inference_service),
 ) -> ApiResponse[dict[str, Any]]:
     result = await service.predict(model_id, features)
@@ -23,7 +24,8 @@ async def predict(
         import dataclasses
         data = dataclasses.asdict(result.value)
         data["prediction"] = data.pop("predictions", None)
-        data["confidence"] = data.pop("probabilities", [None])[0] if data.get("probabilities") else None
+        probs = data.pop("probabilities", [])
+        data["confidence"] = probs[0] if probs else None
         return ApiResponse[dict[str, Any]](success=True, data=data)
     return ApiResponse[dict[str, Any]](success=False, data=None, error={"message": result.error or "Prediction failed"})
 
@@ -31,6 +33,7 @@ async def predict(
 @router.post("/train")
 async def train(
     body: MlTrainRequest,
+    current_user: dict = Depends(get_current_user),
     service: InferenceService = Depends(get_inference_service),
 ) -> ApiResponse[MlTrainResponse]:
     symbol = body.symbols[0] if body.symbols else ""

@@ -162,7 +162,7 @@ class VisualizationEngine:
             for i, c in enumerate(counts)
         ]
 
-    def _build_rolling_sharpe(self, points: list[EquityPoint], window: int = 60) -> list[dict[str, Any]]:
+    def _build_rolling_sharpe(self, points: list[EquityPoint], window: int = 60, risk_free_rate: float = 0.0) -> list[dict[str, Any]]:
         if len(points) < window + 1:
             return []
         navs = [p.nav for p in points]
@@ -172,7 +172,8 @@ class VisualizationEngine:
             chunk = returns[i - window:i]
             mu = float(np.mean(chunk))
             sigma = float(np.std(chunk))
-            sharpe = mu / sigma * np.sqrt(252) if sigma > 0 else 0.0
+            excess_return = mu - risk_free_rate / 252.0  # Convert annual RF to daily
+            sharpe = excess_return / sigma * np.sqrt(252) if sigma > 0 else 0.0
             rolling.append({
                 "timestamp": str(points[i + 1].timestamp) if i + 1 < len(points) else "",
                 "sharpe": sharpe,

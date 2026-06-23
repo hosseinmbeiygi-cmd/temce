@@ -124,6 +124,8 @@ class BaseDeepModel(BaseModel):
     def predict(self, X: FeatureMatrix) -> PredictionResult:
         torch = self._get_torch()
         self._get_device()
+        if self._nn_module is None:
+            raise RuntimeError("Model not initialized. Call fit() or load() before predict().")
         self._nn_module.eval()
         X_tensor = self._prepare_tensors(X)
         with torch.no_grad():
@@ -138,20 +140,24 @@ class BaseDeepModel(BaseModel):
     def _get_loss_function(self) -> Any: ...
 
     def save(self, path: str) -> None:
+        from core.paths import validate_safe_path
         torch = self._get_torch()
-        os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
+        safe = validate_safe_path(path)
+        safe.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "model_state_dict": self._nn_module.state_dict(),
             "params": self.params,
             "name": self.name,
             "is_fitted": self._is_fitted,
         }
-        torch.save(payload, path)
-        logger.info("Model saved to %s", path)
+        torch.save(payload, str(safe))
+        logger.info("Model saved to %s", safe)
 
     def load(self, path: str) -> None:
+        from core.paths import validate_safe_path
         torch = self._get_torch()
-        payload = torch.load(path, map_location="cpu", weights_only=False)
+        safe = validate_safe_path(path)
+        payload = torch.load(str(safe), map_location="cpu", weights_only=False)
         self.params = payload.get("params", self.params)
         self.name = payload.get("name", self.name)
         input_size = self.params.get("input_size", 1)
@@ -159,4 +165,4 @@ class BaseDeepModel(BaseModel):
         self._nn_module.load_state_dict(payload["model_state_dict"])
         self._nn_module.eval()
         self._is_fitted = payload.get("is_fitted", True)
-        logger.info("Model loaded from %s", path)
+        logger.info("Model loaded from %s", safe)

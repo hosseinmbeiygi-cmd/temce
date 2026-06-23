@@ -45,11 +45,13 @@ class TelegramSender:
     async def send_document(self, document_path: str, caption: str = "") -> Result[bool]:
         if not self._token or not self._chat_id:
             return Result.fail("Telegram bot token or chat ID not configured")
+        from core.paths import validate_safe_path
+        safe_path = validate_safe_path(document_path)
         url = f"https://api.telegram.org/bot{self._token}/sendDocument"
         data = {"chat_id": self._chat_id, "caption": caption}
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
-                with open(document_path, "rb") as f:
+                with open(str(safe_path), "rb") as f:
                     files = {"document": f}
                     resp = await client.post(url, data=data, files=files)
                 resp.raise_for_status()

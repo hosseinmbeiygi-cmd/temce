@@ -37,3 +37,4 @@ def test_backtest_rule_timeframe():
     rule = BacktestTimeframeRule(allowed_timeframes=["1d", "1h"])
     assert rule.validate(timeframe="1d") is True
     assert rule.validate(timeframe="1m") is False
+

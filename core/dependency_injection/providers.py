@@ -8,6 +8,7 @@ T = TypeVar("T")
 
 class ServiceProvider(Generic[T]):
     def __init__(self, service_type: type[T]) -> None:
+        super().__init__()
         self._service_type = service_type
         self._instance: T | None = None
 
@@ -22,6 +23,7 @@ class ServiceProvider(Generic[T]):
 
 class SingletonProvider(Generic[T]):
     def __init__(self, factory: Callable[[], T]) -> None:
+        super().__init__()
         self._factory = factory
         self._instance: T | None = None
 
@@ -36,6 +38,7 @@ class SingletonProvider(Generic[T]):
 
 class TransientProvider(Generic[T]):
     def __init__(self, factory: Callable[[], T]) -> None:
+        super().__init__()
         self._factory = factory
 
     def get(self) -> T:
@@ -47,6 +50,7 @@ class TransientProvider(Generic[T]):
 
 class ScopedProvider(Generic[T]):
     def __init__(self, factory: Callable[[], T]) -> None:
+        super().__init__()
         self._factory = factory
         self._scoped_instances: dict[str, T] = {}
 

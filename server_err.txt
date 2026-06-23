@@ -1,6 +1,6 @@
 INFO:     Will watch for changes in these directories: ['C:\\Users\\Iran\\Desktop\\temce']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [11716] using WatchFiles
-INFO:     Started server process [5816]
+INFO:     Started reloader process [11180] using WatchFiles
+INFO:     Started server process [7664]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.

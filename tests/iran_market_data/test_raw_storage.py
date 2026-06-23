@@ -102,3 +102,4 @@ class TestRawStorage:
         assert p2.exists()
         assert p1 != p2
         assert p1.parent == p2.parent  # Same directory
+

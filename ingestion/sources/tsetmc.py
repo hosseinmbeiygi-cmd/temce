@@ -10,7 +10,7 @@ from .base import DataSource, FetchResult, SourcePayload
 
 logger = get_logger(__name__)
 
-TSETMC_BASE = "http://cdn.tsetmc.com/api"
+TSETMC_BASE = "https://cdn.tsetmc.com/api"
 
 
 class TsetmcInstrumentSource(DataSource):

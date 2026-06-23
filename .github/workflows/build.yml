@@ -1,0 +1,3 @@
+# Build workflow — see release.yml for tagged releases and ci.yml for per-commit builds.
+# This file exists for directory completeness; separate build pipeline is integrated
+# into the release workflow.

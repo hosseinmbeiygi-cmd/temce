@@ -23,6 +23,16 @@ class RecommendationRepository:
     async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[Recommendation]]:
         return await self._mem.list(page, page_size)
 
-    async def get_active(self, instrument_id: str) -> Result[list[Recommendation]]:
+    async def get_active(self, instrument_id: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Recommendation]]:
         recs = [r for r in self._mem._store.values() if r.instrument_id == instrument_id]
-        return Result.ok(recs)
+        total = len(recs)
+        start = (page - 1) * page_size
+        return Result.ok(
+            PaginatedResult(
+                items=recs[start : start + page_size],
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=max(1, (total + page_size - 1) // page_size),
+            )
+        )

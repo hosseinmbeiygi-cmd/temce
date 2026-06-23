@@ -88,7 +88,7 @@ def _generate_ohlcv_data(
     return bars
 
 
-def _compute_metrics(result: BacktestResult) -> dict[str, float]:
+def _compute_metrics(result: BacktestResult, risk_free_rate: float = 0.0) -> dict[str, float]:
     total_return_pct = result.total_return_pct
 
     trading_days = len(result.equity_curve)
@@ -111,7 +111,9 @@ def _compute_metrics(result: BacktestResult) -> dict[str, float]:
     avg_r = sum(returns) / len(returns) if returns else 0
     variance = sum((r - avg_r) ** 2 for r in returns) / len(returns) if returns else 1
     std = math.sqrt(variance)
-    sharpe = (avg_r / std) * math.sqrt(252) if std > 0 else 0.0
+    risk_free_daily = risk_free_rate / 252.0  # Convert annual RF to match daily returns
+    excess_avg_r = avg_r - risk_free_daily
+    sharpe = (excess_avg_r / std) * math.sqrt(252) if std > 0 else 0.0
 
     wins = sum(1 for t in result.trades if hasattr(t, "pnl") and getattr(t, "pnl", 0) > 0)
     losses = sum(1 for t in result.trades if hasattr(t, "pnl") and getattr(t, "pnl", 0) <= 0)

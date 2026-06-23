@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import Sidebar from "@/components/Sidebar";
-import { apiGet, apiPut } from "@/lib/api";
-import { getStoredAuth } from "@/lib/api";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
+import { apiGet, apiPut, getStoredAuth } from "@/lib/api";
 
 interface UserProfile {
   id: string;
@@ -21,7 +21,6 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const [collapsed, setCollapsed] = useState(false);
   const auth = getStoredAuth();
   const [formData, setFormData] = useState({ full_name: "", phone: "", email: "" });
 
@@ -47,15 +46,8 @@ export default function ProfilePage() {
   if (!auth) return <div className="flex h-screen items-center justify-center text-white bg-[#0a0a14]">لطفا ابتدا وارد حساب خود شوید.</div>;
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
+    <AppLayout title="پروفایل کاربر" subtitle="مدیریت اطلاعات شخصی و تنظیمات حساب">
         <div className="max-w-3xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-surface-100">پروفایل کاربر</h1>
-            <p className="text-sm text-surface-500 mt-1">مدیریت اطلاعات شخصی و تنظیمات حساب</p>
-          </div>
-
           {isLoading ? (
             <div className="space-y-4">
               <div className="h-64 bg-surface-800 animate-pulse rounded-2xl" />
@@ -121,7 +113,6 @@ export default function ProfilePage() {
             <div className="text-center py-12 text-surface-500">اطلاعات کاربر یافت نشد.</div>
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

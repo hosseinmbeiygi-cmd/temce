@@ -35,3 +35,4 @@ async def test_instruments_list_latency(client: AsyncClient):
     await client.get("/api/v1/instruments")
     elapsed = (time.monotonic() - start) * 1000
     assert elapsed < 1000, f"Instruments list latency {elapsed:.2f}ms exceeds 1000ms threshold"
+

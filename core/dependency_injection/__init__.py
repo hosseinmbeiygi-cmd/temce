@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from core.logging import get_logger
+
 T = TypeVar("T")
+logger = get_logger(__name__)
 
 
 class Container:
@@ -24,7 +27,8 @@ class Container:
             instance = self._factories[key]()
             self._instances[key] = instance
             return instance
-        raise KeyError(f"No dependency registered: {key}")
+        logger.debug("Dependency not found: %s", key)
+        raise KeyError("No dependency registered")
 
     def get(self, key: str, default: Any = None) -> Any:
         try:

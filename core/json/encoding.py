@@ -7,6 +7,8 @@ from typing import Any
 
 import orjson
 
+from core.paths import validate_safe_path
+
 
 def default_serializer(obj: Any) -> str:
     if isinstance(obj, datetime):
@@ -36,5 +38,6 @@ def pretty(data: Any) -> str:
 
 
 def dump_json_file(path: str, data: Any, **kwargs: Any) -> None:
-    with open(path, "w", encoding="utf-8") as f:
+    safe_path = validate_safe_path(path)
+    with open(safe_path, "w", encoding="utf-8") as f:
         f.write(dumps(data, **kwargs))

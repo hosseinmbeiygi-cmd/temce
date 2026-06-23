@@ -6,10 +6,12 @@ class BenchmarkLoader:
         self._data: dict[str, list[float]] = {}
 
     def load_from_csv(self, filepath: str, column: str = "close") -> list[float]:
+        from core.paths import validate_safe_path
         import csv
 
+        safe = validate_safe_path(filepath)
         values: list[float] = []
-        with open(filepath, encoding="utf-8") as f:
+        with open(str(safe), encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 try:

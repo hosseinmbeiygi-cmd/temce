@@ -111,6 +111,9 @@ class HybridMarketSimulator:
 
     def set_flow_mix(self, real: float, agent: float, strategy: float) -> None:
         total = real + agent + strategy
+        if total <= 0:
+            self.flow_mix = {"real": 0.0, "agent": 0.0, "strategy": 0.0}
+            return
         self.flow_mix = {"real": real / total, "agent": agent / total, "strategy": strategy / total}
 
     def update_flow_mix_for_regime(self, regime: str) -> None:

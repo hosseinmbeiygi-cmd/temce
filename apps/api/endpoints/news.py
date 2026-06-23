@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from apps.api.dependencies import get_news_service
+from apps.api.dependencies import get_current_user, get_news_service
+from core.result import PaginatedResult
 from schemas.api.news import NewsRequest, NewsResponse, NewsListResponse
 from schemas.common.responses import ApiResponse
 from services.news_service import NewsService
@@ -25,18 +26,30 @@ async def list_news(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1),
     service: NewsService = Depends(get_news_service),
-) -> ApiResponse[list[NewsResponse]]:
+) -> ApiResponse[PaginatedResult[NewsResponse]]:
     try:
         result = await service.list_all(page, page_size)
-        items = [NewsResponse(**item) for item in (result.value or [])]
-        return ApiResponse[list[NewsResponse]](success=True, data=items)
+        if result.success and result.value:
+            paginated = result.value
+            return ApiResponse[PaginatedResult[NewsResponse]](
+                success=True, 
+                data=PaginatedResult(
+                    items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in paginated.items],
+                    total=paginated.total,
+                    page=paginated.page,
+                    page_size=paginated.page_size,
+                    total_pages=paginated.total_pages
+                )
+            )
+        return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=0))
     except Exception:
-        return ApiResponse[list[NewsResponse]](success=True, data=_MOCK_NEWS)
+        return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in _MOCK_NEWS], total=len(_MOCK_NEWS), page=page, page_size=page_size, total_pages=1))
 
 
 @router.post("")
 async def create_news(
     body: NewsRequest,
+    current_user: dict = Depends(get_current_user),
     service: NewsService = Depends(get_news_service),
 ) -> ApiResponse[NewsResponse]:
     result = await service.create(**body.model_dump(exclude_none=True))
@@ -53,10 +66,21 @@ async def search_news(
     q: str = Query(..., min_length=1),
     page: int = Query(1, ge=1),
     service: NewsService = Depends(get_news_service),
-) -> ApiResponse[list[NewsResponse]]:
+) -> ApiResponse[PaginatedResult[NewsResponse]]:
     result = await service.search(q, page)
-    items = [NewsResponse(**item) for item in (result.value or [])]
-    return ApiResponse[list[NewsResponse]](success=True, data=items)
+    if result.success and result.value:
+        paginated = result.value
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=True, 
+            data=PaginatedResult(
+                items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in paginated.items],
+                total=paginated.total,
+                page=paginated.page,
+                page_size=paginated.page_size,
+                total_pages=paginated.total_pages
+            )
+        )
+    return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0))
 
 
 @router.get("/symbol/{symbol}")
@@ -64,10 +88,21 @@ async def news_by_symbol(
     symbol: str,
     page: int = Query(1, ge=1),
     service: NewsService = Depends(get_news_service),
-) -> ApiResponse[list[NewsResponse]]:
+) -> ApiResponse[PaginatedResult[NewsResponse]]:
     result = await service.get_by_symbol(symbol, page)
-    items = [NewsResponse(**item) for item in (result.value or [])]
-    return ApiResponse[list[NewsResponse]](success=True, data=items)
+    if result.success and result.value:
+        paginated = result.value
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=True, 
+            data=PaginatedResult(
+                items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in paginated.items],
+                total=paginated.total,
+                page=paginated.page,
+                page_size=paginated.page_size,
+                total_pages=paginated.total_pages
+            )
+        )
+    return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0))
 
 
 @router.get("/category/{category}")

@@ -26,8 +26,9 @@ async def test_health_check(client):
     resp = await client.get("/api/v1/health")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "ok"
-    assert data["service"] == "iran-market-platform"
+    assert data["success"] is True
+    assert data["data"]["status"] == "ok"
+    assert data["data"]["service"] == "iran-market-platform"
 
 
 @pytest.mark.asyncio
@@ -216,3 +217,4 @@ async def test_analysis_profit_prediction(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
+

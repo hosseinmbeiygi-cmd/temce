@@ -56,3 +56,4 @@ async def test_circuit_breaker_decorator():
 
     with pytest.raises(ValueError):
         await failing_func()
+

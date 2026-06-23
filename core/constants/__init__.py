@@ -102,9 +102,9 @@ class ProviderHealth(StrEnum):
     UNKNOWN = "unknown"
 
 
-CURRENCY_PAIRS = ["USD_IRR", "EUR_IRR", "GBP_IRR", "TRY_IRR", "AED_IRR"]
-COMMODITIES = ["gold", "oil", "copper", "steel", "cement"]
-SECTOR_GROUPS = [
+CURRENCY_PAIRS = ("USD_IRR", "EUR_IRR", "GBP_IRR", "TRY_IRR", "AED_IRR")
+COMMODITIES = ("gold", "oil", "copper", "steel", "cement")
+SECTOR_GROUPS = (
     "financial",
     "petrochemical",
     "metal",
@@ -114,7 +114,7 @@ SECTOR_GROUPS = [
     "food",
     "insurance",
     "holding",
-]
+)
 
 IRAN_MARKET_OPEN = "09:00"
 IRAN_MARKET_CLOSE = "12:30"

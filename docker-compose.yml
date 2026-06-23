@@ -1,17 +1,24 @@
+# ── Base Docker Compose ────────────────────────────────
+# Run with: docker compose up --build
+# Override: docker compose up --build (auto-loads docker-compose.override.yml)
+# Production: docker compose -f docker-compose.yml -f docker-compose.production.yml up
+
 services:
+  # ── Infrastructure ────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: marketdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: market
+      POSTGRES_USER: market
+      POSTGRES_PASSWORD: market
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./migrations/init_timescale.sql:/docker-entrypoint-initdb.d/02-timescale.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U market"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,18 +26,28 @@ services:
   timescaledb:
     image: timescale/timescaledb:2-pg16
     environment:
-      POSTGRES_DB: marketdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: market
+      POSTGRES_USER: market
+      POSTGRES_PASSWORD: market
     ports:
       - "5433:5432"
     volumes:
       - timescaledata:/var/lib/postgresql/data
       - ./migrations/init_timescale.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U market"]
       interval: 5s
       timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
       retries: 5
 
   minio:
@@ -50,15 +67,82 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
+  # ── Application Services ──────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
     ports:
-      - "6379:6379"
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api:8000
+      API_PREFIX: /api/v1
+      NODE_ENV: production
+    depends_on:
+      - api
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    ports:
+      - "8001:8001"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   ingestion:
     build:
@@ -66,18 +150,19 @@ services:
       dockerfile: Dockerfile
     env_file: .env
     depends_on:
-      postgres:
+      timescaledb:
         condition: service_healthy
       minio:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     command: ["python", "-m", "ingestion.main"]
     restart: unless-stopped
     volumes:
       - ./ingestion:/app/ingestion
       - ./core:/app/core
 
+  # ── Monitoring ────────────────────────────────────────
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -89,7 +174,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:

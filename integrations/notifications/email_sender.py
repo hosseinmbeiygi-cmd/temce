@@ -57,6 +57,9 @@ class EmailSender:
                 server.sendmail(self._from, all_recipients, msg.as_string())
             logger.info("Email sent to %s: %s", ", ".join(recipients), subject)
             return Result.ok(True)
+        except smtplib.SMTPAuthenticationError:
+            logger.error("SMTP authentication failed - check credentials")
+            return Result.fail("SMTP authentication failed")
         except smtplib.SMTPException as e:
             logger.error("Failed to send email: %s", e)
             return Result.fail(str(e))

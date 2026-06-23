@@ -24,4 +24,8 @@ class DatabaseSettings(BaseSettings):
     def async_url(self) -> str:
         if self.url.startswith("sqlite"):
             return self.url.replace("sqlite:///", "sqlite+aiosqlite:///")
-        return self.url.replace("://", "+asyncpg://", 1) if "postgres" in self.url else self.url
+        if "postgres" in self.url:
+            if "+" in self.url.split("://", 1)[0]:
+                return self.url
+            return self.url.replace("://", "+asyncpg://", 1)
+        return self.url

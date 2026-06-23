@@ -14,6 +14,7 @@ from backtesting.abm.agents import (
     TrendFollower,
 )
 from backtesting.abm.simulation import Simulation
+from core.paths import validate_safe_path
 
 
 @dataclass
@@ -103,9 +104,9 @@ class ABMCalibrator:
             avg_spread = float(np.mean(result.spread_series)) if result.spread_series else 0
             trade_rate = result.total_trades / max(result.steps, 1)
 
-            vol_score = abs(volatility - target_volatility) / target_volatility
-            spread_score = abs(avg_spread - target_spread) / target_spread
-            trade_score = abs(trade_rate - target_trade_rate) / target_trade_rate
+            vol_score = abs(volatility - target_volatility) / target_volatility if target_volatility > 0 else 0.0
+            spread_score = abs(avg_spread - target_spread) / target_spread if target_spread > 0 else 0.0
+            trade_score = abs(trade_rate - target_trade_rate) / target_trade_rate if target_trade_rate > 0 else 0.0
             score = vol_score + spread_score + trade_score
 
             if score < best_score:
@@ -117,11 +118,13 @@ class ABMCalibrator:
         return best_config
 
     def save_config(self, config: ABMConfig, path: str | Path) -> None:
+        safe = validate_safe_path(path)
         data = asdict(config)
-        Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        safe.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def load_config(self, path: str | Path) -> ABMConfig:
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        safe = validate_safe_path(path)
+        data = json.loads(safe.read_text(encoding="utf-8"))
         return ABMConfig(**data)
 
 

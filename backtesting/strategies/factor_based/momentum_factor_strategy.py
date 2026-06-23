@@ -24,8 +24,10 @@ class MomentumFactorStrategy(BaseStrategy):
         self._prices.append(price)
         if len(self._prices) <= self.long_lookback:
             return []
-        short_ret = (price - self._prices[-self.short_lookback]) / self._prices[-self.short_lookback]
-        long_ret = (price - self._prices[-self.long_lookback]) / self._prices[-self.long_lookback]
+        prev_short = self._prices[-self.short_lookback]
+        prev_long = self._prices[-self.long_lookback]
+        short_ret = (price - prev_short) / prev_short if prev_short else 0.0
+        long_ret = (price - prev_long) / prev_long if prev_long else 0.0
         momentum_score = short_ret + long_ret
         orders: list[OrderEvent] = []
         if momentum_score > 0 and self._position <= 0:

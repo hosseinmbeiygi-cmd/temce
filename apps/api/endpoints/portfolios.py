@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from fastapi import APIRouter, Depends
-from apps.api.dependencies import get_portfolio_service
+from apps.api.dependencies import get_current_user, get_portfolio_service
 from schemas.common.responses import ApiResponse
 from services.portfolio_service import PortfolioService
 from schemas.api.portfolios import PortfolioCreate, PortfolioResponse, PortfolioListResponse
@@ -23,6 +23,7 @@ async def list_portfolios(
 @router.post("/", summary="Create portfolio", response_model=ApiResponse[PortfolioResponse])
 async def create_portfolio(
     body: PortfolioCreate,
+    current_user: dict = Depends(get_current_user),
     service: PortfolioService = Depends(get_portfolio_service),
 ) -> ApiResponse[PortfolioResponse]:
     result = await service.create_portfolio(

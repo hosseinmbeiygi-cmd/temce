@@ -30,3 +30,4 @@ async def test_signals_generate(client: AsyncClient):
     payload = {"symbol": "فولاد"}
     response = await client.post("/api/v1/signals/generate", json=payload)
     assert response.status_code in (200, 201, 401, 422)
+

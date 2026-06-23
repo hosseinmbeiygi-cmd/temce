@@ -8,31 +8,32 @@ import yaml
 from pydantic import BaseModel
 
 from core.logging import get_logger
+from core.paths import safe_resolve
 
 logger = get_logger(__name__)
 
 
 class ConfigLoader:
     def __init__(self, config_dir: str | Path = "./config") -> None:
-        self.config_dir = Path(config_dir)
+        self.config_dir = safe_resolve(Path.cwd(), str(config_dir))
 
     def load_yaml(self, name: str) -> dict[str, Any]:
-        path = self.config_dir / f"{name}.yaml"
+        path = safe_resolve(self.config_dir, f"{name}.yaml")
         if not path.exists():
-            path = self.config_dir / f"{name}.yml"
+            path = safe_resolve(self.config_dir, f"{name}.yml")
         if not path.exists():
             logger.warning("Config file not found: %s", path)
             return {}
-        with open(path, encoding="utf-8") as f:
+        with open(str(path), encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def load_json(self, name: str) -> dict[str, Any]:
         import json
 
-        path = self.config_dir / f"{name}.json"
+        path = safe_resolve(self.config_dir, f"{name}.json")
         if not path.exists():
             return {}
-        with open(path, encoding="utf-8") as f:
+        with open(str(path), encoding="utf-8") as f:
             return json.load(f)
 
     def load_from_env(self, prefix: str = "") -> dict[str, str]:

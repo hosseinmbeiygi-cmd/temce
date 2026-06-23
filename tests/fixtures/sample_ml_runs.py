@@ -49,3 +49,4 @@ def sample_ml_model(
         ],
         "tags": ["test", "classification"],
     }
+

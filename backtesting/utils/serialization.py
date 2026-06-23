@@ -5,6 +5,7 @@ import pickle
 from typing import Any
 
 from backtesting.types import BacktestResult
+from core.paths import validate_safe_path
 
 
 class Serializer:
@@ -62,20 +63,20 @@ class Serializer:
 
     @staticmethod
     def save_json(result: BacktestResult, filepath: str) -> None:
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(Serializer.to_json(result))
+        safe = validate_safe_path(filepath)
+        safe.write_text(Serializer.to_json(result), encoding="utf-8")
 
     @staticmethod
     def save_pickle(result: BacktestResult, filepath: str) -> None:
-        with open(filepath, "wb") as f:
-            f.write(Serializer.to_pickle(result))
+        safe = validate_safe_path(filepath)
+        safe.write_bytes(Serializer.to_pickle(result))
 
     @staticmethod
     def load_json(filepath: str) -> dict[str, Any]:
-        with open(filepath, encoding="utf-8") as f:
-            return json.load(f)
+        safe = validate_safe_path(filepath)
+        return json.loads(safe.read_text(encoding="utf-8"))
 
     @staticmethod
     def load_pickle(filepath: str) -> BacktestResult:
-        with open(filepath, "rb") as f:
-            return pickle.loads(f.read())
+        safe = validate_safe_path(filepath)
+        return pickle.loads(safe.read_bytes())

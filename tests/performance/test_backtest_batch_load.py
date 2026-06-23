@@ -31,3 +31,4 @@ async def test_backtest_batch_execution():
     elapsed = time.monotonic() - start
     avg = elapsed / 20
     assert avg < 2.0, f"Average backtest execution {avg:.2f}s exceeds 2s threshold"
+

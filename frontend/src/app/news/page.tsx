@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Sidebar from "@/components/Sidebar";
-import Skeleton from "@/components/Skeleton";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
+import { apiGet } from "@/lib/api";
 
 interface NewsItem {
   id: string;
@@ -33,7 +34,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function NewsPage() {
-  const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState<CategoryKey>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -41,12 +41,10 @@ export default function NewsPage() {
   const { data: news, isLoading } = useQuery({
     queryKey: ["news-full"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/news/");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.data) return data.data.results || data.data;
-      }
-      return []; // Fallback to empty or mock
+      try {
+        return await apiGet<any>("/news");
+      } catch {}
+      return [];
     },
     refetchInterval: 120000,
   });
@@ -74,94 +72,87 @@ export default function NewsPage() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
-        <div className="flex flex-wrap items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-surface-100">اخبار بازار</h1>
-            <p className="text-sm text-surface-500 mt-1">آخرین اخبار و رویدادهای بازار سرمایه</p>
-          </div>
-          <div className="flex items-center gap-2 mt-3 sm:mt-0">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="جستجوی اخبار..."
-              className="px-3 py-2 bg-surface-800 border border-surface-700 rounded text-surface-200 text-sm focus:outline-none focus:border-primary-500 w-56"
-            />
-            {isLoading && <span className="w-2 h-2 rounded-full bg-accent-amber animate-pulse" />}
-          </div>
+    <AppLayout title="اخبار بازار" subtitle="آخرین اخبار و رویدادهای بازار سرمایه">
+      <div className="flex flex-wrap items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="جستجوی اخبار..."
+            className="px-3 py-2 bg-surface-800 border border-surface-700 rounded text-surface-200 text-sm focus:outline-none focus:border-primary-500 w-56"
+          />
+          {isLoading && <span className="w-2 h-2 rounded-full bg-accent-amber animate-pulse" />}
+        </div>
+      </div>
+
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {CATEGORIES.map((c) => (
+          <button key={c.key} onClick={() => setFilter(c.key)}
+            className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              filter === c.key ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"
+            }`}>{c.label}</button>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          {isLoading ? (
+            [1,2,3].map(i => <div key={i} className="glass-card p-5"><div className="h-20 bg-surface-800 animate-pulse rounded-lg" /></div>)
+          ) : filtered?.map((item: any) => (
+            <div key={item.id} className="glass-card p-5">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryBadge(item.category)}`}>
+                    {CATEGORY_LABELS[item.category] || item.category}
+                  </span>
+                  {item.trending && <span className="text-xs text-accent-amber">🔥 داغ</span>}
+                </div>
+                <span className="text-xs text-surface-500">{item.source} • {item.date}</span>
+              </div>
+              <h3 className="font-bold text-surface-200 mb-1">{item.title}</h3>
+              <p className="text-sm text-surface-400 leading-relaxed">{item.summary}</p>
+              <button
+                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                className="text-xs text-primary-400 hover:text-primary-300 mt-2 transition-colors"
+              >
+                {expandedId === item.id ? "بستن" : "مشاهده کامل"}
+              </button>
+              {expandedId === item.id && (
+                <div className="mt-3 pt-3 border-t border-surface-700">
+                  <p className="text-sm text-surface-300 leading-relaxed">{item.fullContent}</p>
+                </div>
+              )}
+            </div>
+          )) || <div className="glass-card p-8 text-center text-surface-500">هیچ خبری با این معیارها یافت نشد</div>}
         </div>
 
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {CATEGORIES.map((c) => (
-            <button key={c.key} onClick={() => setFilter(c.key)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filter === c.key ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"
-              }`}>{c.label}</button>
-          ))}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            {isLoading ? (
-              [1,2,3].map(i => <Skeleton key={i} className="h-32 w-full rounded-xl" />)
-            ) : filtered?.map((item: any) => (
-              <div key={item.id} className="glass-card p-5">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryBadge(item.category)}`}>
-                      {CATEGORY_LABELS[item.category] || item.category}
-                    </span>
-                    {item.trending && <span className="text-xs text-accent-amber">🔥 داغ</span>}
-                  </div>
+        <div className="space-y-4">
+          <div className="glass-card p-5">
+            <h3 className="font-bold text-surface-200 mb-3">🔥 داغ‌ترین اخبار</h3>
+            <div className="space-y-3">
+              {isLoading ? (
+                [1,2,3].map(i => <div key={i} className="h-10 bg-surface-800 animate-pulse rounded-lg" />)
+              ) : trendingNews?.map((item: any) => (
+                <div key={item.id} className="pb-3 border-b border-surface-700/50 last:border-0 last:pb-0">
+                  <p className="text-sm text-surface-200 leading-snug mb-1">{item.title}</p>
                   <span className="text-xs text-surface-500">{item.source} • {item.date}</span>
                 </div>
-                <h3 className="font-bold text-surface-200 mb-1">{item.title}</h3>
-                <p className="text-sm text-surface-400 leading-relaxed">{item.summary}</p>
-                <button
-                  onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                  className="text-xs text-primary-400 hover:text-primary-300 mt-2 transition-colors"
-                >
-                  {expandedId === item.id ? "بستن" : "مشاهده کامل"}
-                </button>
-                {expandedId === item.id && (
-                  <div className="mt-3 pt-3 border-t border-surface-700">
-                    <p className="text-sm text-surface-300 leading-relaxed">{item.fullContent}</p>
-                  </div>
-                )}
-              </div>
-            )) || <div className="glass-card p-8 text-center text-surface-500">هیچ خبری با این معیارها یافت نشد</div>}
-          </div>
-
-          <div className="space-y-4">
-            <div className="glass-card p-5">
-              <h3 className="font-bold text-surface-200 mb-3">🔥 داغ‌ترین اخبار</h3>
-              <div className="space-y-3">
-                {isLoading ? (
-                  [1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
-                ) : trendingNews?.map((item: any) => (
-                  <div key={item.id} className="pb-3 border-b border-surface-700/50 last:border-0 last:pb-0">
-                    <p className="text-sm text-surface-200 leading-snug mb-1">{item.title}</p>
-                    <span className="text-xs text-surface-500">{item.source} • {item.date}</span>
-                  </div>
-                )) || <div className="text-xs text-surface-600 text-center py-2">موردی یافت نشد</div>}
-              </div>
+              )) || <div className="text-xs text-surface-600 text-center py-2">موردی یافت نشد</div>}
             </div>
-            <div className="glass-card p-5">
-              <h3 className="font-bold text-surface-200 mb-3">موضوعات داغ</h3>
-              <div className="flex flex-wrap gap-2">
-                {["فولاد", "افزایش سرمایه", "نرخ بهره", "تورم", "عرضه اولیه", "شاخص کل"].map((topic) => (
-                  <span key={topic} className="text-xs px-2.5 py-1 rounded-full bg-surface-800 text-surface-300 hover:bg-surface-700 transition-colors cursor-pointer">
-                    {topic}
-                  </span>
-                ))}
-              </div>
+          </div>
+          <div className="glass-card p-5">
+            <h3 className="font-bold text-surface-200 mb-3">موضوعات داغ</h3>
+            <div className="flex flex-wrap gap-2">
+              {["فولاد", "افزایش سرمایه", "نرخ بهره", "تورم", "عرضه اولیه", "شاخص کل"].map((topic) => (
+                <span key={topic} className="text-xs px-2.5 py-1 rounded-full bg-surface-800 text-surface-300 hover:bg-surface-700 transition-colors cursor-pointer">
+                  {topic}
+                </span>
+              ))}
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

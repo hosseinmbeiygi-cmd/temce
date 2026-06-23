@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+from core.logging import get_logger
+
 T = TypeVar("T")
+logger = get_logger(__name__)
 
 
 class Factory:
@@ -45,7 +48,8 @@ class FactoryRegistry:
     def create(self, name: str, **kwargs: Any) -> Any:
         factory = self._factories.get(name)
         if factory is None:
-            raise KeyError(f"No factory registered: {name}")
+            logger.debug("Factory not found: %s", name)
+        raise KeyError("No factory registered")
         return factory(**kwargs)
 
     def has(self, name: str) -> bool:

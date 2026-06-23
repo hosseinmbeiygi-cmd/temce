@@ -42,3 +42,4 @@ async def test_signal_bulk_generate():
         result = await service.generate(symbol)
         results.append(result)
     assert len(results) == 3
+

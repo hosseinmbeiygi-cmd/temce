@@ -85,3 +85,4 @@ class TestCircuitBreaker:
 
         result = await cb.call(ok_fn)
         assert result == "recovered"
+

@@ -29,7 +29,7 @@ class NullCache:
 class CacheService:
     def __init__(self, redis_url: str | None = None, default_ttl: int = 300) -> None:
         self._default_ttl = default_ttl
-        self._redis = None
+        self._redis: Any = None
         self._redis_url = redis_url or settings.redis_url
         self._null_cache = NullCache()
 

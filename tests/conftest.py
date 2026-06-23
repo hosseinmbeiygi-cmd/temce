@@ -38,3 +38,4 @@ def sample_quote_data():
         "date": "2024-01-15",
         "time": "12:30:00",
     }
+

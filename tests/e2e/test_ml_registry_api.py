@@ -35,3 +35,4 @@ async def test_ml_train(client: AsyncClient):
     }
     response = await client.post("/api/v1/ml/train", json=payload)
     assert response.status_code in (200, 201, 401, 422)
+

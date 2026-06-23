@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.logging import get_logger
 from ml.models.base import BaseModel
+
+logger = get_logger(__name__)
 
 
 class ModelRegistry:
@@ -15,7 +18,8 @@ class ModelRegistry:
     def create(self, name: str, params: dict[str, Any] | None = None) -> BaseModel:
         cls = self._builders.get(name)
         if cls is None:
-            raise ValueError(f"Unknown model: {name}. Available: {list(self._builders.keys())}")
+            logger.debug("Unknown model: %s", name)
+            raise ValueError("Unknown model")
         return cls(name=name, params=params or {})
 
     def list_models(self) -> list[str]:

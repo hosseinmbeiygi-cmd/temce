@@ -62,6 +62,7 @@ class AlphaPool:
             try:
                 value = evaluator_fn(alpha_id, alpha, features)
                 results[alpha_id] = value
-            except Exception:
+            except Exception as e:
+                logger.warning("Alpha %s failed evaluation: %s", alpha_id, e)
                 continue
         return results

@@ -6,9 +6,10 @@ import sys
 import time
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from apps.api.dependencies import get_current_user
 from schemas.common.responses import ApiResponse
 
 router = APIRouter()
@@ -32,79 +33,19 @@ class TestRunData(BaseModel):
 
 
 @router.post("/run")
-async def run_all_tests() -> ApiResponse[TestRunData]:
+async def run_all_tests(
+    current_user: dict = Depends(get_current_user),
+) -> ApiResponse[TestRunData]:
     try:
         test_dir = Path(__file__).resolve().parent.parent.parent.parent / "tests" / "comprehensive"
         test_file = test_dir / "test_all.py"
 
         start = time.monotonic()
-        proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                str(test_file),
-                "-v",
-                "--tb=line",
-                "--no-header",
-                "-p", "no:cacheprovider",
-                "-p", "no:cov",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=300,
-            cwd=test_dir.parent.parent,
-        )
+        stdout, stderr = _execute_pytest(test_file, test_dir)
         elapsed = round(time.monotonic() - start, 2)
 
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
-
-        results: list[TestResultItem] = []
-        for line in stdout.split("\n"):
-            if line.startswith("tests/comprehensive/test_all.py::"):
-                parts = line.split(" ")
-                test_name_full = parts[0]
-                test_name = test_name_full.split("::")[-1] if "::" in test_name_full else test_name_full
-                status = "passed"
-                msg = ""
-                for p in parts:
-                    if p == "PASSED":
-                        status = "passed"
-                        break
-                    if p == "FAILED":
-                        status = "failed"
-                        break
-                    if p == "ERROR":
-                        status = "error"
-                        break
-                    if p == "SKIPPED":
-                        status = "skipped"
-                        break
-                if status != "passed":
-                    msg = line
-                results.append(TestResultItem(name=test_name, status=status, duration=0.0, message=msg))
-
-        if not results:
-            for line in stdout.split("\n"):
-                line = line.strip()
-                if "::" in line and ("PASSED" in line or "FAILED" in line or "ERROR" in line):
-                    parts = line.split(" ")
-                    test_name_full = parts[0]
-                    test_name = test_name_full.split("::")[-1] if "::" in test_name_full else test_name_full
-                    status = "passed"
-                    for p in parts:
-                        if p == "PASSED":
-                            status = "passed"
-                            break
-                        if p == "FAILED":
-                            status = "failed"
-                            break
-                        if p == "ERROR":
-                            status = "error"
-                            break
-                    results.append(TestResultItem(name=test_name, status=status, duration=0.0, message=""))
-
+        results = _parse_pytest_output(stdout)
+        
         total = len(results)
         passed = sum(1 for r in results if r.status == "passed")
         failed = sum(1 for r in results if r.status == "failed")
@@ -128,3 +69,73 @@ async def run_all_tests() -> ApiResponse[TestRunData]:
         return ApiResponse[TestRunData](success=False, data=None, error={"message": "Test execution timed out"})
     except Exception as e:
         return ApiResponse[TestRunData](success=False, data=None, error={"message": f"Test runner error: {e}"})
+
+
+def _execute_pytest(test_file: Path, cwd: Path) -> tuple[str, str]:
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            str(test_file),
+            "-v",
+            "--tb=line",
+            "--no-header",
+            "-p", "no:cacheprovider",
+            "-p", "no:cov",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=300,
+        cwd=cwd.parent.parent,
+    )
+    return proc.stdout or "", proc.stderr or ""
+
+
+def _parse_pytest_output(stdout: str) -> list[TestResultItem]:
+    results: list[TestResultItem] = []
+    
+    # Strategy 1: Look for specific test file prefix
+    for line in stdout.split("\n"):
+        if line.startswith("tests/comprehensive/test_all.py::"):
+            results.append(_parse_single_line(line))
+    
+    # Strategy 2: Fallback to general pattern matching
+    if not results:
+        for line in stdout.split("\n"):
+            line = line.strip()
+            if "::" in line and any(s in line for s in ("PASSED", "FAILED", "ERROR")):
+                results.append(_parse_single_line(line))
+                
+    return [r for r in results if r is not None]
+
+
+def _parse_single_line(line: str) -> TestResultItem | None:
+    parts = line.split(" ")
+    if not parts:
+        return None
+        
+    test_name_full = parts[0]
+    test_name = test_name_full.split("::")[-1] if "::" in test_name_full else test_name_full
+    
+    status = "passed"
+    msg = ""
+    
+    for p in parts:
+        if p == "PASSED":
+            status = "passed"
+            break
+        if p == "FAILED":
+            status = "failed"
+            break
+        if p == "ERROR":
+            status = "error"
+            break
+        if p == "SKIPPED":
+            status = "skipped"
+            break
+            
+    if status != "passed":
+        msg = line
+        
+    return TestResultItem(name=test_name, status=status, duration=0.0, message=msg)

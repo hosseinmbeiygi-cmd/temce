@@ -9,7 +9,8 @@ class ForecastMetrics:
     def mse(self, actual: list[float], predicted: list[float]) -> float:
         if not actual or not predicted:
             return 0.0
-        return sum((a - p) ** 2 for a, p in zip(actual, predicted, strict=False)) / len(actual)
+        n = len(actual)
+        return sum((a - p) ** 2 for a, p in zip(actual, predicted, strict=False)) / n if n > 0 else 0.0
 
     def rmse(self, actual: list[float], predicted: list[float]) -> float:
         return math.sqrt(self.mse(actual, predicted))
@@ -17,12 +18,16 @@ class ForecastMetrics:
     def mae(self, actual: list[float], predicted: list[float]) -> float:
         if not actual or not predicted:
             return 0.0
-        return sum(abs(a - p) for a, p in zip(actual, predicted, strict=False)) / len(actual)
+        n = len(actual)
+        return sum(abs(a - p) for a, p in zip(actual, predicted, strict=False)) / n if n > 0 else 0.0
 
     def r2(self, actual: list[float], predicted: list[float]) -> float:
         if not actual or not predicted:
             return 0.0
-        mean_actual = sum(actual) / len(actual)
+        n = len(actual)
+        if n == 0:
+            return 0.0
+        mean_actual = sum(actual) / n
         ss_res = sum((a - p) ** 2 for a, p in zip(actual, predicted, strict=False))
         ss_tot = sum((a - mean_actual) ** 2 for a in actual)
         if ss_tot == 0:

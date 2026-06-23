@@ -1,2 +1,6 @@
-{"timestamp": "2026-06-18T08:14:29.429960+00:00", "level": "WARNING", "name": "core.cache", "message": "Redis unavailable, using null cache", "module": "cache", "function": "initialize", "line": 47}
-{"timestamp": "2026-06-18T08:14:29.431158+00:00", "level": "INFO", "name": "apps.api.app", "message": "Starting iran-market-platform", "module": "app", "function": "lifespan", "line": 31}
+{"timestamp": "2026-06-20T03:36:38.301513+00:00", "level": "WARNING", "name": "core.cache", "message": "Redis unavailable, using null cache", "module": "cache", "function": "initialize", "line": 47}
+{"timestamp": "2026-06-20T03:36:38.301513+00:00", "level": "INFO", "name": "apps.api.app", "message": "Starting iran-market-platform", "module": "app", "function": "lifespan", "line": 31}
+{"timestamp": "2026-06-20T03:37:11.298451+00:00", "level": "INFO", "name": "apps.api.middleware", "message": "GET /docs -> 404 (0.484s)", "module": "middleware", "function": "dispatch", "line": 26}
+INFO:     127.0.0.1:62544 - "GET /docs HTTP/1.1" 404 Not Found
+{"timestamp": "2026-06-20T03:37:33.243862+00:00", "level": "INFO", "name": "apps.api.middleware", "message": "GET / -> 307 (0.000s)", "module": "middleware", "function": "dispatch", "line": 26}
+INFO:     127.0.0.1:62551 - "GET / HTTP/1.1" 307 Temporary Redirect

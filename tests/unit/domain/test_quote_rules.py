@@ -39,3 +39,4 @@ def test_quote_required_fields():
     rule = RequiredFieldsRule()
     assert rule.validate(symbol="فولاد") is True
     assert rule.validate(symbol="") is False
+

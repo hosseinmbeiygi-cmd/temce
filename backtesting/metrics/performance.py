@@ -7,7 +7,7 @@ from backtesting.types import BacktestResult
 
 class PerformanceMetrics:
     @staticmethod
-    def compute(result: BacktestResult) -> dict[str, float]:
+    def compute(result: BacktestResult, risk_free_rate: float = 0.0) -> dict[str, float]:
         metrics: dict[str, float] = {}
 
         metrics["total_return"] = result.total_return
@@ -20,14 +20,15 @@ class PerformanceMetrics:
             metrics["volatility"] = float(np.std(returns) * np.sqrt(252)) if len(returns) > 0 else 0.0
             avg_return = float(np.mean(returns)) * 252 if len(returns) > 0 else 0.0
             vol = metrics["volatility"]
-            metrics["sharpe_ratio"] = avg_return / vol if vol > 0 else 0.0
+            excess_return = avg_return - risk_free_rate
+            metrics["sharpe_ratio"] = excess_return / vol if vol > 0 else 0.0
 
             running_max = np.maximum.accumulate(navs)
             drawdowns = (navs - running_max) / running_max
             metrics["max_drawdown"] = float(np.min(drawdowns)) * 100
 
         if result.total_trades > 0:
-            wins = sum(1 for t in result.trades if t.price > 0)
+            wins = sum(1 for t in result.trades if t.net_profit > 0)
             metrics["win_rate"] = (wins / result.total_trades) * 100
 
         return metrics

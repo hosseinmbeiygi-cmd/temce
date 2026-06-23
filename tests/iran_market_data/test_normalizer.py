@@ -93,3 +93,4 @@ class TestPersianDigitsToEnglish:
         """All 10 Arabic digits should be converted correctly."""
         result = persian_digits_to_english("٠١٢٣٤٥٦٧٨٩")
         assert result == "0123456789"
+

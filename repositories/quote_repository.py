@@ -34,6 +34,14 @@ class QuoteRepository:
             return await self._db.delete(id)
         return await self._mem.delete(id)
 
+    async def get_all(self) -> Result[list[Quote]]:
+        if self._db:
+            stmt = select(QuoteModel)
+            result = await self._session.execute(stmt)
+            rows = result.scalars().all()
+            return Result.ok([self._db._to_domain(r) for r in rows])
+        return Result.ok(list(self._mem._store.values()))
+
     async def get_latest(self, instrument_id: str) -> Result[Quote]:
         if self._db:
             return await self._db.get_latest(instrument_id)

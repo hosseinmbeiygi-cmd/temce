@@ -4,7 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query
 
-from apps.api.dependencies import get_recommendation_service
+from apps.api.dependencies import get_current_user, get_recommendation_service
+from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.recommendation_service import RecommendationService
 
@@ -14,6 +15,7 @@ router = APIRouter()
 @router.post("", summary="Create recommendation", description="Create a new trading recommendation")
 async def create_recommendation(
     body: dict[str, Any] = Body(...),
+    current_user: dict = Depends(get_current_user),
     service: RecommendationService = Depends(get_recommendation_service),
 ) -> ApiResponse[dict[str, Any]]:
     rest = {k: v for k, v in body.items() if k not in ("instrument_id", "action")}
@@ -30,15 +32,17 @@ async def list_recommendations(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1),
     service: RecommendationService = Depends(get_recommendation_service),
-) -> ApiResponse[list[dict[str, Any]]]:
+) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
     result = await service.list(page, page_size)
-    return ApiResponse[list[dict[str, Any]]](success=result.success, data=result.value)
+    return ApiResponse[PaginatedResult[dict[str, Any]]](success=result.success, data=result.value)
 
 
-@router.get("/{instrument_id}", summary="Get recommendations", description="Get active recommendations for an instrument")
+@router.get("/{instrument_id}", summary="Get recommendations", description="Get active recommendations for a specific instrument")
 async def get_recommendations(
     instrument_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1),
     service: RecommendationService = Depends(get_recommendation_service),
-) -> ApiResponse[list[dict[str, Any]]]:
-    result = await service.get_active(instrument_id)
-    return ApiResponse[list[dict[str, Any]]](success=result.success, data=result.value)
+) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
+    result = await service.get_active(instrument_id, page, page_size)
+    return ApiResponse[PaginatedResult[dict[str, Any]]](success=result.success, data=result.value)

@@ -17,3 +17,4 @@ async def test_macro_list():
     service = MarketService()
     result = await service.list_macro_indicators()
     assert result.success or not result.success
+

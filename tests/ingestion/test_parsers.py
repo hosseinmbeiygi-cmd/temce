@@ -71,3 +71,4 @@ class TestTsetmcOrderBookParser:
         parser = TsetmcOrderBookParser()
         events = await parser.parse(json.dumps({}).encode())
         assert events == []
+

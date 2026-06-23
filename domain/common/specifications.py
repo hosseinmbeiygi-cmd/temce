@@ -26,6 +26,7 @@ class Specification(ABC, Generic[T]):
 
 class AndSpecification(Specification[T]):
     def __init__(self, left: Specification[T], right: Specification[T]) -> None:
+        super().__init__()
         self._left = left
         self._right = right
 
@@ -35,6 +36,7 @@ class AndSpecification(Specification[T]):
 
 class OrSpecification(Specification[T]):
     def __init__(self, left: Specification[T], right: Specification[T]) -> None:
+        super().__init__()
         self._left = left
         self._right = right
 
@@ -44,6 +46,7 @@ class OrSpecification(Specification[T]):
 
 class NotSpecification(Specification[T]):
     def __init__(self, spec: Specification[T]) -> None:
+        super().__init__()
         self._spec = spec
 
     def is_satisfied_by(self, candidate: T) -> bool:
@@ -52,6 +55,7 @@ class NotSpecification(Specification[T]):
 
 class AttributeSpecification(Specification[Any]):
     def __init__(self, attr_name: str, expected_value: Any) -> None:
+        super().__init__()
         self._attr_name = attr_name
         self._expected_value = expected_value
 

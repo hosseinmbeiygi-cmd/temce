@@ -77,6 +77,8 @@ class MarketRuleEngine:
         return max(lower, min(current_price, upper))
 
     def _apply_dynamic_limit(self, rules: PriceLimitRules, reference: float, price: float) -> float:
+        if reference == 0:
+            return price
         change_pct = abs((price - reference) / reference) * 100
         if change_pct <= rules.yellow_pct:
             band = rules.yellow_pct
@@ -107,6 +109,8 @@ class MarketRuleEngine:
     def validate_price_tick(self, market_id: str, price: float) -> float:
         rules = self.get_rules(market_id)
         tick = rules.tick_size.base_tick
+        if tick <= 0:
+            return price
         return round(price / tick) * tick
 
     def is_auction_time(self, market_id: str, current_time: datetime) -> bool:

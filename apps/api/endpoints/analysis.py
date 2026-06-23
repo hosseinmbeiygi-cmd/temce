@@ -77,6 +77,55 @@ class InterestRateResponse(BaseModel):
     analysis: str
 
 
+class AnalysisOverviewFrontend(BaseModel):
+    sentiment: list[dict[str, Any]]
+    trends: dict[str, Any]
+    recommendations: list[dict[str, Any]]
+    market_status: str
+    analysis_date: str
+
+
+@router.get("/overview")
+async def analysis_overview_frontend() -> ApiResponse[AnalysisOverviewFrontend]:
+    return ApiResponse[AnalysisOverviewFrontend](
+        success=True,
+        data=AnalysisOverviewFrontend(
+            sentiment=[
+                {"date": "1403-06-15", "score": 72, "label": "مثبت", "volume": 12500000000},
+                {"date": "1403-06-14", "score": 65, "label": "مثبت", "volume": 11200000000},
+                {"date": "1403-06-13", "score": 48, "label": "خنثی", "volume": 9800000000},
+                {"date": "1403-06-12", "score": 35, "label": "منفی", "volume": 8500000000},
+                {"date": "1403-06-11", "score": 42, "label": "خنثی", "volume": 10200000000},
+                {"date": "1403-06-10", "score": 58, "label": "خنثی", "volume": 11500000000},
+                {"date": "1403-06-09", "score": 61, "label": "مثبت", "volume": 10800000000},
+            ],
+            trends={
+                "trend": "bullish",
+                "strength": 68,
+                "gainers": [
+                    {"symbol": "فولاد", "change": 3.45},
+                    {"symbol": "شپنا", "change": 2.18},
+                    {"symbol": "وبملت", "change": 1.75},
+                    {"symbol": "خودرو", "change": 1.32},
+                ],
+                "losers": [
+                    {"symbol": "کگل", "change": -1.28},
+                    {"symbol": "سیدکو", "change": -0.95},
+                    {"symbol": "فملی", "change": -0.72},
+                ],
+            },
+            recommendations=[
+                {"symbol": "فولاد", "name": "فولاد مبارکه اصفهان", "signal": "buy", "targetPrice": 52000, "currentPrice": 42500, "upside": 22.35, "analyst": "تحلیل کارگزاری مفید"},
+                {"symbol": "شپنا", "name": "پالایش نفت اصفهان", "signal": "buy", "targetPrice": 68000, "currentPrice": 53500, "upside": 27.10, "analyst": "تحلیل کارگزاری فارابی"},
+                {"symbol": "وبملت", "name": "بانک ملت", "signal": "hold", "targetPrice": 18000, "currentPrice": 15200, "upside": 18.42, "analyst": "تحلیل کارگزاری آگاه"},
+                {"symbol": "خودرو", "name": "ایران خودرو", "signal": "sell", "targetPrice": 2200, "currentPrice": 2750, "upside": -20.0, "analyst": "تحلیل کارگزاری بهمن"},
+            ],
+            market_status="open",
+            analysis_date=datetime.now().isoformat(),
+        ),
+    )
+
+
 class ProfitPredictionResponse(BaseModel):
     symbol: str
     fiscal_year: int
@@ -207,7 +256,7 @@ async def market_recommendations() -> ApiResponse[list[RecommendationResponse]]:
     recommendations = []
     for r in raw:
         upside = None
-        if r["target_price"] is not None and r["current_price"]:
+        if r["target_price"] is not None and r["current_price"] and r["current_price"] != 0:
             upside = round((r["target_price"] - r["current_price"]) / r["current_price"] * 100, 2)
         recommendations.append(RecommendationResponse(upside=upside, **r))
     return ApiResponse[list[RecommendationResponse]](success=True, data=recommendations)

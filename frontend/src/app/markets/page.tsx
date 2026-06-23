@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
 
@@ -50,20 +51,15 @@ function MarketCard({ m }: { m: Market }) {
 }
 
 export default function MarketsPage() {
-  const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState("all");
 
   const { data: markets, isLoading } = useQuery({
     queryKey: ["markets-full"],
     queryFn: async () => {
-      const response = await fetch('/api/v1/market/overview');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data && data.data.markets) {
-          return data.data.markets;
-        }
-      }
-      // Fallback to mock
+      try {
+        const data = await apiGet<any>('/market/overview');
+        return data.markets || [];
+      } catch {}
       return [
         { id: "tse", name: "بورس تهران", en: "TSE", icon: "📈", instruments: 786, status: "live", change: "+۰.۸%", desc: "بزرگترین بازار سرمایه ایران", features: ["صف خرید/فروش", "حراج", "قیمت‌گذاری ۵٪"] },
         { id: "ifb", name: "فرابورس", en: "IFB", icon: "📊", instruments: 342, status: "live", change: "-۰.۳%", desc: "بازار اوراق بدهی و سهام", features: ["صف", "حراج", "قیمت‌گذاری ۳٪"] },
@@ -76,17 +72,9 @@ export default function MarketsPage() {
   const filtered = filter === "all" ? markets : markets?.filter((m: any) => m.status === filter);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
-        <div className="flex flex-wrap items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-surface-100">📈 بازارها</h1>
-            <p className="text-sm text-surface-500 mt-1">مدیریت بازارهای پشتیبانی شده</p>
-          </div>
-          {isLoading && <span className="text-xs text-accent-amber">در حال بارگذاری...</span>}
-        </div>
-        <div className="flex gap-2 mb-6 flex-wrap">
+    <AppLayout title="📈 بازارها" subtitle="مدیریت بازارهای پشتیبانی شده">
+      <div className="flex flex-wrap items-center justify-between mb-6">
+        <div className="flex gap-2 flex-wrap">
           {[
             { key: "all", label: "همه" },
             { key: "live", label: "فعال" },
@@ -99,12 +87,13 @@ export default function MarketsPage() {
               }`}>{t.label}</button>
           ))}
         </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {isLoading ? (
-            [1,2,3].map(i => <Skeleton key={i} className="h-48 w-full" />)
-          ) : filtered?.map((m: any) => <MarketCard key={m.id} m={m} />) || <div className="text-center col-span-full py-8 text-surface-600">بازاری یافت نشد</div>}
-        </div>
-      </main>
-    </div>
+        {isLoading && <span className="text-xs text-accent-amber">در حال بارگذاری...</span>}
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {isLoading ? (
+          [1,2,3].map(i => <Skeleton key={i} className="h-48 w-full" />)
+        ) : filtered?.map((m: any) => <MarketCard key={m.id} m={m} />) || <div className="text-center col-span-full py-8 text-surface-600">بازاری یافت نشد</div>}
+      </div>
+    </AppLayout>
   );
 }

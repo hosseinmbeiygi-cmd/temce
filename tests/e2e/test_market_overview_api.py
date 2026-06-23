@@ -35,3 +35,4 @@ async def test_market_indices(client: AsyncClient):
 async def test_market_sectors(client: AsyncClient):
     response = await client.get("/api/v1/market/sectors")
     assert response.status_code in (200, 401)
+

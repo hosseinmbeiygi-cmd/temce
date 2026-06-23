@@ -45,3 +45,4 @@ async def test_recommendation_strategies():
     service = RecommendationService()
     strategies = service.list_strategies()
     assert isinstance(strategies, list)
+

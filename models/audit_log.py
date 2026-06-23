@@ -10,10 +10,10 @@ class AuditLogModel(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    action: Mapped[str] = mapped_column(String(100), nullable=False)
-    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    entity_id: Mapped[str | None] = mapped_column(String(50))
-    actor: Mapped[str | None] = mapped_column(String(100), server_default="system")
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    entity_id: Mapped[str | None] = mapped_column(String(50), index=True)
+    actor: Mapped[str | None] = mapped_column(String(100), server_default="system", index=True)
     changes: Mapped[str | None] = mapped_column(Text)
     ip_address: Mapped[str | None] = mapped_column(String(50))
     user_agent: Mapped[str | None] = mapped_column(String(500))

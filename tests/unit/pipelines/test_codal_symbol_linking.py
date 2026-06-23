@@ -35,3 +35,4 @@ def test_codal_batch_link():
     ]
     results = linker.batch_link(reports)
     assert len(results) == 2
+

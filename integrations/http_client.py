@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import time
+import asyncio
 from typing import Any
 
 import httpx
@@ -28,7 +28,7 @@ class HttpClient:
                 logger.warning("GET %s failed (attempt %d/%d): %s", url, attempt + 1, self.max_retries, e)
                 if attempt == self.max_retries - 1:
                     raise
-                time.sleep(2**attempt)
+                await asyncio.sleep(2**attempt)
         raise Exception(f"Request failed after {self.max_retries} retries")
 
     async def post(self, path: str, json: dict[str, Any] | None = None, **kwargs: Any) -> httpx.Response:
@@ -43,5 +43,5 @@ class HttpClient:
                 logger.warning("POST %s failed (attempt %d/%d): %s", url, attempt + 1, self.max_retries, e)
                 if attempt == self.max_retries - 1:
                     raise
-                time.sleep(2**attempt)
+                await asyncio.sleep(2**attempt)
         raise Exception(f"Request failed after {self.max_retries} retries")

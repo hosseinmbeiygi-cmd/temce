@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends
 from pydantic import BaseModel, Field
 
-from apps.api.dependencies import get_codal_service
+from apps.api.dependencies import get_codal_service, get_current_user
 from core.exceptions import NotFoundError
 from schemas.api.codal import CodalListResponse, CodalReportResponse, CodalSearchRequest
 from schemas.common.responses import ApiResponse
@@ -100,6 +100,7 @@ async def list_disclosures(
 async def create_disclosure(
     instrument_id: str,
     body: CodalCreateRequest = Body(...),
+    current_user: dict = Depends(get_current_user),
     service: CodalService = Depends(get_codal_service),
 ) -> ApiResponse[CodalReportResponse]:
     rest = body.model_dump(exclude={"title"})

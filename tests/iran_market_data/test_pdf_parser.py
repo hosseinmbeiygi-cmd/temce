@@ -85,3 +85,4 @@ class TestPdfParser:
 
         # Just importing should not fail
         assert iran_market_data.app.parsers.pdf_parser.extract_text_from_pdf is not None
+

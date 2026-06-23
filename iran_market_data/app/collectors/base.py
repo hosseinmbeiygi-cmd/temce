@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from core.paths import safe_resolve
 from iran_market_data.app.storage.raw_storage import RawStorage
 from iran_market_data.app.utils.http import HttpClient
 from iran_market_data.app.utils.logger import setup_logger
@@ -39,7 +40,8 @@ class BaseCollector:
             try:
                 data = json.loads(content) if isinstance(content, str) else json.loads(content.decode())
                 return self.raw_storage.save_json(source, name, data)
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                self.logger.debug("Failed to parse JSON content for %s: %s", name, e)
                 pass
 
         if file_format in ("html", "htm"):
@@ -53,11 +55,10 @@ class BaseCollector:
 
         # Default: save as text file
         text = content if isinstance(content, str) else content.decode("utf-8", errors="replace")
-        folder = self.raw_storage.base_dir / "txt" / source
+        folder = safe_resolve(self.raw_storage.base_dir, f"txt/{source}")
         folder.mkdir(parents=True, exist_ok=True)
         file_path = folder / f"{name}_{self.raw_storage.timestamp}.txt"
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(text)
+        file_path.write_text(text, encoding="utf-8")
         return file_path
 
     def collect(self) -> dict:

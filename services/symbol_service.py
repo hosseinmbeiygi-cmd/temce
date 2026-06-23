@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.ids import new_id
 from core.logging import get_logger
-from core.result import Result
+from core.result import PaginatedResult, Result
 from domain.instruments.instrument import Instrument
 from repositories.instrument_repository import InstrumentRepository
 
@@ -26,26 +26,32 @@ class SymbolService:
             return Result.fail(result.error or "Failed to create symbol")
         return Result.ok(vars(result.value))
 
-    async def list_all(self, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
+    async def list_all(self, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[dict[str, Any]]]:
         result = await self.repo.list(page, page_size)
         if not result.success:
-            return Result.ok({"items": [], "total": 0})
+            return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
         return Result.ok(
-            {
-                "items": [vars(item) for item in result.value.items],
-                "total": result.value.total,
-            }
+            PaginatedResult(
+                items=[vars(item) for item in result.value.items],
+                total=result.value.total,
+                page=result.value.page,
+                page_size=result.value.page_size,
+                total_pages=result.value.total_pages,
+            )
         )
 
-    async def search(self, query: str, page: int = 1) -> Result[dict[str, Any]]:
-        result = await self.repo.search(query, page)
+    async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[dict[str, Any]]]:
+        result = await self.repo.search(query, page, page_size)
         if not result.success:
-            return Result.ok({"items": [], "total": 0})
+            return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
         return Result.ok(
-            {
-                "items": [vars(item) for item in result.value.items],
-                "total": result.value.total,
-            }
+            PaginatedResult(
+                items=[vars(item) for item in result.value.items],
+                total=result.value.total,
+                page=result.value.page,
+                page_size=result.value.page_size,
+                total_pages=result.value.total_pages,
+            )
         )
 
     async def get_by_symbol(self, symbol: str) -> Result[dict[str, Any]]:

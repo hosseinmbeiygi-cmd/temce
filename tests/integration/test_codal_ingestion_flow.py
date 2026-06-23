@@ -25,3 +25,4 @@ async def test_codal_search():
     service = CodalService()
     result = await service.search(symbol="فولاد")
     assert result.success or not result.success
+

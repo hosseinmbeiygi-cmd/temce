@@ -27,6 +27,7 @@ class MarketService:
         return await self.quote_repo.get_market_summary()
 
     async def get_index_values(self) -> Result[list[dict[str, Any]]]:
+        # TODO: implement real index data source/repository.
         return Result.ok([])
 
     async def get_top_gainers(self, limit: int = 10) -> Result[list[Quote]]:
@@ -39,23 +40,104 @@ class MarketService:
         return await self.quote_repo.get_most_active(limit)
 
     async def get_sector_summary(self) -> Result[list[dict[str, Any]]]:
+        # TODO: implement real sector aggregation.
         return Result.ok([])
 
-    async def get_historical_quotes(self, symbol: str, start_date: str, end_date: str) -> Result[list[dict[str, Any]]]:
+    async def get_historical_quotes(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+    ) -> Result[list[dict[str, Any]]]:
+        # TODO: connect to historical quote repository when available.
+        logger.debug(
+            "get_historical_quotes called with symbol=%s start_date=%s end_date=%s",
+            symbol,
+            start_date,
+            end_date,
+        )
         return Result.ok([])
 
     async def get_ohlcv(
-        self, symbol: str, start_date: str, end_date: str, timeframe: str = "1d"
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        timeframe: str = "1d",
     ) -> Result[list[dict[str, Any]]]:
+        # TODO: implement OHLCV aggregation.
+        logger.debug(
+            "get_ohlcv called with symbol=%s start_date=%s end_date=%s timeframe=%s",
+            symbol,
+            start_date,
+            end_date,
+            timeframe,
+        )
         return Result.ok([])
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         return await self.quote_repo.get_market_summary()
 
+    async def get_market_watch(self) -> Result[list[dict[str, Any]]]:
+        quotes_result = await self.quote_repo.get_all()
+
+        if not quotes_result.success:
+            return quotes_result
+
+        enriched_quotes: list[dict[str, Any]] = []
+
+        for quote in quotes_result.value:
+            inst_result = await self.instrument_repo.get_by_symbol(quote.symbol)
+
+            market = "Unknown"
+
+            if inst_result.success and inst_result.value:
+                market_type = getattr(inst_result.value, "market_type", None)
+
+                if market_type is not None:
+                    market = getattr(market_type, "value", str(market_type))
+
+            quote_dict = vars(quote).copy()
+            quote_dict["market"] = market
+
+            enriched_quotes.append(quote_dict)
+
+        return Result.ok(enriched_quotes)
+
+    async def get_instruments_by_market(self, market_type: str) -> Result[list[Any]]:
+        return await self.instrument_repo.get_by_market(market_type)
+
+    async def get_energy_commodity_summary(self) -> Result[dict[str, Any]]:
+        # TODO: replace placeholder with real commodity/energy market aggregation.
+        return Result.ok(
+            {
+                "summary": {"total_symbols": 0},
+                "sub_markets": [
+                    {"name": "Commodity", "count": 0, "instruments": []},
+                    {"name": "Energy", "count": 0, "instruments": []},
+                ],
+            }
+        )
+
     async def calculate_indicator(
-        self, symbol: str, indicator: str, params: dict[str, Any] | None = None
+        self,
+        symbol: str,
+        indicator: str,
+        params: dict[str, Any] | None = None,
     ) -> Result[list[float]]:
+        # TODO: implement technical indicators.
+        logger.debug(
+            "calculate_indicator called with symbol=%s indicator=%s params=%s",
+            symbol,
+            indicator,
+            params,
+        )
         return Result.ok([])
 
-    async def get_macro_data(self, indicator: str, country: str = "iran") -> Result[dict[str, Any]]:
+    async def get_macro_data(
+        self,
+        indicator: str,
+        country: str = "iran",
+    ) -> Result[dict[str, Any]]:
+        # TODO: connect to macro repository/service.
         return Result.ok({"indicator": indicator, "country": country})

@@ -12,7 +12,7 @@ class ApiSettings(BaseSettings):
     prefix: str = "/api/v1"
     title: str = "Iran Market Platform API"
     version: str = "0.1.0"
-    cors_origins: list[str] = ["*"]
+    cors_origins: list[str] = Field(default=["*"], alias="CORS_ORIGINS")
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["*"]
     cors_allow_headers: list[str] = ["*"]

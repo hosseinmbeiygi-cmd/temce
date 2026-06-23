@@ -41,3 +41,4 @@ def test_quote_validator_ohlc():
     invalid_ohlc = {"high": 14800, "low": 14900, "open": 14900, "close": 15000}
     assert validator.validate_ohlc(**valid_ohlc) is True
     assert validator.validate_ohlc(**invalid_ohlc) is False
+

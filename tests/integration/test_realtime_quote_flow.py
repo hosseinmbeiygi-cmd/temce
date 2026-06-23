@@ -41,3 +41,4 @@ async def test_most_active():
     service = QuoteService()
     result = await service.quote_repo.get_most_active(5)
     assert result.success or not result.success
+

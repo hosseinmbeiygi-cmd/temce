@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
 
@@ -75,7 +76,6 @@ function formatVolume(n: number): string {
 }
 
 export default function CodalPage() {
-  const [collapsed, setCollapsed] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
@@ -83,11 +83,9 @@ export default function CodalPage() {
   const { data: companies, isLoading: loadingCompanies } = useQuery({
     queryKey: ["codal-companies"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/codal/");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.data) return data.data;
-      }
+      try {
+        return await apiGet<any>("/codal");
+      } catch {}
       return [
         { code: "فولاد", name: "فولاد مبارکه اصفهان", industry: "فلزات اساسی", lastPrice: 35840, change: 2.3, volume: 125000000, marketCap: 456000000000000, peRatio: 6.2, eps: 5780, status: "active" },
         { code: "شپنا", name: "پالایش نفت اصفهان", industry: "پالایشی", lastPrice: 12750, change: -1.5, volume: 89000000, marketCap: 215000000000000, peRatio: 4.8, eps: 2650, status: "active" },
@@ -101,11 +99,11 @@ export default function CodalPage() {
     queryFn: async () => {
       if (!selectedCode) return null;
       const [profile, financials, dividends, holders, insider] = await Promise.all([
-        apiGet<CompanyProfile>(`/api/v1/codal/${selectedCode}/profile`),
-        apiGet<FinancialReport[]>(`/api/v1/codal/${selectedCode}/financials`),
-        apiGet<DividendItem[]>(`/api/v1/codal/${selectedCode}/dividends`),
-        apiGet<ShareholderItem[]>(`/api/v1/codal/${selectedCode}/holders`),
-        apiGet<InsiderTrade[]>(`/api/v1/codal/${selectedCode}/insider`),
+        apiGet<CompanyProfile>(`/codal/${selectedCode}/profile`),
+        apiGet<FinancialReport[]>(`/codal/${selectedCode}/financials`),
+        apiGet<DividendItem[]>(`/codal/${selectedCode}/dividends`),
+        apiGet<ShareholderItem[]>(`/codal/${selectedCode}/holders`),
+        apiGet<InsiderTrade[]>(`/codal/${selectedCode}/insider`),
       ]);
       return { profile, financials, dividends, holders, insider };
     },
@@ -125,10 +123,8 @@ export default function CodalPage() {
   const selectedCompany = selectedCode ? companies?.find((c: any) => c.code === selectedCode) : null;
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
-        <div className="flex flex-wrap items-center justify-between mb-6">
+    <AppLayout title="اطلاعات شرکت‌ها (کدال)" subtitle="مشاهده اطلاعات شرکت‌های پذیرفته شده در بورس و فرابورس">
+      <div className="flex flex-wrap items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-surface-100">اطلاعات شرکت‌ها (کدال)</h1>
             <p className="text-sm text-surface-500 mt-1">مشاهده اطلاعات شرکت‌های پذیرفته شده در بورس و فرابورس</p>
@@ -251,7 +247,6 @@ export default function CodalPage() {
             ) : <div className="text-center py-12 text-surface-500">جزئیات یافت نشد</div>}
           </div>
         )}
-      </main>
-    </div>
+    </AppLayout>
   );
 }

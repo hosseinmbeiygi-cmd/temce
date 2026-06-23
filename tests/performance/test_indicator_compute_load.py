@@ -23,3 +23,4 @@ async def test_indicator_bulk_computation():
     elapsed = time.monotonic() - start
     avg = elapsed / count
     assert avg < 1.0, f"Average indicator computation {avg:.2f}s exceeds 1s threshold"
+

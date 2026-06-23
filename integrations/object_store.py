@@ -1,37 +1,33 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from core.logging import get_logger
+from core.paths import safe_resolve
 
 logger = get_logger(__name__)
 
 
 class ObjectStore:
     def __init__(self, base_path: str = "./data/objects") -> None:
-        self.base_path = base_path
+        self.base_path = str(Path(base_path).resolve())
 
     async def upload(self, key: str, data: bytes) -> str:
-        import os
-
-        path = os.path.join(self.base_path, key)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(data)
+        path = safe_resolve(self.base_path, key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
         logger.info("Uploaded object: %s", key)
-        return path
+        return str(path)
 
     async def download(self, key: str) -> bytes:
-        import os
-
-        path = os.path.join(self.base_path, key)
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Object not found: {key}")
-        with open(path, "rb") as f:
-            return f.read()
+        path = safe_resolve(self.base_path, key)
+        if not path.exists():
+            logger.debug("Object not found: %s", key)
+            raise FileNotFoundError("Object not found")
+        return path.read_bytes()
 
     async def delete(self, key: str) -> None:
-        import os
-
-        path = os.path.join(self.base_path, key)
-        if os.path.exists(path):
-            os.remove(path)
+        path = safe_resolve(self.base_path, key)
+        if path.exists():
+            path.unlink()
             logger.info("Deleted object: %s", key)

@@ -25,7 +25,7 @@ class TsetmcOptionSource(DataSource):
         if not ins_id:
             return FetchResult(payloads=[])
 
-        url = f"http://cdn.tsetmc.com/api/Option/GetOption/{ins_id}"
+        url = f"https://cdn.tsetmc.com/api/Option/GetOption/{ins_id}"
         await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
@@ -41,7 +41,7 @@ class TsetmcOptionSource(DataSource):
     async def health_check(self) -> bool:
         try:
             await self._http.fetch(
-                "http://cdn.tsetmc.com/api/Option/GetOption/35364588457143450",
+                "https://cdn.tsetmc.com/api/Option/GetOption/35364588457143450",
                 method="HEAD",
             )
             return True
@@ -63,7 +63,7 @@ class TsetmcFutureSource(DataSource):
         if not ins_id:
             return FetchResult(payloads=[])
 
-        url = f"http://cdn.tsetmc.com/api/Future/GetFuture/{ins_id}"
+        url = f"https://cdn.tsetmc.com/api/Future/GetFuture/{ins_id}"
         await self._rate_limiter.acquire()
         raw = await self._http.fetch(url)
         payload = SourcePayload(
@@ -79,7 +79,7 @@ class TsetmcFutureSource(DataSource):
     async def health_check(self) -> bool:
         try:
             await self._http.fetch(
-                "http://cdn.tsetmc.com/api/Future/GetFuture/35364588457143450",
+                "https://cdn.tsetmc.com/api/Future/GetFuture/35364588457143450",
                 method="HEAD",
             )
             return True

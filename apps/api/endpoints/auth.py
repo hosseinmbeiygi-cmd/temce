@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
 from apps.api.dependencies import get_current_user
+from core.logging import get_logger
+from core.rate_limit import get_rate_limiter
 from schemas.api.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -17,7 +19,41 @@ from schemas.api.auth import (
 from schemas.common.responses import ApiResponse
 from services.user_service import UserService
 
+logger = get_logger(__name__)
 router = APIRouter()
+
+
+# Strict rate limits for auth endpoints to prevent brute-force attacks
+# Limits are set ONCE at module level (NOT per-request) to avoid resetting state
+_limiter = get_rate_limiter()
+_limiter.set_limit("auth:login", rate=5 / 60.0, burst=5)          # 5 attempts per 60s per IP
+_limiter.set_limit("auth:register", rate=3 / 60.0, burst=3)       # 3 attempts per 60s per IP
+_limiter.set_limit("auth:change_password", rate=3 / 60.0, burst=3)  # 3 attempts per 60s per IP
+
+
+def _rate_limit_auth(request: Request, endpoint: str) -> None:
+    """FastAPI dependency: rate-limit an auth endpoint by client IP."""
+    client_ip = request.client.host if request.client else "unknown"
+    key = f"auth:{endpoint}:{client_ip}"
+    if not _limiter.allow(key):
+        logger.warning("Auth rate limit hit: %s from %s", endpoint, client_ip)
+        raise HTTPException(
+            status_code=429,
+            detail="Too many attempts. Please try again later.",
+            headers={"Retry-After": "60"},
+        )
+
+
+def login_rate_limit(request: Request) -> None:
+    _rate_limit_auth(request, "login")
+
+
+def register_rate_limit(request: Request) -> None:
+    _rate_limit_auth(request, "register")
+
+
+def change_password_rate_limit(request: Request) -> None:
+    _rate_limit_auth(request, "change_password")
 
 
 def _build_token_response(data: dict) -> TokenResponse:
@@ -43,7 +79,11 @@ def _build_user_response(data: dict) -> UserResponse:
 
 
 @router.post("/register")
-async def register(req: RegisterRequest, session: AsyncSession = Depends(get_session)) -> ApiResponse:
+async def register(
+    req: RegisterRequest,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(register_rate_limit),
+) -> ApiResponse:
     svc = UserService(session)
     result = await svc.register(req.username, req.email, req.password, req.full_name, req.phone)
     if not result.success:
@@ -59,7 +99,11 @@ async def register(req: RegisterRequest, session: AsyncSession = Depends(get_ses
 
 
 @router.post("/login")
-async def login(req: LoginRequest, session: AsyncSession = Depends(get_session)) -> ApiResponse:
+async def login(
+    req: LoginRequest,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(login_rate_limit),
+) -> ApiResponse:
     svc = UserService(session)
     result = await svc.login(req.username, req.password)
     if not result.success:
@@ -113,6 +157,7 @@ async def change_password(
     req: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(change_password_rate_limit),
 ) -> ApiResponse:
     svc = UserService(session)
     result = await svc.change_password(current_user["sub"], req.current_password, req.new_password)

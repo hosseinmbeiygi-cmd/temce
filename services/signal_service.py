@@ -50,13 +50,27 @@ class SignalService:
 
     async def list(
         self, instrument_id: str | None = None, page: int = 1, page_size: int = 50
-    ) -> Result[PaginatedResult[Signal]]:
+    ) -> Result[PaginatedResult[dict[str, Any]]]:
         if instrument_id:
-            return await self.signal_repo.get_by_instrument(instrument_id, page, page_size)
-        return await self.signal_repo.list(page, page_size)
+            result = await self.signal_repo.get_by_instrument(instrument_id, page, page_size)
+        else:
+            result = await self.signal_repo.list(page, page_size)
+        
+        if not result.success:
+            return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
+        
+        return Result.ok(
+            PaginatedResult(
+                items=[vars(s) for s in result.value.items],
+                total=result.value.total,
+                page=result.value.page,
+                page_size=result.value.page_size,
+                total_pages=result.value.total_pages,
+            )
+        )
 
-    async def list_signals(self) -> Result[dict[str, Any]]:
-        return Result.ok({"items": [], "total": 0})
+    async def list_signals(self, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[dict[str, Any]]]:
+        return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
     async def get_by_symbol(self, symbol: str) -> Result[list[Signal]]:
         return Result.ok([])

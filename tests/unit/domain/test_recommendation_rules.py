@@ -46,3 +46,4 @@ def test_recommendation_target_price():
     rule = TargetPriceRule()
     assert rule.validate(target_price=18000, current_price=15000) is True
     assert rule.validate(target_price=0, current_price=15000) is False
+

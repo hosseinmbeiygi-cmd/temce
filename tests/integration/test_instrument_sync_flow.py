@@ -27,3 +27,4 @@ async def test_instrument_search():
     service = SymbolService()
     result = await service.search("فولاد")
     assert result.success or not result.success
+

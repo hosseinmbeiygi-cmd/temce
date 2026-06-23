@@ -47,3 +47,4 @@ def test_model_registry_list():
     registry.register(name="model_b", task="regression", framework="xgboost")
     models = registry.list_models()
     assert len(models) == 2
+

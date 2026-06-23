@@ -24,3 +24,4 @@ async def test_recommendations_generate(client: AsyncClient):
     payload = {"symbols": ["فولاد"], "strategy": "value", "risk_tolerance": "moderate"}
     response = await client.post("/api/v1/recommendations/generate", json=payload)
     assert response.status_code in (200, 201, 401, 422)
+

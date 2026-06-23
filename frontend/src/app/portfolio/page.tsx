@@ -3,9 +3,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import Sidebar from "@/components/Sidebar";
+import dynamic from "next/dynamic";
+import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, apiPost } from "@/lib/api";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import ClientOnly from "@/components/ClientOnly";
+
+const EquityCurveChart = dynamic(() => import("@/components/charts/EquityCurveChart"), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 256 }} />,
+});
 
 interface Portfolio {
   id: string;
@@ -24,7 +30,6 @@ interface PortfolioList {
 
 export default function PortfolioPage() {
   const queryClient = useQueryClient();
-  const [collapsed, setCollapsed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
@@ -52,14 +57,8 @@ export default function PortfolioPage() {
   });
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
+    <AppLayout title="مدیریت پرتفوی" subtitle="مانیتورینگ دارایی‌ها و تحلیل سود و زیان">
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-surface-100">مدیریت پرتفوی</h1>
-            <p className="text-sm text-surface-500 mt-1">مانیتورینگ دارایی‌ها و تحلیل سود و زیان</p>
-          </div>
           <button 
             onClick={() => setIsCreating(!isCreating)}
             className="bg-primary-600 hover:bg-primary-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition"
@@ -149,26 +148,7 @@ export default function PortfolioPage() {
                 {/* Equity Curve Chart */}
                 <div className="glass-card p-6">
                   <h3 className="font-bold text-surface-200 mb-6">نمودار رشد سرمایه (NAV)</h3>
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={activePortfolio.positions.map((p, i) => ({ name: i, val: p.market_value }))}>
-                        <defs>
-                          <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-                        <XAxis dataKey="name" hide />
-                        <YAxis stroke="#4b5563" fontSize={12} tickFormatter={(val) => `${(val/1e9).toFixed(1)}B`} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', color: '#f3f4f6' }}
-                          itemStyle={{ color: '#818cf8' }}
-                        />
-                        <Area type="monotone" dataKey="val" stroke="#6366f1" fillOpacity={1} fill="url(#colorVal)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <EquityCurveChart positions={activePortfolio.positions} />
                 </div>
 
                 {/* Positions Table */}
@@ -218,7 +198,6 @@ export default function PortfolioPage() {
             )}
           </div>
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

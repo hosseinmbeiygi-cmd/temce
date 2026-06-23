@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from backtesting.reporting.summary_report import SummaryReport
 from backtesting.types import BacktestResult
+from core.paths import validate_safe_path
 
 
 class PDFReport:
@@ -39,6 +40,6 @@ class PDFReport:
 
     @staticmethod
     def save(result: BacktestResult, filepath: str) -> None:
+        safe = validate_safe_path(filepath)
         data = PDFReport.generate(result)
-        with open(filepath, "wb") as f:
-            f.write(data)
+        safe.write_bytes(data)

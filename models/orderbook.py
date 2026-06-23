@@ -9,7 +9,7 @@ class OrderbookModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     instrument_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    symbol: Mapped[str | None] = mapped_column(String(50))
+    symbol: Mapped[str | None] = mapped_column(String(50), index=True)
     bids: Mapped[str | None] = mapped_column(Text)
     asks: Mapped[str | None] = mapped_column(Text)
     time: Mapped[str | None] = mapped_column(String(20))

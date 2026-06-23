@@ -23,9 +23,9 @@ class PortfolioPositionModel(TimestampMixin, Base):
     __tablename__ = "portfolio_positions"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    portfolio_id: Mapped[str] = mapped_column(String(50), nullable=False)
-    instrument_id: Mapped[str | None] = mapped_column(String(50))
-    symbol: Mapped[str | None] = mapped_column(String(50))
+    portfolio_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    instrument_id: Mapped[str | None] = mapped_column(String(50), index=True)
+    symbol: Mapped[str | None] = mapped_column(String(50), index=True)
     quantity: Mapped[int | None] = mapped_column(Integer)
     avg_cost: Mapped[float | None] = mapped_column(Float)
     current_price: Mapped[float | None] = mapped_column(Float)

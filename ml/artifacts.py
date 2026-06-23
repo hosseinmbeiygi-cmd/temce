@@ -7,6 +7,7 @@ from typing import Any
 
 from core.config import settings
 from core.logging import get_logger
+from core.paths import safe_resolve
 from ml.types import ModelArtifactMeta
 
 logger = get_logger(__name__)
@@ -14,11 +15,11 @@ logger = get_logger(__name__)
 
 class ArtifactManager:
     def __init__(self, base_dir: str | None = None) -> None:
-        self.base_dir = Path(base_dir or settings.ml_model_dir)
+        self.base_dir = Path(base_dir or settings.ml_model_dir).resolve()
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _model_path(self, model_id: str, version: str) -> Path:
-        return self.base_dir / model_id / version
+        return safe_resolve(self.base_dir, f"{model_id}/{version}")
 
     def save_model(self, model_obj: Any, meta: ModelArtifactMeta) -> str:
         path = self._model_path(meta.model_id, meta.version)

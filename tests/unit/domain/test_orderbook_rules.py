@@ -40,3 +40,4 @@ def test_orderbook_reasonable_spread():
     rule = SpreadRule(max_spread_bps=500)
     assert rule.validate(bid=100, ask=101) is True
     assert rule.validate(bid=100, ask=200) is False
+

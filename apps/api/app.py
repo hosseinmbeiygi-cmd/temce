@@ -39,8 +39,8 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.api_title,
         version=settings.api_version,
-        docs_url=f"{settings.api_prefix}/docs",
-        openapi_url=f"{settings.api_prefix}/openapi.json",
+        docs_url="/docs",
+        openapi_url="/openapi.json",
         lifespan=lifespan,
     )
 
@@ -59,7 +59,7 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     async def root():
-        return RedirectResponse(url=f"{settings.api_prefix}/docs")
+        return RedirectResponse(url="/docs")
 
     router = Router()
     app.include_router(router.setup(), prefix=settings.api_prefix)

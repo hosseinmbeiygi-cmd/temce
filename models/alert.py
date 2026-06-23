@@ -11,12 +11,12 @@ class AlertModel(TimestampMixin, Base):
     __tablename__ = "alerts"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    instrument_id: Mapped[str | None] = mapped_column(String(50))
+    instrument_id: Mapped[str | None] = mapped_column(String(50), index=True)
     symbol: Mapped[str | None] = mapped_column(String(50))
-    alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    alert_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     condition: Mapped[str | None] = mapped_column(Text)
     channels: Mapped[str | None] = mapped_column(Text)
-    enabled: Mapped[bool | None] = mapped_column(Boolean, server_default=sa.text("1"))
+    enabled: Mapped[bool | None] = mapped_column(Boolean, server_default=sa.text("1"), index=True)
     triggered_count: Mapped[int | None] = mapped_column(Integer, server_default="0")
     last_triggered: Mapped[datetime | None] = mapped_column(DateTime)
     description: Mapped[str | None] = mapped_column(Text)
@@ -27,7 +27,7 @@ class AlertHistoryModel(Base):
     __tablename__ = "alert_history"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    alert_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    alert_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     triggered_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=func.now())
     trigger_value: Mapped[float | None] = mapped_column(Float)
     message: Mapped[str | None] = mapped_column(Text)

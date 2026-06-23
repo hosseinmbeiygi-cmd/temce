@@ -7,7 +7,7 @@ from backtesting.types import BacktestResult
 
 class RiskMetrics:
     @staticmethod
-    def compute(result: BacktestResult) -> dict[str, float]:
+    def compute(result: BacktestResult, risk_free_rate: float = 0.0) -> dict[str, float]:
         metrics: dict[str, float] = {}
         navs = [p.nav for p in result.equity_curve]
         if len(navs) < 2:
@@ -16,7 +16,8 @@ class RiskMetrics:
         vol = float(np.std(returns) * np.sqrt(252))
         metrics["volatility"] = vol
         avg_ret = float(np.mean(returns)) * 252
-        metrics["sharpe_ratio"] = avg_ret / vol if vol > 0 else 0.0
+        excess_ret = avg_ret - risk_free_rate
+        metrics["sharpe_ratio"] = excess_ret / vol if vol > 0 else 0.0
         downside = returns[returns < 0]
         downside_vol = float(np.std(downside) * np.sqrt(252)) if len(downside) > 0 else 1.0
         metrics["sortino_ratio"] = avg_ret / downside_vol if downside_vol > 0 else 0.0

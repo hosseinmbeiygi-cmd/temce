@@ -34,3 +34,4 @@ def test_adjusted_price():
     sell_price = model.adjust_price(price=15000, side="sell")
     assert buy_price > 15000
     assert sell_price < 15000
+

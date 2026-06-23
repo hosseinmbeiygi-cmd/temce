@@ -44,13 +44,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._limiter = get_rate_limiter()
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        if request.url.path.startswith(("/docs", "/openapi.json", "/api/v1/health")):
+        if app_settings.environment == "test" or request.url.path.startswith(("/docs", "/openapi.json", "/api/v1/health")):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
         key = f"api:{client_ip}:{request.url.path}"
 
-        if not self._limiter.allow():
+        if not self._limiter.allow(key):
             from fastapi.responses import JSONResponse
 
             logger.warning("Rate limit exceeded for %s", client_ip)

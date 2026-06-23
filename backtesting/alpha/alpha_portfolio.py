@@ -35,7 +35,8 @@ class AlphaPortfolio:
         self._cov_matrix = np.cov(returns_matrix)
 
         if self.weighting_scheme == "equal_weight":
-            self._weights = {aid: 1.0 / len(self._selected_alphas) for aid in self._selected_alphas}
+            n = len(self._selected_alphas)
+            self._weights = {aid: 1.0 / n if n > 0 else 0.0 for aid in self._selected_alphas}
 
         elif self.weighting_scheme == "mean_variance":
             self._weights = self._mean_variance_weights()
@@ -58,9 +59,9 @@ class AlphaPortfolio:
             if total > 0:
                 weights = raw_weights / total
             else:
-                weights = np.ones(n) / n
+                weights = np.ones(n) / n if n > 0 else np.array([])
         except np.linalg.LinAlgError:
-            weights = np.ones(n) / n
+            weights = np.ones(n) / n if n > 0 else np.array([])
 
         return {aid: float(w) for aid, w in zip(self._selected_alphas, weights, strict=False)}
 
@@ -70,7 +71,7 @@ class AlphaPortfolio:
         if n == 0 or self._cov_matrix is None:
             return {}
 
-        weights = np.ones(n) / n
+        weights = np.ones(n) / n if n > 0 else np.array([])
         for _ in range(100):
             portfolio_var = weights @ self._cov_matrix @ weights
             if portfolio_var <= 0:
@@ -80,7 +81,8 @@ class AlphaPortfolio:
             target_rc = np.mean(risk_contrib)
             weights = weights * (target_rc / (risk_contrib + 1e-10))
             weights = np.clip(weights, 0, 1)
-            weights = weights / np.sum(weights)
+            weights = weights / np.sum(weights) if np.sum(weights) > 0 else weights
+
 
         return {aid: float(w) for aid, w in zip(self._selected_alphas, weights, strict=False)}
 

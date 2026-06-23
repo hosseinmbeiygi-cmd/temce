@@ -32,3 +32,4 @@ def sample_trade_list(count: int = 10) -> list[Trade]:
         )
         for i in range(count)
     ]
+

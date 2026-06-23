@@ -26,7 +26,7 @@ class ProviderHealthHistoryModel(Base):
     __tablename__ = "provider_health_history"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    provider: Mapped[str] = mapped_column(String(100), nullable=False)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     status: Mapped[str | None] = mapped_column(String(20))
     latency_ms: Mapped[float | None] = mapped_column(Float)
     error_message: Mapped[str | None] = mapped_column(Text)

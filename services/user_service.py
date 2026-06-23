@@ -103,9 +103,9 @@ class UserService:
                     "last_login": user.last_login,
                 },
             })
-        except Exception as e:
-            logger.error("Login failed: %s", e)
-            return Result.fail(str(e))
+        except Exception:
+            logger.error("Login failed", exc_info=True)
+            return Result.fail("An unexpected error occurred during login")
 
     async def refresh_token(self, refresh_token: str) -> Result[dict[str, Any]]:
         try:

@@ -50,3 +50,4 @@ def test_signal_expiry():
     expired = datetime.now(UTC) - timedelta(hours=72)
     assert rule.validate(expires_at=valid.isoformat()) is True
     assert rule.validate(expires_at=expired.isoformat()) is False
+

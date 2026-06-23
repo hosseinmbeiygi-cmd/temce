@@ -41,3 +41,4 @@ def test_news_normalize_date():
     parser = NewsParser()
     normalized = parser.normalize_date("2024-01-15T10:30:00")
     assert normalized is not None
+

@@ -11,6 +11,7 @@ from .http_client import HttpClient
 from .lake import RawDataLake
 from .parser import ParserRegistry
 from .sources.derivatives import TsetmcFutureSource, TsetmcOptionSource
+from .sources.library_sources import FinpyTseSource, TsetmcLibSource, TehranStocksSource, TseUtilsSource
 from .sources.tsetmc import TsetmcOrderBookSource, TsetmcTradeSource
 from .storage.dedup import DeduplicationEngine
 
@@ -60,6 +61,26 @@ class IngestionWorker:
                         count = await self._ingest_source(source, ctx)
                         total += count
                     results[name] = total
+                elif isinstance(source, (FinpyTseSource,)):
+                    # finpy-tse: fetch market watch on each tick
+                    ctx_mw = {"data_type": "market_watch"}
+                    count_mw = await self._ingest_source(source, ctx_mw)
+                    results[name] = count_mw
+                elif isinstance(source, (TsetmcLibSource,)):
+                    # tsetmc lib: fetch a sample instrument if we have any
+                    count = 0
+                    if self._instrument_ids and len(self._instrument_ids) > 0:
+                        symbol = str(self._instrument_ids[0])
+                        count = await self._ingest_source(source, {"symbol": symbol, "data_type": "all"})
+                    results[name] = count
+                elif isinstance(source, (TehranStocksSource,)):
+                    # tehran-stocks: fetch all stocks list
+                    count = await self._ingest_source(source, {"data_type": "all_stocks"})
+                    results[name] = count
+                elif isinstance(source, (TseUtilsSource,)):
+                    # tse-utils: fetch market overview
+                    count = await self._ingest_source(source, {"data_type": "market_overview"})
+                    results[name] = count
                 else:
                     count = await self._ingest_source(source)
                     results[name] = count

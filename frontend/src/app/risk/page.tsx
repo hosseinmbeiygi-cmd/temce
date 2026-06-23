@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import Sidebar from "@/components/Sidebar";
+import { useState, useEffect } from "react";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
+import Skeleton from "@/components/Skeleton";
 
 interface RiskMetric {
   label: string;
@@ -22,17 +24,20 @@ const RISK_METRICS: RiskMetric[] = [
 ];
 
 export default function RiskPage() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-surface-100">مدیریت ریسک</h1>
-          <p className="text-sm text-surface-500 mt-1">شاخص‌های ریسک و هشدارها</p>
+    <AppLayout title="مدیریت ریسک" subtitle="شاخص‌های ریسک و هشدارها">
+      {isLoading ? (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[1,2,3,4,5,6,7,8].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
         </div>
-
+      ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {RISK_METRICS.map((m) => (
             <div key={m.label} className="glass-card p-4">
@@ -49,34 +54,34 @@ export default function RiskPage() {
             </div>
           ))}
         </div>
+      )}
 
-        <div className="glass-card p-5">
-          <h2 className="font-bold text-surface-200 mb-4">هشدارهای ریسک</h2>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-rose/10 border border-accent-rose/20">
-              <span className="text-accent-rose text-lg">⚠</span>
-              <div>
-                <p className="text-sm text-surface-200">Max Drawdown از حد مجاز فراتر رفته</p>
-                <p className="text-xs text-surface-400">حد مجاز: -۱۰٪ | مقدار فعلی: -۱۵.۳٪</p>
-              </div>
+      <div className="glass-card p-5">
+        <h2 className="font-bold text-surface-200 mb-4">هشدارهای ریسک</h2>
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-rose/10 border border-accent-rose/20">
+            <span className="text-accent-rose text-lg">⚠</span>
+            <div>
+              <p className="text-sm text-surface-200">Max Drawdown از حد مجاز فراتر رفته</p>
+              <p className="text-xs text-surface-400">حد مجاز: -۱۰٪ | مقدار فعلی: -۱۵.۳٪</p>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-amber/10 border border-accent-amber/20">
-              <span className="text-accent-amber text-lg">⚡</span>
-              <div>
-                <p className="text-sm text-surface-200">تمرکز پرتفوی بالا</p>
-                <p className="text-xs text-surface-400">بزرگترین موقعیت ۳۲٪ از پرتفوی را تشکیل می‌دهد</p>
-              </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-accent-amber/10 border border-accent-amber/20">
+            <span className="text-accent-amber text-lg">⚡</span>
+            <div>
+              <p className="text-sm text-surface-200">تمرکز پرتفوی بالا</p>
+              <p className="text-xs text-surface-400">بزرگترین موقعیت ۳۲٪ از پرتفوی را تشکیل می‌دهد</p>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-800/50 border border-surface-700">
-              <span className="text-accent-emerald text-lg">✓</span>
-              <div>
-                <p className="text-sm text-surface-200">همه شاخص‌های دیگر در محدوده مجاز</p>
-                <p className="text-xs text-surface-400">آخرین بررسی: ۱۴۰۴/۰۳/۲۶ ۱۲:۰۰</p>
-              </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-800/50 border border-surface-700">
+            <span className="text-accent-emerald text-lg">✓</span>
+            <div>
+              <p className="text-sm text-surface-200">همه شاخص‌های دیگر در محدوده مجاز</p>
+              <p className="text-xs text-surface-400">آخرین بررسی: ۱۴۰۴/۰۳/۲۶ ۱۲:۰۰</p>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

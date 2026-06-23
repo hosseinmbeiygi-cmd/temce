@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
 import { apiGet } from "@/lib/api";
 
 interface BacktestRun {
@@ -27,7 +28,6 @@ interface BacktestResult {
 }
 
 export default function ResultsPage() {
-  const [collapsed, setCollapsed] = useState(false);
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
 
   const { data: runs, isLoading: loadingRuns } = useQuery({
@@ -42,15 +42,8 @@ export default function ResultsPage() {
   });
 
   return (
-    <div className="flex h-screen overflow-hidden" dir="rtl">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#0a0a14]">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-surface-100">مرکز نتایج و گزارشات</h1>
-          <p className="text-sm text-surface-500 mt-1">بررسی عملکرد استراتژی‌ها و خروجی‌های شبیه‌سازی</p>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
+    <AppLayout title="مرکز نتایج و گزارشات" subtitle="بررسی عملکرد استراتژی‌ها و خروجی‌های شبیه‌سازی">
+      <div className="grid lg:grid-cols-3 gap-6">
           {/* Runs List */}
           <div className="lg:col-span-1 space-y-3">
             <h3 className="text-xs font-bold text-surface-500 uppercase tracking-wider mb-3">تاریخچه اجراها</h3>
@@ -152,7 +145,6 @@ export default function ResultsPage() {
             )}
           </div>
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

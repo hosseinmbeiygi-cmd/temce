@@ -9,7 +9,7 @@ class MacroIndicatorModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     indicator: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    country: Mapped[str | None] = mapped_column(String(50), server_default="iran")
+    country: Mapped[str | None] = mapped_column(String(50), server_default="iran", index=True)
     value: Mapped[float | None] = mapped_column(Float)
     previous_value: Mapped[float | None] = mapped_column(Float)
     change_pct: Mapped[float | None] = mapped_column(Float)

@@ -20,6 +20,7 @@ from .smart_money import router as smart_money_router
 from .symbols import router as symbols_router
 from .trades import router as trades_router
 from .portfolios import router as portfolios_router
+from .market_info import router as market_info_router
 
 __all__ = [
     "alerts_router",
@@ -44,4 +45,5 @@ __all__ = [
     "analysis_router",
     "tests_router",
     "portfolios_router",
+    "market_info_router",
 ]

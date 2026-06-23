@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from backtesting.types import FillEvent, PositionState
+from core.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class PortfolioManager:
@@ -28,10 +32,16 @@ class PortfolioManager:
             pos.quantity = total_qty
             self._cash -= cost + fill.commission
         else:
+            if pos.quantity < fill.quantity:
+                logger.warning("Insufficient position for sell: %s (has %d, needs %d)", fill.instrument_id, pos.quantity, fill.quantity)
+                # Option 1: Raise error. Option 2: Cap at available.
+                # We'll cap it to prevent negative quantity unless shorting is explicitly handled.
+                fill.quantity = pos.quantity
+            
             pnl = (fill.price - pos.avg_price) * fill.quantity
             pos.realized_pnl += pnl
             pos.quantity -= fill.quantity
-            self._cash += cost - fill.commission
+            self._cash += (fill.price * fill.quantity) - fill.commission
 
         self._nav = self.get_nav()
 

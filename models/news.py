@@ -11,7 +11,7 @@ class NewsArticleModel(TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     summary: Mapped[str | None] = mapped_column(Text)
     content: Mapped[str | None] = mapped_column(Text)
-    source: Mapped[str | None] = mapped_column(String(100))
+    source: Mapped[str | None] = mapped_column(String(100), index=True)
     url: Mapped[str | None] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(String(50), index=True)
     symbols: Mapped[str | None] = mapped_column(Text)

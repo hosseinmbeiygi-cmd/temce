@@ -6,6 +6,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from core.paths import safe_resolve
+
 
 @dataclass
 class MarketParameters:
@@ -52,7 +54,7 @@ class ParameterStore:
     """Versioned storage for market parameters, organized by date and symbol."""
 
     def __init__(self, base_path: str | Path | None = None) -> None:
-        self.base_path = Path(base_path) if base_path else Path.cwd() / "parameters"
+        self.base_path = safe_resolve(Path.cwd(), "parameters") if base_path is None else Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, MarketParameters] = {}
 

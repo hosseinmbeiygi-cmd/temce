@@ -18,6 +18,19 @@ class RateLimiter:
     def set_limit(self, key: str, rate: float, burst: int = 1) -> None:
         self._limits[key] = (rate, burst, time.monotonic(), [])
 
+    def allow(self, key: str) -> bool:
+        if key not in self._limits:
+            return True
+        rate, burst, _, tokens = self._limits[key]
+        now = time.monotonic()
+        cutoff = now - 1.0
+        tokens = [t for t in tokens if t > cutoff]
+        if len(tokens) < burst:
+            tokens.append(now)
+            self._limits[key] = (rate, burst, now, tokens)
+            return True
+        return False
+
     async def acquire(self, key: str) -> float:
         if key not in self._limits:
             return 0.0

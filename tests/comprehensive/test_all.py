@@ -33,9 +33,7 @@ async def client():
 class TestHealth:
     @pytest.mark.asyncio
     async def test_health_check(self, client):
-        resp = await client.get("/api/v1/health/")
-        if resp.status_code == 307:
-            resp = await client.get("/api/v1/health/")
+        resp = await client.get("/api/v1/health")
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
@@ -457,13 +455,13 @@ class TestBacktest:
     @pytest.mark.asyncio
     async def test_strategies_names(self, client):
         resp = await client.get("/api/v1/backtests/strategies")
-        names = [s["name"] for s in resp.json()["data"]]
+        names = [s["name"] for s in resp.json()["data"]["items"]]
         assert "moving_average_cross" in names
 
     @pytest.mark.asyncio
     async def test_strategies_have_params(self, client):
         resp = await client.get("/api/v1/backtests/strategies")
-        for s in resp.json()["data"]:
+        for s in resp.json()["data"]["items"]:
             assert "params" in s
 
     @pytest.mark.asyncio
@@ -563,7 +561,8 @@ class TestBacktest:
         })
         resp = await client.get("/api/v1/backtests/runs")
         assert resp.status_code == 200
-        assert isinstance(resp.json()["data"], list)
+        assert isinstance(resp.json()["data"], dict)
+        assert "items" in resp.json()["data"]
 
     @pytest.mark.asyncio
     async def test_get_run(self, client):
@@ -798,22 +797,22 @@ class TestSymbols:
 
     @pytest.mark.asyncio
     async def test_search_empty(self, client):
-        resp = await client.get("/api/v1/symbols/search?q=")
+        resp = await client.get("/api/v1/instruments/search?q=")
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
     async def test_by_symbol(self, client):
-        try: resp = await client.get("/api/v1/symbols/test"); assert resp.status_code in (200, 500)
+        try: resp = await client.get("/api/v1/instruments/test"); assert resp.status_code in (200, 500)
         except Exception: pass
 
     @pytest.mark.asyncio
     async def test_detail(self, client):
-        try: resp = await client.get("/api/v1/symbols/test/detail"); assert resp.status_code in (200, 500)
+        try: resp = await client.get("/api/v1/instruments/test/detail"); assert resp.status_code in (200, 500)
         except Exception: pass
 
     @pytest.mark.asyncio
     async def test_pagination(self, client):
-        try: resp = await client.get("/api/v1/symbols?page=1&page_size=10"); assert resp.status_code in (200, 500)
+        try: resp = await client.get("/api/v1/instruments?page=1&page_size=10"); assert resp.status_code in (200, 500)
         except Exception: pass
 
 
@@ -1467,3 +1466,4 @@ class TestFrontend:
 # ==============================================================
 # TOTAL: 8+15+18+24+22+15+6+6+5+11+5+5+2+8+18+22+18+12+10 = 250 tests
 # ==============================================================
+

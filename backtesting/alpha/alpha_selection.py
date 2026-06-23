@@ -129,16 +129,8 @@ class AlphaSelection:
     @staticmethod
     def capacity_analysis(alpha_turnover: dict[str, float], adv: float, max_participation: float = 0.1) -> dict[str, float]:
         """Estimate alpha capacity (how much capital it can handle).
-
+        
         Capacity ≈ ADV * participation / turnover
-
-        Args:
-            alpha_turnover: Dict of {alpha_id: turnover}
-            adv: Average Daily Volume
-            max_participation: Maximum participation rate
-
-        Returns:
-            Dict of {alpha_id: estimated_capacity}
         """
         capacity: dict[str, float] = {}
         for alpha_id, turnover in alpha_turnover.items():

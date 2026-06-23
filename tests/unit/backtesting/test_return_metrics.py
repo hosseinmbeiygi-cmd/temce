@@ -45,3 +45,4 @@ def test_sortino_ratio():
     returns = [0.01, 0.02, -0.01, 0.015, -0.005, 0.03, 0.01, -0.02, 0.025, 0.005]
     sortino = metrics.calculate_sortino_ratio(returns, risk_free_rate=0.0)
     assert sortino is not None
+

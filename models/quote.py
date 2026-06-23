@@ -9,7 +9,7 @@ class QuoteModel(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     instrument_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    symbol: Mapped[str | None] = mapped_column(String(50))
+    symbol: Mapped[str | None] = mapped_column(String(50), index=True)
     price_close: Mapped[float | None] = mapped_column(Float)
     price_open: Mapped[float | None] = mapped_column(Float)
     price_high: Mapped[float | None] = mapped_column(Float)

@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 
 class ServiceRegistry(Generic[T]):
     def __init__(self) -> None:
+        super().__init__()
         self._services: dict[str, T] = {}
 
     def register(self, key: str, service: T) -> None:
@@ -19,7 +20,8 @@ class ServiceRegistry(Generic[T]):
     def get(self, key: str) -> T:
         service = self._services.get(key)
         if service is None:
-            raise KeyError(f"Service not found: {key}")
+            logger.debug("Service not found: %s", key)
+        raise KeyError("Service not found")
         return service
 
     def get_or_default(self, key: str, default: T) -> T:

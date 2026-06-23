@@ -46,3 +46,4 @@ def test_quote_normalize_batch():
     ]
     normalized = normalizer.normalize_batch(records)
     assert len(normalized) == 2
+

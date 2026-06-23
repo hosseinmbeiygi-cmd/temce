@@ -5,7 +5,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from apps.api.dependencies import get_backtest_service
+from apps.api.dependencies import get_backtest_service, get_current_user
+from core.result import PaginatedResult
 from schemas.api.backtest import BacktestRequest, BacktestResponse, BacktestResultResponse
 from schemas.common.responses import ApiResponse
 from services.backtest_service import BacktestService
@@ -16,6 +17,7 @@ router = APIRouter()
 @router.post("/run")
 async def run_backtest(
     body: BacktestRequest,
+    current_user: dict = Depends(get_current_user),
     service: BacktestService = Depends(get_backtest_service),
 ) -> ApiResponse[BacktestResponse]:
     result = await service.run_backtest(
@@ -37,9 +39,9 @@ async def run_backtest(
 @router.get("/runs")
 async def list_backtests(
     service: BacktestService = Depends(get_backtest_service),
-) -> ApiResponse[list[dict[str, Any]]]:
+) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
     result = await service.list_runs()
-    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value or [])
+    return ApiResponse[PaginatedResult[dict[str, Any]]](success=True, data=result.value or PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=0))
 
 
 @router.get("/runs/{run_id}")
@@ -71,5 +73,5 @@ async def get_backtest_result(
 @router.get("/strategies")
 async def list_strategies(
     service: BacktestService = Depends(get_backtest_service),
-) -> ApiResponse[list[dict[str, Any]]]:
-    return ApiResponse[list[dict[str, Any]]](success=True, data=service.list_strategies())
+) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
+    return ApiResponse[PaginatedResult[dict[str, Any]]](success=True, data=PaginatedResult(items=service.list_strategies(), total=len(service.list_strategies()), page=1, page_size=100, total_pages=1))

@@ -6,16 +6,17 @@ from pathlib import Path
 
 class PathManager:
     def __init__(self, base_dir: str | Path, use_date_prefix: bool = True):
-        self._base = Path(base_dir)
+        self._base = Path(base_dir).resolve()
         self._use_date_prefix = use_date_prefix
 
     def resolve(self, relative: str, ref_date: date | None = None) -> Path:
-        parts = [self._base]
+        from core.paths import safe_resolve
+        parts = []
         if self._use_date_prefix:
             d = ref_date or date.today()
-            parts.extend([str(d.year), f"{d.month:02d}", f"{d.day:02d}"])
+            parts = [str(d.year), f"{d.month:02d}", f"{d.day:02d}"]
         parts.append(relative)
-        return Path(*parts)
+        return safe_resolve(self._base, "/".join(parts))
 
     def quote_path(self, instrument_id: str, timeframe: str = "1d", ref_date: date | None = None) -> Path:
         return self.resolve(f"quotes/{instrument_id}/{timeframe}", ref_date)

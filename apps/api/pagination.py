@@ -29,7 +29,9 @@ class PaginatedResult(BaseModel, Generic[T]):
 
     @property
     def total_pages(self) -> int:
-        return max(1, ceil(self.total / self.page_size)) if self.page_size > 0 else 1
+        if self.page_size <= 0:
+            return 1
+        return max(1, ceil(self.total / self.page_size))
 
     @property
     def has_next(self) -> bool:

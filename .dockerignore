@@ -1,28 +1,90 @@
+# ── Dependencies ──────────────────────────
+node_modules/
+frontend/node_modules/
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
 .venv/
 venv/
-env/
-.git/
-.gitignore
-.vscode/
-.idea/
-*.md
-*.txt
-*.yml
-*.yaml
+
+# ── Build artifacts ──────────────────────
+.next/
+frontend/.next/
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+
+# ── Local development ────────────────────
+.env
+.env.local
+.env.*.local
+*.env
 data/
-*.db
-*.sqlite
+logs/
+tmp/
+
+# ── IDE & Editor ─────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
-tests/
-frontend/
+
+# ── Git ──────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# ── Testing & Coverage ───────────────────
+.coverage
+coverage/
+.coverage.*
+coverage.xml
+*.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.mypy/
+
+# ── Docker ───────────────────────────────
+docker-compose*.yml
+Dockerfile*
+!Dockerfile.frontend
+!Dockerfile.api
+!Dockerfile.admin
+!Dockerfile.worker
+!Dockerfile
+frontend/Dockerfile.dev
+
+# ── Documentation ────────────────────────
+*.md
+!README.md
+docs/
+assets/
+*.pdf
+*.png
+*.jpg
+*.svg
+!frontend/public/
+
+# ── CI/CD ────────────────────────────────
+.github/
+
+# ── Secrets & Config ─────────────────────
 secrets/
-env_file
-.env*
-docker-compose*
-tree.txt
-empty_files.txt
+config/local.yaml
+*.pem
+*.key
+
+# ── Backups & artifacts ──────────────────
+backups/
+*.sql
+*.sql.gz
+*.tar.gz
+*.zip

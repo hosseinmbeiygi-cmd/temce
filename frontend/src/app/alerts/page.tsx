@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/layout/AppLayout";
+import { Card } from "@/components/ui/Card";
+import Skeleton from "@/components/Skeleton";
 import { apiGet, apiPost, apiPut, apiDelete, getStoredAuth } from "@/lib/api";
 
 interface Alert {
@@ -97,11 +98,8 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-surface-950 text-white font-sans" dir="rtl">
-      <Sidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout title="هشدارها">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold gradient-text">هشدارها</h1>
           <button onClick={() => setShowForm(!showForm)} className="bg-primary-600 hover:bg-primary-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition">
             {showForm ? "بستن" : "هشدار جدید"}
           </button>
@@ -141,9 +139,14 @@ export default function AlertsPage() {
           </div>
         )}
 
-        {loading ? (
-          <p className="text-gray-400">در حال بارگذاری...</p>
-        ) : alerts.length === 0 ? (
+         {loading ? (
+           <div className="space-y-3">
+             <Skeleton className="h-16 w-full rounded-xl" />
+             <Skeleton className="h-16 w-full rounded-xl" />
+             <Skeleton className="h-16 w-full rounded-xl" />
+             <Skeleton className="h-16 w-full rounded-xl" />
+           </div>
+         ) : alerts.length === 0 ? (
           <div className="glass-card p-12 text-center">
             <p className="text-gray-500 text-lg mb-2">هیچ هشداری تعریف نشده</p>
             <p className="text-gray-600 text-sm">روی دکمه "هشدار جدید" کلیک کنید تا اولین هشدار خود را ایجاد کنید</p>
@@ -171,7 +174,6 @@ export default function AlertsPage() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+    </AppLayout>
   );
 }

@@ -52,3 +52,4 @@ def test_market_session_weekend():
     session = MarketSession()
     assert session.is_weekend("Friday") is True
     assert session.is_weekend("Saturday") is False
+

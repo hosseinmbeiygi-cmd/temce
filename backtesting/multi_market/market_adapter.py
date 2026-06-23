@@ -6,6 +6,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from core.time import now_tehran
+
 
 class MarketType(StrEnum):
     TSE = "tse"             # Tehran Stock Exchange (queue-based)
@@ -59,7 +61,7 @@ class TSEAdapter(MarketAdapter):
 
     def normalize_trade(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id="tse",
             market_type=MarketType.TSE,
             instrument_id=raw.get("instrument_id", ""),
@@ -72,7 +74,7 @@ class TSEAdapter(MarketAdapter):
 
     def normalize_quote(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id="tse",
             market_type=MarketType.TSE,
             instrument_id=raw.get("instrument_id", ""),
@@ -96,7 +98,7 @@ class CryptoAdapter(MarketAdapter):
 
     def normalize_trade(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "crypto"),
             market_type=MarketType.CRYPTO,
             instrument_id=raw.get("symbol", ""),
@@ -109,7 +111,7 @@ class CryptoAdapter(MarketAdapter):
 
     def normalize_quote(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "crypto"),
             market_type=MarketType.CRYPTO,
             instrument_id=raw.get("symbol", ""),
@@ -122,7 +124,7 @@ class CryptoAdapter(MarketAdapter):
 
     def normalize_orderbook(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "crypto"),
             market_type=MarketType.CRYPTO,
             instrument_id=raw.get("symbol", ""),
@@ -141,7 +143,7 @@ class FuturesAdapter(MarketAdapter):
 
     def normalize_trade(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "futures"),
             market_type=MarketType.FUTURES,
             instrument_id=raw.get("contract", ""),
@@ -158,7 +160,7 @@ class FuturesAdapter(MarketAdapter):
 
     def normalize_quote(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "futures"),
             market_type=MarketType.FUTURES,
             instrument_id=raw.get("contract", ""),
@@ -182,7 +184,7 @@ class OptionsAdapter(MarketAdapter):
 
     def normalize_trade(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "options"),
             market_type=MarketType.OPTIONS,
             instrument_id=raw.get("option_symbol", ""),
@@ -204,7 +206,7 @@ class OptionsAdapter(MarketAdapter):
 
     def normalize_quote(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("exchange", "options"),
             market_type=MarketType.OPTIONS,
             instrument_id=raw.get("option_symbol", ""),
@@ -228,7 +230,7 @@ class ForexAdapter(MarketAdapter):
 
     def normalize_trade(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("broker", "forex"),
             market_type=MarketType.FOREX,
             instrument_id=raw.get("pair", ""),
@@ -241,7 +243,7 @@ class ForexAdapter(MarketAdapter):
 
     def normalize_quote(self, raw: dict[str, Any]) -> UnifiedEvent:
         return UnifiedEvent(
-            timestamp=raw.get("timestamp", datetime.now()),
+            timestamp=raw.get("timestamp", now_tehran()),
             market_id=raw.get("broker", "forex"),
             market_type=MarketType.FOREX,
             instrument_id=raw.get("pair", ""),

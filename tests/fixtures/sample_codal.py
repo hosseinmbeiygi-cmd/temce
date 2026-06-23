@@ -34,3 +34,4 @@ def sample_codal_report(
 def sample_codal_list(count: int = 5) -> list[CodalDisclosure]:
     symbols = ["فولاد", "فملی", "وبانک", "کگل", "خودرو"]
     return [sample_codal_report(symbol=symbols[i % len(symbols)]) for i in range(count)]
+

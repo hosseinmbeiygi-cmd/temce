@@ -5,12 +5,27 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+# Market Constants
+DEFAULT_MAX_CHANGE_PCT = 5.0
+BASE_MARKET_MAX_CHANGE_PCT = 3.0
+DEFAULT_TICK_SIZE = 0.1
+BONDS_TICK_SIZE = 0.01
+DEFAULT_AUCTION_DURATION = 30
+BASE_MARKET_AUCTION_DURATION = 30
+TSE_OPEN_TIME = "09:00"
+TSE_CLOSE_TIME = "12:30"
+TSE_PRE_OPEN_TIME = "08:45"
+IME_OPEN_TIME = "12:00"
+IME_CLOSE_TIME = "18:00"
+IME_PRE_OPEN_TIME = "11:45"
+
 @dataclass
 class SessionRules:
     pre_open: str = ""
     open: str = ""
     close: str = ""
     pre_open_duration_minutes: int = 30
+
 
 
 @dataclass
@@ -74,16 +89,16 @@ class TSEMarketPolicy(MarketPolicy):
     name = "Tehran Stock Exchange"
 
     def get_session_rules(self) -> SessionRules:
-        return SessionRules(pre_open="08:45", open="09:00", close="12:30")
+        return SessionRules(pre_open=TSE_PRE_OPEN_TIME, open=TSE_OPEN_TIME, close=TSE_CLOSE_TIME)
 
     def get_price_limit_rules(self) -> PriceLimitRules:
-        return PriceLimitRules(max_change_pct=5.0)
+        return PriceLimitRules(max_change_pct=DEFAULT_MAX_CHANGE_PCT)
 
     def get_tick_size_rules(self) -> TickSizeRules:
-        return TickSizeRules(base_tick=0.1)
+        return TickSizeRules(base_tick=DEFAULT_TICK_SIZE)
 
     def get_auction_rules(self) -> AuctionRules:
-        return AuctionRules(enabled=True, auction_type="open", duration_minutes=30)
+        return AuctionRules(enabled=True, auction_type="open", duration_minutes=DEFAULT_AUCTION_DURATION)
 
     def get_order_validation_rules(self) -> OrderValidationRules:
         return OrderValidationRules(allow_market_order=True, allow_limit_order=True)
@@ -94,16 +109,16 @@ class IFBMarketPolicy(MarketPolicy):
     name = "Iran Fara Bourse"
 
     def get_session_rules(self) -> SessionRules:
-        return SessionRules(pre_open="08:45", open="09:00", close="12:30")
+        return SessionRules(pre_open=TSE_PRE_OPEN_TIME, open=TSE_OPEN_TIME, close=TSE_CLOSE_TIME)
 
     def get_price_limit_rules(self) -> PriceLimitRules:
-        return PriceLimitRules(max_change_pct=5.0)
+        return PriceLimitRules(max_change_pct=DEFAULT_MAX_CHANGE_PCT)
 
     def get_tick_size_rules(self) -> TickSizeRules:
-        return TickSizeRules(base_tick=0.1)
+        return TickSizeRules(base_tick=DEFAULT_TICK_SIZE)
 
     def get_auction_rules(self) -> AuctionRules:
-        return AuctionRules(enabled=True, auction_type="open", duration_minutes=30)
+        return AuctionRules(enabled=True, auction_type="open", duration_minutes=DEFAULT_AUCTION_DURATION)
 
     def get_order_validation_rules(self) -> OrderValidationRules:
         return OrderValidationRules(allow_market_order=True, allow_limit_order=True)
@@ -140,16 +155,16 @@ class ETFMarketPolicy(MarketPolicy):
     name = "ETF Market"
 
     def get_session_rules(self) -> SessionRules:
-        return SessionRules(pre_open="08:45", open="09:00", close="12:30")
+        return SessionRules(pre_open=TSE_PRE_OPEN_TIME, open=TSE_OPEN_TIME, close=TSE_CLOSE_TIME)
 
     def get_price_limit_rules(self) -> PriceLimitRules:
-        return PriceLimitRules(max_change_pct=5.0)
+        return PriceLimitRules(max_change_pct=DEFAULT_MAX_CHANGE_PCT)
 
     def get_tick_size_rules(self) -> TickSizeRules:
-        return TickSizeRules(base_tick=0.1)
+        return TickSizeRules(base_tick=DEFAULT_TICK_SIZE)
 
     def get_auction_rules(self) -> AuctionRules:
-        return AuctionRules(enabled=True, auction_type="open", duration_minutes=30)
+        return AuctionRules(enabled=True, auction_type="open", duration_minutes=DEFAULT_AUCTION_DURATION)
 
     def get_order_validation_rules(self) -> OrderValidationRules:
         return OrderValidationRules(allow_market_order=True, allow_limit_order=True)
@@ -209,16 +224,16 @@ class IMEMarketPolicy(MarketPolicy):
     name = "Iran Mercantile Exchange"
 
     def get_session_rules(self) -> SessionRules:
-        return SessionRules(pre_open="11:45", open="12:00", close="18:00")
+        return SessionRules(pre_open=TSE_PRE_OPEN_TIME, open=TSE_OPEN_TIME, close=TSE_CLOSE_TIME)
 
     def get_price_limit_rules(self) -> PriceLimitRules:
-        return PriceLimitRules(max_change_pct=5.0)
+        return PriceLimitRules(max_change_pct=DEFAULT_MAX_CHANGE_PCT)
 
     def get_tick_size_rules(self) -> TickSizeRules:
-        return TickSizeRules(base_tick=0.1)
+        return TickSizeRules(base_tick=DEFAULT_TICK_SIZE)
 
     def get_auction_rules(self) -> AuctionRules:
-        return AuctionRules(enabled=True, auction_type="open", duration_minutes=30)
+        return AuctionRules(enabled=True, auction_type="open", duration_minutes=DEFAULT_AUCTION_DURATION)
 
     def get_order_validation_rules(self) -> OrderValidationRules:
         return OrderValidationRules(allow_market_order=True, allow_limit_order=True)

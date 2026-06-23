@@ -38,3 +38,4 @@ def sample_signal_list(count: int = 5) -> list[Signal]:
         )
         for i in range(count)
     ]
+

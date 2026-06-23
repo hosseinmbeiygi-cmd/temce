@@ -59,3 +59,4 @@ async def test_instruments_list(client: AsyncClient):
 async def test_instruments_search(client: AsyncClient):
     response = await client.get("/api/v1/instruments/search?q=فولاد")
     assert response.status_code in (200, 401)
+

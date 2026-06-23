@@ -7,18 +7,22 @@ from typing import Any
 
 import orjson
 
+from core.paths import validate_safe_path
+
 
 def loads(s: str | bytes, use_orjson: bool = True) -> Any:
     if use_orjson:
         try:
             return orjson.loads(s)
-        except Exception:
+        except Exception as e:
+            logger.debug("orjson failed, falling back to json: %s", e)
             pass
     return json.loads(s)
 
 
 def load_json_file(path: str) -> Any:
-    with open(path, encoding="utf-8") as f:
+    safe_path = validate_safe_path(path)
+    with open(safe_path, encoding="utf-8") as f:
         return loads(f.read())
 
 

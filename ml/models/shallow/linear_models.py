@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from core.paths import validate_safe_path
 from ml.models.base import BaseModel
 from ml.types import FeatureMatrix, PredictionResult, TargetVector
 
@@ -25,12 +26,12 @@ class LinearRegressionModel(BaseModel):
         return PredictionResult(predictions=preds, model_id=self.name)
 
     def save(self, path: str) -> None:
-        with open(path, "wb") as f:
-            pickle.dump(self._model, f)
+        safe = validate_safe_path(path)
+        safe.write_bytes(pickle.dumps(self._model))
 
     def load(self, path: str) -> None:
-        with open(path, "rb") as f:
-            self._model = pickle.load(f)
+        safe = validate_safe_path(path)
+        self._model = pickle.loads(safe.read_bytes())
         self._is_fitted = True
 
     @property
@@ -55,10 +56,10 @@ class LogisticRegressionModel(BaseModel):
         return PredictionResult(predictions=preds, probabilities=probs, model_id=self.name)
 
     def save(self, path: str) -> None:
-        with open(path, "wb") as f:
-            pickle.dump(self._model, f)
+        safe = validate_safe_path(path)
+        safe.write_bytes(pickle.dumps(self._model))
 
     def load(self, path: str) -> None:
-        with open(path, "rb") as f:
-            self._model = pickle.load(f)
+        safe = validate_safe_path(path)
+        self._model = pickle.loads(safe.read_bytes())
         self._is_fitted = True

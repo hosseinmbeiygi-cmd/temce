@@ -22,7 +22,7 @@ class PositionSizer:
         elif self.method == "percent":
             return (capital * self.value / 100.0) / price
         elif self.method == "kelly":
-            kelly_pct = (win_rate * avg_win - (1 - win_rate) * avg_loss) / avg_win
+            kelly_pct = (win_rate * avg_win - (1 - win_rate) * avg_loss) / max(avg_win * avg_loss, 1e-12)
             kelly_pct = max(0, min(kelly_pct, self.value))
             return (capital * kelly_pct) / price
         elif self.method == "risk_based":

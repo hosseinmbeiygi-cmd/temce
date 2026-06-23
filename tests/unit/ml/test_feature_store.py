@@ -54,3 +54,4 @@ def test_feature_store_remove():
     store.register_feature("close", "price", "float64")
     store.remove_feature("close")
     assert "close" not in store.get_features()
+

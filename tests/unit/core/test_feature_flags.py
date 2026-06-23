@@ -43,3 +43,4 @@ def test_feature_flag_list():
     flags = ff.list_flags()
     assert "feature_a" in flags
     assert "feature_b" in flags
+

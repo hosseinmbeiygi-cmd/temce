@@ -30,3 +30,4 @@ def sample_news_article(
 def sample_news_list(count: int = 5) -> list[NewsItem]:
     symbols = ["فولاد", "فملی", "وبانک", "کگل", "خودرو"]
     return [sample_news_article(symbol=symbols[i % len(symbols)]) for i in range(count)]
+

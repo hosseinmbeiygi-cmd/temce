@@ -36,3 +36,4 @@ async def test_backtest_list(client: AsyncClient):
 async def test_backtest_strategies(client: AsyncClient):
     response = await client.get("/api/v1/backtest/strategies")
     assert response.status_code in (200, 401)
+

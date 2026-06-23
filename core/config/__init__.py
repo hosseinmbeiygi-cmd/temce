@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     api_title: str = "Iran Market Platform API"
     api_version: str = "0.1.0"
-    cors_origins: list[str] = ["*"]  # Override in production: ["https://yourdomain.com"]
+    cors_origins: list[str] = Field(default=["*"], alias="CORS_ORIGINS")  # Override in production: ["https://yourdomain.com"]
 
     secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
     access_token_expire_minutes: int = 60
@@ -104,9 +104,12 @@ class Settings(BaseSettings):
     def database_url_async(self) -> str:
         if self.database_url.startswith("sqlite"):
             return self.database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
-        return (
-            self.database_url.replace("://", "+asyncpg://", 1) if "postgres" in self.database_url else self.database_url
-        )
+        if "postgres" in self.database_url:
+            # Already has a driver suffix like +asyncpg or +psycopg2
+            if "+" in self.database_url.split("://", 1)[0]:
+                return self.database_url
+            return self.database_url.replace("://", "+asyncpg://", 1)
+        return self.database_url
 
     @property
     def data_path(self) -> Path:

@@ -55,3 +55,4 @@ async def test_backtest_service_strategies():
     service = BacktestService()
     strategies = service.list_strategies()
     assert isinstance(strategies, list)
+

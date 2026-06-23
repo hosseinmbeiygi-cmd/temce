@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test dev api worker admin docker-up docker-build backup prod-check clean
+.PHONY: install lint typecheck test dev dev-all api worker admin docker-up docker-build backup prod-check clean
 
 # ── Dependencies ──────────────────
 install:
@@ -30,6 +30,10 @@ admin:
 
 worker:
 	python -m jobs.worker
+
+# ── Run All Dev Servers ───────────
+dev-all:
+	@powershell -ExecutionPolicy Bypass -File run.ps1
 
 # ── Docker ────────────────────────
 docker-up:
@@ -84,6 +88,7 @@ help:
 	@echo "  typecheck    Run mypy type checker"
 	@echo "  test         Run unit tests"
 	@echo "  dev          Start API with hot reload"
+	@echo "  dev-all      Start backend + frontend together"
 	@echo "  api          Start API server"
 	@echo ""
 	@echo "Docker:"

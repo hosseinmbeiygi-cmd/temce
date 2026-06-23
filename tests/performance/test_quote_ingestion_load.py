@@ -21,7 +21,8 @@ async def test_quote_bulk_ingestion():
     quotes = [sample_quote(id=f"q_load_{i:04d}") for i in range(100)]
     start = time.monotonic()
     await service.save_quotes(quotes)
-    elapsed = time.monotonic() - start
+    elapsed = max(time.monotonic() - start, 1e-6)
     throughput = 100 / elapsed
     assert throughput > 50, f"Ingestion throughput {throughput:.2f} quotes/s below 50 quotes/s threshold"
     assert True
+

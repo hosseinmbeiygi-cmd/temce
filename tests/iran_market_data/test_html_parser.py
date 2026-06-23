@@ -85,3 +85,4 @@ class TestExtractLinks:
         hrefs = [link["href"] for link in links]
         assert any("report.pdf" in h for h in hrefs)
         assert any("data.xlsx" in h for h in hrefs)
+
