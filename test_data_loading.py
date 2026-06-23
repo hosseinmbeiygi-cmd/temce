@@ -9,11 +9,8 @@ async def test_data_loading():
             "start_date": "2023-01-01",
             "end_date": "2023-01-10",
             "data_source": "tsetmc",
-            "timeout": 30  # افزایش زمان انتظار
-            "start_date": "2023-01-01",  # تاریخ گسترده‌تر
-            "end_date": "2023-01-10",
-            "horizon": 5,
-            "data_source": "tsetmc"  # Using TSE data source
+            "timeout": 30,  # افزایش زمان انتظار
+            "horizon": 5
         }
         features, targets = await builder.load(config)
         print("Data loaded successfully!")
