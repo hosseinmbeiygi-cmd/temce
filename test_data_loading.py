@@ -20,9 +20,3 @@ async def test_data_loading():
 
 if __name__ == "__main__":
     asyncio.run(test_data_loading())
-        prices = await self.loader.load_market_data(
-            config["instrument_ids"],
-            start_date,
-            end_date,
-            source=config.get("data_source", "yahoo")
-        )
