@@ -5,7 +5,11 @@ async def test_data_loading():
     builder = DatasetBuilder()
     try:
         config = {
-            "instrument_ids": ["فولاد", "خودرو"],  # نمادهای بورس ایران (با حروف فارسی)
+            "instrument_ids": ["فولاد", "خودرو"],  # نمادهای بورس ایران
+            "start_date": "2023-01-01",
+            "end_date": "2023-01-10",
+            "data_source": "tsetmc",
+            "timeout": 30  # افزایش زمان انتظار
             "start_date": "2023-01-01",  # تاریخ گسترده‌تر
             "end_date": "2023-01-10",
             "horizon": 5,
