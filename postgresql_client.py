@@ -1,13 +1,18 @@
 import os
 import csv
 from datetime import datetime
+from typing import Dict, List, Optional, Union, Any
 from dotenv import load_dotenv
 import psycopg2
-from psycopg2 import sql, OperationalError
-from psycopg2.extras import DictCursor
+from psycopg2 import sql, OperationalError, Error, DatabaseError, IntegrityError
+from psycopg2.extras import DictCursor, DictRow
+from psycopg2.pool import SimpleConnectionPool
 
 class PostgreSQLClient:
-    def __init__(self):
+    _pool: Optional[SimpleConnectionPool] = None
+        
+    def __init__(self, min_conn: int = 1, max_conn: int = 5):
+        """Initialize with connection pooling"""
         load_dotenv()
         self.connection_params = {
             'host': os.getenv('PG_HOST'),
@@ -16,6 +21,7 @@ class PostgreSQLClient:
             'user': os.getenv('PG_USER'),
             'password': os.getenv('PG_PASSWORD')
         }
+        self._initialize_pool(min_conn, max_conn)
         self.table_definitions = {
             'users': """
                 id SERIAL PRIMARY KEY,
@@ -32,8 +38,33 @@ class PostgreSQLClient:
             """
         }
 
+    def _initialize_pool(self, min_conn: int, max_conn: int) -> None:
+        """Initialize connection pool"""
+        if not self._pool:
+            try:
+                self._pool = SimpleConnectionPool(
+                    minconn=min_conn,
+                    maxconn=max_conn,
+                    **self.connection_params
+                )
+            except OperationalError as e:
+                raise ConnectionError(f"Failed to create connection pool: {e}")
+
     def _get_connection(self):
-        return psycopg2.connect(**self.connection_params)
+        """Get connection from pool"""
+        if not self._pool:
+            raise ConnectionError("Connection pool not initialized")
+        return self._pool.getconn()
+
+    def _put_connection(self, conn):
+        """Return connection to pool"""
+        if self._pool:
+            self._pool.putconn(conn)
+
+    def close_all_connections(self) -> None:
+        """Close all connections in pool"""
+        if self._pool:
+            self._pool.closeall()
 
     def create_tables(self):
         """Create tables if they don't exist"""
@@ -52,7 +83,21 @@ class PostgreSQLClient:
                         print(f"Error creating table {table}: {e}")
                         conn.rollback()
 
-    def insert_record(self, table_name: str, data: dict):
+    def delete_record(self, table_name: str, record_id: int) -> bool:
+        """Delete a record by ID"""
+        query = f"DELETE FROM {table_name} WHERE id = %s"
+        
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, (record_id,))
+                    conn.commit()
+                    return cursor.rowcount > 0
+        except (OperationalError, DatabaseError) as e:
+            conn.rollback()
+            raise DatabaseError(f"Failed to delete record: {e}")
+
+    def insert_record(self, table_name: str, data: Dict[str, Any]) -> Optional[int]:
         """Insert a record into specified table"""
         columns = data.keys()
         values = [data[col] for col in columns]
@@ -107,7 +152,14 @@ class PostgreSQLClient:
                 cursor.execute(query, params or ())
                 return cursor.fetchall()
 
-    def export_all_tables_to_csv(self, output_dir: str = 'exports'):
+    def export_all_tables_to_csv(self, output_dir: str = 'exports') -> str:
+        """Export all tables to CSV files with timestamped directory
+        
+        Returns:
+            Path to the export directory
+        Raises:
+            ExportError: If export fails
+        """
         """Export all tables to CSV files with timestamped directory"""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
