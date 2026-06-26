@@ -33,9 +33,9 @@ export default function WatchlistPage() {
                     <div className="watchlist-meta">{item.symbol}</div>
                   </div>
                   <div className="watchlist-price">
-                    <div className="watchlist-value">{item.price.toLocaleString()}</div>
-                    <div className={`watchlist-change ${item.change >= 0 ? "positive" : "negative"}`}>
-                      {item.change >= 0 ? "+" : ""}{item.changePercent.toFixed(2)}%
+                    <div className="watchlist-value">{item.price?.toLocaleString() ?? '—'}</div>
+                    <div className={`watchlist-change ${(item.change ?? 0) >= 0 ? "positive" : "negative"}`}>
+                      {(item.change ?? 0) >= 0 ? "+" : ""}{(item.change ?? 0).toFixed(2)}%
                     </div>
                   </div>
                   <div className="watchlist-actions">

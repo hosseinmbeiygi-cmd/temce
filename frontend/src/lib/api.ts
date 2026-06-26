@@ -1,169 +1,156 @@
-// ── API Client ──────────────────────────────────────
-// All requests go through the Next.js rewrites proxy at /api/v1/*
-// The Next.js server (server-side) then forwards to the backend.
-// This works both in Docker (server can resolve api:8000) and locally.
-// Never use an absolute URL here — it would bypass the proxy & fail
-// in Docker because the browser can't resolve Docker hostnames.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const REQUEST_TIMEOUT_MS = 15_000;
 
-const API_BASE = "/api/v1";
-
-// ── Token Management ────────────────────────────────
-export function getStoredAuth(): { token: string; refreshToken: string; user: any } | null {
+// ── Helper: fetch with timeout ──────────────────
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const raw = localStorage.getItem("auth");
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ── Core API Functions ────
+export async function apiGet<T>(
+  endpoint: string,
+  token?: string | null
+): Promise<T> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function apiPost<T>(
+  endpoint: string,
+  data?: any,
+  token?: string | null
+): Promise<T> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function apiPut<T>(
+  endpoint: string,
+  data?: any,
+  token?: string | null
+): Promise<T> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+    method: 'PUT',
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function apiDelete<T>(
+  endpoint: string,
+  token?: string | null
+): Promise<T> {
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+    method: 'DELETE',
+    headers,
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+  }
+  return response.json();
+}
+
+// ── Auth Helpers ──────────────────────────────────────
+export function getStoredAuth() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('auth');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-export function storeAuth(data: { access_token: string; refresh_token: string; user: any }) {
-  localStorage.setItem("auth", JSON.stringify({ token: data.access_token, refreshToken: data.refresh_token, user: data.user }));
-}
-
 export function clearAuth() {
-  localStorage.removeItem("auth");
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('auth');
 }
 
-// ── Extract Data Helper ─────────────────────────────
-// Backend returns: { success: true, data: T, error: ... }
-// Some endpoints return paginated: { success: true, data: { items: [], total, page, ... } }
-// This helper extracts the actual data array from various response shapes.
-export function extractArray<T = any>(response: any): T[] {
-  if (!response) return [];
+export function storeAuth(data: { user: any; access_token: string; refresh_token?: string }) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('auth', JSON.stringify(data));
+}
+
+// ── Array Extraction (اصلاح‌شده) ──────────────────────────────────
+export function extractArray(response: any): any[] {
   if (Array.isArray(response)) return response;
-  // PaginatedResult: { items: [...], total, page, ... }
-  if (response.items && Array.isArray(response.items)) return response.items;
-  // Other common array wrappers
-  if (response.data && Array.isArray(response.data)) return response.data;
-  if (response.results && Array.isArray(response.results)) return response.results;
-  if (response.records && Array.isArray(response.records)) return response.records;
+
+  if (response && typeof response === 'object') {
+    for (const key of ['data', 'items', 'results', 'list', 'records', 'content', 'docs']) {
+      const val = response[key];
+      if (Array.isArray(val)) return val;
+      if (val && typeof val === 'object') {
+        const nested = extractArray(val);
+        if (nested.length > 0) return nested;
+      }
+    }
+    for (const val of Object.values(response)) {
+      if (Array.isArray(val)) return val;
+      if (val && typeof val === 'object') {
+        const nested = extractArray(val);
+        if (nested.length > 0) return nested;
+      }
+    }
+  }
   return [];
 }
 
-// ── Request Headers ─────────────────────────────────
-function getHeaders(token?: string): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  // If no token provided, try to use stored auth
-  if (!token) {
-    const auth = getStoredAuth();
-    if (auth?.token) headers["Authorization"] = `Bearer ${auth.token}`;
-  }
-  return headers;
+export function extractItems(response: any): any[] {
+  return extractArray(response);
 }
 
-// ── Response Parsing ─────────────────────────────────
-// Shared between fetch & XHR code paths so the ApiResponse envelope unwrap
-// lives in exactly one place.
-function parseApiResponse<T>(status: number, contentType: string, raw: string): T {
-  const ok = status >= 200 && status < 300;
-  if (!contentType.includes("application/json")) {
-    if (!ok) {
-      throw new Error(`HTTP ${status}: ${raw.substring(0, 200)}`);
+export function extractTotal(response: any): number {
+  if (response && typeof response === 'object') {
+    for (const key of ['total', 'totalCount', 'count', 'total_items', 'totalItems']) {
+      if (typeof response[key] === 'number') return response[key];
+      if (response.data && typeof response.data[key] === 'number') return response.data[key];
     }
-    return raw as unknown as T;
-  }
-
-  let json: any;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    throw new Error(`Invalid JSON response (HTTP ${status})`);
-  }
-
-  if (json && typeof json === "object" && "success" in json) {
-    if (!json.success) {
-      const errMsg = json.error?.message || json.error || `Request failed (${status})`;
-      throw new Error(typeof errMsg === "string" ? errMsg : `Request failed (${status})`);
+    if (response.data && typeof response.data === 'object') {
+      for (const key of ['total', 'totalCount', 'count', 'total_items', 'totalItems']) {
+        if (typeof response.data[key] === 'number') return response.data[key];
+      }
     }
-    return json.data as T;
   }
-  return json as T;
+  return 0;
 }
 
-// ── Request Functions ───────────────────────────────
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-  token?: string,
-): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: getHeaders(token),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const raw = await res.text();
-  return parseApiResponse<T>(res.status, res.headers.get("content-type") || "", raw);
-}
-
-export async function apiGet<T>(path: string, token?: string): Promise<T> {
-  return request<T>("GET", path, undefined, token);
-}
-
-export async function apiPost<T>(path: string, body: unknown, token?: string): Promise<T> {
-  return request<T>("POST", path, body, token);
-}
-
-export async function apiPut<T>(path: string, body: unknown, token?: string): Promise<T> {
-  return request<T>("PUT", path, body, token);
-}
-
-export async function apiDelete<T>(path: string, token?: string): Promise<T> {
-  return request<T>("DELETE", path, undefined, token);
-}
-
-// ── Multipart Upload ──────────────────────────────────
-// POSTs a FormData payload. We intentionally do NOT set a Content-Type header
-// here so the browser can attach the correct multipart/form-data; boundary=….
-// Any Content-Type set by us would override the boundary and corrupt the body.
-export async function apiUpload<T>(
-  path: string,
-  formData: FormData,
-  token?: string,
-  onProgress?: (loaded: number, total: number) => void,
-): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  } else {
-    const auth = getStoredAuth();
-    if (auth?.token) headers["Authorization"] = `Bearer ${auth.token}`;
-  }
-
-  // Use XHR (not fetch) when onProgress is provided so we can observe upload progress.
-  if (onProgress) {
-    return await new Promise<T>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${API_BASE}${path}`);
-      Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) onProgress(event.loaded, event.total);
-      };
-      xhr.onload = () => {
-        try {
-          resolve(
-            parseApiResponse<T>(
-              xhr.status,
-              xhr.getResponseHeader("content-type") || "",
-              xhr.responseText,
-            ),
-          );
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error("Failed to parse response"));
-        }
-      };
-      xhr.onerror = () => reject(new Error("Network error during upload"));
-      xhr.send(formData);
-    });
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-  const raw = await res.text();
-  return parseApiResponse<T>(res.status, res.headers.get("content-type") || "", raw);
+export function safeExtractArray(response: any, endpoint?: string): any[] {
+  return extractArray(response);
 }

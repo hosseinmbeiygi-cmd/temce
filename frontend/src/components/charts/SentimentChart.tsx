@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import ChartContainer from "@/components/charts/ChartContainer";
 import type { SentimentPoint } from "@/lib/types";
 
 interface SentimentChartProps {
@@ -17,7 +18,7 @@ interface SentimentChartProps {
 
 export default function SentimentChart({ data }: SentimentChartProps) {
   return (
-    <div style={{ width: "100%", height: 200 }}>
+    <ChartContainer height={200}>
       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" vertical={false} />
@@ -35,6 +36,6 @@ export default function SentimentChart({ data }: SentimentChartProps) {
           <Bar dataKey="negative" stackId="a" fill="var(--negative)" radius={[0, 0, 3, 3]} />
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </ChartContainer>
   );
 }

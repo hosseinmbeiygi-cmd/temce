@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DB_", env_file=".env", extra="ignore")
 
-    url: str = Field(default="sqlite:///data/market.db", alias="DATABASE_URL")
+    url: str = Field(default="postgresql+asyncpg://market:market@localhost:5432/market", alias="DATABASE_URL")
     pool_size: int = 5
     max_overflow: int = 10
     echo: bool = False

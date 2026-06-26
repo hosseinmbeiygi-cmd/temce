@@ -4,3 +4,4 @@ INFO:     Started reloader process [11180] using WatchFiles
 INFO:     Started server process [7664]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+$env:OPENROUTER_API_KEY="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"

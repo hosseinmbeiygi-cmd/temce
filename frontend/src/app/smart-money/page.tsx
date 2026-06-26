@@ -133,6 +133,7 @@ export default function SmartMoneyPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SmartMoneyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMock, setIsMock] = useState(false);
 
   async function analyze(sym: string) {
     const trimmed = sym.trim();
@@ -141,13 +142,15 @@ export default function SmartMoneyPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setIsMock(false);
     try {
       const res = await apiGet<SmartMoneyResult>(`/smart-money/${trimmed}`);
       setResult(res);
     } catch {
-      // Fallback to mock data
+      // Fallback to mock data when API is unavailable
       const mock = generateMockResult(trimmed);
       setResult(mock);
+      setIsMock(true);
     } finally {
       setLoading(false);
     }
@@ -217,6 +220,22 @@ export default function SmartMoneyPage() {
       {/* ── Results ───────────────────────────── */}
       {result && !loading && (
         <>
+          {/* ── Mock Data Warning ────────────────── */}
+          {isMock && (
+            <div className="flex items-center gap-2.5 px-4 py-2.5 mb-4 rounded-xl bg-accent-amber/10 border border-accent-amber/20 text-sm">
+              <span className="material-icons text-accent-amber" style={{ fontSize: 20 }}>info</span>
+              <span className="text-surface-300">
+                داده‌های API در دسترس نیست — تحلیل با <strong>داده شبیه‌سازی‌شده</strong> نمایش داده می‌شود.
+              </span>
+              <button
+                onClick={() => analyze(symbol)}
+                className="mr-auto text-xs px-3 py-1 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-400 transition-colors"
+              >
+                تلاش مجدد
+              </button>
+            </div>
+          )}
+
           {/* ── Top Row: SMC Score + Phase + Layer Scores ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             {/* SMC Score Gauge */}

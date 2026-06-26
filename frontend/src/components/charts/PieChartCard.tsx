@@ -9,6 +9,7 @@ import {
   Legend,
 } from "recharts";
 import { Card } from "@/components/ui/Card";
+import ChartContainer from "@/components/charts/ChartContainer";
 import { PieChartData } from "@/lib/types";
 
 interface PieChartCardProps {
@@ -34,7 +35,7 @@ export default function PieChartCard({
 }: PieChartCardProps) {
   return (
     <Card title={title}>
-      <div style={{ width: "100%", height }}>
+      <ChartContainer height={height}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <PieChart>
             <Pie
@@ -79,7 +80,7 @@ export default function PieChartCard({
             )}
           </PieChart>
         </ResponsiveContainer>
-      </div>
+      </ChartContainer>
     </Card>
   );
 }

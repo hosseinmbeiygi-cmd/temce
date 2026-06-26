@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_current_user, get_quote_service
+from apps.api.dependencies import get_current_user, get_db_session, get_quote_service
 from schemas.common.responses import ApiResponse
+from services.quote_import_service import QuoteImportService
 from services.quote_service import QuoteService
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
@@ -87,6 +90,91 @@ async def get_history(
         data=result.value if result.success else None,
         error={"message": result.error} if not result.success and result.error else None,
     )
+
+
+@router.post(
+    "/import-bulk",
+    summary="Bulk import daily quotes",
+    description="Upload one or more CSV files (each file name = symbol) "
+    "with Persian columns (تاریخ, باز, بالا, پایین, بسته, حجم, ارزش, …). "
+    "Files are processed concurrently. Existing records with the same symbol+date are updated.",
+)
+async def bulk_import_quotes(
+    files: list[UploadFile] = File(..., description="CSV files, each named after a symbol (e.g. فولاد.csv)"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Upload multiple daily quote CSV files — one per symbol — and import them all."""
+    from repositories.instrument_repository import InstrumentRepository
+    from repositories.quote_repository import QuoteRepository
+
+    quote_repo = QuoteRepository(session=session)
+    instrument_repo = InstrumentRepository(session=session)
+    service = QuoteImportService(quote_repo=quote_repo, instrument_repo=instrument_repo)
+
+    total_files = len(files)
+    per_file: dict[str, dict[str, Any]] = {}
+    total_rows = 0
+    total_imported = 0
+    total_updated = 0
+    all_errors: list[str] = []
+
+    async def process_one(file: UploadFile) -> None:
+        symbol = (file.filename or "").rsplit(".", 1)[0] if file.filename else ""
+        if not symbol:
+            all_errors.append(f"{file.filename}: could not determine symbol from filename")
+            return
+
+        content = await file.read()
+        if not content:
+            all_errors.append(f"{file.filename}: empty file")
+            return
+
+        result = await service.import_from_bytes(
+            symbol=symbol,
+            content=content,
+            filename=file.filename or "",
+            data_source="csv_import",
+        )
+        if not result.success:
+            all_errors.append(f"{file.filename}: {result.error}")
+            return
+
+        r = result.value
+        per_file[file.filename or symbol] = {
+            "symbol": symbol,
+            "rows": r.get("total_rows", 0),
+            "imported": r.get("imported", 0),
+            "updated": r.get("updated", 0),
+        }
+        nonlocal total_rows, total_imported, total_updated
+        total_rows += r.get("total_rows", 0)
+        total_imported += r.get("imported", 0)
+        total_updated += r.get("updated", 0)
+        if r.get("errors"):
+            all_errors.extend(f"{file.filename}: {e}" for e in r["errors"])
+
+    # Process files concurrently (up to 10 at a time)
+    sem = asyncio.Semaphore(10)
+
+    async def limited(file: UploadFile) -> None:
+        async with sem:
+            await process_one(file)
+
+    await asyncio.gather(*[limited(f) for f in files])
+
+    return ApiResponse[dict[str, Any]](
+        success=not all_errors,
+        data={
+            "total_files": total_files,
+            "total_rows": total_rows,
+            "imported": total_imported,
+            "updated": total_updated,
+            "per_file": per_file,
+            "errors": all_errors[:50],
+        },
+    )
+
+
 @router.get("/test/{instrument_id}")
 async def test_quote_direct(instrument_id: str):
     """
@@ -95,10 +183,10 @@ async def test_quote_direct(instrument_id: str):
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
     from sqlalchemy.orm import sessionmaker
     from services.quote_service import QuoteService
-    
+
     engine = create_async_engine("sqlite+aiosqlite:///data/market.db")
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
+
     async with async_session() as session:
         service = QuoteService(session=session)
         result = await service.get_latest(instrument_id)

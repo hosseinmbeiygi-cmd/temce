@@ -1,34 +1,24 @@
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-
-type Theme = "dark" | "light";
+import { useState, useEffect } from 'react';
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as Theme | null;
-    if (saved === "light" || saved === "dark") {
-      setThemeState(saved);
-      document.body.classList.toggle("dark-theme", saved === "dark");
-      document.documentElement.setAttribute("data-theme", saved);
-    } else {
-      document.body.classList.add("dark-theme");
-      document.documentElement.setAttribute("data-theme", "dark");
+    // بررسی theme ذخیره‌شده در localStorage
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      setTheme('light');
     }
   }, []);
 
-  const setTheme = useCallback((t: Theme) => {
-    setThemeState(t);
-    localStorage.setItem("theme", t);
-    document.body.classList.toggle("dark-theme", t === "dark");
-    document.documentElement.setAttribute("data-theme", t);
-  }, []);
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+  };
 
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  }, [theme, setTheme]);
-
-  return { theme, setTheme, toggleTheme, isDark: theme === "dark" };
+  return { theme, toggleTheme };
 }

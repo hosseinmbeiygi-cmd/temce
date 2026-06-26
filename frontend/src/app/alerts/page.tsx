@@ -1,10 +1,10 @@
 "use client";
-
+import { useRouter } from "next/navigation";
 import { useState, useEffect, FormEvent } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
-import { apiGet, apiPost, apiPut, apiDelete, getStoredAuth } from "@/lib/api";
+import { apiGet, apiPost, apiPut, apiDelete, getStoredAuth, extractItems } from "@/lib/api";
 
 interface Alert {
   id: string;
@@ -52,9 +52,11 @@ export default function AlertsPage() {
 
   async function fetchAlerts() {
     try {
-      const data = await apiGet<{ items: Alert[]; total: number }>("/alerts?page_size=50", auth!.token);
-      setAlerts(data.items);
-    } catch { /* ignore */ }
+      const data = await apiGet<any>("/alerts?page_size=50", auth?.token);
+      setAlerts(extractItems(data));
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+    }
     setLoading(false);
   }
 
@@ -76,7 +78,7 @@ export default function AlertsPage() {
         condition,
         channels: ["email", "console"],
         description,
-      }, auth!.token);
+      }, auth?.token);
       setMessage("هشدار با موفقیت ایجاد شد");
       setShowForm(false);
       fetchAlerts();
@@ -85,14 +87,14 @@ export default function AlertsPage() {
 
   async function toggleAlert(alert: Alert) {
     try {
-      await apiPut(`/alerts/${alert.id}`, { enabled: !alert.enabled }, auth!.token);
+      await apiPut(`/alerts/${alert.id}`, { enabled: !alert.enabled }, auth?.token);
       fetchAlerts();
     } catch {}
   }
 
   async function deleteAlert(id: string) {
     try {
-      await apiDelete(`/alerts/${id}`, auth!.token);
+      await apiDelete(`/alerts/${id}`, auth?.token);
       fetchAlerts();
     } catch {}
   }

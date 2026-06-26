@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import ChartContainer from "@/components/charts/ChartContainer";
 
 interface EquityCurveChartProps {
   positions: { market_value: number }[];
@@ -18,7 +19,7 @@ export default function EquityCurveChart({ positions }: EquityCurveChartProps) {
   const data = positions.map((p, i) => ({ name: i, val: p.market_value }));
 
   return (
-    <div className="h-64 w-full">
+    <ChartContainer height={256}>
       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <AreaChart data={data}>
           <defs>
@@ -37,6 +38,6 @@ export default function EquityCurveChart({ positions }: EquityCurveChartProps) {
           <Area type="monotone" dataKey="val" stroke="#6366f1" fillOpacity={1} fill="url(#colorVal)" strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </ChartContainer>
   );
 }

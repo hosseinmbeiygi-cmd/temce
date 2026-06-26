@@ -19,9 +19,10 @@ services:
       - ./migrations/init_timescale.sql:/docker-entrypoint-initdb.d/02-timescale.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U market"]
-      interval: 5s
-      timeout: 5s
+      interval: 10s
+      timeout: 15s
       retries: 5
+      start_period: 30s
 
   timescaledb:
     image: timescale/timescaledb:2-pg16
@@ -36,9 +37,10 @@ services:
       - ./migrations/init_timescale.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U market"]
-      interval: 5s
-      timeout: 5s
+      interval: 10s
+      timeout: 15s
       retries: 5
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -46,8 +48,8 @@ services:
       - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 10s
       retries: 5
 
   minio:
@@ -63,8 +65,8 @@ services:
       - miniodata:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
+      interval: 15s
+      timeout: 10s
       retries: 5
 
   # ── Application Services ──────────────────────────────

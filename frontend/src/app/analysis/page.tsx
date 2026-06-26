@@ -68,16 +68,17 @@ const TABS: { key: AnalysisTab; label: string }[] = [
 ];
 
 function TrendIndicator({ value }: { value: number }) {
+  const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
   return (
     <div className="flex items-center gap-2">
       <div className="w-32 h-2 bg-surface-700 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{
-          width: `${Math.abs(value)}%`,
-          background: value >= 60 ? "#22c55e" : value >= 40 ? "#f59e0b" : "#ef4444"
+          width: `${safeValue}%`,
+          background: safeValue >= 60 ? "#22c55e" : safeValue >= 40 ? "#f59e0b" : "#ef4444"
         }} />
       </div>
-      <span className={`text-xs font-mono ${value >= 60 ? "text-accent-emerald" : value >= 40 ? "text-accent-amber" : "text-accent-rose"}`}>
-        {value}%
+      <span className={`text-xs font-mono ${safeValue >= 60 ? "text-accent-emerald" : safeValue >= 40 ? "text-accent-amber" : "text-accent-rose"}`}>
+        {safeValue}%
       </span>
     </div>
   );
@@ -99,8 +100,8 @@ export default function AnalysisPage() {
   });
 
   const avgSentiment = analysis?.sentiment?.length
-    ? (analysis.sentiment.reduce((sum: number, s: any) => sum + s.score, 0) / analysis.sentiment.length).toFixed(0)
-    : "—";
+    ? (analysis.sentiment.reduce((sum: number, s: any) => sum + (Number(s.score) || 0), 0) / analysis.sentiment.length).toFixed(0)
+    : null;
 
   const CANDLE_DATA = useMemo(() => generateCandleData(60), []);
 
@@ -129,12 +130,17 @@ export default function AnalysisPage() {
                   <div className="flex items-center gap-6 mb-4">
                     <div className="text-center">
                       <div className={`text-3xl font-black ${
+                        avgSentiment === null ? "text-surface-600" :
                         Number(avgSentiment) >= 60 ? "text-accent-emerald" : Number(avgSentiment) >= 40 ? "text-accent-amber" : "text-accent-rose"
-                      }`}>{avgSentiment}%</div>
+                      }`}>{avgSentiment !== null ? `${avgSentiment}%` : "—"}</div>
                       <div className="text-xs text-surface-500 mt-1">میانگین ۷ روزه</div>
                     </div>
                     <div className="flex-1">
-                      <TrendIndicator value={Number(avgSentiment)} />
+                      {avgSentiment !== null ? (
+                        <TrendIndicator value={Number(avgSentiment)} />
+                      ) : (
+                        <div className="w-full h-2 bg-surface-700 rounded-full" />
+                      )}
                       <div className="flex justify-between text-xs text-surface-600 mt-1">
                         <span>منفی</span><span>خنثی</span><span>مثبت</span>
                       </div>
@@ -156,16 +162,16 @@ export default function AnalysisPage() {
                       <tbody>
                         {analysis?.sentiment?.map((s: any, i: number) => (
                           <tr key={i} className="border-b border-surface-800/50">
-                            <td className="py-2.5 text-surface-400 text-xs">{s.date}</td>
-                            <td className="py-2.5"><TrendIndicator value={s.score} /></td>
+                            <td className="py-2.5 text-surface-400 text-xs">{s.date || ""}</td>
+                            <td className="py-2.5"><TrendIndicator value={Number(s.score) || 0} /></td>
                             <td className="py-2.5">
                               <span className={`text-xs px-2 py-0.5 rounded-full ${
                                 s.label === "مثبت" ? "bg-accent-emerald/15 text-accent-emerald" :
                                 s.label === "منفی" ? "bg-accent-rose/15 text-accent-rose" :
                                 "bg-accent-amber/15 text-accent-amber"
-                              }`}>{s.label}</span>
+                              }`}>{s.label || "خنثی"}</span>
                             </td>
-                            <td className="py-2.5 font-mono text-surface-200 text-xs">{s.volume.toLocaleString()}</td>
+                            <td className="py-2.5 font-mono text-surface-200 text-xs">{(s.volume || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>

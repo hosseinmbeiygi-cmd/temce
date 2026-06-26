@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
-import { apiGet } from "@/lib/api";
+import { apiGet, extractArray } from "@/lib/api";
 
 interface NewsItem {
   id: string;
@@ -42,9 +42,11 @@ export default function NewsPage() {
     queryKey: ["news-full"],
     queryFn: async () => {
       try {
-        return await apiGet<any>("/news");
-      } catch {}
-      return [];
+        const response = await apiGet<any>("/news");
+        return extractArray(response);
+      } catch {
+        return [];
+      }
     },
     refetchInterval: 120000,
   });

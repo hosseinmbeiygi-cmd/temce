@@ -419,10 +419,11 @@ cd frontend
 npm install --no-audit --no-fund
 
 # توسعه با hot-reload
+cd frontend
 npm run dev
 # یا:
 npx next dev --webpack -p 3000
-
+PYTHON MAIN.PY
 # بیلد تولید
 npm run build
 

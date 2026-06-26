@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, File, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_codal_service, get_current_user
+from apps.api.dependencies import get_codal_service, get_current_user, get_db_session
 from core.exceptions import NotFoundError
 from schemas.api.codal import CodalListResponse, CodalReportResponse, CodalSearchRequest
 from schemas.common.responses import ApiResponse
@@ -296,6 +298,88 @@ async def major_holders(code: str) -> ApiResponse[dict[str, Any]]:
         ],
     }
     return ApiResponse[dict[str, Any]](success=True, data=data)
+
+
+@router.post(
+    "/import-bulk",
+    summary="Bulk import Codal disclosures",
+    description="Upload one or more Excel (.xlsx) or CSV files containing Codal disclosures. "
+    "Files are processed concurrently. Existing records with the same symbol+report_type+fiscal_year+period are updated.",
+)
+async def bulk_import_codal(
+    files: list[UploadFile] = File(..., description="Excel (.xlsx) or CSV files with Codal data"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Upload multiple Codal disclosure files and import them all."""
+    from repositories.codal_repository import CodalRepository
+    from repositories.instrument_repository import InstrumentRepository
+    from services.codal_import_service import CodalImportService
+
+    codal_repo = CodalRepository(session=session)
+    instrument_repo = InstrumentRepository(session=session)
+    service = CodalImportService(codal_repo=codal_repo, instrument_repo=instrument_repo)
+
+    total_files = len(files)
+    per_file: dict[str, dict[str, Any]] = {}
+    total_rows = 0
+    total_imported = 0
+    total_updated = 0
+    all_errors: list[str] = []
+
+    async def process_one(file: UploadFile) -> None:
+        symbol = (file.filename or "").rsplit(".", 1)[0] if file.filename else ""
+        if not symbol:
+            all_errors.append(f"{file.filename}: could not determine symbol from filename")
+            return
+
+        content = await file.read()
+        if not content:
+            all_errors.append(f"{file.filename}: empty file")
+            return
+
+        result = await service.import_from_bytes(
+            symbol=symbol,
+            content=content,
+            filename=file.filename or "",
+            data_source="manual_import",
+        )
+        if not result.success:
+            all_errors.append(f"{file.filename}: {result.error}")
+            return
+
+        r = result.value
+        per_file[file.filename or symbol] = {
+            "symbol": symbol,
+            "rows": r.get("total_rows", 0),
+            "imported": r.get("imported", 0),
+            "updated": r.get("updated", 0),
+        }
+        nonlocal total_rows, total_imported, total_updated
+        total_rows += r.get("total_rows", 0)
+        total_imported += r.get("imported", 0)
+        total_updated += r.get("updated", 0)
+        if r.get("errors"):
+            all_errors.extend(f"{file.filename}: {e}" for e in r["errors"])
+
+    sem = asyncio.Semaphore(10)
+
+    async def limited(file: UploadFile) -> None:
+        async with sem:
+            await process_one(file)
+
+    await asyncio.gather(*[limited(f) for f in files])
+
+    return ApiResponse[dict[str, Any]](
+        success=not all_errors,
+        data={
+            "total_files": total_files,
+            "total_rows": total_rows,
+            "imported": total_imported,
+            "updated": total_updated,
+            "per_file": per_file,
+            "errors": all_errors[:50],
+        },
+    )
 
 
 @router.get("/{code}/insider")

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
-import { apiGet } from "@/lib/api";
+import { apiGet, extractArray } from "@/lib/api";
 
 interface Instrument {
   symbol: string;
@@ -41,9 +41,12 @@ export default function InstrumentsPage() {
     queryKey: ["instruments"],
     queryFn: async () => {
       try {
-        return await apiGet<any>("/symbols?page=1&page_size=100");
-      } catch {}
-      return FALLBACK_INSTRUMENTS;
+        const response = await apiGet<any>("/symbols?page=1&page_size=100");
+        const items = extractArray(response);
+        return items.length > 0 ? items : FALLBACK_INSTRUMENTS;
+      } catch {
+        return FALLBACK_INSTRUMENTS;
+      }
     },
   });
 
@@ -66,7 +69,6 @@ export default function InstrumentsPage() {
           className="px-3 py-2 bg-surface-800 border border-surface-700 rounded text-surface-200 text-sm focus:outline-none focus:border-primary-500 w-56" />
         <Link
           href="/instruments/import"
-          data-testid="instruments-import-link"
           className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white text-sm rounded-lg transition-colors"
         >
           <span aria-hidden>📤</span>

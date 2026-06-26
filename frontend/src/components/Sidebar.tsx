@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
 import { getStoredAuth, clearAuth } from "@/lib/api";
 
 interface SidebarProps {
@@ -14,9 +15,11 @@ const NAV_ITEMS = [
   { href: "/markets", label: "بازارها", icon: "📈" },
   { href: "/instruments", label: "نمادها", icon: "💹" },
   { href: "/codal", label: "کدال", icon: "🏢" },
+  { href: "/codal/import", label: "ورود کدال", icon: "📥" },
   { href: "/news", label: "اخبار", icon: "📰" },
   { href: "/holders", label: "سهامداران", icon: "👥" },
   { href: "/data", label: "مدیریت داده", icon: "💾" },
+  { href: "/quotes/import", label: "ورود قیمت", icon: "📥" },
   { href: "/analysis", label: "تحلیل بازار", icon: "🔍" },
   { href: "/alerts", label: "هشدارها", icon: "🔔" },
   { href: "/smart-money", label: "پول هوشمند", icon: "🧠" },
@@ -34,7 +37,16 @@ const AUTH_ITEMS = [
 
 export default function Sidebar({ collapsed = false, onToggle = () => {} }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const auth = typeof window !== "undefined" ? getStoredAuth() : null;
+  const [symbolQuery, setSymbolQuery] = useState("");
+
+  function handleSymbolSearch(e: FormEvent) {
+    e.preventDefault();
+    if (symbolQuery.trim()) {
+      router.push(`/symbol/${encodeURIComponent(symbolQuery.trim())}`);
+    }
+  }
 
   return (
     <aside
@@ -49,6 +61,24 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
           <span className="font-bold text-sm gradient-text">Iran Market</span>
         )}
       </div>
+
+      {!collapsed && (
+        <form onSubmit={handleSymbolSearch} className="px-2 py-2 border-b border-surface-800">
+          <div className="flex items-center gap-1 bg-surface-800 rounded-lg px-2 py-1.5">
+            <span className="text-xs">🔍</span>
+            <input
+              type="text"
+              value={symbolQuery}
+              onChange={(e) => setSymbolQuery(e.target.value)}
+              placeholder="جستجوی نماد..."
+              className="bg-transparent text-sm text-white placeholder-surface-500 outline-none flex-1 min-w-0"
+            />
+            {symbolQuery && (
+              <button type="submit" className="text-xs text-primary-400 hover:text-primary-300 shrink-0">→</button>
+            )}
+          </div>
+        </form>
+      )}
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {NAV_ITEMS.map((item) => {

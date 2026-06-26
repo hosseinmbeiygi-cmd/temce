@@ -11,6 +11,7 @@ import {
   Cell,
 } from "recharts";
 import { Card } from "@/components/ui/Card";
+import ChartContainer from "@/components/charts/ChartContainer";
 import { ChartDataPoint } from "@/lib/types";
 
 interface BarChartCardProps {
@@ -48,7 +49,7 @@ export default function BarChartCard({
 
   return (
     <Card title={title}>
-      <div style={{ width: "100%", height }}>
+      <ChartContainer height={height}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
             <CartesianGrid
@@ -103,7 +104,7 @@ export default function BarChartCard({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartContainer>
     </Card>
   );
 }

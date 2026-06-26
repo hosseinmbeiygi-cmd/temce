@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
-import { apiGet } from "@/lib/api";
+import { apiGet, extractArray } from "@/lib/api";
 
 interface CodalCompany {
   code: string;
@@ -84,7 +84,9 @@ export default function CodalPage() {
     queryKey: ["codal-companies"],
     queryFn: async () => {
       try {
-        return await apiGet<any>("/codal");
+        const response = await apiGet<any>("/codal");
+        const items = extractArray(response);
+        if (items.length > 0) return items;
       } catch {}
       return [
         { code: "فولاد", name: "فولاد مبارکه اصفهان", industry: "فلزات اساسی", lastPrice: 35840, change: 2.3, volume: 125000000, marketCap: 456000000000000, peRatio: 6.2, eps: 5780, status: "active" },
@@ -242,7 +244,6 @@ export default function CodalPage() {
                     </table>
                   </div>
                 </div>
-                {/* Other sections mapping similarly... */}
               </>
             ) : <div className="text-center py-12 text-surface-500">جزئیات یافت نشد</div>}
           </div>

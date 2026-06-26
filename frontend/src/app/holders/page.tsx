@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
-import { apiGet } from "@/lib/api";
+import { apiGet, extractArray } from "@/lib/api";
 
 interface MajorHolder {
   rank: number;
@@ -52,16 +52,16 @@ export default function HoldersPage() {
   const { data: holdersData, isLoading: loadingHolders } = useQuery({
     queryKey: ["holders", symbol],
     queryFn: async () => {
-      const res = await apiGet<{ items: MajorHolder[]; total: number }>(`/codal/${symbol}/holders`);
-      return res.items || [];
+      const response = await apiGet<any>(`/codal/${symbol}/holders`);
+      return extractArray(response);
     },
   });
 
   const { data: insiderData, isLoading: loadingInsider } = useQuery({
     queryKey: ["insider", symbol],
     queryFn: async () => {
-      const res = await apiGet<InsiderTrade[]>(`/codal/${symbol}/insider`);
-      return res || [];
+      const response = await apiGet<any>(`/codal/${symbol}/insider`);
+      return extractArray(response);
     },
   });
 
@@ -130,7 +130,7 @@ export default function HoldersPage() {
               <tbody>
                 {loadingHolders ? (
                   [1,2,3,4,5].map(i => <tr key={i} className="border-b border-surface-800/50"><td colSpan={5} className="py-4"><Skeleton className="h-4 w-full" /></td></tr>)
-                ) : holdersData?.map((h) => (
+                ) : holdersData?.map((h: MajorHolder) => (
                   <tr key={h.rank} className="border-b border-surface-800/50 hover:bg-white/5">
                     <td className="py-2.5 font-mono text-surface-400">{h.rank}</td>
                     <td className="py-2.5 text-surface-200 text-xs">{h.name}</td>
@@ -167,7 +167,7 @@ export default function HoldersPage() {
               <tbody>
                 {loadingInsider ? (
                   [1,2,3,4,5].map(i => <tr key={i} className="border-b border-surface-800/50"><td colSpan={4} className="py-4"><Skeleton className="h-4 w-full" /></td></tr>)
-                ) : insiderData?.map((t, i) => (
+                ) : insiderData?.map((t: InsiderTrade, i: number) => (
                   <tr key={i} className="border-b border-surface-800/50 hover:bg-white/5">
                     <td className="py-2.5 text-surface-400 text-xs">{t.date}</td>
                     <td className="py-2.5">

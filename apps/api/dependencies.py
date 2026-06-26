@@ -11,17 +11,15 @@ from core.security.tokens import decode_access_token
 
 logger = get_logger(__name__)
 
-# 🔥 اتصال مستقیم و تضمینی به SQLite
-_SQLITE_ENGINE = create_async_engine("sqlite+aiosqlite:///data/market.db")
-_SQLITE_SESSION_FACTORY = sessionmaker(
-    _SQLITE_ENGINE,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+# 🔧 PostgreSQL connection via dependency injection
+# This is now using settings.database_url from core.config
+from core.config import settings
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with _SQLITE_SESSION_FACTORY() as session:
+    from core.database import get_session
+    
+    async with get_session() as session:
         yield session
 
 

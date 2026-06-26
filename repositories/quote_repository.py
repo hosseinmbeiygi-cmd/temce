@@ -63,6 +63,22 @@ class QuoteRepository:
         ]
         return Result.ok(sorted(quotes, key=lambda q: (q.date, q.time)))
 
+    async def get_by_instrument(self, instrument_id: str) -> Result[list[Quote]]:
+        """Get all quotes for a given instrument (used for upsert matching)."""
+        if self._db:
+            return await self._db.get_by_instrument(instrument_id)
+        quotes = [q for q in self._mem._store.values() if q.instrument_id == instrument_id]
+        return Result.ok(quotes)
+
+    async def get_by_date(self, instrument_id: str, date_str: str) -> Result[Quote | None]:
+        """Find a single quote by instrument + exact date."""
+        if self._db:
+            return await self._db.get_by_date(instrument_id, date_str)
+        for q in self._mem._store.values():
+            if q.instrument_id == instrument_id and q.date == date_str:
+                return Result.ok(q)
+        return Result.ok(None)
+
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         if self._db:
             return await self._db.get_market_summary()
@@ -128,6 +144,24 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
+
+    async def get_by_instrument(self, instrument_id: str) -> Result[list[Quote]]:
+        stmt = select(QuoteModel).where(QuoteModel.instrument_id == instrument_id)
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return Result.ok([self._to_domain(r) for r in rows])
+
+    async def get_by_date(self, instrument_id: str, date_str: str) -> Result[Quote | None]:
+        stmt = (
+            select(QuoteModel)
+            .where(QuoteModel.instrument_id == instrument_id, QuoteModel.date == date_str)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if row is None:
+            return Result.ok(None)
+        return Result.ok(self._to_domain(row))
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         from sqlalchemy import func as sa_func, select

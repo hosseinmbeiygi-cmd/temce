@@ -67,17 +67,35 @@ async def init_database() -> None:
     url = settings.database_url_async
     is_sqlite = url.startswith("sqlite")
 
-    # Try primary database; fallback to SQLite if unreachable
+    # Try primary database (PostgreSQL); provide helpful error if unreachable
+    if is_sqlite:
+        logger.error(
+            "Database is set to SQLite. "
+            "This should be changed to PostgreSQL by editing the .env file or "
+            "overriding the database_url setting. "
+            "Set DATABASE_URL=postgresql+asyncpg://market:market@localhost:5432/market "
+            "in your .env file to use PostgreSQL."
+        )
+        raise RuntimeError(
+            "SQLite cannot be used. Set DATABASE_URL=postgresql+asyncpg://market:market@localhost:5432/market "
+            "in your .env file. Note: PostgreSQL must be running on localhost:5432."
+        )
+
+    # Try to connect to PostgreSQL; no fallback for production
     if not is_sqlite:
         connected = await _try_connect(url)
         if not connected:
-            logger.warning(
-                "Primary database unreachable at %s — falling back to SQLite: %s",
+            logger.error(
+                "Could not connect to PostgreSQL database at %s. "
+                "Please ensure PostgreSQL is running on localhost:5432. "
+                "Expected connection: postgresql+asyncpg://market:market@localhost:5432/market",
                 url.split("@")[-1] if "@" in url else url,
-                SQLITE_FALLBACK_URL,
             )
-            url = SQLITE_FALLBACK_URL
-            is_sqlite = True
+            raise RuntimeError(
+                "Cannot connect to PostgreSQL database. "
+                "Please ensure PostgreSQL is running on localhost:5432 with credentials (market:market). "
+                f"Tried: {url}"
+            )
 
     engine = create_async_engine(url, echo=settings.database_echo, **_get_pool_config(url))
     async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

@@ -12,6 +12,7 @@ import {
   Cell,
 } from "recharts";
 import { Card, CardAction } from "@/components/ui/Card";
+import ChartContainer from "@/components/charts/ChartContainer";
 import { CandleDataPoint } from "@/lib/types";
 
 interface CandleChartCardProps {
@@ -169,8 +170,8 @@ export default function CandleChartCard({
       )}
 
       {/* ── Candlestick Chart ──────── */}
-      <div style={{ width: "100%", height: showVolume ? height - 60 : height }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <ChartContainer height={showVolume ? height - 60 : height}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart
             data={filteredData}
             margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
@@ -228,11 +229,11 @@ export default function CandleChartCard({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </ChartContainer>
 
       {/* ── Volume Bars ────────────── */}
       {showVolume && (
-        <div style={{ width: "100%", height: 50, marginTop: 4 }}>
+        <ChartContainer height={50}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={filteredData} margin={{ top: 0, right: 5, left: 0, bottom: 0 }}>
               <Bar dataKey="volume" shape={<VolumeShape />} isAnimationActive={false}>
@@ -245,7 +246,7 @@ export default function CandleChartCard({
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </ChartContainer>
       )}
     </Card>
   );

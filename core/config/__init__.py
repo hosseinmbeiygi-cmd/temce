@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     server_port: int = 8000
     workers: int = 1
 
-    database_url: str = Field(default="sqlite:///data/market.db", alias="DATABASE_URL")
+    database_url: str = Field(default="postgresql+asyncpg://market:market@localhost:5432/market", alias="DATABASE_URL")
     database_pool_size: int = 5
     database_max_overflow: int = 10
     database_echo: bool = False

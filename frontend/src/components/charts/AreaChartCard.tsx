@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Card, CardAction } from "@/components/ui/Card";
+import ChartContainer from "@/components/charts/ChartContainer";
 import { ChartDataPoint } from "@/lib/types";
 
 interface AreaChartCardProps {
@@ -43,7 +44,7 @@ export default function AreaChartCard({
 
   return (
     <Card title={title} actions={actions}>
-      <div style={{ width: "100%", height }}>
+      <ChartContainer height={height}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
             <defs>
@@ -95,7 +96,7 @@ export default function AreaChartCard({
             />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
+      </ChartContainer>
     </Card>
   );
 }

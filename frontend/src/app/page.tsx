@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
 import ClientOnly from "@/components/ClientOnly";
-import { apiGet, extractArray } from "@/lib/api";
+import { apiGet, safeExtractArray } from "@/lib/api";
 import {
   generateMockNews,
   generateMockExperts,
@@ -16,6 +16,10 @@ import {
   generateSentimentHistory,
 } from "@/lib/types";
 import type { MarketStats, AIInsight, ChartDataPoint } from "@/lib/types";
+
+// ── Debug Panel ──────────────────────────────────────
+import DebugPanel from "@/components/DebugPanel";
+import { useDebugLogs } from "@/hooks/useDebugLogs";
 
 // ── Dynamic chart imports (ssr: false) ─────────
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
@@ -57,6 +61,8 @@ const INDEX_DATA = generateIndexHistory(90);
 const VOLUME_DATA = generateVolumeData(60);
 const SECTOR_DATA = generateSectorPerformance();
 const SENTIMENT_DATA = generateSentimentHistory(30);
+const DEFAULT_NEWS = generateMockNews();
+const DEFAULT_EXPERTS = generateMockExperts();
 
 // ── Index Value Formatters ──────────────────────────
 const indexFormatter = (v: number) => {
@@ -76,20 +82,30 @@ export default function DashboardPage() {
   const [indexRange, setIndexRange] = useState("3m");
   const [chartData, setChartData] = useState<ChartDataPoint[]>(INDEX_DATA);
 
-  // ── Fetch news from backend ───────────────
-  const { data: news = generateMockNews() } = useQuery({
-    queryKey: ["dashboard-news"],
-    queryFn: async () => {
-      try {
-        const res = await apiGet<any>("/news?page=1&page_size=3");
-        return extractArray(res);
-      } catch {
-        return generateMockNews();
-      }
-    },
-    refetchInterval: 60000,
-    staleTime: 30000,
-  });
+  // ── Debug Hooks ──────────────────────────────────────
+  const { logs, stats, addLog, clearLogs, isEnabled, toggleEnabled } = useDebugLogs();
+
+  // ── Fetch news from backend (with debug) ────────────
+
+
+const { data: news = DEFAULT_NEWS } = useQuery({
+  queryKey: ["dashboard-news"],
+  queryFn: async () => {
+    const endpoint = "/news?page=1&page_size=3";
+    addLog(endpoint, "loading");
+    try {
+      const res = await apiGet<any>(endpoint);
+      const extracted = safeExtractArray(res);
+      addLog(endpoint, "success", extracted);
+      return extracted;
+    } catch (error: any) {
+      addLog(endpoint, "error", undefined, error.message);
+      return DEFAULT_NEWS;
+    }
+  },
+  refetchInterval: 60000,
+  staleTime: 30000,
+});
 
   // ── Period switcher for index chart ────────
   const handlePeriodChange = (period: string) => {
@@ -147,7 +163,7 @@ export default function DashboardPage() {
                 <div className="news-content">
                   <div className="news-title">{item.title || "بدون عنوان"}</div>
                   <div className="news-source">{item.source || ""}</div>
-                  <div className="news-time">
+                  <div className="news-time" suppressHydrationWarning>
                     <span className="material-icons" style={{ fontSize: 12 }}>access_time</span>
                     {item.published_at || item.date || ""}
                   </div>
@@ -155,13 +171,13 @@ export default function DashboardPage() {
               </div>
             ))}
             <div className="news-section-title">نظرات کارشناسان</div>
-            {generateMockExperts().slice(0, 2).map((expert) => (
+            {DEFAULT_EXPERTS.slice(0, 2).map((expert) => (
               <div key={expert.id} className="expert-opinion">
                 <div className="expert-avatar">{expert.avatar}</div>
                 <div className="expert-content">
                   <div className="expert-header">
                     <div className="expert-name">{expert.name}</div>
-                    <div className="news-time">
+                    <div className="news-time" suppressHydrationWarning>
                       <span className="material-icons" style={{ fontSize: 12 }}>access_time</span>
                       {expert.time}
                     </div>
@@ -311,6 +327,25 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* ── 🐞 Debug Panel ──────────────────────────────── */}
+      <DebugPanel
+        logs={logs}
+        stats={stats}
+        onClear={clearLogs}
+        isEnabled={isEnabled}
+        onToggle={toggleEnabled}
+        onExport={() => {
+          const dataStr = JSON.stringify(logs, null, 2);
+          const blob = new Blob([dataStr], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `debug-logs-${Date.now()}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }}
+      />
     </AppLayout>
   );
 }
