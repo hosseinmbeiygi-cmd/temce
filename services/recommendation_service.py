@@ -42,9 +42,11 @@ class RecommendationService:
         result = await self.repo.list(page, page_size)
         if not result.success:
             return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
+        items = [vars(r) for r in result.value.items]
+        items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
         return Result.ok(
             PaginatedResult(
-                items=[vars(r) for r in result.value.items],
+                items=items,
                 total=result.value.total,
                 page=result.value.page,
                 page_size=result.value.page_size,

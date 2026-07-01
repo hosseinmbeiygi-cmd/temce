@@ -20,7 +20,13 @@ class NewsService:
         self.repo = repo
 
     async def list_all(self, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
-        return await self.repo.list(page, page_size)
+        result = await self.repo.list(page, page_size)
+        if result.success and result.value and result.value.items:
+            result.value.items.sort(
+                key=lambda x: x.publish_date or x.created_at or "",
+                reverse=True,
+            )
+        return result
 
     async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
         return await self.repo.search(query, page, page_size)

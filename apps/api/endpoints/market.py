@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
-from apps.api.dependencies import get_market_service
+from fastapi import APIRouter, Depends, Path, Query
+from apps.api.dependencies import get_brsapi_query_service, get_market_service
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.market_service import MarketService
@@ -68,8 +68,8 @@ async def get_bourse(service: MarketService = Depends(get_market_service)) -> Ap
     result = await service.get_instruments_by_market("BOURS")
     if not result.success:
         return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
-    
     items = result.value
+    items.sort(key=lambda x: x.symbol or "")
     return ApiResponse[PaginatedResult[Any]](
         success=True,
         data=PaginatedResult(
@@ -91,3 +91,117 @@ async def get_energy_commodity(service: MarketService = Depends(get_market_servi
         "sub_markets": result.value.get("sub_markets", [])
     }
 
+
+@router.get("/heatmap", summary="Market heatmap", description="Symbol heatmap data for visualisation")
+async def market_heatmap(
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    try:
+        snapshots = await brsapi.get_latest_snapshots(limit=100)
+        cells = [
+            {
+                "symbol": s.get("symbol", ""),
+                "name": s.get("name", ""),
+                "change": s.get("price_last_change_pct", 0) or 0,
+                "value": s.get("trade_value", 0) or 0,
+                "volume": s.get("trade_volume", 0) or 0,
+                "price": s.get("price_last", 0) or 0,
+            }
+            for s in snapshots if s.get("symbol")
+        ]
+        cells.sort(key=lambda x: abs(x["change"]), reverse=True)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
+    except Exception as exc:
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+
+
+@router.get(
+    "/indicator/{symbol}",
+    summary="Technical indicator",
+    description="Compute a technical indicator for a symbol (sma, ema, rsi, macd, bollinger, stochastic, atr, obv, williams_r, ichimoku)",
+)
+async def market_indicator(
+    symbol: str = Path(..., description="Symbol name (e.g. فولاد, IRO1FOLD0001)"),
+    indicator: str = Query(..., description="Indicator: sma, ema, rsi, macd, bollinger, stochastic, atr, obv, williams_r, ichimoku"),
+    period: int = Query(14, ge=1, le=500, description="Lookback period"),
+    fast: int = Query(12, ge=1, le=500, description="Fast period (MACD)"),
+    slow: int = Query(26, ge=1, le=500, description="Slow period (MACD)"),
+    signal: int = Query(9, ge=1, le=500, description="Signal period (MACD)"),
+    k_smooth: int = Query(3, ge=1, le=50, description="%K smoothing (Stochastic)"),
+    d_smooth: int = Query(3, ge=1, le=50, description="%D smoothing (Stochastic)"),
+    stddev: float = Query(2.0, ge=0.1, le=10.0, description="Standard deviation multiplier (Bollinger)"),
+    tenkan: int = Query(9, ge=1, le=200, description="Tenkan-sen period (Ichimoku)"),
+    kijun: int = Query(26, ge=1, le=200, description="Kijun-sen period (Ichimoku)"),
+    senkou_b: int = Query(52, ge=1, le=200, description="Senkou Span B period (Ichimoku)"),
+    service: MarketService = Depends(get_market_service),
+) -> ApiResponse[dict[str, Any]]:
+    params: dict[str, Any] = {
+        "period": period,
+        "fast": fast,
+        "slow": slow,
+        "signal": signal,
+        "k_smooth": k_smooth,
+        "d_smooth": d_smooth,
+        "stddev": stddev,
+        "tenkan": tenkan,
+        "kijun": kijun,
+        "senkou_b": senkou_b,
+    }
+    result = await service.calculate_indicator(symbol, indicator, params)
+    return ApiResponse[dict[str, Any]](
+        success=result.success,
+        data=result.value if result.success else {},
+        error={"message": result.error} if result.error else None,
+    )
+
+
+@router.get(
+    "/history/{symbol}",
+    summary="Historical OHLCV",
+    description="Get historical OHLCV data for candlestick charts",
+)
+async def market_history(
+    symbol: str = Path(..., description="Symbol name"),
+    limit: int = Query(200, ge=1, le=500, description="Number of bars to return"),
+    service: MarketService = Depends(get_market_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    from datetime import date, timedelta
+    end = date.today().isoformat()
+    start = (date.today() - timedelta(days=limit * 3)).isoformat()
+    result = await service.get_ohlcv(symbol, start, end)
+    return ApiResponse[list[dict[str, Any]]](
+        success=result.success,
+        data=result.value if result.success else [],
+        error={"message": result.error} if result.error else None,
+    )
+
+
+@router.get("/enriched-heatmap", summary="Enriched market heatmap", description="Symbol heatmap data enriched with price thresholds, free float, sector info")
+async def market_enriched_heatmap(
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    try:
+        enriched = await brsapi.get_enriched_snapshots(limit=100)
+        cells = [
+            {
+                "symbol": s.get("symbol", ""),
+                "name": s.get("name", ""),
+                "change": s.get("price_last_change_pct", 0) or 0,
+                "value": s.get("trade_value", 0) or 0,
+                "volume": s.get("trade_volume", 0) or 0,
+                "price": s.get("price_last", 0) or 0,
+                "priceLowestAllowed": s.get("price_lowest_allowed", 0) or 0,
+                "priceHighestAllowed": s.get("price_highest_allowed", 0) or 0,
+                "freeFloatPct": s.get("free_float_pct", 0) or 0,
+                "eps": s.get("eps", 0) or 0,
+                "peRatio": s.get("pe_ratio", 0) or 0,
+                "state": s.get("state", ""),
+                "sector": s.get("sector", ""),
+                "market": s.get("market", ""),
+                "board": s.get("board", ""),
+            }
+            for s in enriched if s.get("symbol")
+        ]
+        return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
+    except Exception as exc:
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
