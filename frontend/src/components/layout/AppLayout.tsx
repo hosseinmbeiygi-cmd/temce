@@ -1,15 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
-import MarketIndices from "./MarketIndices";
-import NavTabs from "./NavTabs";
 import { useTheme } from "@/hooks/useTheme";
+
+const TickerTape = lazy(() => import("./TickerTape"));
+const MarketIndices = lazy(() => import("./MarketIndices"));
 
 interface AppLayoutProps {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+}
+
+function LoadingBar() {
+  return <div className="h-8 bg-surface-800/30 animate-pulse rounded mb-2" />;
 }
 
 export default function AppLayout({ children, title, subtitle }: AppLayoutProps) {
@@ -35,11 +40,13 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <NavTabs />
-
-          {/* Market Indices Bar */}
-          <MarketIndices />
+          {/* Live ticker + indices (lazy loaded) */}
+          <Suspense fallback={<LoadingBar />}>
+            <TickerTape />
+          </Suspense>
+          <Suspense fallback={<LoadingBar />}>
+            <MarketIndices />
+          </Suspense>
 
           {/* Page Content */}
           <div className="dashboard-content">

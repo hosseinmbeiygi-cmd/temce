@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, extractArray } from "@/lib/api";
 
@@ -15,22 +14,36 @@ interface Instrument {
   lastPrice: number;
   change: number;
   volume: number;
-  marketCap: number;
   peRatio: number;
+  eps: number;
   status: string;
 }
 
+function mapInstrument(raw: Record<string, unknown>): Instrument {
+  return {
+    symbol: String(raw.symbol ?? ""),
+    name: String(raw.name ?? ""),
+    industry: String(raw.sector ?? ""),
+    lastPrice: Number(raw.price) || 0,
+    change: Number(raw.change) || 0,
+    volume: Number(raw.volume) || 0,
+    peRatio: Number(raw.peRatio) || 0,
+    eps: Number(raw.eps) || 0,
+    status: String(raw.state ?? "active"),
+  };
+}
+
 const FALLBACK_INSTRUMENTS: Instrument[] = [
-  { symbol: "فولاد", name: "فولاد مبارکه اصفهان", industry: "فلزات اساسی", lastPrice: 58920, change: 1.2, volume: 4520000, marketCap: 456000000000000, peRatio: 6.2, status: "active" },
-  { symbol: "فملی", name: "ملی صنایع مس ایران", industry: "فلزات اساسی", lastPrice: 42500, change: 3.7, volume: 7800000, marketCap: 520000000000000, peRatio: 8.5, status: "active" },
-  { symbol: "شپنا", name: "پالایش نفت اصفهان", industry: "پالایشی", lastPrice: 42150, change: 0.5, volume: 3100000, marketCap: 215000000000000, peRatio: 4.8, status: "active" },
-  { symbol: "وبملت", name: "بانک ملت", industry: "بانکی", lastPrice: 12450, change: -0.8, volume: 8900000, marketCap: 180000000000000, peRatio: 7.1, status: "active" },
-  { symbol: "خودرو", name: "ایران خودرو", industry: "خودرو", lastPrice: 8750, change: 2.5, volume: 12300000, marketCap: 95000000000000, peRatio: 0, status: "active" },
-  { symbol: "کگل", name: "گل گهر", industry: "فلزات اساسی", lastPrice: 35680, change: -1.1, volume: 5600000, marketCap: 380000000000000, peRatio: 10.4, status: "active" },
-  { symbol: "شتران", name: "پالایش نفت تهران", industry: "پالایشی", lastPrice: 8950, change: 0.3, volume: 5600000, marketCap: 140000000000000, peRatio: 5.2, status: "active" },
-  { symbol: "وغدیر", name: "سرمایه گذاری غدیر", industry: "سرمایه‌گذاری", lastPrice: 31200, change: -0.5, volume: 3200000, marketCap: 280000000000000, peRatio: 7.8, status: "active" },
-  { symbol: "تاپیکو", name: "سرمایه گذاری نفت و گاز تامین", industry: "سرمایه‌گذاری", lastPrice: 18500, change: 1.2, volume: 4500000, marketCap: 320000000000000, peRatio: 9.3, status: "active" },
-  { symbol: "کچاد", name: "صنعتی و معدنی چادرملو", industry: "معدنی", lastPrice: 27800, change: 1.8, volume: 4100000, marketCap: 380000000000000, peRatio: 10.4, status: "active" },
+  { symbol: "فولاد", name: "فولاد مبارکه اصفهان", industry: "فلزات اساسی", lastPrice: 58920, change: 1.2, volume: 4520000, peRatio: 6.2, eps: 9500, status: "active" },
+  { symbol: "فملی", name: "ملی صنایع مس ایران", industry: "فلزات اساسی", lastPrice: 42500, change: 3.7, volume: 7800000, peRatio: 8.5, eps: 5000, status: "active" },
+  { symbol: "شپنا", name: "پالایش نفت اصفهان", industry: "پالایشی", lastPrice: 42150, change: 0.5, volume: 3100000, peRatio: 4.8, eps: 8780, status: "active" },
+  { symbol: "وبملت", name: "بانک ملت", industry: "بانکی", lastPrice: 12450, change: -0.8, volume: 8900000, peRatio: 7.1, eps: 1750, status: "active" },
+  { symbol: "خودرو", name: "ایران خودرو", industry: "خودرو", lastPrice: 8750, change: 2.5, volume: 12300000, peRatio: 0, eps: -1200, status: "active" },
+  { symbol: "کگل", name: "گل گهر", industry: "فلزات اساسی", lastPrice: 35680, change: -1.1, volume: 5600000, peRatio: 10.4, eps: 3430, status: "active" },
+  { symbol: "شتران", name: "پالایش نفت تهران", industry: "پالایشی", lastPrice: 8950, change: 0.3, volume: 5600000, peRatio: 5.2, eps: 1720, status: "active" },
+  { symbol: "وغدیر", name: "سرمایه گذاری غدیر", industry: "سرمایه‌گذاری", lastPrice: 31200, change: -0.5, volume: 3200000, peRatio: 7.8, eps: 4000, status: "active" },
+  { symbol: "تاپیکو", name: "سرمایه گذاری نفت و گاز تامین", industry: "سرمایه‌گذاری", lastPrice: 18500, change: 1.2, volume: 4500000, peRatio: 9.3, eps: 1990, status: "active" },
+  { symbol: "کچاد", name: "صنعتی و معدنی چادرملو", industry: "معدنی", lastPrice: 27800, change: 1.8, volume: 4100000, peRatio: 10.4, eps: 2670, status: "active" },
 ];
 
 export default function InstrumentsPage() {
@@ -41,18 +54,19 @@ export default function InstrumentsPage() {
     queryKey: ["instruments"],
     queryFn: async () => {
       try {
-        const response = await apiGet<any>("/symbols?page=1&page_size=100");
-        const items = extractArray(response);
-        return items.length > 0 ? items : FALLBACK_INSTRUMENTS;
+        const response = await apiGet<Record<string, unknown>>("/market/enriched-heatmap");
+        const items = extractArray<Record<string, unknown>>(response);
+        const mapped = items.length > 0 ? items.map(mapInstrument) : FALLBACK_INSTRUMENTS;
+        return mapped;
       } catch {
         return FALLBACK_INSTRUMENTS;
       }
     },
   });
 
-  const industries = [...new Set((instruments || []).map((i: any) => i.industry))];
+  const industries = [...new Set((instruments || []).map((i: Instrument) => i.industry))];
 
-  const filtered = (instruments || []).filter((i: any) => {
+  const filtered = (instruments || []).filter((i: Instrument) => {
     if (filter !== "all" && i.industry !== filter) return false;
     if (search) {
       const q = search.trim();
@@ -80,8 +94,8 @@ export default function InstrumentsPage() {
           <button onClick={() => setFilter("all")}
             className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === "all" ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>همه</button>
           {industries.map((ind) => (
-             <button key={ind as string} onClick={() => setFilter(ind as string)}
-               className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === ind ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>{ind as string}</button>
+             <button key={String(ind)} onClick={() => setFilter(String(ind))}
+               className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === ind ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>{String(ind)}</button>
           ))}
         </div>
 
@@ -96,24 +110,26 @@ export default function InstrumentsPage() {
                 <th className="pb-2 px-3 font-medium">تغییر</th>
                 <th className="pb-2 px-3 font-medium">حجم</th>
                 <th className="pb-2 px-3 font-medium">P/E</th>
+                <th className="pb-2 px-3 font-medium">EPS</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 [1,2,3,4,5,6,7,8,9,10].map(i => (
                   <tr key={i} className="border-b border-surface-800/50">
-                    <td colSpan={7} className="py-4"><Skeleton className="h-4 w-full" /></td>
+                    <td colSpan={8} className="py-4"><Skeleton className="h-4 w-full" /></td>
                   </tr>
                 ))
-              ) : filtered.map((inst: any) => (
-                <tr key={inst.symbol} className="border-b border-surface-800/50 hover:bg-white/5">
+              ) : filtered.map((inst: Instrument, idx: number) => (
+                <tr key={`${inst.symbol}-${idx}`} className="border-b border-surface-800/50 hover:bg-white/5">
                   <td className="py-2.5 px-3 font-bold text-surface-200">{inst.symbol}</td>
                   <td className="py-2.5 px-3 text-surface-300">{inst.name}</td>
                   <td className="py-2.5 px-3 text-surface-400 text-xs">{inst.industry}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-200">{inst.lastPrice?.toLocaleString()}</td>
                   <td className={`py-2.5 px-3 font-mono ${inst.change >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>{inst.change >= 0 ? "+" : ""}{inst.change}%</td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.volume?.toLocaleString()}</td>
-                  <td className="py-2.5 px-3 font-mono text-surface-400">{inst.peRatio > 0 ? inst.peRatio.toFixed(1) : "—"}</td>
+                  <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.peRatio > 0 ? inst.peRatio.toFixed(1) : "—"}</td>
+                  <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.eps > 0 ? inst.eps.toLocaleString() : "—"}</td>
                 </tr>
               ))}
             </tbody>

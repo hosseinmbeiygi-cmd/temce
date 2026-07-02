@@ -20,7 +20,7 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
     try {
-      const data = await apiPost<{ user: any; access_token: string; refresh_token: string }>("/auth/register", {
+      const data = await apiPost<{ user: Record<string, unknown>; access_token: string; refresh_token: string }>("/auth/register", {
         username,
         email,
         password,
@@ -28,8 +28,8 @@ export default function RegisterPage() {
       });
       storeAuth(data);
       router.push("/");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }

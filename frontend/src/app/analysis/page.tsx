@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { generateCandleData } from "@/lib/types";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
@@ -22,15 +21,6 @@ interface SentimentItem {
   volume: number;
 }
 
-interface TrendData {
-  symbol: string;
-  name: string;
-  trend: "bullish" | "bearish" | "neutral";
-  strength: number;
-  gainers: { symbol: string; change: number }[];
-  losers: { symbol: string; change: number }[];
-}
-
 interface Recommendation {
   symbol: string;
   name: string;
@@ -41,19 +31,17 @@ interface Recommendation {
   analyst: string;
 }
 
-interface ElliotWave {
-  wave: number;
-  label: string;
-  status: "completed" | "in-progress" | "projected";
-  priceRange: string;
+interface AnalysisTrends {
+  trend: string;
+  strength: number;
+  gainers: { symbol: string; change: number }[];
+  losers: { symbol: string; change: number }[];
 }
 
-interface LiquidityFlow {
-  symbol: string;
-  inflow: number;
-  outflow: number;
-  net: number;
-  direction: "positive" | "negative" | "neutral";
+interface AnalysisData {
+  sentiment: SentimentItem[];
+  trends: AnalysisTrends;
+  recommendations: Recommendation[];
 }
 
 type AnalysisTab = "sentiment" | "trends" | "recommendations" | "elliot" | "liquidity" | "technical";
@@ -86,13 +74,13 @@ function TrendIndicator({ value }: { value: number }) {
 
 export default function AnalysisPage() {
   const [tab, setTab] = useState<AnalysisTab>("sentiment");
-  const [elliotSymbol, setElliotSymbol] = useState("شاخص کل");
+
 
   const { data: analysis, isLoading } = useQuery({
     queryKey: ["analysis-full"],
     queryFn: async () => {
       try {
-        return await apiGet<any>("/analysis/overview");
+        return await apiGet<AnalysisData>("/analysis/overview");
       } catch {}
       return null;
     },
@@ -100,7 +88,7 @@ export default function AnalysisPage() {
   });
 
   const avgSentiment = analysis?.sentiment?.length
-    ? (analysis.sentiment.reduce((sum: number, s: any) => sum + (Number(s.score) || 0), 0) / analysis.sentiment.length).toFixed(0)
+    ? (analysis.sentiment.reduce((sum: number, s: SentimentItem) => sum + (Number(s.score) || 0), 0) / analysis.sentiment.length).toFixed(0)
     : null;
 
   const CANDLE_DATA = useMemo(() => generateCandleData(60), []);
@@ -160,7 +148,7 @@ export default function AnalysisPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {analysis?.sentiment?.map((s: any, i: number) => (
+                        {analysis?.sentiment?.map((s: SentimentItem, i: number) => (
                           <tr key={i} className="border-b border-surface-800/50">
                             <td className="py-2.5 text-surface-400 text-xs">{s.date || ""}</td>
                             <td className="py-2.5"><TrendIndicator value={Number(s.score) || 0} /></td>
@@ -208,8 +196,8 @@ export default function AnalysisPage() {
                   <div className="glass-card p-5">
                     <h3 className="font-bold text-accent-emerald mb-3">پررشدترین‌ها</h3>
                     <div className="space-y-2">
-                      {analysis?.trends?.gainers?.map((g: any) => (
-                        <div key={g.symbol} className="flex items-center justify-between">
+                      {analysis?.trends?.gainers?.map((g: { symbol: string; change: number }, i: number) => (
+                        <div key={`${g.symbol}-${i}`} className="flex items-center justify-between">
                           <span className="text-sm text-surface-200">{g.symbol}</span>
                           <span className="text-sm font-mono text-accent-emerald">+{g.change.toFixed(1)}%</span>
                         </div>
@@ -219,8 +207,8 @@ export default function AnalysisPage() {
                   <div className="glass-card p-5">
                     <h3 className="font-bold text-accent-rose mb-3">پربازده‌ترین‌ها</h3>
                     <div className="space-y-2">
-                      {analysis?.trends?.losers?.map((l: any) => (
-                        <div key={l.symbol} className="flex items-center justify-between">
+                      {analysis?.trends?.losers?.map((l: { symbol: string; change: number }, i: number) => (
+                        <div key={`${l.symbol}-${i}`} className="flex items-center justify-between">
                           <span className="text-sm text-surface-200">{l.symbol}</span>
                           <span className="text-sm font-mono text-accent-rose">{l.change.toFixed(1)}%</span>
                         </div>
@@ -248,7 +236,7 @@ export default function AnalysisPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {analysis?.recommendations?.map((r: any, i: number) => (
+                      {analysis?.recommendations?.map((r: Recommendation, i: number) => (
                         <tr key={i} className="border-b border-surface-800/50">
                           <td className="py-2.5 font-mono font-bold text-surface-200">{r.symbol}</td>
                           <td className="py-2.5 text-surface-400 text-xs">{r.name}</td>

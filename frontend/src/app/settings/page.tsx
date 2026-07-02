@@ -67,9 +67,8 @@ export default function SettingsPage() {
             ].map((item) => (
               <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <input
-                  type="checkbox"
-                  checked={(notifications as any)[item.id]}
-                  onChange={() => setNotifications((prev) => ({ ...prev, [item.id]: !(prev as any)[item.id] }))}
+                  type="checkbox"                    checked={notifications[item.id as keyof typeof notifications]}
+                    onChange={() => setNotifications((prev) => ({ ...prev, [item.id]: !prev[item.id as keyof typeof notifications] }))}
                   style={{ width: 16, height: 16, accentColor: "var(--accent-primary)" }}
                 />
                 <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{item.label}</span>

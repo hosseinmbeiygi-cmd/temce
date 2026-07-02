@@ -23,9 +23,10 @@ interface CandleChartCardProps {
   showVolume?: boolean;
 }
 
-// ── Custom Candlestick Shape ──────────────
+// ------ Custom Candlestick Shape ------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CandlestickShape(props: any) {
-  const { x, y, width, height, payload } = props;
+  const { x, y, width, payload } = props;
   if (!payload || !width) return null;
 
   const { open, close, high, low } = payload;
@@ -71,9 +72,10 @@ function CandlestickShape(props: any) {
   );
 }
 
-// ── Custom Volume Bar Shape ───────────────
+// ------ Custom Volume Bar Shape ---------------------------------------------
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function VolumeShape(props: any) {
-  const { x, y, width, height, payload } = props;
+  const { x, width, height, payload } = props;
   if (!payload || !width) return null;
 
   const isUp = payload.close >= payload.open;
@@ -92,7 +94,7 @@ function VolumeShape(props: any) {
   );
 }
 
-// ── Price Formatter ───────────────────────
+// ------ Price Formatter ---------------------------------------------------------------------
 const priceFormat = (v: number) => v.toLocaleString("fa-IR");
 
 export default function CandleChartCard({
@@ -131,7 +133,7 @@ export default function CandleChartCard({
         </>
       }
     >
-      {/* ── Price Stats Bar ────────── */}
+      {/* ------ Price Stats Bar ------------------------------ */}
       {symbol && (
         <div
           style={{
@@ -169,7 +171,7 @@ export default function CandleChartCard({
         </div>
       )}
 
-      {/* ── Candlestick Chart ──────── */}
+      {/* ------ Candlestick Chart ------------------------ */}
       <ChartContainer height={showVolume ? height - 60 : height}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart
@@ -206,7 +208,8 @@ export default function CandleChartCard({
                 fontSize: "11px",
                 backdropFilter: "blur(10px)",
               }}
-              formatter={(value: number, name: string) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(value: any, name: any) => {
                 const labels: Record<string, string> = {
                   open: "بازگشایش",
                   high: "بیشترین",
@@ -214,9 +217,10 @@ export default function CandleChartCard({
                   close: "بسته شدن",
                   volume: "حجم",
                 };
-                return [priceFormat(value), labels[name] || name];
+                return [priceFormat(Number(value) || 0), String(labels[name] || name)];
               }}
-              labelFormatter={(label: string) => `📅 ${label}`}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              labelFormatter={(label: any) => `📅 ${String(label)}`}
             />
             <Bar
               dataKey="high"
@@ -231,7 +235,7 @@ export default function CandleChartCard({
         </ResponsiveContainer>
       </ChartContainer>
 
-      {/* ── Volume Bars ────────────── */}
+      {/* ------ Volume Bars ------------------------------------------ */}
       {showVolume && (
         <ChartContainer height={50}>
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>

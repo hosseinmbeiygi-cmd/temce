@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
@@ -30,13 +30,13 @@ export default function ExperimentsPage() {
   const predictMutation = useMutation({
     mutationFn: async () => {
       const features = EXAMPLE_FEATURES[selectedSymbol] || EXAMPLE_FEATURES.فولاد;
-      return await apiPost<any>(`/ml/predict/${selectedModel}`, features);
+      return await apiPost<Record<string, unknown>>(`/ml/predict/${selectedModel}`, features);
     },
   });
 
   const trainMutation = useMutation({
     mutationFn: async () => {
-      return await apiPost<any>('/ml/train', {
+      return await apiPost<Record<string, unknown>>('/ml/train', {
         model_id: selectedModel,
         symbol: selectedSymbol,
         start_date: "1403-01-01",
@@ -44,7 +44,7 @@ export default function ExperimentsPage() {
       });
     },
     onSuccess: () => toast.success("مدل با موفقیت آموزش دید"),
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: Error) => toast.error(err.message),
   });
 
   return (
@@ -96,14 +96,14 @@ export default function ExperimentsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center">
                     <p className="text-xs text-gray-500 mb-1">قیمت پیش‌بینی شده</p>
-                    <p className="text-3xl font-bold text-blue-600">{(predictMutation.data as any).prediction?.toLocaleString() || "—"}</p>
+                    <p className="text-3xl font-bold text-blue-600">{String((predictMutation.data as Record<string, unknown>)?.prediction ?? "—")}</p>
                     <p className="text-xs text-gray-400 mt-1">ریال</p>
                   </div>
                   <div className="text-center">
                     <p className="text-xs text-gray-500 mb-1">اطمینان</p>
-                    <p className="text-3xl font-bold text-green-600">{((predictMutation.data as any).confidence * 100).toFixed(0)}%</p>
+                    <p className="text-3xl font-bold text-green-600">{((Number((predictMutation.data as Record<string, unknown>)?.confidence) || 0) * 100).toFixed(0)}%</p>
                     <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
-                      <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${(predictMutation.data as any).confidence * 100}%` }} />
+                      <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${(Number((predictMutation.data as Record<string, unknown>)?.confidence) || 0) * 100}%` }} />
                     </div>
                   </div>
                 </div>

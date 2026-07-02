@@ -81,7 +81,8 @@ export default function BarChartCard({
                 fontSize: "11px",
                 backdropFilter: "blur(10px)",
               }}
-              formatter={(value: number) => [fmt(value), "حجم"]}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(value: any) => [fmt(Number(value) || 0), "حجم"]}
               labelStyle={{ color: "var(--text-secondary)", fontWeight: 600 }}
             />
             <Bar
@@ -94,7 +95,7 @@ export default function BarChartCard({
                     <Cell
                       key={i}
                       fill={
-                        (entry as any).volume !== undefined && (entry as any).volume >= 0
+                        entry.volume !== undefined && entry.volume >= 0
                           ? colorPositive
                           : colorNegative
                       }

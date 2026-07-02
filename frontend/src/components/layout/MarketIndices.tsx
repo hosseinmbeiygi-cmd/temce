@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiGet, extractArray } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import { MarketIndex, generateMockIndices } from "@/lib/types";
 
 function IndexCard({ idx }: { idx: MarketIndex }) {
@@ -25,17 +25,18 @@ function IndexCard({ idx }: { idx: MarketIndex }) {
 export default function MarketIndices() {
   const { data: indices } = useQuery({
     queryKey: ["market-indices"],
-    queryFn: async () => {
+    queryFn: async (): Promise<MarketIndex[]> => {
       try {
         // Backend: GET /market/overview returns ApiResponse<{ indices: [...], ... }>
-        const res = await apiGet<any>("/market/overview");
+        const res = await apiGet<Record<string, unknown>>("/market/overview");
         // Extract indices from various possible response shapes
-        if (res?.indices) return res.indices;
-        if (res?.markets) return res.markets;
-        if (Array.isArray(res)) return res;
+        if (res?.indices && Array.isArray(res.indices)) return res.indices as MarketIndex[];
+        if (res?.markets && Array.isArray(res.markets)) return res.markets as MarketIndex[];
+        if (Array.isArray(res)) return res as MarketIndex[];
         // Try to find any array in the response
-        for (const key of ["items", "data", "result"]) {
-          if (res?.[key] && Array.isArray(res[key])) return res[key];
+        for (const key of ["items", "data", "result"] as const) {
+          const val = res?.[key];
+          if (val && Array.isArray(val)) return val as MarketIndex[];
         }
       } catch {
         // Backend unavailable — use mock data

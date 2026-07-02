@@ -2,7 +2,6 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect, FormEvent } from "react";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, apiPost, apiPut, apiDelete, getStoredAuth, extractItems } from "@/lib/api";
 
@@ -11,7 +10,7 @@ interface Alert {
   instrument_id: string;
   symbol: string;
   alert_type: string;
-  condition: Record<string, any>;
+  condition: Record<string, unknown>;
   channels: string[];
   enabled: boolean;
   triggered_count: number;
@@ -52,8 +51,8 @@ export default function AlertsPage() {
 
   async function fetchAlerts() {
     try {
-      const data = await apiGet<any>("/alerts?page_size=50", auth?.token);
-      setAlerts(extractItems(data));
+      const data = await apiGet<unknown>("/alerts?page_size=50", auth?.token);
+      setAlerts(extractItems<Alert>(data));
     } catch (error) {
       console.error("Error fetching alerts:", error);
     }
@@ -64,7 +63,7 @@ export default function AlertsPage() {
     e.preventDefault();
     setError(""); setMessage("");
     try {
-      const condition: Record<string, any> = { threshold: parseFloat(threshold), operator: "gte", field: "price" };
+      const condition: Record<string, unknown> = { threshold: parseFloat(threshold), operator: "gte", field: "price" };
       if (alertType.includes("rsi")) condition.field = "rsi";
       if (alertType.includes("volume")) condition.field = "volume";
       if (alertType.includes("below")) condition.operator = "lte";
@@ -82,7 +81,7 @@ export default function AlertsPage() {
       setMessage("هشدار با موفقیت ایجاد شد");
       setShowForm(false);
       fetchAlerts();
-    } catch (err: any) { setError(err.message); }
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   }
 
   async function toggleAlert(alert: Alert) {
@@ -163,7 +162,7 @@ export default function AlertsPage() {
                   </button>
                   <div>
                     <p className="font-medium">{alert.symbol} — {ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type}</p>
-                    <p className="text-xs text-gray-500">آستانه: {alert.condition?.threshold || "-"} | فعال‌سازی: {alert.triggered_count} بار</p>
+                    <p className="text-xs text-gray-500">آستانه: {String(alert.condition?.threshold ?? "-")} | فعال‌سازی: {alert.triggered_count} بار</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

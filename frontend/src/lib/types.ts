@@ -1,4 +1,4 @@
-// ── Base Types ────────────────────────────────────────
+// ------ Base Types ------------------------------------------------------------------------------------------------------------------------
 export interface MarketStats {
   marketCap: number;
   totalVolume: number;
@@ -58,6 +58,9 @@ export interface Signal {
   horizon?: string;
   price?: number;
   timestamp?: string;
+  instrument_id?: string;
+  strategy?: string;
+  created_at?: string;
 }
 
 export interface OrderBookEntry {
@@ -71,9 +74,20 @@ export interface WatchlistItem {
   name?: string;
   price?: number;
   change?: number;
+  // Enriched fields
+  priceLowestAllowed?: number;
+  priceHighestAllowed?: number;
+  freeFloatPct?: number;
+  price_yesterday?: number;
+  eps?: number;
+  peRatio?: number;
+  groupPeRatio?: number;
+  psRatio?: number;
+  state?: string;
+  sector?: string;
 }
 
-// ── اضافه کردن تایپ‌های جدید ──────────────────────────
+// ------ اضافه کردن تایپ‌های جدید ------------------------------------------------------------------------------
 export interface MarketIndex {
   name: string;
   value: number;
@@ -87,9 +101,45 @@ export interface HeatmapCell {
   change: number;
   value?: number;
   volume?: number;
+  // Enriched fields
+  name?: string;
+  price?: number;
+  priceLowestAllowed?: number;
+  priceHighestAllowed?: number;
+  freeFloatPct?: number;
+  eps?: number;
+  peRatio?: number;
+  state?: string;
+  sector?: string;
+  market?: string;
+  board?: string;
 }
 
-// ── Mock Generators ────────────────────────────────────
+export interface CandleDataPoint {
+  date?: string;
+  time?: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  isUp?: boolean;
+}
+
+export interface PieChartData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface SentimentPoint {
+  date: string;
+  positive: number;
+  neutral: number;
+  negative: number;
+}
+
+// ------ Mock Generators ------------------------------------------------------------------------------------------------------------
 
 export function generateMockNews(count: number = 3): NewsItem[] {
   const titles = [
@@ -235,14 +285,14 @@ export function generateCandleData(count: number = 60) {
   });
 }
 
-// ── توابع اضافه شده (یک بار تعریف) ──────────────────────
+// ------ توابع اضافه شده (یک بار تعریف) ------------------------------------------------------------------
 export function generateMockWatchlist(): WatchlistItem[] {
   return [
-    { symbol: 'فولاد', name: 'فولاد مبارکه', price: 12450, change: 2.34 },
-    { symbol: 'شپنا', name: 'پالایش نفت اصفهان', price: 8760, change: -1.23 },
-    { symbol: 'وبملت', name: 'بانک ملت', price: 5670, change: 0.0 },
-    { symbol: 'خودرو', name: 'ایران خودرو', price: 23890, change: 3.45 },
-    { symbol: 'فملی', name: 'صنایع مس', price: 18230, change: 1.56 },
+    { symbol: 'فولاد', name: 'فولاد مبارکه', price: 12450, change: 2.34, priceLowestAllowed: 11828, priceHighestAllowed: 13073, freeFloatPct: 33, eps: 8520, peRatio: 4.5, groupPeRatio: 11.6, psRatio: 0.85, state: 'مجاز', sector: 'فلزات اساسی' },
+    { symbol: 'شپنا', name: 'پالایش نفت اصفهان', price: 8760, change: -1.23, priceLowestAllowed: 8322, priceHighestAllowed: 9198, freeFloatPct: 20, eps: 14500, peRatio: 3.2, groupPeRatio: 8.4, psRatio: 1.20, state: 'مجاز', sector: 'فرآورده‌های نفتی' },
+    { symbol: 'وبملت', name: 'بانک ملت', price: 5670, change: 0.0, priceLowestAllowed: 5387, priceHighestAllowed: 5954, freeFloatPct: 45, eps: 2100, peRatio: 6.8, groupPeRatio: 7.2, psRatio: 2.35, state: 'مجاز', sector: 'بانکداری' },
+    { symbol: 'خودرو', name: 'ایران خودرو', price: 23890, change: 3.45, priceLowestAllowed: 22696, priceHighestAllowed: 25085, freeFloatPct: 15, eps: 3200, peRatio: 7.5, groupPeRatio: 14.8, psRatio: 0.45, state: 'مجاز', sector: 'خودرو' },
+    { symbol: 'فملی', name: 'صنایع مس', price: 18230, change: 1.56, priceLowestAllowed: 17319, priceHighestAllowed: 19142, freeFloatPct: 10, eps: 6100, peRatio: 5.2, groupPeRatio: 10.3, psRatio: 1.65, state: 'مجاز', sector: 'استخراج کانه‌های فلزی' },
   ];
 }
 
@@ -255,13 +305,19 @@ export function generateMockIndices(): MarketIndex[] {
 }
 
 export function generateMockHeatmap(): HeatmapCell[] {
-  const symbols = ['فولاد', 'شپنا', 'وبملت', 'خودرو', 'فملی', 'کگل', 'پترول', 'مس', 'وغدیر', 'بانک'];
-  return symbols.map((s) => ({
-    symbol: s,
-    change: (Math.random() - 0.4) * 8,
-    value: Math.floor(1000 + Math.random() * 50000),
-    volume: Math.floor(100000 + Math.random() * 9000000),
-  }));
+  const data = [
+    { symbol: 'فولاد', name: 'فولاد مبارکه', change: 2.34, value: 45000000, volume: 1200000, price: 12450, priceLowestAllowed: 11828, priceHighestAllowed: 13073, freeFloatPct: 33, eps: 8520, peRatio: 4.5, state: 'مجاز', sector: 'فلزات اساسی', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'شپنا', name: 'پالایش نفت اصفهان', change: -1.23, value: 32000000, volume: 980000, price: 8760, priceLowestAllowed: 8322, priceHighestAllowed: 9198, freeFloatPct: 20, eps: 14500, peRatio: 3.2, state: 'مجاز', sector: 'فرآورده‌های نفتی', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'وبملت', name: 'بانک ملت', change: 0.0, value: 18000000, volume: 2100000, price: 5670, priceLowestAllowed: 5387, priceHighestAllowed: 5954, freeFloatPct: 45, eps: 2100, peRatio: 6.8, state: 'مجاز', sector: 'بانکداری', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'خودرو', name: 'ایران خودرو', change: 3.45, value: 52000000, volume: 3400000, price: 23890, priceLowestAllowed: 22696, priceHighestAllowed: 25085, freeFloatPct: 15, eps: 3200, peRatio: 7.5, state: 'مجاز', sector: 'خودرو', market: 'بورس', board: 'بازار دوم' },
+    { symbol: 'فملی', name: 'صنایع مس', change: 1.56, value: 41000000, volume: 1800000, price: 18230, priceLowestAllowed: 17319, priceHighestAllowed: 19142, freeFloatPct: 10, eps: 6100, peRatio: 5.2, state: 'مجاز', sector: 'استخراج کانه‌های فلزی', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'کگل', name: 'گل گهر', change: -0.87, value: 29000000, volume: 1500000, price: 15320, priceLowestAllowed: 14554, priceHighestAllowed: 16086, freeFloatPct: 25, eps: 7800, peRatio: 3.8, state: 'مجاز', sector: 'استخراج کانه‌های فلزی', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'پترول', name: 'پتروشیمی خلیج فارس', change: 2.10, value: 68000000, volume: 2900000, price: 32500, priceLowestAllowed: 30875, priceHighestAllowed: 34125, freeFloatPct: 18, eps: 16200, peRatio: 3.0, state: 'مجاز', sector: 'محصولات شیمیایی', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'وغدیر', name: 'سرمایه‌گذاری غدیر', change: 1.12, value: 25000000, volume: 1100000, price: 14560, priceLowestAllowed: 13832, priceHighestAllowed: 15288, freeFloatPct: 30, eps: 5400, peRatio: 5.5, state: 'مجاز', sector: 'سرمایه‌گذاری', market: 'بورس', board: 'بازار دوم' },
+    { symbol: 'مس', name: 'ملی مس', change: -0.45, value: 35000000, volume: 1600000, price: 19990, priceLowestAllowed: 18991, priceHighestAllowed: 20990, freeFloatPct: 10, eps: 6100, peRatio: 5.2, state: 'مجاز', sector: 'استخراج کانه‌های فلزی', market: 'بورس', board: 'بازار اول' },
+    { symbol: 'فارس', name: 'صنایع پتروشیمی خلیج فارس', change: 1.80, value: 55000000, volume: 2200000, price: 28000, priceLowestAllowed: 26600, priceHighestAllowed: 29400, freeFloatPct: 22, eps: 14000, peRatio: 3.5, state: 'مجاز', sector: 'محصولات شیمیایی', market: 'بورس', board: 'بازار اول' },
+  ];
+  return data;
 }
 
 export function generateMockOrderBook() {

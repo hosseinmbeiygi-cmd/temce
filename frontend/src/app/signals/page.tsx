@@ -6,18 +6,22 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
 import { apiGet, extractArray } from "@/lib/api";
 import { generateMockSignals } from "@/lib/types";
+import type { Signal } from "@/lib/types";
+import { useClientData } from "@/hooks/useClientData";
+import SSRSafe from "@/components/SSRSafe";
 
 export default function SignalsPage() {
   const [filter, setFilter] = useState<"all" | "buy" | "sell" | "neutral">("all");
+  const [defaultSignals] = useClientData(() => generateMockSignals(), [] as Signal[]);
 
-  const { data: signals = generateMockSignals() } = useQuery({
+  const { data: signals = defaultSignals } = useQuery({
     queryKey: ["signals-full"],
     queryFn: async () => {
       try {
         // Backend: GET /signals returns { success, data: PaginatedResult, summary }
-        const res = await apiGet<any>("/signals?page=1&page_size=50");
+        const res = await apiGet<unknown>("/signals?page=1&page_size=50");
         // apiGet unwraps { success, data: T }, so res = PaginatedResult | { items: [] }
-        return extractArray(res);
+        return extractArray<Signal>(res);
       } catch {
         return generateMockSignals();
       }
@@ -26,7 +30,7 @@ export default function SignalsPage() {
     staleTime: 10000,
   });
 
-  const filtered = filter === "all" ? signals : signals?.filter((s: any) => s.signal === filter);
+  const filtered = filter === "all" ? signals : signals?.filter((s: Signal) => s.signal === filter);
 
   const getSignalBadge = (signal: string) => {
     const map: Record<string, string> = {
@@ -56,7 +60,7 @@ export default function SignalsPage() {
             </>
           }
         >
-          <div style={{ overflowY: "auto", height: "100%" }}>
+          <SSRSafe style={{ overflowY: "auto", height: "100%" }}>
             {(!Array.isArray(signals) || signals.length === 0) ? (
               <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
                 <span className="material-icons" style={{ fontSize: 48, marginBottom: 10 }}>signal_cellular_alt</span>
@@ -76,7 +80,7 @@ export default function SignalsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered?.map((s: any, i: number) => (
+                  {filtered?.map((s: Signal, i: number) => (
                     <tr key={s.id || i}>
                       <td className="symbol">{s.symbol || s.instrument_id || "—"}</td>
                       <td>
@@ -94,7 +98,7 @@ export default function SignalsPage() {
                 </tbody>
               </table>
             )}
-          </div>
+          </SSRSafe>
         </Card>
       </div>
     </AppLayout>

@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
-import { apiGet } from "@/lib/api";
+import { apiGet, extractItems } from "@/lib/api";
 
 interface AlphaStrategy {
   id: string;
@@ -27,10 +26,9 @@ export default function AlphaPage() {
   const { data: alphas, isLoading } = useQuery({
     queryKey: ["alpha-strategies"],
     queryFn: async () => {
-      // Assuming an endpoint /api/v1/alpha’s exists or using fallback
       try {
-        const data = await apiGet<any>('/alpha');
-        return data || [];
+        const data = await apiGet<{ success: boolean; data: { items: AlphaStrategy[] } }>('/alpha');
+        return extractItems<AlphaStrategy>(data);
       } catch {}
       return [
         { id: "mom-v3", name: "Momentum", version: "v3", sharpe: 2.14, returns: 34.5, volatility: 12.8, maxDrawdown: -8.2, winRate: 62, trades: 342, status: "active", description: "استراتژی مومنتوم بر اساس شتاب قیمتی ۳۰ روزه" },
@@ -41,7 +39,7 @@ export default function AlphaPage() {
     },
   });
 
-  const filtered = alphas?.filter((a: any) => filter === "all" || a.status === filter);
+  const filtered = alphas?.filter((a) => filter === "all" || a.status === filter);
 
   return (
     <AppLayout title="استراتژی‌های آلفا" subtitle="مدیریت و مانیتورینگ استراتژی‌های معاملاتی">
@@ -55,7 +53,7 @@ export default function AlphaPage() {
       <div className="grid gap-4">
         {isLoading ? (
           [1,2,3].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)
-        ) : filtered?.map((a: any) => (
+        ) : filtered?.map((a) => (
           <div key={a.id} className="glass-card p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">

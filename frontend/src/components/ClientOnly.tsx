@@ -1,4 +1,4 @@
-// ── Client-Only Wrapper ─────────────────────
+// ------ Client-Only Wrapper ---------------------------------------------------------------
 // Wraps children with next/dynamic (ssr: false) so Recharts
 // only renders in the browser, eliminating SSR dimension warnings.
 

@@ -7,13 +7,13 @@ import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
 
-// ── Dynamic Chart Imports ─────────────────────
+// ------ Dynamic Chart Imports ---------------------------------------------------------------
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 280 }} />,
 });
 
-// ── Phase & Score Display Helpers ─────────────
+// ------ Phase & Score Display Helpers ---------------------------------------
 interface SmartMoneyResult {
   smart_money_score: number;
   phase: string;
@@ -81,7 +81,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-// ── Mock Data Generator ────────────────────────
+// ------ Mock Data Generator ------------------------------------------------------------------------
 function generateMockResult(symbol: string): SmartMoneyResult {
   // Deterministic mock based on symbol length to keep results stable per symbol
   const seed = symbol.length * 7 + symbol.charCodeAt(0) || 42;
@@ -110,7 +110,7 @@ function generateMockResult(symbol: string): SmartMoneyResult {
 function generateMockHistory(symbol: string, days: number = 30) {
   const seed = symbol.length * 13 + symbol.charCodeAt(0) || 42;
   const r = (n: number) => ((seed * n * 9301 + 49297) % 233280) / 233280;
-  const data: { time: string; value: number }[] = [];
+  const data: { date: string; time: string; value: number }[] = [];
   let base = 0.3 + r(0) * 0.3;
   const now = new Date();
   for (let i = days; i >= 0; i--) {
@@ -119,6 +119,7 @@ function generateMockHistory(symbol: string, days: number = 30) {
     if (d.getDay() === 5 || d.getDay() === 6) continue;
     base = Math.max(0.05, Math.min(0.95, base + (r(i) - 0.48) * 0.04));
     data.push({
+      date: d.toLocaleDateString("fa-IR", { month: "short", day: "numeric" }),
       time: d.toLocaleDateString("fa-IR", { month: "short", day: "numeric" }),
       value: Math.round(base * 100),
     });
@@ -126,7 +127,7 @@ function generateMockHistory(symbol: string, days: number = 30) {
   return data;
 }
 
-// ── Main Component ──────────────────────────────
+// ------ Main Component ------------------------------------------------------------------------------------------
 export default function SmartMoneyPage() {
   const [symbol, setSymbol] = useState("فولاد");
   const [inputValue, setInputValue] = useState("فولاد");
@@ -144,8 +145,8 @@ export default function SmartMoneyPage() {
     setResult(null);
     setIsMock(false);
     try {
-      const res = await apiGet<SmartMoneyResult>(`/smart-money/${trimmed}`);
-      setResult(res);
+      const res = await apiGet<{ success: boolean; data: SmartMoneyResult }>(`/smart-money/${trimmed}`);
+      setResult(res?.data || null);
     } catch {
       // Fallback to mock data when API is unavailable
       const mock = generateMockResult(trimmed);
@@ -165,7 +166,7 @@ export default function SmartMoneyPage() {
 
   return (
     <AppLayout title="Smart Money — پول هوشمند" subtitle="تحلیل جریان پول هوشمند و شناسایی فازهای بازار با ۹ لایه تحلیلی">
-      {/* ── Search Bar ────────────────────────── */}
+      {/* ------ Search Bar ------------------------------------------------------------------------------ */}
       <div className="glass-card p-5 mb-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
@@ -201,7 +202,7 @@ export default function SmartMoneyPage() {
         </div>
       </div>
 
-      {/* ── Loading State ─────────────────────── */}
+      {/* ------ Loading State --------------------------------------------------------------------- */}
       {loading && (
         <div className="space-y-4">
           <Skeleton className="h-48 w-full rounded-2xl" />
@@ -209,7 +210,7 @@ export default function SmartMoneyPage() {
         </div>
       )}
 
-      {/* ── Error State ───────────────────────── */}
+      {/* ------ Error State --------------------------------------------------------------------------- */}
       {error && !loading && (
         <div className="glass-card p-8 text-center">
           <span className="material-icons text-4xl text-accent-rose mb-2">error_outline</span>
@@ -217,10 +218,10 @@ export default function SmartMoneyPage() {
         </div>
       )}
 
-      {/* ── Results ───────────────────────────── */}
+      {/* ------ Results --------------------------------------------------------------------------------------- */}
       {result && !loading && (
         <>
-          {/* ── Mock Data Warning ────────────────── */}
+          {/* ------ Mock Data Warning ------------------------------------------------------ */}
           {isMock && (
             <div className="flex items-center gap-2.5 px-4 py-2.5 mb-4 rounded-xl bg-accent-amber/10 border border-accent-amber/20 text-sm">
               <span className="material-icons text-accent-amber" style={{ fontSize: 20 }}>info</span>
@@ -236,7 +237,7 @@ export default function SmartMoneyPage() {
             </div>
           )}
 
-          {/* ── Top Row: SMC Score + Phase + Layer Scores ── */}
+          {/* ------ Top Row: SMC Score + Phase + Layer Scores ------ */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             {/* SMC Score Gauge */}
             <Card title={`SMC Score — ${symbol}`}>
@@ -306,7 +307,7 @@ export default function SmartMoneyPage() {
             </Card>
           </div>
 
-          {/* ── Layer Scores ───────────────────── */}
+          {/* ------ Layer Scores --------------------------------------------------------------- */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <Card title="امتیاز لایه‌های تحلیلی">
               <div className="space-y-3 py-2">
@@ -333,7 +334,7 @@ export default function SmartMoneyPage() {
             </Card>
           </div>
 
-          {/* ── Analysis Summary ───────────────── */}
+          {/* ------ Analysis Summary --------------------------------------------------- */}
           <Card title="تحلیل ترکیبی">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="p-4 bg-surface-800/30 rounded-xl">
@@ -378,7 +379,7 @@ export default function SmartMoneyPage() {
             </div>
           </Card>
 
-          {/* ── Interpretation ─────────────────── */}
+          {/* ------ Interpretation --------------------------------------------------------- */}
           <div className="glass-card p-5 mt-4">
             <h3 className="font-bold text-surface-200 mb-3">تفسیر کلی</h3>
             <div className={`p-4 rounded-xl text-sm ${
@@ -410,7 +411,7 @@ export default function SmartMoneyPage() {
         </>
       )}
 
-      {/* ── Empty State (no search yet) ────────── */}
+      {/* ------ Empty State (no search yet) ------------------------------ */}
       {!result && !loading && !error && (
         <div className="glass-card p-12 text-center">
           <span className="material-icons text-5xl text-surface-600 mb-3">psychology</span>

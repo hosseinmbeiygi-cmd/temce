@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { apiGet } from "@/lib/api";
 
 interface BacktestRun {
@@ -32,12 +31,18 @@ export default function ResultsPage() {
 
   const { data: runs, isLoading: loadingRuns } = useQuery({
     queryKey: ["backtest-runs"],
-    queryFn: () => apiGet<BacktestRun[]>( "/backtests/runs"),
+    queryFn: async () => {
+      const res = await apiGet<{ success: boolean; data: { items: BacktestRun[] } }>("/backtests/runs");
+      return res?.data?.items || [];
+    },
   });
 
   const { data: result, isLoading: loadingResult } = useQuery({
     queryKey: ["backtest-result", selectedRun],
-    queryFn: () => apiGet<BacktestResult>( `/backtests/runs/${selectedRun}/result`),
+    queryFn: async () => {
+      const res = await apiGet<{ success: boolean; data: BacktestResult }>(`/backtests/runs/${selectedRun}/result`);
+      return res?.data || null;
+    },
     enabled: !!selectedRun,
   });
 

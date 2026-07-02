@@ -62,9 +62,10 @@ export default function PieChartCard({
                 fontSize: "12px",
                 backdropFilter: "blur(10px)",
               }}
-              formatter={(value: number, name: string) => [
-                valueFormatter(value),
-                name,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(value: any, name: any) => [
+                valueFormatter(Number(value) || 0),
+                String(name),
               ]}
             />
             {showLegend && (

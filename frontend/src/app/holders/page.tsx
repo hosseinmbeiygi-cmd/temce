@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, extractArray } from "@/lib/api";
 
@@ -33,14 +32,16 @@ const IRANIAN_SYMBOLS = [
   { code: "شتران", name: "پالایش نفت تهران" },
 ];
 
-function formatShares(n: number): string {
+function formatShares(n: number | undefined | null): string {
+  if (n == null) return "—";
   if (n >= 1000000000) return (n / 1000000000).toFixed(2) + " میلیارد";
   if (n >= 1000000) return (n / 1000000).toFixed(1) + " میلیون";
   if (n >= 1000) return (n / 1000).toFixed(1) + " هزار";
   return n.toLocaleString("fa-IR");
 }
 
-function formatPrice(n: number): string {
+function formatPrice(n: number | undefined | null): string {
+  if (n == null) return "—";
   return n.toLocaleString("fa-IR");
 }
 
@@ -52,16 +53,16 @@ export default function HoldersPage() {
   const { data: holdersData, isLoading: loadingHolders } = useQuery({
     queryKey: ["holders", symbol],
     queryFn: async () => {
-      const response = await apiGet<any>(`/codal/${symbol}/holders`);
-      return extractArray(response);
+      const response = await apiGet<unknown>(`/codal/${symbol}/holders`);
+      return extractArray<MajorHolder>(response);
     },
   });
 
   const { data: insiderData, isLoading: loadingInsider } = useQuery({
     queryKey: ["insider", symbol],
     queryFn: async () => {
-      const response = await apiGet<any>(`/codal/${symbol}/insider`);
-      return extractArray(response);
+      const response = await apiGet<unknown>(`/codal/${symbol}/insider`);
+      return extractArray<InsiderTrade>(response);
     },
   });
 
@@ -135,12 +136,12 @@ export default function HoldersPage() {
                     <td className="py-2.5 font-mono text-surface-400">{h.rank}</td>
                     <td className="py-2.5 text-surface-200 text-xs">{h.name}</td>
                     <td className="py-2.5 font-mono text-surface-200">{formatShares(h.shares)}</td>
-                    <td className="py-2.5 font-mono text-accent-cyan">{h.percentage.toFixed(1)}%</td>
+                    <td className="py-2.5 font-mono text-accent-cyan">{(h.percentage ?? 0).toFixed(1)}%</td>
                     <td className="py-2.5">
                       <span className={`font-mono text-xs ${
-                        h.monthlyChange > 0 ? "text-accent-emerald" : h.monthlyChange < 0 ? "text-accent-rose" : "text-surface-400"
+                        (h.monthlyChange ?? 0) > 0 ? "text-accent-emerald" : (h.monthlyChange ?? 0) < 0 ? "text-accent-rose" : "text-surface-400"
                       }`}>
-                        {h.monthlyChange > 0 ? "+" : ""}{h.monthlyChange.toFixed(1)}%
+                        {h.monthlyChange != null ? `${h.monthlyChange > 0 ? "+" : ""}${h.monthlyChange.toFixed(1)}%` : "—"}
                       </span>
                     </td>
                   </tr>

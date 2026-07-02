@@ -4,11 +4,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(process.cwd(), ".."),
+  allowedDevOrigins: ["100.127.255.253", "192.168.43.162"],
   experimental: {
     optimizePackageImports: ["recharts", "@tanstack/react-query"],
   },
 
-  // ── Server-Side Proxy ─────────────────────────────
+  // ------ Server-Side Proxy ---------------------------------------------------------------------------------------
   // Client-side (browser) calls /api/v1/* → hits Next.js server →
   // proxy forwards to backend (resolves api:8000 in Docker network).
   // API_URL is NOT a NEXT_PUBLIC_* var, so it never leaks to the browser.

@@ -9,7 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Card, CardAction } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import ChartContainer from "@/components/charts/ChartContainer";
 import { ChartDataPoint } from "@/lib/types";
 
@@ -19,7 +19,6 @@ interface AreaChartCardProps {
   dataKey?: string;
   gradientId?: string;
   strokeColor?: string;
-  fillColor?: string;
   yAxisFormatter?: (value: number) => string;
   tooltipFormatter?: (value: number) => string;
   actions?: React.ReactNode;
@@ -34,7 +33,6 @@ export default function AreaChartCard({
   dataKey = "value",
   gradientId = "chartGradient",
   strokeColor = "var(--accent-primary)",
-  fillColor = "var(--accent-primary)",
   yAxisFormatter = defaultFormatter,
   tooltipFormatter,
   actions,
@@ -82,7 +80,8 @@ export default function AreaChartCard({
                 fontSize: "12px",
                 backdropFilter: "blur(10px)",
               }}
-              formatter={(value: number) => [fmt(value), "مقدار"]}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(value: any) => [fmt(Number(value) || 0), "مقدار"]}
               labelStyle={{ color: "var(--text-secondary)", fontWeight: 600 }}
             />
             <Area

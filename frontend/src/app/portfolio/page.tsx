@@ -6,14 +6,13 @@ import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, apiPost, extractArray } from "@/lib/api";
-import ClientOnly from "@/components/ClientOnly";
 
 const EquityCurveChart = dynamic(() => import("@/components/charts/EquityCurveChart"), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 256 }} />,
 });
 
-// ── تعریف تایپ‌ها ──────────────────────────────────────
+// ------ تعریف تایپ‌ها ------------------------------------------------------------------------------------------------------------------
 interface Position {
   symbol: string;
   quantity: number;
@@ -46,7 +45,7 @@ interface PortfolioList {
   total: number;
 }
 
-// ── کامپوننت اصلی ──────────────────────────────────────
+// ------ کامپوننت اصلی ------------------------------------------------------------------------------------------------------------------
 export default function PortfolioPage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -56,8 +55,8 @@ export default function PortfolioPage() {
   const { data: portfolios, isLoading: loadingList } = useQuery({
     queryKey: ["portfolios"],
     queryFn: async (): Promise<PortfolioList> => {
-      const response = await apiGet<any>("/portfolios");
-      const items = extractArray(response);
+      const response = await apiGet<Record<string, unknown>>("/portfolios");
+      const items = extractArray<PortfolioItem>(response);
       return { items, total: items.length };
     },
   });
@@ -81,7 +80,7 @@ export default function PortfolioPage() {
       setIsCreating(false);
       setNewPortfolioName("");
     },
-    onError: (err: any) => toast.error(err.message || "خطا در ایجاد پرتفوی"),
+    onError: (err: Error) => toast.error(err.message || "خطا در ایجاد پرتفوی"),
   });
 
   return (

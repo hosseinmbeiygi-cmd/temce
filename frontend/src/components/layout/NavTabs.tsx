@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 
 interface NavTabsProps {
   onNavigate?: (page: string) => void;
@@ -13,6 +12,8 @@ const TABS = [
   { id: "dashboard", label: "داشبورد", icon: "dashboard", href: "/" },
   { id: "heatmap", label: "نقشه حرارتی", icon: "grid_view", href: "/heatmap" },
   { id: "portfolio", label: "پرتفوی", icon: "account_balance_wallet", href: "/portfolio" },
+  { id: "commodities", label: "کامودیتی", icon: "travel_explore", href: "/commodities" },
+  { id: "crypto", label: "ارز دیجیتال", icon: "account_balance", href: "/crypto" },
   { id: "market-depth", label: "عمق بازار", icon: "bar_chart", href: "/market-depth" },
   { id: "news", label: "اخبار و نظرات", icon: "article", href: "/news" },
   { id: "analysis", label: "تحلیل و پیش‌بینی", icon: "analytics", href: "/analysis" },
@@ -20,6 +21,11 @@ const TABS = [
   { id: "smart-money", label: "پول هوشمند", icon: "psychology", href: "/smart-money" },
   { id: "signals", label: "سیگنال‌ها", icon: "trending_up", href: "/signals" },
   { id: "backtest", label: "بک‌تست", icon: "science", href: "/backtest" },
+  { id: "risk", label: "ریسک", icon: "shield", href: "/risk" },
+  { id: "alpha", label: "آلفا", icon: "auto_awesome", href: "/alpha" },
+  { id: "fundamental", label: "بنیادی", icon: "account_balance", href: "/fundamental" },
+  { id: "results", label: "نتایج", icon: "assignment", href: "/results" },
+  { id: "data", label: "مدیریت API", icon: "storage", href: "/data" },
   { id: "settings", label: "تنظیمات", icon: "settings", href: "/settings" },
 ];
 

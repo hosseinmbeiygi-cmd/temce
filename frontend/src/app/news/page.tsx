@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { apiGet, extractArray } from "@/lib/api";
 
 interface NewsItem {
@@ -38,20 +37,43 @@ export default function NewsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: news, isLoading } = useQuery({
+  const { data: news, isLoading, isError } = useQuery({
     queryKey: ["news-full"],
     queryFn: async () => {
       try {
-        const response = await apiGet<any>("/news");
-        return extractArray(response);
-      } catch {
-        return [];
-      }
+        const response = await apiGet<unknown>("/news");
+        const items = extractArray<Record<string, unknown>>(response);
+        if (items.length > 0 && items[0]?.published_at) {
+          return items.map((item) => ({
+            id: String(item.id || ""),
+            title: String(item.title || ""),
+            summary: String(item.summary || ""),
+            source: String(item.source || ""),
+            date: String(item.published_at || item.date || "").split("T")[0] || "",
+            category: String(item.category || "market").replace("company", "companies"),
+            fullContent: String(item.content || item.summary || ""),
+            trending: Boolean(item.trending || false),
+          })) as unknown as NewsItem[];
+        }
+        if (items.length > 0 && typeof items[0]?.title === "string") {
+          return items.map((item) => ({
+            id: String(item.id || ""),
+            title: String(item.title || ""),
+            summary: String(item.summary || ""),
+            source: String(item.source || ""),
+            date: String(item.date || item.published_at || "").split("T")[0] || "",
+            category: String(item.category || "market").replace("company", "companies"),
+            fullContent: String(item.fullContent || item.content || item.summary || ""),
+            trending: Boolean(item.trending || false),
+          })) as unknown as NewsItem[];
+        }
+      } catch {}
+      return [] as NewsItem[];
     },
     refetchInterval: 120000,
   });
 
-  const filtered = news?.filter((item: any) => {
+  const filtered = news?.filter((item: NewsItem) => {
     if (filter !== "all" && item.category !== filter) return false;
     if (searchQuery) {
       const q = searchQuery.trim();
@@ -60,7 +82,7 @@ export default function NewsPage() {
     return true;
   });
 
-  const trendingNews = news?.filter((n: any) => n.trending);
+  const trendingNews = news?.filter((n: NewsItem) => n.trending);
 
   const getCategoryBadge = (cat: string) => {
     const colors: Record<string, string> = {
@@ -101,8 +123,8 @@ export default function NewsPage() {
         <div className="lg:col-span-2 space-y-4">
           {isLoading ? (
             [1,2,3].map(i => <div key={i} className="glass-card p-5"><div className="h-20 bg-surface-800 animate-pulse rounded-lg" /></div>)
-          ) : filtered?.map((item: any) => (
-            <div key={item.id} className="glass-card p-5">
+          ) : filtered && filtered.length > 0 ? filtered.map((item: NewsItem, i: number) => (
+            <div key={item.id || `news-${i}`} className="glass-card p-5">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryBadge(item.category)}`}>
@@ -126,7 +148,10 @@ export default function NewsPage() {
                 </div>
               )}
             </div>
-          )) || <div className="glass-card p-8 text-center text-surface-500">هیچ خبری با این معیارها یافت نشد</div>}
+          )) : <div className="glass-card p-8 text-center text-surface-500">
+              <p className="mb-2">هیچ خبری یافت نشد</p>
+              <p className="text-xs text-surface-600">برای دریافت اخبار، ابتدا دستور <code className="bg-surface-800 px-1.5 py-0.5 rounded">python scripts/fetch_news.py</code> را اجرا کنید</p>
+            </div>}
         </div>
 
         <div className="space-y-4">
@@ -135,12 +160,12 @@ export default function NewsPage() {
             <div className="space-y-3">
               {isLoading ? (
                 [1,2,3].map(i => <div key={i} className="h-10 bg-surface-800 animate-pulse rounded-lg" />)
-              ) : trendingNews?.map((item: any) => (
-                <div key={item.id} className="pb-3 border-b border-surface-700/50 last:border-0 last:pb-0">
+              ) : trendingNews && trendingNews.length > 0 ? trendingNews.map((item: NewsItem, i: number) => (
+                <div key={item.id || `trending-${i}`} className="pb-3 border-b border-surface-700/50 last:border-0 last:pb-0">
                   <p className="text-sm text-surface-200 leading-snug mb-1">{item.title}</p>
                   <span className="text-xs text-surface-500">{item.source} • {item.date}</span>
                 </div>
-              )) || <div className="text-xs text-surface-600 text-center py-2">موردی یافت نشد</div>}
+              )) : <div className="text-xs text-surface-600 text-center py-2">موردی یافت نشد</div>}
             </div>
           </div>
           <div className="glass-card p-5">

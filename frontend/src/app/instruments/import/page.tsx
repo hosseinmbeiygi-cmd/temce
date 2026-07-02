@@ -34,7 +34,8 @@ export default function ImportInstrumentsPage() {
     path: "/instruments/import",
     fieldName: "file",
     onSuccess: async (res) => {
-      toast.success(`${res.imported} نماد از ${res.total_rows} ردیف با موفقیت اضافه شد`);
+      const data = (res as { data?: ImportResponse }).data ?? (res as ImportResponse);
+      toast.success(`${data.imported} نماد از ${data.total_rows} ردیف با موفقیت اضافه شد`);
       await queryClient.invalidateQueries({ queryKey: ["instruments"] });
     },
   });
@@ -50,7 +51,9 @@ export default function ImportInstrumentsPage() {
     incoming: File,
     onProgress: (loaded: number, total: number) => void,
   ): Promise<FileUploadResult> {
-    return (await upload(incoming, { onProgress })) as FileUploadResult;
+    const res = await upload(incoming, { onProgress });
+    const unwrapped = (res as { data?: FileUploadResult }).data ?? (res as FileUploadResult);
+    return unwrapped;
   }
 
   return (

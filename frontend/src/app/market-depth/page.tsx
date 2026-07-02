@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
+import Skeleton from "@/components/Skeleton";
+import { apiGet } from "@/lib/api";
 import { generateMockOrderBook } from "@/lib/types";
-
-const ORDER_BOOK = generateMockOrderBook();
+import type { OrderBookEntry } from "@/lib/types";
+import { useClientData } from "@/hooks/useClientData";
+import SSRSafe from "@/components/SSRSafe";
 
 const HIGH_VOLUME_SYMBOLS = [
   { symbol: "فولاد", price: "۱۲,۴۵۰", bidVol: "۸۵,۰۰۰", askVol: "۲۵,۰۰۰", ratio: 3.40, positive: true },
@@ -18,122 +22,93 @@ const HIGH_VOLUME_SYMBOLS = [
 
 export default function MarketDepthPage() {
   const [depthView, setDepthView] = useState<"count" | "volume" | "value">("count");
+  const symbol = "فولاد";
+  const [mockOrderBook] = useClientData(() => generateMockOrderBook(), {
+    bids: [] as OrderBookEntry[],
+    asks: [] as OrderBookEntry[],
+    lastPrice: 0,
+  });
+
+  const { data: orderBook } = useQuery({
+    queryKey: ["orderbook", symbol],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: { bids: OrderBookEntry[]; asks: OrderBookEntry[] } }>(`/orderbooks/${encodeURIComponent(symbol)}`);
+        if (res?.data) {
+          return { bids: res.data.bids || [], asks: res.data.asks || [], lastPrice: res.data.asks?.[0]?.price || 0 };
+        }
+      } catch {}
+      return mockOrderBook;
+    },
+    staleTime: 15000,
+  });
+
+  const ob = orderBook || mockOrderBook;
 
   return (
     <AppLayout>
       <div className="dashboard-grid">
-        {/* ── Order Book ───────────────────────── */}
-        <Card title="دفتر سفارشات - فولاد">
-          <div className="order-book">
-            {/* Bids */}
+        <Card title={`دفتر سفارشات - ${symbol}`}>
+          <SSRSafe className="order-book">
             <div className="order-side">
               <div className="order-header">
                 <div className="order-title">تقاضا</div>
                 <div className="order-title">حجم</div>
               </div>
               <div className="order-rows">
-                {ORDER_BOOK.bids.map((bid, i) => (
-                  <div key={i} className="order-row bid-row" style={{ "--width": `${(bid.volume / ORDER_BOOK.bids[0].volume) * 100}%` } as React.CSSProperties}>
+                {ob.bids.map((bid, i) => (
+                  <div key={i} className="order-row bid-row" style={{ "--width": `${(bid.volume / ob.bids[0]?.volume || 1) * 100}%` } as React.CSSProperties}>
                     <span className="order-price bid-price">{bid.price.toLocaleString()}</span>
                     <span className="order-volume">{bid.volume.toLocaleString()}</span>
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Asks */}
+            <div className="order-spread">
+              <span>اسپرد: {ob.asks[0]?.price - ob.bids[0]?.price || 0}</span>
+            </div>
             <div className="order-side">
               <div className="order-header">
                 <div className="order-title">عرضه</div>
                 <div className="order-title">حجم</div>
               </div>
               <div className="order-rows">
-                {ORDER_BOOK.asks.map((ask, i) => (
-                  <div key={i} className="order-row ask-row" style={{ "--width": `${(ask.volume / ORDER_BOOK.asks[ORDER_BOOK.asks.length - 1].volume) * 100}%` } as React.CSSProperties}>
+                {ob.asks.map((ask, i) => (
+                  <div key={i} className="order-row ask-row" style={{ "--width": `${(ask.volume / ob.asks[0]?.volume || 1) * 100}%` } as React.CSSProperties}>
                     <span className="order-price ask-price">{ask.price.toLocaleString()}</span>
                     <span className="order-volume">{ask.volume.toLocaleString()}</span>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
+          </SSRSafe>
         </Card>
 
-        {/* ── Depth Chart ──────────────────────── */}
-        <Card
-          title="عمق بازار - فولاد"
-          actions={
-            <>
-              <CardAction active={depthView === "count"} onClick={() => setDepthView("count")}>تعداد</CardAction>
-              <CardAction active={depthView === "volume"} onClick={() => setDepthView("volume")}>حجم</CardAction>
-              <CardAction active={depthView === "value"} onClick={() => setDepthView("value")}>ارزش</CardAction>
-            </>
-          }
-        >
-          <div className="depth-chart">
-            <svg width="100%" height="100%" viewBox="0 0 400 300" preserveAspectRatio="none">
-              {/* Grid */}
-              {[50,100,150,200,250].map((y) => (
-                <line key={y} x1="0" y1={y} x2="400" y2={y} stroke="rgba(128,128,128,0.08)" strokeWidth="1" />
-              ))}
-              {/* Center price line */}
-              <line x1="200" y1="0" x2="200" y2="300" stroke="rgba(128,128,128,0.2)" strokeWidth="1" strokeDasharray="5,5" />
-              {/* Bid area */}
-              <path d="M200,250 L180,240 L160,220 L140,190 L120,150 L100,100 L80,60 L60,40 L40,30 L20,25 L0,20 L0,300 L200,300 Z"
-                fill="rgba(8,145,178,0.15)" stroke="var(--positive)" strokeWidth="2" />
-              {/* Ask area */}
-              <path d="M200,250 L220,245 L240,235 L260,220 L280,200 L300,175 L320,150 L340,120 L360,90 L380,60 L400,40 L400,300 L200,300 Z"
-                fill="rgba(219,39,119,0.15)" stroke="var(--negative)" strokeWidth="2" />
-              {/* Labels */}
-              <text x="200" y="290" fill="var(--text-primary)" fontSize="12" fontFamily="Inter" textAnchor="middle">۱۲,۴۵۰</text>
-              <text x="100" y="290" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter" textAnchor="middle">۱۲,۴۰۰</text>
-              <text x="300" y="290" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter" textAnchor="middle">۱۲,۵۰۰</text>
-              <text x="10" y="30" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter">۱۰۰K</text>
-              <text x="10" y="150" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter">۵۰K</text>
-              <text x="10" y="250" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter">۰</text>
-              {/* Legend */}
-              <rect x="250" y="10" width="12" height="12" fill="var(--positive)" />
-              <text x="270" y="20" fill="var(--text-primary)" fontSize="11" fontFamily="Vazirmatn">تقاضا</text>
-              <rect x="320" y="10" width="12" height="12" fill="var(--negative)" />
-              <text x="340" y="20" fill="var(--text-primary)" fontSize="11" fontFamily="Vazirmatn">عرضه</text>
-            </svg>
-          </div>
-        </Card>
-
-        {/* ── High Volume Symbols ─────────────── */}
-        <Card
-          title="نمادهای پرحجم"
-          actions={
-            <>
-              <CardAction active>تقاضا</CardAction>
-              <CardAction>عرضه</CardAction>
-            </>
-          }
-        >
-          <div style={{ overflow: "hidden", height: "100%" }}>
-            <table className="symbols-table">
+        <Card title="نمادهای پرحجم">
+          <SSRSafe>
+            <table className="w-full text-right text-sm">
               <thead>
-                <tr>
-                  <th>نماد</th>
-                  <th>قیمت</th>
-                  <th>حجم تقاضا</th>
-                  <th>حجم عرضه</th>
-                  <th>نسبت</th>
+                <tr className="text-surface-500 border-b border-surface-700 text-xs">
+                  <th className="pb-2 px-1">نماد</th>
+                  <th className="pb-2 px-1">قیمت</th>
+                  <th className="pb-2 px-1">حجم تقاضا</th>
+                  <th className="pb-2 px-1">حجم عرضه</th>
+                  <th className="pb-2 px-1">نسبت</th>
                 </tr>
               </thead>
               <tbody>
-                {HIGH_VOLUME_SYMBOLS.map((row) => (
-                  <tr key={row.symbol}>
-                    <td className="symbol">{row.symbol}</td>
-                    <td className="value">{row.price}</td>
-                    <td className="value">{row.bidVol}</td>
-                    <td className="value">{row.askVol}</td>
-                    <td className={`value ${row.positive ? "positive" : "negative"}`}>{row.ratio.toFixed(2)}</td>
+                {HIGH_VOLUME_SYMBOLS.map((s, i) => (
+                  <tr key={`${s.symbol}-${i}`} className="border-b border-surface-800/50 text-xs">
+                    <td className="py-2 px-1 font-medium text-surface-200">{s.symbol}</td>
+                    <td className="py-2 px-1 font-mono text-surface-200">{s.price}</td>
+                    <td className="py-2 px-1 font-mono text-accent-emerald">{s.bidVol}</td>
+                    <td className="py-2 px-1 font-mono text-accent-rose">{s.askVol}</td>
+                    <td className="py-2 px-1 font-mono" style={{ color: s.positive ? "var(--positive)" : "var(--negative)" }}>{s.ratio.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </SSRSafe>
         </Card>
       </div>
     </AppLayout>

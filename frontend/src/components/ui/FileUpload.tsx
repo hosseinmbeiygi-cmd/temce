@@ -2,7 +2,7 @@
 
 import { useRef, useState, type DragEvent, type ChangeEvent } from "react";
 
-// ── Types ──────────────────────────────────────────────────
+// ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export interface FileUploadAccepted {
   filename: string;
@@ -40,7 +40,7 @@ export interface FileUploadProps {
   disabled?: boolean;
 }
 
-// ── Helpers ────────────────────────────────────────────────
+// ------ Helpers ------------------------------------------------------------------------------------------------------------------------------------------------
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -59,12 +59,12 @@ function filenameIcon(name: string): string {
 async function readPreview(file: File, maxRows = 5): Promise<string[][]> {
   const name = file.name.toLowerCase();
   if (name.endsWith(".csv")) {
-    const text = await file.slice(0, 16 * 1024).text("utf-8");
+    const text = await file.slice(0, 16 * 1024).text();
     const lines = text.split(/\r?\n/).filter(Boolean);
     return lines.slice(0, maxRows + 1).map((l) => l.split(",").map((c) => c.trim()));
   }
   if (name.endsWith(".json")) {
-    const text = await file.slice(0, 64 * 1024).text("utf-8");
+    const text = await file.slice(0, 64 * 1024).text();
     try {
       const data = JSON.parse(text);
       const arr: Record<string, unknown>[] = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
@@ -80,7 +80,7 @@ async function readPreview(file: File, maxRows = 5): Promise<string[][]> {
   return [];
 }
 
-// ── Component ──────────────────────────────────────────────
+// ------ Component ------------------------------------------------------------------------------------------------------------------------------------------
 
 export default function FileUpload({
   accept = ".csv,.json,.xlsx",

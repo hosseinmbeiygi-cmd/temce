@@ -18,14 +18,14 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const data = await apiPost<{ user: any; access_token: string; refresh_token: string }>("/auth/login", {
+      const data = await apiPost<{ user: Record<string, unknown>; access_token: string; refresh_token: string }>("/auth/login", {
         username,
         password,
       });
       storeAuth(data);
       router.push("/");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }

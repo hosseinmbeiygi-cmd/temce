@@ -14,10 +14,25 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+const THEME_SCRIPT = `
+(function(){
+  try {
+    var t = localStorage.getItem('theme');
+    var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var root = document.documentElement;
+    var body = document.body;
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    if (dark) { root.classList.add('dark'); body.classList.add('dark-theme'); }
+    else { root.classList.remove('dark'); body.classList.add('light-theme'); }
+  } catch(e) {}
+})()
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

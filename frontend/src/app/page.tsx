@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
-import ClientOnly from "@/components/ClientOnly";
 import { apiGet, safeExtractArray } from "@/lib/api";
 import {
   generateMockNews,
@@ -15,13 +14,20 @@ import {
   generateSectorPerformance,
   generateSentimentHistory,
 } from "@/lib/types";
-import type { MarketStats, AIInsight, ChartDataPoint } from "@/lib/types";
+import type { MarketStats, AIInsight, ChartDataPoint, SectorData, ExpertOpinion, NewsItem, SentimentPoint, PieChartData } from "@/lib/types";
 
-// ── Debug Panel ──────────────────────────────────────
+// ------ Debug Panel ------------------------------------------------------------------------------------------------------------------
 import DebugPanel from "@/components/DebugPanel";
 import { useDebugLogs } from "@/hooks/useDebugLogs";
+import { useClientData } from "@/hooks/useClientData";
+import SSRSafe from "@/components/SSRSafe";
 
-// ── Dynamic chart imports (ssr: false) ─────────
+// ------ Dynamic imports (ssr: false) ---------------------------
+const LiveMarketWidget = dynamic(() => import("@/components/widgets/LiveMarketWidget"), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 340 }} />,
+});
+
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 280 }} />,
@@ -39,7 +45,7 @@ const SentimentChart = dynamic(() => import("@/components/charts/SentimentChart"
   loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 200 }} />,
 });
 
-// ── Mock Data ──────────────────────────────────────
+// ------ Mock Data ------------------------------------------------------------------------------------------------------------------
 const MOCK_STATS: MarketStats = {
   marketCap: 8400000,
   totalVolume: 12456,
@@ -57,14 +63,11 @@ function formatNumber(n: number) {
   return n.toLocaleString("fa-IR");
 }
 
-const INDEX_DATA = generateIndexHistory(90);
-const VOLUME_DATA = generateVolumeData(60);
-const SECTOR_DATA = generateSectorPerformance();
-const SENTIMENT_DATA = generateSentimentHistory(30);
-const DEFAULT_NEWS = generateMockNews();
-const DEFAULT_EXPERTS = generateMockExperts();
+// ------ Client-safe Mock Data ------------------------------------------------
+// (Static data — no Math.random/Date.now, safe at module level)
+// Dynamic mock data (Math.random/Date.now) moved to useState lazy initializers inside component
 
-// ── Index Value Formatters ──────────────────────────
+// ------ Index Value Formatters ------------------------------------------------------------------------------
 const indexFormatter = (v: number) => {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
@@ -80,34 +83,40 @@ const volumeFormatter = (v: number) => {
 
 export default function DashboardPage() {
   const [indexRange, setIndexRange] = useState("3m");
-  const [chartData, setChartData] = useState<ChartDataPoint[]>(INDEX_DATA);
+  // Client-safe mock data (initialized empty for SSR, populated after hydration)
+  const [chartData, setChartData] = useClientData(() => generateIndexHistory(90), [] as ChartDataPoint[]);
+  const [sentimentData] = useClientData(() => generateSentimentHistory(30), [] as ChartDataPoint[]);
+  const [volumeData] = useClientData(() => generateVolumeData(60), [] as ChartDataPoint[]);
+  const [sectorData] = useClientData(() => generateSectorPerformance(), [] as SectorData[]);
+  const [experts] = useClientData(() => generateMockExperts(), [] as ExpertOpinion[]);
+  const [defaultNews] = useClientData(() => generateMockNews(), [] as NewsItem[]);
 
-  // ── Debug Hooks ──────────────────────────────────────
+  // ------ Debug Hooks ------------------------------------------------------------------------------------------------------------------
   const { logs, stats, addLog, clearLogs, isEnabled, toggleEnabled } = useDebugLogs();
 
-  // ── Fetch news from backend (with debug) ────────────
+  // ------ Fetch news from backend (with debug) ------------------------------------
 
 
-const { data: news = DEFAULT_NEWS } = useQuery({
+const { data: news = defaultNews } = useQuery<NewsItem[]>({
   queryKey: ["dashboard-news"],
   queryFn: async () => {
     const endpoint = "/news?page=1&page_size=3";
     addLog(endpoint, "loading");
     try {
-      const res = await apiGet<any>(endpoint);
-      const extracted = safeExtractArray(res);
+      const res = await apiGet<unknown>(endpoint);
+      const extracted = safeExtractArray<NewsItem>(res);
       addLog(endpoint, "success", extracted);
       return extracted;
-    } catch (error: any) {
-      addLog(endpoint, "error", undefined, error.message);
-      return DEFAULT_NEWS;
+    } catch (error) {
+      addLog(endpoint, "error", undefined, error instanceof Error ? error.message : String(error));
+      return generateMockNews();
     }
   },
   refetchInterval: 60000,
   staleTime: 30000,
 });
 
-  // ── Period switcher for index chart ────────
+  // ------ Period switcher for index chart ------------------------
   const handlePeriodChange = (period: string) => {
     setIndexRange(period);
     switch (period) {
@@ -121,7 +130,7 @@ const { data: news = DEFAULT_NEWS } = useQuery({
 
   return (
     <AppLayout>
-      {/* ── Top Row: Index Chart + News ──────── */}
+      {/* ------ Top Row: Index Chart + News ------------------------ */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 15, marginBottom: 15 }}>
         {/* Main Index Chart with Recharts */}
         <AreaChartCard
@@ -153,7 +162,7 @@ const { data: news = DEFAULT_NEWS } = useQuery({
         >
           <div className="news-container" style={{ maxHeight: 280 }}>
             <div className="news-section-title">اخبار بازار</div>
-            {(Array.isArray(news) ? news.slice(0, 3) : []).map((item: any, i: number) => (
+            {(Array.isArray(news) ? news.slice(0, 3) : []).map((item: NewsItem, i: number) => (
               <div key={item.id || i} className="news-item">
                 <div className={`news-icon ${!item.sentiment || item.sentiment === "positive" ? "positive" : item.sentiment === "negative" ? "negative" : "neutral"}`}>
                   <span className="material-icons">
@@ -162,25 +171,24 @@ const { data: news = DEFAULT_NEWS } = useQuery({
                 </div>
                 <div className="news-content">
                   <div className="news-title">{item.title || "بدون عنوان"}</div>
-                  <div className="news-source">{item.source || ""}</div>
-                  <div className="news-time" suppressHydrationWarning>
-                    <span className="material-icons" style={{ fontSize: 12 }}>access_time</span>
-                    {item.published_at || item.date || ""}
-                  </div>
+                  <div className="news-source">{item.source || ""}</div><SSRSafe className="news-time">
+                      <span className="material-icons" style={{ fontSize: 12 }}>access_time</span>
+                      {item.published_at || item.date || ""}
+                    </SSRSafe>
                 </div>
               </div>
             ))}
             <div className="news-section-title">نظرات کارشناسان</div>
-            {DEFAULT_EXPERTS.slice(0, 2).map((expert) => (
+            {experts.slice(0, 2).map((expert) => (
               <div key={expert.id} className="expert-opinion">
                 <div className="expert-avatar">{expert.avatar}</div>
                 <div className="expert-content">
                   <div className="expert-header">
                     <div className="expert-name">{expert.name}</div>
-                    <div className="news-time" suppressHydrationWarning>
+                    <SSRSafe className="news-time">
                       <span className="material-icons" style={{ fontSize: 12 }}>access_time</span>
                       {expert.time}
-                    </div>
+                    </SSRSafe>
                   </div>
                   <div className="expert-role">{expert.role}</div>
                   <div className="expert-opinion-text">
@@ -196,12 +204,17 @@ const { data: news = DEFAULT_NEWS } = useQuery({
         </Card>
       </div>
 
-      {/* ── Bottom Row: Volume + Sector + Stats ── */}
+      {/* ------ ویجت زنده بازار --------------------------------------------------------------- */}
+      <div style={{ marginBottom: 15 }}>
+        <LiveMarketWidget />
+      </div>
+
+      {/* ------ Bottom Row: Volume + Sector + Stats ------ */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 15, marginBottom: 15 }}>
         {/* Volume Bar Chart */}
         <BarChartCard
           title="حجم معاملات روزانه"
-          data={VOLUME_DATA.slice(-20)}
+          data={volumeData.slice(-20)}
           yAxisFormatter={volumeFormatter}
           tooltipFormatter={(v) => `${volumeFormatter(v)} ریال`}
           height={200}
@@ -210,7 +223,7 @@ const { data: news = DEFAULT_NEWS } = useQuery({
         {/* Sector Performance Donut */}
         <PieChartCard
           title="ترکیب صنایع بازار"
-          data={SECTOR_DATA}
+          data={sectorData as PieChartData[]}
           height={200}
           innerRadius={40}
           outerRadius={70}
@@ -248,7 +261,7 @@ const { data: news = DEFAULT_NEWS } = useQuery({
         </Card>
       </div>
 
-      {/* ── Bottom Row 2: Top Symbols + Sentiment + AI Insights ── */}
+      {/* ------ Bottom Row 2: Top Symbols + Sentiment + AI Insights ------ */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 15 }}>
         {/* Top Symbols Table */}
         <Card
@@ -293,21 +306,21 @@ const { data: news = DEFAULT_NEWS } = useQuery({
 
         {/* Sentiment Trend Mini Chart */}
         <Card title="روند احساسات بازار">
-          <SentimentChart data={SENTIMENT_DATA.slice(-15)} />
-          <div className="sentiment-stats" style={{ marginTop: 8 }}>
+          <SentimentChart data={sentimentData.slice(-15) as SentimentPoint[]} />
+          <SSRSafe className="sentiment-stats" style={{ marginTop: 8 }}>
             <div className="sentiment-stat">
               <div className="sentiment-stat-label">مثبت</div>
-              <div className="sentiment-stat-value positive-value">{SENTIMENT_DATA[SENTIMENT_DATA.length - 1]?.positive}%</div>
+              <div className="sentiment-stat-value positive-value">{sentimentData[sentimentData.length - 1]?.positive}%</div>
             </div>
             <div className="sentiment-stat">
               <div className="sentiment-stat-label">خنثی</div>
-              <div className="sentiment-stat-value neutral-value">{SENTIMENT_DATA[SENTIMENT_DATA.length - 1]?.neutral}%</div>
+              <div className="sentiment-stat-value neutral-value">{sentimentData[sentimentData.length - 1]?.neutral}%</div>
             </div>
             <div className="sentiment-stat">
               <div className="sentiment-stat-label">منفی</div>
-              <div className="sentiment-stat-value negative-value">{SENTIMENT_DATA[SENTIMENT_DATA.length - 1]?.negative}%</div>
+              <div className="sentiment-stat-value negative-value">{sentimentData[sentimentData.length - 1]?.negative}%</div>
             </div>
-          </div>
+          </SSRSafe>
         </Card>
 
         {/* AI Insights */}
@@ -328,7 +341,7 @@ const { data: news = DEFAULT_NEWS } = useQuery({
         </Card>
       </div>
 
-      {/* ── 🐞 Debug Panel ──────────────────────────────── */}
+      {/* ------ 🐞 Debug Panel ------------------------------------------------------------------------------------------------ */}
       <DebugPanel
         logs={logs}
         stats={stats}

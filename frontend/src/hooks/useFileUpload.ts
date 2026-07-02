@@ -14,7 +14,7 @@ interface UploadProgress {
   percentage: number;
 }
 
-export function useFileUpload<T = any>(options: UseFileUploadOptions<T>) {
+export function useFileUpload<T = unknown>(options: UseFileUploadOptions<T>) {
   const { path, fieldName = 'file', onSuccess, onError } = options;
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
@@ -64,7 +64,7 @@ export function useFileUpload<T = any>(options: UseFileUploadOptions<T>) {
               setData(response);
               onSuccess?.(response);
               resolve(response);
-            } catch (e) {
+            } catch {
               const err = new Error('Invalid response format');
               setError(err);
               onError?.(err);
@@ -75,7 +75,7 @@ export function useFileUpload<T = any>(options: UseFileUploadOptions<T>) {
             try {
               const errResponse = JSON.parse(xhr.responseText);
               errorMsg = errResponse.message || errorMsg;
-            } catch (_) {
+            } catch {
               // ignore
             }
             const err = new Error(errorMsg);
@@ -101,7 +101,7 @@ export function useFileUpload<T = any>(options: UseFileUploadOptions<T>) {
           reject(err);
         });
 
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
         xhr.open('POST', `${apiBase}${path}`);
         Object.keys(headers).forEach((key) => {
           xhr.setRequestHeader(key, headers[key]);

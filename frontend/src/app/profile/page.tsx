@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { apiGet, apiPut, getStoredAuth } from "@/lib/api";
 
 interface UserProfile {
@@ -31,11 +30,11 @@ export default function ProfilePage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => apiPut("/auth/profile", data, auth?.token),
+    mutationFn: (data: Record<string, unknown>) => apiPut("/auth/profile", data, auth?.token),
     onSuccess: () => {
       toast.success("پروفایل با موفقیت به‌روزرسانی شد");
     },
-    onError: (err: any) => toast.error(err.message || "خطا در به‌روزرسانی پروفایل"),
+    onError: (err: Error) => toast.error(err.message || "خطا در به‌روزرسانی پروفایل"),
   });
 
   const handleSave = (e: React.FormEvent) => {

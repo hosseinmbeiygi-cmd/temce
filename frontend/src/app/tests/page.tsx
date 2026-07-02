@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { Card } from "@/components/ui/Card";
 import { apiPost } from "@/lib/api";
 import Skeleton from "@/components/Skeleton";
 
@@ -30,15 +29,15 @@ export default function TestsPage() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["system-tests"],
     queryFn: async () => {
-      return await apiPost<any>('/tests/run', {});
+      return await apiPost<TestRunData>('/tests/run', {});
     },
     enabled: false, // Run on demand
   });
 
-    const filtered = data?.results.filter((t: any) => filter === "all" || t.status === filter) ?? [];
+    const filtered = data?.results.filter((t: TestItem) => filter === "all" || t.status === filter) ?? [];
 
   const count = (status: string) =>
-     data?.results.filter((t: any) => t.status === status).length ?? 0;
+     data?.results.filter((t: TestItem) => t.status === status).length ?? 0;
 
   return (
     <AppLayout title="اجرای تست‌ها">
@@ -102,7 +101,7 @@ export default function TestsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                     {filtered.map((t: any, i: number) => (
+                     {filtered.map((t: TestItem, i: number) => (
                       <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="p-3 text-gray-700 max-w-md truncate" title={t.name}>
                           {t.name}

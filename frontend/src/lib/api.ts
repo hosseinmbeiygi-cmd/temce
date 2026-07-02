@@ -1,7 +1,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const REQUEST_TIMEOUT_MS = 15_000;
 
-// ── Helper: fetch with timeout ──────────────────
+// ------ Helper: fetch with timeout ------------------------------------------------------
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -13,7 +13,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
-// ── Core API Functions ────
+// ------ Core API Functions ------------
 export async function apiGet<T>(
   endpoint: string,
   token?: string | null
@@ -31,7 +31,7 @@ export async function apiGet<T>(
 
 export async function apiPost<T>(
   endpoint: string,
-  data?: any,
+  data?: Record<string, unknown>,
   token?: string | null
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -51,7 +51,7 @@ export async function apiPost<T>(
 
 export async function apiPut<T>(
   endpoint: string,
-  data?: any,
+  data?: Record<string, unknown>,
   token?: string | null
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
@@ -87,7 +87,7 @@ export async function apiDelete<T>(
   return response.json();
 }
 
-// ── Auth Helpers ──────────────────────────────────────
+// ------ Auth Helpers ------------------------------------------------------------------------------------------------------------------
 export function getStoredAuth() {
   if (typeof window === 'undefined') return null;
   try {
@@ -103,54 +103,59 @@ export function clearAuth() {
   localStorage.removeItem('auth');
 }
 
-export function storeAuth(data: { user: any; access_token: string; refresh_token?: string }) {
+export function storeAuth(data: { user: Record<string, unknown>; access_token: string; refresh_token?: string }) {
   if (typeof window === 'undefined') return;
   localStorage.setItem('auth', JSON.stringify(data));
 }
 
-// ── Array Extraction (اصلاح‌شده) ──────────────────────────────────
-export function extractArray(response: any): any[] {
-  if (Array.isArray(response)) return response;
+// ------ Array Extraction (اصلاح‌شده) ------------------------------------------------------------------------------------------------------
+export function extractArray<T = unknown>(response: unknown): T[] {
+  if (Array.isArray(response)) return response as T[];
 
   if (response && typeof response === 'object') {
-    for (const key of ['data', 'items', 'results', 'list', 'records', 'content', 'docs']) {
-      const val = response[key];
-      if (Array.isArray(val)) return val;
+    const obj = response as Record<string, unknown>;
+    for (const key of ['data', 'items', 'results', 'list', 'records', 'content', 'docs'] as const) {
+      const val = obj[key];
+      if (Array.isArray(val)) return val as T[];
       if (val && typeof val === 'object') {
         const nested = extractArray(val);
-        if (nested.length > 0) return nested;
+        if (nested.length > 0) return nested as T[];
       }
     }
-    for (const val of Object.values(response)) {
-      if (Array.isArray(val)) return val;
+    for (const val of Object.values(obj)) {
+      if (Array.isArray(val)) return val as T[];
       if (val && typeof val === 'object') {
         const nested = extractArray(val);
-        if (nested.length > 0) return nested;
+        if (nested.length > 0) return nested as T[];
       }
     }
   }
   return [];
 }
 
-export function extractItems(response: any): any[] {
-  return extractArray(response);
+export function extractItems<T = unknown>(response: unknown): T[] {
+  return extractArray<T>(response);
 }
 
-export function extractTotal(response: any): number {
+export function extractTotal(response: unknown): number {
   if (response && typeof response === 'object') {
-    for (const key of ['total', 'totalCount', 'count', 'total_items', 'totalItems']) {
-      if (typeof response[key] === 'number') return response[key];
-      if (response.data && typeof response.data[key] === 'number') return response.data[key];
+    const obj = response as Record<string, unknown>;
+    for (const key of ['total', 'totalCount', 'count', 'total_items', 'totalItems'] as const) {
+      if (typeof obj[key] === 'number') return obj[key] as number;
+      const data = obj['data'] as Record<string, unknown> | undefined;
+      if (data && typeof data[key] === 'number') return data[key] as number;
     }
-    if (response.data && typeof response.data === 'object') {
-      for (const key of ['total', 'totalCount', 'count', 'total_items', 'totalItems']) {
-        if (typeof response.data[key] === 'number') return response.data[key];
+    const data = obj['data'] as Record<string, unknown> | undefined;
+    if (data && typeof data === 'object') {
+      for (const key of ['total', 'totalCount', 'count', 'total_items', 'totalItems'] as const) {
+        if (typeof data[key] === 'number') return data[key] as number;
       }
     }
   }
   return 0;
 }
 
-export function safeExtractArray(response: any, endpoint?: string): any[] {
-  return extractArray(response);
+export function safeExtractArray<T = unknown>(response: unknown, _endpoint?: string): T[] {
+  void _endpoint;
+  return extractArray<T>(response);
 }
