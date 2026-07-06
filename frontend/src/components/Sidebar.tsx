@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { getStoredAuth, clearAuth } from "@/lib/api";
 
 interface SidebarProps {
@@ -12,6 +12,7 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { href: "/", label: "داشبورد", icon: "📊" },
+  { href: "/smart-screener", label: "غربالگر هوشمند", icon: "🤖" },
   { href: "/markets", label: "بازارها", icon: "📈" },
   { href: "/instruments", label: "نمادها", icon: "💹" },
   { href: "/options", label: "آپشن", icon: "🎯" },
@@ -20,17 +21,23 @@ const NAV_ITEMS = [
   { href: "/news", label: "اخبار", icon: "📰" },
   { href: "/holders", label: "سهامداران", icon: "👥" },
   { href: "/analysis", label: "تحلیل بازار", icon: "🔍" },
+  { href: "/screener", label: "غربالگر", icon: "🎯" },
+  { href: "/heatmap", label: "نقشه بازار", icon: "🗺️" },
+  { href: "/alerts", label: "اطلاعیه‌ها", icon: "🔔" },
+  { href: "/macro", label: "داده‌های کلان", icon: "🏛️" },
+  { href: "/watchlist", label: "دیده‌بان", icon: "👁️" },
   { href: "/alpha", label: "آلفا", icon: "⚡" },
   { href: "/backtest", label: "بک‌تست", icon: "🧪" },
+  { href: "/tests", label: "تست‌ها", icon: "✅" },
   { href: "/signals", label: "سیگنال‌ها", icon: "📡" },
   { href: "/risk", label: "ریسک", icon: "🛡️" },
   { href: "/data", label: "مدیریت داده", icon: "💾" },
   { href: "/tables", label: "مرور جداول", icon: "🗃️" },
+  { href: "/ml", label: "یادگیری ماشین", icon: "🧠" },
   { href: "/admin", label: "مدیریت", icon: "⚙️" },
 ];
 
 const AUTH_ITEMS = [
-  { href: "/profile", label: "پروفایل", icon: "👤" },
   { href: "/auth/login", label: "ورود", icon: "🔑" },
   { href: "/auth/register", label: "ثبت‌نام", icon: "📝" },
 ];
@@ -38,8 +45,14 @@ const AUTH_ITEMS = [
 export default function Sidebar({ collapsed = false, onToggle = () => {} }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const auth = typeof window !== "undefined" ? getStoredAuth() : null;
+  const [mounted, setMounted] = useState(false);
+  const [auth, setAuth] = useState<ReturnType<typeof getStoredAuth>>(null);
   const [symbolQuery, setSymbolQuery] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+    setAuth(getStoredAuth());
+  }, []);
 
   function handleSymbolSearch(e: FormEvent) {
     e.preventDefault();
@@ -101,19 +114,26 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
       </nav>
 
       <div className="border-t border-surface-800 py-2 px-2 space-y-1">
-        {auth ? (
+        {!mounted ? (
+          AUTH_ITEMS.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                  active
+                    ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
+                    : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
+                }`}
+              >
+                <span className="text-lg shrink-0">{item.icon}</span>
+                {!collapsed && <span className="truncate">{item.label}</span>}
+              </Link>
+            );
+          })
+        ) : auth ? (
           <>
-            <Link
-              href="/profile"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                pathname === "/profile"
-                  ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
-                  : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
-              }`}
-            >
-              <span className="text-lg shrink-0">👤</span>
-              {!collapsed && <span className="truncate">{auth.user?.username || "پروفایل"}</span>}
-            </Link>
             <button
               onClick={() => { clearAuth(); window.location.href = "/auth/login"; }}
               className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-rose-400 hover:bg-rose-500/10 transition-all"

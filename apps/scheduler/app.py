@@ -7,7 +7,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from core.config import settings
 from core.logging import get_logger
+from jobs import definitions as job_definitions
 from jobs.job_dispatcher import job_dispatcher
+from jobs.registry import job_registry
 
 logger = get_logger(__name__)
 
@@ -25,12 +27,20 @@ class SchedulerApp:
         logger.info("Scheduled job %s with %s", job_name, trigger)
 
     def start(self) -> None:
-        self.add_job("sync_instruments", trigger="interval", hours=24)
-        self.add_job("sync_quotes", trigger="interval", minutes=5)
-        self.add_job("sync_codal", trigger="interval", hours=6)
-        self.add_job("sync_news", trigger="interval", hours=1)
+        # ── Register all job classes so dispatcher can find them ──
+        job_registry.register_module(job_definitions)
+
+        # ── BrsApi periodic sync jobs (registered via dedicated registry) ──
+        from brsapi.jobs.registry import register_all_brsapi_jobs
+        register_all_brsapi_jobs().register_with_apscheduler(self.scheduler)
+
+        # ── Legacy sync jobs (now proper BaseJob classes with DB sessions) ──
+        self.add_job("SyncInstrumentsJob", trigger="interval", hours=24)
+        self.add_job("SyncQuotesJob", trigger="interval", minutes=5)
+        self.add_job("SyncCodalJob", trigger="interval", hours=6)
+        self.add_job("NewsIngestionJob", trigger="interval", hours=1)
         self.scheduler.start()
-        logger.info("Scheduler started")
+        logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 
     async def run_forever(self) -> None:
         self.start()

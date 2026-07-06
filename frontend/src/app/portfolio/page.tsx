@@ -68,12 +68,14 @@ export default function PortfolioPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => apiPost("/portfolios", { 
-      name, 
-      description: "", 
-      initial_capital: 0, 
-      currency: "IRR" 
-    }),
+    mutationFn: (name: string) => {
+      return apiPost("/portfolios", {
+        name,
+        description: "",
+        initial_capital: 0,
+        currency: "IRR"
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolios"] });
       toast.success("پرتفوی با موفقیت ایجاد شد");

@@ -13,7 +13,7 @@ async def test_ml_training_flow():
         model_type="xgboost",
         symbols=["فولاد"],
     )
-    assert result.success or not result.success
+    assert result.success
 
 
 @pytest.mark.asyncio
@@ -22,9 +22,8 @@ async def test_ml_inference_flow():
 
     service = InferenceService()
     result = await service.predict(
-        symbol="فولاد",
-        model_name="test_model",
+        model_id="test_model",
         features={},
     )
-    assert result.success or not result.success
+    assert result.success
 

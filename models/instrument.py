@@ -31,7 +31,7 @@ class InstrumentModel(TimestampMixin, Base):
     __tablename__ = "instruments"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    symbol: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(200))
     isin: Mapped[str | None] = mapped_column(String(50), unique=True)
     market_type: Mapped[str | None] = mapped_column(String(20), index=True)

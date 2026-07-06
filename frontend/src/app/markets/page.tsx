@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
+import MiniSparkline from "@/components/MiniSparkline";
 import { apiGet, extractArray } from "@/lib/api";
 
 interface Snapshot {
@@ -48,6 +49,37 @@ export default function MarketsPage() {
   const snapshots: Snapshot[] = (heatmapData && typeof heatmapData === "object" && "data" in heatmapData)
     ? extractArray((heatmapData as { data?: unknown }).data) as Snapshot[]
     : [];
+
+  // ── Batch sparkline data for top symbols ──
+  const topSymbolsForSpark = useMemo(() => {
+    const top = [...snapshots]
+      .sort((a, b) => (Math.abs(b.price_last_change_pct || 0)) - (Math.abs(a.price_last_change_pct || 0)))
+      .slice(0, 20)
+      .map(s => s.symbol);
+    return top.join(",");
+  }, [snapshots]);
+
+  const { data: sparkMap } = useQuery({
+    queryKey: ["markets-spark", topSymbolsForSpark],
+    queryFn: async () => {
+      if (!topSymbolsForSpark) return {};
+      try {
+        const res = await apiGet<{ success: boolean; data: Record<string, number[]> }>(
+          `/market/sparklines?symbols=${encodeURIComponent(topSymbolsForSpark)}&limit=30`
+        );
+        return res?.data ?? {};
+      } catch { return {}; }
+    },
+    enabled: !!topSymbolsForSpark,
+    staleTime: 120_000,
+  });
+
+  // Sparkline helper
+  function SparklineForSymbol(symbol: string): React.ReactNode {
+    const data = sparkMap?.[symbol];
+    if (data && data.length > 1) return <MiniSparkline data={data} width={64} height={22} />;
+    return null;
+  }
 
   // Compute sectors
   const sectorMap = new Map<string, { count: number; totalChange: number; totalValue: number }>();
@@ -122,10 +154,42 @@ export default function MarketsPage() {
         ))}
       </div>
 
-      {/* ------ Content ------ */}
-      {loadingHeatmap ? (
+      {/* ------ Content ------ */}          {loadingHeatmap ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+        </div>
+      ) : tab === "overview" ? (
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Top gainers mini */}
+          <div className="glass-card p-4">
+            <h3 className="font-bold text-accent-emerald text-sm mb-3">بیشترین رشد</h3>
+            <div className="space-y-1">
+              {gainers.slice(0, 5).map(s => (
+                <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-surface-800/50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-surface-200 font-mono">{s.symbol}</span>
+                    {SparklineForSymbol(s.symbol)}
+                  </div>
+                  <span className="text-sm font-bold text-accent-emerald font-mono">+{(s.price_last_change_pct || 0).toFixed(2)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Top losers mini */}
+          <div className="glass-card p-4">
+            <h3 className="font-bold text-accent-rose text-sm mb-3">بیشترین کاهش</h3>
+            <div className="space-y-1">
+              {losers.slice(0, 5).map(s => (
+                <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-surface-800/50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-surface-200 font-mono">{s.symbol}</span>
+                    {SparklineForSymbol(s.symbol)}
+                  </div>
+                  <span className="text-sm font-bold text-accent-rose font-mono">{(s.price_last_change_pct || 0).toFixed(2)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       ) : tab === "sectors" ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -141,39 +205,6 @@ export default function MarketsPage() {
               <div className="text-xs text-surface-500 mt-1">ارزش: {formatValue(s.totalValue)}</div>
             </div>
           ))}
-        </div>
-      ) : tab === "overview" ? (
-        <div className="grid sm:grid-cols-2 gap-4">
-          {/* Top gainers mini */}
-          <div className="glass-card p-4">
-            <h3 className="font-bold text-accent-emerald text-sm mb-3">بیشترین رشد</h3>
-            <div className="space-y-1">
-              {gainers.slice(0, 5).map(s => (
-                <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-surface-800/50">
-                  <div>
-                    <span className="text-sm font-bold text-surface-200 font-mono">{s.symbol}</span>
-                    <span className="text-xs text-surface-500 mr-2">{s.name}</span>
-                  </div>
-                  <span className="text-sm font-bold text-accent-emerald font-mono">+{(s.price_last_change_pct || 0).toFixed(2)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Top losers mini */}
-          <div className="glass-card p-4">
-            <h3 className="font-bold text-accent-rose text-sm mb-3">بیشترین کاهش</h3>
-            <div className="space-y-1">
-              {losers.slice(0, 5).map(s => (
-                <div key={s.symbol} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-surface-800/50">
-                  <div>
-                    <span className="text-sm font-bold text-surface-200 font-mono">{s.symbol}</span>
-                    <span className="text-xs text-surface-500 mr-2">{s.name}</span>
-                  </div>
-                  <span className="text-sm font-bold text-accent-rose font-mono">{(s.price_last_change_pct || 0).toFixed(2)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       ) : (
         <div className="glass-card overflow-hidden">

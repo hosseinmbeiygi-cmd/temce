@@ -73,11 +73,11 @@ async def init_database() -> None:
             "Database is set to SQLite. "
             "This should be changed to PostgreSQL by editing the .env file or "
             "overriding the database_url setting. "
-            "Set DATABASE_URL=postgresql+asyncpg://market:market@localhost:5432/market "
+            "Set the DATABASE_URL in your .env file (e.g. postgresql+asyncpg://user:pass@localhost:5432/dbname) "
             "in your .env file to use PostgreSQL."
         )
         raise RuntimeError(
-            "SQLite cannot be used. Set DATABASE_URL=postgresql+asyncpg://market:market@localhost:5432/market "
+            "SQLite cannot be used. Set the DATABASE_URL in your .env file (e.g. postgresql+asyncpg://user:pass@localhost:5432/dbname) "
             "in your .env file. Note: PostgreSQL must be running on localhost:5432."
         )
 
@@ -88,12 +88,12 @@ async def init_database() -> None:
             logger.error(
                 "Could not connect to PostgreSQL database at %s. "
                 "Please ensure PostgreSQL is running on localhost:5432. "
-                "Expected connection: postgresql+asyncpg://market:market@localhost:5432/market",
+                "Check DATABASE_URL in your .env file for the correct PostgreSQL connection string.",
                 url.split("@")[-1] if "@" in url else url,
             )
             raise RuntimeError(
                 "Cannot connect to PostgreSQL database. "
-                "Please ensure PostgreSQL is running on localhost:5432 with credentials (market:market). "
+                "Please ensure PostgreSQL is running on the host and port specified in your .env DATABASE_URL. "
                 f"Tried: {url}"
             )
 
@@ -104,8 +104,7 @@ async def init_database() -> None:
         await conn.execute(text("SELECT 1"))
 
     # Auto-create tables when using SQLite so endpoints don't 500
-    if is_sqlite:
-        await _create_all_tables()
+    await _create_all_tables()
 
     logger.info("Database connected: %s", url.split("@")[-1] if "@" in url else url)
 
@@ -113,9 +112,13 @@ async def init_database() -> None:
 async def close_database() -> None:
     global engine, async_session_factory
     if engine is not None:
-        await engine.dispose()
-        engine = None
-        async_session_factory = None
+        try:
+            await engine.dispose()
+        except Exception:
+            pass
+        finally:
+            engine = None
+            async_session_factory = None
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

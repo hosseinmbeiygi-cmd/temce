@@ -71,8 +71,8 @@ class TestRawStorage:
         assert "general" in str(file_path)
 
     def test_timestamp_format(self, temp_raw_storage: Any) -> None:
-        """_timestamp should return a string in YYYYMMDD_HHMMSS format."""
-        ts = temp_raw_storage._timestamp()
+        """timestamp should return a string in YYYYMMDD_HHMMSS format."""
+        ts = temp_raw_storage.timestamp
         assert len(ts) == 15  # YYYYMMDD_HHMMSS = 15 chars
         assert "_" in ts
         # Should be parseable as date

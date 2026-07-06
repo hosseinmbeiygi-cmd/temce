@@ -171,7 +171,7 @@ async def test_import_server_error_envelope(
         InstrumentImportService, "import_from_bytes", _fake_import_from_bytes
     )
 
-    csv_bytes = b"symbol\nفولاد\nفملی\n"
+    csv_bytes = "symbol\nفولاد\nفملی\n".encode("utf-8")
     resp = await client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", csv_bytes, "text/csv")},

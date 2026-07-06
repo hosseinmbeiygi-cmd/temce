@@ -7,6 +7,7 @@ from typing import Any
 
 from backtesting.engine.simulator import BacktestSimulator
 from backtesting.strategies.base import BaseStrategy
+from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
 from backtesting.types import BacktestResult
 from core.config import settings
 from core.ids import new_id
@@ -16,32 +17,12 @@ from schemas.api.backtest import BacktestResponse, BacktestResultResponse
 
 logger = get_logger(__name__)
 
-STRATEGY_MAP: dict[str, type[BaseStrategy]] = {}
-
 
 def _get_strategy_class(strategy_name: str) -> type[BaseStrategy] | None:
-    if not STRATEGY_MAP:
-        _register_strategies()
-    return STRATEGY_MAP.get(strategy_name)
-
-
-def _register_strategies() -> None:
-    from backtesting.strategies.rule_based.moving_average_cross import MovingAverageCrossStrategy
-    from backtesting.strategies.rule_based.momentum_strategy import MomentumStrategy
-    from backtesting.strategies.rule_based.mean_reversion_strategy import MeanReversionStrategy
-    from backtesting.strategies.rule_based.breakout_strategy import BreakoutStrategy
-    from backtesting.strategies.rule_based.rsi_reversion import RSIMeanReversionStrategy
-    from backtesting.strategies.rule_based.volatility_breakout import VolatilityBreakoutStrategy
-
-    for name, cls in [
-        ("moving_average_cross", MovingAverageCrossStrategy),
-        ("momentum", MomentumStrategy),
-        ("mean_reversion", MeanReversionStrategy),
-        ("breakout", BreakoutStrategy),
-        ("rsi_reversion", RSIMeanReversionStrategy),
-        ("volatility_breakout", VolatilityBreakoutStrategy),
-    ]:
-        STRATEGY_MAP[name] = cls
+    registry = get_strategy_registry()
+    if not registry.list_names():
+        register_all_strategies()
+    return registry.get(strategy_name)
 
 
 def _generate_ohlcv_data(
@@ -158,11 +139,19 @@ class BacktestService:
 
             strategy_cls = _get_strategy_class(strategy_type)
             if strategy_cls is None:
-                available = list(STRATEGY_MAP.keys()) if STRATEGY_MAP else ["moving_average_cross", "momentum", "mean_reversion", "breakout", "rsi_reversion", "volatility_breakout"]
+                registry = get_strategy_registry()
+                available = registry.list_names() or ["moving_average_cross", "momentum", "mean_reversion", "breakout", "rsi_reversion", "volatility_breakout"]
                 return Result.fail(f"Unknown strategy '{strategy_type}'. Available: {', '.join(available)}")
 
             strategy = strategy_cls(instrument_id=symbols[0], **strategy_params)
-            data = _generate_ohlcv_data(symbols[0], start, end)
+
+            # Try to load real historical data from DB
+            data = await self._load_historical_data(symbols[0], start, end)
+
+            # Fallback to generated data if no real data found
+            if not data:
+                logger.info("No historical data for %s, using generated data", symbols[0])
+                data = _generate_ohlcv_data(symbols[0], start, end)
 
             result = await self.simulator.run(strategy, initial_capital=capital, data=data)
             if not result.success:
@@ -213,6 +202,50 @@ class BacktestService:
             logger.exception("Backtest failed")
             return Result.fail(str(e))
 
+    async def _load_historical_data(
+        self, symbol: str, start: date, end: date
+    ) -> list[dict[str, Any]]:
+        """Load OHLCV data from brsapi_historical_daily table."""
+        try:
+            from core.database import async_session_factory
+            from sqlalchemy import text
+
+            if async_session_factory is None:
+                return []
+
+            async with async_session_factory() as session:
+                result = await session.execute(
+                    text("""
+                        SELECT date, price_open, price_high, price_low, price_close, trade_volume, trade_value
+                        FROM brsapi_historical_daily
+                        WHERE symbol = :symbol
+                          AND date >= :start AND date <= :end
+                          AND price_close IS NOT NULL AND price_close > 0
+                        ORDER BY date ASC
+                    """),
+                    {"symbol": symbol, "start": str(start), "end": str(end)},
+                )
+                rows = result.fetchall()
+
+                if not rows:
+                    return []
+
+                return [
+                    {
+                        "timestamp": str(row[0]) + "T09:00:00",
+                        "open": float(row[1] or row[4]),
+                        "high": float(row[2] or row[4]),
+                        "low": float(row[3] or row[4]),
+                        "close": float(row[4]),
+                        "volume": int(row[5] or 0),
+                        "value": float(row[6] or 0),
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            logger.warning("Failed to load historical data for %s: %s", symbol, e)
+            return []
+
     async def list_runs(self) -> Result[list[dict[str, Any]]]:
         return Result.ok(list(self._runs.values()))
 
@@ -229,32 +262,8 @@ class BacktestService:
         return Result.fail("Run not found")
 
     def list_strategies(self) -> list[dict[str, Any]]:
-        if not STRATEGY_MAP:
-            _register_strategies()
-        return [
-            {
-                "name": name,
-                "type": cls.__module__.split(".")[-2] if hasattr(cls, "__module__") else "rule_based",
-                "params": _inspect_strategy_params(cls),
-            }
-            for name, cls in STRATEGY_MAP.items()
-        ]
-
-
-def _inspect_strategy_params(strategy_cls: type[BaseStrategy]) -> list[dict[str, Any]]:
-    import inspect
-
-    sig = inspect.signature(strategy_cls.__init__)
-    params = []
-    for p_name, p_param in sig.parameters.items():
-        if p_name == "self":
-            continue
-        default = None if p_param.default is inspect.Parameter.empty else p_param.default
-        p_type = "string"
-        if isinstance(default, bool):
-            p_type = "boolean"
-        elif isinstance(default, (int, float)):
-            p_type = "number"
-        params.append({"name": p_name, "type": p_type, "default": default})
-    return params
+        registry = get_strategy_registry()
+        if not registry.list_names():
+            register_all_strategies()
+        return registry.list_strategies()
 

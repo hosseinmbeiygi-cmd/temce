@@ -6,7 +6,6 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Upload
 from fastapi.responses import StreamingResponse
 
 from apps.api.dependencies import (
-    get_current_user,
     get_instrument_import_service,
     get_symbol_service,
 )
@@ -63,7 +62,6 @@ def _validate_upload(file: UploadFile) -> str | None:
 @router.post("", summary="Create symbol", description="Create a new trading symbol/instrument")
 async def create_symbol(
     body: dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
     service: SymbolService = Depends(get_symbol_service),
 ) -> ApiResponse[dict[str, Any]]:
     rest = {k: v for k, v in body.items() if k not in ("symbol", "name")}
@@ -79,9 +77,10 @@ async def create_symbol(
 async def list_symbols(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
+    market: str | None = Query(None, description="Filter by market type (e.g. BOURS, IFB, OTC)"),
     service: SymbolService = Depends(get_symbol_service),
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
-    result = await service.list_all(page, page_size)
+    result = await service.list_all(page, page_size, market=market)
     return ApiResponse[PaginatedResult[dict[str, Any]]](success=result.success, data=result.value)
 
 
@@ -105,7 +104,7 @@ async def get_symbol(
         raise HTTPException(status_code=404, detail=result.error or f"Symbol {symbol} not found")
     return ApiResponse[dict[str, Any]](
         success=True,
-        data=vars(result.value) if result.value else None,
+        data=result.value if result.value else None,
     )
 
 

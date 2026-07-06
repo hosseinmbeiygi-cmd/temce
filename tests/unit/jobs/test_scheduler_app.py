@@ -32,7 +32,8 @@ def test_init_creates_scheduler():
 
     app = SchedulerApp()
     assert isinstance(app.scheduler, AsyncIOScheduler)
-    app.scheduler.shutdown(wait=False)
+    if app.scheduler.running:
+        app.scheduler.shutdown(wait=False)
 
 
 # ── add_job ─────────────────────────────────────────────────
@@ -58,12 +59,12 @@ def test_add_job_default_trigger_is_interval(scheduler_app):
 # ── start ────────────────────────────────────────────────────
 
 def test_start_adds_default_jobs(scheduler_app):
-    """start() should register the 4 default jobs."""
+    """start() should register legacy jobs (SyncInstrumentsJob, SyncQuotesJob, SyncCodalJob, NewsIngestionJob) + BrsApi registry jobs."""
     scheduler_app.start()
     # APScheduler.start() must be called
     scheduler_app.scheduler.start.assert_called_once()
-    # 4 default jobs should have been added
-    assert scheduler_app.scheduler.add_job.call_count == 4
+    # 4 legacy jobs + BrsApi registry jobs = at least 4
+    assert scheduler_app.scheduler.add_job.call_count >= 4
 
 
 def test_start_adds_sync_instruments(scheduler_app):
@@ -126,21 +127,20 @@ async def test_run_forever_calls_start():
     app.scheduler = MagicMock()
 
     # Mock asyncio.sleep to raise CancelledError on first call so the loop exits
-    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        mock_sleep.side_effect = [None]  # Return once so the loop completes
-        # We need to catch the StopIteration or just let it run briefly
-        import asyncio
+    import asyncio
 
-        async def run_and_cancel():
-            task = asyncio.create_task(app.run_forever())
-            await asyncio.sleep(0.01)
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+    async def run_until_start():
+        task = asyncio.create_task(app.run_forever())
+        # Give the event loop a chance to execute the task
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
-        await run_and_cancel()
+    await run_until_start()
 
     # start() should have been called
     app.scheduler.start.assert_called_once()

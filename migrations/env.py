@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import create_engine, pool
 from sqlalchemy.ext.asyncio import create_async_engine
+
+# Add project root to sys.path so imports like 'from core.config import settings' work
+# when Alembic runs migrations from the project root.
+_project_root = str(Path(__file__).resolve().parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from core.config import settings
 from models.base import Base

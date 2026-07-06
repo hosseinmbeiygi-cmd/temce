@@ -104,14 +104,14 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
         from sqlalchemy import func as sa_func
 
         count_stmt = select(sa_func.count()).select_from(CodalReportModel).where(
-            CodalReportModel.symbol == instrument_id
+            CodalReportModel.instrument_id == instrument_id
         )
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar() or 0
 
         stmt = (
             select(CodalReportModel)
-            .where(CodalReportModel.symbol == instrument_id)
+            .where(CodalReportModel.instrument_id == instrument_id)
             .order_by(desc(CodalReportModel.publish_date))
             .offset((page - 1) * page_size)
             .limit(page_size)
@@ -170,7 +170,7 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
 
         return Disclosure(
             id=orm.id,
-            instrument_id=orm.symbol or "",
+            instrument_id=orm.instrument_id or orm.symbol or "",
             title=f"{orm.report_type or ''} {orm.fiscal_year or ''}",
             symbol=orm.symbol or "",
             publish_date=pub_date,
@@ -205,6 +205,7 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
     def _to_orm(self, domain: Disclosure) -> CodalReportModel:
         return CodalReportModel(
             id=domain.id,
+            instrument_id=domain.instrument_id or "",
             symbol=domain.symbol,
             company_name="",
             isin="",

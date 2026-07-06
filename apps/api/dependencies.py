@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from functools import lru_cache
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -18,8 +19,7 @@ from core.config import settings
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     from core.database import get_session
-    
-    async with get_session() as session:
+    async for session in get_session():
         yield session
 
 
@@ -36,22 +36,33 @@ def get_instrument_import_service(session: AsyncSession = Depends(get_db_session
     return InstrumentImportService(repo=InstrumentRepository(session=session))
 
 
-def get_quote_service():
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
+def get_quote_service(session: AsyncSession = Depends(get_db_session)):
     from services.quote_service import QuoteService
-    
-    # دقیقاً همان کاری که test_service_direct.py انجام می‌دهد
-    engine = create_async_engine("sqlite+aiosqlite:///data/market.db")
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    session = async_session()
+
     return QuoteService(session=session)
 
 
-def get_market_service(session: AsyncSession = Depends(get_db_session)):
+def get_brsapi_query_service(session: AsyncSession = Depends(get_db_session)):
+    from brsapi.services.query_service import BrsApiQueryService
+
+    return BrsApiQueryService(session=session)
+
+
+async def get_brsapi_client():
+    """Lazily resolve the BrsApi HTTP client singleton."""
+    from brsapi.client import get_client
+
+    return await get_client()
+
+
+def get_market_service(
+    session: AsyncSession = Depends(get_db_session),
+    brsapi=Depends(get_brsapi_query_service),
+    client=Depends(get_brsapi_client),
+):
     from services.market_service import MarketService
 
-    return MarketService(session=session)
+    return MarketService(session=session, brsapi_query_service=brsapi, brsapi_client=client)
 
 
 def get_analytics_service(session: AsyncSession = Depends(get_db_session)):
@@ -84,6 +95,7 @@ def get_news_service(session: AsyncSession = Depends(get_db_session)):
     return NewsService(session=session)
 
 
+@lru_cache(maxsize=1)
 def get_backtest_service():
     from services.backtest_service import BacktestService
 
@@ -102,22 +114,32 @@ def get_smart_money_service(session: AsyncSession = Depends(get_db_session)):
     return SmartMoneyService(session=session)
 
 
-def get_trade_service(session: AsyncSession = Depends(get_db_session)):
+def get_trade_service(
+    brsapi=Depends(get_brsapi_query_service),
+    client=Depends(get_brsapi_client),
+):
     from services.trade_service import TradeService
 
-    return TradeService(session=session)
+    return TradeService(brsapi_query_service=brsapi, brsapi_client=client)
 
 
-def get_orderbook_service(session: AsyncSession = Depends(get_db_session)):
+def get_orderbook_service(
+    session: AsyncSession = Depends(get_db_session),
+    brsapi=Depends(get_brsapi_query_service),
+    client=Depends(get_brsapi_client),
+):
     from services.orderbook_service import OrderBookService
 
-    return OrderBookService(session=session)
+    return OrderBookService(session=session, brsapi_query_service=brsapi, brsapi_client=client)
 
 
-def get_macro_service(session: AsyncSession = Depends(get_db_session)):
+def get_macro_service(
+    brsapi=Depends(get_brsapi_query_service),
+    client=Depends(get_brsapi_client),
+):
     from services.macro_service import MacroService
 
-    return MacroService(session=session)
+    return MacroService(brsapi_query_service=brsapi, brsapi_client=client)
 
 
 def get_report_service(session: AsyncSession = Depends(get_db_session)):

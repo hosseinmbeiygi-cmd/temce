@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
+import { formatDateShamsi, formatTime } from "@/lib/dates";
 import Link from "next/link";
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -46,16 +47,6 @@ interface LazyResponse {
   stored: number;
   ins_id: string | null;
   instrument_id: string | null;
-}
-
-function formatDate(d: string | null): string {
-  if (!d) return "\u2014";
-  return d.replace(/-/g, "/");
-}
-
-function formatTime(t: string | null): string {
-  if (!t) return "";
-  return t.length >= 5 ? t.substring(0, 5) : t;
 }
 
 // ------ Components ---------------------------------------------------------------------------------------------------------------------------------
@@ -102,7 +93,7 @@ function AnnouncementCard({ item }: { item: CodalAnnouncement }) {
 
           {/* Date + Time */}
           <div className="flex items-center gap-3 mt-2 text-xs text-surface-500">
-            <span>{formatDate(item.date_publish)}</span>
+            <span>{formatDateShamsi(item.date_publish)}</span>
             {item.time_publish && <span>{formatTime(item.time_publish)}</span>}
             {item.instrument_id && (
               <span className="font-mono text-[10px]">

@@ -15,36 +15,36 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_admin_stats(client: AsyncClient):
-    response = await client.get("/api/v1/admin/stats")
+    response = await client.get("/admin/dashboard")
     assert response.status_code in (200, 401, 403)
 
 
 @pytest.mark.asyncio
 async def test_admin_system_status(client: AsyncClient):
-    response = await client.get("/api/v1/admin/system/status")
+    response = await client.get("/admin/dashboard/health")
     assert response.status_code in (200, 401, 403)
 
 
 @pytest.mark.asyncio
 async def test_admin_providers(client: AsyncClient):
-    response = await client.get("/api/v1/admin/providers")
+    response = await client.get("/admin/providers/")
     assert response.status_code in (200, 401, 403)
 
 
 @pytest.mark.asyncio
 async def test_admin_jobs(client: AsyncClient):
-    response = await client.get("/api/v1/admin/jobs")
+    response = await client.get("/admin/jobs/")
     assert response.status_code in (200, 401, 403)
 
 
 @pytest.mark.asyncio
 async def test_admin_schedulers(client: AsyncClient):
-    response = await client.get("/api/v1/admin/schedulers")
+    response = await client.get("/admin/models/")
     assert response.status_code in (200, 401, 403)
 
 
 @pytest.mark.asyncio
 async def test_admin_storage(client: AsyncClient):
-    response = await client.get("/api/v1/admin/storage/usage")
+    response = await client.get("/admin/audit/")
     assert response.status_code in (200, 401, 403)
 

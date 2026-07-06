@@ -62,11 +62,56 @@ def _mock_financials(symbol: str) -> dict[str, Any]:
     }
 
 
+def _snapshot_to_financials(symbol: str, snap: dict[str, Any]) -> dict[str, Any]:
+    price = snap.get("price_last") or snap.get("price_close", 0)
+    shares = snap.get("shares_count") or 1
+    market_cap = snap.get("market_value") or (price * shares)
+    eps = snap.get("eps", 0) or 0
+    pe = snap.get("pe_ratio", 0) or 0
+
+    return {
+        "symbol": symbol,
+        "company_name": snap.get("name", f"شرکت {symbol}"),
+        "industry": snap.get("sector", "سایر"),
+        "last_price": price,
+        "market_cap": market_cap,
+        "shares_outstanding": shares,
+        "eps": round(eps, 2),
+        "bvps": 0,
+        "pe": round(pe, 2),
+        "pb": 0,
+        "roe_pct": 0,
+        "roa_pct": 0,
+        "debt_to_equity": 0,
+        "current_ratio": 0,
+        "net_margin_pct": 0,
+        "dividend_yield_pct": 0,
+        "free_cash_flow": 0,
+        "revenue": 0,
+        "net_profit": round(eps * shares, 2) if eps else 0,
+        "total_assets": 0,
+        "total_equity": 0,
+        "total_debt": 0,
+        "fiscal_year": datetime.now(UTC).year,
+    }
+
+
 class FundamentalService:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, brsapi_query_service: Any | None = None) -> None:
+        self._brsapi = brsapi_query_service
+
+    async def _get_snapshot(self, symbol: str) -> dict[str, Any] | None:
+        if not self._brsapi:
+            return None
+        try:
+            return await self._brsapi.get_symbol_snapshot(symbol)
+        except Exception:
+            return None
 
     async def get_ratios(self, symbol: str) -> Result[dict[str, Any]]:
+        snap = await self._get_snapshot(symbol)
+        if snap:
+            return Result.ok(_snapshot_to_financials(symbol, snap))
         return Result.ok(_mock_financials(symbol))
 
     async def get_dcf_valuation(self, symbol: str) -> Result[dict[str, Any]]:
@@ -98,20 +143,21 @@ class FundamentalService:
         })
 
     async def score_stock(self, symbol: str) -> Result[dict[str, Any]]:
-        f = _mock_financials(symbol)
+        snap = await self._get_snapshot(symbol)
+        f = _snapshot_to_financials(symbol, snap) if snap else _mock_financials(symbol)
         score = 0.0
         details: list[dict[str, Any]] = []
 
-        if f["pe"] < 8:
+        if f["pe"] and f["pe"] < 8:
             score += 20; details.append({"factor": "P/E پایین", "score": 20, "desc": "ارزنده"})
-        elif f["pe"] < 15:
+        elif f["pe"] and f["pe"] < 15:
             score += 15; details.append({"factor": "P/E متعادل", "score": 15, "desc": "مناسب"})
         else:
             score += 5; details.append({"factor": "P/E بالا", "score": 5, "desc": "گران"})
 
-        if f["pb"] < 1:
+        if f["pb"] and f["pb"] < 1:
             score += 15; details.append({"factor": "P/B کمتر از ۱", "score": 15, "desc": "زیر ارزش ذاتی"})
-        elif f["pb"] < 3:
+        elif f["pb"] and f["pb"] < 3:
             score += 10; details.append({"factor": "P/B متعادل", "score": 10, "desc": "مناسب"})
         else:
             score += 5; details.append({"factor": "P/B بالا", "score": 5, "desc": "گران"})
@@ -181,13 +227,17 @@ class FundamentalService:
         symbols = ["فولاد", "فملی", "شپنا", "وبانک", "خودرو", "ذوب", "رمپنا", "اخابر", "کگل", "چادر"]
         peers = []
         for sym in symbols:
-            f = _mock_financials(sym)
-            f["industry"] = industry
-            peers.append(f)
+            snap = await self._get_snapshot(sym)
+            if snap:
+                peers.append(_snapshot_to_financials(sym, snap))
+            else:
+                f = _mock_financials(sym)
+                f["industry"] = industry
+                peers.append(f)
 
-        avg_pe = sum(p["pe"] for p in peers) / len(peers) if peers else 0
-        avg_pb = sum(p["pb"] for p in peers) / len(peers) if peers else 0
-        avg_roe = sum(p["roe_pct"] for p in peers) / len(peers) if peers else 0
+        avg_pe = sum(p["pe"] for p in peers if p["pe"]) / len(peers) if peers else 0
+        avg_pb = sum(p["pb"] for p in peers if p["pb"]) / len(peers) if peers else 0
+        avg_roe = sum(p["roe_pct"] for p in peers if p["roe_pct"]) / len(peers) if peers else 0
 
         return Result.ok({
             "industry": industry,

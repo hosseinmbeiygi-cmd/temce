@@ -7,8 +7,9 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
-import CandleChartCard from "@/components/charts/CandleChartCard";
+import TradingViewChart from "@/components/charts/TradingViewChart";
 import { apiGet } from "@/lib/api";
+import { formatDateShamsi } from "@/lib/dates";
 import { CandleDataPoint } from "@/lib/types";
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -76,11 +77,6 @@ function formatPct(val: number | null | undefined): { text: string; color: strin
   if (val > 0) return { text: `+${fixed}%`, color: "text-accent-emerald" };
   if (val < 0) return { text: `${fixed}%`, color: "text-accent-rose" };
   return { text: "0.00%", color: "text-surface-400" };
-}
-
-function formatDate(d: string | null | undefined): string {
-  if (!d) return "—";
-  return d.replace(/-/g, "/");
 }
 
 function getChangeColor(val: number | null | undefined): string {
@@ -221,8 +217,8 @@ export default function BrsapiHistoryPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-4 mt-1 text-xs text-surface-500">
-                  <span>آخرین: {formatDate(latest.date)}</span>
-                  <span>بازه: {data.length > 0 ? `${formatDate(data[data.length - 1]?.date)} تا ${formatDate(latest.date)}` : "—"}</span>
+                  <span>آخرین: {formatDateShamsi(latest.date)}</span>
+                  <span>بازه: {data.length > 0 ? `${formatDateShamsi(data[data.length - 1]?.date)} تا ${formatDateShamsi(latest.date)}` : "—"}</span>
                 </div>
               </div>
             )}
@@ -294,7 +290,7 @@ export default function BrsapiHistoryPage() {
         )}
 
         {/* ------ Candlestick Chart --------------------------------------------------------------------------------- */}
-        <CandleChartCard
+        <TradingViewChart
           title="📈 نمودار قیمت شمعی (از دیتای تاریخی BrsApi)"
           data={candleData}
           symbol={decodedSymbol}
@@ -386,7 +382,7 @@ export default function BrsapiHistoryPage() {
                           {page * pageSize + i + 1}
                         </td>
                         <td className="py-2.5 px-2 font-mono font-medium text-surface-200">
-                          {formatDate(r.date)}
+                          {formatDateShamsi(r.date)}
                         </td>
                         <td className="py-2.5 px-2 font-mono text-surface-400">
                           {r.time?.substring(0, 5) || "—"}

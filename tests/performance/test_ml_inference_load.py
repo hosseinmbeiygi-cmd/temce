@@ -20,7 +20,7 @@ async def test_ml_inference_latency():
         )
         elapsed = (time.monotonic() - start) * 1000
         latencies.append(elapsed)
-    avg_latency = sum(latencies) / len(latencies)
+    avg_latency = sum(latencies) / max(len(latencies), 1)
     assert avg_latency < 200, f"Average inference latency {avg_latency:.2f}ms exceeds 200ms threshold"
 
 
@@ -37,7 +37,7 @@ async def test_batch_inference():
             features={"close": 15000 + i, "volume": 5000000, "rsi": 65},
         )
         results.append(result)
-    elapsed = time.monotonic() - start
+    elapsed = max(time.monotonic() - start, 0.001)
     throughput = batch_size / elapsed
     assert throughput > 10, f"Inference throughput {throughput:.2f} req/s below 10 req/s threshold"
 

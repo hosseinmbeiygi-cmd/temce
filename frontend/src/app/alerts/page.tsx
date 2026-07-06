@@ -1,9 +1,9 @@
 "use client";
-import { useRouter } from "next/navigation";
+
 import { useState, useEffect, FormEvent } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
-import { apiGet, apiPost, apiPut, apiDelete, getStoredAuth, extractItems } from "@/lib/api";
+import { apiGet, apiPost, apiPut, apiDelete, extractItems } from "@/lib/api";
 
 interface Alert {
   id: string;
@@ -32,8 +32,6 @@ const ALERT_TYPES = [
 const SYMBOLS = ["فولاد", "فملی", "شپنا", "وبانک", "خودرو", "ذوب", "رمپنا", "اخابر"];
 
 export default function AlertsPage() {
-  const router = useRouter();
-  const auth = getStoredAuth();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -45,13 +43,12 @@ export default function AlertsPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!auth) { router.push("/auth/login"); return; }
     fetchAlerts();
   }, []);
 
   async function fetchAlerts() {
     try {
-      const data = await apiGet<unknown>("/alerts?page_size=50", auth?.token);
+      const data = await apiGet<unknown>("/alerts?page_size=50");
       setAlerts(extractItems<Alert>(data));
     } catch (error) {
       console.error("Error fetching alerts:", error);
@@ -77,7 +74,7 @@ export default function AlertsPage() {
         condition,
         channels: ["email", "console"],
         description,
-      }, auth?.token);
+      });
       setMessage("هشدار با موفقیت ایجاد شد");
       setShowForm(false);
       fetchAlerts();
@@ -86,14 +83,14 @@ export default function AlertsPage() {
 
   async function toggleAlert(alert: Alert) {
     try {
-      await apiPut(`/alerts/${alert.id}`, { enabled: !alert.enabled }, auth?.token);
+      await apiPut(`/alerts/${alert.id}`, { enabled: !alert.enabled });
       fetchAlerts();
     } catch {}
   }
 
   async function deleteAlert(id: string) {
     try {
-      await apiDelete(`/alerts/${id}`, auth?.token);
+      await apiDelete(`/alerts/${id}`);
       fetchAlerts();
     } catch {}
   }

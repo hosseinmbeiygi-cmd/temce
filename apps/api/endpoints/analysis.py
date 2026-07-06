@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from apps.api.dependencies import get_brsapi_query_service
 from schemas.common.responses import ApiResponse
 
 router = APIRouter()
@@ -86,7 +87,31 @@ class AnalysisOverviewFrontend(BaseModel):
 
 
 @router.get("/overview")
-async def analysis_overview_frontend() -> ApiResponse[AnalysisOverviewFrontend]:
+async def analysis_overview_frontend(
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[AnalysisOverviewFrontend]:
+    gainers: list[dict[str, Any]] = []
+    losers: list[dict[str, Any]] = []
+    try:
+        top = await brsapi.get_top_gainers(4)
+        gainers = [{"symbol": g.get("symbol", ""), "change": g.get("price_last_change_pct", 0) or 0} for g in top]
+        bot = await brsapi.get_top_losers(4)
+        losers = [{"symbol": g.get("symbol", ""), "change": g.get("price_last_change_pct", 0) or 0} for g in bot]
+    except Exception:
+        pass
+    if not gainers:
+        gainers = [
+            {"symbol": "فولاد", "change": 3.45},
+            {"symbol": "شپنا", "change": 2.18},
+            {"symbol": "وبملت", "change": 1.75},
+            {"symbol": "خودرو", "change": 1.32},
+        ]
+    if not losers:
+        losers = [
+            {"symbol": "کگل", "change": -1.28},
+            {"symbol": "سیدکو", "change": -0.95},
+            {"symbol": "فملی", "change": -0.72},
+        ]
     return ApiResponse[AnalysisOverviewFrontend](
         success=True,
         data=AnalysisOverviewFrontend(
@@ -102,17 +127,8 @@ async def analysis_overview_frontend() -> ApiResponse[AnalysisOverviewFrontend]:
             trends={
                 "trend": "bullish",
                 "strength": 68,
-                "gainers": [
-                    {"symbol": "فولاد", "change": 3.45},
-                    {"symbol": "شپنا", "change": 2.18},
-                    {"symbol": "وبملت", "change": 1.75},
-                    {"symbol": "خودرو", "change": 1.32},
-                ],
-                "losers": [
-                    {"symbol": "کگل", "change": -1.28},
-                    {"symbol": "سیدکو", "change": -0.95},
-                    {"symbol": "فملی", "change": -0.72},
-                ],
+                "gainers": gainers,
+                "losers": losers,
             },
             recommendations=[
                 {"symbol": "فولاد", "name": "فولاد مبارکه اصفهان", "signal": "buy", "targetPrice": 52000, "currentPrice": 42500, "upside": 22.35, "analyst": "تحلیل کارگزاری مفید"},

@@ -119,5 +119,13 @@ class QuoteService:
     async def save_quote(self, quote: Quote) -> Result[Quote]:
         return await self.quote_repo.save(quote)
 
+    async def save_quotes(self, quotes: list[Quote]) -> Result[int]:
+        count = 0
+        for quote in quotes:
+            result = await self.quote_repo.save(quote)
+            if result.success:
+                count += 1
+        return Result.ok(count)
+
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         return await self.quote_repo.get_market_summary()

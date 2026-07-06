@@ -23,6 +23,11 @@ async def auth_error_handler(request: Request, exc: AuthenticationError) -> JSON
 
 
 async def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    import traceback
+    from core.logging import get_logger
+    logger = get_logger(__name__)
+    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc)
+    logger.debug("Traceback:\n%s", traceback.format_exc())
     return JSONResponse(
         status_code=500, content={"success": False, "error": "Internal server error", "code": "INTERNAL_ERROR"}
     )

@@ -366,7 +366,7 @@ def try_collector():
         from iran_market_data.app.collectors.tsetmc import TsetmcCollector
 
         print(f"\n{DIVIDER}")
-        print("  🧪  تست با iran_market_data collector (سیستم قدیمی TSETMC)")
+        print("  TEST with iran_market_data collector (old TSETMC system)")
         print(DIVIDER)
 
         collector = TsetmcCollector()
@@ -410,8 +410,8 @@ def try_collector():
 
 def main(save: bool = False) -> int:
     print(SEPARATOR)
-    print("  📡  دریافت دیتای بازار بورس تهران از TSETMC")
-    print(f"  ⏰  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("  MARKET DATA FETCHER for Tehran Stock Exchange")
+    print(f"  TIME: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(SEPARATOR)
 
     all_data: dict[str, Any] = {"fetched_at": datetime.now().isoformat()}

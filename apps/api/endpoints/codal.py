@@ -4,12 +4,14 @@ import asyncio
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_codal_service, get_current_user, get_db_session
+from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
 from core.exceptions import NotFoundError
+from core.result import PaginatedResult
+from pydantic import Field
 from schemas.api.codal import CodalListResponse, CodalReportResponse, CodalSearchRequest
 from schemas.common.responses import ApiResponse
 from services.codal_service import CodalService
@@ -102,7 +104,6 @@ async def list_disclosures(
 async def create_disclosure(
     instrument_id: str,
     body: CodalCreateRequest = Body(...),
-    current_user: dict = Depends(get_current_user),
     service: CodalService = Depends(get_codal_service),
 ) -> ApiResponse[CodalReportResponse]:
     rest = body.model_dump(exclude={"title"})
@@ -136,8 +137,146 @@ async def get_disclosures(
     )
 
 
+@router.get("/brsapi-search")
+async def brsapi_search_announcements(
+    symbol: str | None = Query(None, description="Symbol (l18)"),
+    category: str | None = Query(None, description="Category (1-11)"),
+    date_start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_end: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    audited: str | None = Query(None, description="Audited filter (true/false)"),
+    unaudited: str | None = Query(None, description="Unaudited filter (true/false)"),
+    page: int = Query(1, ge=1, le=100),
+) -> ApiResponse[dict[str, Any]]:
+    """Proxy search to the BrsApi Codal Announcement API with all filters."""
+    from brsapi.client import get_client
+    from brsapi.config import BrsApiEndpoints
+    from brsapi.parsers import CodalParser
+
+    try:
+        client = await get_client()
+        params: dict[str, str] = {"page": str(page)}
+        if symbol:
+            params["l18"] = symbol
+        if category:
+            params["category"] = category
+        if date_start:
+            params["date_start"] = date_start
+        if date_end:
+            params["date_end"] = date_end
+        if audited is not None:
+            params["audited"] = audited
+        if unaudited is not None:
+            params["unaudited"] = unaudited
+
+        result = await client.fetch(BrsApiEndpoints.CODAL_ANNOUNCEMENT, params=params)
+        if not result.success:
+            return ApiResponse[dict[str, Any]](success=False, error={"message": result.error or "API error"})
+
+        parsed = CodalParser.parse(result.value.data)
+        return ApiResponse[dict[str, Any]](success=True, data=parsed)
+    except Exception as exc:
+        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
+
+
+@router.get("/announcements")
+async def search_announcements(
+    symbol: str | None = Query(None, description="نماد"),
+    date_start: str | None = Query(None, description="تاریخ شروع (YYYY-MM-DD)"),
+    date_end: str | None = Query(None, description="تاریخ پایان (YYYY-MM-DD)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
+    """Search codal announcements from BrsApi data."""
+    try:
+        offset = (page - 1) * page_size
+        items = await brsapi.get_recent_announcements(
+            limit=page_size + 1,
+            offset=offset,
+            symbol=symbol or None,
+            date_start=date_start or None,
+            date_end=date_end or None,
+        )
+        has_next = len(items) > page_size
+        page_items = items[:page_size]
+        if has_next:
+            estimated_total = page * page_size + 1
+        else:
+            estimated_total = (page - 1) * page_size + len(page_items)
+        total_pages = max(1, (estimated_total + page_size - 1) // page_size)
+        return ApiResponse[PaginatedResult[dict[str, Any]]](
+            success=True,
+            data=PaginatedResult(
+                items=page_items,
+                total=estimated_total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            ),
+        )
+    except Exception as exc:
+        return ApiResponse[PaginatedResult[dict[str, Any]]](
+            success=False,
+            data=PaginatedResult(items=[], total=0, page=1, page_size=page_size, total_pages=0),
+            error={"message": str(exc)},
+        )
+
+
 @router.get("/{code}/profile")
-async def company_profile(code: str) -> ApiResponse[dict[str, Any]]:
+async def company_profile(
+    code: str,
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[dict[str, Any]]:
+    try:
+        snap = await brsapi.get_enriched_symbol_detail(code)
+        if snap:
+            profile = {
+                "symbol": code,
+                "name": snap.get("name", f"شرکت {code}"),
+                "industry": snap.get("sector", "سایر"),
+                # فیلدهای بنیادی
+                "eps": snap.get("eps", 0),
+                "pe": snap.get("pe_ratio", 0),
+                "group_pe": snap.get("group_pe_ratio", 0),
+                "ps_ratio": snap.get("ps_ratio", 0),
+                "market_cap": snap.get("market_value", 0),
+                "shares_count": snap.get("shares_count", 0),
+                "free_float_pct": snap.get("free_float_pct", 0),
+                # فیلدهای قیمتی
+                "price_yesterday": snap.get("price_yesterday", 0),
+                "price_last": snap.get("price_last", 0),
+                "price_close": snap.get("price_close", 0),
+                "price_lowest_allowed": snap.get("price_lowest_allowed", 0),
+                "price_highest_allowed": snap.get("price_highest_allowed", 0),
+                "price_min": snap.get("price_min", 0),
+                "price_max": snap.get("price_max", 0),
+                # وضعیت و بازار
+                "state": snap.get("state", ""),
+                "market": snap.get("market", ""),
+                "board": snap.get("board", ""),
+                "sub_sector": snap.get("sub_sector", ""),
+                # اطلاعات معاملاتی
+                "trade_volume": snap.get("trade_volume", 0),
+                "trade_value": snap.get("trade_value", 0),
+                "trade_count": snap.get("trade_count", 0),
+                "base_volume": snap.get("base_volume", 0),
+                # معاملات حقیقی/حقوقی
+                "buy_real_count": snap.get("buy_real_count", 0),
+                "buy_legal_count": snap.get("buy_legal_count", 0),
+                "sell_real_count": snap.get("sell_real_count", 0),
+                "sell_legal_count": snap.get("sell_legal_count", 0),
+                "buy_real_volume": snap.get("buy_real_volume", 0),
+                "buy_legal_volume": snap.get("buy_legal_volume", 0),
+                "sell_real_volume": snap.get("sell_real_volume", 0),
+                "sell_legal_volume": snap.get("sell_legal_volume", 0),
+                # اطلاعات ثابت
+                "established": 0,
+                "ceo": "",
+                "board_chairman": "",
+            }
+            return ApiResponse[dict[str, Any]](success=True, data=profile)
+    except Exception:
+        pass
     profiles: dict[str, dict[str, Any]] = {
         "فولاد": {
             "symbol": "فولاد",
@@ -267,7 +406,25 @@ async def dividend_history(code: str) -> ApiResponse[dict[str, Any]]:
 
 
 @router.get("/{code}/holders")
-async def major_holders(code: str) -> ApiResponse[dict[str, Any]]:
+async def major_holders(
+    code: str,
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[dict[str, Any]]:
+    try:
+        records = await brsapi.get_shareholders(code)
+        if records:
+            holders = [
+                {
+                    "name": r.get("shareholder_name", "نامشخص"),
+                    "shares": r.get("volume", 0),
+                    "percentage": r.get("percent", 0),
+                    "type": "حقوقی" if r.get("percent", 0) > 1 else "حقیقی",
+                }
+                for r in records
+            ]
+            return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "holders": holders})
+    except Exception:
+        pass
     data: dict[str, Any] = {
         "symbol": code,
         "holders": [

@@ -1,0 +1,9 @@
+﻿{
+    "model": "default",
+    "messages": [
+        {
+            "role": "user",
+            "content": "سلام! وضعیت هوش مصنوعی چطور است؟"
+        }
+    ]
+}

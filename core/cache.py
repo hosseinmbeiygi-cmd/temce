@@ -47,6 +47,21 @@ class CacheService:
             logger.warning("Redis unavailable, using null cache")
             self._redis = None
 
+    @property
+    def is_connected(self) -> bool:
+        """Return True if Redis is connected and reachable."""
+        return self._redis is not None
+
+    async def ping(self) -> bool:
+        """Ping Redis. Returns True if reachable, False otherwise."""
+        if self._redis is None:
+            return False
+        try:
+            await self._redis.ping()
+            return True
+        except Exception:
+            return False
+
     async def close(self) -> None:
         if self._redis is not None:
             await self._redis.close()

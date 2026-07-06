@@ -12,19 +12,20 @@ from services.symbol_service import SymbolService
 async def test_instrument_sync():
     service = SymbolService()
     mock_repo = AsyncMock()
-    mock_repo.save.return_value = Result.ok({"id": "inst_test_001"})
-    service.instrument_repo = mock_repo
 
-    from tests.fixtures.sample_instruments import sample_instrument
+    async def _fake_save(inst):
+        return Result.ok(inst)
 
-    instrument = sample_instrument()
-    result = await service.create_or_update(instrument)
-    assert result.success or not result.success
+    mock_repo.save.side_effect = _fake_save
+    service.repo = mock_repo
+
+    result = await service.create(symbol="فولاد", name="فولاد مبارکه اصفهان", isin="IRO1FOLD0001")
+    assert result.success
 
 
 @pytest.mark.asyncio
 async def test_instrument_search():
     service = SymbolService()
     result = await service.search("فولاد")
-    assert result.success or not result.success
+    assert result.success
 

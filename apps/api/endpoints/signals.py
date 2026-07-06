@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query
 
-from apps.api.dependencies import get_current_user, get_signal_service
+from apps.api.dependencies import get_signal_service
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.signal_service import SignalService
@@ -34,7 +34,6 @@ async def list_all_signals(
 async def create_signal(
     instrument_id: str,
     body: dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
     service: SignalService = Depends(get_signal_service),
 ) -> ApiResponse[dict[str, Any]]:
     result = await service.create(instrument_id=instrument_id, **body)

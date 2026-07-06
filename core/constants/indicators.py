@@ -16,6 +16,9 @@ class IndicatorType(StrEnum):
     VWAP = "vwap"
     ROC = "roc"
     MOMENTUM = "momentum"
+    HALF_TREND = "half_trend"
+    SQUEEZE_MOMENTUM = "squeeze_momentum"
+    SUPPORT_RESISTANCE = "support_resistance"
 
 
 DEFAULT_INDICATOR_PARAMS: dict[str, dict[str, int | float]] = {
@@ -31,6 +34,9 @@ DEFAULT_INDICATOR_PARAMS: dict[str, dict[str, int | float]] = {
     "vwap": {},
     "roc": {"period": 12},
     "momentum": {"period": 10},
+    "half_trend": {"amplitude": 2, "channel_deviation": 2.0},
+    "squeeze_momentum": {"bb_period": 20, "bb_std": 2.0, "kc_period": 20, "kc_mult": 1.5},
+    "support_resistance": {"lookback": 20, "vol_threshold": 1.5},
 }
 
 INDICATOR_MIN_PERIODS: dict[str, int] = {
@@ -44,4 +50,7 @@ INDICATOR_MIN_PERIODS: dict[str, int] = {
     "volume_sma": 1,
     "roc": 1,
     "momentum": 1,
+    "half_trend": 2,
+    "squeeze_momentum": 20,
+    "support_resistance": 20,
 }

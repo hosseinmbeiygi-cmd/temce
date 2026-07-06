@@ -8,6 +8,7 @@ class CodalReportModel(TimestampMixin, Base):
     __tablename__ = "codal_reports"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    instrument_id: Mapped[str | None] = mapped_column(String(50), index=True)
     symbol: Mapped[str | None] = mapped_column(String(50), index=True)
     company_name: Mapped[str | None] = mapped_column(String(200), index=True)
     isin: Mapped[str | None] = mapped_column(String(50), index=True)

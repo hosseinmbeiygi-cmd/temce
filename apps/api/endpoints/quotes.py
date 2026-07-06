@@ -7,12 +7,12 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_current_user, get_db_session, get_quote_service
+from apps.api.dependencies import get_db_session, get_quote_service
 from schemas.common.responses import ApiResponse
 from services.quote_import_service import QuoteImportService
 from services.quote_service import QuoteService
 
-router = APIRouter(prefix="/quotes", tags=["quotes"])
+router = APIRouter(tags=["quotes"])
 
 
 @router.post(
@@ -23,7 +23,6 @@ router = APIRouter(prefix="/quotes", tags=["quotes"])
 async def create_quote(
     instrument_id: str,
     body: dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
     service: QuoteService = Depends(get_quote_service),
 ) -> ApiResponse[Any]:
 

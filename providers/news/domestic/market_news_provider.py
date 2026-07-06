@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from core.logging import get_logger
 from core.result import Result
@@ -12,6 +13,8 @@ logger = get_logger(__name__)
 
 
 class MarketNewsProvider(NewsProvider):
+    """Provider for Iranian domestic market news via API."""
+
     def __init__(self) -> None:
         super().__init__(name="market_news")
         self.client = HttpClient(base_url="https://api.example.com/news/domestic/market")
@@ -30,19 +33,19 @@ class MarketNewsProvider(NewsProvider):
         if to_date:
             params["to"] = to_date.isoformat()
         if symbols:
-            params["symbols"] = ",".join(symbols)
+            params["symbols"] = ",".join(quote(s.strip()) for s in symbols)
         result = await self.client.get("", params=params)
         if result.success:
             data = result.value.json() if hasattr(result.value, "json") else []
             return Result.ok(data if isinstance(data, list) else [])
-        return Result.fail(result.error or "Unknown error")
+        return Result.fail(result.error or "Failed to fetch market news")
 
     async def search_news(self, query: str, limit: int = 20, **kwargs: Any) -> Result[list[dict[str, Any]]]:
         result = await self.client.get("/search", params={"q": query, "limit": limit})
         if result.success:
             data = result.value.json() if hasattr(result.value, "json") else []
             return Result.ok(data if isinstance(data, list) else [])
-        return Result.fail(result.error or "Unknown error")
+        return Result.fail(result.error or "News search failed")
 
     async def health(self) -> dict[str, Any]:
         return {"healthy": True, "message": "Market news provider ready"}

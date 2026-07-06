@@ -16,6 +16,14 @@ Common columns: symbol (required), name, isin, market_type, asset_class,
 """
 from __future__ import annotations
 
+# --- auto PYTHONPATH ---
+import sys
+from pathlib import Path
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+# --- end auto PYTHONPATH ---
+
 import argparse
 import asyncio
 import sys
@@ -36,7 +44,7 @@ logger = get_logger(__name__)
 async def _run(file_path: Path) -> int:
     await init_database()
 
-    async with get_session() as session:
+    async for session in get_session():
         from repositories.instrument_repository import InstrumentRepository
 
         service = InstrumentImportService(repo=InstrumentRepository(session=session))

@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends
 
-from apps.api.dependencies import get_analytics_service, get_current_user
+from apps.api.dependencies import get_analytics_service
 from schemas.common.responses import ApiResponse
 from services.analytics_service import AnalyticsService
 
@@ -16,7 +16,6 @@ async def create_indicator(
     instrument_id: str,
     name: str,
     body: dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
     service: AnalyticsService = Depends(get_analytics_service),
 ) -> ApiResponse[dict[str, Any]]:
     result = await service.create(instrument_id=instrument_id, name=name, **body)

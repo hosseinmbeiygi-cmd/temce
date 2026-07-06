@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
+import MiniSparkline from "@/components/MiniSparkline";
 import { apiGet, extractArray } from "@/lib/api";
 import { generateMockWatchlist } from "@/lib/types";
 import type { WatchlistItem } from "@/lib/types";
@@ -69,6 +70,23 @@ export default function WatchlistPage() {
 
   const items = apiItems && apiItems.length > 0 ? apiItems : localItems;
 
+  // ── Batch sparkline data ──
+  const sparkQuery = useMemo(() => items.map(i => i.symbol).join(","), [items]);
+  const { data: sparkMap } = useQuery({
+    queryKey: ["watchlist-spark", sparkQuery],
+    queryFn: async () => {
+      if (!sparkQuery) return {};
+      try {
+        const res = await apiGet<{ success: boolean; data: Record<string, number[]> }>(
+          `/market/sparklines?symbols=${encodeURIComponent(sparkQuery)}&limit=30`
+        );
+        return res?.data ?? {};
+      } catch { return {}; }
+    },
+    enabled: !!sparkQuery,
+    staleTime: 120_000,
+  });
+
   const removeItem = (symbol: string) => {
     setLocalItems((prev) => prev.filter((item) => item.symbol !== symbol));
   };
@@ -97,6 +115,10 @@ export default function WatchlistPage() {
                     <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>{item.name || item.symbol}</div>
                   </div>
                   <div style={{ flex: 1 }} />
+                  {(() => {
+                    const sd = sparkMap?.[item.symbol];
+                    return sd && sd.length > 1 ? <MiniSparkline data={sd} width={64} height={22} /> : null;
+                  })()}
                   <div className="watchlist-price" style={{ textAlign: "left" }}>
                     <div className="watchlist-value" style={{ fontSize: 15 }}>{item.price?.toLocaleString() ?? '—'}</div>
                     <div className={`watchlist-change ${(item.change ?? 0) >= 0 ? "positive" : "negative"}`} style={{ fontSize: 11 }}>

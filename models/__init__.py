@@ -2,6 +2,7 @@ from models.alert import AlertHistoryModel, AlertModel
 from models.user import UserModel
 from models.audit_log import AuditLogModel
 from models.backtest import BacktestRunModel, BacktestTradeModel
+from models.compare import CompareResultModel
 from models.base import Base
 from models.codal import CodalReportModel
 from models.indicator import IndicatorModel

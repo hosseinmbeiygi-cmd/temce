@@ -30,6 +30,33 @@ class MarketService:
         self._client = brsapi_client
 
     async def get_overview(self) -> Result[dict[str, Any]]:
+        # Try BrsApi snapshots first (realtime data)
+        if self._brsapi:
+            try:
+                snapshots = await self._brsapi.get_latest_snapshots(limit=500)
+                if snapshots:
+                    # Compute market stats from snapshots
+                    total = len(snapshots)
+                    gainers = sum(1 for s in snapshots if (s.get("price_last_change_pct") or 0) > 0)
+                    losers = sum(1 for s in snapshots if (s.get("price_last_change_pct") or 0) < 0)
+                    total_value = sum(s.get("trade_value") or 0 for s in snapshots)
+                    total_volume = sum(s.get("trade_volume") or 0 for s in snapshots)
+                    avg_change = sum(s.get("price_last_change_pct") or 0 for s in snapshots) / total if total else 0
+
+                    return Result.ok({
+                        "total_instruments": total,
+                        "total_quotes": total,
+                        "gainers": gainers,
+                        "losers": losers,
+                        "unchanged": total - gainers - losers,
+                        "total_value": total_value,
+                        "total_volume": total_volume,
+                        "avg_change_pct": round(avg_change, 2),
+                    })
+            except Exception:
+                logger.exception("Failed to get overview from BrsApi")
+
+        # Fallback to quote repo
         return await self.quote_repo.get_market_summary()
 
     async def get_index_values(self) -> Result[list[dict[str, Any]]]:
@@ -124,13 +151,67 @@ class MarketService:
                 return parsed
         return []
 
+    async def _get_historical_from_quotes_table(
+        self, symbol: str, start_date: str, end_date: str, limit: int = 500
+    ) -> list[dict[str, Any]]:
+        """
+        Fallback: read historical daily data from the core ``quotes`` table
+        (QuoteModel / QuoteRepository) when BrsApi tables are empty.
+
+        Resolves the symbol to an instrument_id first, then queries
+        QuoteRepository for the matching date range.
+        """
+        try:
+            # 1. Resolve symbol -> instrument_id
+            inst_result = await self.instrument_repo.get_by_symbol(symbol)
+            if not inst_result.success or not inst_result.value:
+                logger.warning("Could not resolve symbol '%s' in instruments table", symbol)
+                return []
+            instrument_id = inst_result.value.id
+
+            # 2. Query quotes from the core table
+            from datetime import date as date_type
+            start_dt = date_type.fromisoformat(start_date)
+            end_dt = date_type.fromisoformat(end_date)
+
+            quotes_result = await self.quote_repo.get_range(
+                instrument_id, start_dt, end_dt, timeframe="1d"
+            )
+            if not quotes_result.success or not quotes_result.value:
+                return []
+
+            # 3. Convert domain Quote objects to plain dicts
+            records = []
+            for q in quotes_result.value:
+                records.append({
+                    "date": q.date or "",
+                    "symbol": q.symbol or symbol,
+                    "price_first": q.price_first or q.price_open or 0,
+                    "price_last": q.price_last or q.price_close or 0,
+                    "price_close": q.price_close or 0,
+                    "price_max": q.price_high or q.price_max or 0,
+                    "price_min": q.price_low or q.price_min or 0,
+                    "price_yesterday": q.price_yesterday or 0,
+                    "price_last_change": q.price_change or 0,
+                    "price_last_change_pct": q.price_change_pct or 0,
+                    "trade_volume": q.volume or 0,
+                    "trade_value": q.value or 0,
+                    "trade_count": q.trade_count or 0,
+                })
+            # Sort descending (newest first), consistent with BrsApiQueryService
+            records.sort(key=lambda r: r["date"], reverse=True)
+            return records[:limit]
+        except Exception:
+            logger.exception("Failed to fetch historical data from quotes table for %s", symbol)
+            return []
+
     async def get_historical_quotes(
         self,
         symbol: str,
         start_date: str,
         end_date: str,
     ) -> Result[list[dict[str, Any]]]:
-        # ── Step 1: Try local DB ──
+        # ── Step 1: Try BrsApiQueryService (BrsApi historical daily table) ──
         if self._brsapi:
             try:
                 data = await self._brsapi.get_historical_daily(symbol, limit=500)
@@ -138,8 +219,15 @@ class MarketService:
                 if filtered:
                     return Result.ok(filtered)
             except Exception:
-                logger.exception("Failed to fetch historical quotes from DB")
-        # ── Step 2: Live BrsApi API fallback with l18 resolution ──
+                logger.exception("Failed to fetch historical quotes from BrsApi DB")
+        # ── Step 2: Try core quotes table (QuoteModel) ──
+        try:
+            records = await self._get_historical_from_quotes_table(symbol, start_date, end_date, limit=500)
+            if records:
+                return Result.ok(records)
+        except Exception:
+            logger.exception("Failed to fetch historical quotes from quotes table")
+        # ── Step 3: Live BrsApi API fallback with l18 resolution ──
         if self._client:
             try:
                 live_data = await self._fetch_live_history(symbol, limit=500)
@@ -158,7 +246,7 @@ class MarketService:
         end_date: str,
         timeframe: str = "1d",
     ) -> Result[list[dict[str, Any]]]:
-        # ── Step 1: Try local DB ──
+        # ── Step 1: Try BrsApiQueryService (BrsApi historical daily table) ──
         if self._brsapi:
             try:
                 raw = await self._brsapi.get_historical_daily(symbol, limit=500)
@@ -167,8 +255,17 @@ class MarketService:
                 if ohlcv:
                     return Result.ok(ohlcv)
             except Exception:
-                logger.exception("Failed to fetch OHLCV data from DB")
-        # ── Step 2: Live BrsApi API fallback with l18 resolution ──
+                logger.exception("Failed to fetch OHLCV data from BrsApi DB")
+        # ── Step 2: Try core quotes table (QuoteModel) ──
+        try:
+            records = await self._get_historical_from_quotes_table(symbol, start_date, end_date, limit=500)
+            if records:
+                ohlcv = [self._to_ohlcv(r) for r in records]
+                if ohlcv:
+                    return Result.ok(ohlcv)
+        except Exception:
+            logger.exception("Failed to fetch OHLCV from quotes table")
+        # ── Step 3: Live BrsApi API fallback with l18 resolution ──
         if self._client:
             try:
                 live_data = await self._fetch_live_history(symbol, limit=500)
@@ -590,6 +687,50 @@ class MarketService:
             repo = BulkUpsertRepository(session, HistoricalDailyModel)
             await repo.bulk_insert(records)
         # commit() fires after the async for loop completes naturally
+
+    async def get_batch_sparklines(
+        self, symbols: list[str], limit: int = 30
+    ) -> Result[dict[str, list[float]]]:
+        """
+        Fetch last N close prices for multiple symbols in a single query.
+        Returns {symbol: [close_price_1, close_price_2, ...]} chronological.
+        """
+        if not symbols:
+            return Result.ok({})
+        try:
+            from sqlalchemy import text as sa_text
+            from core.database import get_session
+
+            result_map: dict[str, list[float]] = {}
+            # Use raw SQL for an efficient batch query
+            async for session in get_session():
+                placeholders = ", ".join([f":sym{i}" for i in range(len(symbols))])
+                params = {f"sym{i}": sym for i, sym in enumerate(symbols)}
+                params["lim"] = limit
+                sql = sa_text(f"""
+                    SELECT q.symbol, q.price_close
+                    FROM quotes q
+                    WHERE q.symbol IN ({placeholders})
+                      AND q.price_close IS NOT NULL
+                    ORDER BY q.symbol, q.date DESC
+                """)
+                rows = await session.execute(sql, params)
+                # Group by symbol, take first `limit` per symbol (most recent)
+                for row in rows:
+                    sym = str(row.symbol or "")
+                    if not sym:
+                        continue
+                    if sym not in result_map:
+                        result_map[sym] = []
+                    if len(result_map[sym]) < limit:
+                        result_map[sym].append(float(row.price_close or 0))
+                # Reverse each list to chronological order
+                for sym in result_map:
+                    result_map[sym].reverse()
+            return Result.ok(result_map)
+        except Exception:
+            logger.exception("Failed to fetch batch sparklines")
+            return Result.ok({})
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         return await self.quote_repo.get_market_summary()

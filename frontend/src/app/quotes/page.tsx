@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
+import MiniSparkline from "@/components/MiniSparkline";
 import { apiGet, extractArray } from "@/lib/api";
 
 interface PriceItem {
@@ -19,8 +20,9 @@ interface PriceItem {
   state: string;
 }
 
-function PriceRow({ item }: { item: PriceItem }) {
+function PriceRow({ item, sparkData }: { item: PriceItem; sparkData?: number[] }) {
   const isPositive = item.change_pct >= 0;
+  const hasSpark = sparkData && sparkData.length > 1;
   return (
     <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-surface-800/30 hover:bg-surface-800/60 transition-colors border border-transparent hover:border-surface-700">
       <div className="flex items-center gap-3 min-w-0">
@@ -29,6 +31,12 @@ function PriceRow({ item }: { item: PriceItem }) {
           <p className="font-bold text-surface-200 text-sm">{item.symbol}</p>
           <p className="text-xs text-surface-500 truncate max-w-40">{item.name || "—"}</p>
         </div>
+      </div>
+      <div className="flex items-center gap-3">
+        {hasSpark
+          ? <MiniSparkline data={sparkData!} width={64} height={22} />
+          : <div className="w-16" />
+        }
       </div>
       <div className="flex items-center gap-6">
         <div className="text-right">
@@ -89,6 +97,33 @@ export default function QuotesPage() {
       return [] as PriceItem[];
     },
     refetchInterval: 30000,
+  });
+
+  // ── Batch sparkline data (based on filtered+top symbols) ──
+  const sparkQuery = useMemo(() => {
+    const active = (prices || []).filter(p => {
+      if (search) {
+        const q = search.trim().toLowerCase();
+        return p.symbol.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
+      }
+      return true;
+    });
+    return active.sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct)).slice(0, 30).map(p => p.symbol).join(",");
+  }, [prices, search]);
+  
+  const { data: sparkMap } = useQuery({
+    queryKey: ["quotes-spark", sparkQuery],
+    queryFn: async () => {
+      if (!sparkQuery) return {};
+      try {
+        const res = await apiGet<{ success: boolean; data: Record<string, number[]> }>(
+          `/market/sparklines?symbols=${encodeURIComponent(sparkQuery)}&limit=30`
+        );
+        return res?.data ?? {};
+      } catch { return {}; }
+    },
+    enabled: !!sparkQuery,
+    staleTime: 120_000,
   });
 
   // Apply filters
@@ -184,7 +219,7 @@ export default function QuotesPage() {
             <Skeleton key={i} className="h-14 w-full rounded-lg" />
           ))
         ) : filtered.length > 0 ? (
-          filtered.map((item) => <PriceRow key={item.symbol} item={item} />)
+          filtered.map((item) => <PriceRow key={item.symbol} item={item} sparkData={sparkMap?.[item.symbol]} />)
         ) : (
           <div className="glass-card p-8 text-center text-surface-500">
             <div className="text-4xl mb-3">📊</div>

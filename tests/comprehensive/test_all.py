@@ -15,14 +15,21 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from apps.api.app import app
+from core.security import create_access_token
 
 pytest_plugins = ("pytest_asyncio",)
 
 
+@pytest.fixture
+def test_token():
+    return create_access_token({"sub": "test_user", "role": "admin"})
+
+
 @pytest_asyncio.fixture
-async def client():
+async def client(test_token):
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    headers = {"Authorization": f"Bearer {test_token}"}
+    async with AsyncClient(transport=transport, base_url="http://test", headers=headers) as ac:
         yield ac
 
 
@@ -65,7 +72,7 @@ class TestHealth:
 
     @pytest.mark.asyncio
     async def test_openapi_schema(self, client):
-        resp = await client.get("/api/v1/openapi.json")
+        resp = await client.get("/openapi.json")
         assert resp.status_code == 200
         schema = resp.json()
         assert "paths" in schema
@@ -73,7 +80,7 @@ class TestHealth:
 
     @pytest.mark.asyncio
     async def test_swagger_docs(self, client):
-        resp = await client.get("/api/v1/docs")
+        resp = await client.get("/docs")
         assert resp.status_code == 200
 
     @pytest.mark.asyncio
@@ -1326,7 +1333,7 @@ class TestCore:
 
     def test_config_database(self):
         from core.config import settings
-        assert "sqlite" in settings.database_url
+        assert "postgresql" in settings.database_url
 
 
 # ==============================================================

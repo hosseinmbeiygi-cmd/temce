@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.paths import safe_ensure_dir
+from core.paths import ensure_dir, safe_ensure_dir
 from core.time import now_tehran
 
 
@@ -13,7 +13,10 @@ class RawStorage:
     """Save raw collected data (JSON, HTML, files) to disk."""
 
     def __init__(self, base_dir: str = "data/raw") -> None:
-        self.base_dir = safe_ensure_dir(Path.cwd(), base_dir)
+        if Path(base_dir).is_absolute():
+            self.base_dir = ensure_dir(base_dir)
+        else:
+            self.base_dir = safe_ensure_dir(Path.cwd(), base_dir)
 
     @property
     def timestamp(self) -> str:

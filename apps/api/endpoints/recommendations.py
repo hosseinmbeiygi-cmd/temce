@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query
 
-from apps.api.dependencies import get_current_user, get_recommendation_service
+from apps.api.dependencies import get_recommendation_service
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.recommendation_service import RecommendationService
@@ -15,7 +15,6 @@ router = APIRouter()
 @router.post("", summary="Create recommendation", description="Create a new trading recommendation")
 async def create_recommendation(
     body: dict[str, Any] = Body(...),
-    current_user: dict = Depends(get_current_user),
     service: RecommendationService = Depends(get_recommendation_service),
 ) -> ApiResponse[dict[str, Any]]:
     rest = {k: v for k, v in body.items() if k not in ("instrument_id", "action")}

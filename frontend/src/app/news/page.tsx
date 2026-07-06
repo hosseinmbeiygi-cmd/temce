@@ -37,37 +37,35 @@ export default function NewsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data: news, isLoading, isError } = useQuery({
+  const { data: news, isLoading, isError, error } = useQuery({
     queryKey: ["news-full"],
     queryFn: async () => {
-      try {
-        const response = await apiGet<unknown>("/news");
-        const items = extractArray<Record<string, unknown>>(response);
-        if (items.length > 0 && items[0]?.published_at) {
-          return items.map((item) => ({
-            id: String(item.id || ""),
-            title: String(item.title || ""),
-            summary: String(item.summary || ""),
-            source: String(item.source || ""),
-            date: String(item.published_at || item.date || "").split("T")[0] || "",
-            category: String(item.category || "market").replace("company", "companies"),
-            fullContent: String(item.content || item.summary || ""),
-            trending: Boolean(item.trending || false),
-          })) as unknown as NewsItem[];
-        }
-        if (items.length > 0 && typeof items[0]?.title === "string") {
-          return items.map((item) => ({
-            id: String(item.id || ""),
-            title: String(item.title || ""),
-            summary: String(item.summary || ""),
-            source: String(item.source || ""),
-            date: String(item.date || item.published_at || "").split("T")[0] || "",
-            category: String(item.category || "market").replace("company", "companies"),
-            fullContent: String(item.fullContent || item.content || item.summary || ""),
-            trending: Boolean(item.trending || false),
-          })) as unknown as NewsItem[];
-        }
-      } catch {}
+      const response = await apiGet<unknown>("/news");
+      const items = extractArray<Record<string, unknown>>(response);
+      if (items.length > 0 && items[0]?.published_at) {
+        return items.map((item) => ({
+          id: String(item.id || ""),
+          title: String(item.title || ""),
+          summary: String(item.summary || ""),
+          source: String(item.source || ""),
+          date: String(item.published_at || item.date || "").split("T")[0] || "",
+          category: String(item.category || "market").replace("company", "companies"),
+          fullContent: String(item.content || item.summary || ""),
+          trending: Boolean(item.trending || false),
+        })) as unknown as NewsItem[];
+      }
+      if (items.length > 0 && typeof items[0]?.title === "string") {
+        return items.map((item) => ({
+          id: String(item.id || ""),
+          title: String(item.title || ""),
+          summary: String(item.summary || ""),
+          source: String(item.source || ""),
+          date: String(item.date || item.published_at || "").split("T")[0] || "",
+          category: String(item.category || "market").replace("company", "companies"),
+          fullContent: String(item.fullContent || item.content || item.summary || ""),
+          trending: Boolean(item.trending || false),
+        })) as unknown as NewsItem[];
+      }
       return [] as NewsItem[];
     },
     refetchInterval: 120000,
@@ -121,7 +119,12 @@ export default function NewsPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
-          {isLoading ? (
+          {isError ? (
+            <div className="glass-card p-8 text-center text-surface-500">
+              <p className="mb-2 text-accent-rose">خطا در دریافت اخبار</p>
+              <p className="text-xs text-surface-600">{error?.message || "اتصال به سرور برقرار نشد"}</p>
+            </div>
+          ) : isLoading ? (
             [1,2,3].map(i => <div key={i} className="glass-card p-5"><div className="h-20 bg-surface-800 animate-pulse rounded-lg" /></div>)
           ) : filtered && filtered.length > 0 ? filtered.map((item: NewsItem, i: number) => (
             <div key={item.id || `news-${i}`} className="glass-card p-5">
@@ -158,7 +161,9 @@ export default function NewsPage() {
           <div className="glass-card p-5">
             <h3 className="font-bold text-surface-200 mb-3">🔥 داغ‌ترین اخبار</h3>
             <div className="space-y-3">
-              {isLoading ? (
+              {isError ? (
+                <div className="text-xs text-surface-600 text-center py-2">خطا در بارگذاری</div>
+              ) : isLoading ? (
                 [1,2,3].map(i => <div key={i} className="h-10 bg-surface-800 animate-pulse rounded-lg" />)
               ) : trendingNews && trendingNews.length > 0 ? trendingNews.map((item: NewsItem, i: number) => (
                 <div key={item.id || `trending-${i}`} className="pb-3 border-b border-surface-700/50 last:border-0 last:pb-0">

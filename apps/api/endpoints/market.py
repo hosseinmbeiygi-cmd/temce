@@ -176,6 +176,31 @@ async def market_history(
     )
 
 
+@router.get(
+    "/sparklines",
+    summary="Batch sparkline data",
+    description="Get last N close prices for multiple symbols in one call (for mini-charts on list pages)",
+)
+async def market_sparklines(
+    symbols: str = Query(..., description="Comma-separated symbol names, e.g. فولاد,فملی,خودرو"),
+    limit: int = Query(30, ge=5, le=200, description="Number of close prices per symbol"),
+    service: MarketService = Depends(get_market_service),
+) -> ApiResponse[dict[str, list[float]]]:
+    try:
+        sym_list = [s.strip() for s in symbols.split(",") if s.strip()]
+        result = await service.get_batch_sparklines(sym_list, limit)
+        return ApiResponse[dict[str, list[float]]](
+            success=True,
+            data=result.value if result.success else {},
+        )
+    except Exception as exc:
+        return ApiResponse[dict[str, list[float]]](
+            success=False,
+            data={},
+            error={"message": str(exc)},
+        )
+
+
 @router.get("/enriched-heatmap", summary="Enriched market heatmap", description="Symbol heatmap data enriched with price thresholds, free float, sector info")
 async def market_enriched_heatmap(
     brsapi=Depends(get_brsapi_query_service),

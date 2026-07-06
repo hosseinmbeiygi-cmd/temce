@@ -1,0 +1,2273 @@
+[
+  {
+    "date": "1405-03-16",
+    "count": 10,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "16:32:46",
+        "volume": 5,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 1,
+        "time": "09:04:31",
+        "volume": 5,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 2,
+        "time": "16:32:42",
+        "volume": 4,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 2,
+        "time": "09:05:03",
+        "volume": 4,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 3,
+        "time": "16:32:39",
+        "volume": 150,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 3,
+        "time": "09:18:01",
+        "volume": 150,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 4,
+        "time": "16:32:35",
+        "volume": 111,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 4,
+        "time": "11:33:04",
+        "volume": 111,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 5,
+        "time": "16:32:31",
+        "volume": 200,
+        "price": 37800,
+        "canceled": 1
+      },
+      {
+        "row": 5,
+        "time": "12:24:05",
+        "volume": 200,
+        "price": 37800,
+        "canceled": 1
+      }
+    ]
+  },
+  {
+    "date": "1405-03-17",
+    "count": 20,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:02:53",
+        "volume": 3,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:13:15",
+        "volume": 140,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:30:50",
+        "volume": 5000,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "10:02:02",
+        "volume": 10,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:03:21",
+        "volume": 10,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "10:08:00",
+        "volume": 338,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "10:08:00",
+        "volume": 362,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "10:20:51",
+        "volume": 300,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:02:45",
+        "volume": 1000,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "11:38:11",
+        "volume": 638,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "11:38:11",
+        "volume": 2362,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "12:13:19",
+        "volume": 290,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "12:13:19",
+        "volume": 710,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "12:15:14",
+        "volume": 1000,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "12:20:03",
+        "volume": 1000,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "12:23:27",
+        "volume": 65,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "12:24:11",
+        "volume": 26,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "12:25:41",
+        "volume": 1500,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "12:25:45",
+        "volume": 10,
+        "price": 37800,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "12:26:04",
+        "volume": 300,
+        "price": 37800,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-18",
+    "count": 16,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:00:50",
+        "volume": 24616,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:00:50",
+        "volume": 5000,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:00:50",
+        "volume": 1000,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:00:50",
+        "volume": 218,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:01:57",
+        "volume": 3183,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:01:57",
+        "volume": 1817,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "09:01:59",
+        "volume": 5000,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "09:02:01",
+        "volume": 5000,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "09:18:17",
+        "volume": 1500,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "09:48:10",
+        "volume": 5000,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "09:48:33",
+        "volume": 23892,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "09:50:04",
+        "volume": 5000,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "10:16:38",
+        "volume": 140,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "11:48:16",
+        "volume": 243,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "11:50:37",
+        "volume": 30,
+        "price": 38900,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "11:50:57",
+        "volume": 100,
+        "price": 38900,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-19",
+    "count": 13,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:01:26",
+        "volume": 500,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "10:00:19",
+        "volume": 124,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "10:04:33",
+        "volume": 1500,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "10:35:14",
+        "volume": 400,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:46:18",
+        "volume": 600,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "10:59:46",
+        "volume": 2956,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "10:59:46",
+        "volume": 244,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "11:16:31",
+        "volume": 1000,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:31:42",
+        "volume": 5000,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "12:20:12",
+        "volume": 70,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "12:26:04",
+        "volume": 1000,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "12:26:30",
+        "volume": 700,
+        "price": 40050,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "12:27:28",
+        "volume": 100,
+        "price": 40050,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-20",
+    "count": 17,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:08:50",
+        "volume": 100,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:09:20",
+        "volume": 100,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:28:23",
+        "volume": 500,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:37:47",
+        "volume": 130,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:28:18",
+        "volume": 300,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "10:44:55",
+        "volume": 1296,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "10:44:55",
+        "volume": 393,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "11:04:27",
+        "volume": 1000,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:23:56",
+        "volume": 145,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "11:27:36",
+        "volume": 1487,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "11:27:36",
+        "volume": 513,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "11:29:43",
+        "volume": 350,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "11:32:02",
+        "volume": 1000,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "11:50:06",
+        "volume": 2000,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "12:10:33",
+        "volume": 2000,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "12:10:48",
+        "volume": 2200,
+        "price": 41250,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "12:21:44",
+        "volume": 658,
+        "price": 41250,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-23",
+    "count": 3,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:02:53",
+        "volume": 10,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "10:22:09",
+        "volume": 130,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "12:29:16",
+        "volume": 300,
+        "price": 42450,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-24",
+    "count": 29,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:07:52",
+        "volume": 10,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:26:18",
+        "volume": 300,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:30:54",
+        "volume": 3616,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "10:17:24",
+        "volume": 300,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:18:31",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "10:19:19",
+        "volume": 50,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "10:19:27",
+        "volume": 50,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "10:21:36",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "10:21:47",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "10:27:28",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "10:27:57",
+        "volume": 10,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "10:34:19",
+        "volume": 2500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "10:46:45",
+        "volume": 500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "10:54:18",
+        "volume": 500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "10:55:07",
+        "volume": 500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "10:55:44",
+        "volume": 500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "10:56:21",
+        "volume": 500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "11:01:17",
+        "volume": 300,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "11:03:39",
+        "volume": 120,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "11:26:48",
+        "volume": 120,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 21,
+        "time": "11:36:03",
+        "volume": 1000,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 22,
+        "time": "11:38:21",
+        "volume": 300,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 23,
+        "time": "11:53:59",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 24,
+        "time": "11:54:15",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 25,
+        "time": "11:56:15",
+        "volume": 8,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 26,
+        "time": "12:20:47",
+        "volume": 100,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 27,
+        "time": "12:28:17",
+        "volume": 87,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 28,
+        "time": "12:29:08",
+        "volume": 500,
+        "price": 42450,
+        "canceled": 0
+      },
+      {
+        "row": 29,
+        "time": "12:29:19",
+        "volume": 110,
+        "price": 42450,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-25",
+    "count": 27,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:02:37",
+        "volume": 4,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "10:01:02",
+        "volume": 5447,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "10:14:44",
+        "volume": 2000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "10:15:31",
+        "volume": 2549,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:15:31",
+        "volume": 451,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "10:27:12",
+        "volume": 2000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "10:54:30",
+        "volume": 140,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "10:57:06",
+        "volume": 4725,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "10:57:06",
+        "volume": 275,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "10:58:36",
+        "volume": 120,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "11:03:24",
+        "volume": 3000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "11:22:41",
+        "volume": 2000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "11:34:48",
+        "volume": 3000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "11:38:05",
+        "volume": 10000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "11:52:15",
+        "volume": 3000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "11:56:59",
+        "volume": 1184,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "12:04:26",
+        "volume": 3191,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "12:10:52",
+        "volume": 5000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "12:12:26",
+        "volume": 2000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "12:13:14",
+        "volume": 200,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 21,
+        "time": "12:16:00",
+        "volume": 200,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 22,
+        "time": "12:19:35",
+        "volume": 200,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 23,
+        "time": "12:20:15",
+        "volume": 10000,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 24,
+        "time": "12:29:21",
+        "volume": 6630,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 25,
+        "time": "12:29:21",
+        "volume": 2163,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 26,
+        "time": "12:29:21",
+        "volume": 1216,
+        "price": 42600,
+        "canceled": 0
+      },
+      {
+        "row": 27,
+        "time": "12:29:21",
+        "volume": 2991,
+        "price": 42600,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-26",
+    "count": 10,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:22:30",
+        "volume": 8873,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:22:30",
+        "volume": 1236,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:22:30",
+        "volume": 14900,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:22:30",
+        "volume": 3500,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:22:30",
+        "volume": 3452,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:22:30",
+        "volume": 18039,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "09:33:13",
+        "volume": 120,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "10:12:32",
+        "volume": 31841,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "10:12:32",
+        "volume": 1500,
+        "price": 43550,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "10:12:32",
+        "volume": 1659,
+        "price": 43550,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-27",
+    "count": 8,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:17:11",
+        "volume": 5,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:18:50",
+        "volume": 120,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:21:52",
+        "volume": 25000,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:47:18",
+        "volume": 500,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:22:55",
+        "volume": 30,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "11:30:17",
+        "volume": 6345,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "11:30:17",
+        "volume": 2528,
+        "price": 44650,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "12:13:02",
+        "volume": 1000,
+        "price": 44650,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-30",
+    "count": 22,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:03:56",
+        "volume": 5,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:46:11",
+        "volume": 120,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "11:01:27",
+        "volume": 1000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "11:01:51",
+        "volume": 1000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "11:03:18",
+        "volume": 900,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "11:35:37",
+        "volume": 300,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "11:53:42",
+        "volume": 500,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "11:53:56",
+        "volume": 360,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:53:56",
+        "volume": 340,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "11:58:14",
+        "volume": 3601,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "12:29:17",
+        "volume": 6000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "12:29:17",
+        "volume": 10000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "12:29:17",
+        "volume": 11000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "12:29:22",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "12:29:23",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "12:29:34",
+        "volume": 2210,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "12:29:34",
+        "volume": 2790,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "12:29:36",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "12:29:38",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "12:29:42",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 21,
+        "time": "12:29:44",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      },
+      {
+        "row": 22,
+        "time": "12:29:51",
+        "volume": 5000,
+        "price": 45100,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-03-31",
+    "count": 35,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:00:49",
+        "volume": 8541,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:00:49",
+        "volume": 1599,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:04:10",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:04:14",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:08:26",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:08:28",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "09:09:56",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "09:09:58",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "09:14:43",
+        "volume": 120,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "09:15:17",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "09:15:20",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "09:16:01",
+        "volume": 1339,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "09:16:01",
+        "volume": 1125,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "09:16:01",
+        "volume": 1125,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "09:16:01",
+        "volume": 1411,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "09:16:03",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "09:16:37",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "09:16:39",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "09:16:41",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "09:25:58",
+        "volume": 3025,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 21,
+        "time": "09:28:00",
+        "volume": 4185,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 22,
+        "time": "09:31:59",
+        "volume": 2426,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 23,
+        "time": "09:34:49",
+        "volume": 2163,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 24,
+        "time": "09:53:52",
+        "volume": 6080,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 25,
+        "time": "11:12:18",
+        "volume": 110,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 26,
+        "time": "11:15:42",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 27,
+        "time": "11:15:45",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 28,
+        "time": "11:16:15",
+        "volume": 600,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 29,
+        "time": "11:16:15",
+        "volume": 2000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 30,
+        "time": "11:16:15",
+        "volume": 2901,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 31,
+        "time": "11:16:17",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 32,
+        "time": "11:16:20",
+        "volume": 5000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 33,
+        "time": "11:18:27",
+        "volume": 20000,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 34,
+        "time": "12:00:57",
+        "volume": 1500,
+        "price": 46050,
+        "canceled": 0
+      },
+      {
+        "row": 35,
+        "time": "12:12:04",
+        "volume": 100,
+        "price": 46050,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-04-01",
+    "count": 20,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:02:52",
+        "volume": 8730,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:03:01",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:08:36",
+        "volume": 2150,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:19:23",
+        "volume": 110,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:21:54",
+        "volume": 500,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:28:36",
+        "volume": 500,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "10:08:56",
+        "volume": 400,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "11:24:35",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:24:37",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "11:24:40",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "11:24:42",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "11:26:26",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "11:26:28",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "11:27:40",
+        "volume": 2610,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "11:27:40",
+        "volume": 2390,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "11:27:42",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "11:27:47",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "11:27:51",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "12:27:52",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "12:28:23",
+        "volume": 5000,
+        "price": 47400,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-04-02",
+    "count": 41,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:00:48",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:00:48",
+        "volume": 218,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:17:20",
+        "volume": 3000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:17:54",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:18:56",
+        "volume": 4000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:19:31",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "09:20:25",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "09:21:26",
+        "volume": 3000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "09:22:53",
+        "volume": 110,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "09:24:47",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "09:25:01",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "09:30:03",
+        "volume": 3000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "09:31:40",
+        "volume": 4000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 14,
+        "time": "09:32:11",
+        "volume": 2672,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 15,
+        "time": "09:32:11",
+        "volume": 328,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 16,
+        "time": "09:35:39",
+        "volume": 3206,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 17,
+        "time": "09:35:39",
+        "volume": 794,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 18,
+        "time": "09:35:48",
+        "volume": 348,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 19,
+        "time": "09:35:48",
+        "volume": 2652,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 20,
+        "time": "09:36:00",
+        "volume": 196,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 21,
+        "time": "09:36:00",
+        "volume": 2521,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 22,
+        "time": "09:36:00",
+        "volume": 1283,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 23,
+        "time": "09:36:04",
+        "volume": 163,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 24,
+        "time": "09:36:04",
+        "volume": 4837,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 25,
+        "time": "09:36:12",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 26,
+        "time": "09:36:16",
+        "volume": 110,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 27,
+        "time": "09:36:22",
+        "volume": 4000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 28,
+        "time": "09:36:27",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 29,
+        "time": "09:36:40",
+        "volume": 53,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 30,
+        "time": "09:36:40",
+        "volume": 4947,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 31,
+        "time": "09:36:55",
+        "volume": 5000,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 32,
+        "time": "09:36:59",
+        "volume": 53,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 33,
+        "time": "09:36:59",
+        "volume": 1555,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 34,
+        "time": "09:36:59",
+        "volume": 3392,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 35,
+        "time": "09:37:03",
+        "volume": 1608,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 36,
+        "time": "09:37:03",
+        "volume": 1700,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 37,
+        "time": "09:37:03",
+        "volume": 1100,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 38,
+        "time": "09:38:42",
+        "volume": 592,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 39,
+        "time": "09:38:55",
+        "volume": 209,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 40,
+        "time": "09:45:32",
+        "volume": 430,
+        "price": 48450,
+        "canceled": 0
+      },
+      {
+        "row": 41,
+        "time": "09:45:32",
+        "volume": 320,
+        "price": 48450,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-04-06",
+    "count": 13,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:00:49",
+        "volume": 1000,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:04:05",
+        "volume": 206,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:06:52",
+        "volume": 4,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "10:05:23",
+        "volume": 110,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "10:45:14",
+        "volume": 10000,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "11:03:23",
+        "volume": 1214,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "11:23:04",
+        "volume": 166,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "11:23:04",
+        "volume": 574,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:54:50",
+        "volume": 1686,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "11:54:50",
+        "volume": 27490,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "12:11:38",
+        "volume": 128,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "12:15:59",
+        "volume": 1500,
+        "price": 49900,
+        "canceled": 0
+      },
+      {
+        "row": 13,
+        "time": "12:18:17",
+        "volume": 273,
+        "price": 49900,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-04-07",
+    "count": 12,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:00:52",
+        "volume": 5413,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:00:52",
+        "volume": 4000,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:00:52",
+        "volume": 587,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:04:56",
+        "volume": 3423,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:07:54",
+        "volume": 200,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:09:44",
+        "volume": 1100,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "09:10:55",
+        "volume": 110,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "09:32:04",
+        "volume": 1348,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "12:10:43",
+        "volume": 10000,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "12:13:57",
+        "volume": 24,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 11,
+        "time": "12:15:43",
+        "volume": 1880,
+        "price": 50570,
+        "canceled": 0
+      },
+      {
+        "row": 12,
+        "time": "12:15:43",
+        "volume": 1120,
+        "price": 50570,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-04-08",
+    "count": 3,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:03:29",
+        "volume": 1,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:34:15",
+        "volume": 1,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:56:27",
+        "volume": 110,
+        "price": 51010,
+        "canceled": 0
+      }
+    ]
+  },
+  {
+    "date": "1405-04-09",
+    "count": 10,
+    "transactions": [
+      {
+        "row": 1,
+        "time": "09:01:11",
+        "volume": 5150,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 2,
+        "time": "09:01:11",
+        "volume": 3389,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 3,
+        "time": "09:01:11",
+        "volume": 5215,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 4,
+        "time": "09:01:11",
+        "volume": 1000,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 5,
+        "time": "09:01:11",
+        "volume": 8660,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 6,
+        "time": "09:01:11",
+        "volume": 6586,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 7,
+        "time": "09:01:36",
+        "volume": 3452,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 8,
+        "time": "09:01:36",
+        "volume": 19048,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 9,
+        "time": "11:11:10",
+        "volume": 62,
+        "price": 51010,
+        "canceled": 0
+      },
+      {
+        "row": 10,
+        "time": "12:27:53",
+        "volume": 1,
+        "price": 51010,
+        "canceled": 0
+      }
+    ]
+  }
+]

@@ -30,8 +30,8 @@
   --color-accent-rose: #f43f5e;
   --color-accent-violet: #8b5cf6;
 
-  --font-sans: "Vazirmatn", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-sans: var(--font-vazirmatn), "Vazirmatn", "Tahoma", "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", "Fira Code", monospace;
 }
 
 /* ── Light Theme Variables ──────────────── */
@@ -82,7 +82,7 @@ body.dark-theme {
 }
 
 body {
-  font-family: 'Vazirmatn', 'Inter', sans-serif;
+  font-family: var(--font-vazirmatn), 'Vazirmatn', 'Tahoma', 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text-primary);
   min-height: 100vh;
@@ -307,14 +307,14 @@ body.dark-theme .ticker-wrapper::before {
 .ticker-price {
   font-size: 11px;
   font-weight: 600;
-  font-family: 'Inter', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   color: var(--text-primary);
 }
 
 .ticker-change {
   font-size: 10px;
   font-weight: 600;
-  font-family: 'Inter', monospace;
+  font-family: var(--font-mono);
   display: flex;
   align-items: center;
   gap: 1px;
@@ -454,12 +454,12 @@ body.dark-theme .index-icon {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .index-change {
   font-size: 11px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -763,7 +763,7 @@ body.dark-theme .expert-symbol {
 
 .heatmap-change {
   font-size: 10px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   color: white;
 }
@@ -805,7 +805,7 @@ body.dark-theme .expert-symbol {
 
 .symbols-table .value,
 .holdings-table .value {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 500;
 }
 
@@ -876,7 +876,7 @@ body.dark-theme .bid-row::before { background: rgba(0, 245, 212, 0.08); }
 body.dark-theme .ask-row::before { background: rgba(247, 37, 133, 0.08); }
 
 .order-price {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
 }
 
@@ -884,7 +884,7 @@ body.dark-theme .ask-row::before { background: rgba(247, 37, 133, 0.08); }
 .ask-price { color: var(--negative); }
 
 .order-volume {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-secondary);
 }
 
@@ -937,7 +937,7 @@ body.dark-theme .risk-high { background: rgba(247, 37, 133, 0.1); color: var(--n
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .risk-metric-desc {
@@ -994,7 +994,7 @@ body.dark-theme .risk-metric-progress {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .indicator-status {
@@ -1032,7 +1032,7 @@ body.dark-theme .risk-metric-progress {
   font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .ratio-status {
@@ -1096,7 +1096,7 @@ body.dark-theme .risk-metric-progress {
 
 .watchlist-price {
   text-align: left;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .watchlist-value {
@@ -1143,7 +1143,7 @@ body.dark-theme .risk-metric-progress {
 .sentiment-stat-value {
   font-size: 16px;
   font-weight: 700;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .positive-value { color: var(--positive); }
@@ -1232,7 +1232,7 @@ body.dark-theme .insight-icon.neutral { background: rgba(0, 180, 216, 0.1); }
   font-size: 20px;
   font-weight: 700;
   color: var(--accent-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .device-stat-desc {
@@ -1431,7 +1431,7 @@ body.dark-theme .device-progress {
 }
 
 .live-price-value {
-  font-family: 'Inter', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
@@ -1444,7 +1444,7 @@ body.dark-theme .device-progress {
   gap: 2px;
   font-size: 11px;
   font-weight: 600;
-  font-family: 'Inter', monospace;
+  font-family: var(--font-mono);
 }
 
 .live-change-icon {
@@ -1460,7 +1460,7 @@ body.dark-theme .device-progress {
 }
 
 .live-vol-text {
-  font-family: 'Inter', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-secondary);
 }
@@ -1557,7 +1557,7 @@ body.dark-theme .live-gl-btn.active-losers {
   font-size: 10px;
   font-weight: 700;
   color: var(--text-secondary);
-  font-family: 'Inter', monospace;
+  font-family: var(--font-mono);
   text-align: center;
 }
 
@@ -1579,7 +1579,7 @@ body.dark-theme .live-gl-btn.active-losers {
 }
 
 .live-gl-price {
-  font-family: 'Inter', 'JetBrains Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
   color: var(--text-primary);
@@ -1587,7 +1587,7 @@ body.dark-theme .live-gl-btn.active-losers {
 }
 
 .live-gl-change {
-  font-family: 'Inter', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   text-align: center;

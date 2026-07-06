@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
 import { apiGet, extractArray, extractItems } from "@/lib/api";
+import { formatDateShamsi, formatTime } from "@/lib/dates";
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------------
 interface CompanyProfile {
@@ -219,12 +220,13 @@ export default function SymbolPage() {
   const [dividends, setDividends] = useState<DividendRecord[]>([]);
   const [financials, setFinancials] = useState<FinancialQuarter[]>([]);
   const [trades, setTrades] = useState<IntradayTrade[]>([]);
+  const [sparkHistory, setSparkHistory] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, cRes, bRes, sRes, nRes, hRes, iRes, dRes, fRes, tRes] = await Promise.allSettled([
+      const [pRes, cRes, bRes, sRes, nRes, hRes, iRes, dRes, fRes, tRes, sparkRes] = await Promise.allSettled([
         apiGet<{ success: boolean; data: CompanyProfile }>(`/codal/${decodedSymbol}/profile`),
         apiGet<{ success: boolean; data: { items: CodalReport[] } }>(`/codal/${decodedSymbol}?page_size=20`),
         apiGet<{ success: boolean; data: { announcements: BrsapiCodalItem[] } }>(`/codal/brsapi-search?symbol=${encodeURIComponent(decodedSymbol)}&page=1`),
@@ -235,6 +237,10 @@ export default function SymbolPage() {
         apiGet<{ success: boolean; data: { dividends: DividendRecord[] } }>(`/codal/${decodedSymbol}/dividends`),
         apiGet<{ success: boolean; data: { quarters: FinancialQuarter[] } }>(`/codal/${decodedSymbol}/financials`),
         apiGet<{ success: boolean; data: { items: IntradayTrade[] } }>(`/trades/${encodeURIComponent(decodedSymbol)}?limit=200`),
+        // Fetch real OHLCV data for sparkline
+        apiGet<{ success: boolean; data: { date: string; close: number }[] }>(
+          `/market/history/${encodeURIComponent(decodedSymbol)}?limit=60`
+        ),
       ]);
 
       if (pRes.status === "fulfilled" && pRes.value?.data) setProfile(pRes.value.data);
@@ -247,6 +253,14 @@ export default function SymbolPage() {
       if (dRes.status === "fulfilled" && dRes.value?.data?.dividends) setDividends(dRes.value.data.dividends);
       if (fRes.status === "fulfilled" && fRes.value?.data?.quarters) setFinancials(fRes.value.data.quarters);
       if (tRes.status === "fulfilled") setTrades(extractItems(tRes.value));
+
+      // Real sparkline data from market history API
+      if (sparkRes.status === "fulfilled" && sparkRes.value?.success && Array.isArray(sparkRes.value.data)) {
+        const closes = sparkRes.value.data.map((d: any) => d.close || 0);
+        if (closes.length > 0) {
+          setSparkHistory(closes.reverse()); // chronological order for sparkline
+        }
+      }
     } catch {}
     setLoading(false);
   }, [decodedSymbol]);
@@ -260,7 +274,11 @@ export default function SymbolPage() {
   // Enriched display values
   const displayState = profile?.state;
 
-  const sparkData = useMemo(() => displayQuote ? generateSparkline(displayQuote.price_close, 40) : [], [displayQuote?.price_close]);
+  const sparkData = useMemo(() => {
+    if (sparkHistory.length > 0) return sparkHistory;
+    // Fallback to generated data if no real data available
+    return displayQuote ? generateSparkline(displayQuote.price_close, 40) : [];
+  }, [sparkHistory, displayQuote?.price_close]);
   const pct = displayQuote ? formatPct(displayQuote.price_change_pct) : { text: "—", color: "text-surface-500" };
 
   if (loading) {
@@ -923,16 +941,6 @@ function CodalTab({ codal, brsapiCodal, symbol }: { codal: CodalReport[]; brsapi
     ? brsapiCodal.filter((item) => item.audit_status === auditFilter)
     : brsapiCodal;
 
-  function formatDate(d: string): string {
-    if (!d) return "—";
-    return d.replace(/-/g, "/");
-  }
-
-  function formatTime(t: string): string {
-    if (!t) return "";
-    return t.length >= 5 ? t.substring(0, 5) : t;
-  }
-
   return (
     <div className="space-y-4">
       {/* Mode toggle + Audit filter */}
@@ -1020,7 +1028,7 @@ function CodalTab({ codal, brsapiCodal, symbol }: { codal: CodalReport[]; brsapi
                       {item.title || "بدون عنوان"}
                     </h3>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-surface-500 flex-wrap">
-                      <span>📅 {formatDate(item.date_publish)}</span>
+                      <span>📅 {formatDateShamsi(item.date_publish)}</span>
                       {item.time_publish && <span>⏰ {formatTime(item.time_publish)}</span>}
                       {item.company_name && <span>🏢 {item.company_name}</span>}
                       <AuditBadge status={item.audit_status} />

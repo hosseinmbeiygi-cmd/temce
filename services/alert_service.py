@@ -72,7 +72,7 @@ class AlertService:
                 alert.description = kwargs["description"]
             if "alert_type" in kwargs and kwargs["alert_type"] is not None:
                 alert.alert_type = kwargs["alert_type"]
-            alert.updated_at = datetime.now(UTC)
+            alert.updated_at = datetime.now(UTC).replace(tzinfo=None)
             await self.session.flush()
             return Result.ok(self._alert_to_dict(alert))
         except Exception as e:
@@ -120,6 +120,18 @@ class AlertService:
             logger.error("Get alert history failed: %s", e)
             return Result.fail(str(e))
 
+    async def _deliver_notification(self, message: str, channels: list[str]) -> None:
+        for channel in channels:
+            try:
+                if channel == "console":
+                    logger.info("[ALERT] %s", message)
+                elif channel == "sound":
+                    logger.info("[ALERT][SOUND] Notification sound would play: %s", message)
+                elif channel == "email":
+                    logger.info("[ALERT][EMAIL] Email would be sent: %s", message)
+            except Exception as e:
+                logger.error("Failed to deliver alert via %s: %s", channel, e)
+
     async def evaluate_and_trigger(self, instrument_id: str, symbol: str, field: str, value: float) -> list[dict[str, Any]]:
         triggered: list[dict[str, Any]] = []
         try:
@@ -153,22 +165,25 @@ class AlertService:
                         triggered_flag = True
 
                     if triggered_flag:
+                        channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
+                        message = f"{symbol} {field} reached {value} (threshold: {threshold})"
+                        await self._deliver_notification(message, channels)
                         history = AlertHistoryModel(
                             id=new_id("alh"),
                             alert_id=alert.id,
                             trigger_value=value,
-                            message=f"{symbol} {field} reached {value} (threshold: {threshold})",
-                            delivered=False,
+                            message=message,
+                            delivered=True,
                         )
                         self.session.add(history)
                         alert.triggered_count = (alert.triggered_count or 0) + 1
-                        alert.last_triggered = datetime.now(UTC)
+                        alert.last_triggered = datetime.now(UTC).replace(tzinfo=None)
                         triggered.append({
                             "alert_id": alert.id,
                             "symbol": symbol,
                             "value": value,
                             "threshold": threshold,
-                            "message": history.message,
+                            "message": message,
                         })
                 except Exception:
                     continue

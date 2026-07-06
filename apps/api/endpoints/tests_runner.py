@@ -6,10 +6,10 @@ import sys
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from apps.api.dependencies import get_current_user
+
 from schemas.common.responses import ApiResponse
 
 router = APIRouter()
@@ -33,9 +33,7 @@ class TestRunData(BaseModel):
 
 
 @router.post("/run")
-async def run_all_tests(
-    current_user: dict = Depends(get_current_user),
-) -> ApiResponse[TestRunData]:
+async def run_all_tests() -> ApiResponse[TestRunData]:
     try:
         test_dir = Path(__file__).resolve().parent.parent.parent.parent / "tests" / "comprehensive"
         test_file = test_dir / "test_all.py"

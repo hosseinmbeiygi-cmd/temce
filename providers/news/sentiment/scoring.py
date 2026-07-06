@@ -10,9 +10,24 @@ logger = get_logger(__name__)
 
 
 class SentimentScorer:
+    """Computes compound sentiment scores using VADER-like normalization."""
+
+    # Alpha constant for score normalization (VADER uses 15)
+    _ALPHA: float = 15.0
+
     def score(self, tokens: list[str], lexicon: SentimentLexicon) -> dict[str, Any]:
+        """Score a list of tokens using the provided lexicon.
+
+        Returns a dict with sentiment label, compound score, and ratio breakdown.
+        """
         if not tokens:
-            return {"sentiment": "neutral", "compound": 0.0, "positive": 0.0, "negative": 0.0, "neutral": 1.0}
+            return {
+                "sentiment": "neutral",
+                "compound": 0.0,
+                "positive": 0.0,
+                "negative": 0.0,
+                "neutral": 1.0,
+            }
 
         total_score = 0.0
         pos_count = 0
@@ -35,7 +50,8 @@ class SentimentScorer:
         negative_ratio = neg_count / n
         neutral_ratio = neu_count / n
 
-        compound = total_score / math.sqrt(total_score**2 + 15) if total_score != 0 else 0.0
+        # VADER-style normalization: compound = x / sqrt(x² + alpha)
+        compound = total_score / math.sqrt(total_score * total_score + self._ALPHA) if total_score != 0 else 0.0
 
         if compound >= 0.05:
             sentiment = "positive"

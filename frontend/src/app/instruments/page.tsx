@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
+import MiniSparkline from "@/components/MiniSparkline";
 import { apiGet, extractArray } from "@/lib/api";
 
 interface Instrument {
@@ -66,13 +67,35 @@ export default function InstrumentsPage() {
 
   const industries = [...new Set((instruments || []).map((i: Instrument) => i.industry))];
 
-  const filtered = (instruments || []).filter((i: Instrument) => {
-    if (filter !== "all" && i.industry !== filter) return false;
-    if (search) {
-      const q = search.trim();
-      return i.symbol.includes(q) || i.name.includes(q);
-    }
-    return true;
+  // ── Batch sparkline data ──
+  const displaySymbols = useMemo(() => {
+    const filtered = (instruments || []).filter((i: Instrument) => {
+      if (filter !== "all" && i.industry !== filter) return false;
+      if (search) { const q = search.trim(); return i.symbol.includes(q) || i.name.includes(q); }
+      return true;
+    });
+    return filtered;
+  }, [instruments, filter, search]);
+
+  const displayLimit = 30;
+  const sparkQuery = useMemo(() => {
+    const syms = displaySymbols.slice(0, displayLimit).map(i => i.symbol);
+    return syms.join(",");
+  }, [displaySymbols]);
+
+  const { data: sparkMap } = useQuery({
+    queryKey: ["instruments-spark", sparkQuery],
+    queryFn: async () => {
+      if (!sparkQuery) return {};
+      try {
+        const res = await apiGet<{ success: boolean; data: Record<string, number[]> }>(
+          `/market/sparklines?symbols=${encodeURIComponent(sparkQuery)}&limit=30`
+        );
+        return res?.data ?? {};
+      } catch { return {}; }
+    },
+    enabled: !!sparkQuery,
+    staleTime: 120_000,
   });
 
   return (
@@ -108,6 +131,7 @@ export default function InstrumentsPage() {
                 <th className="pb-2 px-3 font-medium">صنعت</th>
                 <th className="pb-2 px-3 font-medium">قیمت</th>
                 <th className="pb-2 px-3 font-medium">تغییر</th>
+                <th className="pb-2 px-3 font-medium">روند ۳۰ روزه</th>
                 <th className="pb-2 px-3 font-medium">حجم</th>
                 <th className="pb-2 px-3 font-medium">P/E</th>
                 <th className="pb-2 px-3 font-medium">EPS</th>
@@ -120,18 +144,27 @@ export default function InstrumentsPage() {
                     <td colSpan={8} className="py-4"><Skeleton className="h-4 w-full" /></td>
                   </tr>
                 ))
-              ) : filtered.map((inst: Instrument, idx: number) => (
+              ) : displaySymbols.slice(0, displayLimit).map((inst: Instrument, idx: number) => {
+                const sparkData = sparkMap?.[inst.symbol];
+                return (
                 <tr key={`${inst.symbol}-${idx}`} className="border-b border-surface-800/50 hover:bg-white/5">
                   <td className="py-2.5 px-3 font-bold text-surface-200">{inst.symbol}</td>
                   <td className="py-2.5 px-3 text-surface-300">{inst.name}</td>
                   <td className="py-2.5 px-3 text-surface-400 text-xs">{inst.industry}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-200">{inst.lastPrice?.toLocaleString()}</td>
                   <td className={`py-2.5 px-3 font-mono ${inst.change >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>{inst.change >= 0 ? "+" : ""}{inst.change}%</td>
+                  <td className="py-2.5 px-3">
+                    {sparkData && sparkData.length > 1
+                      ? <MiniSparkline data={sparkData} width={72} height={24} />
+                      : <span className="text-[10px] text-surface-600">—</span>
+                    }
+                  </td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.volume?.toLocaleString()}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.peRatio > 0 ? inst.peRatio.toFixed(1) : "—"}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.eps > 0 ? inst.eps.toLocaleString() : "—"}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

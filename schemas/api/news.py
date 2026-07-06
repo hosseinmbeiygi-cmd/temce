@@ -27,6 +27,7 @@ class NewsResponse(BaseModel):
     sentiment: str = "neutral"
     sentiment_score: float = 0.0
     created_at: str = ""
+    trending: bool = False
 
 
 class NewsListResponse(BaseModel):

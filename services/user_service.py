@@ -84,7 +84,7 @@ class UserService:
             access_token = create_access_token({"sub": user.id, "username": user.username, "roles": roles_list})
             refresh_token = create_refresh_token({"sub": user.id})
 
-            user.last_login = datetime.now(UTC)
+            user.last_login = datetime.now(UTC).replace(tzinfo=None)
             user.refresh_token = refresh_token
             await self.session.flush()
 

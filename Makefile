@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test dev dev-all api worker admin docker-up docker-build backup prod-check clean
+.PHONY: install lint typecheck typecheck-frontend test dev dev-all api worker admin docker-up docker-build backup prod-check clean
 
 # ── Dependencies ──────────────────
 install:

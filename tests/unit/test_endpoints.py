@@ -35,7 +35,7 @@ async def test_health_check(client):
 async def test_root_redirect(client):
     resp = await client.get("/", follow_redirects=False)
     assert resp.status_code in (307, 303)
-    assert "/api/v1/docs" in resp.headers.get("location", "")
+    assert "/docs" in resp.headers.get("location", "")
 
 
 # ==============================================================

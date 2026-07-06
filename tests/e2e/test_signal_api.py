@@ -8,6 +8,9 @@ from apps.api.app import app
 
 @pytest.fixture
 async def client():
+    from core.database import close_database, init_database
+    await close_database()
+    await init_database()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -27,7 +30,7 @@ async def test_signals_for_symbol(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_signals_generate(client: AsyncClient):
-    payload = {"symbol": "فولاد"}
-    response = await client.post("/api/v1/signals/generate", json=payload)
+    payload = {"signal_type": "bullish", "score": 0.75, "confidence": 0.8}
+    response = await client.post("/api/v1/signals/فولاد", json=payload)
     assert response.status_code in (200, 201, 401, 422)
 

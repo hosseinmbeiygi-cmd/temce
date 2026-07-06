@@ -7,7 +7,7 @@ from typing import Any
 class BaseEntity:
     def __init__(self, id: str, created_at: datetime | None = None, updated_at: datetime | None = None) -> None:
         self._id = id
-        self._created_at = created_at or datetime.now(UTC)
+        self._created_at = created_at or datetime.now(UTC).replace(tzinfo=None)
         self._updated_at = updated_at
 
     @property
@@ -23,7 +23,7 @@ class BaseEntity:
         return self._updated_at
 
     def mark_updated(self) -> None:
-        self._updated_at = datetime.now(UTC)
+        self._updated_at = datetime.now(UTC).replace(tzinfo=None)
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, BaseEntity):

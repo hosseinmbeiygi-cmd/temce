@@ -5,8 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { AuditBadge } from "@/components/AuditBadge";
 import { DonutChart } from "@/components/DonutChart";
 import AppLayout from "@/components/layout/AppLayout";
+import RahavardMarketingBanner from "@/components/RahavardMarketingBanner";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
+import { formatDateShamsi, formatTime } from "@/lib/dates";
 import Link from "next/link";
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -39,17 +41,6 @@ interface PaginatedResult<T> {
   total_pages: number;
 }
 
-function formatDate(d: string): string {
-  if (!d) return "—";
-  return d.replace(/-/g, "/");
-}
-
-function formatTime(t: string): string {
-  if (!t) return "";
-  // Normalise HH:MM:SS
-  return t.length >= 5 ? t.substring(0, 5) : t;
-}
-
 function AnnouncementCard({ item }: { item: CodalAnnouncement }) {
   const hasPdf = !!item.link_pdf;
   const hasExcel = !!item.link_excel;
@@ -80,7 +71,7 @@ function AnnouncementCard({ item }: { item: CodalAnnouncement }) {
 
           {/* Date + Time */}
           <div className="flex items-center gap-3 mt-2 text-xs text-surface-500">
-            <span>📅 {formatDate(item.date_publish)}</span>
+            <span>📅 {formatDateShamsi(item.date_publish)}</span>
             {item.time_publish && <span>⏰ {formatTime(item.time_publish)}</span>}
           </div>
         </div>
@@ -260,6 +251,9 @@ export default function CodalPage() {
             + ورود اطلاعات کدال
           </Link>
         </div>
+
+        {/* Marketing Banner */}
+        <RahavardMarketingBanner />
 
         {/* ------ Filters ------------------------------------------------------------------------------------------------------ */}
         <div className="glass-card p-4">
