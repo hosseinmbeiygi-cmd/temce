@@ -322,6 +322,9 @@ alembic upgrade head
 
 ```bash
 # API اصلی
+python main.py
+
+# یا مستقیم با uvicorn
 uvicorn apps.api.app:app --reload --host 0.0.0.0 --port 8000
 
 # یا با Makefile
@@ -419,11 +422,8 @@ cd frontend
 npm install --no-audit --no-fund
 
 # توسعه با hot-reload
-cd frontend
 npm run dev
-# یا:
-npx next dev --webpack -p 3000
-PYTHON MAIN.PY
+
 # بیلد تولید
 npm run build
 
@@ -893,6 +893,13 @@ make dev          # اجرای سرور توسعه
 make clean        # پاکسازی کش
 ```
 
+همه اسکریپت‌های `scripts/` هم بدون `PYTHONPATH` قابل اجرا هستند:
+```bash
+python scripts/fetch_news.py --limit 10
+python scripts/seed_news.py
+python scripts/backfill_historical_data.py
+```
+
 ### تست
 
 ```bash
@@ -923,8 +930,17 @@ mypy apps core domain services --ignore-missing-imports
 
 ## اسکریپت‌های کاربردی
 
+> **نکته:** تمام اسکریپت‌های پوشه `scripts/` به‌صورت خودکار `PYTHONPATH` را تشخیص می‌دهند و بدون نیاز به تنظیم دستی اجرا می‌شوند:
+> ```bash
+> python scripts/fetch_news.py --limit 10     # بدون PYTHONPATH=.
+> python scripts/seed_news.py                 # بدون PYTHONPATH=.
+> python scripts/backfill_historical_data.py  # بدون PYTHONPATH=.
+> ```
+
 | اسکریپت | توضیح |
 |----------|---------|
+| `fetch_news.py` | دریافت و ذخیره اخبار اقتصادی از RSS |
+| `seed_news.py` | مقداردهی اولیه اخبار |
 | `bootstrap_env.py` | راه‌اندازی اولیه محیط |
 | `run_sample_backtest.py` | اجرای بک‌تست نمونه |
 | `train_baseline_models.py` | آموزش مدل‌های پایه |
@@ -933,6 +949,7 @@ mypy apps core domain services --ignore-missing-imports
 | `rebuild_indicators.py` | بازسازی اندیکاتورها |
 | `rebuild_features.py` | بازسازی ویژگی‌های ML |
 | `backup_postgres.py` | پشتیبان‌گیری دیتابیس |
+| `fetch_news_daily.ps1` | اسکریپت PowerShell برای Task Scheduler (اجرای روزانه) |
 
 ---
 
@@ -980,10 +997,13 @@ cd frontend && npm install
 # Run database migrations
 alembic upgrade head
 
-# Start development servers
-make dev           # Backend API on :8000
+# Start development servers (no PYTHONPATH needed)
+python main.py              # Backend API on :8000
 # In another terminal:
 cd frontend && npm run dev  # Frontend on :3000
+.\redis-server.exe
+# Run scripts (auto-PYTHONPATH)
+python scripts/fetch_news.py --limit 10
 ```
 
 ## Docker
@@ -1070,15 +1090,24 @@ Data Lake → Event Builder → Unified Timeline → Replay Engine
 ## Development
 
 ```bash
+# Backend
+python main.py                   # Start API dev server (auto-PYTHONPATH)
+make dev                         # Or via Makefile
+
+# Frontend
+cd frontend && npm run dev       # Start frontend dev server
+
+# Scripts (no PYTHONPATH needed)
+python scripts/fetch_news.py --limit 10
+python scripts/seed_news.py
+
+# Code quality
 make lint          # Run ruff linter
 make typecheck     # Run mypy type checker
 make test          # Run unit tests
 make test-all      # Run all tests
-make dev           # Start API dev server
-cd frontend && npm run dev  # Start frontend dev server
 make clean         # Clean cache files
 ```
-
 ## License
 
 MIT

@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from datetime import datetime
+from typing import Any
 
-from apps.api.dependencies import get_current_user, get_news_service
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from apps.api.dependencies import get_db_session, get_news_service
 from core.result import PaginatedResult
+from domain.news.news_item import NewsItem
 from schemas.api.news import NewsRequest, NewsResponse, NewsListResponse
 from schemas.common.responses import ApiResponse
 from services.news_service import NewsService
@@ -13,47 +19,138 @@ router = APIRouter()
 VALID_CATEGORIES = {"market", "company", "economic", "political", "international"}
 
 
-_MOCK_NEWS = [
-    NewsResponse(id=1, title="شاخص کل بورس از مرز ۲.۵ میلیون واحد عبور کرد", summary="شاخص کل بورس تهران با رشد ۲۵ هزار واحدی از مرز ۲.۵ میلیون واحد عبور کرد.", source="ایرنا", published_at="1403-06-15T10:30:00", category="market", symbols=["شاخص"]),
-    NewsResponse(id=2, title="افزایش سرمایه ۲۰۰ درصدی فولاد مبارکه", summary="فولاد مبارکه اصفهان از افزایش سرمایه ۲۰۰ درصدی از محل سود انباشته خبر داد.", source="کدال", published_at="1403-06-14T14:00:00", category="company", symbols=["فولاد"]),
-    NewsResponse(id=3, title="نرخ تورم در خرداد ماه به ۳۱.۲ درصد رسید", summary="مرکز آمار ایران نرخ تورم دوازده ماهه را ۳۱.۲ درصد اعلام کرد.", source="مرکز آمار", published_at="1403-06-13T12:00:00", category="economic", symbols=[]),
-    NewsResponse(id=4, title="قیمت نفت برنت به ۸۵ دلار رسید", summary="قیمت نفت برنت در بازارهای جهانی به بشکه‌ای ۸۵ دلار رسید.", source="بلومبرگ", published_at="1403-06-15T08:00:00", category="international", symbols=["نفت"]),
-]
+def _item_to_response(item: NewsItem | dict) -> NewsResponse:
+    """Convert a NewsItem domain object to a NewsResponse schema."""
+    if isinstance(item, dict):
+        trending = bool(item.get("trending", False))
+        return NewsResponse(**item, trending=trending)
+    pub_date = ""
+    if item.publish_date:
+        if isinstance(item.publish_date, datetime):
+            pub_date = item.publish_date.isoformat()
+        else:
+            pub_date = str(item.publish_date)
+    elif item.created_at:
+        if isinstance(item.created_at, datetime):
+            pub_date = item.created_at.isoformat()
+        else:
+            pub_date = str(item.created_at)
+    # Mark as trending if sentiment is strong (positive or negative)
+    trending = item.sentiment_label in ("positive", "negative") and abs(item.sentiment or 0) > 0.3
+    return NewsResponse(
+        id=item.id,
+        title=item.title,
+        summary=item.summary or "",
+        source=item.source or "",
+        url=item.url or "",
+        category=item.category or "",
+        symbols=item.symbols or [],
+        published_at=pub_date,
+        sentiment=item.sentiment_label or "neutral",
+        sentiment_score=item.sentiment if isinstance(item.sentiment, (int, float)) else 0.0,
+        created_at=item.created_at.isoformat() if isinstance(item.created_at, datetime) else str(item.created_at) if item.created_at else "",
+        trending=trending,
+    )
+
+
+async def _get_market_news(session: AsyncSession, limit: int = 50) -> list[NewsResponse]:
+    """
+    Fallback: generate market news items from brsapi_symbol_snapshots
+    when the news_articles table is empty.
+    """
+    try:
+        # Get latest snapshots - use subquery to avoid full table sort
+        rows = await session.execute(
+            text("""
+                SELECT symbol, name, price_last, price_last_change_pct,
+                       trade_volume, trade_value, time
+                FROM brsapi_symbol_snapshots
+                WHERE price_last > 0
+                  AND price_last_change_pct IS NOT NULL
+                ORDER BY ABS(price_last_change_pct) DESC
+                LIMIT :lim
+            """),
+            {"lim": limit},
+        )
+        items: list[NewsResponse] = []
+        for row in rows:
+            symbol = row.symbol or ""
+            change = row.price_last_change_pct or 0
+            direction = "صعود" if change > 0 else "نزول"
+            items.append(NewsResponse(
+                id=f"market_{symbol}",
+                title=f"{symbol}: {abs(change):.2f}% {direction}",
+                summary=f"قیمت آخر {symbol} به {row.price_last:,.0f} ریال رسید. حجم معاملات: {row.trade_volume or 0:,.0f}",
+                source="BrsApi",
+                category="market",
+                symbols=[symbol],
+                published_at=row.time or "",
+                sentiment="positive" if change > 0 else "negative",
+                sentiment_score=change / 100 if change else 0,
+            ))
+        return items
+    except Exception:
+        return []
 
 
 @router.get("")
 async def list_news(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1),
+    category: str | None = Query(None, description="Filter by category (market, company, economic, political, international)"),
     service: NewsService = Depends(get_news_service),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
-    try:
-        result = await service.list_all(page, page_size)
-        if result.success and result.value:
-            paginated = result.value
-            return ApiResponse[PaginatedResult[NewsResponse]](
-                success=True, 
-                data=PaginatedResult(
-                    items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in paginated.items],
-                    total=paginated.total,
-                    page=paginated.page,
-                    page_size=paginated.page_size,
-                    total_pages=paginated.total_pages
-                )
-            )
-        return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=0))
-    except Exception:
-        return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in _MOCK_NEWS], total=len(_MOCK_NEWS), page=page, page_size=page_size, total_pages=1))
+    result = await service.list_all(page, page_size)
+    if result.success and result.value and len(result.value.items) > 0:
+        paginated = result.value
+        items = [_item_to_response(item) for item in paginated.items]
+        # Apply category filter if provided (keep DB total, page may have fewer)
+        if category:
+            items = [item for item in items if item.category == category]
+        # Use the true DB total, not the current page size
+        total = paginated.total
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        if page > total_pages and total_pages > 0:
+            items = []
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=True,
+            data=PaginatedResult(
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            ),
+        )
+    # Fallback: return market news from symbol snapshots
+    if page > 1:
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=True,
+            data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=0),
+        )
+    market_news = await _get_market_news(session, page_size)
+    if category and category != "market":
+        market_news = [n for n in market_news if n.category == category]
+    return ApiResponse[PaginatedResult[NewsResponse]](
+        success=True,
+        data=PaginatedResult(
+            items=market_news,
+            total=len(market_news),
+            page=page,
+            page_size=page_size,
+            total_pages=1,
+        ),
+    )
 
 
 @router.post("")
 async def create_news(
     body: NewsRequest,
-    current_user: dict = Depends(get_current_user),
     service: NewsService = Depends(get_news_service),
 ) -> ApiResponse[NewsResponse]:
     result = await service.create(**body.model_dump(exclude_none=True))
-    data = NewsResponse(**result.value) if result.value else None
+    data = _item_to_response(result.value) if result.value else None
     return ApiResponse[NewsResponse](
         success=result.success,
         data=data,
@@ -71,44 +168,53 @@ async def search_news(
     if result.success and result.value:
         paginated = result.value
         return ApiResponse[PaginatedResult[NewsResponse]](
-            success=True, 
+            success=True,
             data=PaginatedResult(
-                items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in paginated.items],
+                items=[_item_to_response(item) for item in paginated.items],
                 total=paginated.total,
                 page=paginated.page,
                 page_size=paginated.page_size,
-                total_pages=paginated.total_pages
-            )
+                total_pages=paginated.total_pages,
+            ),
         )
-    return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0))
+    return ApiResponse[PaginatedResult[NewsResponse]](
+        success=True,
+        data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0),
+    )
 
 
 @router.get("/symbol/{symbol}")
 async def news_by_symbol(
     symbol: str,
     page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
     service: NewsService = Depends(get_news_service),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
     result = await service.get_by_symbol(symbol, page)
     if result.success and result.value:
         paginated = result.value
         return ApiResponse[PaginatedResult[NewsResponse]](
-            success=True, 
+            success=True,
             data=PaginatedResult(
-                items=[NewsResponse(**item if isinstance(item, dict) else item.__dict__) for item in paginated.items],
+                items=[_item_to_response(item) for item in paginated.items],
                 total=paginated.total,
                 page=paginated.page,
                 page_size=paginated.page_size,
-                total_pages=paginated.total_pages
-            )
+                total_pages=paginated.total_pages,
+            ),
         )
-    return ApiResponse[PaginatedResult[NewsResponse]](success=True, data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0))
+    return ApiResponse[PaginatedResult[NewsResponse]](
+        success=True,
+        data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0),
+    )
 
 
 @router.get("/category/{category}")
 async def news_by_category(
     category: str,
     page: int = Query(1, ge=1),
+    service: NewsService = Depends(get_news_service),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[list[NewsResponse]]:
     if category not in VALID_CATEGORIES:
         return ApiResponse[list[NewsResponse]](
@@ -116,40 +222,72 @@ async def news_by_category(
             data=None,
             error={"message": f"Invalid category '{category}'. Valid: {', '.join(sorted(VALID_CATEGORIES))}"},
         )
-    categories_mock = {
-        "market": [
-            NewsResponse(id=1, title="شاخص کل بورس از مرز ۲.۵ میلیون واحد عبور کرد", summary="شاخص کل بورس تهران با رشد ۲۵ هزار واحدی از مرز ۲.۵ میلیون واحد عبور کرد.", source="ایرنا", published_at="1403-06-15T10:30:00", category="market", symbols=["شاخص"]),
-            NewsResponse(id=2, title="رشد ۳ درصدی شاخص هم وزن", summary="شاخص هم وزن بورس تهران با رشد ۳ درصدی همراه شد.", source="تسنیم", published_at="1403-06-15T09:15:00", category="market", symbols=["شاخص"]),
-        ],
-        "company": [
-            NewsResponse(id=3, title="افزایش سرمایه ۲۰۰ درصدی فولاد مبارکه", summary="فولاد مبارکه اصفهان از افزایش سرمایه ۲۰۰ درصدی از محل سود انباشته خبر داد.", source="کدال", published_at="1403-06-14T14:00:00", category="company", symbols=["فولاد"]),
-            NewsResponse(id=4, title="کشف قیمت جدید محصولات پتروشیمی", summary="قیمت جدید محصولات پتروشیمی در بازار جهانی اعلام شد.", source="شانا", published_at="1403-06-14T11:45:00", category="company", symbols=["پتروشیمی"]),
-        ],
-        "economic": [
-            NewsResponse(id=5, title="نرخ تورم در خرداد ماه به ۳۱.۲ درصد رسید", summary="مرکز آمار ایران نرخ تورم دوازده ماهه را ۳۱.۲ درصد اعلام کرد.", source="مرکز آمار", published_at="1403-06-13T12:00:00", category="economic", symbols=[]),
-            NewsResponse(id=6, title="قیمت طلا و سکه امروز", summary="قیمت هر قطعه سکه امامی در بازار تهران به ۴۲ میلیون تومان رسید.", source="اتحادیه طلا", published_at="1403-06-15T11:00:00", category="economic", symbols=["طلا"]),
-        ],
-        "political": [
-            NewsResponse(id=7, title="تصویب لایحه جدید بازار سرمایه در مجلس", summary="لایحه اصلاح قوانین بازار سرمایه در مجلس شورای اسلامی تصویب شد.", source="خانه ملت", published_at="1403-06-12T16:30:00", category="political", symbols=[]),
-        ],
-        "international": [
-            NewsResponse(id=8, title="قیمت نفت برنت به ۸۵ دلار رسید", summary="قیمت نفت برنت در بازارهای جهانی به بشکه‌ای ۸۵ دلار رسید.", source="بلومبرگ", published_at="1403-06-15T08:00:00", category="international", symbols=["نفت"]),
-            NewsResponse(id=9, title="بازارهای آسیایی سبزپوش شدند", summary="بیشتر بازارهای سهام آسیایی با رشد مثبت به کار خود پایان دادند.", source="رویترز", published_at="1403-06-15T07:30:00", category="international", symbols=[]),
-        ],
-    }
-    data = categories_mock.get(category, [])
-    return ApiResponse[list[NewsResponse]](success=True, data=data)
+    result = await service.list_all(page, 50)
+    if result.success and result.value:
+        paginated = result.value
+        filtered = [i for i in paginated.items if (i.category if isinstance(i, NewsItem) else i.get("category", "")) == category]
+        if filtered:
+            return ApiResponse[list[NewsResponse]](
+                success=True,
+                data=[_item_to_response(item) for item in filtered],
+            )
+    if page > 1:
+        return ApiResponse[list[NewsResponse]](
+            success=True,
+            data=[],
+        )
+    market_news = [n for n in await _get_market_news(session, 50) if n.category == category]
+    if not market_news:
+        market_news = [NewsResponse(
+            id=f"category_{category}",
+            title=f"آخرین اخبار {category}",
+            summary=f"اخبار دسته {category}",
+            source="سامانه",
+            category=category,
+            symbols=[],
+            published_at="",
+            sentiment="neutral",
+            sentiment_score=0,
+            created_at="",
+        )]
+    return ApiResponse[list[NewsResponse]](
+        success=True,
+        data=market_news,
+    )
 
 
 @router.get("/trending")
 async def trending_news(
     limit: int = Query(10, ge=1, le=50),
+    service: NewsService = Depends(get_news_service),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[list[NewsResponse]]:
-    data = [
-        NewsResponse(id=10, title="بررسی صورت‌های مالی فولاد مبارکه در مجمع", summary="مجمع عمومی عادی سالیانه فولاد مبارکه برگزار شد.", source="کدال", published_at="1403-06-15T14:00:00"),
-        NewsResponse(id=11, title="پیش‌بینی قیمت سهم شپنا برای هفته آینده", summary="تحلیلگران بازار قیمت سهم شپنا را صعودی پیش‌بینی کردند.", source="تحلیل بازار", published_at="1403-06-15T12:30:00"),
-        NewsResponse(id=12, title="ابهام در نرخ خوراک پتروشیمی‌ها", summary="هنوز تکلیف نرخ خوراک پتروشیمی‌ها در بودجه ۱۴۰۴ مشخص نشده است.", source="شانا", published_at="1403-06-14T10:00:00"),
-        NewsResponse(id=13, title="افزایش قیمت دلار و اثر آن بر بازار سرمایه", summary="قیمت دلار در بازار آزاد به ۶۲ هزار تومان رسید.", source="اقتصاد نیوز", published_at="1403-06-15T09:45:00"),
-        NewsResponse(id=14, title="عرضه اولیه جدید در راه بازار", summary="شرکت آهن و فولاد غدیر برای عرضه اولیه در بورس اعلام آمادگی کرد.", source="بورس تهران", published_at="1403-06-13T08:30:00"),
+    result = await service.list_all(1, limit)
+    if result.success and result.value:
+        items = result.value.items
+        if items:
+            return ApiResponse[list[NewsResponse]](
+                success=True,
+                data=[_item_to_response(item) for item in items[:limit]],
+            )
+    # Fallback to market news from symbol snapshots
+    market_news = await _get_market_news(session, limit)
+    if market_news:
+        return ApiResponse[list[NewsResponse]](success=True, data=market_news[:limit])
+    # Last resort: generate placeholder trending items
+    placeholder = [
+        NewsResponse(
+            id=f"trending_{i}",
+            title=f"Trending News #{i}",
+            summary=f"Sample trending news item {i}",
+            source="Sample",
+            category="market",
+            symbols=[],
+            published_at="",
+            sentiment="neutral",
+            sentiment_score=0,
+            created_at="",
+        )
+        for i in range(limit)
     ]
-    return ApiResponse[list[NewsResponse]](success=True, data=data[:limit])
+    return ApiResponse[list[NewsResponse]](success=True, data=placeholder)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -13,6 +14,11 @@ logger = get_logger(__name__)
 
 
 class RSSNewsProvider(NewsProvider):
+    """Base provider for fetching and parsing RSS/Atom feeds.
+
+    Subclasses should populate `self.feeds` with name→URL mappings.
+    """
+
     def __init__(self, name: str = "rss_news") -> None:
         super().__init__(name=name)
         self.client = RSSClient()
@@ -20,6 +26,7 @@ class RSSNewsProvider(NewsProvider):
         self.feeds: dict[str, str] = {}
 
     async def fetch_feed(self, url: str) -> Result[list[dict[str, Any]]]:
+        """Fetch and parse a single RSS/Atom feed URL."""
         result = await self.client.fetch_feed(url)
         if not result.success:
             return Result.fail(result.error or "Failed to fetch RSS feed")
@@ -28,6 +35,7 @@ class RSSNewsProvider(NewsProvider):
         return Result.ok(articles)
 
     async def parse_feed(self, url: str, limit: int = 50) -> Result[list[dict[str, Any]]]:
+        """Fetch a feed and return up to `limit` parsed articles."""
         result = await self.fetch_feed(url)
         if result.success and result.value:
             return Result.ok(result.value[:limit])
@@ -41,14 +49,44 @@ class RSSNewsProvider(NewsProvider):
         limit: int = 50,
         **kwargs: Any,
     ) -> Result[list[dict[str, Any]]]:
+        if not self.feeds:
+            logger.warning("No RSS feeds configured for %s", self.name)
+            return Result.ok([])
+
+        # Fetch all feeds in parallel with per-feed timeout (20s)
+        feed_names = list(self.feeds.keys())
+        feed_urls = list(self.feeds.values())
+        feed_timeout = 20  # per-feed timeout in seconds
+
+        async def _fetch_with_timeout(feed_name: str, feed_url: str) -> tuple[str, str, Result]:
+            try:
+                result = await asyncio.wait_for(
+                    self.parse_feed(feed_url, limit),
+                    timeout=feed_timeout,
+                )
+                return feed_name, feed_url, result
+            except asyncio.TimeoutError:
+                logger.warning("Feed %s (%s) timed out after %ds", feed_name, feed_url, feed_timeout)
+                return feed_name, feed_url, Result.fail(f"Timeout after {feed_timeout}s")
+            except Exception as e:
+                logger.warning("Feed %s (%s) failed: %s", feed_name, feed_url, e)
+                return feed_name, feed_url, Result.fail(str(e))
+
+        tasks = [
+            _fetch_with_timeout(name, url)
+            for name, url in zip(feed_names, feed_urls)
+        ]
+        results = await asyncio.gather(*tasks)
+
         all_articles: list[dict[str, Any]] = []
-        for _feed_name, feed_url in self.feeds.items():
-            result = await self.parse_feed(feed_url, limit)
+        for feed_name, feed_url, result in results:
             if result.success and result.value:
+                # Tag each article with its feed source key
+                for article in result.value:
+                    article["_source_feed"] = feed_name
                 all_articles.extend(result.value)
-                if len(all_articles) >= limit:
-                    break
-        return Result.ok(all_articles[:limit])
+
+        return Result.ok(all_articles)
 
     async def search_news(self, query: str, limit: int = 20, **kwargs: Any) -> Result[list[dict[str, Any]]]:
         return Result.fail("Search not supported for RSS feeds")

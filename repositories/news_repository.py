@@ -3,8 +3,9 @@ from __future__ import annotations
 import contextlib
 import json
 
-from sqlalchemy import desc, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from core.result import PaginatedResult, Result
 from domain.news.news_item import NewsItem
@@ -28,6 +29,14 @@ class NewsRepository:
         if self._db:
             return await self._db.save(entity)
         return await self._mem.save(entity)
+
+    async def exists_by_url_or_title(self, url: str, title: str) -> bool:
+        if self._db:
+            return await self._db.exists_by_url_or_title(url, title)
+        return any(
+            (url and n.url == url) or n.title == title
+            for n in self._mem._store.values()
+        )
 
     async def delete(self, id: str) -> Result[bool]:
         if self._db:
@@ -80,13 +89,72 @@ class NewsRepository:
 class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
     model_class = NewsArticleModel
 
+    async def exists_by_url_or_title(self, url: str, title: str) -> bool:
+        """Check if an article with the same URL or title already exists in DB."""
+        conditions = [NewsArticleModel.title == title]
+        if url:
+            conditions.append(NewsArticleModel.url == url)
+        stmt = select(NewsArticleModel.id).where(or_(*conditions)).limit(1)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[NewsItem]]:
+        # Filter: only articles with a source (exclude legacy NULL-source ISNA articles)
+        source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
+
+        # Inner: DISTINCT ON (title) — one row per title, newest first
+        inner = (
+            select(NewsArticleModel)
+            .where(source_filter)
+            .distinct(NewsArticleModel.title)
+            .order_by(NewsArticleModel.title, desc(NewsArticleModel.published_at).nullslast())
+        ).subquery()
+
+        # Count unique titles
+        count_stmt = select(func.count()).select_from(inner)
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        # Outer: re-order by published_at DESC for pagination
+        alias = aliased(NewsArticleModel, inner)
+        stmt = (
+            select(alias)
+            .order_by(desc(alias.published_at).nullslast())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return Result.ok(
+            PaginatedResult(
+                items=[self._to_domain(r) for r in rows],
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=max(1, (total + page_size - 1) // page_size),
+            )
+        )
+
     async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
         q = f"%{query.lower()}%"
-        base = select(NewsArticleModel).where(or_(NewsArticleModel.title.ilike(q), NewsArticleModel.content.ilike(q)))
-        total_result = await self.session.execute(base)
-        total = len(total_result.scalars().all())
+        source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
+        where_clause = or_(NewsArticleModel.title.ilike(q), NewsArticleModel.content.ilike(q)) & source_filter
+        
+        count_stmt = (
+            select(func.count())
+            .select_from(NewsArticleModel)
+            .where(where_clause)
+        )
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
 
-        stmt = base.order_by(desc(NewsArticleModel.published_at)).offset((page - 1) * page_size).limit(page_size)
+        stmt = (
+            select(NewsArticleModel)
+            .where(where_clause)
+            .order_by(desc(NewsArticleModel.published_at).nullslast())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(
@@ -101,11 +169,24 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
 
     async def get_by_symbol(self, symbol: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
         q = f"%{symbol}%"
-        base = select(NewsArticleModel).where(NewsArticleModel.symbols.ilike(q))
-        total_result = await self.session.execute(base)
-        total = len(total_result.scalars().all())
+        source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
+        where_clause = NewsArticleModel.symbols.ilike(q) & source_filter
+        
+        count_stmt = (
+            select(func.count())
+            .select_from(NewsArticleModel)
+            .where(where_clause)
+        )
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
 
-        stmt = base.order_by(desc(NewsArticleModel.published_at)).offset((page - 1) * page_size).limit(page_size)
+        stmt = (
+            select(NewsArticleModel)
+            .where(where_clause)
+            .order_by(desc(NewsArticleModel.published_at).nullslast())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(
