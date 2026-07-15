@@ -1,8 +1,8 @@
 import os
-from typing import Dict, Any, Optional, List
+from typing import Any
+
 from dotenv import load_dotenv
-import psycopg2
-from psycopg2 import OperationalError, DatabaseError, sql
+from psycopg2 import DatabaseError, OperationalError
 from psycopg2.extras import DictCursor
 from psycopg2.pool import SimpleConnectionPool
 
@@ -28,7 +28,7 @@ for key, value in connection_params.items():
 
 
 class DatabaseHandler:
-    _pool: Optional[SimpleConnectionPool] = None
+    _pool: SimpleConnectionPool | None = None
 
     def __init__(self, min_conn: int = 2, max_conn: int = 5):
         self._initialize_pool(min_conn, max_conn)
@@ -57,38 +57,37 @@ class DatabaseHandler:
         if self._pool:
             self._pool.closeall()
 
-    def _build_upsert_query(self, table_name: str, data: Dict[str, Any], conflict_column: str) -> tuple:
+    def _build_upsert_query(self, table_name: str, data: dict[str, Any], conflict_column: str) -> tuple:
         columns = ', '.join(data.keys())
         values = list(data.values())
         placeholders = ', '.join(['%s'] * len(values))
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders}) "
         query += f"ON CONFLICT ({conflict_column}) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data.keys() if k != conflict_column])
+        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k != conflict_column])
         query += update_columns
         return query, values
 
-    def _execute_query(self, query: str, values: Optional[List[Any]] = None, fetch: str = None) -> Any:
+    def _execute_query(self, query: str, values: list[Any] | None = None, fetch: str = None) -> Any:
         try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cursor:
-                    cursor.execute(query, values or ())
-                    result = cursor.fetchone() if fetch == 'one' else cursor.fetchall() if fetch == 'all' else None
-                    conn.commit()
-                    return result
+            with self._get_connection() as conn, conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(query, values or ())
+                result = cursor.fetchone() if fetch == 'one' else cursor.fetchall() if fetch == 'all' else None
+                conn.commit()
+                return result
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Database operation failed: {e}")
 
-    def save_instrument(self, data: Dict[str, Any]) -> int:
+    def save_instrument(self, data: dict[str, Any]) -> int:
         query, values = self._build_upsert_query('instruments', data, 'symbol')
         result = self._execute_query(query, values, 'one')
         return result[0] if result else -1
 
-    def save_price(self, data: Dict[str, Any]) -> int:
+    def save_price(self, data: dict[str, Any]) -> int:
         query, values = self._build_upsert_query('prices', data, 'instrument_id')
         result = self._execute_query(query, values, 'one')
         return result[0] if result else -1
 
-    def save_trade(self, data: Dict[str, Any]) -> int:
+    def save_trade(self, data: dict[str, Any]) -> int:
         query = "INSERT INTO trades (instrument_id, trade_time, price, volume, side, trade_type, created_at)"
         query += " VALUES (%s, %s, %s, %s, %s, %s, %s)"
         query += " ON CONFLICT (instrument_id, trade_time) DO NOTHING"
@@ -104,12 +103,12 @@ class DatabaseHandler:
         self._execute_query(query, values)
         return data.get('instrument_id') or -1
 
-    def save_codal_announcement(self, data: Dict[str, Any]) -> int:
+    def save_codal_announcement(self, data: dict[str, Any]) -> int:
         query, values = self._build_upsert_query('codal_announcements', data, 'announcement_id')
         result = self._execute_query(query, values, 'one')
         return result[0] if result else -1
 
-    def save_news(self, data: Dict[str, Any]) -> int:
+    def save_news(self, data: dict[str, Any]) -> int:
         query = "INSERT INTO news (title, summary, content, source, url, published_at, ticker_related, sentiment_score, created_at)"
         query += " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         query += " ON CONFLICT (url) DO NOTHING"
@@ -127,7 +126,7 @@ class DatabaseHandler:
         self._execute_query(query, values)
         return data.get('url') or -1
 
-    def save_trade(self, data: Dict[str, Any]) -> int:
+    def save_trade(self, data: dict[str, Any]) -> int:
         query = "INSERT INTO trades (instrument_id, trade_time, price, volume, side, trade_type, created_at)"
         query += " VALUES (%s, %s, %s, %s, %s, %s, %s)"
         query += " ON CONFLICT (instrument_id, trade_time) DO NOTHING"
@@ -143,7 +142,7 @@ class DatabaseHandler:
         self._execute_query(query, values)
         return data.get('instrument_id') or -1
 
-    def save_codal_announcement(self, data: Dict[str, Any]) -> int:
+    def save_codal_announcement(self, data: dict[str, Any]) -> int:
         query = "INSERT INTO codal_announcements (announcement_id, company_name, ticker, subject, description, announcement_date, attachment_url, pdf_hash, received_at, is_processed)"
         query += " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
         query += " ON CONFLICT (announcement_id) DO UPDATE SET "
@@ -164,7 +163,7 @@ class DatabaseHandler:
         self._execute_query(query, values)
         return data.get('announcement_id') or -1
 
-    def save_news(self, data: Dict[str, Any]) -> int:
+    def save_news(self, data: dict[str, Any]) -> int:
         query = "INSERT INTO news (title, summary, content, source, url, published_at, ticker_related, sentiment_score, created_at)"
         query += " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         query += " ON CONFLICT (url) DO NOTHING"
@@ -182,7 +181,7 @@ class DatabaseHandler:
         self._execute_query(query, values)
         return data.get('url') or -1
 
-    def log_audit(self, data: Dict[str, Any]) -> int:
+    def log_audit(self, data: dict[str, Any]) -> int:
         query = """INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, logged_at)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)"""
         values = (
@@ -197,7 +196,7 @@ class DatabaseHandler:
         self._execute_query(query, values)
         return self._get_last_insert_id()
 
-    def log_alert(self, data: Dict[str, Any]) -> int:
+    def log_alert(self, data: dict[str, Any]) -> int:
         query = """INSERT INTO monitoring_alerts (alert_type, severity, instrument_id, message, triggered_at, resolved_at, metadata)
                    VALUES (%s, %s, %s, %s, %s, %s, %s)"""
         values = (
@@ -253,7 +252,7 @@ class DatabaseHandler:
             return 'medium'
         return 'low'
 
-    def _extract_instrument_id_from_url(self, url: str) -> Optional[int]:
+    def _extract_instrument_id_from_url(self, url: str) -> int | None:
         try:
             match = re.search(r'/instruments/(\d+)', url)
             return int(match.group(1)) if match else None
@@ -265,7 +264,7 @@ class DatabaseHandler:
         result = self._execute_query(query, fetch='one')
         return result[0] if result else -1
 
-    def batch_save(self, table_name: str, data_list: List[Dict[str, Any]], batch_size: int = 100) -> int:
+    def batch_save(self, table_name: str, data_list: list[dict[str, Any]], batch_size: int = 100) -> int:
         total_saved = 0
         for i in range(0, len(data_list), batch_size):
             batch = data_list[i:i + batch_size]
@@ -290,7 +289,7 @@ class DatabaseHandler:
             total_saved += len(batch)
         return total_saved
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         stats = {}
         tables = ['instruments', 'prices', 'trades', 'codal_announcements', 'news', 'audit_logs', 'monitoring_alerts']
 
@@ -299,16 +298,16 @@ class DatabaseHandler:
                 query = f"SELECT COUNT(*) as count FROM {table}"
                 result = self._execute_query(query, fetch='one')
                 stats[table] = result['count'] if result else 0
-            except Exception as e:
+            except Exception:
                 stats[table] = -1
 
         return stats
 
 
 if __name__ == "__main__":
-    from datetime import datetime
     import json
     import re
+    from datetime import datetime
 
     handler = DatabaseHandler()
 
@@ -415,7 +414,7 @@ if __name__ == "__main__":
 
     try:
         stats = handler.get_statistics()
-        print(f"✓ Database statistics retrieved")
+        print("✓ Database statistics retrieved")
         for table, count in stats.items():
             print(f"  {table}: {count} records")
     except Exception as e:

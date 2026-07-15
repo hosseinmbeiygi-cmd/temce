@@ -12,8 +12,9 @@ dash = "-"
 
 
 async def analyze():
-    from core.database import init_database, close_database, get_session
     from sqlalchemy import text
+
+    from core.database import close_database, get_session, init_database
 
     await init_database()
     async for session in get_session():

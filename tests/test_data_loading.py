@@ -1,5 +1,7 @@
 import asyncio
+
 from ml.datasets.builders import DatasetBuilder
+
 
 async def test_data_loading():
     builder = DatasetBuilder()
@@ -20,7 +22,7 @@ async def test_data_loading():
         print(f"Error loading data: {e}")
 
 if __name__ == "__main__":
-    import sys
     import io
+    import sys
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     asyncio.run(test_data_loading())

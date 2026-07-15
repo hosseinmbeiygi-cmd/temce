@@ -216,7 +216,7 @@ export default function RecommendationsPage() {
   return (
     <AppLayout
       title="توصیه‌ها"
-      subtitle={`${total.toLocaleString()} توصیه • ${buyRecs.length} خرید • ${sellRecs.length} فروش • ${holdRecs.length} نگهداری`}
+      subtitle={total.toLocaleString() + " توصیه • " + buyRecs.length + " خرید • " + sellRecs.length + " فروش • " + holdRecs.length + " نگهداری"}
     >
       <div className="max-w-7xl mx-auto space-y-5">
         {/* Stats Row */}

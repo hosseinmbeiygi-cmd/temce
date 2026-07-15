@@ -5,9 +5,12 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, Query
 
 from apps.api.dependencies import get_recommendation_service
+from core.logging import get_logger
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.recommendation_service import RecommendationService
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 

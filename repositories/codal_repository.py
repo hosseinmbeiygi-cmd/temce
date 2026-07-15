@@ -163,16 +163,19 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
 
         pub_date = None
         if orm.publish_date:
+            # Try ISO format first
             try:
                 pub_date = date.fromisoformat(orm.publish_date)
             except (ValueError, TypeError):
+                # Persian/Shamsi date like "۱۴۰۵/۰۴/۰۲" — store as string
                 pass
 
         return Disclosure(
             id=orm.id,
             instrument_id=orm.instrument_id or orm.symbol or "",
-            title=f"{orm.report_type or ''} {orm.fiscal_year or ''}",
+            title=f"{orm.report_type or ''} {orm.fiscal_year or ''}".strip(),
             symbol=orm.symbol or "",
+            company_name=orm.company_name or "",
             publish_date=pub_date,
             fiscal_year=orm.fiscal_year or "",
             period=orm.period or "",
@@ -181,6 +184,7 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
             summary=orm.summary or "",
             url=orm.attachment_url or "",
             data_source=orm.data_source or "codal",
+            extra={"raw_publish_date": orm.publish_date or ""},
         )
 
     async def get_by_key(
@@ -207,7 +211,7 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
             id=domain.id,
             instrument_id=domain.instrument_id or "",
             symbol=domain.symbol,
-            company_name="",
+            company_name=domain.company_name or "",
             isin="",
             report_type=domain.disclosure_type,
             fiscal_year=domain.fiscal_year,

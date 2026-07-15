@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ── Fixtures ─────────────────────────────────────────────────
 
 @pytest.fixture
@@ -27,8 +26,9 @@ def scheduler_app():
 
 def test_init_creates_scheduler():
     """Verify SchedulerApp creates an AsyncIOScheduler on init."""
-    from apps.scheduler.app import SchedulerApp
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from apps.scheduler.app import SchedulerApp
 
     app = SchedulerApp()
     assert isinstance(app.scheduler, AsyncIOScheduler)
@@ -150,7 +150,6 @@ async def test_run_forever_calls_start():
 
 def test_add_job_wrapper_calls_dispatcher(scheduler_app):
     """The wrapper function inside add_job should call job_dispatcher.dispatch."""
-    from unittest.mock import patch
     from jobs.job_dispatcher import job_dispatcher
 
     # Actually grab the wrapper via the mock call

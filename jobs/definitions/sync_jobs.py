@@ -18,10 +18,10 @@ class SyncInstrumentsJob(BaseJob):
     in the brsapi_symbol_snapshots table.
     """
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import get_client, close_client
+        from brsapi.client import close_client, get_client
         from brsapi.config import BrsApiEndpoints
-        from brsapi.parsers import TsetmcParser
         from brsapi.models import SymbolSnapshotModel
+        from brsapi.parsers import TsetmcParser
         from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
@@ -64,10 +64,10 @@ class SyncQuotesJob(BaseJob):
     Also fetches indices for market-wide quote context.
     """
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import get_client, close_client
+        from brsapi.client import close_client, get_client
         from brsapi.config import BrsApiEndpoints
+        from brsapi.models import IndexValueModel, SymbolSnapshotModel
         from brsapi.parsers import TsetmcParser
-        from brsapi.models import SymbolSnapshotModel, IndexValueModel
         from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
@@ -83,6 +83,7 @@ class SyncQuotesJob(BaseJob):
                     parser=TsetmcParser.parse_all_symbols,
                     model_class=SymbolSnapshotModel,
                     params={"type": "1"},
+                    truncate_first=True,
                     session=session,
                 )
                 symbols_count = symbols_report.items_count
@@ -114,10 +115,10 @@ class SyncCodalJob(BaseJob):
     recent announcements and stores them in brsapi_codal_announcements.
     """
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import get_client, close_client
+        from brsapi.client import close_client, get_client
         from brsapi.config import BrsApiEndpoints
-        from brsapi.parsers import CodalParser
         from brsapi.models import CodalAnnouncementModel
+        from brsapi.parsers import CodalParser
         from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
@@ -170,6 +171,168 @@ async def sync_codal(source: str = "codal") -> dict[str, Any]:
     """Deprecated stub — use SyncCodalJob instead."""
     logger.info("sync_codal is deprecated — use SyncCodalJob (BaseJob class)")
     return {"status": "completed", "source": source, "count": 0}
+
+
+class SyncSnapshotsToQuotesJob(BaseJob):
+    """Copy latest symbol snapshots from brsapi_symbol_snapshots to quotes table.
+
+    This bridges the gap between the real-time BrsApi data pipeline and the
+    legacy `quotes` table used by the frontend and backtesting engine.
+    For each symbol with a snapshot, it extracts today's latest OHLCV + orderbook
+    data and upserts it into the `quotes` table.
+    """
+
+    BATCH_SIZE = 500  # rows per batch commit
+
+    async def execute(self, context: JobContext) -> JobResult:
+        from sqlalchemy import text
+
+        from core.database import async_session_factory
+
+        if async_session_factory is None:
+            return JobResult.failure("Database not available", job_name=self._name)
+
+        async with async_session_factory() as session:
+            # ── 1. Get the latest snapshot per symbol (today's data) ──
+            #    The snapshots table is append-only with a fetched_at timestamp.
+            #    We want the most recent row per symbol.
+            try:
+                rows = await session.execute(text("""
+                    SELECT DISTINCT ON (s.symbol)
+                        s.symbol,
+                        s.ins_id,
+                        s.price_close,
+                        s.price_first,
+                        s.price_max,
+                        s.price_min,
+                        s.price_last,
+                        s.price_last_change,
+                        s.price_last_change_pct,
+                        s.price_yesterday,
+                        s.trade_volume,
+                        s.trade_value,
+                        s.trade_count,
+                        s.bid_price_1,
+                        s.bid_volume_1,
+                        s.ask_price_1,
+                        s.ask_volume_1,
+                        s.time,
+                        s.fetched_at
+                    FROM brsapi_symbol_snapshots s
+                    WHERE s.fetched_at >= CURRENT_DATE::text
+                      AND s.symbol IS NOT NULL AND s.symbol != ''
+                    ORDER BY s.symbol, s.fetched_at DESC
+                """))
+                snapshots = rows.fetchall()
+            except Exception as e:
+                logger.exception("Failed to query snapshots")
+                return JobResult.failure(f"Query error: {e}", job_name=self._name)
+
+            if not snapshots:
+                logger.info("No today snapshots found to copy to quotes")
+                return JobResult.success_result(
+                    job_name=self._name,
+                    data={"copied": 0, "skipped": 0, "message": "No today data"},
+                )
+
+            logger.info("Found %d snapshots to copy to quotes", len(snapshots))
+
+            # ── 2. Upsert into quotes ──
+            upsert_sql = text("""
+                INSERT INTO quotes (
+                    id, instrument_id, symbol,
+                    price_close, price_open, price_high, price_low, price_last,
+                    price_change, price_change_pct, price_yesterday,
+                    price_first, price_max, price_min,
+                    volume, value, trade_count,
+                    bid_price, bid_volume, ask_price, ask_volume,
+                    time, date, data_source
+                ) VALUES (
+                    :id, :instrument_id, :symbol,
+                    :price_close, :price_open, :price_high, :price_low, :price_last,
+                    :price_change, :price_change_pct, :price_yesterday,
+                    :price_first, :price_max, :price_min,
+                    :volume, :value, :trade_count,
+                    :bid_price, :bid_volume, :ask_price, :ask_volume,
+                    :time, :date, :data_source
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    price_close = EXCLUDED.price_close,
+                    price_last = EXCLUDED.price_last,
+                    price_change = EXCLUDED.price_change,
+                    price_change_pct = EXCLUDED.price_change_pct,
+                    volume = EXCLUDED.volume,
+                    value = EXCLUDED.value,
+                    trade_count = EXCLUDED.trade_count,
+                    time = EXCLUDED.time
+            """)
+
+            copied = 0
+            skipped = 0
+            batch = []
+
+            for row in snapshots:
+                # SQLAlchemy Row objects support dict-like access via _mapping
+                row_dict = row._mapping
+                symbol = row_dict["symbol"]
+                fetched_at = row_dict["fetched_at"] or ""
+                # Extract date from fetched_at (ISO format: "2026-07-09 09:24:15")
+                date_str = fetched_at[:10] if len(fetched_at) >= 10 else fetched_at
+                record_id = f"brsapi_{symbol}_{date_str}"
+
+                record = {
+                    "id": record_id,
+                    "instrument_id": row_dict["ins_id"] or "",
+                    "symbol": symbol,
+                    "price_close": row_dict["price_close"],
+                    "price_open": row_dict["price_first"],
+                    "price_high": row_dict["price_max"],
+                    "price_low": row_dict["price_min"],
+                    "price_last": row_dict["price_last"],
+                    "price_change": row_dict["price_last_change"],
+                    "price_change_pct": row_dict["price_last_change_pct"],
+                    "price_yesterday": row_dict["price_yesterday"],
+                    "price_first": row_dict["price_first"],
+                    "price_max": row_dict["price_max"],
+                    "price_min": row_dict["price_min"],
+                    "volume": row_dict["trade_volume"],
+                    "value": row_dict["trade_value"],
+                    "trade_count": row_dict["trade_count"],
+                    "bid_price": row_dict["bid_price_1"],
+                    "bid_volume": row_dict["bid_volume_1"],
+                    "ask_price": row_dict["ask_price_1"],
+                    "ask_volume": row_dict["ask_volume_1"],
+                    "time": row_dict["time"],
+                    "date": date_str,
+                    "data_source": "brsapi",
+                }
+                batch.append(record)
+
+                if len(batch) >= self.BATCH_SIZE:
+                    try:
+                        await session.execute(upsert_sql, batch)
+                        copied += len(batch)
+                    except Exception as e:
+                        logger.warning("Batch insert failed (%d rows): %s", len(batch), e)
+                        skipped += len(batch)
+                    batch = []
+
+            # Final batch
+            if batch:
+                try:
+                    await session.execute(upsert_sql, batch)
+                    copied += len(batch)
+                except Exception as e:
+                    logger.warning("Final batch insert failed (%d rows): %s", len(batch), e)
+                    skipped += len(batch)
+
+            await session.commit()
+
+        logger.info("Copy complete: %d copied, %d skipped", copied, skipped)
+        return JobResult.success_result(
+            job_name=self._name,
+            data={"copied": copied, "skipped": skipped},
+        )
 
 
 async def sync_news(source: str = "rss") -> dict[str, Any]:

@@ -14,6 +14,7 @@ class BacktestSettings(BaseSettings):
     allow_short: bool = False
     default_timeframe: str = "1d"
     output_dir: str = "./data/backtest"
-    parallel_runs: int = 1
+    parallel_runs: int = 4
+    max_optimization_workers: int = 4
     cache_results: bool = True
     max_optimization_trials: int = 100

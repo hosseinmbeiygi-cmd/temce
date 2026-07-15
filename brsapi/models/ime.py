@@ -7,7 +7,7 @@ All tables use the ``brsapi_ime_`` prefix.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, Float, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column

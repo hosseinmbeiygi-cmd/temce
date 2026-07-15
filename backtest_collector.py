@@ -1,11 +1,12 @@
-import subprocess
 import json
-import time
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
+import subprocess
 import sys
-from datetime import datetime, timedelta
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
+from threading import Lock
+
 import jdatetime
 
 # ========== تنظیمات ==========
@@ -29,7 +30,7 @@ class RateLimiter:
         self.window_seconds = window_seconds
         self.requests = []
         self.lock = Lock()
-    
+
     def wait_if_needed(self):
         with self.lock:
             now = time.time()
@@ -51,7 +52,7 @@ rate_limiter = RateLimiter(RATE_LIMIT, RATE_WINDOW)
 def load_all_symbols():
     """بارگذاری لیست کامل همه نمادها از all_symbols_data.json"""
     try:
-        with open(SYMBOLS_FILE, 'r', encoding='utf-8') as f:
+        with open(SYMBOLS_FILE, encoding='utf-8') as f:
             data = json.load(f)
         if isinstance(data, list) and all(isinstance(item, dict) and 'l18' in item for item in data):
             symbols = [item['l18'] for item in data]
@@ -67,11 +68,11 @@ def fetch_history(symbol):
     """دریافت داده‌های تاریخی برای یک نماد"""
     url = f"{BASE_URL}?key={API_KEY}&type=0&l18={symbol}"
     rate_limiter.wait_if_needed()
-    
+
     curl_path = "C:\\Windows\\System32\\curl.exe"
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     cmd = [curl_path, "-k", "--ssl-no-revoke", "-s", "-H", f"User-Agent: {user_agent}", "--max-time", "15", url]
-    
+
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=20, text=False)
         stdout = result.stdout.decode('utf-8', errors='ignore')
@@ -88,36 +89,36 @@ def process_symbol(symbol):
         data = fetch_history(symbol)
         if not data or not isinstance(data, list):
             return None
-        
+
         today = jdatetime.date.today()
         cutoff = today - timedelta(days=DAYS_BACK)
         cutoff_str = cutoff.strftime('%Y-%m-%d')
-        
+
         filtered = []
         for item in data:
             item_date = item.get('date')
             if item_date and item_date >= cutoff_str:
                 filtered.append(item)
-        
+
         return filtered
-    except Exception as e:
+    except Exception:
         return None
 
 def save_symbol_data(symbol, data):
     """ذخیره داده‌های یک نماد"""
     if not data:
         return
-    
+
     filename = f"{OUTPUT_DIR}/{symbol}.json"
-    
+
     existing = []
     if os.path.exists(filename):
         try:
-            with open(filename, 'r', encoding='utf-8') as f:
+            with open(filename, encoding='utf-8') as f:
                 existing = json.load(f)
         except:
             pass
-    
+
     all_data = existing + data
     seen = set()
     unique = []
@@ -126,9 +127,9 @@ def save_symbol_data(symbol, data):
         if date_key and date_key not in seen:
             seen.add(date_key)
             unique.append(item)
-    
+
     unique.sort(key=lambda x: x.get('date', ''))
-    
+
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(unique, f, ensure_ascii=False, indent=2)
 
@@ -136,33 +137,33 @@ def main():
     print("=" * 60)
     print("🚀 شروع دریافت تاریخچه قیمت‌ها برای همه نمادها")
     print("=" * 60)
-    
+
     symbols = load_all_symbols()
     if not symbols:
         print("❌ هیچ نمادی یافت نشد.")
         return
-    
+
     print(f"📅 دریافت {DAYS_BACK} روز گذشته")
     print(f"🚀 تعداد تردهای همزمان: {MAX_WORKERS}")
     print("=" * 60)
-    
+
     start_time = time.time()
     successful = 0
     failed = 0
-    
+
     batch_size = MAX_WORKERS * 5
     batches = [symbols[i:i+batch_size] for i in range(0, len(symbols), batch_size)]
-    
+
     for batch_idx, batch in enumerate(batches):
         print(f"\n📦 دسته {batch_idx+1}/{len(batches)} ({len(batch)} نماد)")
-        
+
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(process_symbol, symbol): symbol for symbol in batch}
-            
+
             for future in as_completed(futures):
                 symbol = futures[future]
                 data = future.result()
-                
+
                 if data:
                     save_symbol_data(symbol, data)
                     successful += 1
@@ -170,12 +171,12 @@ def main():
                 else:
                     failed += 1
                     print(f"   ❌ {symbol} - خطا", flush=True)
-        
+
         print(f"💾 پیشرفت: {successful+failed}/{len(symbols)}")
         time.sleep(0.5)
-    
+
     elapsed = time.time() - start_time
-    
+
     print("\n" + "=" * 60)
     print("📊 گزارش نهایی:")
     print(f"   ✅ موفق: {successful} نماد")

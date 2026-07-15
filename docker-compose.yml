@@ -1,190 +1,66 @@
-# ── Base Docker Compose ────────────────────────────────
-# Run with: docker compose up --build
-# Override: docker compose up --build (auto-loads docker-compose.override.yml)
-# Production: docker compose -f docker-compose.yml -f docker-compose.production.yml up
+version: '3.8'
 
 services:
-  # ── Infrastructure ────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: tse_timescaledb
     environment:
-      POSTGRES_DB: market
-      POSTGRES_USER: market
-      POSTGRES_PASSWORD: market
+      - POSTGRES_DB=tse_quant
+      - POSTGRES_USER=quant_dev
+      - POSTGRES_PASSWORD=securepassword123
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./migrations/init_timescale.sql:/docker-entrypoint-initdb.d/02-timescale.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U market"]
+      test: ["CMD-SHELL", "pg_isready -U quant_dev -d tse_quant"]
       interval: 10s
-      timeout: 15s
+      timeout: 5s
       retries: 5
-      start_period: 30s
-
-  timescaledb:
-    image: timescale/timescaledb:2-pg16
-    environment:
-      POSTGRES_DB: market
-      POSTGRES_USER: market
-      POSTGRES_PASSWORD: market
-    ports:
-      - "5433:5432"
-    volumes:
-      - timescaledata:/var/lib/postgresql/data
-      - ./migrations/init_timescale.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U market"]
-      interval: 10s
-      timeout: 15s
-      retries: 5
-      start_period: 30s
+    restart: always
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.0-alpine
+    container_name: tse_redis
+    command: redis-server --appendonly yes --requirepass redissecure456
     ports:
       - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
+      - redisdata:/data
+    restart: always
 
-  # ── Application Services ──────────────────────────────
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    ports:
-      - "8000:8000"
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    ports:
-      - "3000:3000"
-    environment:
-      API_URL: http://api:8000
-      API_PREFIX: /api/v1
-      NODE_ENV: production
-    depends_on:
-      - api
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      start_period: 30s
-      retries: 3
-
-  admin:
-    build:
-      context: .
-      dockerfile: Dockerfile.admin
-    ports:
-      - "8001:8001"
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    restart: unless-stopped
-
-  scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile.scheduler
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-
-  ingestion:
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
-    env_file: .env
+    container_name: tse_backend
     depends_on:
       timescaledb:
         condition: service_healthy
-      minio:
-        condition: service_healthy
       redis:
-        condition: service_healthy
-    command: ["python", "-m", "ingestion.main"]
-    restart: unless-stopped
-    volumes:
-      - ./ingestion:/app/ingestion
-      - ./core:/app/core
-
-  # ── Monitoring ────────────────────────────────────────
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - promdata:/prometheus
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3001:3000"
+        condition: service_started
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:redissecure456@redis:6379/0
+    ports:
+      - "8000:8000"
     volumes:
-      - grafanadata:/var/lib/grafana
+      - ./logs:/app/logs
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tse_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    restart: always
 
 volumes:
   pgdata:
-  timescaledata:
-  miniodata:
-  promdata:
-  grafanadata:
+  redisdata:

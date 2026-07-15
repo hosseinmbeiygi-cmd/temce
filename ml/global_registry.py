@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ml.model_registry import ModelRegistry
 
+
 def _create_seeded_registry() -> ModelRegistry:
     registry = ModelRegistry()
 

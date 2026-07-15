@@ -9,8 +9,10 @@ from domain.common.enum_types import OrderSide, OrderType
 
 
 class MeanReversionStrategy(BaseStrategy):
-    def __init__(self, lookback: int = 20, entry_z: float = 2.0, exit_z: float = 0.5, instrument_id: str = "") -> None:
-        super().__init__(name=f"MeanReversion_{lookback}")
+    def __init__(self, lookback: int = 20, entry_z: float = 2.0, exit_z: float = 0.5, instrument_id: str = "",
+                 sizing_method: str = "fixed", sizing_value: float = 1000.0) -> None:
+        super().__init__(name=f"MeanReversion_{lookback}",
+                         sizing_method=sizing_method, sizing_value=sizing_value)
         self.lookback = lookback
         self.entry_z = entry_z
         self.exit_z = exit_z
@@ -27,29 +29,31 @@ class MeanReversionStrategy(BaseStrategy):
         self._prices.append(price)
         if len(self._prices) <= self.lookback:
             return []
-        recent = self._prices[-self.lookback :]
+        recent = self._prices[-self.lookback:]
         mean = statistics.mean(recent)
         std = statistics.stdev(recent) if len(recent) > 1 else 1.0
         z_score = (price - mean) / std if std > 0 else 0
         orders: list[OrderEvent] = []
-        if z_score > self.entry_z and self._position >= 0:
+        if z_score > self.entry_z and self._position > 0:
+            qty = self._compute_quantity(price)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
-                    quantity=1000,
+                    quantity=qty,
                     price=price,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
-            self._position = -1
+            self._position = 0
         elif z_score < -self.entry_z and self._position <= 0:
+            qty = self._compute_quantity(price)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
-                    quantity=1000,
+                    quantity=qty,
                     price=price,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
@@ -58,11 +62,12 @@ class MeanReversionStrategy(BaseStrategy):
             self._position = 1
         elif abs(z_score) < self.exit_z and self._position != 0:
             side = OrderSide.SELL if self._position > 0 else OrderSide.BUY
+            qty = self._compute_quantity(price)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=side,
-                    quantity=1000,
+                    quantity=qty,
                     price=price,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),

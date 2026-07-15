@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -316,23 +315,23 @@ class BrsApiEndpoints:
         ttl_cache_seconds=3600,
     )
 
-    GOLD_24H = EndpointConfig(
-        path="/Market/Gold24h.php",
+    # ─── GOLD & CURRENCY PRO ─────────────────────
+    # Gold_Currency_Pro (free-tier Pro): flexible endpoint with 3 modes:
+    #   section=gold|currency|cryptocurrency  → real-time prices with Pro fields
+    #   history=1&symbol=XYZ                  → 24h tick history
+    #   history=2&symbol=XYZ&date_start=...   → daily OHLC history
+    GOLD_CURRENCY_PRO = EndpointConfig(
+        path="/Market/Gold_Currency_Pro.php",
         category=EndpointCategory.COMMODITY,
-        rate_limit_per_minute=1,
-        sync_interval_seconds=600,
+        rate_limit_per_minute=6,
+        sync_interval_seconds=SyncInterval.REALTIME_SLOW,
         required_params=("key",),
-        ttl_cache_seconds=600,
+        optional_params=("section", "history", "symbol", "date_start", "date_end"),
+        ttl_cache_seconds=60,
     )
 
-    CURRENCY_24H = EndpointConfig(
-        path="/Market/Currency24h.php",
-        category=EndpointCategory.COMMODITY,
-        rate_limit_per_minute=1,
-        sync_interval_seconds=600,
-        required_params=("key",),
-        ttl_cache_seconds=600,
-    )
+    # GOLD_24H and CURRENCY_24H removed — these endpoints return HTTP 404
+    # since ~June 2026. Data is available via /Market/Gold_Currency.php.
 
     # ─── Lookup helpers ───────────────────────
     _ALL: dict[str, EndpointConfig] = {}
@@ -373,7 +372,7 @@ class BrsApiSettings(BaseSettings):
     model_config = {"env_prefix": "BRSAPI_", "env_file": ".env", "extra": "ignore"}
 
     api_key: str = Field(default="", description="BrsApi.ir API key")
-    base_url: str = Field(default="https://Api.BrsApi.ir", description="BrsApi base URL")
+    base_url: str = Field(default="http://Api.BrsApi.ir", description="BrsApi base URL")
     request_timeout: float = Field(default=30.0, ge=1.0)
     max_retries: int = Field(default=3, ge=0)
     retry_backoff_base: float = Field(default=1.5, ge=1.0)
@@ -398,6 +397,11 @@ class BrsApiSettings(BaseSettings):
     health_check_interval_seconds: int = Field(default=60)
     raw_payload_sink_enabled: bool = Field(default=False)
     max_raw_payload_age_days: int = Field(default=30)
+
+    # Global rate limits (must not be exceeded)
+    # AIO (All In One) package: 500 requests per 5 minutes
+    global_daily_limit: int = Field(default=10000, ge=1, description="Max requests per day across all endpoints")
+    global_5min_limit: int = Field(default=500, ge=1, description="Max requests per 5-minute window across all endpoints (AIO package limit)")
 
 
 _brsapi_settings: BrsApiSettings | None = None

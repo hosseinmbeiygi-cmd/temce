@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import json
+from datetime import datetime
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession

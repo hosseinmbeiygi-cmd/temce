@@ -1,11 +1,10 @@
-import os
 import csv
-import json
+import os
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
+
 from dotenv import load_dotenv
-import psycopg2
-from psycopg2 import sql, OperationalError, Error, DatabaseError, IntegrityError
+from psycopg2 import DatabaseError, OperationalError, sql
 from psycopg2.extras import DictCursor
 from psycopg2.pool import SimpleConnectionPool
 
@@ -31,7 +30,7 @@ for key, value in connection_params.items():
 
 
 class PostgreSQLClient:
-    _pool: Optional[SimpleConnectionPool] = None
+    _pool: SimpleConnectionPool | None = None
 
     def __init__(self, min_conn: int = 2, max_conn: int = 5):
         self._initialize_pool(min_conn, max_conn)
@@ -247,88 +246,82 @@ class PostgreSQLClient:
             self._pool.closeall()
 
     def create_tables(self):
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                for table, definition in self.table_definitions.items():
-                    try:
-                        cursor.execute(
-                            sql.SQL("CREATE TABLE IF NOT EXISTS {} ({})").format(
-                                sql.Identifier(table),
-                                sql.SQL(definition)
-                            )
+        with self._get_connection() as conn, conn.cursor() as cursor:
+            for table, definition in self.table_definitions.items():
+                try:
+                    cursor.execute(
+                        sql.SQL("CREATE TABLE IF NOT EXISTS {} ({})").format(
+                            sql.Identifier(table),
+                            sql.SQL(definition)
                         )
-                        conn.commit()
-                    except (OperationalError, DatabaseError) as e:
-                        print(f"Error creating table {table}: {e}")
-                        conn.rollback()
+                    )
+                    conn.commit()
+                except (OperationalError, DatabaseError) as e:
+                    print(f"Error creating table {table}: {e}")
+                    conn.rollback()
 
-    def insert(self, table_name: str, data: Dict[str, Any]) -> int:
+    def insert(self, table_name: str, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to insert record into {table_name}: {e}")
 
-    def update(self, table_name: str, record_id: int, data: Dict[str, Any]) -> bool:
-        set_clause = ', '.join([f"{k} = %s" for k in data.keys()])
+    def update(self, table_name: str, record_id: int, data: dict[str, Any]) -> bool:
+        set_clause = ', '.join([f"{k} = %s" for k in data])
         query = f"UPDATE {table_name} SET {set_clause} WHERE id = %s"
         values = list(data.values()) + [record_id]
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, values)
-                    conn.commit()
-                    return cursor.rowcount > 0
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, values)
+                conn.commit()
+                return cursor.rowcount > 0
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to update record in {table_name}: {e}")
 
-    def get_by_id(self, table_name: str, record_id: int) -> Optional[Dict]:
+    def get_by_id(self, table_name: str, record_id: int) -> dict | None:
         query = f"SELECT * FROM {table_name} WHERE id = %s"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cursor:
-                    cursor.execute(query, (record_id,))
-                    return cursor.fetchone()
+            with self._get_connection() as conn, conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(query, (record_id,))
+                return cursor.fetchone()
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to get record from {table_name}: {e}")
 
-    def get_all(self, table_name: str, limit: int = 1000, offset: int = 0) -> List[Dict]:
+    def get_all(self, table_name: str, limit: int = 1000, offset: int = 0) -> list[dict]:
         query = f"SELECT * FROM {table_name} LIMIT %s OFFSET %s"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cursor:
-                    cursor.execute(query, (limit, offset))
-                    return cursor.fetchall()
+            with self._get_connection() as conn, conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(query, (limit, offset))
+                return cursor.fetchall()
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to get records from {table_name}: {e}")
 
-    def filter(self, table_name: str, conditions: Dict[str, Any], limit: int = 1000) -> List[Dict]:
+    def filter(self, table_name: str, conditions: dict[str, Any], limit: int = 1000) -> list[dict]:
         if not conditions:
             return self.get_all(table_name, limit)
 
-        set_clause = ' AND '.join([f"{k} = %s" for k in conditions.keys()])
+        set_clause = ' AND '.join([f"{k} = %s" for k in conditions])
         query = f"SELECT * FROM {table_name} WHERE {set_clause} LIMIT %s"
         values = list(conditions.values()) + [limit]
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cursor:
-                    cursor.execute(query, values)
-                    return cursor.fetchall()
+            with self._get_connection() as conn, conn.cursor(cursor_factory=DictCursor) as cursor:
+                cursor.execute(query, values)
+                return cursor.fetchall()
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to filter records from {table_name}: {e}")
 
-    def export_all_to_csv(self, output_dir: str = None) -> Dict:
+    def export_all_to_csv(self, output_dir: str = None) -> dict:
         if output_dir is None:
             output_dir = 'exports'
 
@@ -341,51 +334,50 @@ class PostgreSQLClient:
 
         result = {}
 
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
+        with self._get_connection() as conn, conn.cursor() as cursor:
+            cursor.execute("""
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'public'
                     AND table_name NOT LIKE 'pg_%'
                     AND table_name != 'information_schema'
                 """)
-                tables = [row[0] for row in cursor.fetchall()]
+            tables = [row[0] for row in cursor.fetchall()]
 
-                for table in tables:
-                    csv_path = os.path.join(export_dir, f"{table}.csv")
-                    try:
-                        with open(csv_path, 'w', newline='') as csvfile:
-                            writer = csv.writer(csvfile)
-                            try:
-                                cursor.execute(f"SELECT * FROM {table} LIMIT 1")
-                                columns = [desc[0] for desc in cursor.description]
-                                writer.writerow(columns)
+            for table in tables:
+                csv_path = os.path.join(export_dir, f"{table}.csv")
+                try:
+                    with open(csv_path, 'w', newline='') as csvfile:
+                        writer = csv.writer(csvfile)
+                        try:
+                            cursor.execute(f"SELECT * FROM {table} LIMIT 1")
+                            columns = [desc[0] for desc in cursor.description]
+                            writer.writerow(columns)
 
-                                offset = 0
-                                batch_size = 10000
-                                while True:
-                                    cursor.execute(f"SELECT * FROM {table} LIMIT %s OFFSET %s", (batch_size, offset))
-                                    records = cursor.fetchall()
-                                    if not records:
-                                        break
-                                    writer.writerows(records)
-                                    offset += batch_size
-                            except Exception as e:
-                                print(f"Error reading from table {table}: {e}")
+                            offset = 0
+                            batch_size = 10000
+                            while True:
+                                cursor.execute(f"SELECT * FROM {table} LIMIT %s OFFSET %s", (batch_size, offset))
+                                records = cursor.fetchall()
+                                if not records:
+                                    break
+                                writer.writerows(records)
+                                offset += batch_size
+                        except Exception as e:
+                            print(f"Error reading from table {table}: {e}")
 
-                        file_size = os.path.getsize(csv_path)
-                        result[table] = {
-                            'path': csv_path,
-                            'size_bytes': file_size,
-                            'records': file_size > 0
-                        }
-                    except Exception as e:
-                        print(f"Error exporting table {table} to CSV: {e}")
-                        result[table] = {
-                            'path': csv_path,
-                            'error': str(e)
-                        }
+                    file_size = os.path.getsize(csv_path)
+                    result[table] = {
+                        'path': csv_path,
+                        'size_bytes': file_size,
+                        'records': file_size > 0
+                    }
+                except Exception as e:
+                    print(f"Error exporting table {table} to CSV: {e}")
+                    result[table] = {
+                        'path': csv_path,
+                        'error': str(e)
+                    }
 
         return result
 

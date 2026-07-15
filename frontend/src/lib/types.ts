@@ -89,6 +89,7 @@ export interface WatchlistItem {
 
 // ------ اضافه کردن تایپ‌های جدید ------------------------------------------------------------------------------
 export interface MarketIndex {
+  id?: string;
   name: string;
   value: number;
   isUp: boolean;
@@ -113,6 +114,28 @@ export interface HeatmapCell {
   sector?: string;
   market?: string;
   board?: string;
+}
+
+export interface TreemapSymbol {
+  name: string;
+  size: number;
+  change: number;
+  price: number;
+  volume: number;
+  eps: number;
+  peRatio: number;
+  freeFloatPct: number;
+  state: string;
+  sector: string;
+}
+
+export interface TreemapSector {
+  name: string;
+  children: TreemapSymbol[];
+}
+
+export interface TreemapData {
+  children: TreemapSector[];
 }
 
 export interface CandleDataPoint {
@@ -298,9 +321,9 @@ export function generateMockWatchlist(): WatchlistItem[] {
 
 export function generateMockIndices(): MarketIndex[] {
   return [
-    { name: 'شاخص کل', value: 2145678, isUp: true, changePercent: 1.2, icon: 'trending_up' },
-    { name: 'شاخص هم‌وزن', value: 456789, isUp: true, changePercent: 0.8, icon: 'bar_chart' },
-    { name: 'شاخص صنعت', value: 123456, isUp: true, changePercent: 2.1, icon: 'analytics' },
+    { id: 'mock-1', name: 'شاخص کل', value: 5286856, isUp: false, changePercent: -0.46, icon: 'trending_down' },
+    { id: 'mock-2', name: 'شاخص کل (هم وزن)', value: 814271, isUp: false, changePercent: -1.18, icon: 'bar_chart' },
+    { id: 'mock-3', name: 'شاخص قیمت (هم وزن)', value: 665016, isUp: false, changePercent: -0.46, icon: 'analytics' },
   ];
 }
 

@@ -6,11 +6,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import BigInteger, DateTime, Float, Index, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-
-from sqlalchemy import ForeignKey as sa_ForeignKey
 
 
 class BrsApiBase(DeclarativeBase):

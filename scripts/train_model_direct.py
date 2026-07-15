@@ -22,7 +22,7 @@ async def main():
     inference = InferenceService()
     result = await inference.train("xgboost", symbol, "2024-01-01", "2024-12-31")
     if result.success and result.value:
-        print(f"Model trained successfully!")
+        print("Model trained successfully!")
         print(f"  Accuracy:       {result.value.get('accuracy', 0) * 100:.1f}%")
         print(f"  Samples:        {result.value.get('train_samples', 0):,}")
         print(f"  Duration:       {result.value.get('duration_seconds', 0):.1f}s")
@@ -50,7 +50,7 @@ async def main():
     )
     model = registry.get(mid)
     versions = len(model["versions"]) if model else 0
-    print(f"\nRegistered in ModelRegistry:")
+    print("\nRegistered in ModelRegistry:")
     print(f"  Model ID: {mid}")
     print(f"  Versions: {versions}")
 
@@ -70,7 +70,7 @@ async def main():
             "train_samples": result.value.get("train_samples", 0),
             "duration_seconds": result.value.get("duration_seconds", 0),
         }
-        print(f"\nTraining Run created:")
+        print("\nTraining Run created:")
         print(f"  Run ID:    {run.value.get('id')}")
         print(f"  Status:    {run.value.get('status')}")
         print(f"  Accuracy:  {result.value.get('accuracy', 0)*100:.1f}%")

@@ -275,7 +275,7 @@ export default function AnomaliesPage() {
           <p className="font-bold">ناهنجاری‌ای یافت نشد</p>
           <p className="text-sm mt-1">
             {summary
-              ? `${summary.total_symbols_scanned} نماد بررسی شدند و ناهنجاری قابل توجهی یافت نشد`
+              ? summary.total_symbols_scanned + " نماد بررسی شدند و ناهنجاری قابل توجهی یافت نشد"
               : "داده‌ای برای بررسی موجود نیست"}
           </p>
         </div>

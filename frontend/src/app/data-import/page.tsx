@@ -207,7 +207,7 @@ function UploadSection({
         <div className="text-4xl mb-3">{dragOver ? "📥" : "📂"}</div>
         <p className="text-sm text-surface-300 mb-1">
           {selectedFiles.length > 0
-            ? `${selectedFiles.length} فایل انتخاب شده`
+            ? selectedFiles.length + " فایل انتخاب شده"
             : "فایل را بکشید و رها کنید یا کلیک کنید"}
         </p>
         <p className="text-xs text-surface-500">

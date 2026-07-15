@@ -14,6 +14,7 @@ from __future__ import annotations
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -35,12 +36,13 @@ _project_root = str(Path(__file__).resolve().parent.parent)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from brsapi.models.tsetmc import IntradayTradeModel
 from core.database import close_database, get_session, init_database
 from core.logging import get_logger
-from brsapi.models.tsetmc import IntradayTradeModel
 from models.instrument import InstrumentModel
-from sqlalchemy import select, func
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 logger = get_logger(__name__)
 
@@ -218,7 +220,7 @@ async def main():
         print(f"  Time elapsed:          {elapsed:.1f} sec")
 
         if missing_instruments:
-            print(f"\n  Symbols not found in instruments table:")
+            print("\n  Symbols not found in instruments table:")
             for sym in missing_instruments:
                 print(f"    - {sym}")
 

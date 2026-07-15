@@ -188,7 +188,7 @@ class MonitoringService:
                         "timestamp": datetime.now(UTC).isoformat(),
                     })
             return Result.ok(alerts)
-        except Exception as exc:
+        except Exception:
             logger.exception("Alerts check failed")
             return Result.ok([])
 

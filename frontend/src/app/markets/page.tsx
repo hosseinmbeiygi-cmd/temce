@@ -193,8 +193,8 @@ export default function MarketsPage() {
         </div>
       ) : tab === "sectors" ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sectors.map(s => (
-            <div key={s.name} className="glass-card p-4">
+          {sectors.map((s, si) => (
+            <div key={`${s.name}-${si}`} className="glass-card p-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-surface-200 text-sm">{s.name}</h3>
                 <span className="text-xs text-surface-500">{s.count} نماد</span>

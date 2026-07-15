@@ -23,19 +23,29 @@ interface AlphaStrategy {
 export default function AlphaPage() {
   const [filter, setFilter] = useState<"all" | "active" | "paper" | "disabled">("all");
 
+  const FALLBACK_ALPHAS: AlphaStrategy[] = [
+    { id: "mom-v3", name: "Momentum", version: "v3", sharpe: 2.14, returns: 34.5, volatility: 12.8, maxDrawdown: -8.2, winRate: 62, trades: 342, status: "active", description: "استراتژی مومنتوم بر اساس شتاب قیمتی ۳۰ روزه" },
+    { id: "mr-v2", name: "Mean Reversion", version: "v2", sharpe: 1.87, returns: 28.2, volatility: 15.1, maxDrawdown: -11.5, winRate: 58, trades: 891, status: "active", description: "بازگشت به میانگین بر اساس انحراف از میانگین متحرک" },
+    { id: "qi-v1", name: "Queue Imbalance", version: "v1", sharpe: 0.92, returns: 12.4, volatility: 18.6, maxDrawdown: -22.1, winRate: 51, trades: 56, status: "paper", description: "تحلیل عدم تعادل صف‌های خرید و فروش" },
+    { id: "ml-v5", name: "ML Alpha", version: "v5", sharpe: 2.43, returns: 41.8, volatility: 14.2, maxDrawdown: -9.8, winRate: 65, trades: 1204, status: "active", description: "مدل یادگیری ماشین ترکیبی با ویژگی‌های تکنیکال و بنیادی" },
+  ];
+
   const { data: alphas, isLoading } = useQuery({
     queryKey: ["alpha-strategies"],
     queryFn: async () => {
       try {
         const data = await apiGet<{ success: boolean; data: { items: AlphaStrategy[] } }>('/alpha');
-        return extractItems<AlphaStrategy>(data);
-      } catch {}
-      return [
-        { id: "mom-v3", name: "Momentum", version: "v3", sharpe: 2.14, returns: 34.5, volatility: 12.8, maxDrawdown: -8.2, winRate: 62, trades: 342, status: "active", description: "استراتژی مومنتوم بر اساس شتاب قیمتی ۳۰ روزه" },
-        { id: "mr-v2", name: "Mean Reversion", version: "v2", sharpe: 1.87, returns: 28.2, volatility: 15.1, maxDrawdown: -11.5, winRate: 58, trades: 891, status: "active", description: "بازگشت به میانگین بر اساس انحراف از میانگین متحرک" },
-        { id: "qi-v1", name: "Queue Imbalance", version: "v1", sharpe: 0.92, returns: 12.4, volatility: 18.6, maxDrawdown: -22.1, winRate: 51, trades: 56, status: "paper", description: "تحلیل عدم تعادل صف‌های خرید و فروش" },
-        { id: "ml-v5", name: "ML Alpha", version: "v5", sharpe: 2.43, returns: 41.8, volatility: 14.2, maxDrawdown: -9.8, winRate: 65, trades: 1204, status: "active", description: "مدل یادگیری ماشین ترکیبی با ویژگی‌های تکنیکال و بنیادی" },
-      ];
+        const items = extractItems<AlphaStrategy>(data);
+        // Fall back to sample data if API returns empty
+        if (items.length === 0) {
+          console.warn("Alpha API returned empty, using fallback data");
+          return FALLBACK_ALPHAS;
+        }
+        return items;
+      } catch (err) {
+        console.error("Alpha API failed, using fallback data:", err);
+        return FALLBACK_ALPHAS;
+      }
     },
   });
 

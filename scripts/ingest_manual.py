@@ -1,12 +1,15 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
+
 from sqlalchemy import insert
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from models.instrument import InstrumentModel
+
 from core.ids import new_id
+from models.instrument import InstrumentModel
 
 DATABASE_URL = "sqlite+aiosqlite:///data/market.db"
 

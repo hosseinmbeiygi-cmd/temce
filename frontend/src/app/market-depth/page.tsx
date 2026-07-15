@@ -48,7 +48,7 @@ export default function MarketDepthPage() {
   return (
     <AppLayout>
       <div className="dashboard-grid">
-        <Card title={`دفتر سفارشات - ${symbol}`}>
+        <Card title={"دفتر سفارشات - " + symbol}>
           <SSRSafe className="order-book">
             <div className="order-side">
               <div className="order-header">

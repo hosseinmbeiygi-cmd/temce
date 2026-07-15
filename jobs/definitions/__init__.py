@@ -24,7 +24,12 @@ from jobs.definitions.news_jobs import NewsIngestionJob, NewsSentimentJob
 from jobs.definitions.recommendation_jobs import RecommendationEvaluationJob, RecommendationGenerationJob
 from jobs.definitions.reference_jobs import AliasResolutionJob, InstrumentSyncJob
 from jobs.definitions.signal_jobs import SignalEvaluationJob, SignalGenerationJob
-from jobs.definitions.sync_jobs import SyncCodalJob, SyncInstrumentsJob, SyncQuotesJob
+from jobs.definitions.sync_jobs import (
+    SyncCodalJob,
+    SyncInstrumentsJob,
+    SyncQuotesJob,
+    SyncSnapshotsToQuotesJob,
+)
 
 __all__ = [
     "BrsApiAllSymbolsJob",
@@ -57,6 +62,7 @@ __all__ = [
     "SyncCodalJob",
     "SyncInstrumentsJob",
     "SyncQuotesJob",
+    "SyncSnapshotsToQuotesJob",
     "RecommendationGenerationJob",
     "RecommendationEvaluationJob",
     "AnalyticsComputationJob",

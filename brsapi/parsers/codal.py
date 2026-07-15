@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
@@ -99,7 +99,7 @@ class CodalParser:
 
     @classmethod
     def _parse_item(cls, item: dict[str, Any]) -> dict[str, Any]:
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
         title = item.get("title", "")
         return {
             "symbol": item.get("l18", ""),

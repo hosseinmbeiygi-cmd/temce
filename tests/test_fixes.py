@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import sys
-import requests
+
 
 async def test_fixes():
     # Test 1: Check if app can be imported
@@ -18,7 +18,7 @@ async def test_fixes():
     try:
         from fastapi.testclient import TestClient
         client = TestClient(app)
-        
+
         response = client.get("/")
         print(f"   Response status: {response.status_code}")
         if response.status_code == 307 or response.status_code == 303:

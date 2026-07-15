@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import inspect
 from collections import defaultdict
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from core.events import DomainEvent
 from core.logging import get_logger

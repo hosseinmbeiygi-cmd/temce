@@ -16,7 +16,7 @@ class TradeService:
     async def get_trades(self, symbol: str, limit: int = 100) -> Result[list[dict[str, Any]]]:
         try:
             # ── Step 1: Try local DB (BrsApiQueryService) ──
-            trades = await self._brsapi.get_intraday_trades(symbol, limit)
+            trades = await self._brsapi.get_intraday_trades(symbol, limit=limit)
             if trades:
                 return Result.ok(trades)
 
@@ -27,30 +27,30 @@ class TradeService:
                     return Result.ok(live_trades)
 
             return Result.ok([])
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to fetch trades for %s", symbol)
             return Result.ok([])
 
     async def _fetch_live_trades(self, symbol: str, limit: int) -> list[dict[str, Any]]:
         """Fetch intraday trades directly from the BrsApi API when DB is empty."""
-        # Resolve symbol to l18 code via snapshot table
-        snap = await self._brsapi.get_symbol_snapshot(symbol)
-        l18 = snap.get("l18") if snap else None
-        if not l18:
-            logger.warning("No l18 code found for symbol %s — cannot fetch live trades", symbol)
-            return []
+        # symbol IS the l18 code in our snapshot table
 
         try:
+            from datetime import date
             from brsapi.config import BrsApiEndpoints
             from brsapi.parsers import TsetmcParser
 
             result = await self._client.fetch(
                 BrsApiEndpoints.TRANSACTION,
-                params={"l18": l18},
+                params={"l18": symbol},
             )
             if result.success and result.value and result.value.data:
                 parsed = TsetmcParser.parse_transactions(result.value.data)
                 if isinstance(parsed, list) and parsed:
+                    today = date.today().isoformat()
+                    for rec in parsed:
+                        rec["symbol"] = symbol
+                        rec["trade_date"] = today
                     # Save fetched data to DB for future reads
                     try:
                         await self._save_live_trades(symbol, parsed)
@@ -75,7 +75,7 @@ class TradeService:
 
     async def get_recent(self, symbol: str) -> Result[list[dict[str, Any]]]:
         try:
-            trades = await self._brsapi.get_intraday_trades(symbol, 20)
+            trades = await self._brsapi.get_intraday_trades(symbol, limit=20)
             if trades:
                 return Result.ok(trades)
             # Live fallback for recent endpoint too
@@ -84,7 +84,7 @@ class TradeService:
                 if live_trades:
                     return Result.ok(live_trades)
             return Result.ok([])
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to fetch recent trades for %s", symbol)
             return Result.ok([])
 

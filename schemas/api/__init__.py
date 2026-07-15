@@ -1,4 +1,5 @@
 from schemas.api.alerts import AlertCreate, AlertListResponse, AlertResponse, AlertUpdate
+from schemas.api.analytics import AnalyticsRequest, AnalyticsResponse, MarketAnalyticsSummary
 from schemas.api.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -8,7 +9,6 @@ from schemas.api.auth import (
     UpdateProfileRequest,
     UserResponse,
 )
-from schemas.api.analytics import AnalyticsRequest, AnalyticsResponse, MarketAnalyticsSummary
 from schemas.api.backtest import BacktestRequest, BacktestResponse, BacktestResultResponse
 from schemas.api.bonds import BondListResponse, BondRequest, BondResponse
 from schemas.api.codal import CodalListResponse, CodalReportResponse, CodalSearchRequest

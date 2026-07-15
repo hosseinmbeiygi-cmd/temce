@@ -20,9 +20,9 @@ def register_all_models() -> None:
     model_registry.register("xgboost", XGBoostModel)
 
     # ── Deep models ──
-    from ml.models.deep.lstm import LSTMModel
-    from ml.models.deep.gru import GRUModel
     from ml.models.deep.cnn import CNNModel
+    from ml.models.deep.gru import GRUModel
+    from ml.models.deep.lstm import LSTMModel
     from ml.models.deep.transformer import TransformerModel
 
     model_registry.register("lstm", LSTMModel)

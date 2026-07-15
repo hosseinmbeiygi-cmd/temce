@@ -59,7 +59,7 @@ export default function QuoteImportPage() {
     const valid: File[] = [];
     for (const f of Array.from(candidates)) {
       if (!f.name.toLowerCase().endsWith(".csv")) {
-        setError(`فرمت فایل ${f.name} مجاز نیست. فقط CSV پشتیبانی می‌شود.`);
+        setError("فرمت فایل " + f.name + " مجاز نیست. فقط CSV پشتیبانی می‌شود.");
         continue;
       }
       valid.push(f);
@@ -138,9 +138,9 @@ export default function QuoteImportPage() {
 
       if (response.data) {
         const { total_files, imported, updated, errors } = response.data;
-        const msg = `${imported} ردیف جدید + ${updated} ردیف به‌روزرسانی شد از ${total_files} فایل`;
+        const msg = imported + " ردیف جدید + " + updated + " ردیف به‌روزرسانی شد از " + total_files + " فایل";
         if (errors.length > 0) {
-          toast.warning(msg + ` — ${errors.length} خطا`);
+          toast.warning(msg + " — " + errors.length + " خطا");
         } else {
           toast.success(msg);
         }
@@ -219,7 +219,7 @@ export default function QuoteImportPage() {
           </div>
           <p className="text-surface-200 font-medium">
             {files.length > 0
-              ? `${files.length} فایل انتخاب شد`
+              ? files.length + " فایل انتخاب شد"
               : "فایل‌های CSV را اینجا رها کنید یا کلیک کنید"}
           </p>
           <p className="text-surface-500 text-sm mt-1">

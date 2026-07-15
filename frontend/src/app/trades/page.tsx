@@ -121,7 +121,7 @@ export default function TradesPage() {
   const recentTrades = recentData ?? [];
 
   return (
-    <AppLayout title="تاریخچه معاملات" subtitle={`نماد: ${symbol}`}>
+    <AppLayout title="تاریخچه معاملات" subtitle={"نماد: " + symbol}>
       <div className="max-w-7xl mx-auto space-y-5">
         {/* ── Header: Symbol Selector ── */}
         <div className="glass-card p-5">
@@ -143,7 +143,7 @@ export default function TradesPage() {
             </div>
             <div className="text-xs text-surface-500">
               {total.toLocaleString("fa-IR")} معامله
-              {!isLoading && ` • ${filtered.length} نمایش`}
+              {!isLoading && " • " + filtered.length + " نمایش"}
             </div>
           </div>
         </div>
@@ -221,7 +221,7 @@ export default function TradesPage() {
         {/* ── Trade Table ── */}
         <Card
           title="📋 جزئیات معاملات"
-          subtitle={`صفحه ${page + 1} از ${totalPages}`}
+          subtitle={"صفحه " + (page + 1) + " از " + totalPages}
         >
           {isLoading ? (
             <div className="space-y-2">

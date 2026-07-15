@@ -31,12 +31,12 @@ class Clock:
             t = self._now.time()
             open_h, open_m = map(int, market_open.split(":"))
             close_h, close_m = map(int, market_close.split(":"))
-            
+
             if not (0 <= open_h < 24 and 0 <= open_m < 60):
                 raise ValueError("Invalid market open time")
             if not (0 <= close_h < 24 and 0 <= close_m < 60):
                 raise ValueError("Invalid market close time")
-                
+
             open_t = t.replace(hour=open_h, minute=open_m, second=0)
             close_t = t.replace(hour=close_h, minute=close_m, second=0)
             return open_t <= t <= close_t

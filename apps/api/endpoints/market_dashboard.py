@@ -39,6 +39,7 @@ async def market_dashboard(
 
     await asyncio.gather(
         _fetch("overview", market_service.get_overview()),
+        _fetch("indices", _unwrap_indices(market_service)),
         _fetch("screener", _fetch_screener_data(brsapi)),
         _fetch("commodities", brsapi.get_commodity_prices()),
         _fetch("crypto", brsapi.get_crypto_prices()),
@@ -50,13 +51,19 @@ async def market_dashboard(
     return ApiResponse[dict[str, Any]](success=True, data=results)
 
 
+async def _unwrap_indices(market_service: MarketService) -> list[dict[str, Any]]:
+    """Get indices from DB, unwrapping the Result object."""
+    result = await market_service.get_index_values()
+    return result.value if result.success else []
+
+
 async def _fetch_screener_data(brsapi) -> list[dict[str, Any]]:
-    """Fetch screener data from BrsApi snapshots."""
+    """Fetch screener data from BrsApi snapshots using real data."""
     try:
-        from services.screener_service import ScreenerService, build_quote_from_watch, build_history_from_watch
+        from services.screener_service import build_real_quote_from_snapshot
         from services.smart_money.scoring_engine import ScoringEngine
 
-        snapshots = await brsapi.get_enriched_snapshots(limit=100)
+        snapshots = await brsapi.get_enriched_snapshots(limit=500)
         if not snapshots:
             return []
 
@@ -66,24 +73,11 @@ async def _fetch_screener_data(brsapi) -> list[dict[str, Any]]:
             sym = s.get("symbol", "")
             if not sym:
                 continue
-            watch = {
-                "symbol": sym,
-                "name": s.get("name", sym),
-                "last_price": s.get("price_last", 0) or 0,
-                "close": s.get("price_close", 0) or 0,
-                "change": s.get("price_last_change_pct", 0) or 0,
-                "change_value": s.get("price_last_change", 0) or 0,
-                "volume": s.get("trade_volume", 0) or 0,
-                "value": s.get("trade_value", 0) or 0,
-                "high": s.get("price_highest_allowed", 0) or 0,
-                "low": s.get("price_lowest_allowed", 0) or 0,
-                "sector": s.get("sector", ""),
-                "market": s.get("market", ""),
-            }
-            quote = build_quote_from_watch(watch)
-            history = build_history_from_watch(watch)
+            # Build quote directly from real snapshot data (no synthetic fields)
+            quote = build_real_quote_from_snapshot(s)
             try:
-                result = engine.analyze(quote, history)
+                # Dashboard uses partial mode (empty history) for speed
+                result = engine.analyze(quote, [])
                 smc = result.get("smart_money_score", 0.0)
                 phase = result.get("phase", "neutral")
             except Exception:

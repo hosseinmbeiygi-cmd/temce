@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import ceil
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
 T = TypeVar("T")
 
@@ -27,16 +27,19 @@ class PaginatedResult(BaseModel, Generic[T]):
     page: int = 1
     page_size: int = 50
 
+    @computed_field
     @property
     def total_pages(self) -> int:
         if self.page_size <= 0:
             return 1
         return max(1, ceil(self.total / self.page_size))
 
+    @computed_field
     @property
     def has_next(self) -> bool:
         return self.page < self.total_pages
 
+    @computed_field
     @property
     def has_prev(self) -> bool:
         return self.page > 1

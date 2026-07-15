@@ -8,9 +8,9 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from core.config import settings
-from core.database import _create_all_tables, async_session_factory, engine
 import core.database as db
+from core.config import settings
+from core.database import _create_all_tables
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

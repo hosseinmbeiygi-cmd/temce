@@ -33,25 +33,7 @@ Table                           Purpose
 """
 
 from brsapi.models.base import BrsApiBase, RawPayloadModel, SyncLogModel
-from brsapi.models.tsetmc import (
-    SymbolSnapshotModel,
-    SymbolDetailModel,
-    IndexValueModel,
-    NavRecordModel,
-    OptionSnapshotModel,
-    IntradayTradeModel,
-    HistoricalDailyModel,
-    HistoricalRealLegalModel,
-    CandlestickModel,
-    ShareholderRecordModel,
-)
-from brsapi.models.ime import (
-    ImeFutureModel,
-    ImeOptionModel,
-    ImeCertificateModel,
-    ImeFundModel,
-    ImePhysicalTradeModel,
-)
+from brsapi.models.codal import CodalAnnouncementModel
 from brsapi.models.commodity import (
     CommodityPriceModel,
     Currency24hModel,
@@ -59,9 +41,30 @@ from brsapi.models.commodity import (
     Gold24hModel,
     GoldCoinHistoryModel,
     GoldCoinPriceModel,
+    GoldCurrencyProDailyHistoryModel,
+    GoldCurrencyProHistory24hModel,
+    GoldCurrencyProPriceModel,
 )
 from brsapi.models.crypto import CryptoPriceModel
-from brsapi.models.codal import CodalAnnouncementModel
+from brsapi.models.ime import (
+    ImeCertificateModel,
+    ImeFundModel,
+    ImeFutureModel,
+    ImeOptionModel,
+    ImePhysicalTradeModel,
+)
+from brsapi.models.tsetmc import (
+    CandlestickModel,
+    HistoricalDailyModel,
+    HistoricalRealLegalModel,
+    IndexValueModel,
+    IntradayTradeModel,
+    NavRecordModel,
+    OptionSnapshotModel,
+    ShareholderRecordModel,
+    SymbolDetailModel,
+    SymbolSnapshotModel,
+)
 
 __all__ = [
     "BrsApiBase",
@@ -93,6 +96,10 @@ __all__ = [
     "CurrencyPriceModel",
     "Currency24hModel",
     "Gold24hModel",
+    # Gold & Currency Pro
+    "GoldCurrencyProPriceModel",
+    "GoldCurrencyProHistory24hModel",
+    "GoldCurrencyProDailyHistoryModel",
     # Codal
     "CodalAnnouncementModel",
 ]

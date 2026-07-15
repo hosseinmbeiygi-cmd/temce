@@ -1,11 +1,10 @@
-import os
 import json
+import os
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any
+
 from dotenv import load_dotenv
-import psycopg2
-from psycopg2 import sql, OperationalError, DatabaseError, IntegrityError
-from psycopg2.extras import DictCursor
+from psycopg2 import DatabaseError, OperationalError
 from psycopg2.pool import SimpleConnectionPool
 
 load_dotenv()
@@ -30,7 +29,7 @@ for key, value in connection_params.items():
 
 
 class DataRepository:
-    _pool: Optional[SimpleConnectionPool] = None
+    _pool: SimpleConnectionPool | None = None
 
     def __init__(self, min_conn: int = 2, max_conn: int = 5):
         self._initialize_pool(min_conn, max_conn)
@@ -59,107 +58,100 @@ class DataRepository:
         if self._pool:
             self._pool.closeall()
 
-    def save_instrument(self, data: Dict[str, Any]) -> int:
+    def save_instrument(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO instruments ({columns}) VALUES ({placeholders}) ON CONFLICT (symbol) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data.keys()])
+        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data])
         query += update_columns
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to save instrument: {e}")
 
-    def save_price(self, data: Dict[str, Any]) -> int:
+    def save_price(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO prices ({columns}) VALUES ({placeholders}) ON CONFLICT (instrument_id, date) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data.keys() if k not in ['instrument_id', 'date']])
+        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k not in ['instrument_id', 'date']])
         query += update_columns
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to save price: {e}")
 
-    def save_trade(self, data: Dict[str, Any]) -> int:
+    def save_trade(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO trades ({columns}) VALUES ({placeholders}) ON CONFLICT (instrument_id, trade_time) DO NOTHING"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to save trade: {e}")
 
-    def save_codal_announcement(self, data: Dict[str, Any]) -> int:
+    def save_codal_announcement(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO codal_announcements ({columns}) VALUES ({placeholders}) ON CONFLICT (announcement_id) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data.keys() if k != 'announcement_id'])
+        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k != 'announcement_id'])
         query += update_columns
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to save codal announcement: {e}")
 
-    def save_news(self, data: Dict[str, Any]) -> int:
+    def save_news(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO news ({columns}) VALUES ({placeholders}) ON CONFLICT (url) DO NOTHING"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to save news: {e}")
 
-    def log_audit(self, data: Dict[str, Any]) -> int:
+    def log_audit(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO audit_logs ({columns}) VALUES ({placeholders})"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to log audit: {e}")
 
-    def log_alert(self, data: Dict[str, Any]) -> int:
+    def log_alert(self, data: dict[str, Any]) -> int:
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO monitoring_alerts ({columns}) VALUES ({placeholders})"
 
         try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(query, tuple(data.values()))
-                    conn.commit()
-                    return cursor.fetchone()[0]
+            with self._get_connection() as conn, conn.cursor() as cursor:
+                cursor.execute(query, tuple(data.values()))
+                conn.commit()
+                return cursor.fetchone()[0]
         except (OperationalError, DatabaseError) as e:
             raise DatabaseError(f"Failed to log alert: {e}")
 
@@ -172,7 +164,7 @@ class DataRepository:
             'ip_address': '',
             'logged_at': datetime.now().isoformat()
         }
-        
+
         if severity_check := self._check_error_severity(error):
             alert_data = {
                 'alert_type': 'scraping_error',
@@ -189,7 +181,7 @@ class DataRepository:
 
         return self.log_audit(error_data)
 
-    def _check_error_severity(self, error: Exception) -> Optional[Dict]:
+    def _check_error_severity(self, error: Exception) -> dict | None:
         severity_map = {
             'IndexError': 'high',
             'KeyError': 'high',
@@ -198,7 +190,7 @@ class DataRepository:
             'TimeoutError': 'low',
             'ConnectionError': 'low'
         }
-        
+
         error_type = type(error).__name__
         if error_type in severity_map:
             return {'severity': severity_map[error_type]}

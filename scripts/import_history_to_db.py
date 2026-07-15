@@ -16,6 +16,7 @@ from __future__ import annotations
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -23,7 +24,6 @@ if str(_project_root) not in sys.path:
 
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -31,14 +31,14 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import close_database, get_session, init_database
 from core.ids import new_id
 from core.logging import get_logger, setup_logging
-from models.quote import QuoteModel
 from models.instrument import InstrumentModel
+from models.quote import QuoteModel
 
 logger = get_logger(__name__)
 
@@ -110,7 +110,7 @@ async def import_symbol_file(
 ) -> int:
     """Import a single symbol's history file into the quotes table."""
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(json_path, encoding="utf-8") as f:
             records = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         logger.error("  ❌ Failed to read %s: %s", json_path.name, e)
@@ -248,7 +248,7 @@ async def main() -> None:
         # Process each file
         # Log progress every 50 files
         progress_log_interval = max(1, len(json_files) // 30)
-        
+
         for idx, json_path in enumerate(json_files, 1):
             symbol = json_path.stem.replace("_history", "").strip()
             instrument_id = instrument_map.get(symbol)

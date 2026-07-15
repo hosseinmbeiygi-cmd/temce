@@ -1,9 +1,7 @@
-import os
-import base64
 import argparse
+import base64
+import os
 from datetime import datetime
-from pathlib import Path
-import math
 
 # ── تنظیمات ──────────────────────────────────────────
 EXCLUDE_DIRS = [
@@ -47,7 +45,7 @@ def is_binary_file(file_path: str) -> bool:
 
 def read_file_content(file_path: str) -> tuple[str, str]:
     file_size = os.path.getsize(file_path)
-    
+
     if file_size > MAX_FILE_SIZE:
         return "info", f"⚠️ فایل خیلی بزرگ است ({file_size / 1024 / 1024:.1f} MB) - فقط نام نمایش داده شده است."
 
@@ -63,47 +61,47 @@ def read_file_content(file_path: str) -> tuple[str, str]:
     encodings = ['utf-8', 'cp1256', 'iso-8859-1', 'ascii']
     for enc in encodings:
         try:
-            with open(file_path, 'r', encoding=enc, errors='ignore') as f:
+            with open(file_path, encoding=enc, errors='ignore') as f:
                 content = f.read()
             return "text", content
         except (UnicodeDecodeError, PermissionError):
             continue
-    
+
     return "error", "⚠️ خطا: encoding نامشخص یا دسترسی محدود"
 
 def collect_all_files(root_dir: str) -> list:
     """جمع‌آوری لیست تمام فایل‌ها به جز node_modules"""
     result = []
     excluded_count = 0
-    
+
     for dirpath, dirnames, filenames in os.walk(root_dir):
         # حذف پوشه‌های استثنا (با چک کامل)
         original_count = len(dirnames)
         dirnames[:] = [d for d in dirnames if not should_exclude(os.path.join(dirpath, d), is_dir=True)]
         excluded_count += original_count - len(dirnames)
-        
+
         for filename in filenames:
             file_path = os.path.join(dirpath, filename)
             if should_exclude(file_path, is_dir=False):
                 continue
             result.append(file_path)
-    
+
     if excluded_count > 0:
         print(f"🔇 {excluded_count} پوشه (شامل node_modules) از اسکن حذف شدند.")
-    
+
     return sorted(result)
 
 def split_files_into_parts(file_list: list, parts: int) -> list:
     if parts <= 1:
         return [file_list]
-    
+
     total_size = sum(os.path.getsize(f) for f in file_list)
     target_size_per_part = total_size / parts
-    
+
     result = []
     current_part = []
     current_size = 0
-    
+
     for file_path in file_list:
         file_size = os.path.getsize(file_path)
         if file_size > target_size_per_part * 1.5:
@@ -113,65 +111,65 @@ def split_files_into_parts(file_list: list, parts: int) -> list:
                 current_size = 0
             result.append([file_path])
             continue
-        
+
         current_part.append(file_path)
         current_size += file_size
-        
+
         if current_size >= target_size_per_part:
             result.append(current_part)
             current_part = []
             current_size = 0
-    
+
     if current_part:
         result.append(current_part)
-    
+
     return result
 
 def generate_split_files(root_dir: str, output_prefix: str, parts: int = 5):
     files = collect_all_files(root_dir)
     total_files = len(files)
-    
+
     if total_files == 0:
         print("⚠️ هیچ فایلی پیدا نشد.")
         return
-    
+
     print(f"📂 پوشه: {root_dir}")
     print(f"📄 تعداد فایل‌های متنی: {total_files}")
     print(f"📦 تعداد بخش‌ها: {parts}")
     print("-" * 50)
-    
+
     file_groups = split_files_into_parts(files, parts)
     actual_parts = len(file_groups)
-    
+
     text_count = 0
     binary_count = 0
     error_count = 0
-    
+
     for part_idx, group in enumerate(file_groups, 1):
         output_file = f"{output_prefix}_{part_idx}_of_{actual_parts}.txt"
-        
+
         with open(output_file, 'w', encoding='utf-8') as out:
-            out.write(f"# ================================================\n")
+            out.write("# ================================================\n")
             out.write(f"#  ترکیب فایل‌های پوشه: {root_dir}\n")
             out.write(f"#  بخش {part_idx} از {actual_parts}\n")
             out.write(f"#  تعداد فایل‌های این بخش: {len(group)}\n")
             out.write(f"#  تاریخ ایجاد: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            out.write(f"# ================================================\n\n")
-            
+            out.write("# ================================================\n\n")
+
             for idx, file_path in enumerate(group, 1):
                 rel_path = os.path.relpath(file_path, root_dir)
                 ext = os.path.splitext(file_path)[1] or "بدون پسوند"
                 file_size = os.path.getsize(file_path)
-                
+
                 out.write(f"\n{'=' * 70}\n")
                 out.write(f"📄 فایل [{idx}/{len(group)}]: {rel_path}\n")
                 out.write(f"   مسیر کامل: {file_path}\n")
                 out.write(f"   پسوند: {ext}\n")
                 out.write(f"   حجم: {file_size:,} بایت ({file_size / 1024:.1f} KB)\n")
                 out.write(f"{'=' * 70}\n\n")
-                
+
                 content_type, content = read_file_content(file_path)
-                
+
                 if content_type == "text":
                     out.write(content)
                     text_count += 1
@@ -187,16 +185,16 @@ def generate_split_files(root_dir: str, output_prefix: str, parts: int = 5):
                     out.write(content)
                     error_count += 1
                     status = "❌"
-                
-                out.write(f"\n\n")
+
+                out.write("\n\n")
                 print(f"{status} بخش {part_idx}/{actual_parts} [{idx:3d}/{len(group)}]  {rel_path}  ({file_size / 1024:.1f} KB)")
-        
+
         size_mb = os.path.getsize(output_file) / 1024 / 1024
         print(f"✅ بخش {part_idx} ذخیره شد: {output_file} ({size_mb:.2f} MB)")
         print("-" * 50)
-    
+
     print(f"\n✅ همه بخش‌ها ذخیره شدند! ({actual_parts} فایل)")
-    print(f"📊 خلاصه کلی:")
+    print("📊 خلاصه کلی:")
     print(f"   📝 فایل‌های متنی: {text_count}")
     print(f"   🔷 فایل‌های باینری (Base64): {binary_count}")
     if error_count > 0:
@@ -227,18 +225,18 @@ def main():
         default=50,
         help="حداکثر حجم فایل بر حسب مگابایت (پیش‌فرض: 50)"
     )
-    
+
     args = parser.parse_args()
-    
+
     global EXCLUDE_DIRS, MAX_FILE_SIZE, SPLIT_COUNT
     EXCLUDE_DIRS = args.exclude_dirs if hasattr(args, 'exclude_dirs') else EXCLUDE_DIRS
     MAX_FILE_SIZE = args.max_size * 1024 * 1024
     SPLIT_COUNT = args.parts
-    
+
     if not os.path.isdir(args.folder):
         print(f"❌ پوشه‌ی '{args.folder}' وجود ندارد.")
         return
-    
+
     generate_split_files(args.folder, args.output_prefix, args.parts)
 
 if __name__ == "__main__":

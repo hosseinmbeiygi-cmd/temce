@@ -9,13 +9,10 @@ Tests the ZeroDivision guards and core logic of:
 
 from __future__ import annotations
 
-import pytest
-
-from backtesting.strategies.rule_based.momentum_strategy import MomentumStrategy
 from backtesting.strategies.factor_based.momentum_factor_strategy import MomentumFactorStrategy
-from backtesting.strategies.rule_based.moving_average_cross import MovingAverageCrossStrategy
 from backtesting.strategies.rule_based.mean_reversion_strategy import MeanReversionStrategy
-
+from backtesting.strategies.rule_based.momentum_strategy import MomentumStrategy
+from backtesting.strategies.rule_based.moving_average_cross import MovingAverageCrossStrategy
 
 # ──────────────────────────────────────────────
 # MomentumStrategy

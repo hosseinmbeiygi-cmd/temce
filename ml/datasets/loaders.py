@@ -3,19 +3,19 @@ from __future__ import annotations
 from typing import Any
 
 import pandas as pd
-import yfinance as yf
 import requests
+import yfinance as yf
+
 DEFAULT_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
-from bs4 import BeautifulSoup
 import json
+from datetime import datetime
+
+import aiohttp
 
 from core.logging import get_logger
 from core.result import Result
-import aiohttp
-from datetime import datetime
-import time
 
 logger = get_logger(__name__)
 
@@ -35,7 +35,7 @@ class DataLoader:
         """Get stock info from TSE API"""
         url = "https://cdn.tsetmc.com/api/Instrument/GetInstrumentSearch"
         params = {'text': symbol}
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=params, timeout=10) as response:
@@ -50,22 +50,21 @@ class DataLoader:
         """Get historical data from TSE API"""
         start_dt = datetime.strptime(start, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end, "%Y-%m-%d").date()
-        
+
         url = f"https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceHistory/{ins_code}"
-        
+
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=15) as response:
-                    data = await response.json()
-                    if not data or 'closingPriceHistory' not in data:
-                        return None
-                    
-                    # Filter by date range
-                    filtered = [
-                        item for item in data['closingPriceHistory']
-                        if start_dt <= datetime.strptime(str(item['dEven']), "%Y%m%d").date() <= end_dt
-                    ]
-                    return filtered
+            async with aiohttp.ClientSession() as session, session.get(url, timeout=15) as response:
+                data = await response.json()
+                if not data or 'closingPriceHistory' not in data:
+                    return None
+
+                # Filter by date range
+                filtered = [
+                    item for item in data['closingPriceHistory']
+                    if start_dt <= datetime.strptime(str(item['dEven']), "%Y%m%d").date() <= end_dt
+                ]
+                return filtered
         except Exception as e:
             logger.warning(f"Failed to get history for {ins_code}: {str(e)}")
         return None
@@ -78,14 +77,14 @@ class DataLoader:
             response = requests.get(search_url, params=params, headers=DEFAULT_HEADERS)
             if response.status_code != 200 or not response.json().get('data'):
                 return Result.fail("Symbol not found")
-            
+
             ins_code = response.json()['data'][0]['insCode']
             realtime_url = f"http://cdn.tsetmc.com/api/Stock/GetStockDetail/{ins_code}"
             response = requests.get(realtime_url, headers=DEFAULT_HEADERS)
-            
+
             if response.status_code != 200:
                 return Result.fail("Failed to get realtime data")
-                
+
             return Result.ok(response.json())
         except Exception as e:
             return Result.fail(f"Realtime data error: {str(e)}")
@@ -105,7 +104,7 @@ class DataLoader:
             end,
             source
         )
-        
+
         if source.lower() == "yahoo":
             try:
                 data = yf.download(
@@ -119,7 +118,7 @@ class DataLoader:
                 return Result.ok(data)
             except Exception as e:
                 return Result.fail(f"Yahoo Finance download failed: {str(e)}")
-        
+
         elif source.lower() == "tsetmc":
             try:
                 dfs = []
@@ -128,7 +127,7 @@ class DataLoader:
                     stock_info = await self._get_tsetmc_stock_info(symbol)
                     if not stock_info:
                         continue
-                    
+
                     # Get historical data
                     history = await self._get_tsetmc_history(
                         stock_info['ins_code'],
@@ -139,10 +138,10 @@ class DataLoader:
                         df = pd.DataFrame(history)
                         df['Symbol'] = symbol
                         dfs.append(df)
-                
+
                 if not dfs:
                     return Result.fail("No valid data received from TSE")
-                
+
                 return Result.ok(pd.concat(dfs))
             except Exception as e:
                 logger.exception("TSE data download failed")
@@ -164,19 +163,19 @@ class DataLoader:
                         json_data = response.json()
                         if response.status_code != 200 or not json_data.get('data'):
                             continue
-                        
+
                         inst_data = json_data['data'][0]
                     except json.JSONDecodeError as e:
                         logger.error(f"Failed to decode JSON: {e}")
                         continue
                     ins_code = inst_data['insCode']
-                    
+
                     # Get historical data
                     hist_url = f"http://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/{ins_code}/0"
                     response = requests.get(hist_url, headers=DEFAULT_HEADERS)
                     if response.status_code != 200:
                         continue
-                    
+
                     # Parse and process data
                     raw_data = response.json()['closingPriceDaily']
                     df = pd.DataFrame(raw_data)
@@ -184,17 +183,17 @@ class DataLoader:
                     df['Date'] = pd.to_datetime(df['dEven'], format='%Y%m%d')
                     df = df.set_index('Date')
                     dfs.append(df)
-                
+
                 if not dfs:
                     logger.error("No data frames were created - check symbol names and API response")
                     return Result.fail("No historical data found on TSE")
-                
+
                 combined_df = pd.concat(dfs)
                 logger.info(f"Successfully loaded data for {len(dfs)} symbols")
                 return Result.ok(combined_df)
-                
+
             except Exception as e:
                 return Result.fail(f"TSE data download failed: {str(e)}")
-        
+
         else:
             return Result.fail(f"Unsupported data source: {source}")

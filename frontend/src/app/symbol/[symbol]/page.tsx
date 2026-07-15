@@ -88,6 +88,7 @@ interface SignalItem {
 interface NewsItem {
   id: string; symbol: string; title: string;
   source: string; published_at: string; summary: string;
+  url: string;
 }
 
 interface InsiderTrade {
@@ -141,7 +142,8 @@ async function searchSymbols(query: string): Promise<string[]> {
   return FALLBACK_SYMBOLS.filter(s => s.includes(query));
 }
 
-function formatCurrency(val: number): string {
+function formatCurrency(val: number | null | undefined): string {
+  if (val == null) return "—";
   if (Math.abs(val) >= 1e12) return (val / 1e12).toFixed(1) + "T";
   if (Math.abs(val) >= 1e9) return (val / 1e9).toFixed(1) + "B";
   if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + "M";
@@ -149,7 +151,8 @@ function formatCurrency(val: number): string {
   return val.toLocaleString();
 }
 
-function formatPct(val: number): { text: string; color: string } {
+function formatPct(val: number | null | undefined): { text: string; color: string } {
+  if (val == null) return { text: "—", color: "text-surface-400" };
   const fixed = val.toFixed(2);
   if (val > 0) return { text: `+${fixed}%`, color: "text-accent-emerald" };
   if (val < 0) return { text: `${fixed}%`, color: "text-accent-rose" };
@@ -283,7 +286,7 @@ export default function SymbolPage() {
 
   if (loading) {
     return (
-      <AppLayout title={`جزئیات ${decodedSymbol}`} subtitle="در حال بارگذاری...">
+      <AppLayout title={"جزئیات " + decodedSymbol} subtitle="در حال بارگذاری...">
         <div className="max-w-7xl mx-auto space-y-4">
           <Skeleton className="h-16 w-full rounded-xl" />
           <Skeleton className="h-96 w-full rounded-xl" />
@@ -297,7 +300,7 @@ export default function SymbolPage() {
     "bg-surface-700 text-surface-400";
 
   return (
-    <AppLayout title={profile?.name || decodedSymbol} subtitle={profile ? `نماد: ${decodedSymbol} • ${profile.industry}` : decodedSymbol}>
+    <AppLayout title={profile?.name || decodedSymbol} subtitle={profile ? "نماد: " + decodedSymbol + " • " + profile.industry : decodedSymbol}>
       <div className="max-w-7xl mx-auto space-y-5">
         {/* ------ Header Bar ------------------------------------------------------------------------------------------------------ */}
         {displayQuote ? (
@@ -546,8 +549,8 @@ function FundamentalCompareCard({ currentSymbol, currentProfile }: { currentSymb
               </tr>
             </thead>
             <tbody>
-              {metrics.map((m) => (
-                <tr key={m.label} className="border-b border-surface-800/50 hover:bg-white/5">
+              {metrics.map((m, mi) => (
+                <tr key={`${m.label}-${mi}`} className="border-b border-surface-800/50 hover:bg-white/5">
                   <td className="py-2.5 px-3 text-surface-500">{m.label}</td>
                   <td className={`py-2.5 px-3 font-mono font-bold text-center ${m.color === "green" ? "text-accent-emerald" : m.color === "red" ? "text-accent-rose" : "text-surface-200"}`}>
                     {m.ours}
@@ -588,7 +591,7 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
             <InfoRow label="سال تأسیس" value={String(profile.established)} />
             <InfoRow label="تعداد سهام" value={formatCurrency(profile.shares_count)} />
             <InfoRow label="حجم مبنا" value={profile.base_volume ? profile.base_volume.toLocaleString() : "-"} />
-            <InfoRow label="ارزش بازار" value={`${formatCurrency(profile.market_cap)} ریال`} />
+            <InfoRow label="ارزش بازار" value={formatCurrency(profile.market_cap) + " ریال"} />
             {profile.free_float_pct != null && profile.free_float_pct > 0 && (
               <InfoRow label="درصد شناوری" value={`${profile.free_float_pct.toFixed(1)}%`} />
             )}
@@ -625,10 +628,10 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
       {/* Quick Stats */}
       <Card title="⏱ خلاصه">
         <div className="space-y-4">
-          <StatRow icon="📋" label="گزارش‌های کدال" value={`${codal.length} گزارش`} />
-          <StatRow icon="📡" label="سیگنال‌ها" value={`${signals.length} سیگنال`} />
-          <StatRow icon="📰" label="اخبار" value={`${news.length} خبر`} />
-          <StatRow icon="👥" label="سهامداران عمده" value={`${holders.length} سهامدار`} />
+          <StatRow icon="📋" label="گزارش‌های کدال" value={codal.length + " گزارش"} />
+          <StatRow icon="📡" label="سیگنال‌ها" value={signals.length + " سیگنال"} />
+          <StatRow icon="📰" label="اخبار" value={news.length + " خبر"} />
+          <StatRow icon="👥" label="سهامداران عمده" value={holders.length + " سهامدار"} />
           {lastFin && <StatRow icon="💰" label="آخرین EPS" value={lastFin.eps.toLocaleString()} />}
           {profile?.base_volume != null && profile.base_volume > 0 && (
             <StatRow icon="📦" label="حجم مبنا" value={profile.base_volume.toLocaleString()} />
@@ -737,13 +740,19 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
         {news.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {news.slice(0, 4).map((n, i) => (
-              <div key={n.id || `news-${i}`} className="p-3 rounded-lg bg-surface-800/50 hover:bg-surface-800 transition-colors">
+              <a
+                key={n.id || `news-${i}`}
+                href={n.url || "#"}
+                target={n.url ? "_blank" : undefined}
+                rel={n.url ? "noopener noreferrer" : undefined}
+                className="block p-3 rounded-lg bg-surface-800/50 hover:bg-surface-800 transition-colors"
+              >
                 <p className="text-sm font-medium text-surface-200 line-clamp-2">{n.title}</p>
                 <div className="flex items-center justify-between mt-2 text-xs text-surface-500">
                   <span>{n.source}</span>
                   <span>{n.published_at}</span>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         ) : <p className="text-surface-500 text-sm">اخباری یافت نشد</p>}
@@ -841,7 +850,7 @@ function PriceTab({ symbol, quote }: { symbol: string; quote: QuoteData }) {
       const close = price * (1 + change);
       const high = Math.max(open, close) * (1 + Math.random() * 0.02);
       const low = Math.min(open, close) * (1 - Math.random() * 0.02);
-      bars.push({ t: `۱۴۰۳-${String((i % 12) + 1).padStart(2, "0")}-${String((i % 30) + 1).padStart(2, "0")}`, o: Math.round(open), h: Math.round(high), l: Math.round(low), c: Math.round(close), v: Math.round(1000000 + Math.random() * 10000000) });
+      bars.push({ t: "۱۴۰۳-" + String((i % 12) + 1).padStart(2, "0") + "-" + String((i % 30) + 1).padStart(2, "0"), o: Math.round(open), h: Math.round(high), l: Math.round(low), c: Math.round(close), v: Math.round(1000000 + Math.random() * 10000000) });
       price = close;
     }
     return bars;
@@ -1193,14 +1202,20 @@ function NewsTab({ news, symbol }: { news: NewsItem[]; symbol: string }) {
   return (
     <div className="space-y-3">
       {news.length > 0 ? news.map((n, i) => (
-        <div key={n.id || `news-${i}`} className="glass-card p-4 hover:bg-surface-800/50 transition-colors">
+        <a
+          key={n.id || `news-${i}`}
+          href={n.url || "#"}
+          target={n.url ? "_blank" : undefined}
+          rel={n.url ? "noopener noreferrer" : undefined}
+          className="glass-card p-4 block hover:bg-surface-800/50 transition-colors"
+        >
           <h3 className="font-semibold text-surface-100">{n.title}</h3>
           <div className="flex items-center gap-3 mt-2 text-xs text-surface-500">
             <span>{n.source}</span>
             <span>{n.published_at}</span>
           </div>
           {n.summary && <p className="text-sm text-surface-400 mt-2 line-clamp-2">{n.summary}</p>}
-        </div>
+        </a>
       )) : (
         <div className="text-center py-12 text-surface-500">
           <p className="text-4xl mb-3">📰</p>
@@ -1279,7 +1294,7 @@ function HoldersTab({ holders, insider }: { holders: MajorHolder[]; insider: Ins
 function TradesTab({ trades, symbol }: { trades: IntradayTrade[]; symbol: string }) {
   return (
     <div className="space-y-4">
-      <Card title="🔄 ریز معاملات" subtitle={`${symbol} - آخرین معاملات روز`}>
+      <Card title="🔄 ریز معاملات" subtitle={symbol + " - آخرین معاملات روز"}>
         {trades.length === 0 ? (
           <div className="text-center py-12 text-surface-500">ریز معامله‌ای برای این نماد در دسترس نیست</div>
         ) : (

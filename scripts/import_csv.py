@@ -11,5 +11,6 @@ Usage:
     python scripts/import_data.py path/to/symbols.xlsx
 """
 import sys
+
 print("DEPRECATED: Use 'python scripts/import_data.py <file>' instead (supports CSV, JSON, Excel)")
 sys.exit(1)

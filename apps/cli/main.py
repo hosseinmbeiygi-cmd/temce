@@ -33,13 +33,6 @@ def serve(port: int) -> None:
     serve_main()
 
 
-def seed(data_type: str) -> None:
-    from scripts.seed_reference_data import seed_all
-
-    seed_all()
-    print(f"Seeded {data_type} data")
-
-
 def main() -> None:
     setup_logging()
     parser = argparse.ArgumentParser(description="Iran Market Platform CLI")

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from services.market_service import MarketService
 from services.macro_service import MacroService
+from services.market_service import MarketService
 
 
 @pytest.mark.asyncio

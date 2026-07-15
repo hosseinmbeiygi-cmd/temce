@@ -117,7 +117,7 @@ export default function FileUpload({
 
     if (maxSize && candidate.size > maxSize) {
       setError(
-        `حجم فایل (${formatBytes(candidate.size)}) از حد مجاز (${formatBytes(maxSize)}) بیشتر است.`,
+        "حجم فایل (" + formatBytes(candidate.size) + ") از حد مجاز (" + formatBytes(maxSize) + ") بیشتر است.",
       );
       return;
     }
@@ -138,7 +138,7 @@ export default function FileUpload({
         return lower.endsWith(pattern);
       });
       if (!matched) {
-        setError(`فرمت فایل مجاز نیست. فرمت‌های مجاز: ${accept}`);
+        setError("فرمت فایل مجاز نیست. فرمت‌های مجاز: " + accept);
         return;
       }
     }
@@ -273,8 +273,8 @@ export default function FileUpload({
             className="flex-1 bg-primary-600 hover:bg-primary-500 text-white rounded-lg py-2.5 font-medium transition-colors disabled:opacity-50"
           >
             {loading
-              ? `در حال بارگذاری... ${progress}%`
-              : `ارسال فایل${result ? " (مجدد)" : ""}`}
+              ? "در حال بارگذاری... " + progress + "%"
+              : "ارسال فایل" + (result ? " (مجدد)" : "")}
           </button>
           <button
             type="button"

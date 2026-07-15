@@ -1,29 +1,35 @@
 from __future__ import annotations
-from apps.api.endpoints import market_dashboard_router, quotes_router
+
 from fastapi import APIRouter, Depends
 
+from apps.admin.dashboard import router as admin_dashboard_router
 from apps.api.dependencies import get_optional_user
 from apps.api.endpoints import (
-    alpha_router,
     alerts_router,
-    anomalies_router,
+    alpha_router,
     analysis_router,
+    anomalies_router,
+    assistant_router,
     auth_router,
     backtests_router,
     brsapi_router,
     chat_router,
+    codal_router,
     data_import_router,
     economic_calendar_router,
     fundamental_router,
-    jobs_router,
-    codal_router,
     health_router,
     indicators_router,
+    jobs_router,
     macro_router,
+    market_dashboard_router,
+    market_info_router,
     market_router,
+    market_watch_router,
     ml_router,
     news_router,
     orderbooks_router,
+    portfolios_router,
     quotes_router,
     recommendations_router,
     reports_router,
@@ -33,14 +39,12 @@ from apps.api.endpoints import (
     smart_money_router,
     stock_assistant_router,
     symbols_router,
+    tabdeal_router,
     tables_router,
     tests_router,
     trades_router,
-    portfolios_router,
-    market_info_router,
     watchlist_router,
 )
-from apps.admin.dashboard import router as admin_dashboard_router
 from schemas.common.responses import ApiResponse
 
 # Auth dependency that makes user info available if token is provided (optional)
@@ -117,6 +121,11 @@ _ENDPOINTS = [
         "tag": "Stock Assistant",
         "description": "Conversational Q&A stock assistant",
     },
+    {
+        "path": "/assistant",
+        "tag": "Unified Assistant",
+        "description": "Unified conversational assistant — execute commands across all features",
+    },
     {"path": "/tests", "tag": "Tests", "description": "Test runner"},
     {"path": "/portfolios", "tag": "Portfolios", "description": "Portfolio management"},
     {"path": "/watchlist", "tag": "Watchlist", "description": "User watchlists"},
@@ -169,6 +178,12 @@ class Router:
             market_dashboard_router,
             prefix="/market-dashboard",
             tags=["Market Dashboard"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            market_watch_router,
+            prefix="/market-watch",
+            tags=["Market Watch"],
             dependencies=_optional_auth,
         )
         router.include_router(
@@ -298,6 +313,12 @@ class Router:
             dependencies=_optional_auth,
         )
         router.include_router(
+            assistant_router,
+            prefix="/assistant",
+            tags=["Unified Assistant"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
             tests_router, prefix="/tests", tags=["Tests"], dependencies=_optional_auth
         )
         router.include_router(
@@ -328,11 +349,26 @@ class Router:
             tags=["BrsApi"],
             dependencies=_optional_auth,
         )
+        # Tabdeal exchange integration
+        router.include_router(
+            tabdeal_router,
+            prefix="/tabdeal",
+            tags=["Tabdeal"],
+            dependencies=_optional_auth,
+        )
         # Table browser
         router.include_router(
             tables_router,
             prefix="/tables",
             tags=["Tables"],
+            dependencies=_optional_auth,
+        )
+        # Strategy Composition
+        from apps.api.endpoints.compose import router as compose_router
+        router.include_router(
+            compose_router,
+            prefix="/compose",
+            tags=["Strategy Composition"],
             dependencies=_optional_auth,
         )
         return router

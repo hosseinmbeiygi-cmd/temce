@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -8,15 +9,21 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session, get_news_service
+from core.logging import get_logger
 from core.result import PaginatedResult
 from domain.news.news_item import NewsItem
-from schemas.api.news import NewsRequest, NewsResponse, NewsListResponse
+from schemas.api.news import NewsRequest, NewsResponse
 from schemas.common.responses import ApiResponse
 from services.news_service import NewsService
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
 VALID_CATEGORIES = {"market", "company", "economic", "political", "international"}
+
+# Background refresh state
+_refresh_status: dict[str, Any] = {"running": False, "last_run": None, "last_result": None}
 
 
 def _item_to_response(item: NewsItem | dict) -> NewsResponse:
@@ -90,6 +97,7 @@ async def _get_market_news(session: AsyncSession, limit: int = 50) -> list[NewsR
             ))
         return items
     except Exception:
+        logger.exception("_get_market_news: failed to fetch snapshots")
         return []
 
 
@@ -291,3 +299,59 @@ async def trending_news(
         for i in range(limit)
     ]
     return ApiResponse[list[NewsResponse]](success=True, data=placeholder)
+
+
+@router.post("/refresh")
+async def refresh_news(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Trigger background news ingestion from RSS feeds."""
+    if _refresh_status["running"]:
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={"status": "already_running", "last_result": _refresh_status["last_result"]},
+        )
+
+    async def _run_refresh() -> None:
+        _refresh_status["running"] = True
+        try:
+            from services.news_ingestion import NewsIngestionService
+            service = NewsIngestionService(session=session)
+            stats = await service.ingest(
+                sources=None,
+                limit_per_source=30,
+                save=True,
+                verbose=False,
+                skip_sentiment=False,
+            )
+            _refresh_status["last_result"] = {
+                "fetched": stats.get("fetched", 0),
+                "saved": stats.get("saved", 0),
+                "duplicates": stats.get("duplicates_removed", 0),
+                "filtered": stats.get("filtered_out", 0),
+            }
+            _refresh_status["last_run"] = datetime.now().isoformat()
+        except Exception as e:
+            logger.exception("News refresh failed")
+            _refresh_status["last_result"] = {"error": str(e)}
+        finally:
+            _refresh_status["running"] = False
+
+    asyncio.create_task(_run_refresh())
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={"status": "started", "last_result": _refresh_status["last_result"]},
+    )
+
+
+@router.get("/refresh/status")
+async def refresh_status() -> ApiResponse[dict[str, Any]]:
+    """Check background news refresh status."""
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "running": _refresh_status["running"],
+            "last_run": _refresh_status["last_run"],
+            "last_result": _refresh_status["last_result"],
+        },
+    )

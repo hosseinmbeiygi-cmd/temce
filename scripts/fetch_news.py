@@ -19,6 +19,7 @@ from __future__ import annotations
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -26,7 +27,7 @@ if str(_project_root) not in sys.path:
 
 import argparse
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from core.database import get_session, init_database
 from core.logging import setup_logging
@@ -146,7 +147,7 @@ async def main() -> int:
     to_date = None
 
     if args.days:
-        from_date = datetime.now(timezone.utc) - timedelta(days=args.days)
+        from_date = datetime.now(UTC) - timedelta(days=args.days)
     if args.from_date:
         from_date = datetime.fromisoformat(args.from_date)
     if args.to_date:

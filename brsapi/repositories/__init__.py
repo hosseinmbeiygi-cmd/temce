@@ -7,8 +7,8 @@ Specialised repositories for upserting and querying BrsApi data.
 
 from brsapi.repositories.base import (
     BulkUpsertRepository,
-    SyncLogRepository,
     RawPayloadRepository,
+    SyncLogRepository,
 )
 
 __all__ = [

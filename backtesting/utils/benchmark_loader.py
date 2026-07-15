@@ -6,8 +6,9 @@ class BenchmarkLoader:
         self._data: dict[str, list[float]] = {}
 
     def load_from_csv(self, filepath: str, column: str = "close") -> list[float]:
-        from core.paths import validate_safe_path
         import csv
+
+        from core.paths import validate_safe_path
 
         safe = validate_safe_path(filepath)
         values: list[float] = []

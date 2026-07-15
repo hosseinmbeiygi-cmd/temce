@@ -16,32 +16,33 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from collections.abc import Callable
+from dataclasses import dataclass
 from logging import getLogger
-from typing import Any, Callable
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.client import BrsApiClient, BrsApiResponse, get_client
-from brsapi.models import SymbolSnapshotModel
 from brsapi.config import BrsApiEndpoints, EndpointConfig
 from brsapi.models import (
     CandlestickModel,
-    CommodityPriceModel,
     CodalAnnouncementModel,
+    CommodityPriceModel,
     CryptoPriceModel,
     CurrencyPriceModel,
-    Gold24hModel,
     GoldCoinPriceModel,
+    GoldCurrencyProDailyHistoryModel,
+    GoldCurrencyProHistory24hModel,
+    GoldCurrencyProPriceModel,
     HistoricalDailyModel,
     HistoricalRealLegalModel,
-    IndexValueModel,
     ImeCertificateModel,
     ImeFundModel,
     ImeFutureModel,
     ImeOptionModel,
     ImePhysicalTradeModel,
+    IndexValueModel,
     IntradayTradeModel,
     NavRecordModel,
     OptionSnapshotModel,
@@ -54,9 +55,9 @@ from brsapi.parsers import (
     CommodityParser,
     CryptoParser,
     CurrencyParser,
-    Gold24hParser,
     GoldCoinParser,
     GoldCurrencyParser,
+    GoldCurrencyProParser,
     ImeParser,
     TsetmcParser,
 )
@@ -65,7 +66,6 @@ from brsapi.repositories import (
     RawPayloadRepository,
     SyncLogRepository,
 )
-from core.result import Result
 
 logger = getLogger(__name__)
 
@@ -650,7 +650,13 @@ class BrsApiSyncService:
 
     # ── Gold & Coins ────────────────────────────────
     async def sync_gold_coin(self, session: AsyncSession) -> SyncReport:
-        """Sync gold & coin prices (legacy endpoint)."""
+        """Sync gold & coin prices (legacy endpoint).
+
+        DEPRECATED: /Market/Coin.php returns HTTP 404 since ~June 2026.
+        Use sync_gold_currency() which fetches from /Market/Gold_Currency.php
+        and stores gold data in GoldCoinPriceModel.
+        """
+        logger.warning("sync_gold_coin(): /Market/Coin.php is deprecated (HTTP 404). Use sync_gold_currency() instead.")
         return await self.sync(
             endpoint=BrsApiEndpoints.GOLD_COIN,
             parser=GoldCoinParser.parse,
@@ -801,39 +807,163 @@ class BrsApiSyncService:
         await session.commit()
         return reports
 
-    # ── Gold 24h ────────────────────────────────────
-    async def sync_gold_24h(self, session: AsyncSession) -> SyncReport:
-        """Sync 24-hour gold price changes."""
+    # ── Gold & Currency Pro (real-time sections) ────────
+    async def sync_gold_currency_pro(
+        self, session: AsyncSession, sections: str = "gold,currency,cryptocurrency"
+    ) -> list[SyncReport]:
+        """
+        Sync gold, currency & crypto from the **Pro** endpoint
+        ``/Market/Gold_Currency_Pro.php?section=...``.
+
+        Args:
+            sections: Comma-separated section names (default: all three).
+
+        Returns one ``SyncReport`` per section.
+        """
+        reports: list[SyncReport] = []
+        start_all = time.monotonic()
+
+        sync_log, raw_payload = self._ensure_repos(session)
+        client = await self._ensure_client()
+
+        # Fetch once with all requested sections
+        result = await client.fetch(
+            BrsApiEndpoints.GOLD_CURRENCY_PRO,
+            params={"section": sections},
+        )
+
+        if not result.success:
+            err_report = SyncReport(
+                endpoint="Gold_Currency_Pro.php (section)",
+                success=False,
+                error=result.error,
+            )
+            reports.append(err_report)
+            await sync_log.record(
+                endpoint="Gold_Currency_Pro.php (section)",
+                category="commodity",
+                status="error",
+                error_message=result.error,
+                duration_ms=int((time.monotonic() - start_all) * 1000),
+            )
+            return reports
+
+        data = result.value.data
+
+        section_names = [s.strip() for s in sections.split(",")]
+        parser_map = {
+            "gold": (GoldCurrencyProParser.parse_gold, GoldCurrencyProPriceModel, "Gold (Pro)"),
+            "currency": (GoldCurrencyProParser.parse_currency, GoldCurrencyProPriceModel, "Currency (Pro)"),
+            "cryptocurrency": (GoldCurrencyProParser.parse_crypto, GoldCurrencyProPriceModel, "Crypto (Pro)"),
+        }
+
+        for section_name in section_names:
+            if section_name not in parser_map:
+                logger.warning("Unknown section: %s", section_name)
+                continue
+
+            parser_fn, model_class, label = parser_map[section_name]
+            start = time.monotonic()
+
+            try:
+                records = parser_fn(data)
+            except Exception as exc:
+                logger.exception("Parse error for Gold_Currency_Pro/%s", section_name)
+                elapsed_ms = (time.monotonic() - start) * 1000
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=False, error=f"ParseError: {exc}", duration_ms=elapsed_ms)
+                reports.append(report)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="error", error_message=f"ParseError: {exc}", duration_ms=elapsed_ms)
+                continue
+
+            if not records:
+                elapsed_ms = (time.monotonic() - start) * 1000
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=True, items_count=0, duration_ms=elapsed_ms)
+                reports.append(report)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="success", items_count=0, duration_ms=elapsed_ms)
+                continue
+
+            repo = BulkUpsertRepository(session, model_class)
+            try:
+                await repo.truncate()
+                total = await repo.bulk_insert(records)
+                await session.flush()
+                elapsed_ms = (time.monotonic() - start) * 1000
+                logger.info("Gold_Currency_Pro/%s → %d records in %.0fms", label, total, elapsed_ms)
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=True, items_count=total, duration_ms=elapsed_ms)
+                reports.append(report)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="success", items_count=total, duration_ms=elapsed_ms)
+            except Exception as exc:
+                await session.rollback()
+                elapsed_ms = (time.monotonic() - start) * 1000
+                logger.exception("DB error for Gold_Currency_Pro/%s", section_name)
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=False, error=f"DBError: {exc}", duration_ms=elapsed_ms)
+                reports.append(report)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="error", error_message=f"DBError: {exc}", duration_ms=elapsed_ms)
+                break
+
+        # Store raw payload once
+        if result.value.raw_bytes is not None:
+            try:
+                await raw_payload.store(endpoint="Gold_Currency_Pro.php", payload=result.value.raw_bytes.decode("utf-8", errors="replace"), status_code=result.value.status_code)
+                await session.flush()
+            except Exception:
+                logger.warning("Failed to store raw payload for Gold_Currency_Pro.php", exc_info=True)
+
+        await session.commit()
+        return reports
+
+    # ── Gold & Currency Pro (24h history) ─────────────
+    async def sync_gold_currency_pro_history_24h(
+        self, session: AsyncSession, symbol: str
+    ) -> SyncReport:
+        """Sync 24-hour tick history for a symbol from the Pro endpoint."""
         return await self.sync(
-            endpoint=BrsApiEndpoints.GOLD_24H,
-            parser=Gold24hParser.parse,
-            model_class=Gold24hModel,
-            params=None,
-            dedup_seconds=120,
+            endpoint=BrsApiEndpoints.GOLD_CURRENCY_PRO,
+            parser=GoldCurrencyProParser.parse_history_24h,
+            model_class=GoldCurrencyProHistory24hModel,
+            params={"history": "1", "symbol": symbol},
+            truncate_first=True,
+            session=session,
+        )
+
+    # ── Gold & Currency Pro (daily OHLC history) ─────
+    async def sync_gold_currency_pro_daily_history(
+        self,
+        session: AsyncSession,
+        symbol: str,
+        date_start: str | None = None,
+        date_end: str | None = None,
+    ) -> SyncReport:
+        """Sync daily OHLC history for a symbol from the Pro endpoint."""
+        params: dict[str, str] = {"history": "2", "symbol": symbol}
+        if date_start:
+            params["date_start"] = date_start
+        if date_end:
+            params["date_end"] = date_end
+        return await self.sync(
+            endpoint=BrsApiEndpoints.GOLD_CURRENCY_PRO,
+            parser=GoldCurrencyProParser.parse_daily_history,
+            model_class=GoldCurrencyProDailyHistoryModel,
+            params=params,
+            truncate_first=False,
             session=session,
         )
 
     # ── Currency ────────────────────────────────────
     async def sync_currency(self, session: AsyncSession) -> SyncReport:
-        """Sync currency/forex prices."""
+        """Sync currency/forex prices.
+
+        DEPRECATED: /Market/Currency.php returns HTTP 404 since ~June 2026.
+        Use sync_gold_currency() which fetches from /Market/Gold_Currency.php
+        and stores currency data in CurrencyPriceModel.
+        """
+        logger.warning("sync_currency(): /Market/Currency.php is deprecated (HTTP 404). Use sync_gold_currency() instead.")
         return await self.sync(
             endpoint=BrsApiEndpoints.CURRENCY,
             parser=CurrencyParser.parse,
             model_class=CurrencyPriceModel,
             params=None,
             dedup_seconds=30,
-            session=session,
-        )
-
-    # ── Currency 24h ────────────────────────────────
-    async def sync_currency_24h(self, session: AsyncSession) -> SyncReport:
-        """Sync 24-hour currency changes."""
-        return await self.sync(
-            endpoint=BrsApiEndpoints.CURRENCY_24H,
-            parser=CurrencyParser.parse_24h,
-            model_class=CurrencyPriceModel,
-            params=None,
-            dedup_seconds=120,
             session=session,
         )
 
@@ -852,8 +982,9 @@ class BrsApiSyncService:
                 return records
 
             # Build a lookup map: symbol -> (ins_id, instrument_id)
-            from sqlalchemy import select, or_
-            from brsapi.models import SymbolSnapshotModel, CodalAnnouncementModel
+            from sqlalchemy import select
+
+            from brsapi.models import SymbolSnapshotModel
 
             lookup: dict[str, tuple[str | None, str | None]] = {}
 
@@ -870,7 +1001,7 @@ class BrsApiSyncService:
             # Fallback: try instruments table for symbols not in snapshots
             missing = [s for s in symbols if s not in lookup]
             if missing:
-                from sqlalchemy import column, text, String
+                from sqlalchemy import String, column, text
                 stmt2 = (
                     select(column("symbol", String), column("id", String).label("instrument_id"))
                     .select_from(text("instruments"))
@@ -917,7 +1048,6 @@ class BrsApiSyncService:
             ("TSETMC Symbols", lambda: self.sync_all_symbols(session)),
             ("TSETMC Index", lambda: self.sync_index(session, "1")),
             ("TSETMC Index (Farabours)", lambda: self.sync_index(session, "2")),
-            ("TSETMC Index (Selected)", lambda: self.sync_index(session, "3")),
             ("TSETMC Options", lambda: self.sync_options(session)),
             ("IME Futures", lambda: self.sync_ime_futures(session)),
             ("IME Options", lambda: self.sync_ime_options(session)),

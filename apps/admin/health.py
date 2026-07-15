@@ -7,9 +7,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from schemas.common.responses import ApiResponse
-
 from core.logging import get_logger
+from schemas.common.responses import ApiResponse
 
 logger = get_logger(__name__)
 

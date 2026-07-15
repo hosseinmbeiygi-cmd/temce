@@ -10,8 +10,8 @@ from jobs.job_context import JobContext
 from jobs.job_registry import JobRegistry
 from jobs.job_result import JobResult
 from jobs.locking import JobLocking
-from jobs.retry_policy import JobRetryPolicy
 from jobs.registry import job_registry
+from jobs.retry_policy import JobRetryPolicy
 
 logger = get_logger(__name__)
 

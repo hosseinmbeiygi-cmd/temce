@@ -64,27 +64,59 @@ async def list_alphas(
     limit: int = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse[dict[str, Any]]:
-    # Get symbols with historical data, ordered by most data
+    # ── Try quotes table first (has 10M+ records) ─────────────────
     result = await session.execute(text("""
-        SELECT symbol, COUNT(*) as cnt
-        FROM brsapi_historical_daily
+        SELECT symbol, COUNT(DISTINCT date) as cnt
+        FROM quotes
         WHERE price_close IS NOT NULL AND price_close > 0
+          AND date IS NOT NULL
         GROUP BY symbol
-        HAVING COUNT(*) >= 30
+        HAVING COUNT(DISTINCT date) >= 10
         ORDER BY cnt DESC
         LIMIT :limit
     """), {"limit": limit})
     symbols = [(row[0], row[1]) for row in result.fetchall()]
 
+    # ── Fallback to trades table if quotes is empty ────────────────
+    if not symbols:
+        logger.info("quotes empty, falling back to trades table")
+        result = await session.execute(text("""
+            SELECT symbol, COUNT(DISTINCT date) as cnt
+            FROM trades
+            WHERE price IS NOT NULL AND price > 0
+              AND date IS NOT NULL
+            GROUP BY symbol
+            HAVING COUNT(DISTINCT date) >= 10
+            ORDER BY cnt DESC
+            LIMIT :limit
+        """), {"limit": limit})
+        symbols = [(row[0], row[1]) for row in result.fetchall()]
+
     strategies = []
     for symbol, cnt in symbols:
-        # Get closing prices ordered by date
+        # Try quotes first — daily OHLCV data (last close per day)
         price_result = await session.execute(text("""
-            SELECT price_close FROM brsapi_historical_daily
+            SELECT DISTINCT ON (date) price_close
+            FROM quotes
             WHERE symbol = :symbol AND price_close IS NOT NULL AND price_close > 0
-            ORDER BY date ASC
+              AND date IS NOT NULL
+            ORDER BY date ASC, time DESC NULLS LAST
         """), {"symbol": symbol})
         prices = [row[0] for row in price_result.fetchall()]
+
+        # Fallback to trades table (aggregate tick data to daily last price)
+        if not prices:
+            price_result = await session.execute(text("""
+                SELECT DISTINCT ON (date) date, price
+                FROM trades
+                WHERE symbol = :symbol AND price IS NOT NULL AND price > 0
+                  AND date IS NOT NULL
+                ORDER BY date ASC, time DESC
+            """), {"symbol": symbol})
+            prices = [row[1] for row in price_result.fetchall()]
+
+        if len(prices) < 2:
+            continue
 
         metrics = _compute_alpha_metrics(prices)
 

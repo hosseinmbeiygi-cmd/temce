@@ -408,7 +408,7 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
   return (
     <Card
       title="📊 بازار زنده"
-      subtitle={`آخرین به‌روزرسانی: ${lastUpdateTime}`}
+      subtitle={"آخرین به‌روزرسانی: " + lastUpdateTime}
       className={className}
       headerClassName="live-market-header"
       actions={

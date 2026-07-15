@@ -152,7 +152,7 @@ function MarketReportTab({ data, loading }: { data: MarketReport | null; loading
 
       {/* Gainers + Losers */}
       <div className="grid lg:grid-cols-2 gap-5">
-        <Card title="🏆 بیشترین رشد" subtitle={data.top_gainers?.length ? `${data.top_gainers.length} نماد` : ""}>
+        <Card title="🏆 بیشترین رشد" subtitle={data.top_gainers?.length ? data.top_gainers.length + " نماد" : ""}>
           {data.top_gainers?.length ? (
             <div className="space-y-1">
               {data.top_gainers.map((q, i) => (
@@ -224,8 +224,8 @@ function MarketReportTab({ data, loading }: { data: MarketReport | null; loading
       {data.sector_summary?.length > 0 && (
         <Card title="🏭 خلاصه صنایع">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {data.sector_summary.map((s) => (
-              <div key={s.name} className="bg-surface-800/30 rounded-xl p-3">
+            {data.sector_summary.map((s, si) => (
+              <div key={`${s.name}-${si}`} className="bg-surface-800/30 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-bold text-surface-200">{s.name}</span>
                   <span className="text-xs text-surface-500">{s.count} نماد</span>
@@ -293,7 +293,7 @@ function SymbolReportTab() {
       {isLoading ? (
         <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}</div>
       ) : isError || !data ? (
-        <EmptyState icon="📈" message={`داده‌ای برای ${symbol} یافت نشد`} sub="از صحیح بودن نام نماد اطمینان حاصل کنید" onRetry={() => refetch()} />
+        <EmptyState icon="📈" message={"داده‌ای برای " + symbol + " یافت نشد"} sub="از صحیح بودن نام نماد اطمینان حاصل کنید" onRetry={() => refetch()} />
       ) : (
         <>
           {/* Header */}
@@ -336,7 +336,7 @@ function SymbolReportTab() {
 
           {/* Recent Quotes Table */}
           {data.recent_quotes?.length > 0 && (
-            <Card title="📅 آخرین قیمت‌ها" subtitle={`${data.recent_quotes.length} روز`}>
+            <Card title="📅 آخرین قیمت‌ها" subtitle={data.recent_quotes.length + " روز"}>
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">
                   <thead>

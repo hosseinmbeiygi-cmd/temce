@@ -1,55 +1,50 @@
+"""Watchlist API — manage user's watched symbols with live enriched data."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from apps.api.dependencies import get_brsapi_query_service
+from apps.api.dependencies import get_watchlist_service
+from core.logging import get_logger
 from schemas.common.responses import ApiResponse
+from services.watchlist_service import WatchlistService
+
+logger = get_logger(__name__)
 
 router = APIRouter()
-
-MOCK_WATCHLIST_SYMBOLS = ["فولاد", "فملی", "شپنا", "وبملت", "خودرو", "کگل", "شتران", "وغدیر"]
 
 
 @router.get("/", summary="Watchlist", description="Get watchlist symbols with latest prices")
 async def get_watchlist(
-    brsapi=Depends(get_brsapi_query_service),
+    service: WatchlistService = Depends(get_watchlist_service),
 ) -> ApiResponse[list[dict[str, Any]]]:
-    items: list[dict[str, Any]] = []
-    for symbol in MOCK_WATCHLIST_SYMBOLS:
-        try:
-            snap = await brsapi.get_enriched_symbol_detail(symbol)
-            if snap:
-                items.append({
-                    "symbol": symbol,
-                    "name": snap.get("name", f"شرکت {symbol}"),
-                    "price": snap.get("price_last", 0),
-                    "change": snap.get("price_last_change_pct", 0),
-                    # فیلدهای غنی‌شده
-                    "priceLowestAllowed": snap.get("price_lowest_allowed"),
-                    "priceHighestAllowed": snap.get("price_highest_allowed"),
-                    "freeFloatPct": snap.get("free_float_pct"),
-                    "price_yesterday": snap.get("price_yesterday"),
-                    "eps": snap.get("eps"),
-                    "peRatio": snap.get("pe_ratio"),
-                    "groupPeRatio": snap.get("group_pe_ratio"),
-                    "psRatio": snap.get("ps_ratio"),
-                    "state": snap.get("state"),
-                    "sector": snap.get("sector"),
-                })
-            else:
-                items.append({
-                    "symbol": symbol,
-                    "name": f"شرکت {symbol}",
-                    "price": None,
-                    "change": None,
-                })
-        except Exception:
-            items.append({
-                "symbol": symbol,
-                "name": f"شرکت {symbol}",
-                "price": None,
-                "change": None,
-            })
-    return ApiResponse[list[dict[str, Any]]](success=True, data=items)
+    result = await service.list_items()
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value or [])
+
+
+@router.post("/", summary="Add symbol", description="Add a symbol to the watchlist")
+async def add_symbol(
+    body: dict[str, str],
+    service: WatchlistService = Depends(get_watchlist_service),
+) -> ApiResponse[dict[str, Any]]:
+    symbol = body.get("symbol", "").strip()
+    name = body.get("name", "")
+    if not symbol:
+        return ApiResponse[dict[str, Any]](success=False, data={"error": "symbol is required"})
+    result = await service.add_symbol(symbol, name)
+    if not result.success:
+        return ApiResponse[dict[str, Any]](success=False, data={"error": result.error or "خطا در افزودن نماد"})
+    return ApiResponse[dict[str, Any]](success=True, data=result.value or {})
+
+
+@router.delete("/{symbol}", summary="Remove symbol", description="Remove a symbol from the watchlist")
+async def remove_symbol(
+    symbol: str,
+    service: WatchlistService = Depends(get_watchlist_service),
+) -> ApiResponse[dict[str, Any]]:
+    result = await service.remove_symbol(symbol)
+    if not result.success:
+        return ApiResponse[dict[str, Any]](success=False, data={"error": f"نماد {symbol} در لیست وجود ندارد"})
+    return ApiResponse[dict[str, Any]](success=True, data={"symbol": symbol, "removed": True})

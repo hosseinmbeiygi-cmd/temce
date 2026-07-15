@@ -17,6 +17,19 @@ class BacktestRequest(BaseModel):
     commission_pct: float = 0.0035
     slippage_bps: float = 10.0
     timeframe: str = "1d"
+    data_source: str = "auto"  # auto, historical, quotes, intraday
+    # Position sizing
+    sizing_method: str = "fixed"  # fixed, percent, kelly, risk_based
+    sizing_value: float = 1000.0
+    # Risk management
+    stop_loss_pct: float | None = None
+    take_profit_pct: float | None = None
+    # Benchmark
+    benchmark_symbol: str | None = None
+    # Portfolio
+    allocation_method: str = "equal"  # equal, weighted
+    target_weights: dict[str, float] | None = None
+    rebalance_frequency_days: int | None = None
 
 
 class BacktestResponse(BaseModel):
@@ -45,3 +58,12 @@ class BacktestResultResponse(BaseModel):
     trades: list[dict[str, Any]] = Field(default_factory=list)
     metrics: dict[str, float] = Field(default_factory=dict)
     completed_at: str = ""
+    # Benchmark metrics
+    alpha: float | None = None
+    beta: float | None = None
+    tracking_error: float | None = None
+    information_ratio: float | None = None
+    # Data quality
+    data_quality: dict[str, Any] | None = None
+    # Data source warning
+    data_source_warning: str | None = None

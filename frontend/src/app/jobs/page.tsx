@@ -360,7 +360,7 @@ export default function JobsPage() {
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent-blue animate-pulse" /> در حال اجرا</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent-amber" /> در انتظار</span>
           </div>
-          <p>داده‌های Job‌ها از جدول job_runs دیتابیس خوانده می‌شود. بروزرسانی خودکار: {refreshInterval > 0 ? `هر ${refreshInterval / 1000} ثانیه` : "خاموش"}</p>
+          <p>داده‌های Job‌ها از جدول job_runs دیتابیس خوانده می‌شود. بروزرسانی خودکار: {refreshInterval > 0 ? "هر " + (refreshInterval / 1000) + " ثانیه" : "خاموش"}</p>
         </div>
       </div>
     </AppLayout>

@@ -12,6 +12,7 @@ class Disclosure(BaseEntity):
     instrument_id: str
     title: str
     symbol: str = ""
+    company_name: str = ""
     publish_date: date | None = None
     fiscal_year: str = ""
     period: str = ""
@@ -28,6 +29,7 @@ class Disclosure(BaseEntity):
         instrument_id: str,
         title: str,
         symbol: str = "",
+        company_name: str = "",
         publish_date: date | None = None,
         fiscal_year: str = "",
         period: str = "",
@@ -44,6 +46,7 @@ class Disclosure(BaseEntity):
         self.instrument_id = instrument_id
         self.title = title
         self.symbol = symbol
+        self.company_name = company_name
         self.publish_date = publish_date
         self.fiscal_year = fiscal_year
         self.period = period

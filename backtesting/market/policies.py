@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # Market Constants
 DEFAULT_MAX_CHANGE_PCT = 5.0
 BASE_MARKET_MAX_CHANGE_PCT = 3.0

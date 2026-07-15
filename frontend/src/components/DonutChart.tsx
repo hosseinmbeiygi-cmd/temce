@@ -103,10 +103,10 @@ export function DonutChart({
     <div className="flex items-center gap-5 flex-wrap">
       {/* SVG donut */}
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-        {slices.map((sl) => {
+        {slices.map((sl, si) => {
           const sliceEl = (
             <DonutSlice
-              key={sl.label}
+              key={`${sl.label}-${si}`}
               cx={cx} cy={cy} r={r} sw={sw}
               total={total}
               value={sl.value}
@@ -137,10 +137,10 @@ export function DonutChart({
 
       {/* Legend */}
       <div className="flex flex-col gap-1.5">
-        {slices.map((sl) => {
+        {slices.map((sl, si) => {
           const pct = Math.round((sl.value / total) * 100);
           return (
-            <div key={sl.label} className="flex items-center gap-2">
+            <div key={`${sl.label}-${si}`} className="flex items-center gap-2">
               <span
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: sl.color }}

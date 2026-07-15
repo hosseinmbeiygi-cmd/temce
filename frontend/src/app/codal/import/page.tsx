@@ -57,7 +57,7 @@ export default function CodalImportPage() {
     for (const f of Array.from(candidates)) {
       const lower = f.name.toLowerCase();
       if (!lower.endsWith(".xlsx") && !lower.endsWith(".csv")) {
-        setError(`فرمت فایل ${f.name} مجاز نیست. فقط XLSX و CSV پشتیبانی می‌شود.`);
+        setError("فرمت فایل " + f.name + " مجاز نیست. فقط XLSX و CSV پشتیبانی می‌شود.");
         continue;
       }
       valid.push(f);
@@ -136,9 +136,9 @@ export default function CodalImportPage() {
 
       if (response.data) {
         const { total_files, imported, updated, errors } = response.data;
-        const msg = `${imported} گزارش جدید + ${updated} به‌روزرسانی از ${total_files} فایل`;
+        const msg = imported + " گزارش جدید + " + updated + " به‌روزرسانی از " + total_files + " فایل";
         if (errors.length > 0) {
-          toast.warning(msg + ` — ${errors.length} خطا`);
+          toast.warning(msg + " — " + errors.length + " خطا");
         } else {
           toast.success(msg);
         }
@@ -193,7 +193,7 @@ export default function CodalImportPage() {
           <input ref={inputRef} type="file" accept=".xlsx,.csv" multiple onChange={handleChange} disabled={loading} className="hidden" />
           <div className="text-5xl mb-3">📋</div>
           <p className="text-surface-200 font-medium">
-            {files.length > 0 ? `${files.length} فایل انتخاب شد` : "فایل‌های Excel یا CSV را اینجا رها کنید"}
+            {files.length > 0 ? files.length + " فایل انتخاب شد" : "فایل‌های Excel یا CSV را اینجا رها کنید"}
           </p>
           <p className="text-surface-500 text-sm mt-1">می‌توانید چندین فایل را همزمان انتخاب کنید</p>
         </div>

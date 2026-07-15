@@ -14,14 +14,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from services.csv_utils import parse_csv, _normalise_key
-
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
 from domain.codal.disclosure import Disclosure
 from repositories.codal_repository import CodalRepository
 from repositories.instrument_repository import InstrumentRepository
+from services.csv_utils import _normalise_key, parse_csv
 
 logger = get_logger(__name__)
 

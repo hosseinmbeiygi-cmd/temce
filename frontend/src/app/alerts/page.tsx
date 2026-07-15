@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
-import { apiGet, apiPost, apiPut, apiDelete, extractItems } from "@/lib/api";
+import { apiGet, apiPost, apiPut, apiDelete, extractItems, extractArray } from "@/lib/api";
 
 interface Alert {
   id: string;
@@ -19,6 +20,14 @@ interface Alert {
   created_at: string;
 }
 
+interface SymbolOption {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  sector: string;
+}
+
 const ALERT_TYPES = [
   { value: "price_above", label: "قیمت بالاتر از" },
   { value: "price_below", label: "قیمت پایین‌تر از" },
@@ -29,18 +38,39 @@ const ALERT_TYPES = [
   { value: "cross_below_sma", label: "عبور از میانگین به پایین" },
 ];
 
-const SYMBOLS = ["فولاد", "فملی", "شپنا", "وبانک", "خودرو", "ذوب", "رمپنا", "اخابر"];
-
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [symbol, setSymbol] = useState("فولاد");
+  const [symbol, setSymbol] = useState("");
   const [alertType, setAlertType] = useState("price_above");
   const [threshold, setThreshold] = useState("1000");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [historyAlertId, setHistoryAlertId] = useState<string | null>(null);
+  const [historyData, setHistoryData] = useState<Array<{id: string; triggered_at: string; trigger_value: number; message: string}>>([]);
+
+  // Fetch all symbols from API
+  const { data: symbolsData } = useQuery({
+    queryKey: ["alerts-symbols"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: SymbolOption[] }>("/market/enriched-heatmap");
+        return extractArray<SymbolOption>(res);
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 60_000,
+  });
+
+  const symbols = symbolsData ?? [];
+  const symbolOptions = symbols.map((s) => ({
+    value: s.symbol,
+    label: `${s.symbol} — ${s.name || ""}`,
+    sector: s.sector || "",
+  }));
 
   useEffect(() => {
     fetchAlerts();
@@ -59,6 +89,7 @@ export default function AlertsPage() {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     setError(""); setMessage("");
+    if (!symbol) { setError("لطفاً یک نماد انتخاب کنید"); return; }
     try {
       const condition: Record<string, unknown> = { threshold: parseFloat(threshold), operator: "gte", field: "price" };
       if (alertType.includes("rsi")) condition.field = "rsi";
@@ -77,6 +108,8 @@ export default function AlertsPage() {
       });
       setMessage("هشدار با موفقیت ایجاد شد");
       setShowForm(false);
+      setThreshold("1000");
+      setDescription("");
       fetchAlerts();
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   }
@@ -93,6 +126,15 @@ export default function AlertsPage() {
       await apiDelete(`/alerts/${id}`);
       fetchAlerts();
     } catch {}
+  }
+
+  async function fetchHistory(alertId: string) {
+    if (historyAlertId === alertId) { setHistoryAlertId(null); return; }
+    try {
+      const data = await apiGet<{ success: boolean; data: { items: Array<{id: string; triggered_at: string; trigger_value: number; message: string}> } }>(`/alerts/${alertId}/history?page_size=10`);
+      setHistoryData(data?.data?.items ?? []);
+      setHistoryAlertId(alertId);
+    } catch { setHistoryData([]); setHistoryAlertId(alertId); }
   }
 
   return (
@@ -114,7 +156,10 @@ export default function AlertsPage() {
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">نماد</label>
                   <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white">
-                    {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    <option value="">انتخاب نماد...</option>
+                    {symbolOptions.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -148,26 +193,51 @@ export default function AlertsPage() {
           <div className="glass-card p-12 text-center">
             <p className="text-gray-500 text-lg mb-2">هیچ هشداری تعریف نشده</p>
             <p className="text-gray-600 text-sm">روی دکمه "هشدار جدید" کلیک کنید تا اولین هشدار خود را ایجاد کنید</p>
+            <p className="text-gray-600 text-xs mt-2">هشدارها بر اساس قیمت لحظه‌ای، حجم، RSI و عبور از میانگین بررسی می‌شوند</p>
           </div>
         ) : (
           <div className="space-y-3">
             {alerts.map((alert) => (
-              <div key={alert.id} className="glass-card p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <button onClick={() => toggleAlert(alert)} className={`w-10 h-6 rounded-full transition relative ${alert.enabled ? "bg-emerald-600" : "bg-surface-700"}`}>
-                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${alert.enabled ? "left-0.5" : "right-0.5"}`} />
-                  </button>
-                  <div>
-                    <p className="font-medium">{alert.symbol} — {ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type}</p>
-                    <p className="text-xs text-gray-500">آستانه: {String(alert.condition?.threshold ?? "-")} | فعال‌سازی: {alert.triggered_count} بار</p>
+              <div key={alert.id} className="glass-card p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => toggleAlert(alert)} className={`w-10 h-6 rounded-full transition relative ${alert.enabled ? "bg-emerald-600" : "bg-surface-700"}`}>
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${alert.enabled ? "left-0.5" : "right-0.5"}`} />
+                    </button>
+                    <div>
+                      <p className="font-medium">{alert.symbol} — {ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type}</p>
+                      <p className="text-xs text-gray-500">آستانه: {String(alert.condition?.threshold ?? "-")} | فعال‌سازی: {alert.triggered_count} بار</p>
+                      {alert.description && <p className="text-xs text-gray-600 mt-0.5">{alert.description}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${alert.enabled ? "bg-emerald-500/10 text-emerald-400" : "bg-surface-700 text-gray-500"}`}>
+                      {alert.enabled ? "فعال" : "غیرفعال"}
+                    </span>
+                    <button onClick={() => fetchHistory(alert.id)} className="text-primary-400 hover:text-primary-300 text-xs px-2 py-1 rounded-lg bg-primary-600/10">
+                      {historyAlertId === alert.id ? "بستن" : "تاریخچه"}
+                    </button>
+                    <button onClick={() => deleteAlert(alert.id)} className="text-rose-400 hover:text-rose-300 text-sm">حذف</button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${alert.enabled ? "bg-emerald-500/10 text-emerald-400" : "bg-surface-700 text-gray-500"}`}>
-                    {alert.enabled ? "فعال" : "غیرفعال"}
-                  </span>
-                  <button onClick={() => deleteAlert(alert.id)} className="text-rose-400 hover:text-rose-300 text-sm">حذف</button>
-                </div>
+                {/* Alert History */}
+                {historyAlertId === alert.id && (
+                  <div className="mt-3 pt-3 border-t border-surface-700/50">
+                    {historyData.length === 0 ? (
+                      <p className="text-xs text-gray-500 text-center py-2">تاریخچه‌ای موجود نیست</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {historyData.map((h) => (
+                          <div key={h.id} className="flex items-center justify-between text-xs py-1 px-2 bg-surface-800/30 rounded">
+                            <span className="text-gray-400">{new Date(h.triggered_at).toLocaleString("fa-IR")}</span>
+                            <span className="font-mono text-surface-200">{h.trigger_value?.toLocaleString()}</span>
+                            <span className="text-gray-500 truncate max-w-[200px]">{h.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

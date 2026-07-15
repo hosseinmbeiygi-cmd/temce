@@ -17,8 +17,11 @@ class SqueezeMomentumStrategy(BaseStrategy):
         kc_period: int = 20,
         kc_mult: float = 1.5,
         instrument_id: str = "",
+        sizing_method: str = "fixed",
+        sizing_value: float = 1000.0,
     ) -> None:
-        super().__init__(name=f"SqueezeMomentum_{bb_period}_{kc_period}")
+        super().__init__(name=f"SqueezeMomentum_{bb_period}_{kc_period}",
+                         sizing_method=sizing_method, sizing_value=sizing_value)
         self.bb_period = bb_period
         self.bb_std = bb_std
         self.kc_period = kc_period
@@ -59,32 +62,32 @@ class SqueezeMomentumStrategy(BaseStrategy):
         mom_positive = result["momentum_positive"][-1]
         orders: list[OrderEvent] = []
 
-        # Buy: squeeze just ended AND momentum is positive
         if self._was_squeezing and not is_squeezing and mom_positive and self._position <= 0:
+            qty = self._compute_quantity(c)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
-                    quantity=1000,
+                    quantity=qty,
                     price=c,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
-        # Sell: momentum turned negative while in position
-        elif not mom_positive and self._position >= 0 and not is_squeezing:
+        elif not mom_positive and self._position > 0 and not is_squeezing:
+            qty = self._compute_quantity(c)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
-                    quantity=1000,
+                    quantity=qty,
                     price=c,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
-            self._position = -1
+            self._position = 0
 
         self._was_squeezing = is_squeezing
         return orders

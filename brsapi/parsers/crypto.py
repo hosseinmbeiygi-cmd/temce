@@ -8,7 +8,7 @@ for cryptocurrencies with price in USD and IRR/TOMAN.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
@@ -34,7 +34,7 @@ class CryptoParser:
         - A list of dicts each with a ``name`` key
         """
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         items: dict[str, Any] = {}
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 from backtesting.types import FillEvent, PositionState
 from core.logging import get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -18,7 +17,8 @@ class PortfolioManager:
         self._positions.clear()
         self._nav = initial_capital
 
-    async def update_fill(self, fill: FillEvent) -> None:
+    def update_fill_sync(self, fill: FillEvent) -> None:
+        """Synchronous version of update_fill — for deterministic sync backtests."""
         pos = self._positions.get(fill.instrument_id)
         if pos is None:
             pos = PositionState(instrument_id=fill.instrument_id)
@@ -34,10 +34,8 @@ class PortfolioManager:
         else:
             if pos.quantity < fill.quantity:
                 logger.warning("Insufficient position for sell: %s (has %d, needs %d)", fill.instrument_id, pos.quantity, fill.quantity)
-                # Option 1: Raise error. Option 2: Cap at available.
-                # We'll cap it to prevent negative quantity unless shorting is explicitly handled.
                 fill.quantity = pos.quantity
-            
+
             pnl = (fill.price - pos.avg_price) * fill.quantity
             pos.realized_pnl += pnl
             pos.quantity -= fill.quantity
@@ -45,12 +43,19 @@ class PortfolioManager:
 
         self._nav = self.get_nav()
 
-    async def mark_to_market(self, prices: dict[str, float]) -> None:
+    def mark_to_market_sync(self, prices: dict[str, float]) -> None:
+        """Synchronous version of mark_to_market — for deterministic sync backtests."""
         for inst_id, pos in self._positions.items():
             price = prices.get(inst_id)
             if price is not None:
                 pos.current_price = price
         self._nav = self.get_nav()
+
+    async def update_fill(self, fill: FillEvent) -> None:
+        self.update_fill_sync(fill)
+
+    async def mark_to_market(self, prices: dict[str, float]) -> None:
+        self.mark_to_market_sync(prices)
 
     def get_nav(self) -> float:
         positions_value = self.get_positions_value()

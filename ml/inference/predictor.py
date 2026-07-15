@@ -7,7 +7,6 @@ import pandas as pd
 from core.logging import get_logger
 from core.result import Result
 from ml.artifacts import ArtifactManager
-from ml.models.registry import model_registry
 from ml.types import FeatureMatrix, PredictionResult
 
 logger = get_logger(__name__)
@@ -25,7 +24,7 @@ class Predictor:
             if model_id not in self._model_cache:
                 model, _ = self.artifact_manager.load_model(model_id)
                 self._model_cache[model_id] = model
-            
+
             model = self._model_cache[model_id]
             if isinstance(features, dict):
                 df = pd.DataFrame([features])
@@ -48,7 +47,7 @@ class Predictor:
             if model_id not in self._model_cache:
                 model, _ = self.artifact_manager.load_model(model_id)
                 self._model_cache[model_id] = model
-            
+
             model = self._model_cache[model_id]
             result = model.predict(fm)
             return Result.ok([result])

@@ -26,6 +26,7 @@ interface SectionData {
   category: string;
   has_date_range: boolean;
   record_count: number;
+  last_data_date: string | null;
   last_sync: SyncInfo | null;
 }
 
@@ -248,6 +249,8 @@ export default function BrsapiManagementPage() {
             "success",
             `History sync completed: ${res.data.success_count}/${res.data.total} OK, ${formatDuration(res.data.total_duration_ms)}`
           );
+        } else {
+          showNotification("error", (res as any)?.error || "Sync failed");
         }
       } catch (err) {
         showNotification("error", `Sync error: ${err instanceof Error ? err.message : "Unknown"}`);
@@ -320,8 +323,8 @@ export default function BrsapiManagementPage() {
                 { label: "Crypto Prices", value: healthData.crypto_prices, icon: "₿" },
                 { label: "Option Snapshots", value: healthData.option_snapshots, icon: "🎯" },
                 { label: "IME Futures", value: healthData.ime_futures, icon: "🛢️" },
-              ].map((item) => (
-                <div key={item.label} className="bg-surface-800/50 rounded-xl p-2.5">
+              ].map((item, ii) => (
+                <div key={`${item.label}-${ii}`} className="bg-surface-800/50 rounded-xl p-2.5">
                   <span className="text-xs text-surface-500 block">{item.icon} {item.label}</span>
                   <span className="text-lg font-bold font-mono text-surface-100">{formatNumber(item.value)}</span>
                 </div>
@@ -533,6 +536,14 @@ export default function BrsapiManagementPage() {
                                   {formatNumber(section.record_count)}
                                 </span>
                                 <span>records</span>
+                                {section.last_data_date && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-primary-300" title={`Last data date: ${section.last_data_date}`}>
+                                      📅 {section.last_data_date.length > 10 ? section.last_data_date : section.last_data_date.substring(0, 10)}
+                                    </span>
+                                  </>
+                                )}
                                 {sync && (
                                   <>
                                     <span>•</span>

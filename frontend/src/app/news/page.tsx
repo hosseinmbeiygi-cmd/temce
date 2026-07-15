@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
-import { apiGet, extractArray } from "@/lib/api";
+import { apiGet, apiPost, extractArray } from "@/lib/api";
 
 interface NewsItem {
   id: string;
   title: string;
   summary: string;
   source: string;
+  url: string;
   date: string;
   category: string;
   fullContent: string;
@@ -36,6 +37,7 @@ export default function NewsPage() {
   const [filter, setFilter] = useState<CategoryKey>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: news, isLoading, isError, error } = useQuery({
     queryKey: ["news-full"],
@@ -48,6 +50,7 @@ export default function NewsPage() {
           title: String(item.title || ""),
           summary: String(item.summary || ""),
           source: String(item.source || ""),
+          url: String(item.url || ""),
           date: String(item.published_at || item.date || "").split("T")[0] || "",
           category: String(item.category || "market").replace("company", "companies"),
           fullContent: String(item.content || item.summary || ""),
@@ -60,6 +63,7 @@ export default function NewsPage() {
           title: String(item.title || ""),
           summary: String(item.summary || ""),
           source: String(item.source || ""),
+          url: String(item.url || ""),
           date: String(item.date || item.published_at || "").split("T")[0] || "",
           category: String(item.category || "market").replace("company", "companies"),
           fullContent: String(item.fullContent || item.content || item.summary || ""),
@@ -70,6 +74,38 @@ export default function NewsPage() {
     },
     refetchInterval: 120000,
   });
+
+  // Refresh news mutation
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiPost<{ success: boolean; data: { status: string; last_result?: Record<string, number> } }>("/news/refresh", {});
+      return res;
+    },
+    onSuccess: () => {
+      // Start polling for status
+      setRefreshActive(true);
+    },
+  });
+
+  // Poll refresh status
+  const [refreshActive, setRefreshActive] = useState(false);
+  const { data: refreshStatus } = useQuery({
+    queryKey: ["news-refresh-status"],
+    queryFn: async () => {
+      const res = await apiGet<{ success: boolean; data: { running: boolean; last_run?: string; last_result?: Record<string, number> } }>("/news/refresh/status");
+      return res?.data;
+    },
+    enabled: refreshActive,
+    refetchInterval: 2000,
+  });
+
+  // When refresh finishes, refetch news and stop polling
+  useEffect(() => {
+    if (refreshActive && refreshStatus && !refreshStatus.running) {
+      queryClient.invalidateQueries({ queryKey: ["news-full"] });
+      setRefreshActive(false);
+    }
+  }, [refreshActive, refreshStatus, queryClient]);
 
   const filtered = news?.filter((item: NewsItem) => {
     if (filter !== "all" && item.category !== filter) return false;
@@ -106,6 +142,25 @@ export default function NewsPage() {
           />
           {isLoading && <span className="w-2 h-2 rounded-full bg-accent-amber animate-pulse" />}
         </div>
+        <button
+          onClick={() => refreshMutation.mutate()}
+          disabled={refreshMutation.isPending || refreshActive}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:bg-surface-700 text-white text-sm rounded-lg transition-colors"
+        >
+          {(refreshMutation.isPending || refreshActive) ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              در حال بروزرسانی...
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              بروزرسانی اخبار
+            </>
+          )}
+        </button>
       </div>
 
       <div className="flex gap-2 mb-6 flex-wrap">
@@ -127,7 +182,13 @@ export default function NewsPage() {
           ) : isLoading ? (
             [1,2,3].map(i => <div key={i} className="glass-card p-5"><div className="h-20 bg-surface-800 animate-pulse rounded-lg" /></div>)
           ) : filtered && filtered.length > 0 ? filtered.map((item: NewsItem, i: number) => (
-            <div key={item.id || `news-${i}`} className="glass-card p-5">
+            <a
+              key={item.id || `news-${i}`}
+              href={item.url || "#"}
+              target={item.url ? "_blank" : undefined}
+              rel={item.url ? "noopener noreferrer" : undefined}
+              className="glass-card p-5 block hover:bg-surface-800/50 transition-colors"
+            >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${getCategoryBadge(item.category)}`}>
@@ -140,7 +201,7 @@ export default function NewsPage() {
               <h3 className="font-bold text-surface-200 mb-1">{item.title}</h3>
               <p className="text-sm text-surface-400 leading-relaxed">{item.summary}</p>
               <button
-                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpandedId(expandedId === item.id ? null : item.id); }}
                 className="text-xs text-primary-400 hover:text-primary-300 mt-2 transition-colors"
               >
                 {expandedId === item.id ? "بستن" : "مشاهده کامل"}
@@ -150,7 +211,7 @@ export default function NewsPage() {
                   <p className="text-sm text-surface-300 leading-relaxed">{item.fullContent}</p>
                 </div>
               )}
-            </div>
+            </a>
           )) : <div className="glass-card p-8 text-center text-surface-500">
               <p className="mb-2">هیچ خبری یافت نشد</p>
               <p className="text-xs text-surface-600">برای دریافت اخبار، ابتدا دستور <code className="bg-surface-800 px-1.5 py-0.5 rounded">python scripts/fetch_news.py</code> را اجرا کنید</p>
@@ -166,10 +227,16 @@ export default function NewsPage() {
               ) : isLoading ? (
                 [1,2,3].map(i => <div key={i} className="h-10 bg-surface-800 animate-pulse rounded-lg" />)
               ) : trendingNews && trendingNews.length > 0 ? trendingNews.map((item: NewsItem, i: number) => (
-                <div key={item.id || `trending-${i}`} className="pb-3 border-b border-surface-700/50 last:border-0 last:pb-0">
+                <a
+                  key={item.id || `trending-${i}`}
+                  href={item.url || "#"}
+                  target={item.url ? "_blank" : undefined}
+                  rel={item.url ? "noopener noreferrer" : undefined}
+                  className="block pb-3 border-b border-surface-700/50 last:border-0 last:pb-0 hover:bg-surface-800/30 rounded px-1 transition-colors"
+                >
                   <p className="text-sm text-surface-200 leading-snug mb-1">{item.title}</p>
                   <span className="text-xs text-surface-500">{item.source} • {item.date}</span>
-                </div>
+                </a>
               )) : <div className="text-xs text-surface-600 text-center py-2">موردی یافت نشد</div>}
             </div>
           </div>

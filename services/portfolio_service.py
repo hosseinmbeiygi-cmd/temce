@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.result import Result
 from repositories.portfolio_repository import PortfolioRepository
+
 
 class PortfolioService:
     def __init__(self, session: AsyncSession) -> None:
@@ -14,10 +16,10 @@ class PortfolioService:
         res = await self.repo.get(portfolio_id)
         if not res.success:
             return res
-        
+
         portfolio = res.value
         positions_res = await self.repo.get_positions(portfolio_id)
-        
+
         return Result.ok({
             "id": portfolio.id,
             "name": portfolio.name,
@@ -32,7 +34,7 @@ class PortfolioService:
         res = await self.repo.list()
         if not res.success:
             return res
-        
+
         return Result.ok([
             {
                 "id": p.id,
@@ -46,7 +48,7 @@ class PortfolioService:
     async def create_portfolio(self, name: str, **kwargs: Any) -> Result[dict[str, Any]]:
         from core.ids import new_id
         from domain.portfolios.portfolio import Portfolio
-        
+
         portfolio = Portfolio(
             id=new_id("port"),
             name=name,
@@ -54,9 +56,9 @@ class PortfolioService:
             initial_capital=kwargs.get("initial_capital", 0.0),
             currency=kwargs.get("currency", "IRR"),
         )
-        
+
         res = await self.repo.save(portfolio)
         if not res.success:
             return res
-            
+
         return Result.ok({"id": portfolio.id, "name": portfolio.name})

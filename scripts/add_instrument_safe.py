@@ -1,5 +1,6 @@
-import sys
 import os
+import sys
+
 # Add the project root to sys.path so we can import core if needed, but let's avoid core entirely
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

@@ -141,9 +141,11 @@ function IndicatorCard({
 }
 
 function LivePriceRow({ item }: { item: BrsapiItem }) {
-  const changeColor = item.change >= 0 ? "text-accent-emerald" : "text-accent-rose";
-  const changeIcon = item.change >= 0 ? "trending_up" : "trending_down";
-  
+  const change = item.change ?? 0;
+  const changePct = item.change_pct ?? 0;
+  const changeColor = change >= 0 ? "text-accent-emerald" : "text-accent-rose";
+  const changeIcon = change >= 0 ? "trending_up" : "trending_down";
+
   return (
     <tr className="border-b border-surface-800/30 hover:bg-white/[0.03] transition-colors">
       <td className="py-2.5 px-3">
@@ -155,11 +157,11 @@ function LivePriceRow({ item }: { item: BrsapiItem }) {
       <td className="py-2.5 px-3 text-right">
         <span className={`inline-flex items-center gap-1 text-xs font-mono font-bold ${changeColor}`}>
           <span className="material-icons text-sm">{changeIcon}</span>
-          {item.change >= 0 ? "+" : ""}{item.change.toLocaleString()}
+          {change >= 0 ? "+" : ""}{change.toLocaleString()}
         </span>
       </td>
       <td className={`py-2.5 px-3 text-right font-mono ${changeColor}`}>
-        {item.change_pct >= 0 ? "+" : ""}{item.change_pct.toFixed(2)}%
+        {changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%
       </td>
       <td className="py-2.5 px-3 text-xs text-surface-500 text-right">{item.time || "—"}</td>
     </tr>
@@ -196,8 +198,8 @@ export default function MacroPage() {
       });
       return { keys, data: map };
     },
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: 600_000,
+    staleTime: 300_000,
   });
 
   // Fetch live gold/coin prices from BrsApi
@@ -211,7 +213,7 @@ export default function MacroPage() {
         return [];
       }
     },
-    refetchInterval: 30_000,
+    refetchInterval: 600_000,
   });
 
   // Fetch live currency prices from BrsApi
@@ -225,7 +227,7 @@ export default function MacroPage() {
         return [];
       }
     },
-    refetchInterval: 30_000,
+    refetchInterval: 600_000,
   });
 
   const indicatorData = indicators?.data ?? {};
@@ -260,7 +262,7 @@ export default function MacroPage() {
   return (
     <AppLayout
       title="داده‌های کلان اقتصادی"
-      subtitle={`${indicatorKeys.length} شاخص • پشتیبانی از داده‌های زنده BrsApi`}
+      subtitle={indicatorKeys.length + " شاخص • پشتیبانی از داده‌های زنده BrsApi"}
     >
       <div className="max-w-7xl mx-auto space-y-5">
         {/* Stats Summary */}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from datetime import UTC
 from typing import Any
 
 from core.logging import get_logger
@@ -86,10 +87,10 @@ class NewsParser:
         Handles common RSS/Atom date formats and returns ISO 8601 string.
         Falls back to the original string if parsing fails.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         if not date_str or not date_str.strip():
-            return datetime.now(timezone.utc).isoformat()
+            return datetime.now(UTC).isoformat()
 
         _formats = [
             "%a, %d %b %Y %H:%M:%S %z",   # RFC 2822 (standard RSS)
@@ -105,7 +106,7 @@ class NewsParser:
             try:
                 dt = datetime.strptime(date_str.strip(), fmt)
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                    dt = dt.replace(tzinfo=UTC)
                 return dt.isoformat()
             except (ValueError, OverflowError):
                 continue

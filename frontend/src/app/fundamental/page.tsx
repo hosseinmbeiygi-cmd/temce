@@ -43,7 +43,7 @@ export default function FundamentalPage() {
     { label: "نام شرکت", value: String(d?.company_name ?? "") },
     { label: "صنعت", value: String(d?.industry ?? "") },
     { label: "قیمت", value: String(d?.last_price?.toLocaleString() ?? "") },
-    { label: "ارزش بازار", value: d?.market_cap ? `${(d.market_cap / 1e12).toFixed(2)} تریلیون` : "" },
+    { label: "ارزش بازار", value: d?.market_cap ? (d.market_cap / 1e12).toFixed(2) + " تریلیون" : "" },
     { label: "P/E", value: String(d?.pe ?? ""), color: d?.pe < 8 ? "text-emerald-400" : d?.pe < 15 ? "text-amber-400" : "text-rose-400" },
     { label: "P/B", value: String(d?.pb ?? ""), color: d?.pb < 1 ? "text-emerald-400" : d?.pb < 3 ? "text-amber-400" : "text-rose-400" },
     { label: "ROE", value: d?.roe_pct ? `${d.roe_pct}%` : "", color: d?.roe_pct > 20 ? "text-emerald-400" : d?.roe_pct > 10 ? "text-amber-400" : "text-rose-400" },
@@ -53,8 +53,8 @@ export default function FundamentalPage() {
     { label: "BVPS", value: String(d?.bvps?.toLocaleString() ?? "") },
     { label: "حاشیه سود", value: d?.net_margin_pct ? `${d.net_margin_pct}%` : "" },
     { label: "سود نقدی", value: d?.dividend_yield_pct ? `${d.dividend_yield_pct}%` : "" },
-    { label: "درآمد", value: d?.revenue ? `${(d.revenue / 1e12).toFixed(1)} تریلیون` : "" },
-    { label: "سود خالص", value: d?.net_profit ? `${(d.net_profit / 1e12).toFixed(1)} تریلیون` : "" },
+    { label: "درآمد", value: d?.revenue ? (d.revenue / 1e12).toFixed(1) + " تریلیون" : "" },
+    { label: "سود خالص", value: d?.net_profit ? (d.net_profit / 1e12).toFixed(1) + " تریلیون" : "" },
     ];
   };
 
@@ -101,8 +101,8 @@ export default function FundamentalPage() {
           <>
              {tab === "ratios" && (fundData as FundamentalData)?.ratios && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                 {infoRows((fundData as FundamentalData).ratios).map((r) => (
-                  <div key={r.label} className="glass-card p-3">
+                 {infoRows((fundData as FundamentalData).ratios).map((r, ri) => (
+                  <div key={`${r.label}-${ri}`} className="glass-card p-3">
                     <p className="text-xs text-gray-500">{r.label}</p>
                     <p className={`text-lg font-semibold ${r.color || ""}`}>{r.value || "-"}</p>
                   </div>

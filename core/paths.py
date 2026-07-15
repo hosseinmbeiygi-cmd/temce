@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -29,7 +28,7 @@ def safe_resolve(base: Path | str, user_path: str) -> Path:
     """
     base_resolved = Path(base).resolve()
     full = (base_resolved / user_path).resolve()
-    
+
     try:
         full.relative_to(base_resolved)
     except ValueError:

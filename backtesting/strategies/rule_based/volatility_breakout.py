@@ -9,8 +9,10 @@ from domain.common.enum_types import OrderSide, OrderType
 
 
 class VolatilityBreakoutStrategy(BaseStrategy):
-    def __init__(self, lookback: int = 20, multiplier: float = 2.0, instrument_id: str = "") -> None:
-        super().__init__(name=f"VolBreakout_{lookback}_{multiplier}")
+    def __init__(self, lookback: int = 20, multiplier: float = 2.0, instrument_id: str = "",
+                 sizing_method: str = "fixed", sizing_value: float = 1000.0) -> None:
+        super().__init__(name=f"VolBreakout_{lookback}_{multiplier}",
+                         sizing_method=sizing_method, sizing_value=sizing_value)
         self.lookback = lookback
         self.multiplier = multiplier
         self.instrument_id = instrument_id
@@ -30,7 +32,7 @@ class VolatilityBreakoutStrategy(BaseStrategy):
             trs.append(max(hl, hc, lc))
         if not trs:
             return 0.0
-        return sum(trs[-self.lookback :]) / min(len(trs), self.lookback)
+        return sum(trs[-self.lookback:]) / min(len(trs), self.lookback)
 
     def on_bar(self, bar: dict[str, Any]) -> list[OrderEvent]:
         high = bar.get("high", 0)
@@ -50,29 +52,31 @@ class VolatilityBreakoutStrategy(BaseStrategy):
         lower = self._closes[-2] - self.multiplier * atr if len(self._closes) >= 2 else close - atr
         orders: list[OrderEvent] = []
         if close > upper and self._position <= 0:
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
-                    quantity=1000,
+                    quantity=qty,
                     price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
-        elif close < lower and self._position >= 0:
+        elif close < lower and self._position > 0:
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
-                    quantity=1000,
+                    quantity=qty,
                     price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
-            self._position = -1
+            self._position = 0
         return orders
 
     def reset(self) -> None:

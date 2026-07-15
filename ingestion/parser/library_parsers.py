@@ -307,11 +307,7 @@ class TsetmcLibParser(_BaseLibParser):
             for rec in records:
                 events.append(self._market_snapshot(rec, now))
 
-        elif data_type == "price_history":
-            for rec in records:
-                events.append(self._daily_ohlcv(rec, symbol, now))
-
-        elif data_type == "closing_price":
+        elif data_type == "price_history" or data_type == "closing_price":
             for rec in records:
                 events.append(self._daily_ohlcv(rec, symbol, now))
 

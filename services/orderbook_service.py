@@ -1,3 +1,9 @@
+"""OrderBook Service — uses real orderbook data from brsapi_symbol_snapshots.
+
+No mock/hardcoded orderbook. The 5-level bid/ask data comes directly
+from the AllSymbols snapshot which contains orderbook levels.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -22,6 +28,19 @@ class OrderBookService:
         self._client = brsapi_client
 
     async def get_orderbook(self, symbol: str) -> Result[dict[str, Any]]:
+        """Get real orderbook from brsapi_symbol_snapshots."""
+        # Try from the snapshot table first (already synced data)
+        if self._brsapi:
+            try:
+                snap = await self._brsapi.get_symbol_snapshot(symbol)
+                if snap:
+                    orderbook = self._snapshot_to_orderbook(snap, symbol)
+                    if orderbook:
+                        return Result.ok(orderbook)
+            except Exception:
+                logger.exception("Snapshot orderbook fetch failed for %s", symbol)
+
+        # Try live fetch from API
         if self._client:
             try:
                 live = await self._fetch_live_orderbook(symbol)
@@ -29,7 +48,42 @@ class OrderBookService:
                     return Result.ok(live)
             except Exception:
                 logger.exception("Live orderbook fetch failed for %s", symbol)
-        return Result.ok(self._mock_orderbook(symbol))
+
+        return Result.fail(f"Orderbook not available for {symbol} — no snapshot data found")
+
+    def _snapshot_to_orderbook(self, snap: dict[str, Any], symbol: str) -> dict[str, Any] | None:
+        """Extract 5-level orderbook from brsapi_symbol_snapshots row."""
+        bids = []
+        asks = []
+
+        for i in range(1, 6):
+            bid_price = float(snap.get(f"bid_price_{i}") or 0)
+            bid_vol = int(snap.get(f"bid_volume_{i}") or 0)
+            bid_cnt = int(snap.get(f"bid_count_{i}") or 0)
+            if bid_price > 0:
+                bids.append({"price": bid_price, "volume": bid_vol, "count": bid_cnt})
+
+            ask_price = float(snap.get(f"ask_price_{i}") or 0)
+            ask_vol = int(snap.get(f"ask_volume_{i}") or 0)
+            ask_cnt = int(snap.get(f"ask_count_{i}") or 0)
+            if ask_price > 0:
+                asks.append({"price": ask_price, "volume": ask_vol, "count": ask_cnt})
+
+        if not bids and not asks:
+            return None
+
+        best_bid = bids[0]["price"] if bids else 0
+        best_ask = asks[0]["price"] if asks else 0
+        spread = best_ask - best_bid if best_bid and best_ask else 0
+        spread_pct = round(spread / best_bid * 100, 2) if best_bid else 0
+
+        return {
+            "symbol": symbol,
+            "bids": bids,
+            "asks": asks,
+            "spread": spread,
+            "spread_pct": spread_pct,
+        }
 
     async def _fetch_live_orderbook(self, symbol: str) -> dict[str, Any] | None:
         """Fetch orderbook for a symbol from BrsApi API."""
@@ -77,30 +131,29 @@ class OrderBookService:
                 }
         return None
 
-    @staticmethod
-    def _mock_orderbook(symbol: str) -> dict[str, Any]:
-        return {
-            "symbol": symbol,
-            "bids": [
-                {"price": 15000, "volume": 50000, "count": 12},
-                {"price": 14950, "volume": 35000, "count": 8},
-                {"price": 14900, "volume": 42000, "count": 15},
-                {"price": 14850, "volume": 28000, "count": 6},
-                {"price": 14800, "volume": 55000, "count": 20},
-            ],
-            "asks": [
-                {"price": 15100, "volume": 45000, "count": 10},
-                {"price": 15150, "volume": 32000, "count": 7},
-                {"price": 15200, "volume": 48000, "count": 14},
-                {"price": 15250, "volume": 25000, "count": 5},
-                {"price": 15300, "volume": 60000, "count": 18},
-            ],
-            "spread": 100,
-            "spread_pct": 0.67,
-        }
-
     async def get_history(self, symbol: str, limit: int = 100) -> Result[list[dict[str, Any]]]:
-        return Result.ok([])
+        """Get historical daily data from brsapi_historical_daily."""
+        if not self._session:
+            return Result.ok([])
+
+        from sqlalchemy import text
+
+        try:
+            q = text("""
+                SELECT symbol, date, price_first as price_open, price_close,
+                       price_max as price_high, price_min as price_low,
+                       price_last, trade_volume as volume, trade_value as value
+                FROM brsapi_historical_daily
+                WHERE symbol = :sym
+                ORDER BY date DESC
+                LIMIT :lim
+            """)
+            result = await self._session.execute(q, {"sym": symbol, "lim": limit})
+            rows = [dict(row._mapping) for row in result.fetchall()]
+            return Result.ok(rows)
+        except Exception:
+            logger.exception("Failed to fetch history for %s", symbol)
+            return Result.ok([])
 
     async def save_snapshot(self, symbol: str, data: dict[str, Any]) -> Result[dict[str, Any]]:
         return Result.ok(data)

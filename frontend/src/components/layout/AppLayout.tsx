@@ -2,6 +2,7 @@
 
 import { useState, lazy, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
+import FloatingAssistant from "@/components/FloatingAssistant";
 import { useTheme } from "@/hooks/useTheme";
 
 const TickerTape = lazy(() => import("./TickerTape"));
@@ -59,6 +60,9 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
             {children}
           </div>
         </div>
+
+        {/* Floating Assistant — available on every page */}
+        <FloatingAssistant />
       </main>
     </div>
   );

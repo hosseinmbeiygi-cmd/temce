@@ -35,7 +35,7 @@ export default function ImportInstrumentsPage() {
     fieldName: "file",
     onSuccess: async (res) => {
       const data = (res as { data?: ImportResponse }).data ?? (res as ImportResponse);
-      toast.success(`${data.imported} نماد از ${data.total_rows} ردیف با موفقیت اضافه شد`);
+      toast.success(data.imported + " نماد از " + data.total_rows + " ردیف با موفقیت اضافه شد");
       await queryClient.invalidateQueries({ queryKey: ["instruments"] });
     },
   });

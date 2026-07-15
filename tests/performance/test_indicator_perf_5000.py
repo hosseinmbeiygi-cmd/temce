@@ -14,7 +14,6 @@ import pytest
 
 from services.market_service import MarketService
 
-
 # ── 5 000 realistic OHLCV bars (random-walk price) ─────────
 
 _SEED = 42

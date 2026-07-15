@@ -1,10 +1,14 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import asyncio
-from httpx import AsyncClient, ASGITransport
+
+from httpx import ASGITransport, AsyncClient
+
 from apps.api.app import app
+
 
 async def test():
     transport = ASGITransport(app=app)
@@ -40,5 +44,6 @@ async def test():
         if j3.get("data"):
             print("prediction:", j3["data"].get("prediction"), "confidence:", j3["data"].get("confidence"))
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())
 

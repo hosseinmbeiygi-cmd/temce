@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Query
 from pydantic import BaseModel, Field
 
 from schemas.common.responses import ApiResponse

@@ -15,7 +15,6 @@ This test mocks the BrsApi HTTP layer so no real API key or network is needed.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -123,7 +122,6 @@ class MockBrsApiClient:
         self.calls: list[dict] = []
 
     async def fetch(self, endpoint, params=None, category_override=None):
-        from brsapi.config import BrsApiEndpoints
 
         self.calls.append({
             "path": endpoint.path,

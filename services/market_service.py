@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
@@ -66,7 +65,7 @@ class MarketService:
                 indices = await self._brsapi.get_latest_indices()
                 if indices:
                     return Result.ok(indices)
-            except Exception as e:
+            except Exception:
                 logger.exception("Failed to fetch index values from BrsApi")
         # Live fallback: fetch directly from BrsApi API
         if self._client:
@@ -84,7 +83,7 @@ class MarketService:
         from brsapi.parsers import TsetmcParser
 
         all_indices: list[dict[str, Any]] = []
-        for idx_type in ("1", "2", "3"):  # TSE, Farabours, Selected
+        for idx_type in ("1", "2"):  # TSE, Farabours
             result = await self._client.fetch(
                 BrsApiEndpoints.INDEX,
                 params={"type": idx_type},
@@ -110,7 +109,7 @@ class MarketService:
                 snapshots = await self._brsapi.get_latest_snapshots(limit=200)
                 if snapshots:
                     return Result.ok(self._build_sectors(snapshots))
-            except Exception as e:
+            except Exception:
                 logger.exception("Failed to build sector summary")
         # Live fallback
         if self._client:
@@ -699,6 +698,7 @@ class MarketService:
             return Result.ok({})
         try:
             from sqlalchemy import text as sa_text
+
             from core.database import get_session
 
             result_map: dict[str, list[float]] = {}
@@ -780,7 +780,7 @@ class MarketService:
                             {"name": "Energy", "count": 0, "instruments": []},
                         ],
                     })
-            except Exception as e:
+            except Exception:
                 logger.exception("Failed to fetch commodity data")
         # Live fallback: fetch commodities from BrsApi API
         if self._client:
@@ -831,7 +831,7 @@ class MarketService:
                     data = await self._brsapi.get_currency_prices()
                 if data:
                     return Result.ok({"indicator": indicator, "country": country, "data": data})
-            except Exception as e:
+            except Exception:
                 logger.exception("Failed to fetch macro data")
         # Live fallback: fetch gold/currency from BrsApi API
         if self._client and indicator in ("currency", "dollar", "eur", "gold"):
@@ -844,20 +844,24 @@ class MarketService:
         return Result.ok({"indicator": indicator, "country": country})
 
     async def _fetch_live_macro(self, indicator: str) -> list[dict[str, Any]]:
-        """Fetch macro data directly from BrsApi API."""
-        from brsapi.config import BrsApiEndpoints
-        from brsapi.parsers import GoldCoinParser, CurrencyParser
+        """Fetch macro data directly from BrsApi API using the combined Gold_Currency endpoint.
 
+        The old /Market/Coin.php and /Market/Currency.php endpoints are deprecated (HTTP 404).
+        Uses /Market/Gold_Currency.php which returns gold, currency & crypto in one call.
+        """
+        from brsapi.config import BrsApiEndpoints
+        from brsapi.parsers import GoldCurrencyParser
+
+        result = await self._client.fetch(BrsApiEndpoints.GOLD_CURRENCY)
+        if not (result.success and result.value and result.value.data):
+            return []
+
+        data = result.value.data
         if indicator == "gold":
-            result = await self._client.fetch(BrsApiEndpoints.GOLD_COIN)
-            if result.success and result.value and result.value.data:
-                parsed = GoldCoinParser.parse(result.value.data)
-                if isinstance(parsed, list):
-                    return parsed
+            parsed = GoldCurrencyParser.parse_gold(data)
         else:
-            result = await self._client.fetch(BrsApiEndpoints.CURRENCY)
-            if result.success and result.value and result.value.data:
-                parsed = CurrencyParser.parse(result.value.data)
-                if isinstance(parsed, list):
-                    return parsed
+            parsed = GoldCurrencyParser.parse_currency(data)
+
+        if isinstance(parsed, list):
+            return parsed
         return []

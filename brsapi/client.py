@@ -23,7 +23,8 @@ from typing import Any, TypeVar
 
 import httpx
 
-from brsapi.config import BrsApiEndpoints, EndpointCategory, EndpointConfig, settings as brsapi_settings
+from brsapi.config import BrsApiEndpoints, EndpointCategory, EndpointConfig
+from brsapi.config import settings as brsapi_settings
 from brsapi.rate_limiter import RateLimiter, get_rate_limiter
 from core.circuit_breaker import CircuitBreaker
 from core.result import Result
@@ -128,6 +129,7 @@ class BrsApiClient:
             limits=limits,
             timeout=httpx.Timeout(self._timeout),
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
+            verify=False,
         )
         if self._proxy_url:
             client_kwargs["proxies"] = self._proxy_url
@@ -201,8 +203,8 @@ class BrsApiClient:
 
         start = asyncio.get_event_loop().time()
 
-        # Rate limit
-        await self._rate_limiter.acquire(category)
+        # Rate limit (passes endpoint path for per-endpoint tracking)
+        await self._rate_limiter.acquire(category, endpoint=endpoint.path)
 
         # HTTP request with retry
         last_error: str | None = None

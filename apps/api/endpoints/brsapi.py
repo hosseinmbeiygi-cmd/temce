@@ -14,8 +14,8 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import func as sa_func
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_db_session
@@ -61,7 +61,7 @@ async def get_commodity_prices(
         data = await service.get_commodity_prices(category=category)
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
 @router.get(
@@ -77,7 +77,7 @@ async def get_commodity_categories(
         categories = await service.get_commodity_categories()
         return ApiResponse[list[dict[str, Any]]](success=True, data=categories)
     except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
 # ── Cryptocurrency ────────────────────────────────────────────────
@@ -101,7 +101,7 @@ async def get_crypto_prices(
         data = await service.get_crypto_prices(limit=limit, sort_by=sort_by)
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
 @router.get(
@@ -117,7 +117,7 @@ async def get_top_crypto(
         data = await service.get_crypto_prices(limit=10, sort_by="market_cap")
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
 # ── Gold & Coins ──────────────────────────────────────────────────
@@ -136,23 +136,11 @@ async def get_gold_coin_prices(
         data = await service.get_gold_coin_prices()
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
-@router.get(
-    "/gold-24h",
-    summary="24-hour gold price changes",
-    description="Gold price changes over the past 24 hours",
-)
-async def get_gold_24h(
-    service: BrsApiQueryService = Depends(get_brsapi_query_service),
-) -> ApiResponse[list[dict[str, Any]]]:
-    """Return 24-hour gold price changes."""
-    try:
-        data = await service.get_gold_24h()
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
-    except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+# gold-24h endpoint removed — data source no longer synced.
+# Gold data is available via /gold-coin (from Gold_Currency.php combined endpoint).
 
 
 # ── Currency / Forex ──────────────────────────────────────────────
@@ -171,23 +159,11 @@ async def get_currency_prices(
         data = await service.get_currency_prices()
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
-@router.get(
-    "/currency-24h",
-    summary="24-hour currency changes",
-    description="Currency rate changes over the past 24 hours",
-)
-async def get_currency_24h(
-    service: BrsApiQueryService = Depends(get_brsapi_query_service),
-) -> ApiResponse[list[dict[str, Any]]]:
-    """Return 24-hour currency changes."""
-    try:
-        data = await service.get_currency_24h()
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
-    except Exception as exc:
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error=str(exc))
+# currency-24h endpoint removed — data source no longer synced.
+# Currency data is available via /currency (from Gold_Currency.php combined endpoint).
 
 
 # ── Historical Daily ────────────────────────────────────────────────
@@ -216,8 +192,10 @@ async def get_historical_daily(
     Supports pagination via ``limit``/``offset`` and optional date range
     filtering via ``date_start``/``date_end``.
     """
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select as sa_select
+
     from brsapi.models.tsetmc import HistoricalDailyModel
-    from sqlalchemy import select as sa_select, func as sa_func
 
     try:
         conditions = [HistoricalDailyModel.symbol == symbol]
@@ -357,7 +335,7 @@ async def get_historical_daily(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=limit, total_pages=0),
-            error=str(exc),
+            error={"message": str(exc)},
         )
 
 
@@ -385,8 +363,10 @@ async def get_codal_announcements(
     Returns ``ins_id`` and ``instrument_id`` fields for instrument linking.
     If ``instrument_id`` is set, also returns the instrument name via JOIN.
     """
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select as sa_select
+
     from brsapi.models.codal import CodalAnnouncementModel
-    from sqlalchemy import select as sa_select, func as sa_func, text as sa_text
 
     try:
         conditions = []
@@ -419,7 +399,9 @@ async def get_codal_announcements(
         instrument_names: dict[str, str] = {}
         instr_ids = list({str(r.instrument_id) for r in rows if r.instrument_id})
         if instr_ids:
-            from sqlalchemy import column, text as _t, select as _s
+            from sqlalchemy import column
+            from sqlalchemy import select as _s
+            from sqlalchemy import text as _t
             try:
                 name_result = await session.execute(
                     _s(column("id"), column("symbol").label("instr_symbol"))
@@ -472,7 +454,7 @@ async def get_codal_announcements(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=page_size, total_pages=0),
-            error=str(exc),
+            error={"message": str(exc)},
         )
 
 
@@ -495,12 +477,13 @@ async def get_codal_announcements_lazy(
 
     This is the **lazy per-symbol** approach — no batch sync needed.
     """
+    from sqlalchemy import select as _s
+
     from brsapi.client import get_client
     from brsapi.config import BrsApiEndpoints
-    from brsapi.parsers import CodalParser
     from brsapi.models.codal import CodalAnnouncementModel
+    from brsapi.parsers import CodalParser
     from brsapi.repositories import BulkUpsertRepository
-    from sqlalchemy import column, text, String, select as _s
 
     try:
         client = await get_client()
@@ -541,7 +524,8 @@ async def get_codal_announcements_lazy(
         # Fallback: try instruments table
         if not instrument_id:
             try:
-                from sqlalchemy import column as _c, text as _t
+                from sqlalchemy import column as _c
+                from sqlalchemy import text as _t
                 fb = await session.execute(
                     _s(_c("id")).select_from(_t("instruments")).where(_c("symbol") == symbol)
                 )
@@ -597,20 +581,72 @@ async def get_codal_announcements_lazy(
 from brsapi.client import get_client
 from brsapi.config import BrsApiEndpoints
 from brsapi.models import (
-    SymbolSnapshotModel, SymbolDetailModel, IndexValueModel,
-    NavRecordModel, OptionSnapshotModel, IntradayTradeModel,
-    HistoricalDailyModel, HistoricalRealLegalModel, CandlestickModel,
-    ShareholderRecordModel, ImeFutureModel, ImeOptionModel,
-    ImeCertificateModel, ImeFundModel, ImePhysicalTradeModel,
-    CommodityPriceModel, CryptoPriceModel, GoldCoinPriceModel,
-    GoldCoinHistoryModel, CurrencyPriceModel, Currency24hModel,
-    Gold24hModel, CodalAnnouncementModel,
+    CandlestickModel,
+    CodalAnnouncementModel,
+    CommodityPriceModel,
+    CryptoPriceModel,
+    CurrencyPriceModel,
+    GoldCoinHistoryModel,
+    GoldCoinPriceModel,
+    HistoricalDailyModel,
+    HistoricalRealLegalModel,
+    ImeCertificateModel,
+    ImeFundModel,
+    ImeFutureModel,
+    ImeOptionModel,
+    ImePhysicalTradeModel,
+    IndexValueModel,
+    IntradayTradeModel,
+    NavRecordModel,
+    OptionSnapshotModel,
+    ShareholderRecordModel,
+    SymbolDetailModel,
+    SymbolSnapshotModel,
 )
 from brsapi.parsers import (
-    TsetmcParser, CommodityParser, CryptoParser,
-    CurrencyParser, GoldCoinParser, Gold24hParser, ImeParser, CodalParser,
+    CodalParser,
+    CommodityParser,
+    CryptoParser,
+    CurrencyParser,
+    GoldCoinParser,
+    ImeParser,
+    TsetmcParser,
 )
 from brsapi.repositories import SyncLogRepository
+from core.logging import get_logger as _get_logger
+
+logger = _get_logger(__name__)
+
+# ── Date column for each section ──────────────────────────────────────
+# Maps section_id -> the most meaningful date column to show as "last data date"
+# Uses fetched_at for live snapshot data, date for historical records, etc.
+SECTION_DATE_COLUMNS: dict[str, str] = {
+    "all-symbols": "fetched_at",
+    "symbol-detail": "fetched_at",
+    "index-tse": "fetched_at",
+    "index-farabours": "fetched_at",
+    "index-selected": "fetched_at",
+    "nav": "date",
+    "option": "fetched_at",
+    "transaction": "trade_date",
+    "history-price": "date",
+    "history-real-legal": "date",
+    "candlestick": "date",
+    "shareholder": "date",
+    "ime-futures": "date_update",
+    "ime-options": "fetched_at",
+    "ime-certificates": "date_update",
+    "ime-funds": "fetched_at",
+    "ime-physical": "date_trade",
+    "commodity": "fetched_at",
+    "crypto": "fetched_at",
+    "gold-coin": "fetched_at",
+    "gold-coin-history": "date",
+    "currency": "fetched_at",
+    "currency-history": "fetched_at",
+    "codal": "date_publish",
+}
+
 
 # ── Section registry ───────────────────────────────────────────────
 
@@ -635,19 +671,42 @@ SECTIONS: dict[str, dict[str, Any]] = {
         "icon": "🔍",
         "has_date_range": False,
     },
-    "index": {
-        "name": "شاخص‌ها",
-        "name_en": "Indices",
+    "index-tse": {
+        "name": "شاخص بورس",
+        "name_en": "TSE Index",
         "endpoint": BrsApiEndpoints.INDEX,
         "model": IndexValueModel,
         "parser": TsetmcParser.parse_index,
         "category": "tsetmc",
         "icon": "📈",
         "has_date_range": False,
+        "default_params": {"type": "1"},
+    },
+    "index-farabours": {
+        "name": "شاخص فرابورس",
+        "name_en": "IFB Index",
+        "endpoint": BrsApiEndpoints.INDEX,
+        "model": IndexValueModel,
+        "parser": TsetmcParser.parse_index,
+        "category": "tsetmc",
+        "icon": "📉",
+        "has_date_range": False,
+        "default_params": {"type": "2"},
+    },
+    "index-selected": {
+        "name": "شاخص‌های منتخب",
+        "name_en": "Selected Indices",
+        "endpoint": BrsApiEndpoints.INDEX,
+        "model": IndexValueModel,
+        "parser": TsetmcParser.parse_index,
+        "category": "tsetmc",
+        "icon": "📊",
+        "has_date_range": False,
+        "default_params": {"type": "3"},
     },
     "nav": {
-        "name": "NAV صندوق‌ها",
-        "name_en": "Fund NAV",
+        "name": "NAV صندوق (تک‌نماد)",
+        "name_en": "Fund NAV (single)",
         "endpoint": BrsApiEndpoints.NAV,
         "model": NavRecordModel,
         "parser": TsetmcParser.parse_nav,
@@ -850,22 +909,74 @@ SECTIONS: dict[str, dict[str, Any]] = {
 async def list_sections(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[list[dict[str, Any]]]:
-    """Return all BrsApi sections with sync status, record count, and last update."""
-    results = []
+    """Return all BrsApi sections with sync status, record count, and last update.
+
+    Uses parallel queries (asyncio.gather) for fast loading even with large tables.
+    Row counts use PostgreSQL statistics (pg_stat_user_tables) when available,
+    falling back to COUNT(*) for individual tables.
+    """
+    import asyncio
+
     sync_repo = SyncLogRepository(session)
 
-    for section_id, cfg in SECTIONS.items():
+    # Get row estimates from pg_stat for fast approximate counts
+    pg_stat_counts: dict[str, int] = {}
+    try:
+        pg_result = await session.execute(text(
+            "SELECT relname, n_live_tup FROM pg_stat_user_tables "
+            "WHERE schemaname = 'public'"
+        ))
+        for row in pg_result:
+            pg_stat_counts[row[0]] = row[1] or 0
+    except Exception:
+        pass
+
+    async def build_section(section_id: str, cfg: dict[str, Any]) -> dict[str, Any]:
         try:
             model = cfg["model"]
             endpoint_path = cfg["endpoint"].path
+            table_name = model.__tablename__
 
-            stmt = select(sa_func.count()).select_from(model)
-            cnt_result = await session.execute(stmt)
-            count = cnt_result.scalar() or 0
+            # Use pg_stat estimate for fast row count, fall back to COUNT(*)
+            count = pg_stat_counts.get(table_name)
+            if count is None:
+                try:
+                    stmt = select(sa_func.count()).select_from(model)
+                    cnt_result = await session.execute(stmt)
+                    count = cnt_result.scalar() or 0
+                except Exception:
+                    count = 0
 
-            last = await sync_repo.last_sync(endpoint_path, max_age_seconds=999999999)
+            # Query last data date in parallel with sync log
+            date_col = SECTION_DATE_COLUMNS.get(section_id)
 
-            results.append({
+            async def get_last_data_date():
+                if not date_col or not count:
+                    return None
+                try:
+                    col = getattr(model, date_col, None)
+                    if col is None:
+                        return None
+                    date_stmt = select(sa_func.max(col)).select_from(model)
+                    date_result = await session.execute(date_stmt)
+                    val = date_result.scalar()
+                    return str(val) if val else None
+                except Exception:
+                    return None
+
+            async def get_last_sync():
+                try:
+                    return await sync_repo.last_sync(endpoint_path, max_age_seconds=999999999)
+                except Exception:
+                    return None
+
+            # Run date query and sync log query in parallel
+            last_data_date, last = await asyncio.gather(
+                get_last_data_date(),
+                get_last_sync(),
+            )
+
+            return {
                 "id": section_id,
                 "name": cfg["name"],
                 "name_en": cfg["name_en"],
@@ -873,6 +984,7 @@ async def list_sections(
                 "category": cfg["category"],
                 "has_date_range": cfg["has_date_range"],
                 "record_count": count,
+                "last_data_date": last_data_date,
                 "last_sync": {
                     "status": last.status if last else None,
                     "items_count": last.items_count if last else 0,
@@ -880,21 +992,26 @@ async def list_sections(
                     "completed_at": str(last.completed_at) if last and last.completed_at else None,
                     "error_message": last.error_message if last else None,
                 } if last else None,
-            })
+            }
         except Exception:
-            # Table may not exist yet — report section with zero records
-            results.append({
+            return {
                 "id": section_id,
-                "name": cfg["name"],
-                "name_en": cfg["name_en"],
-                "icon": cfg["icon"],
-                "category": cfg["category"],
-                "has_date_range": cfg["has_date_range"],
+                "name": cfg.get("name", section_id),
+                "name_en": cfg.get("name_en", ""),
+                "icon": cfg.get("icon", "📦"),
+                "category": cfg.get("category", "other"),
+                "has_date_range": cfg.get("has_date_range", False),
                 "record_count": 0,
+                "last_data_date": None,
                 "last_sync": None,
-            })
+            }
 
-    return ApiResponse[list[dict[str, Any]]](success=True, data=results)
+    # Run ALL section queries in parallel
+    results = await asyncio.gather(*[
+        build_section(sid, cfg) for sid, cfg in SECTIONS.items()
+    ])
+
+    return ApiResponse[list[dict[str, Any]]](success=True, data=list(results))
 
 
 @router.post("/manage/sync/{section_id}", summary="Sync a BrsApi section")
@@ -914,7 +1031,7 @@ async def sync_section(
     from brsapi.services.sync_service import BrsApiSyncService
     sync_svc = BrsApiSyncService(client=client, session=session)
 
-    params: dict[str, str] = {}
+    params: dict[str, str] = dict(cfg.get("default_params") or {})
     if date_start and cfg["has_date_range"]:
         params["date_start"] = date_start
     if date_end and cfg["has_date_range"]:
@@ -984,7 +1101,7 @@ async def download_section(
     if live:
         client = await get_client()
 
-        params: dict[str, str] = {}
+        params: dict[str, str] = dict(cfg.get("default_params") or {})
         if date_start and cfg.get("has_date_range"):
             params["date_start"] = date_start
         if date_end and cfg.get("has_date_range"):
@@ -1066,6 +1183,112 @@ async def download_section(
     )
 
 
+# ── ETF symbols list (common Iranian ETF funds supported by BrsAPI) ──
+BRSAPI_ETF_SYMBOLS: list[str] = [
+    "اهرم", "توان", "شتاب", "جهش", "موج", "نارنج اهرم", "بيدار", "دوايكس",
+    "پيشران", "اطلس", "آساس", "كاريس", "الماس", "فيروزه", "كاردان", "ثروتم",
+    "آگاس", "آتيمس", "افق ملت", "سرو", "بذر", "دارا يكم", "ارزش", "آوا",
+    "مدير", "پالايش", "زرين", "وبازار", "فراز", "ثهام", "پادا", "داريوش",
+    "ويستا", "اوج", "ثمين", "انار", "رماس", "پتروما", "تاراز", "مرواريد",
+    "آرام", "سلام", "هم وزن", "درسا", "برليان", "عقيق", "هيوا", "ثنا",
+    "ترمه", "دريا", "پرتو", "اكسيژن", "پتروآگاه", "استيل", "پتروداريوش",
+    "صدف", "پتروصبا", "سمان", "هوشيار", "بهين رو", "تيام", "پيروز", "رويين",
+    "فلزفارابي", "متال", "آذرين", "خليج", "جاودان", "هامون", "نارين",
+    "پتروآبان", "فارما كيان", "تكپاد", "بازبيمه", "تخت گاز", "ثروت ساز",
+    "سپينود", "خبرگان", "آبنوس", "رخش", "پتروفارس", "فرصت", "رسانا", "مانا",
+    "پتروپاداش", "هومان", "سيمانيا", "رشدي كيان", "دي سهام", "جوانه كوچك",
+    "عرش", "همتا", "فارماني", "آس", "ابتكار", "آميتيس", "پناه", "رونق",
+    "فرا الگوريتم", "سهامدار", "هوشمند", "ديار", "پرتوسا", "رويش همراه",
+    "بانكدار", "اعتبارسهام", "يلدا", "لذيذ", "هم تراز", "آلكان", "يكم",
+    "سها", "كوانتوم", "بزرگ", "همسنگ", "هم ارز", "نبات", "جام سهند",
+    "رادان", "پتروسورين", "ثروين", "امتياز", "ولتاژ", "بانكو", "ناوگان",
+    "بانكيا", "آويد", "آوان", "آسام", "صنوين", "زيتون", "آفرين", "هيبريد",
+    "شيلد", "مختلط", "تداوم", "اعتماد", "صايند", "سخند", "آكورد", "پارند",
+    "كيان", "امين يكم", "كمند", "فيروزا", "اوصتا", "آساميد", "دارا",
+    "ارمغان", "گنجينه", "تصميم", "افران", "گنجين", "ياقوت", "داريك", "سپر",
+    "خاتم", "فردا", "كارين", "سپيدما", "كامياب", "سيناد", "هماي", "ماني",
+    "ثبات", "كارا", "يارا", "هامرز", "رشد", "پاداش", "نشان", "آفاق", "آوند",
+    "نخل", "ساحل", "لبخند", "كاج", "رايكا", "بازده", "اعتبار", "پايا",
+    "ديبا", "رابين", "سام", "درين", "نيلي", "صنهال", "آكام", "آلا", "فاخر",
+    "طلوع", "توسكا", "خورشيد", "اونيكس", "ثابت اكسيژن", "دامون", "ماهور",
+    "بمان", "پايش", "اصيل", "كارما", "همگام", "نيك گستر", "آتيه ملت",
+    "آرامش", "شميم", "ترنج ثابت", "اطمينان", "اركيده", "خزانه ملت",
+    "كارآمد", "آسود", "زمرد كوروش", "ستاره", "سپنتارود", "پاسارگاد",
+    "بلوط", "آسان", "اندوخته داريوش", "ماكان", "هدف", "آسا", "ثمر",
+    "رايبد", "سيلور", "سيمين", "رويش", "آتي1", "آشناتك", "تهران1",
+    "فنابا", "پارتين", "ونچر", "نوآور", "استارز", "ثروت", "كمان",
+    "پيشرفت", "ديوان", "سپهر", "اكسير", "ديتا", "تهران2", "افق نگر",
+    "تدبيريكم", "بامداد", "صنم", "تمشك", "خوشه", "ضمان", "گارانتي",
+    "طلا", "زر", "گوهر", "عيار", "كهربا", "مثقال", "زرفام", "نفيس",
+    "گنج", "ناب", "آلتون", "جواهر", "تابش", "ليان", "زروان", "درخشان",
+    "آتش", "قيراط", "گلديس", "زمرد", "امرالد", "رز ترنج", "درنا", "زرگر",
+    "ريتون", "گلدا", "رزگلد", "نگين فارس", "هميان", "ميراث", "دفينه",
+]
+
+
+@router.post("/manage/sync-nav-all", summary="Batch sync NAV for all ETF funds")
+async def sync_nav_all(
+    max_symbols: int = Query(0, ge=0, le=500, description="Max symbols to sync (0 = all ETFs)"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """
+    Batch-sync NAV (Net Asset Value) for all ETF fund symbols.
+
+    Iterates through the known ETF symbol list, fetches NAV data from
+    BrsApi for each, and stores the results. Uses rate limiting to
+    stay within BrsApi's per-minute limits (6 req/min for NAV endpoint).
+    """
+    import asyncio as _asyncio
+
+    client = await get_client()
+    from brsapi.services.sync_service import BrsApiSyncService
+
+    sync_svc = BrsApiSyncService(client=client, session=session)
+
+    symbols = BRSAPI_ETF_SYMBOLS[:max_symbols] if max_symbols > 0 else BRSAPI_ETF_SYMBOLS
+
+    results: list[dict[str, Any]] = []
+    success_count = 0
+    fail_count = 0
+    total_duration_ms = 0.0
+
+    for i, symbol in enumerate(symbols):
+        # Rate limit: NAV = 6 req/min → wait 11s between requests
+        await _asyncio.sleep(11)
+        try:
+            report = await sync_svc.sync_nav(session, symbol)
+            total_duration_ms += report.duration_ms
+            if report.success:
+                success_count += 1
+            else:
+                fail_count += 1
+            results.append({
+                "symbol": symbol,
+                "success": report.success,
+                "items_count": report.items_count,
+                "duration_ms": report.duration_ms,
+                "error": report.error,
+            })
+            if (i + 1) % 10 == 0:
+                logger.info("NAV sync progress: %d/%d symbols (%d ok, %d fail)",
+                           i + 1, len(symbols), success_count, fail_count)
+        except Exception as exc:
+            fail_count += 1
+            results.append({
+                "symbol": symbol,
+                "success": False,
+                "error": str(exc),
+            })
+
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "total": len(symbols),
+        "success_count": success_count,
+        "fail_count": fail_count,
+        "total_duration_ms": round(total_duration_ms, 1),
+        "results": results,
+    })
+
+
 @router.post("/manage/sync-top-symbols", summary="Sync Symbol.php for top N symbols")
 async def sync_top_symbols(
     limit: int = Query(10, ge=1, le=50, description="Number of top symbols to sync"),
@@ -1077,7 +1300,6 @@ async def sync_top_symbols(
 
     Returns a summary report with per-symbol results.
     """
-    import asyncio
 
     client = await get_client()
     from brsapi.services.sync_service import BrsApiSyncService
@@ -1106,7 +1328,8 @@ async def sync_top_symbols(
     total_duration_ms = 0.0
 
     for symbol in symbols:
-        # Small delay between requests to avoid rate limiting (~30 req/min for TSETMC)                await asyncio.sleep(2)
+        # Small delay between requests to avoid rate limiting (~30 req/min for TSETMC)
+        await asyncio.sleep(2)
         try:
             report = await sync_svc.sync_symbol_detail(session, symbol)
             total_duration_ms += report.duration_ms

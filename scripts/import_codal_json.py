@@ -21,6 +21,7 @@ from __future__ import annotations
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -29,7 +30,6 @@ if str(_project_root) not in sys.path:
 import asyncio
 import hashlib
 import json
-import os
 import re
 import sys
 import time
@@ -46,18 +46,18 @@ try:
 except AttributeError:
     pass
 
-from models.codal import CodalReportModel
-from models.instrument import InstrumentModel
-from sqlalchemy import select, func, text
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from models.codal import CodalReportModel
+from models.instrument import InstrumentModel
 
 DIR_PATH = Path("codal_data")
 BATCH_COMMIT = 50  # commit every N files
 
 
 async def main() -> None:
-    from core.database import init_database, close_database, get_session
+    from core.database import close_database, get_session, init_database
 
     start_time = time.monotonic()
 
@@ -111,7 +111,7 @@ async def main() -> None:
             file_start = time.monotonic()
 
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     data = json.load(f)
             except Exception as exc:
                 print(

@@ -8,7 +8,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import dataclasses
 from datetime import date, datetime
-from typing import Any
 
 import pytest
 import pytest_asyncio
@@ -1078,7 +1077,7 @@ class TestEngine:
         assert len(s._prices) == 0
 
     def test_types_are_dataclasses(self):
-        from backtesting.types import BacktestResult, EquityPoint, OrderEvent
+        from backtesting.types import BacktestResult, EquityPoint
         assert dataclasses.is_dataclass(BacktestResult)
         assert dataclasses.is_dataclass(EquityPoint)
 
@@ -1099,22 +1098,9 @@ class TestEngine:
         r = BacktestResult(strategy_name="T", initial_capital=1000000, final_capital=1200000, total_return=200000, total_return_pct=20.0, total_trades=5, equity_curve=[ep], trades=[])
         assert r.total_return_pct == 20.0
 
-    def test_ohlcv_generator(self):
-        from services.backtest_service import _generate_ohlcv_data
-        data = _generate_ohlcv_data("فولاد", date(2025, 1, 1), date(2025, 1, 10))
-        assert len(data) > 0
-        assert "close" in data[0]
-
-    def test_ohlcv_weekdays(self):
-        from services.backtest_service import _generate_ohlcv_data
-        data = _generate_ohlcv_data("فولاد", date(2025, 1, 1), date(2025, 1, 31))
-        for bar in data:
-            ts = datetime.fromisoformat(bar["timestamp"])
-            assert ts.weekday() < 5
-
     def test_compute_metrics(self):
-        from services.backtest_service import _compute_metrics
         from backtesting.types import BacktestResult, EquityPoint
+        from services.backtest_service import _compute_metrics
         eps = [EquityPoint(timestamp=datetime.now(), nav=1000000, cash=500000, positions_value=500000),
                EquityPoint(timestamp=datetime.now(), nav=1100000, cash=600000, positions_value=500000)]
         r = BacktestResult(strategy_name="T", initial_capital=1000000, final_capital=1100000, total_return=100000, total_return_pct=10.0, total_trades=1, equity_curve=eps, trades=[])
@@ -1122,7 +1108,7 @@ class TestEngine:
         assert "total_return_pct" in m
 
     def test_strategy_registry(self):
-        from services.backtest_service import _register_strategies, STRATEGY_MAP
+        from services.backtest_service import STRATEGY_MAP, _register_strategies
         _register_strategies()
         for name in ("breakout", "volatility_breakout", "rsi_reversion"):
             assert name in STRATEGY_MAP
@@ -1375,27 +1361,9 @@ class TestServices:
         assert r.success is True
 
     @pytest.mark.asyncio
-    async def test_ohlcv_generated(self):
-        from services.backtest_service import _generate_ohlcv_data
-        data = _generate_ohlcv_data("فولاد", date(2025, 1, 1), date(2025, 1, 10))
-        assert len(data) > 0
-        assert "close" in data[0]
-        assert "open" in data[0]
-        assert "high" in data[0]
-        assert "low" in data[0]
-
-    @pytest.mark.asyncio
-    async def test_ohlcv_weekdays_only(self):
-        from services.backtest_service import _generate_ohlcv_data
-        data = _generate_ohlcv_data("فولاد", date(2025, 1, 1), date(2025, 1, 31))
-        for bar in data:
-            ts = datetime.fromisoformat(bar["timestamp"])
-            assert ts.weekday() < 5
-
-    @pytest.mark.asyncio
     async def test_compute_metrics_has_keys(self):
-        from services.backtest_service import _compute_metrics
         from backtesting.types import BacktestResult, EquityPoint
+        from services.backtest_service import _compute_metrics
         eps = [EquityPoint(timestamp=datetime.now(), nav=1000000, cash=500000, positions_value=500000)]
         r = BacktestResult(strategy_name="T", initial_capital=1000000, final_capital=1000000, total_return=0, total_return_pct=0.0, total_trades=0, equity_curve=eps, trades=[])
         m = _compute_metrics(r)
@@ -1404,7 +1372,7 @@ class TestServices:
 
     @pytest.mark.asyncio
     async def test_strat_registry(self):
-        from services.backtest_service import _register_strategies, STRATEGY_MAP
+        from services.backtest_service import STRATEGY_MAP, _register_strategies
         _register_strategies()
         for n in ("breakout", "volatility_breakout", "rsi_reversion"):
             assert n in STRATEGY_MAP

@@ -55,10 +55,10 @@ class SignalService:
             result = await self.signal_repo.get_by_instrument(instrument_id, page, page_size)
         else:
             result = await self.signal_repo.list(page, page_size)
-        
+
         if not result.success:
             return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
-        
+
         items = [vars(s) for s in result.value.items]
         items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
         return Result.ok(

@@ -14,7 +14,6 @@ import pytest
 
 from services.market_service import MarketService
 
-
 # ── Test data ──────────────────────────────────────────────
 
 # Simple linear series: 5 points

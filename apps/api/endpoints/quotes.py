@@ -179,8 +179,9 @@ async def test_quote_direct(instrument_id: str):
     """
     اندپوینت تست مستقل که مستقیماً از SQLite استفاده می‌کند.
     """
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.orm import sessionmaker
+
     from services.quote_service import QuoteService
 
     engine = create_async_engine("sqlite+aiosqlite:///data/market.db")

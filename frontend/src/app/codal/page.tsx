@@ -191,16 +191,14 @@ export default function CodalPage() {
         return { items, total, page, page_size: items.length, total_pages: totalPages };
       }
 
-      // Default: search local database
+      // Default: search local database (codal_reports table with 236K+ records)
       const params = new URLSearchParams();
       if (searchSymbol.trim()) params.set("symbol", searchSymbol.trim());
-      if (dateStart) params.set("date_start", dateStart);
-      if (dateEnd) params.set("date_end", dateEnd);
       params.set("page", String(page));
       params.set("page_size", "50");
 
-      const res = await apiGet<{ success: boolean; data: PaginatedResult<CodalAnnouncement> }>(
-        `/codal/announcements?${params.toString()}`
+      const res = await apiGet<{ success: boolean; data: { items: CodalAnnouncement[]; total: number; page: number; page_size: number; total_pages: number } }>(
+        `/codal?${params.toString()}`
       );
       return res?.data ?? { items: [], total: 0, page: 1, page_size: 50, total_pages: 0 };
     },
@@ -356,7 +354,7 @@ export default function CodalPage() {
           {!isLoading && total > 0 && (
             <div className="mt-3 text-xs text-surface-500">
               {total.toLocaleString()} اطلاعیه یافت شد
-              {searchSymbol && ` برای نماد "${searchSymbol}"`}
+              {searchSymbol && " برای نماد \"" + searchSymbol + "\""}
             </div>
           )}
         </div>

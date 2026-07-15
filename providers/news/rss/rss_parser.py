@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
@@ -87,12 +87,16 @@ class RSSParser:
         if pub_date_str:
             pub_date = self._parse_date(pub_date_str) or pub_date_str
 
+        # Extract category (may appear multiple times; take first)
+        category = get_text("category") or ""
+
         return {
             "title": title or "",
             "link": link or "",
             "description": description or "",
-            "published_at": pub_date or datetime.now(timezone.utc).isoformat(),
+            "published_at": pub_date or datetime.now(UTC).isoformat(),
             "source": get_text("source") or get_text("generator") or "",
+            "category": category,
         }
 
     def _parse_date(self, date_str: str) -> str | None:
@@ -102,7 +106,7 @@ class RSSParser:
                 dt = datetime.strptime(date_str, fmt)
                 # Convert to UTC-aware ISO format
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                    dt = dt.replace(tzinfo=UTC)
                 return dt.isoformat()
             except (ValueError, OverflowError):
                 continue

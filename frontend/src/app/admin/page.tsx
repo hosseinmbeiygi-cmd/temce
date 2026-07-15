@@ -140,7 +140,8 @@ export default function AdminPage() {
       const res = await apiGet<DashboardResponse>("/dashboard");
       return res as DashboardResponse;
     },
-    refetchInterval: 30000,
+    refetchInterval: 600_000,
+    staleTime: 300_000,
   });
 
   const { data: sections } = useQuery({
@@ -149,7 +150,8 @@ export default function AdminPage() {
       const res = await apiGet<{ success: boolean; data: BrsapiSection[] }>("/brsapi/manage/sections");
       return res.data || [];
     },
-    refetchInterval: 30000,
+    refetchInterval: 600_000,
+    staleTime: 300_000,
   });
 
   const m = dash?.metrics;
@@ -234,7 +236,7 @@ export default function AdminPage() {
             </span>
             <span className="text-xs text-surface-500">وضعیت سیستم</span>
           </div>
-          <p className={`text-lg font-bold ${
+          <div className={`text-lg font-bold ${
             dash?.system_status === "healthy" ? "text-accent-emerald" :
             dash?.system_status === "warning" ? "text-accent-amber" :
             "text-accent-rose"
@@ -242,7 +244,7 @@ export default function AdminPage() {
             {dash?.system_status === "healthy" ? "✅ سالم" :
              dash?.system_status === "warning" ? "⚠️ هشدار" :
              dash?.system_status === "degraded" ? "🔴 مختل" : <Skeleton className="h-8 w-16" />}
-          </p>
+          </div>
         </div>
       </div>
 
@@ -432,8 +434,8 @@ export default function AdminPage() {
         <div className="mb-6">
           <h2 className="text-lg font-bold text-surface-200 mb-4">📊 استراتژی‌های بک‌تست</h2>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {backtestStrategies.map((strategy) => (
-              <div key={strategy.name} className="glass-card p-3 hover:bg-surface-800/60 transition-colors">
+            {backtestStrategies.map((strategy, si) => (
+              <div key={`${strategy.name}-${si}`} className="glass-card p-3 hover:bg-surface-800/60 transition-colors">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="font-bold text-surface-100 text-sm">{strategy.name}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-purple/15 text-accent-purple">
@@ -443,8 +445,8 @@ export default function AdminPage() {
                 <p className="text-[10px] text-surface-500 font-mono">{strategy.class_name}</p>
                 {strategy.params.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {strategy.params.map((p: { name: string; type: string; default: unknown }) => (
-                      <span key={p.name} className="text-[9px] px-1.5 py-0.5 bg-surface-800 text-surface-400 rounded-full">
+                    {strategy.params.map((p: { name: string; type: string; default: unknown }, pi) => (
+                      <span key={`${p.name}-${pi}`} className="text-[9px] px-1.5 py-0.5 bg-surface-800 text-surface-400 rounded-full">
                         {p.name}: {p.default != null ? String(p.default) : "-"}
                       </span>
                     ))}

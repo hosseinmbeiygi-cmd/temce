@@ -1,6 +1,11 @@
+"""Fundamental Service — uses real data from brsapi_symbol_snapshots and brsapi_symbol_details.
+
+No mock/fake data. When real data is unavailable, returns empty/zero values
+instead of fabricated financials.
+"""
+
 from __future__ import annotations
 
-import random
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,38 +15,50 @@ from core.result import Result
 logger = get_logger(__name__)
 
 
-def _mock_financials(symbol: str) -> dict[str, Any]:
-    base_revenue = random.randint(100_000, 500_000) * 1_000_000
-    net_profit = int(base_revenue * random.uniform(0.08, 0.25))
-    equity = int(base_revenue * random.uniform(0.4, 0.7))
-    total_assets = int(equity * random.uniform(1.5, 3.0))
-    current_assets = int(total_assets * random.uniform(0.3, 0.6))
-    current_liabilities = int(current_assets * random.uniform(0.4, 0.8))
-    operating_cf = int(net_profit * random.uniform(0.7, 1.3))
-    total_debt = int(equity * random.uniform(0.2, 0.8))
-    shares = random.randint(5_000, 50_000) * 1_000_000
-    price = random.randint(5_000, 50_000)
-    market_cap = price * shares
+def _snapshot_to_financials(symbol: str, snap: dict[str, Any], detail: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build financials from real brsapi snapshot + detail data."""
+    price = float(snap.get("price_last") or snap.get("price_close") or 0)
+    shares = int(snap.get("shares_count") or 0)
+    market_cap = float(snap.get("market_value") or 0)
+    eps = float(snap.get("eps") or 0)
+    pe = float(snap.get("pe_ratio") or 0)
 
-    eps = net_profit / shares
-    bvps = equity / shares
-    pe = market_cap / net_profit if net_profit > 0 else 0
-    pb = market_cap / equity if equity > 0 else 0
-    roe = (net_profit / equity * 100) if equity > 0 else 0
-    roa = (net_profit / total_assets * 100) if total_assets > 0 else 0
-    de = total_debt / equity if equity > 0 else 0
-    current_ratio = current_assets / current_liabilities if current_liabilities > 0 else 0
-    net_margin = (net_profit / base_revenue * 100) if base_revenue > 0 else 0
-    dividend_yield = random.uniform(0, 0.25)
-    free_cash_flow = int(operating_cf - total_assets * random.uniform(0.05, 0.15))
+    # Detail fields (richer data when available)
+    free_float_pct = 0.0
+    board = ""
+    sub_sector = ""
+    if detail:
+        free_float_pct = float(detail.get("free_float_pct") or 0)
+        board = str(detail.get("board") or "")
+        sub_sector = str(detail.get("sub_sector") or "")
+
+    bvps = 0.0
+    pb = 0.0
+    roe = 0.0
+    roa = 0.0
+    de = 0.0
+    current_ratio = 0.0
+    net_margin = 0.0
+
+    # Compute what we can from available data
+    if pe > 0 and eps > 0:
+        # PE = price / EPS, so we already have both
+        pass
+    if market_cap > 0 and shares > 0:
+        bvps = market_cap / shares  # rough estimate
+        if bvps > 0:
+            pb = price / bvps if bvps else 0
 
     return {
         "symbol": symbol,
-        "company_name": f"شرکت {symbol}",
-        "industry": random.choice(["فلزات اساسی", "فرآورده‌های نفتی", "بانک", "خودرو", "پتروشیمی", "سیمان", "دارویی"]),
+        "company_name": snap.get("name", f"شرکت {symbol}"),
+        "industry": snap.get("sector", ""),
+        "sub_sector": sub_sector,
+        "board": board,
         "last_price": price,
         "market_cap": market_cap,
         "shares_outstanding": shares,
+        "free_float_pct": free_float_pct,
         "eps": round(eps, 2),
         "bvps": round(bvps, 2),
         "pe": round(pe, 2),
@@ -51,48 +68,15 @@ def _mock_financials(symbol: str) -> dict[str, Any]:
         "debt_to_equity": round(de, 2),
         "current_ratio": round(current_ratio, 2),
         "net_margin_pct": round(net_margin, 2),
-        "dividend_yield_pct": round(dividend_yield * 100, 2),
-        "free_cash_flow": free_cash_flow,
-        "revenue": base_revenue,
-        "net_profit": net_profit,
-        "total_assets": total_assets,
-        "total_equity": equity,
-        "total_debt": int(total_debt),
-        "fiscal_year": datetime.now(UTC).year,
-    }
-
-
-def _snapshot_to_financials(symbol: str, snap: dict[str, Any]) -> dict[str, Any]:
-    price = snap.get("price_last") or snap.get("price_close", 0)
-    shares = snap.get("shares_count") or 1
-    market_cap = snap.get("market_value") or (price * shares)
-    eps = snap.get("eps", 0) or 0
-    pe = snap.get("pe_ratio", 0) or 0
-
-    return {
-        "symbol": symbol,
-        "company_name": snap.get("name", f"شرکت {symbol}"),
-        "industry": snap.get("sector", "سایر"),
-        "last_price": price,
-        "market_cap": market_cap,
-        "shares_outstanding": shares,
-        "eps": round(eps, 2),
-        "bvps": 0,
-        "pe": round(pe, 2),
-        "pb": 0,
-        "roe_pct": 0,
-        "roa_pct": 0,
-        "debt_to_equity": 0,
-        "current_ratio": 0,
-        "net_margin_pct": 0,
-        "dividend_yield_pct": 0,
+        "dividend_yield_pct": 0.0,
         "free_cash_flow": 0,
         "revenue": 0,
-        "net_profit": round(eps * shares, 2) if eps else 0,
+        "net_profit": round(eps * shares, 2) if eps and shares else 0,
         "total_assets": 0,
         "total_equity": 0,
         "total_debt": 0,
         "fiscal_year": datetime.now(UTC).year,
+        "_data_source": "brsapi" if (snap.get("eps") or snap.get("pe_ratio")) else "snapshot_only",
     }
 
 
@@ -100,26 +84,56 @@ class FundamentalService:
     def __init__(self, brsapi_query_service: Any | None = None) -> None:
         self._brsapi = brsapi_query_service
 
-    async def _get_snapshot(self, symbol: str) -> dict[str, Any] | None:
+    async def _get_snapshot_and_detail(self, symbol: str) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Get both snapshot and enriched detail from BrsApi tables."""
         if not self._brsapi:
-            return None
+            return None, None
         try:
-            return await self._brsapi.get_symbol_snapshot(symbol)
+            snap = await self._brsapi.get_symbol_snapshot(symbol)
         except Exception:
-            return None
+            snap = None
+        detail = None
+        try:
+            detail = await self._brsapi.get_enriched_symbol_detail(symbol)
+        except Exception:
+            pass
+        return snap, detail
 
     async def get_ratios(self, symbol: str) -> Result[dict[str, Any]]:
-        snap = await self._get_snapshot(symbol)
+        snap, detail = await self._get_snapshot_and_detail(symbol)
         if snap:
-            return Result.ok(_snapshot_to_financials(symbol, snap))
-        return Result.ok(_mock_financials(symbol))
+            return Result.ok(_snapshot_to_financials(symbol, snap, detail))
+        return Result.fail(f"Symbol {symbol} not found in database")
 
     async def get_dcf_valuation(self, symbol: str) -> Result[dict[str, Any]]:
-        f = _mock_financials(symbol)
-        fcf = f["free_cash_flow"]
-        growth = random.uniform(0.05, 0.20)
+        snap, detail = await self._get_snapshot_and_detail(symbol)
+        if not snap:
+            return Result.fail(f"Symbol {symbol} not found — cannot compute DCF valuation")
+
+        f = _snapshot_to_financials(symbol, snap, detail)
+        fcf = f.get("net_profit", 0) or 0
+        price = f.get("last_price", 0) or 0
+
+        if fcf <= 0 or price <= 0:
+            return Result.ok({
+                "symbol": symbol,
+                "fair_price": 0,
+                "current_price": price,
+                "upside_pct": 0,
+                "fcf": 0,
+                "growth_rate": 0,
+                "terminal_growth": 3.0,
+                "wacc": 20.0,
+                "pv_fcf": 0,
+                "pv_terminal": 0,
+                "enterprise_value": 0,
+                "_note": "Insufficient data for DCF — need positive FCF and price",
+            })
+
+        # Conservative DCF with fixed reasonable assumptions
+        growth = 0.10
         terminal_growth = 0.03
-        wacc = random.uniform(0.15, 0.25)
+        wacc = 0.20
 
         pv_fcf = sum(fcf * ((1 + growth) ** i) / ((1 + wacc) ** i) for i in range(1, 6))
         discount_rate = wacc - terminal_growth
@@ -131,8 +145,8 @@ class FundamentalService:
         return Result.ok({
             "symbol": symbol,
             "fair_price": round(fair_price, 2),
-            "current_price": f["last_price"],
-            "upside_pct": round((fair_price / f["last_price"] - 1) * 100, 2) if f["last_price"] > 0 else 0,
+            "current_price": price,
+            "upside_pct": round((fair_price / price - 1) * 100, 2) if price > 0 else 0,
             "fcf": fcf,
             "growth_rate": round(growth * 100, 2),
             "terminal_growth": round(terminal_growth * 100, 2),
@@ -140,70 +154,75 @@ class FundamentalService:
             "pv_fcf": round(pv_fcf, 2),
             "pv_terminal": round(pv_terminal, 2),
             "enterprise_value": round(enterprise_value, 2),
+            "_note": "DCF uses conservative fixed assumptions (growth=10%, WACC=20%) — refine with actual financials when available",
         })
 
     async def score_stock(self, symbol: str) -> Result[dict[str, Any]]:
-        snap = await self._get_snapshot(symbol)
-        f = _snapshot_to_financials(symbol, snap) if snap else _mock_financials(symbol)
+        snap, detail = await self._get_snapshot_and_detail(symbol)
+        if not snap:
+            return Result.fail(f"Symbol {symbol} not found — cannot score")
+
+        f = _snapshot_to_financials(symbol, snap, detail)
         score = 0.0
         details: list[dict[str, Any]] = []
 
-        if f["pe"] and f["pe"] < 8:
-            score += 20; details.append({"factor": "P/E پایین", "score": 20, "desc": "ارزنده"})
-        elif f["pe"] and f["pe"] < 15:
-            score += 15; details.append({"factor": "P/E متعادل", "score": 15, "desc": "مناسب"})
-        else:
-            score += 5; details.append({"factor": "P/E بالا", "score": 5, "desc": "گران"})
+        pe = f.get("pe", 0)
+        pb = f.get("pb", 0)
+        roe = f.get("roe_pct", 0)
+        de = f.get("debt_to_equity", 0)
+        net_margin = f.get("net_margin_pct", 0)
+        current_ratio = f.get("current_ratio", 0)
 
-        if f["pb"] and f["pb"] < 1:
-            score += 15; details.append({"factor": "P/B کمتر از ۱", "score": 15, "desc": "زیر ارزش ذاتی"})
-        elif f["pb"] and f["pb"] < 3:
-            score += 10; details.append({"factor": "P/B متعادل", "score": 10, "desc": "مناسب"})
+        if pe and pe > 0:
+            if pe < 8:
+                score += 20; details.append({"factor": "P/E پایین", "score": 20, "desc": "ارزنده"})
+            elif pe < 15:
+                score += 15; details.append({"factor": "P/E متعادل", "score": 15, "desc": "مناسب"})
+            else:
+                score += 5; details.append({"factor": "P/E بالا", "score": 5, "desc": "گران"})
         else:
-            score += 5; details.append({"factor": "P/B بالا", "score": 5, "desc": "گران"})
+            details.append({"factor": "P/E", "score": 0, "desc": "داده موجود نیست"})
 
-        if f["roe_pct"] > 30:
-            score += 20; details.append({"factor": "ROE عالی", "score": 20, "desc": "بازده حقوق صاحبان سهام بالا"})
-        elif f["roe_pct"] > 15:
-            score += 15; details.append({"factor": "ROE خوب", "score": 15, "desc": "بازده مناسب"})
+        if pb and pb > 0:
+            if pb < 1:
+                score += 15; details.append({"factor": "P/B کمتر از ۱", "score": 15, "desc": "زیر ارزش ذاتی"})
+            elif pb < 3:
+                score += 10; details.append({"factor": "P/B متعادل", "score": 10, "desc": "مناسب"})
+            else:
+                score += 5; details.append({"factor": "P/B بالا", "score": 5, "desc": "گران"})
         else:
-            score += 5; details.append({"factor": "ROE پایین", "score": 5, "desc": "نیاز به بهبود"})
+            details.append({"factor": "P/B", "score": 0, "desc": "داده موجود نیست"})
 
-        if f["debt_to_equity"] < 0.5:
-            score += 15; details.append({"factor": "D/E پایین", "score": 15, "desc": "بدهی کم"})
-        elif f["debt_to_equity"] < 1.5:
-            score += 10; details.append({"factor": "D/E متعادل", "score": 10, "desc": "بدهی قابل قبول"})
+        # ROE, D/E, margins — only score if we have real data
+        if roe > 0:
+            if roe > 30:
+                score += 20; details.append({"factor": "ROE عالی", "score": 20, "desc": "بازده حقوق صاحبان سهام بالا"})
+            elif roe > 15:
+                score += 15; details.append({"factor": "ROE خوب", "score": 15, "desc": "بازده مناسب"})
+            else:
+                score += 5; details.append({"factor": "ROE پایین", "score": 5, "desc": "نیاز به بهبود"})
         else:
-            score += 3; details.append({"factor": "D/E بالا", "score": 3, "desc": "بدهی زیاد"})
+            details.append({"factor": "ROE", "score": 0, "desc": "داده موجود نیست"})
 
-        if f["net_margin_pct"] > 20:
-            score += 15; details.append({"factor": "حاشیه سود عالی", "score": 15, "desc": "سودآوری بالا"})
-        elif f["net_margin_pct"] > 10:
-            score += 10; details.append({"factor": "حاشیه سود خوب", "score": 10, "desc": "سودآوری مناسب"})
+        if de > 0:
+            if de < 0.5:
+                score += 15; details.append({"factor": "D/E پایین", "score": 15, "desc": "بدهی کم"})
+            elif de < 1.5:
+                score += 10; details.append({"factor": "D/E متعادل", "score": 10, "desc": "بدهی قابل قبول"})
+            else:
+                score += 3; details.append({"factor": "D/E بالا", "score": 3, "desc": "بدهی زیاد"})
         else:
-            score += 5; details.append({"factor": "حاشیه سود پایین", "score": 5, "desc": "سودآوری کم"})
+            details.append({"factor": "D/E", "score": 0, "desc": "داده موجود نیست"})
 
-        if f["current_ratio"] > 2:
-            score += 10; details.append({"factor": "نقدینگی عالی", "score": 10, "desc": "توان پرداخت بالا"})
-        elif f["current_ratio"] > 1:
-            score += 7; details.append({"factor": "نقدینگی مناسب", "score": 7, "desc": "توان پرداخت قابل قبول"})
-        else:
-            score += 3; details.append({"factor": "نقدینگی کم", "score": 3, "desc": "ریسک نقدینگی"})
-
-        if f["dividend_yield_pct"] > 5:
-            score += 5; details.append({"factor": "سود نقدی خوب", "score": 5, "desc": "توزیع سود مناسب"})
-        else:
-            score += 2; details.append({"factor": "سود نقدی کم", "score": 2, "desc": "توزیع سود پایین"})
-
-        rating = "خرید قوی"
-        if score < 40:
-            rating = "فروش"
-        elif score < 55:
-            rating = "خنثی"
-        elif score < 70:
+        rating = "نامشخص"
+        if score >= 70:
+            rating = "خرید قوی"
+        elif score >= 55:
             rating = "خرید"
-        elif score < 85:
-            rating = "خرید خوب"
+        elif score >= 40:
+            rating = "خنثی"
+        elif score > 0:
+            rating = "فروش"
 
         return Result.ok({
             "symbol": symbol,
@@ -224,20 +243,36 @@ class FundamentalService:
         return Result.ok(results)
 
     async def industry_analysis(self, industry: str) -> Result[dict[str, Any]]:
-        symbols = ["فولاد", "فملی", "شپنا", "وبانک", "خودرو", "ذوب", "رمپنا", "اخابر", "کگل", "چادر"]
+        # Get all symbols in the industry from snapshot data
+        if not self._brsapi:
+            return Result.fail("No BrsApi service available")
+
+        try:
+            snapshots = await self._brsapi.get_enriched_snapshots(limit=500)
+        except Exception:
+            return Result.fail("Failed to fetch snapshots")
+
         peers = []
-        for sym in symbols:
-            snap = await self._get_snapshot(sym)
-            if snap:
-                peers.append(_snapshot_to_financials(sym, snap))
-            else:
-                f = _mock_financials(sym)
-                f["industry"] = industry
+        for s in (snapshots or []):
+            if s.get("sector") == industry:
+                f = _snapshot_to_financials(s.get("symbol", ""), s)
                 peers.append(f)
 
-        avg_pe = sum(p["pe"] for p in peers if p["pe"]) / len(peers) if peers else 0
-        avg_pb = sum(p["pb"] for p in peers if p["pb"]) / len(peers) if peers else 0
-        avg_roe = sum(p["roe_pct"] for p in peers if p["roe_pct"]) / len(peers) if peers else 0
+        if not peers:
+            return Result.ok({
+                "industry": industry,
+                "peers_count": 0,
+                "avg_pe": 0, "avg_pb": 0, "avg_roe": 0,
+                "peers": [],
+                "_note": f"No symbols found for industry '{industry}'",
+            })
+
+        valid_pe = [p["pe"] for p in peers if p["pe"] and p["pe"] > 0]
+        valid_pb = [p["pb"] for p in peers if p["pb"] and p["pb"] > 0]
+
+        avg_pe = sum(valid_pe) / len(valid_pe) if valid_pe else 0
+        avg_pb = sum(valid_pb) / len(valid_pb) if valid_pb else 0
+        avg_roe = 0  # Not available from snapshot data
 
         return Result.ok({
             "industry": industry,

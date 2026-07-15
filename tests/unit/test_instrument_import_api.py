@@ -35,7 +35,6 @@ from core.result import Result
 from repositories.instrument_repository import InstrumentRepository
 from services.instrument_import_service import InstrumentImportService
 
-
 # ────────────────────────────────────────────────────────────────────
 # Fixtures
 # ────────────────────────────────────────────────────────────────────
@@ -75,7 +74,7 @@ async def test_import_csv_happy_path(client: AsyncClient):
         "فولاد,Foolad,IRO1FOLD0001,01\n"
         "فملی,Melal,IRO1FMLI0001,01\n"
         "وبملت,BankMellat,IRO1BANK0001,02\n"
-    ).encode("utf-8")
+    ).encode()
 
     resp = await client.post(
         "/api/v1/instruments/import",
@@ -96,7 +95,7 @@ async def test_import_csv_happy_path(client: AsyncClient):
 async def test_import_csv_missing_symbol_column(client: AsyncClient):
     """2. A CSV whose header doesn't include ``symbol`` returns a friendly
     error in the ``ApiResponse`` envelope."""
-    csv_bytes = "name,isin\nFoo,ISIN1\nBar,ISIN2\n".encode("utf-8")
+    csv_bytes = b"name,isin\nFoo,ISIN1\nBar,ISIN2\n"
 
     resp = await client.post(
         "/api/v1/instruments/import",
@@ -115,11 +114,11 @@ async def test_import_csv_malformed_rows(client: AsyncClient):
     parse errors; the endpoint still returns 200 with a fully populated
     summary so callers can act on each error individually."""
     csv_bytes = (
-        "symbol,lot_size,par_value\n"
-        "GOOD,100,1000\n"          # valid
-        "BAD,bad,2000\n"          # lot_size not numeric
-        "BAD2,200,worse\n"        # par_value not numeric
-    ).encode("utf-8")
+        b"symbol,lot_size,par_value\n"
+        b"GOOD,100,1000\n"          # valid
+        b"BAD,bad,2000\n"          # lot_size not numeric
+        b"BAD2,200,worse\n"        # par_value not numeric
+    )
 
     resp = await client.post(
         "/api/v1/instruments/import",
@@ -171,7 +170,7 @@ async def test_import_server_error_envelope(
         InstrumentImportService, "import_from_bytes", _fake_import_from_bytes
     )
 
-    csv_bytes = "symbol\nفولاد\nفملی\n".encode("utf-8")
+    csv_bytes = "symbol\nفولاد\nفملی\n".encode()
     resp = await client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", csv_bytes, "text/csv")},

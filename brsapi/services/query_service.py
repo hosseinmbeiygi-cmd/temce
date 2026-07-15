@@ -11,7 +11,8 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Any
 
-from sqlalchemy import func as sa_func, select
+from sqlalchemy import func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.models import (
@@ -24,7 +25,6 @@ from brsapi.models import (
     Gold24hModel,
     GoldCoinPriceModel,
     HistoricalDailyModel,
-    HistoricalRealLegalModel,
     ImeCertificateModel,
     ImeFundModel,
     ImeFutureModel,
@@ -38,6 +38,7 @@ from brsapi.models import (
     SymbolDetailModel,
     SymbolSnapshotModel,
 )
+
 logger = getLogger(__name__)
 
 
@@ -60,9 +61,42 @@ class BrsApiQueryService:
         Return most recent symbol snapshots enriched with detail fields
         (price_lowest_allowed/tmin, price_highest_allowed/tmax, free_float_pct)
         via a LEFT JOIN with ``SymbolDetailModel`` on ``ins_id`` (fallback ``symbol``).
-        """
-        from sqlalchemy import join, or_
 
+        Falls back to simple snapshots if the SymbolDetailModel table does not
+        exist or the JOIN fails for any reason.
+        """
+        try:
+            rows = await self._enriched_snapshots_join(limit)
+            if rows:
+                return rows
+        except Exception:
+            logger.warning(
+                "get_enriched_snapshots JOIN failed — falling back to simple snapshots",
+                exc_info=True,
+            )
+        return await self.get_latest_snapshots(limit=limit)
+
+    async def _enriched_snapshots_join(self, limit: int) -> list[dict[str, Any]]:
+        """Internal: run the LEFT JOIN version of enriched snapshots.
+
+        Deduplicates by symbol — only the latest snapshot per symbol is returned.
+        """
+        from sqlalchemy import func, join, or_
+
+        # Step 1: get latest snapshot id per symbol
+        subq = (
+            select(
+                SymbolSnapshotModel.symbol,
+                func.max(SymbolSnapshotModel.id).label("max_id"),
+            )
+            .where(SymbolSnapshotModel.symbol.isnot(None))
+            .where(SymbolSnapshotModel.symbol != "")
+            .group_by(SymbolSnapshotModel.symbol)
+            .order_by(func.max(SymbolSnapshotModel.trade_value).desc().nullslast())
+            .limit(limit)
+        ).subquery()
+
+        # Step 2: join deduplicated snapshots with detail
         j = join(
             SymbolSnapshotModel,
             SymbolDetailModel,
@@ -76,15 +110,20 @@ class BrsApiQueryService:
         stmt = (
             select(SymbolSnapshotModel, SymbolDetailModel)
             .select_from(j)
+            .join(subq, SymbolSnapshotModel.id == subq.c.max_id)
             .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
-            .limit(limit)
         )
         result = await self.session.execute(stmt)
 
         rows: list[dict[str, Any]] = []
+        seen_symbols: set[str] = set()
         for snap_row, detail_row in result:
             if snap_row is None:
                 continue
+            sym = getattr(snap_row, "symbol", "")
+            if sym in seen_symbols:
+                continue
+            seen_symbols.add(sym)
             d = self._row_dict(snap_row)
             if detail_row is not None:
                 detail_d = self._row_dict(detail_row)
@@ -98,11 +137,29 @@ class BrsApiQueryService:
         return rows
 
     async def get_latest_snapshots(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return most recent symbol snapshots (latest fetch cycle)."""
+        """Return latest snapshot per symbol (deduplicated).
+
+        Uses a subquery to find the MAX(id) per symbol, then fetches
+        only those rows — prevents the same symbol appearing multiple times.
+        """
+        from sqlalchemy import func, text
+
+        subq = (
+            select(
+                SymbolSnapshotModel.symbol,
+                func.max(SymbolSnapshotModel.id).label("max_id"),
+            )
+            .where(SymbolSnapshotModel.symbol.isnot(None))
+            .where(SymbolSnapshotModel.symbol != "")
+            .group_by(SymbolSnapshotModel.symbol)
+            .order_by(func.max(SymbolSnapshotModel.trade_value).desc().nullslast())
+            .limit(limit)
+        ).subquery()
+
         stmt = (
             select(SymbolSnapshotModel)
-            .order_by(SymbolSnapshotModel.fetched_at.desc())
-            .limit(limit)
+            .join(subq, SymbolSnapshotModel.id == subq.c.max_id)
+            .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
         )
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]
@@ -214,11 +271,25 @@ class BrsApiQueryService:
     # ── Indices ────────────────────────────────────
 
     async def get_latest_indices(self) -> list[dict[str, Any]]:
-        """Latest index values."""
+        """Latest index values — one row per unique index name."""
+        # Subquery: latest created_at per unique index name
+        latest_per_name = (
+            select(
+                IndexValueModel.name,
+                sa_func.max(IndexValueModel.created_at).label("max_created"),
+            )
+            .where(IndexValueModel.name != "")
+            .group_by(IndexValueModel.name)
+        ).subquery()
+
         stmt = (
             select(IndexValueModel)
-            .order_by(IndexValueModel.created_at.desc())
-            .limit(20)
+            .join(
+                latest_per_name,
+                (IndexValueModel.name == latest_per_name.c.name)
+                & (IndexValueModel.created_at == latest_per_name.c.max_created),
+            )
+            .order_by(IndexValueModel.name)
         )
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]

@@ -45,7 +45,7 @@ async def get_import_history(
             "items": jobs,
             "total": len(jobs),
         })
-    except Exception as exc:
+    except Exception:
         logger.exception("Failed to fetch import history")
         return ApiResponse[dict[str, Any]](
             success=True,

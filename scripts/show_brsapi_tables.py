@@ -7,6 +7,7 @@ from __future__ import annotations
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -20,6 +21,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from sqlalchemy import create_engine, text
+
 from core.config import settings
 
 
@@ -73,12 +75,12 @@ def main() -> None:
             ).fetchall()
 
             if idxs:
-                print(f"\n  Indexes:")
+                print("\n  Indexes:")
                 for idx in idxs:
                     # Show the CREATE INDEX definition for clarity
                     print(f"    -> {idx.indexdef[:100]}...")
             else:
-                print(f"\n  Indexes: (none)")
+                print("\n  Indexes: (none)")
 
     engine.dispose()
 

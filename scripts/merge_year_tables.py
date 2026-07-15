@@ -6,18 +6,20 @@ Also deduplicates brsapi_symbol_snapshots.
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 # --- end auto PYTHONPATH ---
 
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
+
 from core.database import init_database
 
 
@@ -51,7 +53,7 @@ async def main():
             max_id = result.scalar()
 
             for yt in tables:
-                result = await conn.execute(text(f"""
+                result = await conn.execute(text("""
                     SELECT column_name FROM information_schema.columns
                     WHERE table_schema = 'public' AND table_name = :name ORDER BY ordinal_position
                 """), {"name": yt})
@@ -81,7 +83,7 @@ async def main():
                 print(f"  {yt}: {cnt} rows merged & dropped")
 
         # ── Step 2: Deduplicate brsapi_symbol_snapshots ──
-        print(f"\n--- Deduplicating brsapi_symbol_snapshots ---")
+        print("\n--- Deduplicating brsapi_symbol_snapshots ---")
         result = await conn.execute(text('SELECT COUNT(*) FROM "brsapi_symbol_snapshots"'))
         before = result.scalar()
         print(f"  Before: {before} rows")
@@ -98,7 +100,7 @@ async def main():
         print(f"  After: {after} rows (removed {before - after} duplicates)")
 
         # ── Step 3: Deduplicate brsapi_historical_daily (symbol+date) ──
-        print(f"\n--- Deduplicating brsapi_historical_daily ---")
+        print("\n--- Deduplicating brsapi_historical_daily ---")
         result = await conn.execute(text('SELECT COUNT(*) FROM "brsapi_historical_daily"'))
         before = result.scalar()
         print(f"  Before: {before} rows")
@@ -115,7 +117,7 @@ async def main():
         print(f"  After: {after} rows (removed {before - after} duplicates)")
 
         # ── Step 4: Show final state ──
-        print(f"\n=== Final table counts ===")
+        print("\n=== Final table counts ===")
         result = await conn.execute(text("""
             SELECT t.table_name,
                    (xpath('/row/cnt/text()', query_to_xml(

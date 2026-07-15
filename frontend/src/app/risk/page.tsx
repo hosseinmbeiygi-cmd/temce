@@ -45,8 +45,8 @@ export default function RiskPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {RISK_METRICS.map((m) => (
-            <div key={m.label} className="glass-card p-4">
+          {RISK_METRICS.map((m, mi) => (
+            <div key={`${m.label}-${mi}`} className="glass-card p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-surface-400">{m.label}</span>
                 <span className={`w-2 h-2 rounded-full ${

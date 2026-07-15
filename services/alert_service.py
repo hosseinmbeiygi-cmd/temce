@@ -153,15 +153,7 @@ class AlertService:
                         continue
 
                     triggered_flag = False
-                    if operator == "gte" and value >= threshold:
-                        triggered_flag = True
-                    elif operator == "gt" and value > threshold:
-                        triggered_flag = True
-                    elif operator == "lte" and value <= threshold:
-                        triggered_flag = True
-                    elif operator == "lt" and value < threshold:
-                        triggered_flag = True
-                    elif operator == "eq" and abs(value - threshold) < 0.001:
+                    if operator == "gte" and value >= threshold or operator == "gt" and value > threshold or operator == "lte" and value <= threshold or operator == "lt" and value < threshold or operator == "eq" and abs(value - threshold) < 0.001:
                         triggered_flag = True
 
                     if triggered_flag:

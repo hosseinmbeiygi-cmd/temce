@@ -9,6 +9,7 @@ state at 0021, then applies revision 0022.
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -25,6 +26,7 @@ if _project_root not in sys.path:
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
+
 from core.config import settings
 
 

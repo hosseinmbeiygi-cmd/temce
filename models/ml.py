@@ -1,9 +1,33 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, String, Text
+import sqlalchemy as sa
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
+
+
+class MlPredictionModel(TimestampMixin, Base):
+    __tablename__ = "ml_predictions"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    batch_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    model_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    prediction: Mapped[float | None] = mapped_column(Float)
+    accuracy: Mapped[float | None] = mapped_column(Float, server_default="0")
+    confidence: Mapped[float | None] = mapped_column(Float, server_default="0")
+    f1_score: Mapped[float | None] = mapped_column(Float, server_default="0")
+    mse: Mapped[float | None] = mapped_column(Float, server_default="0")
+    samples: Mapped[int | None] = mapped_column(Integer, server_default="0")
+    duration_seconds: Mapped[float | None] = mapped_column(Float, server_default="0")
+    predicted_change_pct: Mapped[float | None] = mapped_column(Float)
+    last_price: Mapped[float | None] = mapped_column(Float)
+    feature_importance: Mapped[str | None] = mapped_column(Text)
+    model_loaded_from: Mapped[str | None] = mapped_column(String(30))
+    prediction_failed: Mapped[bool | None] = mapped_column(Boolean, server_default=sa.text("false"))
+    model_id: Mapped[str | None] = mapped_column(String(50), index=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime, server_default=sa.func.now(), index=True)
 
 
 class MlModelModel(TimestampMixin, Base):

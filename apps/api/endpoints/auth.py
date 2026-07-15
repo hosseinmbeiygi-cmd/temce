@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_session
 from apps.api.dependencies import get_current_user
+from core.database import get_session
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
 from schemas.api.auth import (
@@ -172,6 +172,7 @@ async def logout(
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse:
     from sqlalchemy import select
+
     from models.user import UserModel
 
     result = await session.execute(select(UserModel).where(UserModel.id == current_user["sub"]))

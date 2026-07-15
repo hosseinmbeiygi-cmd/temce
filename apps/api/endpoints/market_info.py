@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from typing import Any
+
 from fastapi import APIRouter, Depends
-from apps.api.dependencies import get_brsapi_query_service, get_symbol_service
+
+from apps.api.dependencies import get_brsapi_query_service
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
-from services.symbol_service import SymbolService
 
 router = APIRouter()
 

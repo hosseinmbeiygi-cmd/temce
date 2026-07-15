@@ -36,7 +36,7 @@ class AlphaPortfolio:
 
         if self.weighting_scheme == "equal_weight":
             n = len(self._selected_alphas)
-            self._weights = {aid: 1.0 / n if n > 0 else 0.0 for aid in self._selected_alphas}
+            self._weights = dict.fromkeys(self._selected_alphas, 1.0 / n if n > 0 else 0.0)
 
         elif self.weighting_scheme == "mean_variance":
             self._weights = self._mean_variance_weights()

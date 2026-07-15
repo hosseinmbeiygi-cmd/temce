@@ -12,3 +12,4 @@ from core.constants import (
     SignalType,
     TimeFrame,
 )
+from core.enums.instruments import Sector

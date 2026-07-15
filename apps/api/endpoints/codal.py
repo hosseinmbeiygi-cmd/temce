@@ -10,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
 from core.exceptions import NotFoundError
+from core.logging import get_logger
 from core.result import PaginatedResult
-from pydantic import Field
 from schemas.api.codal import CodalListResponse, CodalReportResponse, CodalSearchRequest
+
+logger = get_logger(__name__)
 from schemas.common.responses import ApiResponse
 from services.codal_service import CodalService
 
@@ -32,15 +34,42 @@ class CodalCreateRequest(BaseModel):
 
 
 def _to_report_response(item: Any) -> CodalReportResponse:
+    # Handle both Disclosure domain objects and dict/ORM objects
+    if isinstance(item, dict):
+        return CodalReportResponse(
+            id=str(item.get("id", "")),
+            symbol=str(item.get("symbol", "")),
+            company_name=str(item.get("company_name", "")),
+            isin=str(item.get("isin", "")),
+            report_type=str(item.get("report_type", "")),
+            fiscal_year=str(item.get("fiscal_year", "")),
+            period=str(item.get("period", "")),
+            audit_status=str(item.get("audit_status", "")),
+            publish_date=str(item.get("publish_date", "")),
+            attachment_url=str(item.get("attachment_url", "")),
+            summary={"text": str(item.get("summary", ""))} if item.get("summary") else {},
+            created_at=str(item.get("created_at", "")),
+        )
+    # Disclosure domain object
+    extra = getattr(item, "extra", {}) or {}
+    pub_date = getattr(item, "publish_date", None)
+    pub_date_str = ""
+    if pub_date:
+        pub_date_str = str(pub_date)
+    elif extra.get("raw_publish_date"):
+        pub_date_str = extra["raw_publish_date"]
+
     return CodalReportResponse(
         id=getattr(item, "id", ""),
         symbol=getattr(item, "symbol", ""),
-        company_name=getattr(item, "instrument_id", ""),
-        report_type=getattr(item, "disclosure_type", ""),
+        company_name=getattr(item, "company_name", "") or getattr(item, "instrument_id", ""),
+        isin=getattr(item, "isin", ""),
+        report_type=getattr(item, "report_type", "") or getattr(item, "disclosure_type", ""),
         fiscal_year=getattr(item, "fiscal_year", ""),
         period=getattr(item, "period", ""),
-        publish_date=str(getattr(item, "publish_date", "")) if getattr(item, "publish_date", None) else "",
-        attachment_url=getattr(item, "url", ""),
+        audit_status=getattr(item, "audit_status", ""),
+        publish_date=pub_date_str,
+        attachment_url=getattr(item, "attachment_url", "") or getattr(item, "url", ""),
         summary={"text": getattr(item, "summary", "")} if getattr(item, "summary", "") else {},
         created_at=str(getattr(item, "created_at", "")) if getattr(item, "created_at", None) else "",
     )
@@ -49,29 +78,7 @@ def _to_report_response(item: Any) -> CodalReportResponse:
 router = APIRouter()
 
 
-_MOCK_DISCLOSURES = [
-    CodalReportResponse(
-        id="cod-001", symbol="فولاد", company_name="فولاد مبارکه اصفهان",
-        report_type="annual", fiscal_year="1403", period="12ماهه",
-        publish_date="1403-04-31", attachment_url="https://codal.ir/...",
-        summary={"text": "صورت‌های مالی سالانه فولاد مبارکه"},
-        created_at="1403-04-31T12:00:00",
-    ),
-    CodalReportResponse(
-        id="cod-002", symbol="شپنا", company_name="پالایش نفت اصفهان",
-        report_type="quarterly", fiscal_year="1403", period="3ماهه",
-        publish_date="1403-03-15", attachment_url="https://codal.ir/...",
-        summary={"text": "گزارش فصلی پالایش نفت اصفهان"},
-        created_at="1403-03-15T10:30:00",
-    ),
-    CodalReportResponse(
-        id="cod-003", symbol="وبملت", company_name="بانک ملت",
-        report_type="quarterly", fiscal_year="1403", period="6ماهه",
-        publish_date="1403-04-20", attachment_url="https://codal.ir/...",
-        summary={"text": "گزارش شش ماهه بانک ملت"},
-        created_at="1403-04-20T11:00:00",
-    ),
-]
+
 
 
 @router.get("")
@@ -80,7 +87,11 @@ async def list_disclosures(
     service: CodalService = Depends(get_codal_service),
 ) -> ApiResponse[CodalListResponse]:
     try:
-        result = await service.list_all(search.page, search.page_size)
+        # If symbol filter is provided, use get_by_symbol; otherwise list all
+        if search.symbol:
+            result = await service.repo.get_by_symbol(search.symbol, search.page, search.page_size)
+        else:
+            result = await service.list_all(search.page, search.page_size)
         items = [_to_report_response(d) for d in result.value.items] if result.value else []
         data = CodalListResponse(
             items=items,
@@ -94,9 +105,11 @@ async def list_disclosures(
             error={"message": result.error} if not result.success and result.error else None,
         )
     except Exception:
+        logger.exception("Codal list_disclosures failed")
         return ApiResponse[CodalListResponse](
-            success=True,
-            data=CodalListResponse(items=_MOCK_DISCLOSURES, total=3, page=1, page_size=50),
+            success=False,
+            data=CodalListResponse(items=[], total=0, page=1, page_size=50),
+            error={"message": "Failed to fetch Codal data — please ensure brsapi_codal_announcements table is populated"},
         )
 
 
@@ -175,6 +188,7 @@ async def brsapi_search_announcements(
         parsed = CodalParser.parse(result.value.data)
         return ApiResponse[dict[str, Any]](success=True, data=parsed)
     except Exception as exc:
+        logger.exception("BrsApi announcement search failed")
         return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
 
 
@@ -215,6 +229,7 @@ async def search_announcements(
             ),
         )
     except Exception as exc:
+        logger.exception("Announcements search failed")
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult(items=[], total=0, page=1, page_size=page_size, total_pages=0),
@@ -276,6 +291,7 @@ async def company_profile(
             }
             return ApiResponse[dict[str, Any]](success=True, data=profile)
     except Exception:
+        logger.exception("Failed to fetch enriched detail for %s", code)
         pass
     profiles: dict[str, dict[str, Any]] = {
         "فولاد": {
@@ -424,6 +440,7 @@ async def major_holders(
             ]
             return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "holders": holders})
     except Exception:
+        logger.exception("Failed to fetch holders for %s from BrsApi", code)
         pass
     data: dict[str, Any] = {
         "symbol": code,

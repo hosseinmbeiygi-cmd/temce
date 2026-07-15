@@ -8,7 +8,7 @@ dicts ready for ORM mapping.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
@@ -38,8 +38,7 @@ class TsetmcParser:
             return []
 
         records: list[dict[str, Any]] = []
-        # Use short ISO format (no microseconds) to fit in String(30)
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC)
 
         for item in data:
             if not isinstance(item, dict):
@@ -50,7 +49,7 @@ class TsetmcParser:
                 "name": str(item.get("l30", "")),
                 "isin": str(item.get("isin", "")),
                 "sector": str(item.get("cs", "")),
-                "sector_id": str(item.get("cs_id", "")),
+                "sector_id": cls._int(item.get("cs_id", 0)),
                 "shares_count": cls._int(item.get("z", 0)),
                 "base_volume": cls._int(item.get("bvol", 0)),
                 "market_value": cls._float(item.get("mv", 0)),
@@ -111,7 +110,7 @@ class TsetmcParser:
             logger.warning("SymbolDetail: expected dict, got %s", type(data).__name__)
             return None
 
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC)
         rec = {
             "ins_id": str(data.get("id") or ""),
             "symbol": data.get("l18") or "",
@@ -126,9 +125,9 @@ class TsetmcParser:
             "board_id": str(data.get("m_board_id") or ""),
             "board_code": str(data.get("m_board_code") or ""),
             "sector": data.get("cs") or "",
-            "sector_id": str(data.get("cs_id") or ""),
+            "sector_id": cls._int(data.get("cs_id", 0)),
             "sub_sector": data.get("cs_sub") or "",
-            "sub_sector_id": str(data.get("cs_sub_id") or ""),
+            "sub_sector_id": cls._int(data.get("cs_sub_id", 0)),
             "shares_count": cls._int(data.get("z", 0)),
             "shares_issued": cls._int(data.get("z_issued", 0)),
             "base_volume": cls._int(data.get("bvol", 0)),
@@ -170,7 +169,7 @@ class TsetmcParser:
             "date": data.get("date", ""),
             "date_update": data.get("date_update", ""),
             "time": data.get("time", ""),
-            "fetched_at": now,
+            "fetched_at": now.isoformat(),
             "raw_json": json.dumps(data, ensure_ascii=False),
         }
 
@@ -191,12 +190,15 @@ class TsetmcParser:
         Each item is an index snapshot (index_type determined by the
         ``type`` parameter passed to the API).
         """
-        if not isinstance(data, list):
-            logger.warning("Index: expected list, got %s", type(data).__name__)
+        # API may return a single dict (type=1 or type=2) or a list (type=3)
+        if isinstance(data, dict):
+            data = [data]
+        elif not isinstance(data, list):
+            logger.warning("Index: expected list or dict, got %s", type(data).__name__)
             return []
 
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC)
 
         for item in data:
             if not isinstance(item, dict):
@@ -238,7 +240,7 @@ class TsetmcParser:
             logger.warning("NAV: expected dict, got %s", type(data).__name__)
             return None
 
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC)
         return {
             "nav_issue": cls._float(data.get("psubtran", 0)),
             "nav_redemption": cls._float(data.get("predtran", 0)),
@@ -262,7 +264,7 @@ class TsetmcParser:
             return []
 
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         for item in data:
             if not isinstance(item, dict):
@@ -477,7 +479,7 @@ class TsetmcParser:
             if not isinstance(item, dict):
                 continue
             records.append({
-                "name": item.get("name", ""),
+                "shareholder_name": item.get("name", ""),
                 "volume": cls._int(item.get("volume", 0)),
                 "percent": cls._float(item.get("percent", 0)),
                 "change": cls._int(item.get("change", 0)),

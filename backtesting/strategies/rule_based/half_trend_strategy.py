@@ -15,8 +15,11 @@ class HalfTrendStrategy(BaseStrategy):
         amplitude: int = 2,
         channel_deviation: float = 2.0,
         instrument_id: str = "",
+        sizing_method: str = "fixed",
+        sizing_value: float = 1000.0,
     ) -> None:
-        super().__init__(name=f"HalfTrend_{amplitude}_{channel_deviation}")
+        super().__init__(name=f"HalfTrend_{amplitude}_{channel_deviation}",
+                         sizing_method=sizing_method, sizing_value=sizing_value)
         self.amplitude = amplitude
         self.channel_deviation = channel_deviation
         self.instrument_id = instrument_id
@@ -52,29 +55,31 @@ class HalfTrendStrategy(BaseStrategy):
         orders: list[OrderEvent] = []
 
         if buy and self._position <= 0:
+            qty = self._compute_quantity(c)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
-                    quantity=1000,
+                    quantity=qty,
                     price=c,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
-        elif sell and self._position >= 0:
+        elif sell and self._position > 0:
+            qty = self._compute_quantity(c)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
-                    quantity=1000,
+                    quantity=qty,
                     price=c,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
-            self._position = -1
+            self._position = 0
 
         return orders
 

@@ -22,8 +22,8 @@ Architecture Layers:
     jobs                    →  APScheduler / Celery Beat job definitions
 """
 
-from brsapi.config import BrsApiSettings, EndpointConfig, SyncInterval, BrsApiEndpoints, settings
 from brsapi.client import BrsApiClient
+from brsapi.config import BrsApiEndpoints, BrsApiSettings, EndpointConfig, SyncInterval, settings
 from brsapi.rate_limiter import RateLimiter, get_rate_limiter
 
 __all__ = [

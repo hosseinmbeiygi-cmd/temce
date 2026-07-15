@@ -10,6 +10,7 @@ No API calls are made - it's a pure SQL backfill.
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -24,10 +25,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-from core.config import settings
+from sqlalchemy.ext.asyncio import create_async_engine
 
+from core.config import settings
 
 TABLES_WITH_SYMBOL = [
     "brsapi_historical_daily",
@@ -46,7 +47,7 @@ async def main():
     if db_url.startswith("postgresql://"):
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    print(f"Connecting to database...")
+    print("Connecting to database...")
     engine = create_async_engine(db_url)
 
     async with engine.connect() as conn:

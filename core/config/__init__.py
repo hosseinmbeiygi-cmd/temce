@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     jobs_default_timeout_minutes: int = 30
     scheduler_timezone: str = "Asia/Tehran"
 
+    # Telegram notifications (optional)
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"

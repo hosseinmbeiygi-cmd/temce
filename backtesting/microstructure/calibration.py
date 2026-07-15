@@ -115,12 +115,12 @@ class MicrostructureCalibrator:
     def _calibrate_queue_metrics(self, params: SymbolMicrostructureParams, quotes: list[dict[str, Any]], total_seconds: float) -> None:
         bid_volumes = [q.get("bid_volume", 0) for q in quotes if q.get("bid_volume") is not None]
         ask_volumes = [q.get("ask_volume", 0) for q in quotes if q.get("ask_volume") is not None]
-        
+
         if bid_volumes:
             params.avg_queue_bid = int(sum(bid_volumes) / len(bid_volumes))
         if ask_volumes:
             params.avg_queue_ask = int(sum(ask_volumes) / len(ask_volumes))
-        
+
         params.avg_queue = int((params.avg_queue_bid + params.avg_queue_ask) / 2) if (params.avg_queue_bid + params.avg_queue_ask) > 0 else 0
 
         total_cancel_bid = 0
@@ -133,7 +133,7 @@ class MicrostructureCalibrator:
             trade_vol = q_curr.get("trade_volume", 0) or 0
             total_cancel_bid += max(0, prev_bid - curr_bid - trade_vol)
             total_cancel_ask += max(0, prev_ask - curr_ask - trade_vol)
-        
+
         avg_queue = max((params.avg_queue_bid + params.avg_queue_ask) / 2, 1)
         cancel_per_obs = (total_cancel_bid + total_cancel_ask) / max(n_obs, 1)
         params.cancel_rate = cancel_per_obs / avg_queue if avg_queue > 0 else 0.12

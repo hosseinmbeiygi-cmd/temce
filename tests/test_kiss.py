@@ -1,5 +1,5 @@
 # test_kiss.py
-from kiss_agent_framework import Agent, Tool
+from kiss_agent_framework import Agent
 
 # تعریف یک عامل ساده
 agent = Agent(

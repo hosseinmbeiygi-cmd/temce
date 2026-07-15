@@ -65,7 +65,7 @@ class RSSNewsProvider(NewsProvider):
                     timeout=feed_timeout,
                 )
                 return feed_name, feed_url, result
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Feed %s (%s) timed out after %ds", feed_name, feed_url, feed_timeout)
                 return feed_name, feed_url, Result.fail(f"Timeout after {feed_timeout}s")
             except Exception as e:

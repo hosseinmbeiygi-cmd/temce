@@ -10,13 +10,13 @@ The registry makes it easy to bulk-register all jobs with APScheduler.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from logging import getLogger
+from dataclasses import dataclass
 from typing import Any
 
 from brsapi.client import BrsApiClient, get_client
-from brsapi.config import BrsApiEndpoints, EndpointConfig, settings as brsapi_settings
+from brsapi.config import BrsApiEndpoints, EndpointConfig
+from brsapi.config import settings as brsapi_settings
+from brsapi.models import GoldCurrencyProPriceModel
 from brsapi.services.sync_service import BrsApiSyncService, SyncReport
 from core.database import get_session
 from core.logging import get_logger
@@ -59,6 +59,7 @@ class BrsApiSyncJob:
 # Default sync intervals as cron expressions
 _EVERY_30_SEC = 30
 _EVERY_1_MIN = 60
+_EVERY_2_MIN = 120
 _EVERY_5_MIN = 300
 _EVERY_15_MIN = 900
 _EVERY_1_HOUR = 3600
@@ -71,13 +72,13 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
     BrsApiSyncJob(
         name="brsapi_all_symbols",
         endpoint_config=BrsApiEndpoints.ALL_SYMBOLS,
-        cron=_EVERY_1_MIN,
+        cron=_EVERY_2_MIN,
         description="Sync all TSETMC symbols (prices, volumes, orderbook)",
     ),
     BrsApiSyncJob(
         name="brsapi_index",
         endpoint_config=BrsApiEndpoints.INDEX,
-        cron=_EVERY_1_MIN,
+        cron=_EVERY_2_MIN,
         category="tsetmc",
         params={"type": "1"},
         description="Sync TSE main index",
@@ -85,18 +86,10 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
     BrsApiSyncJob(
         name="brsapi_index_farabours",
         endpoint_config=BrsApiEndpoints.INDEX,
-        cron=_EVERY_1_MIN,
+        cron=_EVERY_2_MIN,
         category="tsetmc",
         params={"type": "2"},
         description="Sync Farabours index",
-    ),
-    BrsApiSyncJob(
-        name="brsapi_index_selected",
-        endpoint_config=BrsApiEndpoints.INDEX,
-        cron=_EVERY_5_MIN,
-        category="tsetmc",
-        params={"type": "3"},
-        description="Sync selected indices",
     ),
     BrsApiSyncJob(
         name="brsapi_options",
@@ -109,20 +102,23 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         name="brsapi_nav",
         endpoint_config=BrsApiEndpoints.NAV,
         cron=_EVERY_5_MIN,
-        description="Sync ETF NAV data (requires l18 param per symbol)",
+        enabled=False,
+        description="(DISABLED) NAV requires per-symbol l18 param. Called on-demand via sync_nav(symbol)",
     ),
     # ── TSETMC Historical / Per-Symbol ──────────
     BrsApiSyncJob(
         name="brsapi_history_price",
         endpoint_config=BrsApiEndpoints.HISTORY_PRICE,
         cron=_EVERY_1_HOUR,
-        description="Sync daily historical prices (requires l18 per symbol)",
+        enabled=False,
+        description="(DISABLED) History requires per-symbol l18 param. Called on-demand via sync_history_price(symbol)",
     ),
     BrsApiSyncJob(
         name="brsapi_history_real_legal",
         endpoint_config=BrsApiEndpoints.HISTORY_REALLEGAL,
         cron=_EVERY_1_HOUR,
-        description="Sync daily real/legal data (requires l18 per symbol)",
+        enabled=False,
+        description="(DISABLED) History real/legal requires per-symbol l18 param. Called on-demand via sync_history_real_legal(symbol)",
     ),
     # ── IME ─────────────────────────────────────
     BrsApiSyncJob(
@@ -153,39 +149,56 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
     BrsApiSyncJob(
         name="brsapi_commodities",
         endpoint_config=BrsApiEndpoints.COMMODITY,
-        cron=_EVERY_1_MIN,
+        cron=_EVERY_5_MIN,  # Changed from 1min to 5min
         description="Sync global commodity prices",
     ),
     BrsApiSyncJob(
         name="brsapi_crypto",
         endpoint_config=BrsApiEndpoints.CRYPTOCURRENCY,
-        cron=_EVERY_1_MIN,
+        cron=_EVERY_5_MIN,  # Changed from 1min to 5min
         description="Sync cryptocurrency prices",
     ),
     # ── Gold & Forex ────────────────────────────
     BrsApiSyncJob(
+        name="brsapi_gold_currency",
+        endpoint_config=BrsApiEndpoints.GOLD_CURRENCY,
+        cron=_EVERY_5_MIN,
+        description="Sync gold, currency & crypto via combined Gold_Currency.php endpoint",
+    ),
+    # ── Gold & Currency Pro ────────────────────────
+    BrsApiSyncJob(
+        name="brsapi_gold_currency_pro",
+        endpoint_config=BrsApiEndpoints.GOLD_CURRENCY_PRO,
+        cron=_EVERY_5_MIN,
+        description="Sync gold, currency & crypto via Gold_Currency_Pro.php endpoint (Pro prices)",
+    ),
+    BrsApiSyncJob(
+        name="brsapi_gold_currency_pro_history_24h",
+        endpoint_config=BrsApiEndpoints.GOLD_CURRENCY_PRO,
+        cron=_EVERY_1_HOUR,
+        enabled=False,
+        description="(DISABLED) 24h tick history for Pro symbols — enabled on-demand due to per-symbol API calls",
+    ),
+    BrsApiSyncJob(
+        name="brsapi_gold_currency_pro_daily_history",
+        endpoint_config=BrsApiEndpoints.GOLD_CURRENCY_PRO,
+        cron=_EVERY_DAY_AT_6PM,
+        enabled=False,
+        description="(DISABLED) Daily OHLC history for Pro symbols — enabled on-demand due to per-symbol API calls",
+    ),
+    BrsApiSyncJob(
         name="brsapi_gold_coin",
         endpoint_config=BrsApiEndpoints.GOLD_COIN,
         cron=_EVERY_1_MIN,
-        description="Sync gold & coin prices",
-    ),
-    BrsApiSyncJob(
-        name="brsapi_gold_24h",
-        endpoint_config=BrsApiEndpoints.GOLD_24H,
-        cron=_EVERY_5_MIN,
-        description="Sync 24-hour gold price changes",
+        enabled=False,
+        description="(DISABLED) Old gold/coin endpoint returns 404. Gold data is synced via sync_gold_currency() startup task",
     ),
     BrsApiSyncJob(
         name="brsapi_currency",
         endpoint_config=BrsApiEndpoints.CURRENCY,
         cron=_EVERY_1_MIN,
-        description="Sync currency/forex prices",
-    ),
-    BrsApiSyncJob(
-        name="brsapi_currency_24h",
-        endpoint_config=BrsApiEndpoints.CURRENCY_24H,
-        cron=_EVERY_5_MIN,
-        description="Sync 24-hour currency changes",
+        enabled=False,
+        description="(DISABLED) Old currency endpoint returns 404. Currency data synced via sync_gold_currency() startup task",
     ),
     # ── Codal ───────────────────────────────────
     BrsApiSyncJob(
@@ -222,6 +235,7 @@ class BrsApiJobRegistry:
     def __init__(self) -> None:
         self._jobs: dict[str, BrsApiSyncJob] = {}
         self._client: BrsApiClient | None = None
+        self._scheduler: Any = None
 
     def register(self, job: BrsApiSyncJob) -> None:
         self._jobs[job.name] = job
@@ -241,48 +255,154 @@ class BrsApiJobRegistry:
     def enabled(self) -> list[BrsApiSyncJob]:
         return [j for j in self._jobs.values() if j.enabled]
 
+    # ── Scheduler management (for API toggling) ──
+
+    @property
+    def scheduler(self) -> Any:
+        """Return the APScheduler instance, if set."""
+        return self._scheduler
+
+    @scheduler.setter
+    def scheduler(self, scheduler: Any) -> None:
+        self._scheduler = scheduler
+
+    def list_all_jobs(self) -> list[dict[str, Any]]:
+        """
+        Return a serialisable list of all BrsApi sync jobs with their status.
+
+        Each entry contains: name, enabled, cron, description, endpoint.
+        """
+        result = []
+        for job in self._jobs.values():
+            result.append({
+                "name": job.name,
+                "enabled": job.enabled,
+                "cron": str(job.cron),
+                "description": job.description,
+                "endpoint": job.endpoint_config.path,
+                "category": job.category or job.endpoint_config.category.value,
+            })
+        return result
+
+    def toggle_job(self, job_name: str) -> dict[str, Any]:
+        """
+        Toggle a job's enabled/disabled status at runtime.
+
+        If the scheduler is running, the job is added or removed accordingly.
+
+        Returns a dict with the job name, new enabled status, and a message.
+        """
+        job = self._jobs.get(job_name)
+        if job is None:
+            return {"name": job_name, "enabled": False, "message": f"Unknown job: {job_name}"}
+
+        job.enabled = not job.enabled
+
+        # Update APScheduler at runtime if running
+        if self._scheduler is not None:
+            if job.enabled:
+                self._add_job_to_scheduler(job)
+                logger.info("Added job '%s' to running scheduler (now enabled)", job_name)
+            else:
+                try:
+                    self._scheduler.remove_job(job.name)
+                    logger.info("Removed job '%s' from running scheduler (now disabled)", job_name)
+                except Exception:
+                    logger.warning("Job '%s' was not in running scheduler", job_name)
+
+        return {
+            "name": job_name,
+            "enabled": job.enabled,
+            "message": f"Job '{job_name}' is now {'enabled' if job.enabled else 'disabled'}",
+        }
+
+    async def run_job_now(self, job_name: str) -> dict[str, Any]:
+        """
+        Trigger an immediate run of a job.
+
+        Returns a dict with job name, success status, and items count.
+        """
+        try:
+            report = await self.run_job(job_name)
+            if report is None:
+                return {"name": job_name, "success": False, "message": f"Unknown or failed job: {job_name}"}
+            return {
+                "name": job_name,
+                "success": report.success,
+                "items_count": report.items_count,
+                "duration_ms": report.duration_ms,
+                "message": f"Job '{job_name}' completed: {report.items_count} items in {report.duration_ms:.0f}ms",
+            }
+        except Exception as exc:
+            logger.exception("Failed to run job '%s'", job_name)
+            return {"name": job_name, "success": False, "message": str(exc)}
+
+    def _add_job_to_scheduler(self, job: BrsApiSyncJob) -> None:
+        """Add a single job to the APScheduler."""
+        if self._scheduler is None:
+            return
+
+        import pytz
+        from apscheduler.triggers.cron import CronTrigger
+
+        tz = pytz.timezone(brsapi_settings.market_timezone)
+
+        async def _run(job_name: str = job.name) -> None:
+            await self.run_job(job_name)
+
+        if isinstance(job.cron, int):
+            self._scheduler.add_job(
+                _run,
+                trigger="interval",
+                seconds=job.cron,
+                id=job.name,
+                name=job.description,
+                replace_existing=True,
+                timezone=tz,
+            )
+        else:
+            trigger = CronTrigger.from_crontab(job.cron, timezone=tz)
+            self._scheduler.add_job(
+                _run,
+                trigger=trigger,
+                id=job.name,
+                name=job.description,
+                replace_existing=True,
+            )
+
     # ── APScheduler registration ────────────────
 
     def register_with_apscheduler(self, scheduler: Any) -> None:
         """
         Register all enabled jobs with an APScheduler instance.
 
+        Also stores a reference to the scheduler for dynamic toggle operations.
+
         Args:
             scheduler: An APScheduler ``AsyncIOScheduler`` instance.
         """
-        import pytz
-
-        tz = pytz.timezone(brsapi_settings.market_timezone)
+        self._scheduler = scheduler
 
         for job in self.enabled:
-            async def _run(job_name: str = job.name) -> None:
-                """APScheduler job wrapper."""
-                await self.run_job(job_name)
-
-            if isinstance(job.cron, int):
-                # Interval-based trigger (seconds)
-                scheduler.add_job(
-                    _run,
-                    trigger="interval",
-                    seconds=job.cron,
-                    id=job.name,
-                    name=job.description,
-                    replace_existing=True,
-                    timezone=tz,
-                )
-            else:
-                # Cron expression
-                scheduler.add_job(
-                    _run,
-                    trigger="cron",
-                    cron=job.cron,
-                    id=job.name,
-                    name=job.description,
-                    replace_existing=True,
-                    timezone=tz,
-                )
-
+            self._add_job_to_scheduler(job)
             logger.info("Registered APScheduler job: %s (cron=%s)", job.name, job.cron)
+
+    # ── Helpers ───────────────────────────────
+
+    async def _get_pro_symbols(self, session: Any, max_symbols: int = 50) -> list[str]:
+        """
+        Query distinct symbols from GoldCurrencyProPriceModel table.
+
+        Returns up to ``max_symbols`` symbols. Used by history_24h and
+        daily_history jobs to iterate over available Pro symbols.
+        """
+        from sqlalchemy import distinct, select
+
+        stmt = select(distinct(GoldCurrencyProPriceModel.symbol)).limit(max_symbols)
+        result = await session.execute(stmt)
+        symbols = [row[0] for row in result if row[0]]
+        logger.info("Found %d Pro symbols for history sync", len(symbols))
+        return symbols
 
     # ── Run a single job ────────────────────────
 
@@ -306,6 +426,78 @@ class BrsApiJobRegistry:
 
         async for session in get_session():
             service = BrsApiSyncService(client=self._client)
+
+            # ── Special handler: sync_gold_currency is a composite job ──
+            if job_name == "brsapi_gold_currency_pro":
+                reports = await service.sync_gold_currency_pro(session)
+                for r in reports:
+                    logger.info(
+                        "Gold_Currency_Pro/%s: %s (%d items in %.0fms)",
+                        r.endpoint,
+                        "OK" if r.success else "FAIL",
+                        r.items_count,
+                        r.duration_ms,
+                    )
+                return reports[0] if reports else None
+
+            if job_name == "brsapi_gold_currency":
+                reports = await service.sync_gold_currency(session)
+                for r in reports:
+                    logger.info(
+                        "Gold_Currency/%s: %s (%d items in %.0fms)",
+                        r.endpoint,
+                        "OK" if r.success else "FAIL",
+                        r.items_count,
+                        r.duration_ms,
+                    )
+                # Return the first report as summary
+                return reports[0] if reports else None
+
+            # ── Special handler: Gold_Currency_Pro 24h history ──
+            if job_name == "brsapi_gold_currency_pro_history_24h":
+                symbols = await self._get_pro_symbols(session, max_symbols=20)
+                if not symbols:
+                    logger.warning("No Pro symbols found — run brsapi_gold_currency_pro first")
+                    return None
+
+                all_reports: list[SyncReport] = []
+                for sym in symbols:
+                    report = await service.sync_gold_currency_pro_history_24h(session, symbol=sym)
+                    all_reports.append(report)
+                    logger.info(
+                        "Gold_Currency_Pro_24h/%s: %s (%d items in %.0fms)",
+                        sym,
+                        "OK" if report.success else "FAIL",
+                        report.items_count,
+                        report.duration_ms,
+                    )
+                    await asyncio.sleep(0.5)  # Polite delay between symbols
+                await session.commit()
+                return all_reports[0] if all_reports else None
+
+            # ── Special handler: Gold_Currency_Pro daily history ──
+            if job_name == "brsapi_gold_currency_pro_daily_history":
+                symbols = await self._get_pro_symbols(session, max_symbols=20)
+                if not symbols:
+                    logger.warning("No Pro symbols found — run brsapi_gold_currency_pro first")
+                    return None
+
+                all_reports = []
+                for sym in symbols:
+                    report = await service.sync_gold_currency_pro_daily_history(session, symbol=sym)
+                    all_reports.append(report)
+                    logger.info(
+                        "Gold_Currency_Pro_Daily/%s: %s (%d items in %.0fms)",
+                        sym,
+                        "OK" if report.success else "FAIL",
+                        report.items_count,
+                        report.duration_ms,
+                    )
+                    await asyncio.sleep(0.5)
+                await session.commit()
+                return all_reports[0] if all_reports else None
+
+            # ── Standard single-endpoint sync ──
             report = await service.sync(
                 endpoint=job.endpoint_config,
                 parser=self._get_parser(job.endpoint_config),
@@ -317,7 +509,7 @@ class BrsApiJobRegistry:
             logger.info(
                 "Job %s: %s (%d items in %.0fms)",
                 job_name,
-                "✓" if report.success else "✗",
+                "OK" if report.success else "FAIL",
                 report.items_count,
                 report.duration_ms,
             )
@@ -334,8 +526,8 @@ class BrsApiJobRegistry:
             CommodityParser,
             CryptoParser,
             CurrencyParser,
-            Gold24hParser,
             GoldCoinParser,
+            GoldCurrencyProParser,
             ImeParser,
             TsetmcParser,
         )
@@ -360,10 +552,9 @@ class BrsApiJobRegistry:
             BrsApiEndpoints.CRYPTOCURRENCY.path: CryptoParser.parse,
             BrsApiEndpoints.GOLD_COIN.path: GoldCoinParser.parse,
             BrsApiEndpoints.GOLD_COIN_HISTORY.path: GoldCoinParser.parse_history,
-            BrsApiEndpoints.GOLD_24H.path: Gold24hParser.parse,
             BrsApiEndpoints.CURRENCY.path: CurrencyParser.parse,
-            BrsApiEndpoints.CURRENCY_24H.path: CurrencyParser.parse_24h,
             BrsApiEndpoints.CURRENCY_HISTORY.path: CurrencyParser.parse,
+            BrsApiEndpoints.GOLD_CURRENCY_PRO.path: GoldCurrencyProParser.parse_gold,
             BrsApiEndpoints.CODAL_ANNOUNCEMENT.path: CodalParser.parse_announcements_only,
         }
         return mapping.get(ep.path, TsetmcParser.parse_all_symbols)
@@ -375,9 +566,7 @@ class BrsApiJobRegistry:
             CodalAnnouncementModel,
             CommodityPriceModel,
             CryptoPriceModel,
-            Currency24hModel,
             CurrencyPriceModel,
-            Gold24hModel,
             GoldCoinHistoryModel,
             GoldCoinPriceModel,
             HistoricalDailyModel,
@@ -416,10 +605,9 @@ class BrsApiJobRegistry:
             BrsApiEndpoints.CRYPTOCURRENCY.path: CryptoPriceModel,
             BrsApiEndpoints.GOLD_COIN.path: GoldCoinPriceModel,
             BrsApiEndpoints.GOLD_COIN_HISTORY.path: GoldCoinHistoryModel,
-            BrsApiEndpoints.GOLD_24H.path: Gold24hModel,
             BrsApiEndpoints.CURRENCY.path: CurrencyPriceModel,
-            BrsApiEndpoints.CURRENCY_24H.path: Currency24hModel,
             BrsApiEndpoints.CURRENCY_HISTORY.path: CurrencyPriceModel,
+            BrsApiEndpoints.GOLD_CURRENCY_PRO.path: GoldCurrencyProPriceModel,
             BrsApiEndpoints.CODAL_ANNOUNCEMENT.path: CodalAnnouncementModel,
         }
         return mapping.get(ep.path, SymbolSnapshotModel)

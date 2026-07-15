@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from typing import Any
-from sqlalchemy import select, func as sa_func
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.result import PaginatedResult, Result
+from core.result import Result
+from domain.portfolios.portfolio import Portfolio
 from models.portfolio import PortfolioModel, PortfolioPositionModel
 from repositories.db_base import DbRepository
-from domain.portfolios.portfolio import Portfolio
+
 
 class PortfolioRepository(DbRepository[Portfolio, PortfolioModel]):
     model_class = PortfolioModel

@@ -17,12 +17,10 @@
     python test_brsapi_manual.py --list                   # لیست بخش‌ها
 """
 
-import asyncio
 import argparse
-import sys
+import asyncio
 import io
-import time
-import json
+import sys
 from datetime import datetime
 
 if sys.platform == "win32":
@@ -30,39 +28,48 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import httpx
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy import text
-
-# ── Models ──────────────────────────────────────
-from brsapi.models.commodity import (
-    CommodityPriceModel, GoldCoinPriceModel, GoldCoinHistoryModel,
-    CurrencyPriceModel, Currency24hModel, Gold24hModel,
-)
-from brsapi.models.crypto import CryptoPriceModel
-from brsapi.models.tsetmc import (
-    SymbolSnapshotModel, SymbolDetailModel, IndexValueModel,
-    NavRecordModel, OptionSnapshotModel, IntradayTradeModel,
-    HistoricalDailyModel, HistoricalRealLegalModel, CandlestickModel,
-    ShareholderRecordModel,
-)
-from brsapi.models.ime import (
-    ImeFutureModel, ImeOptionModel, ImeCertificateModel,
-    ImeFundModel, ImePhysicalTradeModel,
-)
-from brsapi.models.codal import CodalAnnouncementModel
-
-# ── Parsers ─────────────────────────────────────
-from brsapi.parsers.commodity import CommodityParser, GoldCoinParser, CurrencyParser, Gold24hParser
-from brsapi.parsers.crypto import CryptoParser
-from brsapi.parsers.tsetmc import TsetmcParser
-from brsapi.parsers.ime import ImeParser
-from brsapi.parsers.codal import CodalParser
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # ── Config ──────────────────────────────────────
 from brsapi.config import BrsApiEndpoints
+from brsapi.models.codal import CodalAnnouncementModel
+
+# ── Models ──────────────────────────────────────
+from brsapi.models.commodity import (
+    CommodityPriceModel,
+    CurrencyPriceModel,
+    GoldCoinPriceModel,
+    GoldCurrencyProPriceModel,
+)
+from brsapi.models.crypto import CryptoPriceModel
+from brsapi.models.ime import (
+    ImeCertificateModel,
+    ImeFundModel,
+    ImeFutureModel,
+    ImeOptionModel,
+    ImePhysicalTradeModel,
+)
+from brsapi.models.tsetmc import (
+    IndexValueModel,
+    OptionSnapshotModel,
+    SymbolSnapshotModel,
+)
+from brsapi.parsers.codal import CodalParser
+
+# ── Parsers ─────────────────────────────────────
+from brsapi.parsers.commodity import (
+    CommodityParser,
+    CurrencyParser,
+    GoldCoinParser,
+    GoldCurrencyProParser,
+)
+from brsapi.parsers.crypto import CryptoParser
+from brsapi.parsers.ime import ImeParser
+from brsapi.parsers.tsetmc import TsetmcParser
 
 # ── DB URL ──────────────────────────────────────
 DATABASE_URL = "postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db"
@@ -96,12 +103,15 @@ SECTIONS = {
         "parser": GoldCoinParser.parse,
         "category": "commodity",
     },
-    "gold_24h": {
-        "name": "تغییرات ۲۴h طلا",
-        "endpoint": BrsApiEndpoints.GOLD_24H,
-        "model": Gold24hModel,
-        "parser": Gold24hParser.parse,
+    # gold_24h removed — endpoint /Market/Gold24h.php returns HTTP 404.
+    # Data available via Gold_Currency.php endpoint.
+    "gold_currency_pro": {
+        "name": "Gold & Currency Pro (gold section)",
+        "endpoint": BrsApiEndpoints.GOLD_CURRENCY_PRO,
+        "model": GoldCurrencyProPriceModel,
+        "parser": GoldCurrencyProParser.parse_gold,
         "category": "commodity",
+        "extra_params": {"section": "gold"},
     },
     "currency": {
         "name": "نرخ ارز",
@@ -110,13 +120,8 @@ SECTIONS = {
         "parser": CurrencyParser.parse,
         "category": "commodity",
     },
-    "currency_24h": {
-        "name": "تغییرات ۲۴h ارز",
-        "endpoint": BrsApiEndpoints.CURRENCY_24H,
-        "model": Currency24hModel,
-        "parser": CurrencyParser.parse_24h,
-        "category": "commodity",
-    },
+    # currency_24h removed — endpoint /Market/Currency24h.php returns HTTP 404.
+    # Data available via Gold_Currency.php endpoint.
     "symbols": {
         "name": "تمامی نمادها",
         "endpoint": BrsApiEndpoints.ALL_SYMBOLS,

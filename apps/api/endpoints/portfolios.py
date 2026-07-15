@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from typing import Any
+
 from fastapi import APIRouter, Depends
+
 from apps.api.dependencies import get_portfolio_service
+from core.logging import get_logger
+from schemas.api.portfolios import PortfolioCreate, PortfolioListResponse, PortfolioResponse
 from schemas.common.responses import ApiResponse
 from services.portfolio_service import PortfolioService
-from schemas.api.portfolios import PortfolioCreate, PortfolioResponse, PortfolioListResponse
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 

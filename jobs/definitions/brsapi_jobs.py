@@ -156,11 +156,11 @@ class BrsApiIndexJob(BrsApiAllSymbolsJob):
     _category_override = "tsetmc"
 
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import TsetmcParser
-        from brsapi.models import IndexValueModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import IndexValueModel
+        from brsapi.parsers import TsetmcParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -195,11 +195,11 @@ class BrsApiIndexSelectedJob(BrsApiIndexJob):
 
 class BrsApiOptionsJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import TsetmcParser
-        from brsapi.models import OptionSnapshotModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import OptionSnapshotModel
+        from brsapi.parsers import TsetmcParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -224,11 +224,11 @@ class BrsApiOptionsJob(BrsApiAllSymbolsJob):
 
 class BrsApiImeFuturesJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import ImeParser
-        from brsapi.models import ImeFutureModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import ImeFutureModel
+        from brsapi.parsers import ImeParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -253,11 +253,11 @@ class BrsApiImeFuturesJob(BrsApiAllSymbolsJob):
 
 class BrsApiImeOptionsJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import ImeParser
-        from brsapi.models import ImeOptionModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import ImeOptionModel
+        from brsapi.parsers import ImeParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -282,11 +282,11 @@ class BrsApiImeOptionsJob(BrsApiAllSymbolsJob):
 
 class BrsApiImeCertificatesJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import ImeParser
-        from brsapi.models import ImeCertificateModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import ImeCertificateModel
+        from brsapi.parsers import ImeParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -311,11 +311,11 @@ class BrsApiImeCertificatesJob(BrsApiAllSymbolsJob):
 
 class BrsApiImeFundsJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import ImeParser
-        from brsapi.models import ImeFundModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import ImeFundModel
+        from brsapi.parsers import ImeParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -340,11 +340,11 @@ class BrsApiImeFundsJob(BrsApiAllSymbolsJob):
 
 class BrsApiCommoditiesJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import CommodityParser
-        from brsapi.models import CommodityPriceModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import CommodityPriceModel
+        from brsapi.parsers import CommodityParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -369,11 +369,11 @@ class BrsApiCommoditiesJob(BrsApiAllSymbolsJob):
 
 class BrsApiCryptoJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import CryptoParser
-        from brsapi.models import CryptoPriceModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import CryptoPriceModel
+        from brsapi.parsers import CryptoParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -398,11 +398,11 @@ class BrsApiCryptoJob(BrsApiAllSymbolsJob):
 
 class BrsApiCodalJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import CodalParser
-        from brsapi.models import CodalAnnouncementModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import CodalAnnouncementModel
+        from brsapi.parsers import CodalParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()
@@ -427,11 +427,11 @@ class BrsApiCodalJob(BrsApiAllSymbolsJob):
 
 class BrsApiImePhysicalJob(BrsApiAllSymbolsJob):
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.config import BrsApiEndpoints as E
-        from brsapi.parsers import ImeParser
-        from brsapi.models import ImePhysicalTradeModel
-        from brsapi.services.sync_service import BrsApiSyncService
         from brsapi.client import get_client
+        from brsapi.config import BrsApiEndpoints as E
+        from brsapi.models import ImePhysicalTradeModel
+        from brsapi.parsers import ImeParser
+        from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
 
         client = await get_client()

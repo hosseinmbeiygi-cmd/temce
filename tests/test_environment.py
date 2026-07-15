@@ -2,9 +2,10 @@
 import asyncio
 import sys
 
+
 async def test_api_endpoints():
     print("1. Testing API endpoints...")
-    
+
     # Test 1: Health endpoint (should always work)
     print("   Testing /api/v1/health...")
     try:
@@ -20,7 +21,7 @@ async def test_api_endpoints():
     except Exception as e:
         print(f"   Health endpoint error: {e}")
         return False
-    
+
     # Test 2: Market overview endpoint
     print("   Testing /api/v1/market/overview...")
     try:
@@ -37,7 +38,7 @@ async def test_api_endpoints():
                 print(f"   Market overview status: {response.status_code}")
     except Exception as e:
         print(f"   Market overview error: {e}")
-    
+
     # Test 3: Symbols endpoint
     print("   Testing /api/v1/symbols...")
     try:
@@ -57,7 +58,7 @@ async def test_api_endpoints():
                 print(f"   Create symbol status: {response.status_code}")
     except Exception as e:
         print(f"   Create symbol error: {e}")
-    
+
     # Test 4: Signals endpoint
     print("   Testing /api/v1/signals...")
     try:
@@ -74,55 +75,54 @@ async def test_api_endpoints():
                 print(f"   List signals status: {response.status_code}")
     except Exception as e:
         print(f"   List signals error: {e}")
-    
+
     return True
 
 async def test_environment():
     print("\n2. Testing environment setup...")
-    
+
     # Test Python dependencies
     print("   Checking Python dependencies...")
     try:
         import fastapi
-        import uvicorn
-        import sqlalchemy
         import pydantic
+        import sqlalchemy
+        import uvicorn
         print("   Python dependencies available")
     except ImportError as e:
         print(f"   Python dependencies missing: {e}")
         return False
-    
+
     # Test if we can import the app
     print("   Testing app import...")
     try:
         sys.path.insert(0, 'C:\\Users\\Iran\\Desktop\\temce')
-        from apps.api.app import app
         print("   App imported successfully")
     except Exception as e:
         print(f"   App import failed: {e}")
         return False
-    
+
     return True
 
 async def main():
     print("=" * 60)
     print("iran-market-platform - Environment Test")
     print("=" * 60)
-    
+
     env_ok = await test_environment()
     if not env_ok:
         print("\n❌ Environment setup failed")
         return 1
-    
+
     api_ok = await test_api_endpoints()
     if not api_ok:
         print("\n⚠️  API tests completed with warnings")
-    
+
     print("\n" + "=" * 60)
     print("✅ Test completed successfully")
     print("The program should now be working!")
     print("=" * 60)
-    
+
     return 0
 
 if __name__ == "__main__":

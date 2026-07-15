@@ -28,7 +28,7 @@ class OrderArrivalModel:
             raise ValueError("Reference price must be positive")
         if not 0 <= max_deviation_pct <= 1:
             raise ValueError("Deviation percentage must be between 0 and 1")
-            
+
         deviation = reference_price * max_deviation_pct * (random.random() * 2 - 1)
         return max(0.01, reference_price + deviation)  # Ensure price doesn't go below 0.01
 

@@ -1,16 +1,19 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
+from datetime import datetime
+
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from services.tsetmc_client import TsetmcClient
+
+from core.ids import new_id
 from models.instrument import InstrumentModel
 from models.quote import QuoteModel
-from core.ids import new_id
-from datetime import datetime
+from services.tsetmc_client import TsetmcClient
 
 DATABASE_URL = "sqlite+aiosqlite:///data/market.db"
 
@@ -19,28 +22,28 @@ async def fetch_and_save(symbol: str, ins_code: str):
     print(f"📡 دریافت داده برای {symbol}...")
     client = TsetmcClient()
     result = await client.get_closing_price_info(ins_code)
-    
+
     if not result.success:
         print(f"❌ خطا در دریافت: {result.error}")
         return
-    
+
     data = result.value
     print("✅ داده دریافت شد:")
     print(data)
-    
+
     # 2. اتصال به دیتابیس
     engine = create_async_engine(DATABASE_URL)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
+
     async with async_session() as session:
         # 3. پیدا کردن instrument_id برای نماد
         stmt = select(InstrumentModel).where(InstrumentModel.symbol == symbol)
         instrument = (await session.execute(stmt)).scalar_one_or_none()
-        
+
         if not instrument:
             print(f"❌ نماد {symbol} در دیتابیس وجود ندارد")
             return
-        
+
         # 4. استخراج داده‌ها از پاسخ TSETMC
         # توجه: ممکن است کلیدها متفاوت باشند
         p_close = data.get('pClosing', 0)
@@ -51,7 +54,7 @@ async def fetch_and_save(symbol: str, ins_code: str):
         volume = data.get('zTotTran', 0)
         value = data.get('qTotTran5J', 0)
         trade_count = data.get('nvt', 0)  # تعداد معاملات (ممکن است نادرست باشد)
-        
+
         # 5. ساخت یک Quote جدید
         new_quote = QuoteModel(
             id=new_id("quote"),
@@ -71,12 +74,12 @@ async def fetch_and_save(symbol: str, ins_code: str):
             timeframe="1d",
             data_source="tsetmc"
         )
-        
+
         # 6. ذخیره در دیتابیس
         session.add(new_quote)
         await session.commit()
         print(f"✅ داده برای {symbol} با قیمت {p_close} ذخیره شد.")
-        
+
         # 7. نمایش آخرین داده‌های ذخیره شده برای این نماد
         stmt_latest = select(QuoteModel).where(QuoteModel.instrument_id == instrument.id).order_by(QuoteModel.created_at.desc()).limit(1)
         latest = (await session.execute(stmt_latest)).scalar_one_or_none()

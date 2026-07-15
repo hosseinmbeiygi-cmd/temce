@@ -1,7 +1,17 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
+from services.smart_money.confidence import ConfidenceEstimator
+from services.smart_money.config_loader import (
+    SmartMoneyConfig,
+    classify_phase_from_config,
+    compute_weighted_score,
+    load_config,
+)
+from services.smart_money.data_quality import DataQualityGate, DataQualityReport
+from services.smart_money.feature_store import FeatureStore
 from services.smart_money.layer1_price_volume import PriceVolumeLayer
 from services.smart_money.layer2_absorption import AbsorptionLayer
 from services.smart_money.layer3_ownership import OwnershipLayer
@@ -14,7 +24,20 @@ from services.smart_money.layer9_breakout_quality import BreakoutQualityLayer
 
 
 class ScoringEngine:
-    def __init__(self) -> None:
+    """Config-driven Smart Money scoring engine with data quality, confidence, and versioning.
+
+    Upgrades from v1:
+    - Config-driven weights/thresholds (YAML)
+    - Data Quality Gate (rejects bad data)
+    - Feature Store (separates computation from scoring)
+    - Confidence Score (uncertainty estimation)
+    - Engine versioning in output
+    - Phase Engine from config (not hard-coded)
+    - Partial analysis mode for incomplete data
+    """
+
+    def __init__(self, config: SmartMoneyConfig | None = None) -> None:
+        self._config = config or load_config()
         self.layer1 = PriceVolumeLayer()
         self.layer2 = AbsorptionLayer()
         self.layer3 = OwnershipLayer()
@@ -25,6 +48,19 @@ class ScoringEngine:
         self.layer8 = MicrostructureLayer()
         self.layer9 = BreakoutQualityLayer()
 
+        self._feature_store = FeatureStore()
+        self._data_quality_gate = DataQualityGate(self._config.data_quality)
+        self._confidence_estimator = ConfidenceEstimator()
+
+    @property
+    def config(self) -> SmartMoneyConfig:
+        return self._config
+
+    def reload_config(self, path: str | None = None) -> None:
+        """Hot-reload configuration from YAML."""
+        self._config = load_config(path)
+        self._data_quality_gate = DataQualityGate(self._config.data_quality)
+
     def analyze(
         self,
         quote: dict[str, Any],
@@ -33,9 +69,20 @@ class ScoringEngine:
         index_history: list[float] | None = None,
         sector_history: list[float] | None = None,
     ) -> dict[str, Any]:
-        # ---- Layer computations ----
+        cfg = self._config
+        symbol = quote.get("symbol", "")
+
+        # ---- Step 0: Data Quality Gate ----
+        dq_report = self._data_quality_gate.validate(symbol, quote, history)
+
+        # If quality is too low, return minimal result
+        if dq_report.quality_score <= 0.3 and not dq_report.is_valid:
+            return self._build_minimal_result(symbol, dq_report)
+
+        # ---- Step 1: Layer computations ----
+        index_ret = self._index_return(index_history)
         l1 = self.layer1.compute(quote, history)
-        l2 = self.layer2.compute(quote, history, index_return=self._index_return(index_history))
+        l2 = self.layer2.compute(quote, history, index_return=index_ret)
         l3 = self.layer3.compute(quote, history, trades)
         l4 = self.layer4.compute(quote, history)
         l5 = self.layer5.compute(quote, history, index_history, sector_history)
@@ -43,111 +90,83 @@ class ScoringEngine:
         l8 = self.layer8.compute(quote, history)
 
         all_layer = {**l1, **l2, **l3, **l4, **l5, **l7, **l8}
-        l6 = self.layer6.compute(quote, history, all_layer)
-        l9 = self.layer9.compute(quote, history, all_layer)
 
-        # ----  Layer scores ----
-        pvs = l1["pvs"]
-        abs_score = l2["abs"]
-        fls = l3["fls"]
-        ess = l4["ess"]
-        rrs = l5["rrs"]
-        brs = l6["brs"]
-        bps = l7["bps"]
-        mcs = l8["mcs"]
+        # For partial mode, skip heavy layers (6, 9) if data is insufficient
+        if dq_report.analysis_mode == "partial" and len(history) < 10:
+            l6 = {"brs": 0.5, "rp_n": 0.5, "btf_n": 0.5, "pt": 0.5, "bcp": 0.5}
+            l9 = {"bqs": 0.5}
+        else:
+            l6 = self.layer6.compute(quote, history, all_layer)
+            l9 = self.layer9.compute(quote, history, all_layer)
 
-        # ---- Individual normalized features ----
-        bp_n = l3.get("bp_n", 0.0)
-        nrmf_n = l3.get("nrmf_n", 0.0)
-        bc_n = l3.get("bc_n", 0.0)
-        dps_n = l2.get("dps_n", 0.0)
-        rmr_n = l2.get("rmr_n", 0.0)
-        lss_n = l2.get("lss_n", 0.0)
-        rec_n = l1.get("rec_n", 0.0)
+        all_layer.update(l6)
+        all_layer.update(l9)
 
-        # ============================================================
-        # AHM — Absorption History Memory: avg of recent ABS scores
-        # AHM = 1/k * sum(ABS_t-i)
-        # ============================================================
-        ahm_vals: list[float] = []
-        for q in history[-5:]:
-            try:
-                ahm_vals.append(
-                    self.layer2.compute(q, history, index_return=self._index_return(index_history)).get("abs", 0.0)
-                )
-            except Exception:
-                ahm_vals.append(0.5)
-        ahm_n = sum(ahm_vals) / len(ahm_vals) if ahm_vals else 0.5
+        # ---- Step 2: Feature Store (cache features) ----
+        feature_vector = self._feature_store.compute_all_features(
+            quote=quote,
+            history=history,
+            layer_results={"l1": l1, "l2": l2, "l3": l3, "l4": l4, "l5": l5,
+                           "l6": l6, "l7": l7, "l8": l8, "l9": l9},
+            data_quality_score=dq_report.quality_score,
+            analysis_mode=dq_report.analysis_mode,
+            history_days=dq_report.history_days,
+        )
+        self._feature_store.put(symbol, feature_vector)
 
-        # ============================================================
-        #  1) Accumulation Score (ACC)
-        #  ACC = 0.22*PVS + 0.18*BPn + 0.16*NRMFn + 0.12*BCn
-        #        + 0.12*DPSn + 0.10*RMRn + 0.10*RRS
-        # ============================================================
-        acc = 0.22 * pvs + 0.18 * bp_n + 0.16 * nrmf_n + 0.12 * bc_n + 0.12 * dps_n + 0.10 * rmr_n + 0.10 * rrs
+        # ---- Step 3: Composite Scores (config-driven) ----
+        acc = compute_weighted_score(cfg, cfg.acc_weights, all_layer)
+        abs_final = compute_weighted_score(cfg, cfg.abs_final_weights, all_layer)
 
-        # ============================================================
-        #  2) Absorption Score (ABS_final)
-        #  ABSfinal = 0.45*ABS + 0.20*PVS + 0.15*RMRn
-        #             + 0.10*LSSn + 0.10*RECn
-        # ============================================================
-        abs_final = 0.45 * abs_score + 0.20 * pvs + 0.15 * rmr_n + 0.10 * lss_n + 0.10 * rec_n
+        ahm_n = self._compute_ahm(history, index_history)
+        fl_inputs = {**all_layer, "ahm_n": ahm_n}
+        fl = compute_weighted_score(cfg, cfg.fl_weights, fl_inputs)
 
-        # ============================================================
-        #  3) Float Lock Score (FL)
-        #  FL = 0.40*FLS + 0.25*ESS + 0.20*AHMn + 0.15*RRS
-        # ============================================================
-        fl = 0.40 * fls + 0.25 * ess + 0.20 * ahm_n + 0.15 * rrs
+        br = compute_weighted_score(cfg, cfg.br_weights, all_layer)
+        smc = compute_weighted_score(cfg, cfg.smc_weights, {"acc": acc, "abs_final": abs_final, "fl": fl, "br": br})
 
-        # ============================================================
-        #  4) Breakout Readiness (BR)
-        #  BR = 0.45*BRS + 0.20*ESS + 0.15*RRS
-        #       + 0.10*ABS + 0.10*FLS
-        # ============================================================
-        br = 0.45 * brs + 0.20 * ess + 0.15 * rrs + 0.10 * abs_score + 0.10 * fls
-
-        # ============================================================
-        #  5) Smart Money Composite (SMC)
-        #  SMC = 0.28*ACC + 0.27*ABSfinal + 0.20*FL + 0.25*BR
-        # ============================================================
-        smc = 0.28 * acc + 0.27 * abs_final + 0.20 * fl + 0.25 * br
-
-        # ============================================================
-        #  Penalties
-        # ============================================================
-
-        # DR = 0.40*(1-CLVn) + 0.30*(1-LFn) + 0.30*(1-BPn)
+        # ---- Step 4: Penalties (config-driven) ----
         clv_n = l1.get("clv_n", 0.5)
         lf_n = l1.get("lf_n", 0.5)
-        dr = 0.40 * (1.0 - clv_n) + 0.30 * (1.0 - lf_n) + 0.30 * (1.0 - bp_n)
-
-        # FBR = 0.35*(1-RVOLn) + 0.25*(1-RRS) + 0.20*(1-PT) + 0.20*(1-BCP)
+        bp_n = l3.get("bp_n", 0.5)
         rvol_n = l1.get("rvol_n", 0.5)
+        rrs = l5.get("rrs", 0.5)
+        ess = l4.get("ess", 0.5)
+        nrmf_n = l3.get("nrmf_n", 0.5)
         pt = l6.get("pt", 0.5)
-        bcp = l6.get("bcp", 0.5)
-        fbr = 0.35 * (1.0 - rvol_n) + 0.25 * (1.0 - rrs) + 0.20 * (1.0 - pt) + 0.20 * (1.0 - bcp)
+        bcp_val = l6.get("bcp", 0.5)
 
-        # DC = 0.40*ESS + 0.30*(1-RRS) + 0.30*(1-NRMFn)
-        dc = 0.40 * ess + 0.30 * (1.0 - rrs) + 0.30 * (1.0 - nrmf_n)
+        dr_inputs = {"clv_n": clv_n, "lf_n": lf_n, "bp_n": bp_n}
+        dr = compute_weighted_score(cfg, cfg.penalty_dr_weights, dr_inputs)
 
-        # SMC_adj = SMC - 0.15*DR - 0.10*FBR - 0.10*DC
-        smc_adj = smc - 0.15 * dr - 0.10 * fbr - 0.10 * dc
+        fbr_inputs = {"rvol_n": rvol_n, "rrs": rrs, "pt": pt, "bcp": bcp_val}
+        fbr = compute_weighted_score(cfg, cfg.penalty_fbr_weights, fbr_inputs)
+
+        dc_inputs = {"ess": ess, "rrs_inv": 1.0 - rrs, "nrmf_n_inv": 1.0 - nrmf_n}
+        dc = compute_weighted_score(cfg, cfg.penalty_dc_weights, dc_inputs)
+
+        # SMC adjustment
+        adj = cfg.smc_adjustment
+        smc_adj = smc - adj.get("dr", 0.15) * dr - adj.get("fbr", 0.10) * fbr - adj.get("dc", 0.08) * dc
         smc_final = min(1.0, max(0.0, smc_adj))
 
-        # ---- Phase classification (multi-condition) ----
-        phase = self._classify_phase(
-            acc=acc,
-            abs_final=abs_final,
-            fl=fl,
-            br=br,
-            smc=smc_final,
-            l2=l2,
-            l6=l6,
-            ess=ess,
-            rrs=rrs,
+        # ---- Step 5: Phase Classification (config-driven) ----
+        phase_scores = {
+            "smc": smc_final, "acc": acc, "abs_final": abs_final, "fl": fl, "br": br,
+            "ess": ess, "rrs": rrs, "rmr_n": l2.get("rmr_n", 0.0),
+            "dps_n": l2.get("dps_n", 0.0), "rp_n": l6.get("rp_n", 0.0),
+        }
+        phase = classify_phase_from_config(cfg, phase_scores)
+
+        # ---- Step 6: Confidence Score ----
+        confidence = self._confidence_estimator.estimate(
+            features=all_layer,
+            history_days=dq_report.history_days,
+            data_quality_score=dq_report.quality_score,
+            analysis_mode=dq_report.analysis_mode,
         )
 
-        # ---- Features dictionary ----
+        # ---- Step 7: Build output ----
         features: dict[str, float] = {}
         for d in [l1, l2, l3, l4, l5, l6, l7, l8, l9]:
             for k, v in d.items():
@@ -162,8 +181,8 @@ class ScoringEngine:
                 "absorption": round(abs_final, 4),
                 "float_lock": round(fl, 4),
                 "breakout_readiness": round(br, 4),
-                "buyer_power": round(bps, 4),
-                "microstructure": round(mcs, 4),
+                "buyer_power": round(l7.get("bps", 0.0), 4),
+                "microstructure": round(l8.get("mcs", 0.0), 4),
             },
             "penalties": {
                 "distribution_risk": round(dr, 4),
@@ -172,55 +191,56 @@ class ScoringEngine:
             },
             "features": features,
             "breakout_features": {k: round(v, 4) for k, v in l6.items() if isinstance(v, float)},
+            "meta": {
+                "engine_version": cfg.version,
+                "config_profile": cfg.profile,
+                "analysis_mode": dq_report.analysis_mode,
+                "data_quality_score": round(dq_report.quality_score, 4),
+                "confidence": {
+                    "score": confidence.confidence,
+                    "level": confidence.level,
+                    "warnings": confidence.warnings,
+                },
+                "data_quality_issues": dq_report.issues,
+                "data_quality_warnings": dq_report.warnings,
+                "computed_at": time.time(),
+            },
         }
 
-    @staticmethod
-    def _classify_phase(
-        acc: float,
-        abs_final: float,
-        fl: float,
-        br: float,
-        smc: float,
-        l2: dict[str, Any],
-        l6: dict[str, Any],
-        ess: float,
-        rrs: float,
-    ) -> str:
-        """
-        Multi-condition phase classification from the mathematical spec.
+    def _compute_ahm(self, history: list[dict[str, Any]], index_history: list[float] | None) -> float:
+        """Compute Absorption History Memory (AHM)."""
+        index_ret = self._index_return(index_history)
+        ahm_window = self._config.lookback.get("ahm_window", 5)
+        ahm_vals: list[float] = []
+        for q in history[-ahm_window:]:
+            try:
+                ahm_vals.append(
+                    self.layer2.compute(q, history, index_return=index_ret).get("abs", 0.0)
+                )
+            except Exception:
+                ahm_vals.append(0.5)
+        return sum(ahm_vals) / len(ahm_vals) if ahm_vals else 0.5
 
-        Phases (priority order — most advanced checked first):
-          1. Confirmed Smart Money   SMC > 0.75, ABSfinal > 0.65, FL > 0.60, BR > 0.65
-          2. Breakout Ready          BR > 0.72, RPn > 0.75, ESS > 0.60
-          3. Float Lock              FL > 0.70, ESS > 0.65, RRS > 0.55
-          4. Active Absorption       ABSfinal > 0.70, RMRn > 0.60, DPSn > 0.65
-          5. Early Accumulation      ACC > 0.65, ABSfinal > 0.55, FL < 0.55, BR < 0.55
-          6. Neutral                 otherwise
-        """
-        # 1) Confirmed Smart Money
-        if smc > 0.75 and abs_final > 0.65 and fl > 0.60 and br > 0.65:
-            return "confirmed_smart_money"
-
-        # 2) Breakout Ready
-        rp_n = l6.get("rp_n", 0.0)
-        if br > 0.72 and rp_n > 0.75 and ess > 0.60:
-            return "breakout_ready"
-
-        # 3) Float Lock Phase
-        if fl > 0.70 and ess > 0.65 and rrs > 0.55:
-            return "float_lock"
-
-        # 4) Active Absorption
-        rmr_n = l2.get("rmr_n", 0.0)
-        dps_n = l2.get("dps_n", 0.0)
-        if abs_final > 0.70 and rmr_n > 0.60 and dps_n > 0.65:
-            return "active_absorption"
-
-        # 5) Early Accumulation
-        if acc > 0.65 and abs_final > 0.55 and fl < 0.55 and br < 0.55:
-            return "early_accumulation"
-
-        return "neutral"
+    def _build_minimal_result(self, symbol: str, dq_report: DataQualityReport) -> dict[str, Any]:
+        """Build minimal result when data quality is too low."""
+        return {
+            "smart_money_score": 0.0,
+            "phase": "neutral",
+            "scores": dict.fromkeys(["accumulation", "absorption", "float_lock", "breakout_readiness", "buyer_power", "microstructure"], 0.0),
+            "penalties": dict.fromkeys(["distribution_risk", "fake_breakout_risk", "dead_compression"], 0.0),
+            "features": {},
+            "breakout_features": {},
+            "meta": {
+                "engine_version": self._config.version,
+                "config_profile": self._config.profile,
+                "analysis_mode": "rejected",
+                "data_quality_score": round(dq_report.quality_score, 4),
+                "confidence": {"score": 0.0, "level": "none", "warnings": ["Data quality too low for analysis"]},
+                "data_quality_issues": dq_report.issues,
+                "data_quality_warnings": dq_report.warnings,
+                "computed_at": time.time(),
+            },
+        }
 
     @staticmethod
     def _index_return(index_history: list[float] | None) -> float:

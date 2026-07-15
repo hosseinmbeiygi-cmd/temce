@@ -9,8 +9,10 @@ from domain.common.enum_types import OrderSide, OrderType
 
 
 class BreakoutStrategy(BaseStrategy):
-    def __init__(self, lookback: int = 20, breakout_pct: float = 0.0, instrument_id: str = "") -> None:
-        super().__init__(name=f"Breakout_{lookback}")
+    def __init__(self, lookback: int = 20, breakout_pct: float = 0.0, instrument_id: str = "",
+                 sizing_method: str = "fixed", sizing_value: float = 1000.0) -> None:
+        super().__init__(name=f"Breakout_{lookback}",
+                         sizing_method=sizing_method, sizing_value=sizing_value)
         self.lookback = lookback
         self.breakout_pct = breakout_pct
         self.instrument_id = instrument_id
@@ -28,33 +30,35 @@ class BreakoutStrategy(BaseStrategy):
         self._lows.append(low)
         if len(self._highs) <= self.lookback:
             return []
-        resistance = max(self._highs[-self.lookback - 1 : -1]) * (1 + self.breakout_pct / 100)
-        support = min(self._lows[-self.lookback - 1 : -1]) * (1 - self.breakout_pct / 100)
+        resistance = max(self._highs[-self.lookback - 1: -1]) * (1 + self.breakout_pct / 100)
+        support = min(self._lows[-self.lookback - 1: -1]) * (1 - self.breakout_pct / 100)
         orders: list[OrderEvent] = []
         if close > resistance and self._position <= 0:
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
-                    quantity=1000,
+                    quantity=qty,
                     price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
-        elif close < support and self._position >= 0:
+        elif close < support and self._position > 0:
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
-                    quantity=1000,
+                    quantity=qty,
                     price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
-            self._position = -1
+            self._position = 0
         return orders
 
     def reset(self) -> None:

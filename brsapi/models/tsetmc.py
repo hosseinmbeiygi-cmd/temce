@@ -7,9 +7,10 @@ All tables use the ``brsapi_`` prefix.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Float, Index, Integer, PrimaryKeyConstraint, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from brsapi.models.base import BrsApiBase, InstrumentRefMixin
@@ -37,7 +38,7 @@ class SymbolSnapshotModel(InstrumentRefMixin, BrsApiBase):
     name: Mapped[str | None] = mapped_column(String(200))
     isin: Mapped[str | None] = mapped_column(String(50), index=True)
     sector: Mapped[str | None] = mapped_column(String(100))
-    sector_id: Mapped[str | None] = mapped_column(String(20))
+    sector_id: Mapped[int | None] = mapped_column(Integer)
 
     # Fundamental
     shares_count: Mapped[int | None] = mapped_column(BigInteger)
@@ -142,9 +143,9 @@ class SymbolDetailModel(InstrumentRefMixin, BrsApiBase):
     board_id: Mapped[str | None] = mapped_column(String(20))
     board_code: Mapped[str | None] = mapped_column(String(10))
     sector: Mapped[str | None] = mapped_column(String(100))
-    sector_id: Mapped[str | None] = mapped_column(String(20))
+    sector_id: Mapped[int | None] = mapped_column(Integer)
     sub_sector: Mapped[str | None] = mapped_column(String(100))
-    sub_sector_id: Mapped[str | None] = mapped_column(String(20))
+    sub_sector_id: Mapped[int | None] = mapped_column(Integer)
 
     shares_count: Mapped[int | None] = mapped_column(BigInteger)
     shares_issued: Mapped[int | None] = mapped_column(BigInteger)
@@ -192,9 +193,9 @@ class SymbolDetailModel(InstrumentRefMixin, BrsApiBase):
     date_update: Mapped[str | None] = mapped_column(String(20))
     time: Mapped[str | None] = mapped_column(String(20))
 
-    assembly: Mapped[str | None] = mapped_column(Text, comment="JSON array of assembly info")
-    raw_json: Mapped[str | None] = mapped_column(Text)
-    fetched_at: Mapped[str | None] = mapped_column(String(30))
+    assembly: Mapped[dict | list | None] = mapped_column(JSONB, comment="JSON array of assembly info")
+    raw_json: Mapped[dict | None] = mapped_column(JSONB)
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
@@ -282,7 +283,7 @@ class OptionSnapshotModel(InstrumentRefMixin, BrsApiBase):
     date_end: Mapped[str | None] = mapped_column(String(20), index=True)
     days_remaining: Mapped[int | None] = mapped_column(Integer)
     sector: Mapped[str | None] = mapped_column(String(100))
-    sector_id: Mapped[str | None] = mapped_column(String(20))
+    sector_id: Mapped[int | None] = mapped_column(Integer)
 
     underlying_price_yesterday: Mapped[float | None] = mapped_column(Float)
     underlying_price_last: Mapped[float | None] = mapped_column(Float)

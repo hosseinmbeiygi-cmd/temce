@@ -139,7 +139,7 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         q = f"%{query.lower()}%"
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
         where_clause = or_(NewsArticleModel.title.ilike(q), NewsArticleModel.content.ilike(q)) & source_filter
-        
+
         count_stmt = (
             select(func.count())
             .select_from(NewsArticleModel)
@@ -171,7 +171,7 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         q = f"%{symbol}%"
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
         where_clause = NewsArticleModel.symbols.ilike(q) & source_filter
-        
+
         count_stmt = (
             select(func.count())
             .select_from(NewsArticleModel)

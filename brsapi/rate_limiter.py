@@ -1,26 +1,42 @@
 """
-Token-bucket rate limiter for BrsApi endpoints.
+Centralized rate limiter for ALL BrsApi.ir API calls.
 
-Implements per-endpoint-category rate limiting with:
-- Token bucket algorithm
-- Configurable rates (requests per minute)
-- Burst support
-- Thread-safe async implementation
+Three layers enforced for EVERY request:
+  1. Global daily limit   — max 10,000 requests/calendar day (Tehran time)
+  2. Global 5-min window  — max 500 requests in any sliding 5-minute window
+                            (AIO - All In One package limit)
+  3. Per-category bucket  — token-bucket per endpoint category
+
+Notification: fires a callback when daily usage hits 80%, 90%, 95%, 100%.
 """
 
 from __future__ import annotations
 
 import asyncio
+import time
+from collections import deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from logging import getLogger
 from typing import Any
 
 logger = getLogger(__name__)
 
+TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
+
+# ── Default global limits (overridable via BrsApiSettings) ──
+DEFAULT_GLOBAL_DAILY_LIMIT = 10_000
+DEFAULT_GLOBAL_5MIN_LIMIT = 500
+FIVE_MINUTES_SECONDS = 300
+
+# Notification thresholds (percentage of daily limit)
+NOTIFY_THRESHOLDS = [80, 90, 95, 100]
+
 
 @dataclass
 class Bucket:
-    """A single token bucket."""
+    """Token bucket for a single endpoint category."""
     key: str
     max_tokens: float
     refill_rate: float            # tokens per second
@@ -37,33 +53,152 @@ class Bucket:
         self.last_refill = now
 
 
+# Notification callback signature: async def callback(message: str) -> None
+NotifyCallback = Callable[[str], Awaitable[None]]
+
+
 class RateLimiter:
     """
-    Async token-bucket rate limiter.
+    Centralized async rate limiter for all BrsApi.ir requests.
+
+    Every call to ``acquire()`` goes through:
+      1. Daily counter   (10,000/day default)
+      2. 5-min window    (500/5min default)
+      3. Per-category bucket
 
     Usage::
 
-        limiter = RateLimiter()
-        async with limiter.acquire("tsetmc"):
-            data = await fetch(...)
+        limiter = get_rate_limiter()
+        await limiter.acquire("tsetmc")
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        daily_limit: int = DEFAULT_GLOBAL_DAILY_LIMIT,
+        five_min_limit: int = DEFAULT_GLOBAL_5MIN_LIMIT,
+    ) -> None:
         self._buckets: dict[str, Bucket] = {}
         self._lock = asyncio.Lock()
         self._default_max_tokens = 30.0
-        self._default_refill_rate = 0.5   # 30 rpm → 0.5 tps
+        self._default_refill_rate = 0.5
+
+        # ── Global counters ─────────────────────
+        self._daily_limit = daily_limit
+        self._five_min_limit = five_min_limit
+        self._daily_count: int = 0
+        self._daily_date: str = ""
+        self._5min_window: deque[float] = deque()
+
+        # ── Notification ────────────────────────
+        self._notify_callbacks: list[NotifyCallback] = []
+        self._notified_thresholds: set[int] = set()
+
+        # ── Per-endpoint tracking ───────────────
+        self._endpoint_counts: dict[str, int] = {}
+
+    # ── Notification ──────────────────────────────
+
+    def on_threshold(self, callback: NotifyCallback) -> None:
+        """Register a callback fired when daily usage hits a threshold."""
+        self._notify_callbacks.append(callback)
+
+    async def _fire_notification(self, message: str) -> None:
+        """Send notification to all registered callbacks."""
+        for cb in self._notify_callbacks:
+            try:
+                await cb(message)
+            except Exception:
+                logger.exception("Rate limit notification callback failed")
+
+    def _check_daily_thresholds(self) -> None:
+        """Check if daily usage has crossed any notification threshold."""
+        if self._daily_limit <= 0:
+            return
+        pct = (self._daily_count / self._daily_limit) * 100
+        for threshold in sorted(NOTIFY_THRESHOLDS):
+            if pct >= threshold and threshold not in self._notified_thresholds:
+                self._notified_thresholds.add(threshold)
+                msg = (
+                    f"BrsApi rate limit alert: daily usage at {threshold}% "
+                    f"({self._daily_count}/{self._daily_limit} requests). "
+                    f"Remaining: {max(0, self._daily_limit - self._daily_count)}"
+                )
+                logger.warning(msg)
+                # Fire async notification (best effort, outside lock)
+                asyncio.get_event_loop().call_soon(
+                    asyncio.ensure_future,
+                    self._fire_notification(msg),
+                )
+
+    # ── Global limit checks ─────────────────────
+
+    def _reset_daily_if_needed(self) -> None:
+        """Reset the daily counter when a new Tehran-timezone day starts."""
+        today = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d")
+        if today != self._daily_date:
+            old_count = self._daily_count
+            self._daily_count = 0
+            self._daily_date = today
+            self._notified_thresholds.clear()
+            if old_count > 0:
+                logger.info(
+                    "BrsApi daily counter reset (previous day: %d requests)",
+                    old_count,
+                )
+
+    def _prune_5min_window(self, now: float) -> None:
+        """Remove timestamps older than 5 minutes from the sliding window."""
+        cutoff = now - FIVE_MINUTES_SECONDS
+        while self._5min_window and self._5min_window[0] < cutoff:
+            self._5min_window.popleft()
+
+    def _wait_time_for_global_limits(self) -> float:
+        """Return seconds to wait before the next request is allowed."""
+        now = time.monotonic()
+        self._prune_5min_window(now)
+
+        # Daily limit
+        if self._daily_count >= self._daily_limit:
+            now_tz = datetime.now(TEHRAN_TZ)
+            midnight = (now_tz + timedelta(days=1)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            wait = (midnight - now_tz).total_seconds()
+            logger.warning(
+                "BrsApi DAILY LIMIT REACHED (%d/%d). Blocking until midnight Tehran.",
+                self._daily_count, self._daily_limit,
+            )
+            return max(wait, 1.0)
+
+        # 5-minute sliding window limit
+        if len(self._5min_window) >= self._five_min_limit:
+            oldest = self._5min_window[0]
+            wait = (oldest + FIVE_MINUTES_SECONDS) - now
+            if wait > 0:
+                logger.warning(
+                    "BrsApi 5-MIN LIMIT REACHED (%d/%d). Waiting %.1fs.",
+                    len(self._5min_window), self._five_min_limit, wait,
+                )
+                return wait
+
+        return 0.0
+
+    def _record_request(self, endpoint: str = "") -> None:
+        """Record a request in global counters."""
+        self._reset_daily_if_needed()
+        self._daily_count += 1
+        now = time.monotonic()
+        self._5min_window.append(now)
+        # Track per-endpoint
+        if endpoint:
+            self._endpoint_counts[endpoint] = self._endpoint_counts.get(endpoint, 0) + 1
+        # Check notification thresholds
+        self._check_daily_thresholds()
 
     # ── Public API ──────────────────────────────
 
     def configure(self, key: str, requests_per_minute: int) -> None:
-        """
-        Set the rate limit for a given category / endpoint key.
-
-        Args:
-            key: Category name (e.g. ``"tsetmc"``, ``"codal"``, ``"ime"``).
-            requests_per_minute: Max requests per minute (0 = unlimited).
-        """
+        """Set the rate limit for a given category."""
         if key in self._buckets:
             bucket = self._buckets[key]
             now = asyncio.get_event_loop().time()
@@ -77,16 +212,29 @@ class RateLimiter:
                 refill_rate=requests_per_minute / 60.0,
             )
 
-    async def acquire(self, key: str, tokens: int = 1) -> None:
+    async def acquire(self, key: str, tokens: int = 1, endpoint: str = "") -> None:
         """
-        Acquire *tokens* from the bucket identified by *key*.
+        Acquire tokens, enforcing ALL three layers of rate limits.
 
-        Blocks (async) until sufficient tokens are available.
+        Args:
+            key: Category name (e.g. "tsetmc", "codal").
+            tokens: Number of tokens to consume.
+            endpoint: Endpoint path for per-endpoint tracking.
         """
+        # ── Layer 1 & 2: Global limits ──────────
+        while True:
+            async with self._lock:
+                self._reset_daily_if_needed()
+                wait = self._wait_time_for_global_limits()
+                if wait <= 0:
+                    break
+            # Sleep outside the lock so other tasks aren't blocked
+            await asyncio.sleep(min(wait, 10.0))
+
+        # ── Layer 3: Per-category token bucket ──
         async with self._lock:
             bucket = self._buckets.get(key)
             if bucket is None:
-                # Auto-create with default rate
                 self.configure(key, int(self._default_refill_rate * 60))
                 bucket = self._buckets[key]
 
@@ -94,33 +242,61 @@ class RateLimiter:
             bucket._refill(now)
 
             if bucket.max_tokens <= 0:
-                # Unlimited – no wait
+                self._record_request(endpoint)
                 return
 
             if bucket.tokens >= tokens:
                 bucket.tokens -= tokens
+                self._record_request(endpoint)
                 return
 
-            # Not enough tokens — calculate wait
             deficit = tokens - bucket.tokens
             wait_seconds = deficit / bucket.refill_rate
             logger.debug("Rate limited %s: waiting %.2fs", key, wait_seconds)
 
-        # Release the lock before sleeping so other tasks can refill
         await asyncio.sleep(wait_seconds)
 
-        # Re-acquire
         async with self._lock:
             bucket = self._buckets.get(key)
             if bucket:
                 now = asyncio.get_event_loop().time()
                 bucket._refill(now)
                 bucket.tokens = max(0.0, bucket.tokens - tokens)
+            self._record_request(endpoint)
 
-    # ── Status ─────────────────────────────────
+    # ── Status / Dashboard ─────────────────────
+
+    def status(self) -> dict[str, Any]:
+        """Full status snapshot for monitoring/dashboard."""
+        self._reset_daily_if_needed()
+        now = time.monotonic()
+        self._prune_5min_window(now)
+        return {
+            "global": {
+                "daily_count": self._daily_count,
+                "daily_limit": self._daily_limit,
+                "daily_remaining": max(0, self._daily_limit - self._daily_count),
+                "daily_used_pct": round(
+                    (self._daily_count / self._daily_limit * 100) if self._daily_limit else 0, 1
+                ),
+                "5min_count": len(self._5min_window),
+                "5min_limit": self._five_min_limit,
+                "5min_remaining": max(0, self._five_min_limit - len(self._5min_window)),
+                "5min_used_pct": round(
+                    (len(self._5min_window) / self._five_min_limit * 100) if self._five_min_limit else 0, 1
+                ),
+            },
+            "per_endpoint": dict(
+                sorted(self._endpoint_counts.items(), key=lambda x: -x[1])
+            ),
+            "per_category": {
+                key: self.get_bucket_status(key) or {}
+                for key in self._buckets
+            },
+            "tehran_time": datetime.now(TEHRAN_TZ).isoformat(),
+        }
 
     def get_bucket_status(self, key: str) -> dict[str, Any] | None:
-        """Return current token bucket status for a given key."""
         bucket = self._buckets.get(key)
         if bucket is None:
             return None
@@ -131,23 +307,13 @@ class RateLimiter:
             "refill_rate": round(bucket.refill_rate, 3),
         }
 
-    def all_bucket_status(self) -> dict[str, dict[str, Any]]:
-        """Return status for all tracked buckets."""
-        return {
-            key: self.get_bucket_status(key) or {}
-            for key in self._buckets
-        }
+    # ── Context manager ────────────────────────
 
-    # ── Context-manager sugar ──────────────────
-
-    def limit(self, key: str, tokens: int = 1) -> "RateLimitContext":
-        """Return an async context manager that acquires tokens on enter."""
+    def limit(self, key: str, tokens: int = 1) -> RateLimitContext:
         return RateLimitContext(limiter=self, key=key, tokens=tokens)
 
 
 class RateLimitContext:
-    """Async context manager returned by ``RateLimiter.limit()``."""
-
     def __init__(self, limiter: RateLimiter, key: str, tokens: int = 1) -> None:
         self._limiter = limiter
         self._key = key
@@ -160,12 +326,20 @@ class RateLimitContext:
         pass
 
 
-# Global singleton
+# ── Global singleton ──────────────────────────────
+
 _rate_limiter: RateLimiter | None = None
 
 
 def get_rate_limiter() -> RateLimiter:
     global _rate_limiter
     if _rate_limiter is None:
-        _rate_limiter = RateLimiter()
+        try:
+            from brsapi.config import settings as brsapi_settings
+            daily = brsapi_settings.global_daily_limit
+            five_min = brsapi_settings.global_5min_limit
+        except Exception:
+            daily = DEFAULT_GLOBAL_DAILY_LIMIT
+            five_min = DEFAULT_GLOBAL_5MIN_LIMIT
+        _rate_limiter = RateLimiter(daily_limit=daily, five_min_limit=five_min)
     return _rate_limiter

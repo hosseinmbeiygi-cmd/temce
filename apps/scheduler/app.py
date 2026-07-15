@@ -36,9 +36,21 @@ class SchedulerApp:
 
         # ── Legacy sync jobs (now proper BaseJob classes with DB sessions) ──
         self.add_job("SyncInstrumentsJob", trigger="interval", hours=24)
-        self.add_job("SyncQuotesJob", trigger="interval", minutes=5)
+        self.add_job("SyncQuotesJob", trigger="interval", minutes=2)
+        self.add_job("SyncSnapshotsToQuotesJob", trigger="interval", minutes=2)
         self.add_job("SyncCodalJob", trigger="interval", hours=6)
-        self.add_job("NewsIngestionJob", trigger="interval", hours=1)
+        self.add_job("NewsIngestionJob", trigger="interval", minutes=10)
+
+        # ── Backfill historical data (daily, off-peak hours) ──
+        self.add_job(
+            "BackfillHistoricalDataJob",
+            trigger="cron",
+            hour=2,          # Run at 2 AM Tehran time
+            minute=0,
+            max_instances=1,  # Never run two backfills concurrently
+            replace_existing=True,
+        )
+
         self.scheduler.start()
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 

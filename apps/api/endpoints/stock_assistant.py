@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from apps.api.dependencies import get_brsapi_query_service
@@ -52,15 +52,33 @@ async def stock_assistant_query(
                 data=result.get("data"),
             ),
         )
-    except Exception as exc:
-        logger.exception("Stock assistant error")
+    except ImportError as exc:
+        logger.exception("Stock assistant import error — missing dependency?")
         return ApiResponse[AssistantResponse](
             success=False,
             data=AssistantResponse(
-                text="خطایی رخ داد. لطفاً دوباره تلاش کنید.",
+                text="⚠️ خطا در بارگذاری سرویس دستیار. لطفاً مطمئن شوید همه وابستگی‌ها نصب هستند: pip install -r requirements.txt",
                 type="error",
             ),
-            error={"message": str(exc)},
+            error={"message": f"Import error: {exc}"},
+        )
+    except Exception as exc:
+        logger.exception("Stock assistant error")
+        error_msg = str(exc)
+        # Show a helpful message based on error type
+        if "connection" in error_msg.lower() or "database" in error_msg.lower() or "psycopg" in error_msg.lower():
+            user_text = "⚠️ خطا در اتصال به پایگاه داده. لطفاً مطمئن شوید PostgreSQL در حال اجراست (پورت ۵۴۳۲)."
+        elif "timeout" in error_msg.lower():
+            user_text = "⚠️ زمان درخواست به پایان رسید. لطفاً دوباره تلاش کنید."
+        else:
+            user_text = f"⚠️ خطایی رخ داد: {error_msg[:200]}. لطفاً دوباره تلاش کنید."
+        return ApiResponse[AssistantResponse](
+            success=False,
+            data=AssistantResponse(
+                text=user_text,
+                type="error",
+            ),
+            error={"message": error_msg},
         )
 
 

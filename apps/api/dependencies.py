@@ -4,8 +4,7 @@ from collections.abc import AsyncGenerator
 from functools import lru_cache
 
 from fastapi import Depends, Header, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
 from core.security.tokens import decode_access_token
@@ -14,7 +13,6 @@ logger = get_logger(__name__)
 
 # 🔧 PostgreSQL connection via dependency injection
 # This is now using settings.database_url from core.config
-from core.config import settings
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
@@ -30,8 +28,8 @@ def get_symbol_service(session: AsyncSession = Depends(get_db_session)):
 
 
 def get_instrument_import_service(session: AsyncSession = Depends(get_db_session)):
-    from services.instrument_import_service import InstrumentImportService
     from repositories.instrument_repository import InstrumentRepository
+    from services.instrument_import_service import InstrumentImportService
 
     return InstrumentImportService(repo=InstrumentRepository(session=session))
 
@@ -97,9 +95,10 @@ def get_news_service(session: AsyncSession = Depends(get_db_session)):
 
 @lru_cache(maxsize=1)
 def get_backtest_service():
+    from repositories.backtest_repository import BacktestRepository
     from services.backtest_service import BacktestService
 
-    return BacktestService()
+    return BacktestService(repository=BacktestRepository())
 
 
 def get_inference_service():
@@ -181,3 +180,11 @@ def get_portfolio_service(session: AsyncSession = Depends(get_db_session)):
     from services.portfolio_service import PortfolioService
 
     return PortfolioService(session=session)
+
+
+def get_watchlist_service(
+    brsapi=Depends(get_brsapi_query_service),
+):
+    from services.watchlist_service import WatchlistService
+
+    return WatchlistService(brsapi=brsapi)

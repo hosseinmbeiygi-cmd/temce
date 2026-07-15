@@ -395,7 +395,7 @@ export default function SmartMoneyPage() {
                 </span>
                 <div>
                   <p className="text-surface-300 leading-relaxed">
-                    {`نماد ${symbol} با امتیاز SMC برابر با ${smcPct}% در فاز "${phaseMeta?.label}" قرار دارد. ${phaseMeta?.desc}.`}
+                    {"نماد " + symbol + " با امتیاز SMC برابر با " + smcPct + "% در فاز \"" + phaseMeta?.label + "\" قرار دارد. " + phaseMeta?.desc + "."}
                   </p>
                   <p className="text-surface-500 mt-2 leading-relaxed text-xs">
                     {smcPct >= 70

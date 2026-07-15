@@ -11,7 +11,7 @@ from .http_client import HttpClient
 from .lake import RawDataLake
 from .parser import ParserRegistry
 from .sources.derivatives import TsetmcFutureSource, TsetmcOptionSource
-from .sources.library_sources import FinpyTseSource, TsetmcLibSource, TehranStocksSource, TseUtilsSource
+from .sources.library_sources import FinpyTseSource, TehranStocksSource, TsetmcLibSource, TseUtilsSource
 from .sources.tsetmc import TsetmcOrderBookSource, TsetmcTradeSource
 from .storage.dedup import DeduplicationEngine
 

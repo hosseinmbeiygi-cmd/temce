@@ -8,10 +8,9 @@ Adds Persian colloquial/conversational keyword support.
 from __future__ import annotations
 
 import re
-import math
-from typing import Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from core.logging import get_logger
 
@@ -572,6 +571,34 @@ _COLLOQUIAL_MAP: dict[str, list[str]] = {
     "دستورات": ["کمک"],
     "چه فرمان‌هایی": ["کمک"],
 
+    # Backtest
+    "بک‌تست": ["بک‌تست"],
+    "بک تست": ["بک‌تست"],
+    "بکتست": ["بک‌تست"],
+    "backtest": ["بک‌تست"],
+
+    # Strategy
+    "استراتژی": ["استراتژی"],
+    "strategy": ["استراتژی"],
+
+    # Optimization
+    "بهینه‌سازی": ["بهینه‌سازی"],
+    "بهینه سازی": ["بهینه‌سازی"],
+    "walk forward": ["بهینه‌سازی"],
+    "مونت کارلو": ["بهینه‌سازی"],
+    "مونته کارلو": ["بهینه‌سازی"],
+    "monte carlo": ["بهینه‌سازی"],
+
+    # Compare strategies
+    "مقایسه استراتژی": ["مقایسه_استراتژی"],
+    "مقایسه همه استراتژی": ["مقایسه_استراتژی"],
+    "مقایسه استراتژی‌ها": ["مقایسه_استراتژی"],
+    "مقایسه همه": ["مقایسه_استراتژی"],
+
+    # Strategy generation
+    "تولید استراتژی": ["تولید_استراتژی"],
+    "ساخت استراتژی": ["تولید_استراتژی"],
+
     # Quick recommendation
     "پیشنهاد": ["پیشنهاد"],
     "پیشنهاد میدی": ["پیشنهاد"],
@@ -582,8 +609,26 @@ _COLLOQUIAL_MAP: dict[str, list[str]] = {
     "سیگنال": ["سیگنال"],
     "سیگنال خرید": ["سیگنال"],
     "سیگنال فروش": ["سیگنال"],
-    "alarm": ["سیگنال"],
-    "هشدار": ["سیگنال"],
+
+    # Alerts (separate from signals to avoid mis-routing)
+    "هشدار": ["هشدار"],
+    "هشدار جدید": ["هشدار"],
+    "هشدارها": ["هشدار"],
+    "لیست هشدارها": ["هشدار"],
+    "alarm": ["هشدار"],
+    "alert": ["هشدار"],
+
+    # Pattern recognition
+    "الگو": ["الگو"],
+    "الگوهای": ["الگو"],
+    "کندل": ["الگو"],
+    "شمعی": ["الگو"],
+    "pattern": ["الگو"],
+
+    # Report
+    "گزارش": ["گزارش"],
+    "گزارش بازار": ["گزارش"],
+    "report": ["گزارش"],
 }
 
 
@@ -621,8 +666,32 @@ def _detect_intent(text: str) -> str | None:
         return "کمک"
     if re.search(r"پیشنهاد|پیشنهاد میدی|چی پیشنهاد", text_lower):
         return "پیشنهاد"
-    if re.search(r"سیگنال|هشدار|alarm", text_lower):
+    if re.search(r"سیگنال", text_lower):
         return "سیگنال"
+
+    # Alert detection (separate from signals)
+    if re.search(r"هشدار|alarm|alert", text_lower):
+        return "هشدار"
+
+    # Pattern detection
+    if re.search(r"الگو|pattern|کندل|شمعی", text_lower):
+        return "الگو"
+
+    # Report detection
+    if re.search(r"گزارش|report", text_lower):
+        return "گزارش"
+
+    # Backtest-related regex fallbacks
+    if re.search(r"بک‌تست|بکتست|backtest", text_lower):
+        return "بک‌تست"
+    if re.search(r"استراتژی|strategy", text_lower):
+        return "استراتژی"
+    if re.search(r"بهینه‌سازی|walk.?forward|مونت.?کارلو|مونته.?کارلو|monte.?carlo", text_lower):
+        return "بهینه‌سازی"
+    if re.search(r"مقایسه\s*استراتژی|تولید\s*استراتژی|ساخت\s*استراتژی", text_lower):
+        if "مقایسه" in text_lower:
+            return "مقایسه_استراتژی"
+        return "تولید_استراتژی"
 
     return None
 
@@ -742,10 +811,7 @@ class AlertManager:
             current = values[alert.alert_type]
             alert.current_value = current
 
-            if alert.condition == "above" and current > alert.threshold:
-                alert.triggered = True
-                triggered.append(alert)
-            elif alert.condition == "below" and current < alert.threshold:
+            if alert.condition == "above" and current > alert.threshold or alert.condition == "below" and current < alert.threshold:
                 alert.triggered = True
                 triggered.append(alert)
 
@@ -1070,14 +1136,19 @@ class StockAssistantService:
             return cached
 
         try:
-            snapshots = await self._brsapi.get_enriched_snapshots(limit=300)
+            snapshots = await self._brsapi.get_enriched_snapshots(limit=500)
             if not snapshots:
+                logger.warning("No stock data from BrsApi — DB may be empty (sync hasn't run yet)")
                 return []
             stocks = [self._normalize(s) for s in snapshots if s.get("symbol")]
+            if not stocks:
+                logger.warning("BrsApi returned %d snapshots but none had a symbol field", len(snapshots))
+                return []
+            logger.info("Loaded %d stocks from BrsApi", len(stocks))
             self._cache_set("all_stocks", stocks)
             return stocks
         except Exception as exc:
-            logger.warning("Failed to fetch stocks: %s", exc)
+            logger.warning("Failed to fetch stocks from BrsApi: %s", exc)
             return []
 
     async def _get_stock_history(self, symbol: str) -> list[dict[str, Any]]:
@@ -1158,6 +1229,24 @@ class StockAssistantService:
         if intent == "فیلتر":
             return await self._filter_from_text(text)
 
+        if intent == "الگو":
+            return await self._pattern_handler(text)
+        if intent == "هشدار":
+            return await self._alert_handler(text)
+        if intent == "گزارش":
+            return await self._report_handler(text)
+
+        if intent == "بک‌تست":
+            return await self._backtest_handler(text)
+        if intent == "بهینه‌سازی":
+            return await self._optimization_handler(text)
+        if intent == "استراتژی":
+            return await self._strategy_handler(text)
+        if intent == "مقایسه_استراتژی":
+            return await self._compare_strategies_handler(text)
+        if intent == "تولید_استراتژی":
+            return await self._strategy_generation_handler(text)
+
         if re.search(r"پرتفوی|سبد|portfolio", text, re.IGNORECASE):
             return await self._portfolio_handler(text)
         if re.search(r"هشدار|alarm|alert", text, re.IGNORECASE):
@@ -1194,6 +1283,7 @@ class StockAssistantService:
                 "• تحلیل چند بازه زمانی\n"
                 "• حجم در قیمت\n"
                 "• همبستگی سهام\n"
+                "• بک‌تست استراتژی‌ها\n"
                 "• کمک"
             ),
             "type": "unknown",
@@ -1211,6 +1301,7 @@ class StockAssistantService:
                 "• تحلیل چند بازه زمانی (روزانه/هفتگی/ماهانه)\n"
                 "• تحلیل حجم در قیمت و نقاط کنترل\n"
                 "• محاسبه همبستگی بین سهام\n"
+                "• بک‌تست استراتژی‌ها و بهینه‌سازی پارامترها\n"
                 "• گزارش‌های خودکار بازار\n"
                 "• مقایسه و فیلتر پیشرفته\n\n"
                 "یک سوال بپرسید!"
@@ -1243,7 +1334,12 @@ class StockAssistantService:
                 "🔹 همبستگی: «همبستگی فولاد خودرو»\n"
                 "🔹 گزارش: «گزارش بازار»\n"
                 "🔹 بروزرسانی: «آپدیت»، «تازه کن»\n"
-                "🔹 خداحافظ: «خداحافظ»، «فعلا»"
+                "🔹 خداحافظ: «خداحافظ»، «فعلا»\n"
+                "🔹 بک‌تست: «بک‌تست moving_average_cross روی فولاد»\n"
+                "🔹 استراتژی: «استراتژی‌ها»، «بهترین استراتژی برای خودرو»\n"
+                "🔹 بهینه‌سازی: «بهینه‌سازی پارامترها»، «walk forward فولاد»\n"
+                "🔹 مقایسه استراتژی: «مقایسه همه استراتژی‌ها روی فولاد»\n"
+                "🔹 تولید استراتژی: «تولید استراتژی برای فولاد»"
             ),
             "type": "help",
         }
@@ -1328,9 +1424,21 @@ class StockAssistantService:
         if re.search(r"همه|تمام|تحلیل\s*کن|بررسی\s*همه", text):
             return await self._analyze_all()
 
+        # If no symbol found, try to list available symbols as suggestions
+        all_stocks = await self._get_all_stocks()
+        if all_stocks:
+            top_symbols = [s["symbol"] for s in all_stocks[:20] if s.get("symbol")]
+            hint = "، ".join(top_symbols[:10])
+            return {
+                "text": "نماد مورد نظر در پایگاه داده یافت نشد.\n\n"
+                        "نمادهای موجود (نمونه):\n"
+                        f"{hint}\n\n"
+                        "لطفاً نام سهم را از لیست بالا انتخاب کنید.",
+                "type": "info",
+            }
         return {
-            "text": "نمادی در متن شما شناسایی نشد. لطفاً نام سهم را ذکر کنید.\nمثال: تحلیل فولاد",
-            "type": "error",
+            "text": "داده‌ای برای تحلیل موجود نیست. لطفاً بعداً تلاش کنید.",
+            "type": "info",
         }
 
     async def _find_cheap(self) -> dict[str, Any]:
@@ -1843,26 +1951,211 @@ class StockAssistantService:
         return {"text": "\n".join(lines), "type": "volume_profile", "data": vp}
 
     async def _correlation_handler(self, text: str) -> dict[str, Any]:
-        symbols = re.findall(r"(\S+)", text.replace("همبستگی", "").replace("correlation", ""))
-        if len(symbols) < 2:
-            stocks = await self._get_all_stocks()
-            symbols = [s["symbol"] for s in stocks[:5]]
+        # Extract target symbol from various Persian query formats
+        # "همبستگی فولاد خودرو" or "نماد موج با کدام سهم همبستگی دارد"
+        clean = text.replace("همبستگی", "").replace("correlation", "").replace("با کدام سهم", "").replace("دارد", "").replace("نماد", "").strip()
+        symbols = re.findall(r"[\u0600-\u06FF\w]+", clean)
+        # Filter out common non-symbol words
+        stopwords = {"با", "کدام", "سهم", "هست", "هستند", "دارد", "دارند", "کند", "کنید", "بده", "بدهید", "نماد", "ها", "های"}
+        symbols = [s for s in symbols if s not in stopwords and len(s) >= 2]
+
+        target_symbol = symbols[0] if symbols else None
+        compare_symbols = symbols[1:] if len(symbols) > 1 else []
+
+        # If only target symbol, find similar stocks from same sector
+        if target_symbol and not compare_symbols:
+            try:
+                all_stocks = await self._get_all_stocks()
+                # Get target's sector
+                target_sector = None
+                for s in all_stocks:
+                    if s.get("symbol") == target_symbol:
+                        target_sector = s.get("sector", "")
+                        break
+                # Find stocks from same sector
+                if target_sector:
+                    compare_symbols = [s["symbol"] for s in all_stocks
+                                       if s.get("sector") == target_sector and s.get("symbol") != target_symbol][:8]
+                if not compare_symbols:
+                    compare_symbols = [s["symbol"] for s in all_stocks
+                                       if s.get("symbol") != target_symbol][:8]
+            except Exception:
+                pass
+
+        if not target_symbol:
+            return {"text": "لطفاً نماد مورد نظر را مشخص کنید.\nمثال: «همبستگی فولاد خودرو» یا «نماد موج با کدام سهم همبستگی دارد»", "type": "error"}
+
+        all_symbols = [target_symbol] + compare_symbols
 
         history_data = {}
-        for sym in symbols[:5]:
-            history = await self._get_stock_history(sym)
-            if history and len(history) >= 20:
-                history_data[sym] = [h.get("close", 0) for h in history]
+        for sym in all_symbols[:10]:
+            try:
+                history = await self._get_stock_history(sym)
+                if history and len(history) >= 10:
+                    history_data[sym] = [h.get("close", 0) for h in history]
+            except Exception:
+                continue
 
         if len(history_data) < 2:
-            return {"text": "داده کافی برای محاسبه همبستگی موجود نیست.", "type": "error"}
+            return {"text": f"داده کافی برای محاسبه همبستگی {target_symbol} موجود نیست.\nممکن است نماد در دیتابیس وجود نداشته باشد یا تاریخچه کافی ثبت نشده باشد.", "type": "error"}
 
         correlations = CorrelationAnalysis.sector_correlation(history_data)
 
-        lines = ["📊 همبستگی سهام:", "═" * 40]
-        for pair, corr in correlations.items():
-            strength = "قوی" if abs(corr) > 0.7 else "متوسط" if abs(corr) > 0.4 else "ضعیف"
-            emoji = "🟢" if corr > 0.5 else "🔴" if corr < -0.5 else "🟡"
-            lines.append(f"  {emoji} {pair}: {corr:.4f} ({strength})")
+        # Filter correlations that involve the target symbol
+        target_corrs = {k: v for k, v in correlations.items() if target_symbol in k}
 
-        return {"text": "\n".join(lines), "type": "correlation", "data": correlations}
+        if not target_corrs:
+            target_corrs = correlations
+
+        lines = [f"📊 همبستگی {target_symbol} با سایر سهام:", "═" * 50]
+        sorted_corrs = sorted(target_corrs.items(), key=lambda x: abs(x[1]), reverse=True)
+
+        for pair, corr in sorted_corrs[:10]:
+            strength = "خیلی قوی" if abs(corr) > 0.8 else "قوی" if abs(corr) > 0.6 else "متوسط" if abs(corr) > 0.4 else "ضعیف"
+            if corr > 0.6:
+                emoji = "🟢"
+            elif corr < -0.4:
+                emoji = "🔴"
+            else:
+                emoji = "🟡"
+            lines.append(f"  {emoji} {pair}: {corr:.3f} ({strength})")
+
+        lines.append(f"\nتعداد نمادهای مقایسه شده: {len(history_data)}")
+        return {"text": "\n".join(lines), "type": "correlation", "data": target_corrs}
+
+
+    # ── Backtest handlers ────────────────────────────
+
+    async def _backtest_handler(self, text: str) -> dict[str, Any]:
+        """Handle backtest-related commands."""
+        lines = [
+            "📊 بک‌تست (Backtest)",
+            "═" * 60,
+            "",
+            "بک‌تست به شما امکان می‌دهد استراتژی‌های معاملاتی را روی داده‌های تاریخی",
+            "آزمایش کنید و عملکرد آنها را بسنجید.",
+            "",
+            "📋 استراتژی‌های موجود:",
+            "• moving_average_cross — تقاطع میانگین‌های متحرک",
+            "• momentum — استراتژی مومنتوم",
+            "• mean_reversion — بازگشت به میانگین",
+            "• breakout — شکست قیمتی",
+            "• rsi_reversion — بازگشت RSI",
+            "• volatility_breakout — شکست نوسانی",
+            "• half_trend — نصف روند",
+            "• squeeze_momentum — مومنتوم فشرده",
+            "• support_resistance — حمایت و مقاومت",
+            "",
+            "🔧 پارامترهای قابل تنظیم:",
+            "• سرمایه اولیه (initial_capital)",
+            "• حد ضرر (stop_loss_pct)",
+            "• حد سود (take_profit_pct)",
+            "• کارمزد (commission_pct)",
+            "• Slippage (slippage_bps)",
+            "• روش حجم معامله (sizing_method)",
+            "",
+            "💡 مثال:",
+            "«بک‌تست moving_average_cross روی فولاد با سرمایه ۱ میلیارد»",
+            "«بک‌تست با حد ضرر ۵٪ و حد سود ۱۰٪»",
+            "«مقایسه همه استراتژی‌ها روی فولاد»",
+            "",
+            "⚙️ قابلیت‌های پیشرفته:",
+            "• بهینه‌سازی پارامترها (Walk-Forward, Monte Carlo)",
+            "• بک‌تست پرتفوی (چند سهم همزمان)",
+            "• تولید خودکار استراتژی (Grid Search, Genetic)",
+            "• مقایسه همزمان همه استراتژی‌ها",
+        ]
+        return {"text": "\\n".join(lines), "type": "info"}
+
+    async def _optimization_handler(self, text: str) -> dict[str, Any]:
+        """Handle optimization-related commands."""
+        lines = [
+            "⚙️ بهینه‌سازی پارامترها",
+            "═" * 50,
+            "",
+            "سه روش بهینه‌سازی در دسترس است:",
+            "",
+            "۱. Walk-Forward Optimization",
+            "   • داده به چند پنجره آموزش/تست تقسیم می‌شود",
+            "   • از overfitting جلوگیری می‌کند",
+            "   • بهترین پارامترها را در پنجره‌های مختلف انتخاب می‌کند",
+            "",
+            "۲. Monte Carlo Simulation",
+            "   • با شبیه‌سازی ۱۰۰۰+ بار معاملات",
+            "   • فاصله اطمینان بازده را محاسبه می‌کند",
+            "   • ریسک واقعی استراتژی را نشان می‌دهد",
+            "",
+            "۳. Grid Search",
+            "   • همه ترکیب‌های ممکن پارامترها را امتحان می‌کند",
+            "   • بهترین ترکیب را بر اساس معیار مورد نظر انتخاب می‌کند",
+            "",
+            "💡 مثال:",
+            "«بهینه‌سازی moving_average_cross روی فولاد»",
+            "«walk forward روی فولاد»",
+            "«مونت کارلو فولاد»",
+        ]
+        return {"text": "\\n".join(lines), "type": "info"}
+
+    async def _strategy_handler(self, text: str) -> dict[str, Any]:
+        """List available strategies for backtesting."""
+        from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
+        registry = get_strategy_registry()
+        if not registry.list_names():
+            register_all_strategies()
+        strategies = registry.list_strategies()
+        lines = ["📋 استراتژی‌های موجود برای بک‌تست:", "═" * 60]
+        for s in strategies:
+            name = s.get("name", "")
+            desc = s.get("description", "")
+            lines.append(f"• {name}")
+            if desc:
+                lines.append(f"  {desc[:100]}")
+        return {"text": "\\n".join(lines), "type": "info"}
+
+    async def _compare_strategies_handler(self, text: str) -> dict[str, Any]:
+        """Handle strategy comparison commands."""
+        lines = [
+            "⚖️ مقایسه استراتژی‌ها",
+            "═" * 50,
+            "",
+            "می‌توانید همه استراتژی‌ها را روی یک نماد مقایسه کنید.",
+            "",
+            "معیارهای مقایسه:",
+            "• Total Return — بازده کل",
+            "• Sharpe Ratio — نسبت بازده به ریسک",
+            "• Win Rate — درصد معاملات برنده",
+            "• Max Drawdown — حداکثر کاهش سرمایه",
+            "• Profit Factor — نسبت سود به زیان",
+            "• Deflated Sharpe — تعدیل شده برای تعداد استراتژی‌ها",
+            "",
+            "💡 مثال:",
+            "«مقایسه همه استراتژی‌ها روی فولاد»",
+            "«بهترین استراتژی برای خودرو کدومه»",
+        ]
+        return {"text": "\\n".join(lines), "type": "info"}
+
+    async def _strategy_generation_handler(self, text: str) -> dict[str, Any]:
+        """Handle strategy generation commands."""
+        lines = [
+            "🧬 تولید خودکار استراتژی",
+            "═" * 50,
+            "",
+            "سیستم می‌تواند به صورت خودکار هزاران استراتژی را با ترکیب",
+            "پارامترهای مختلف تولید، آزمایش و فیلتر کند.",
+            "",
+            "روش‌های تولید:",
+            "• Grid Search — جستجوی کامل همه ترکیب‌ها (تا ۵۰۰۰)",
+            "• Genetic Algorithm — بهینه‌سازی ژنتیک (تا ۱۲ نسل)",
+            "",
+            "فیلترهای اعمال شده:",
+            "• Sharpe > 1",
+            "• Win Rate > 40%",
+            "• Max Drawdown < 30%",
+            "• Profit Factor > 1.3",
+            "• تعداد معاملات > ۱۰",
+            "",
+            "💡 مثال:",
+            "«تولید استراتژی برای فولاد»",
+            "«ساخت ۵۰۰۰ استراتژی با grid search»",
+        ]
+        return {"text": "\\n".join(lines), "type": "info"}

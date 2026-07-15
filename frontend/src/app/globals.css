@@ -1771,6 +1771,17 @@ body.dark-theme ::-webkit-scrollbar-thumb {
   100% { background-position: 200% center; }
 }
 
+/* ── Indeterminate Progress Bar Animation ── */
+@keyframes progress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(300%); }
+}
+.animate-progress {
+  animation: progress 2s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+
 .chart-element {
   animation: fadeIn 0.5s ease forwards;
 }

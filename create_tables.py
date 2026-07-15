@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlalchemy import text
+
 from core.config import settings
 from models.base import Base
 
@@ -17,31 +18,31 @@ async def create_all_tables():
     print("  Creating all database tables in PostgreSQL")
     print("=" * 60)
     print(f"\nDB URL: {settings.database_url}")
-    
+
     import core.database as db
-    
+
     try:
         print("\nConnecting to PostgreSQL...")
         await db.init_database()
-        
+
         if db.engine is None:
             print("ERROR: Engine is None after init_database!")
             sys.exit(1)
         print("Connected!")
-        
+
         print("\nLoading models...")
         import models  # noqa: F401
-        
+
         all_tables = sorted(Base.metadata.tables.keys())
         print(f"Registered tables: {len(all_tables)}")
         for t in all_tables:
             print(f"  - {t}")
-        
+
         print("\nCreating tables...")
         async with db.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("All tables created successfully!")
-        
+
         print("\nVerifying tables in PostgreSQL...")
         async with db.engine.begin() as conn:
             result = await conn.execute(
@@ -51,11 +52,11 @@ async def create_all_tables():
             print(f"Tables in PostgreSQL: {len(tables)}")
             for t in tables:
                 print(f"  + {t}")
-        
+
         print("\n" + "=" * 60)
         print("  SUCCESS! All tables created")
         print("=" * 60)
-        
+
     except Exception as e:
         import traceback
         print(f"\nERROR: {e}")

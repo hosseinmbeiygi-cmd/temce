@@ -195,7 +195,7 @@ class BulkUpsertRepository(Generic[T]):
         """Get the most recent rows for a given symbol."""
         col = getattr(self.model_class, order_column, None)
         if col is None:
-            col = getattr(self.model_class, "created_at")
+            col = self.model_class.created_at
         stmt = (
             select(self.model_class)
             .where(self.model_class.symbol == symbol)

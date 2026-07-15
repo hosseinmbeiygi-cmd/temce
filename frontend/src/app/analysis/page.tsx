@@ -127,7 +127,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 60000,
+    refetchInterval: 600_000,
   });
 
   const avgSentiment = analysis?.sentiment?.length
@@ -146,7 +146,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 120_000,
+    refetchInterval: 600_000,
     staleTime: 60_000,
   });
 
@@ -162,7 +162,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 120_000,
+    refetchInterval: 600_000,
     staleTime: 60_000,
   });
 
@@ -177,7 +177,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 120_000,
+    refetchInterval: 600_000,
     staleTime: 60_000,
   });
 
@@ -192,7 +192,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 120_000,
+    refetchInterval: 600_000,
     staleTime: 60_000,
   });
 
@@ -252,7 +252,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 120_000,
+    refetchInterval: 600_000,
     staleTime: 60_000,
   });
 
@@ -266,7 +266,7 @@ export default function AnalysisPage() {
       } catch {}
       return null;
     },
-    refetchInterval: 120_000,
+    refetchInterval: 600_000,
     staleTime: 60_000,
   });
 
@@ -445,7 +445,7 @@ export default function AnalysisPage() {
                   <Skeleton className="h-[400px] w-full rounded-2xl" />
                 ) : CANDLE_DATA.length > 0 ? (
                   <CandleChartCard
-                    title={`تحلیل تکنیکال - ${TECH_SYMBOL}`}
+                    title={"تحلیل تکنیکال - " + TECH_SYMBOL}
                     data={CANDLE_DATA}
                     symbol={TECH_SYMBOL}
                     height={400}
@@ -527,7 +527,7 @@ export default function AnalysisPage() {
                             const last = ohlcvBars[ohlcvBars.length - 1]?.volume || 0;
                             const prev = ohlcvBars[ohlcvBars.length - 2]?.volume || 1;
                             const chg = ((last - prev) / prev) * 100;
-                            return `${chg >= 0 ? "⬆️" : "⬇️"} ${Math.abs(chg).toFixed(0)}% نسبت به روز قبل`;
+                            return (chg >= 0 ? "⬆️" : "⬇️") + " " + Math.abs(chg).toFixed(0) + "% نسبت به روز قبل";
                           })()
                         : "—"}
                     </div>
@@ -536,31 +536,50 @@ export default function AnalysisPage() {
 
                 {/* Pattern Detection */}
                 <div className="glass-card p-5">
-                  <h3 className="font-bold text-surface-200 mb-3">الگوهای شناسایی شده</h3>
+                  <h3 className="font-bold text-surface-200 mb-3">تحلیل بر اساس داده‌های لحظه‌ای</h3>
                   <div className="space-y-2">
-                    {[
-                      { pattern: "چکش (Hammer)", symbol: "فولاد", confidence: "بالا", desc: "الگوی برگشتی صعودی در حمایت روزانه" },
-                      { pattern: "انگلفینگ صعودی", symbol: "شپنا", confidence: "متوسط", desc: "الگوی دو شمعی برگشتی در انتهای روند نزولی" },
-                      { pattern: "ستاره ثاقب", symbol: "وبملت", confidence: "پایین", desc: "الگوی هشدار در سقف مقاومت" },
-                    ].map((p, i) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-surface-800/30 rounded-lg">
-                        <span className="w-2 h-2 rounded-full mt-1.5" style={{
-                          background: p.confidence === "بالا" ? "var(--positive)" : p.confidence === "متوسط" ? "var(--neutral)" : "var(--negative)"
-                        }} />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-surface-200 text-sm">{p.pattern}</span>
-                            <span className="text-xs text-primary-400">{p.symbol}</span>
-                          </div>
-                          <p className="text-xs text-surface-500 mt-1">{p.desc}</p>
-                        </div>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                          p.confidence === "بالا" ? "bg-accent-emerald/15 text-accent-emerald" :
-                          p.confidence === "متوسط" ? "bg-accent-amber/15 text-accent-amber" :
-                          "bg-accent-rose/15 text-accent-rose"
-                        }`}>{p.confidence}</span>
-                      </div>
-                    ))}
+                    {ohlcvBars && ohlcvBars.length > 5 ? (
+                      (() => {
+                        const last5 = ohlcvBars.slice(-5);
+                        const avgVol = last5.reduce((s, b) => s + (b.volume || 0), 0) / 5;
+                        const lastVol = last5[last5.length - 1]?.volume || 0;
+                        const volChange = ((lastVol - avgVol) / Math.max(avgVol, 1)) * 100;
+                        const lastClose = last5[last5.length - 1]?.close || 0;
+                        const prevClose = last5[last5.length - 2]?.close || lastClose;
+                        const priceChange = ((lastClose - prevClose) / Math.max(prevClose, 1)) * 100;
+
+                        return (
+                          <>
+                            <div className="flex items-start gap-3 p-3 bg-surface-800/30 rounded-lg">
+                              <span className="w-2 h-2 rounded-full mt-1.5" style={{ background: priceChange > 0 ? "var(--positive)" : "var(--negative)" }} />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-surface-200 text-sm">روند قیمت</span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${priceChange > 0 ? "bg-accent-emerald/15 text-accent-emerald" : "bg-accent-rose/15 text-accent-rose"}`}>
+                                    {priceChange > 0 ? "صعودی" : "نزولی"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-surface-500 mt-1">تغییر قیمت: {priceChange > 0 ? "+" : ""}{priceChange.toFixed(2)}%</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3 p-3 bg-surface-800/30 rounded-lg">
+                              <span className="w-2 h-2 rounded-full mt-1.5" style={{ background: volChange > 20 ? "var(--positive)" : volChange < -20 ? "var(--negative)" : "var(--neutral)" }} />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-surface-200 text-sm">حجم معاملات</span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${volChange > 20 ? "bg-accent-emerald/15 text-accent-emerald" : volChange < -20 ? "bg-accent-rose/15 text-accent-rose" : "bg-accent-amber/15 text-accent-amber"}`}>
+                                    {volChange > 20 ? "افزایش" : volChange < -20 ? "کاهش" : "عادی"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-surface-500 mt-1">تغییر حجم: {volChange > 0 ? "+" : ""}{volChange.toFixed(0)}% نسبت به میانگین</p>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <p className="text-xs text-surface-500 text-center py-4">داده کافی برای تحلیل موجود نیست</p>
+                    )}
                   </div>
                 </div>
               </div>

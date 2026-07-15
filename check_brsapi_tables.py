@@ -1,6 +1,8 @@
 import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
 
 async def check():
     engine = create_async_engine("postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db", echo=False)

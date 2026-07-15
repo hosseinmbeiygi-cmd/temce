@@ -164,7 +164,8 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
         return Result.ok(self._to_domain(row))
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
-        from sqlalchemy import func as sa_func, select
+        from sqlalchemy import func as sa_func
+        from sqlalchemy import select
 
         total_inst_stmt = select(sa_func.count(QuoteModel.instrument_id.distinct())).select_from(QuoteModel)
         total_inst = await self.session.execute(total_inst_stmt)

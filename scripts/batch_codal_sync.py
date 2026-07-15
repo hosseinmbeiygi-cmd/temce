@@ -22,6 +22,7 @@ from __future__ import annotations
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -50,8 +51,10 @@ MAX_RETRY_CYCLES = 10      # Max retry cycles (30 failures) before aborting
 
 # ── Imports ────────────────────────────────────────────────────
 
-from sqlalchemy import select, text as sa_text, column as sa_column, String
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy import String, select
+from sqlalchemy import column as sa_column
+from sqlalchemy import text as sa_text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from brsapi.client import BrsApiClient, get_client
@@ -61,7 +64,6 @@ from brsapi.models.codal import CodalAnnouncementModel
 from brsapi.parsers import CodalParser
 from brsapi.repositories import BulkUpsertRepository
 from core.config import settings
-
 
 # ── Helpers ────────────────────────────────────────────────────
 
@@ -350,7 +352,7 @@ async def main() -> None:
         total_elapsed = time.monotonic() - start_time
         s = cp["stats"]
         print(f"\n{'='*60}")
-        print(f"  COMPLETE!")
+        print("  COMPLETE!")
         print(f"  Total time: {total_elapsed / 60:.1f} minutes")
         print(f"  Symbols processed: {len(remaining)}")
         print(f"  Total fetched: {s['fetched']}")

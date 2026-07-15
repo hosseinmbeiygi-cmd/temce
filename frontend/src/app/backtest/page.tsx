@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import {
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Area, AreaChart, CartesianGrid, ReferenceLine,
+} from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import { apiPost, apiGet, extractArray } from "@/lib/api";
@@ -64,6 +68,11 @@ export default function BacktestPage() {
     capital: 1000000000,
     commission_pct: 0.35,
     slippage_bps: 10,
+    sizing_method: "fixed",
+    sizing_value: 1000,
+    stop_loss_pct: "" as string | number,
+    take_profit_pct: "" as string | number,
+    benchmark_symbol: "",
   });
 
   // Get default params for a strategy from the API data
@@ -184,7 +193,7 @@ export default function BacktestPage() {
       const total = r?.data?.total_symbols ?? 0;
       const ok = r?.data?.successful ?? 0;
       setAllResults(r?.data?.results ?? []);
-      toast.success(`بک‌تست روی ${ok} از ${total} نماد با موفقیت انجام شد`);
+      toast.success("بک‌تست روی " + ok + " از " + total + " نماد با موفقیت انجام شد");
       queryClient.invalidateQueries({ queryKey: ["backtest-runs"] });
       setShowAllResults(true);
     },
@@ -216,17 +225,34 @@ export default function BacktestPage() {
   const [compareSnapshotDates, setCompareSnapshotDates] = useState({ start: "", end: "" });
   const [compareSortKey, setCompareSortKey] = useState<string | null>("total_return_pct");
   const [compareSortDir, setCompareSortDir] = useState<"asc" | "desc">("desc");
-
-  // Column definitions for the compare table
-  const compareColumns = [
-    { key: "strategy", label: "استراتژی", numeric: false },
-    { key: "total_return_pct", label: "بازده کل", numeric: true },
-    { key: "annualized_return_pct", label: "بازده سالانه", numeric: true },
-    { key: "sharpe_ratio", label: "شارپ", numeric: true },
-    { key: "win_rate", label: "Win Rate", numeric: true },
-    { key: "max_drawdown_pct", label: "Max DD", numeric: true },
-    { key: "total_trades", label: "معاملات", numeric: true },
+  const [highlightedStrategies, setHighlightedStrategies] = useState<string[]>([]);
+  const [hoveredStrategy, setHoveredStrategy] = useState<string | null>(null);
+  const allRadarCols = [
+    { key: "total_return_pct" as const, label: "بازده", invert: false },
+    { key: "annualized_return_pct" as const, label: "بازده سالانه", invert: false },
+    { key: "sharpe_ratio" as const, label: "شارپ", invert: false },
+    { key: "win_rate" as const, label: "Win Rate", invert: false },
+    { key: "max_drawdown_pct" as const, label: "Max DD", invert: true },
   ];
+  const defaultMetrics = allRadarCols.map(c => c.key);
+  const getSavedMetrics = (): string[] => {
+    try {
+      const saved = localStorage.getItem("bt-radar-metrics");
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        // Only keep valid keys
+        return parsed.filter(k => (defaultMetrics as string[]).includes(k));
+      }
+    } catch {}
+    return defaultMetrics;
+  };
+  const [enabledRadarMetrics, setEnabledRadarMetrics] = useState<string[]>(
+    getSavedMetrics
+  );
+  // Persist metric selection to localStorage
+  useEffect(() => {
+    localStorage.setItem("bt-radar-metrics", JSON.stringify(enabledRadarMetrics));
+  }, [enabledRadarMetrics]);
 
   const toggleCompareSort = (key: string) => {
     setCompareSortDir(prev => compareSortKey === key ? (prev === "asc" ? "desc" : "asc") : "desc");
@@ -242,11 +268,71 @@ export default function BacktestPage() {
     }
     const aFailed = a.status === "failed";
     const bFailed = b.status === "failed";
-    if (aFailed !== bFailed) return aFailed ? 1 : -1; // failed last
+    if (aFailed !== bFailed) return aFailed ? 1 : -1;
     const aVal = a.metrics?.[compareSortKey as keyof typeof a.metrics] ?? -Infinity;
     const bVal = b.metrics?.[compareSortKey as keyof typeof b.metrics] ?? -Infinity;
     return compareSortDir === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
   });
+
+  // Track last clicked strategy for Shift+Click range selection
+  const lastClickedRef = useRef<string | null>(null);
+
+  // Multi-select click handler: Ctrl/Cmd toggles, Shift ranges, plain replaces
+  const handleStrategyClick = useCallback((strategy: string, e?: React.MouseEvent) => {
+    if (e?.shiftKey) {
+      // Shift+Click: range select from last clicked to this one
+      const last = lastClickedRef.current;
+      if (!last || last === strategy) {
+        // No anchor or same strategy: treat as toggle
+        setHighlightedStrategies(prev =>
+          prev.includes(strategy)
+            ? prev.filter(s => s !== strategy)
+            : [...prev, strategy]
+        );
+      } else {
+        // Find positions in the sorted list the user sees
+        const names = sortedCompareResults.map(r => r.strategy);
+        const fromIdx = names.indexOf(last);
+        const toIdx = names.indexOf(strategy);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const start = Math.min(fromIdx, toIdx);
+          const end = Math.max(fromIdx, toIdx);
+          const range = names.slice(start, end + 1);
+          setHighlightedStrategies(prev => {
+            const merged = new Set([...prev, ...range]);
+            return Array.from(merged);
+          });
+        }
+      }
+      lastClickedRef.current = strategy;
+    } else if (e?.ctrlKey || e?.metaKey) {
+      // Toggle: Ctrl/Cmd+Click
+      setHighlightedStrategies(prev =>
+        prev.includes(strategy)
+          ? prev.filter(s => s !== strategy)
+          : [...prev, strategy]
+      );
+      lastClickedRef.current = strategy;
+    } else {
+      // Plain click: select only this one, or deselect if already the only one
+      setHighlightedStrategies(prev => {
+        if (prev.length === 1 && prev[0] === strategy) return [];
+        return [strategy];
+      });
+      lastClickedRef.current = strategy;
+    }
+  }, [sortedCompareResults, setHighlightedStrategies]);
+
+  // Column definitions for the compare table
+  const compareColumns = [
+    { key: "strategy", label: "استراتژی", numeric: false },
+    { key: "total_return_pct", label: "بازده کل", numeric: true },
+    { key: "annualized_return_pct", label: "بازده سالانه", numeric: true },
+    { key: "sharpe_ratio", label: "شارپ", numeric: true },
+    { key: "win_rate", label: "Win Rate", numeric: true },
+    { key: "max_drawdown_pct", label: "Max DD", numeric: true },
+    { key: "total_trades", label: "معاملات", numeric: true },
+  ];
 
   const getSortArrow = (key: string) => {
     if (compareSortKey !== key) return " ⇅";
@@ -268,7 +354,7 @@ export default function BacktestPage() {
         start: jalaliToGregorian(startDateJalali),
         end: jalaliToGregorian(endDateJalali),
       });
-      toast.success(`مقایسه ${r?.data?.successful ?? 0} استراتژی انجام شد`);
+      toast.success("مقایسه " + (r?.data?.successful ?? 0) + " استراتژی انجام شد");
       setShowCompare(true);
       // Invalidate history so it refreshes
       queryClient.invalidateQueries({ queryKey: ["compare-history"] });
@@ -329,7 +415,7 @@ export default function BacktestPage() {
         setCompareSnapshotSymbol(detail.symbol);
         setCompareSymbol(detail.symbol);
         setShowCompare(true);
-        toast.success(`نتایج مقایسه ${detail.symbol} بارگذاری شد`);
+        toast.success("نتایج مقایسه " + detail.symbol + " بارگذاری شد");
       }
     } catch {
       toast.error("خطا در بارگذاری تاریخچه");
@@ -346,6 +432,167 @@ export default function BacktestPage() {
 
   function formatRials(v: number) {
     return new Intl.NumberFormat("fa-IR").format(Math.round(v));
+  }
+
+  // ── Radar Chart for Strategy Comparison ──
+  const RADAR_COLORS_BT = [
+    { fill: "rgba(0, 200, 255, 0.15)", stroke: "#00C8FF" },
+    { fill: "rgba(0, 230, 118, 0.15)", stroke: "#00E676" },
+    { fill: "rgba(255, 214, 0, 0.15)", stroke: "#FFD600" },
+    { fill: "rgba(255, 82, 82, 0.15)", stroke: "#FF5252" },
+    { fill: "rgba(224, 64, 251, 0.15)", stroke: "#E040FB" },
+    { fill: "rgba(0, 230, 200, 0.15)", stroke: "#00E6C8" },
+    { fill: "rgba(255, 168, 0, 0.15)", stroke: "#FFA800" },
+    { fill: "rgba(100, 255, 218, 0.15)", stroke: "#64FFDA" },
+  ];
+
+  function BacktestRadarChart({ results, selectedStrategies, onStrategyClick, enabledCols, hoveredStrategy, onHover }: {
+    results: CompareResult[];
+    selectedStrategies: string[];
+    onStrategyClick: (strategy: string, e?: React.MouseEvent) => void;
+    enabledCols: string[];
+    hoveredStrategy: string | null;
+    onHover: (strategy: string | null) => void;
+  }) {
+    const radarCols = allRadarCols.filter(c => enabledCols.includes(c.key));
+
+    const validResults = results.filter(r => r.status !== "failed").slice(0, 8);
+    if (validResults.length < 1) return null;
+    if (radarCols.length < 3) {
+      return <p className="text-xs text-surface-500 text-center py-4">حداقل ۳ متریک برای نمایش رادار انتخاب کنید</p>;
+    }
+
+    // Compute ranges for normalization
+    const ranges: Record<string, { min: number; max: number }> = {};
+    for (const col of radarCols) {
+      const vals = validResults.map(r => r.metrics?.[col.key]).filter(v => v != null) as number[];
+      if (vals.length === 0) continue;
+      ranges[col.key] = { min: Math.min(...vals), max: Math.max(...vals) };
+    }
+
+    const normalize = (key: string, v: number | undefined): number => {
+      if (v == null) return 0;
+      const r = ranges[key];
+      if (!r || r.max === r.min) return 0.5;
+      const raw = (v - r.min) / (r.max - r.min);
+      const col = radarCols.find(c => c.key === key);
+      return col?.invert ? 1 - raw : raw;
+    };
+
+    const cx = 160, cy = 160, radius = 120;
+    const angleStep = (2 * Math.PI) / radarCols.length;
+
+    const polygons = validResults.map((r, mi) => {
+      const pts = radarCols.map((col, i) => {
+        const angle = -Math.PI / 2 + i * angleStep;
+        const val = normalize(col.key, r.metrics?.[col.key]);
+        const rad = val * radius;
+        return `${cx + rad * Math.cos(angle)},${cy + rad * Math.sin(angle)}`;
+      });
+      return { points: pts.join(" "), color: RADAR_COLORS_BT[mi % RADAR_COLORS_BT.length], label: r.strategy };
+    });
+
+    return (
+      <div className="mb-6">
+        <p className="text-xs text-surface-400 font-bold mb-3 text-center">📡 نمودار راداری — مقایسه بصری استراتژی‌ها</p>
+        <div className="flex flex-col items-center">
+          <svg width={320} height={320} viewBox="0 0 320 320" className="max-w-full">
+            {Array.from({ length: 5 }, (_, li) => {
+              const r = ((li + 1) / 5) * radius;
+              const pts = radarCols.map((_, i) => {
+                const angle = -Math.PI / 2 + i * angleStep;
+                return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+              });
+              return <polygon key={li} points={pts.join(" ")} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={1} />;
+            })}
+            {radarCols.map((col, i) => {
+              const angle = -Math.PI / 2 + i * angleStep;
+              const x2 = cx + radius * Math.cos(angle);
+              const y2 = cy + radius * Math.sin(angle);
+              const labelX = cx + (radius + 22) * Math.cos(angle);
+              const labelY = cy + (radius + 22) * Math.sin(angle);
+              const anchor = angle > -0.1 && angle < Math.PI - 0.1 ? "start" : angle > Math.PI - 0.1 ? "end" : "middle";
+              return (
+                <g key={col.key}>
+                  <line x1={cx} y1={cy} x2={x2} y2={y2} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+                  <text x={labelX} y={labelY} textAnchor={anchor} dominantBaseline="middle"
+                    fill="rgba(255,255,255,0.5)" fontSize={9} fontFamily="monospace">
+                    {col.label}
+                  </text>
+                </g>
+              );
+            })}
+            {polygons.map((p, i) => {
+              const isSelected = selectedStrategies.includes(p.label);
+              const isHovered = hoveredStrategy === p.label;
+              const hasSelection = selectedStrategies.length > 0;
+              const isDimmed = hasSelection && !isSelected;
+              const dimOpacity = isDimmed ? 0.15 : isHovered ? 1 : 0.85;
+              const strokeColor = isSelected ? '#fff' : isHovered ? p.color.stroke : p.color.stroke;
+              const strokeW = isSelected ? 3 : isHovered ? 2.5 : 2;
+              return (
+                <g key={i}
+                  onClick={(e) => onStrategyClick(p.label, e)}
+                  onMouseEnter={() => onHover(p.label)}
+                  onMouseLeave={() => onHover(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <polygon
+                    points={p.points}
+                    fill={isSelected ? p.color.fill.replace('0.15', '0.35') : p.color.fill}
+                    stroke={strokeColor}
+                    strokeWidth={strokeW}
+                    opacity={dimOpacity}
+                    className="transition-all duration-200"
+                  />
+                  {p.points.split(" ").map((pt, pi) => {
+                    const [x, y] = pt.split(",").map(Number);
+                    return (
+                      <circle key={pi} cx={x} cy={y}
+                        r={isSelected ? 5 : isHovered ? 4 : 3}
+                        fill={isSelected ? '#fff' : p.color.stroke}
+                        opacity={isDimmed ? 0.2 : 0.95}
+                        className="transition-all duration-200"
+                      />
+                    );
+                  })}
+                </g>
+              );
+            })}
+            <circle cx={cx} cy={cy} r={2} fill="rgba(255,255,255,0.2)" />
+          </svg>
+          <div className="flex flex-wrap gap-3 justify-center mt-2">
+            {polygons.map((p, i) => {
+              const isSelected = selectedStrategies.includes(p.label);
+              return (
+                <div key={i}
+                  onClick={(e) => onStrategyClick(p.label, e)}
+                  onMouseEnter={() => onHover(p.label)}
+                  onMouseLeave={() => onHover(null)}
+                  className={`flex items-center gap-1.5 cursor-pointer transition-all duration-200 px-1.5 py-0.5 rounded ${
+                    isSelected ? 'bg-primary-600/20 ring-1 ring-primary-500/50' : 'hover:bg-surface-800/50'
+                  }`}
+                >
+                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.color.stroke }} />
+                  <span className={`text-[10px] ${isSelected ? 'text-surface-100 font-bold' : 'text-surface-400'}`}>
+                    {p.label}
+                  </span>
+                </div>
+              );
+            })}
+            {selectedStrategies.length > 0 && (
+              <button onClick={() => {
+                setHighlightedStrategies([]);
+                lastClickedRef.current = null;
+              }}
+                className="text-[9px] px-2 py-0.5 rounded bg-surface-700 hover:bg-surface-600 text-surface-400 hover:text-surface-200 transition-all">
+                ✕ پاک کردن انتخاب
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // ── Generate HTML Report for Compare Results ──
@@ -438,8 +685,8 @@ export default function BacktestPage() {
       <p class="subtitle">نماد: ${compareSymbol} • تاریخ: ${dateStr} • ${completed.length} استراتژی</p>
     </div>
     <div style="display:flex;gap:8px">
-      ${compareBest ? `<span class="best-badge">🏆 بهترین: ${compareBest}</span>` : ''}
-      ${compareWorst ? `<span class="worst-badge">🫤 بدترین: ${compareWorst}</span>` : ''}
+      ${compareBest ? "<span class=\"best-badge\">🏆 بهترین: " + compareBest + "</span>" : ''}
+      ${compareWorst ? "<span class=\"worst-badge\">🫤 بدترین: " + compareWorst + "</span>" : ''}
     </div>
   </div>
 
@@ -562,6 +809,22 @@ export default function BacktestPage() {
 
   return (
     <AppLayout title="بک‌تست استراتژی" subtitle="تست استراتژی روی داده‌های واقعی تاریخی">
+      {/* Quick Links to Advanced Tools */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <a href="/backtest/engine" className="px-3 py-1.5 text-xs rounded-lg bg-primary-600/20 text-primary-200 hover:bg-primary-600/30 transition-colors font-bold">
+          🧬 موتور کشف استراتژی
+        </a>
+        <a href="/backtest/generate" className="px-3 py-1.5 text-xs rounded-lg bg-primary-600/10 text-primary-300 hover:bg-primary-600/20 transition-colors">
+          🚀 تولید خودکار استراتژی
+        </a>
+        <a href="/backtest/walk-forward" className="px-3 py-1.5 text-xs rounded-lg bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/20 transition-colors">
+          📊 Walk-Forward
+        </a>
+        <a href="/backtest/monte-carlo" className="px-3 py-1.5 text-xs rounded-lg bg-accent-emerald/10 text-accent-emerald hover:bg-accent-emerald/20 transition-colors">
+          🎲 Monte Carlo
+        </a>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 glass-card p-5">
           <h2 className="text-base font-bold text-surface-200 mb-4">تنظیمات بک‌تست</h2>
@@ -617,8 +880,8 @@ export default function BacktestPage() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {displayParams.map(p => (
-                    <div key={p.name}>
+                  {displayParams.map((p, pi) => (
+                    <div key={`${p.name}-${pi}`}>
                       <label className="block text-[10px] text-surface-500 mb-0.5">{p.name}</label>
                       <input type={p.type === "number" ? "number" : "text"} step={p.type === "number" ? "any" : undefined}
                         value={String(formData.strategyParams[p.name] ?? p.default ?? "")}
@@ -649,6 +912,32 @@ export default function BacktestPage() {
             </div>
           </div>
 
+          {/* Quick Time Period Selector */}
+          <div className="mb-3">
+            <label className="block mb-1 text-xs text-surface-500 font-bold">بازه زمانی سریع</label>
+            <div className="flex flex-wrap gap-1">
+              {[
+                { label: "۱ هفته", days: 7 },
+                { label: "۱ ماه", days: 30 },
+                { label: "۳ ماه", days: 90 },
+                { label: "۶ ماه", days: 180 },
+                { label: "۱ سال", days: 365 },
+                { label: "۲ سال", days: 730 },
+                { label: "۳ سال", days: 1095 },
+              ].map(p => (
+                <button key={p.days} onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(start.getDate() - p.days);
+                  setStartDateJalali(toJalali(start.getFullYear(), start.getMonth() + 1, start.getDate()));
+                  setEndDateJalali(toJalali(end.getFullYear(), end.getMonth() + 1, end.getDate()));
+                }} className="text-[10px] px-2 py-1 bg-surface-800 border border-surface-700 rounded text-surface-400 hover:text-surface-200 hover:border-surface-500 transition-colors">
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mb-3">
             <label className="block mb-2 text-sm text-surface-400 font-bold">سرمایه اولیه (ریال)</label>
             <input type="number" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-200 focus:outline-none focus:border-primary-500"
@@ -673,6 +962,38 @@ export default function BacktestPage() {
                     value={formData.slippage_bps} onChange={e => setFormData({...formData, slippage_bps: Number(e.target.value)})} />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-[10px] text-surface-500 mb-0.5">روش محاسبه تعداد</label>
+                  <select className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 outline-none focus:border-primary-500"
+                    value={formData.sizing_method} onChange={e => setFormData({...formData, sizing_method: e.target.value})}>
+                    <option value="fixed">ثابت (Fixed)</option>
+                    <option value="percent">درصد سرمایه (Percent)</option>
+                    <option value="kelly">کلی (Kelly)</option>
+                    <option value="risk_based">بر اساس ریسک (Risk)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-surface-500 mb-0.5">مقدار محاسبه</label>
+                  <input type="number" step="1" className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 outline-none focus:border-primary-500"
+                    value={formData.sizing_value} onChange={e => setFormData({...formData, sizing_value: Number(e.target.value)})} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-surface-500 mb-0.5">حد ضرر (٪)</label>
+                  <input type="number" step="0.5" placeholder="اختیاری" className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 outline-none focus:border-primary-500"
+                    value={formData.stop_loss_pct} onChange={e => setFormData({...formData, stop_loss_pct: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-surface-500 mb-0.5">حد سود (٪)</label>
+                  <input type="number" step="0.5" placeholder="اختیاری" className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 outline-none focus:border-primary-500"
+                    value={formData.take_profit_pct} onChange={e => setFormData({...formData, take_profit_pct: e.target.value})} />
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="block text-[10px] text-surface-500 mb-0.5">نماد مرجع (Benchmark)</label>
+                <input type="text" placeholder="مثلاً شاخص كل" className="w-full bg-surface-900 border border-surface-700 rounded px-2 py-1.5 text-xs text-surface-200 outline-none focus:border-primary-500"
+                  value={formData.benchmark_symbol} onChange={e => setFormData({...formData, benchmark_symbol: e.target.value})} />
+              </div>
             </div>
           </details>
 
@@ -684,6 +1005,11 @@ export default function BacktestPage() {
               strategy_params: formData.strategyParams,
               commission_pct: formData.commission_pct / 100,
               slippage_bps: formData.slippage_bps,
+              sizing_method: formData.sizing_method,
+              sizing_value: formData.sizing_value,
+              stop_loss_pct: formData.stop_loss_pct !== "" ? Number(formData.stop_loss_pct) : null,
+              take_profit_pct: formData.take_profit_pct !== "" ? Number(formData.take_profit_pct) : null,
+              benchmark_symbol: formData.benchmark_symbol || null,
               start_date: jalaliToGregorian(startDateJalali),
               end_date: jalaliToGregorian(endDateJalali),
               initial_capital: formData.capital,
@@ -762,25 +1088,217 @@ export default function BacktestPage() {
           {loadingResult ? (
             <Skeleton className="h-96 w-full rounded-2xl" />
           ) : result ? (
-            <div className="glass-card p-5">
-              <h2 className="text-base font-bold text-surface-200 mb-4">نتیجه: {String(result.name ?? "")}</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                {[
-                  { label: "بازده کل", value: `${String(result.total_return_pct ?? "")}%`, color: Number(result.total_return_pct) >= 0 ? "text-accent-emerald" : "text-accent-rose" },
-                  { label: "بازده سالانه", value: `${String(result.annualized_return_pct ?? "")}%`, color: "text-surface-200" },
-                  { label: "شارپ", value: Number(result.sharpe_ratio || 0).toFixed(2), color: Number(result.sharpe_ratio) >= 1 ? "text-accent-emerald" : "text-accent-amber" },
-                  { label: "Max DD", value: `${String(result.max_drawdown_pct ?? "")}%`, color: "text-accent-rose" },
-                  { label: "Win Rate", value: `${String(result.win_rate ?? "")}%`, color: Number(result.win_rate) >= 50 ? "text-accent-emerald" : "text-accent-rose" },
-                  { label: "معاملات", value: String(result.total_trades ?? ""), color: "text-surface-200" },
-                  { label: "سرمایه اولیه", value: `${formatRials(Number(result.initial_capital) || 0)}`, color: "text-surface-200" },
-                  { label: "ارزش نهایی", value: `${formatRials(Number(result.final_value) || 0)}`, color: Number(result.final_value) >= Number(result.initial_capital) ? "text-accent-emerald" : "text-accent-rose" },
-                ].map(item => (
-                  <div key={item.label} className="bg-surface-800/50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-surface-500 mb-1">{item.label}</p>
-                    <p className={`text-sm font-bold font-mono ${item.color}`}>{item.value}</p>
-                  </div>
-                ))}
+            <div className="space-y-4">
+              {/* Metrics */}
+              <div className="glass-card p-5">
+                <h2 className="text-base font-bold text-surface-200 mb-4">نتیجه: {String(result.name ?? "")}</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  {[
+                    { label: "بازده کل", value: `${String(result.total_return_pct ?? "")}%`, color: Number(result.total_return_pct) >= 0 ? "text-accent-emerald" : "text-accent-rose" },
+                    { label: "بازده سالانه", value: `${String(result.annualized_return_pct ?? "")}%`, color: "text-surface-200" },
+                    { label: "شارپ", value: Number(result.sharpe_ratio || 0).toFixed(2), color: Number(result.sharpe_ratio) >= 1 ? "text-accent-emerald" : "text-accent-amber" },
+                    { label: "Max DD", value: `${String(result.max_drawdown_pct ?? "")}%`, color: "text-accent-rose" },
+                    { label: "Win Rate", value: `${String(result.win_rate ?? "")}%`, color: Number(result.win_rate) >= 50 ? "text-accent-emerald" : "text-accent-rose" },
+                    { label: "معاملات", value: String(result.total_trades ?? ""), color: "text-surface-200" },
+                    { label: "سرمایه اولیه", value: `${formatRials(Number(result.initial_capital) || 0)}`, color: "text-surface-200" },
+                    { label: "ارزش نهایی", value: `${formatRials(Number(result.final_value) || 0)}`, color: Number(result.final_value) >= Number(result.initial_capital) ? "text-accent-emerald" : "text-accent-rose" },
+                    ...((result as Record<string, unknown>).data_quality ? [{
+                      label: "کیفیت داده",
+                      value: `${((result as Record<string, unknown>).data_quality as Record<string, unknown>)?.quality_score ?? 0}`,
+                      color: Number(((result as Record<string, unknown>).data_quality as Record<string, unknown>)?.quality_score ?? 0) >= 0.8 ? "text-accent-emerald" : "text-accent-amber",
+                    }] : []),
+                    ...((result as Record<string, unknown>).alpha != null ? [{
+                      label: "آلفا",
+                      value: Number((result as Record<string, unknown>).alpha).toFixed(2),
+                      color: Number((result as Record<string, unknown>).alpha) >= 0 ? "text-accent-emerald" : "text-accent-rose",
+                    }] : []),
+                    ...((result as Record<string, unknown>).beta != null ? [{
+                      label: "بتا",
+                      value: Number((result as Record<string, unknown>).beta).toFixed(2),
+                      color: "text-surface-200",
+                    }] : []),
+                  ].map(item => (
+                    <div key={item.label} className="bg-surface-800/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-surface-500 mb-1">{item.label}</p>
+                      <p className={`text-sm font-bold font-mono ${item.color}`}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* ── Equity Curve Chart ── */}
+              {(() => {
+                const raw = result as Record<string, unknown>;
+                const equityCurve = raw.equity_curve as Array<{ timestamp: string; nav: number }> | undefined;
+                if (!equityCurve || equityCurve.length < 2) return null;
+                const equityData = equityCurve.map((ep, i) => ({
+                  index: i,
+                  nav: ep.nav,
+                  date: typeof ep.timestamp === "string" ? ep.timestamp.slice(0, 10) : "",
+                }));
+                const initCapital = Number(raw.initial_capital) || 1;
+                const minNav = Math.min(...equityData.map(d => d.nav));
+                const maxNav = Math.max(...equityData.map(d => d.nav));
+                const range = maxNav - minNav || 1;
+                const yMin = minNav - range * 0.05;
+                const yMax = maxNav + range * 0.05;
+                const finalReturn = ((equityData[equityData.length - 1]?.nav ?? initCapital) / initCapital - 1) * 100;
+                const isPositive = finalReturn >= 0;
+
+                return (
+                  <div className="glass-card p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-base font-bold text-surface-200">📈 منحنی سرمایه</h3>
+                        <p className="text-[11px] text-surface-500 mt-0.5">
+                          {equityData.length} روز معاملاتی
+                        </p>
+                      </div>
+                      <div className={`text-lg font-bold font-mono ${isPositive ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        {isPositive ? "+" : ""}{finalReturn.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="w-full h-[280px]" dir="ltr">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={equityData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                          <defs>
+                            <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={isPositive ? "#22c55e" : "#ef4444"} stopOpacity={0.3} />
+                              <stop offset="95%" stopColor={isPositive ? "#22c55e" : "#ef4444"} stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                          <XAxis
+                            dataKey="index"
+                            tick={false}
+                            axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                          />
+                          <YAxis
+                            domain={[yMin, yMax]}
+                            tick={{ fill: "#64748b", fontSize: 10, fontFamily: "monospace" }}
+                            tickFormatter={(v: number) => Math.round(v).toLocaleString()}
+                            axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                            width={80}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "#1e293b",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: 8,
+                              fontSize: 12,
+                              color: "#e2e8f0",
+                            }}
+                            formatter={(value: unknown) => [formatRials(Number(value) || 0), "ارزش پرتفوی"]}
+                            labelFormatter={(i: unknown) => {
+                              const idx = Number(i);
+                              const d = equityData[idx];
+                              return d ? "روز " + (idx + 1) + " — " + d.date : "روز " + (idx + 1);
+                            }}
+                          />
+                          <ReferenceLine
+                            y={initCapital}
+                            stroke="rgba(255,255,255,0.2)"
+                            strokeDasharray="4 4"
+                            label={{
+                              value: "سرمایه اولیه",
+                              fill: "#64748b",
+                              fontSize: 10,
+                              position: "right",
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="nav"
+                            stroke={isPositive ? "#22c55e" : "#ef4444"}
+                            strokeWidth={2}
+                            fill="url(#equityGradient)"
+                            dot={false}
+                            activeDot={{ r: 4, strokeWidth: 1, stroke: "#e2e8f0" }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-between mt-3 text-[10px] text-surface-500 border-t border-surface-800/50 pt-3">
+                      <span>🔵 ارزش اولیه: {formatRials(initCapital)}</span>
+                      <span>🟣 حداکثر: {formatRials(maxNav)}</span>
+                      <span>🔴 حداقل: {formatRials(minNav)}</span>
+                      <span>🟢 ارزش نهایی: {formatRials(equityData[equityData.length - 1]?.nav ?? initCapital)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ── Drawdown Chart ── */}
+              {(() => {
+                const raw = result as Record<string, unknown>;
+                const equityCurve = raw.equity_curve as Array<{ timestamp: string; nav: number }> | undefined;
+                if (!equityCurve || equityCurve.length < 2) return null;
+                const initCapital = Number(raw.initial_capital) || 1;
+                let peak = equityCurve[0].nav;
+                const drawdownData = equityCurve.map((ep, i) => {
+                  if (ep.nav > peak) peak = ep.nav;
+                  const dd = peak > 0 ? ((ep.nav - peak) / peak) * 100 : 0;
+                  return {
+                    index: i,
+                    drawdown: dd,
+                    date: typeof ep.timestamp === "string" ? ep.timestamp.slice(0, 10) : "",
+                  };
+                });
+                const maxDD = Math.min(...drawdownData.map(d => d.drawdown));
+                return (
+                  <div className="glass-card p-5 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-base font-bold text-surface-200">📉 افت سرمایه</h3>
+                        <p className="text-[11px] text-surface-500 mt-0.5">حداکثر افت: {maxDD.toFixed(2)}%</p>
+                      </div>
+                    </div>
+                    <div className="w-full h-[180px]" dir="ltr">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={drawdownData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                          <defs>
+                            <linearGradient id="ddGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
+                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                          <XAxis dataKey="index" tick={false} axisLine={{ stroke: "rgba(255,255,255,0.1)" }} />
+                          <YAxis
+                            tick={{ fill: "#64748b", fontSize: 10, fontFamily: "monospace" }}
+                            tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+                            axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                            width={50}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              background: "#1e293b",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                              borderRadius: 8,
+                              fontSize: 12,
+                              color: "#e2e8f0",
+                            }}
+                            formatter={(value: unknown) => [`${Number(value).toFixed(2)}%`, "افت سرمایه"]}
+                            labelFormatter={(i: unknown) => {
+                              const idx = Number(i);
+                              const d = drawdownData[idx];
+                              return d ? "روز " + (idx + 1) + " — " + d.date : "روز " + (idx + 1);
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="drawdown"
+                            stroke="#ef4444"
+                            strokeWidth={1.5}
+                            fill="url(#ddGradient)"
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : null}
 
@@ -828,6 +1346,49 @@ export default function BacktestPage() {
                   <p className="text-xs text-surface-500">ناموفق</p>
                 </div>
               </div>
+              {/* Metric checkboxes */}
+              <div className="mb-4">
+                <p className="text-[10px] text-surface-500 font-bold mb-2">📐 انتخاب متریک‌های رادار</p>
+                <div className="flex flex-wrap gap-2">
+                  {allRadarCols.map(col => {
+                    const enabled = enabledRadarMetrics.includes(col.key);
+                    return (
+                      <label key={col.key}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg cursor-pointer transition-all text-[10px] font-bold ${
+                          enabled
+                            ? 'bg-primary-600/20 text-primary-300 ring-1 ring-primary-500/40'
+                            : 'bg-surface-800/50 text-surface-500 hover:bg-surface-700/50'
+                        }`}>
+                        <input type="checkbox" checked={enabled}
+                          onChange={() => {
+                            setEnabledRadarMetrics(prev =>
+                              enabled
+                                ? prev.filter(k => k !== col.key)
+                                : [...prev, col.key]
+                            );
+                          }}
+                          className="sr-only" />
+                        <div className={`w-2.5 h-2.5 rounded border flex items-center justify-center transition-all ${
+                          enabled ? 'bg-primary-500 border-primary-500' : 'border-surface-600 bg-transparent'
+                        }`}>
+                          {enabled && <span className="text-[7px] text-white leading-none">✓</span>}
+                        </div>
+                        {col.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Radar chart */}
+              <BacktestRadarChart
+                results={compareResults}
+                selectedStrategies={highlightedStrategies}
+                onStrategyClick={handleStrategyClick}
+                enabledCols={enabledRadarMetrics}
+                hoveredStrategy={hoveredStrategy}
+                onHover={setHoveredStrategy}
+              />
+
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">
                   <thead>
@@ -843,13 +1404,19 @@ export default function BacktestPage() {
                   </thead>
                   <tbody>
                     {sortedCompareResults.map(r => {
-                      const m = r.metrics;
-                      const isBest = r.strategy === compareBest;
-                      const isWorst = r.strategy === compareWorst;
-                      const failed = r.status === "failed";
+                      const m = r.metrics;          const isBest = r.strategy === compareBest;
+          const isWorst = r.strategy === compareWorst;
+          const failed = r.status === "failed";                      const isRowSelected = highlightedStrategies.includes(r.strategy);
+                      let rowBg = "";
+                      if (isRowSelected) rowBg = "bg-primary-600/10";
+                      else if (isBest) rowBg = "bg-accent-emerald/5";
+                      else if (isWorst) rowBg = "bg-accent-rose/5";
                       return (
                         <tr key={r.strategy}
-                          className={`border-b border-surface-800/30 hover:bg-white/5 transition-colors ${isBest ? "bg-accent-emerald/5" : isWorst ? "bg-accent-rose/5" : ""} ${failed ? "opacity-50" : ""}`}>
+                          onClick={(e) => handleStrategyClick(r.strategy, e)}
+                          className={`border-b transition-colors ${
+                            isRowSelected ? 'border-primary-500/60' : 'border-surface-800/30 hover:bg-white/5'
+                          } ${rowBg} ${failed ? "opacity-50" : ""} cursor-pointer`}>
                           <td className="py-2 px-2 font-bold relative group">
                             <span className={`${isBest ? "text-accent-emerald" : isWorst ? "text-accent-rose" : "text-surface-200"} cursor-help`}>
                               {isBest && "🏆 "}{isWorst && "🫤 "}{r.strategy}

@@ -6,14 +6,14 @@ import { MarketIndex, generateMockIndices } from "@/lib/types";
 
 function IndexCard({ idx }: { idx: MarketIndex }) {
   return (
-    <div className="index-card">
+    <div className="index-card" data-testid="index-card">
       <div className="index-icon">
         <span className="material-icons text-xl">{idx.icon}</span>
       </div>
       <div className="index-info">
-        <span className="index-name">{idx.name}</span>
-        <span className="index-value">{idx.value}</span>
-        <span className={`index-change ${idx.isUp ? "positive" : "negative"}`}>
+        <span className="index-name" data-testid="index-name">{idx.name}</span>
+        <span className="index-value" data-testid="index-value">{idx.value}</span>
+        <span className={`index-change ${idx.isUp ? "positive" : "negative"}`} data-testid="index-change">
           <span className="material-icons text-xs">{idx.isUp ? "arrow_upward" : "arrow_downward"}</span>
           {Math.abs(idx.changePercent).toFixed(2)}%
         </span>
@@ -27,16 +27,16 @@ export default function MarketIndices() {
     queryKey: ["market-indices"],
     queryFn: async (): Promise<MarketIndex[]> => {
       try {
-        // Backend: GET /market/overview returns ApiResponse<{ indices: [...], ... }>
-        const res = await apiGet<Record<string, unknown>>("/market/overview");
-        // Extract indices from various possible response shapes
-        if (res?.indices && Array.isArray(res.indices)) return res.indices as MarketIndex[];
-        if (res?.markets && Array.isArray(res.markets)) return res.markets as MarketIndex[];
-        if (Array.isArray(res)) return res as MarketIndex[];
-        // Try to find any array in the response
-        for (const key of ["items", "data", "result"] as const) {
-          const val = res?.[key];
-          if (val && Array.isArray(val)) return val as MarketIndex[];
+        const res = await apiGet<{ success: boolean; data: Record<string, unknown>[] }>("/market/indices");
+        if (res?.success && Array.isArray(res.data)) {
+          return res.data.map((idx: Record<string, unknown>) => ({
+            id: String(idx.id ?? ""),
+            name: String(idx.name || ""),
+            value: Number(idx.index_value ?? idx.value ?? 0),
+            changePercent: Number(idx.index_change_pct ?? idx.change_pct ?? 0),
+            isUp: Number(idx.index_change_pct ?? idx.change_pct ?? 0) >= 0,
+            icon: "📈",
+          }));
         }
       } catch {
         // Backend unavailable — use mock data
@@ -50,7 +50,7 @@ export default function MarketIndices() {
   return (
     <div className="market-indices">
       {indices?.map((idx: MarketIndex, i: number) => (
-        <IndexCard key={i} idx={idx} />
+        <IndexCard key={`${i}-${idx.id || idx.name}`} idx={idx} />
       ))}
     </div>
   );

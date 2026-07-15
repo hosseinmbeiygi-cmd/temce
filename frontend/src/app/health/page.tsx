@@ -115,8 +115,8 @@ export default function HealthPage() {
               {data && (
                 <p className="text-[10px] text-surface-500 mt-0.5">
                   {data.service} v{data.version} • {summary?.ok}/{summary?.total} سرویس سالم
-                  {summary && summary.degraded > 0 && ` • ${summary.degraded} مختل`}
-                  {summary && summary.down > 0 && ` • ${summary.down} از کار افتاده`}
+                  {summary && summary.degraded > 0 && " • " + summary.degraded + " مختل"}
+                  {summary && summary.down > 0 && " • " + summary.down + " از کار افتاده"}
                 </p>
               )}
             </div>

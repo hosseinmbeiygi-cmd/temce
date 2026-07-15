@@ -14,10 +14,11 @@ sys.stdin.reconfigure(encoding="utf-8")
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
 
-from core.database import close_database, get_session, init_database
-from brsapi.models.tsetmc import HistoricalRealLegalModel
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from brsapi.models.tsetmc import HistoricalRealLegalModel
+from core.database import close_database, get_session, init_database
 
 
 async def main():
@@ -29,7 +30,7 @@ async def main():
         return
 
     path = os.path.join(base, files[0])
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
     print("RECORDS: %d" % len(data))

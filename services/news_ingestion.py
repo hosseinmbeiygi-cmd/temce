@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.ids import new_id
 from core.logging import get_logger
-from core.result import Result
 from domain.news.news_item import NewsItem
 from providers.news.domestic.rss_domestic_provider import RSSDomesticProvider
-from providers.news.sentiment.classifier import SentimentClassifier
 from providers.news.parser import NewsParser
+from providers.news.sentiment.classifier import SentimentClassifier
 from services.news_dedup import NewsDeduplicator
 from services.news_filter import NewsFilter
 from services.news_service import NewsService
@@ -20,6 +19,68 @@ logger = get_logger(__name__)
 
 # Reusable news parser for symbol extraction
 _news_parser = NewsParser()
+
+
+# ── Category mapping: Persian/raw RSS categories → standard categories ──
+# Standard categories: market, companies, economic, political, international
+_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "market": [
+        "بورس", "سهام", "شاخص", "معامله", "فرابورس", "سازمان بورس",
+        "طلا", "ارز", "دلار", "رمزارز", "کریپتو", "بازار سرمایه",
+        "عرضه اولیه", "سبد", "صندوق", "صندوق سرمایه‌گذاری",
+    ],
+    "companies": [
+        "شرکت", "شرکت‌ها", "خودرو", "فولاد", "پتروشیمی", "بانک",
+        "صنعت", "معدن", "تولید", "صادرات", "واردات", "سرمایه‌گذاری",
+        "انرژی", "نفت", "گاز", "پالایش", "فناوری", "تکنولوژی",
+        "استارتاپ", "خودرویی", "دارویی", "غذایی", "سیمان",
+    ],
+    "economic": [
+        "اقتصاد", "تورم", "نرخ بهره", "نقدینگی", "بودجه", "دولت",
+        "مسکن", " housing", "GDP", "تورم", "کلان", "بازار کار",
+        "اقتصاد کلان", "رشد اقتصادی",
+    ],
+    "political": [
+        "سیاست", "دولت", "مجلس", "وزیر", "تحریم", "برجام",
+        "دیپلماسی", "حکمرانی", "سیاسی", "قانون", "мост",
+    ],
+    "international": [
+        "بین‌الملل", "جهان", "آمریکا", "اروپا", "چین", "روسیه",
+        "اوپک", "بین‌المللی", "グローバル", "global",
+    ],
+}
+
+
+def _classify_category(raw_category: str, feed_name: str = "", title: str = "", description: str = "") -> str:
+    """Map a raw RSS category or feed name to a standard category.
+
+    Uses keyword matching on the raw category, feed name, title, and description.
+    Falls back to 'market' for economy-related feeds, empty string otherwise.
+    """
+    combined = f"{raw_category} {feed_name} {title} {description}".lower()
+
+    # Score each category
+    best_cat = ""
+    best_score = 0
+    for cat, keywords in _CATEGORY_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw.lower() in combined)
+        if score > best_score:
+            best_score = score
+            best_cat = cat
+
+    # If no keywords matched, infer from feed name
+    if not best_cat and feed_name:
+        feed_lower = feed_name.lower()
+        if any(x in feed_lower for x in ["bourse", "gold", "crypto", "market"]):
+            best_cat = "market"
+        elif any(x in feed_lower for x in ["industry", "energy", "auto", "companies", "tech", "mining", "prog_"]):
+            best_cat = "companies"
+        elif any(x in feed_lower for x in ["macro", "housing", "econ"]):
+            best_cat = "economic"
+        elif any(x in feed_lower for x in ["policy", "gov"]):
+            best_cat = "political"
+
+    return best_cat
 
 
 # Reusable date parser (avoids creating RSSParser objects repeatedly)
@@ -41,7 +102,7 @@ def _parse_rss_date(date_str: str) -> datetime | None:
         try:
             dt = datetime.strptime(date_str.strip(), fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except (ValueError, OverflowError):
             continue
@@ -100,7 +161,7 @@ class NewsIngestionService:
             Dict with stats: fetched, duplicates, filtered, saved, articles list.
         """
         stats = {
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "fetched": 0,
             "duplicates_removed": 0,
             "filtered_out": 0,
@@ -141,7 +202,7 @@ class NewsIngestionService:
                 print(f"  ⚠️  No articles fetched: {fetch_result.error}")
 
         if not raw_articles:
-            stats["finished_at"] = datetime.now(timezone.utc).isoformat()
+            stats["finished_at"] = datetime.now(UTC).isoformat()
             return stats
 
         # ── Step 2: Tag articles with feed source ──────────────────
@@ -162,7 +223,7 @@ class NewsIngestionService:
         else:
             stats["duplicates_removed"] = 0
             if verbose:
-                print(f"\n  ⏭️   Deduplication SKIPPED")
+                print("\n  ⏭️   Deduplication SKIPPED")
 
         # ── Step 4: Filter ─────────────────────────────────────────
         if verbose:
@@ -190,7 +251,7 @@ class NewsIngestionService:
         enriched: list[dict[str, Any]] = []
         if not skip_sentiment:
             if verbose:
-                print(f"\n  🧠  RUNNING SENTIMENT ANALYSIS...")
+                print("\n  🧠  RUNNING SENTIMENT ANALYSIS...")
 
             for article in filtered:
                 text = (article.get("description") or article.get("content") or article.get("title") or "")
@@ -211,7 +272,7 @@ class NewsIngestionService:
                 print(f"  ✅ Sentiment: {pos} positive, {neg} negative, {neu} neutral")
         else:
             if verbose:
-                print(f"\n  ⏭️   Sentiment analysis SKIPPED")
+                print("\n  ⏭️   Sentiment analysis SKIPPED")
             for article in filtered:
                 article["sentiment_score"] = 0.0
                 article["sentiment_label"] = "neutral"
@@ -237,7 +298,7 @@ class NewsIngestionService:
                 print(f"  ✅ Saved {saved_count} articles ({stats['errors']} errors)")
 
         stats["articles"] = enriched
-        stats["finished_at"] = datetime.now(timezone.utc).isoformat()
+        stats["finished_at"] = datetime.now(UTC).isoformat()
         stats["deduplicator_total_removed"] = self.deduplicator.duplicates_removed
 
         # ── Step 7: Display summary ────────────────────────────────
@@ -264,11 +325,18 @@ class NewsIngestionService:
         pub_date_str = article.get("published_at") or article.get("pubDate")
         pub_date = _parse_rss_date(pub_date_str) if pub_date_str else None
         if pub_date is None:
-            pub_date = datetime.now(timezone.utc)
+            pub_date = datetime.now(UTC)
 
         # Extract stock symbols from article text
         text = (article.get("title") or "") + " " + (article.get("description") or "")
         symbols = _news_parser.extract_symbols(text)
+
+        # Classify category from raw RSS category, feed name, title, description
+        raw_category = article.get("category", "")
+        feed_name = article.get("_source_feed", "") or article.get("source", "")
+        title = article.get("title", "")
+        description = article.get("description", "")
+        category = _classify_category(raw_category, feed_name, title, description)
 
         item = NewsItem(
             id=new_id("news"),
@@ -278,7 +346,7 @@ class NewsIngestionService:
             source=article.get("_source_feed") or article.get("source", "rss"),
             url=url,
             publish_date=pub_date,
-            category=article.get("category", ""),
+            category=category,
             sentiment=article.get("sentiment_score", 0.0),
             sentiment_label=article.get("sentiment_label", "neutral"),
             symbols=symbols,
@@ -314,7 +382,7 @@ class NewsIngestionService:
                 print(f"  {i:>2}. {sent_icon}[{score:.2f}] [{source}] {title}")
 
             # Show source distribution
-            print(f"\n  📡  SOURCE DISTRIBUTION:")
+            print("\n  📡  SOURCE DISTRIBUTION:")
             source_counts: dict[str, int] = {}
             for a in articles:
                 src = (a.get("_source_feed") or a.get("source", "unknown"))

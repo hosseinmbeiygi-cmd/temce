@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import finpy_tse as fpy
 
 from .base_adapter import BaseLibraryAdapter, CollectedData

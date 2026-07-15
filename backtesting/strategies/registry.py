@@ -3,7 +3,7 @@ Strategy Registry — single source of truth for all available backtesting strat
 
 Provides a StrategyRegistry that stores strategy classes by name, and a
 register_all_strategies() function that auto-discovers every strategy from
-the rule_based module.  Analogous to ml/models/registry.py + __init__.py.
+the rule_based and ml_based modules.  Analogous to ml/models/registry.py + __init__.py.
 """
 
 from __future__ import annotations
@@ -122,6 +122,8 @@ def _derive_strategy_type(strategy_cls: type[BaseStrategy]) -> str:
         return "options"
     if "portfolios" in parts:
         return "portfolios"
+    if "ml_based" in parts:
+        return "ml_based"
     return "other"
 
 
@@ -153,7 +155,9 @@ def get_strategy_registry() -> StrategyRegistry:
 
 
 def register_all_strategies() -> None:
-    """Discover and register every strategy from the rule_based module."""
+    """Discover and register every strategy from rule_based and portfolios modules."""
+    # ML-based strategies
+    from backtesting.strategies.ml_based.ml_signal_strategy import MlSignalStrategy
     from backtesting.strategies.rule_based.breakout_strategy import BreakoutStrategy
     from backtesting.strategies.rule_based.half_trend_strategy import HalfTrendStrategy
     from backtesting.strategies.rule_based.mean_reversion_strategy import MeanReversionStrategy
@@ -163,6 +167,23 @@ def register_all_strategies() -> None:
     from backtesting.strategies.rule_based.squeeze_momentum_strategy import SqueezeMomentumStrategy
     from backtesting.strategies.rule_based.support_resistance_strategy import SupportResistanceStrategy
     from backtesting.strategies.rule_based.volatility_breakout import VolatilityBreakoutStrategy
+
+    # Portfolio strategies
+    try:
+        from backtesting.strategies.portfolios.equal_weight_strategy import EqualWeightStrategy
+        from backtesting.strategies.portfolios.max_sharpe_strategy import MaxSharpeStrategy
+        from backtesting.strategies.portfolios.minimum_variance_strategy import MinimumVarianceStrategy
+        from backtesting.strategies.portfolios.risk_parity_strategy import RiskParityStrategy
+        from backtesting.strategies.portfolios.tactical_allocation_strategy import TacticalAllocationStrategy
+        portfolio_strategies = [
+            ("equal_weight", EqualWeightStrategy),
+            ("max_sharpe", MaxSharpeStrategy),
+            ("minimum_variance", MinimumVarianceStrategy),
+            ("risk_parity", RiskParityStrategy),
+            ("tactical_allocation", TacticalAllocationStrategy),
+        ]
+    except ImportError:
+        portfolio_strategies = []
 
     for name, cls in [
         ("moving_average_cross", MovingAverageCrossStrategy),
@@ -174,7 +195,24 @@ def register_all_strategies() -> None:
         ("half_trend", HalfTrendStrategy),
         ("squeeze_momentum", SqueezeMomentumStrategy),
         ("support_resistance", SupportResistanceStrategy),
-    ]:
+        ("ml_signal", MlSignalStrategy),
+    ] + portfolio_strategies:
         _strategy_registry.register(name, cls)
+
+    # Add descriptions for portfolio strategies
+    STRATEGY_DESCRIPTIONS.update({
+        "equal_weight": "توزیع مساوی سرمایه بین تمام دارایی‌ها. ساده‌ترین روش مدیریت پرتفوی.",
+        "max_sharpe": "بهینه‌سازی پرتفوی برای حداکثر نسبت شارپ (بازده به ریسک).",
+        "minimum_variance": "انتخاب وزن‌هایی که واریانس پرتفوی را به حداقل می‌رساند.",
+        "risk_parity": "توزیع ریسک مساوی بین تمام دارایی‌ها بر اساس نوسانات.",
+        "tactical_allocation": "تخصیص تاکتیکی بر اساس روند بازار و شرایط اقتصادی.",
+        "ml_signal": (
+            "از پیش‌بینی‌های یادگیری ماشین برای تصمیم‌گیری خرید/فروش استفاده می‌کند. "
+            "مدل XGBoost/RandomForest روی داده‌های تاریخی آموزش دیده و برای هر کندل، "
+            "درصد تغییر قیمت پیش‌بینی شده را محاسبه می‌کند. اگر پیش‌بینی صعود > آستانه باشد "
+            "خرید می‌کند و اگر پیش‌بینی نزول < آستانه باشد می‌فروشد. "
+            "مناسب برای ترکیب قدرت یادگیری ماشین با بک‌تست."
+        ),
+    })
 
     logger.debug("Registered %d strategies", len(_strategy_registry._builders))

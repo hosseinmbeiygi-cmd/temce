@@ -3,6 +3,7 @@
 # --- auto PYTHONPATH ---
 import sys
 from pathlib import Path
+
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
@@ -14,11 +15,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core.database import init_database, close_database, get_session
-from brsapi.services.sync_service import BrsApiSyncService
-from brsapi.client import get_client
 from sqlalchemy import text
 
+from brsapi.client import get_client
+from brsapi.services.sync_service import BrsApiSyncService
+from core.database import close_database, get_session, init_database
 
 DOWNLOAD_ALL = False   # set True for full download, False for test
 

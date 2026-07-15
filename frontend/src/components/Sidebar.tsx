@@ -26,8 +26,14 @@ const NAV_ITEMS = [
   { href: "/alerts", label: "اطلاعیه‌ها", icon: "🔔" },
   { href: "/macro", label: "داده‌های کلان", icon: "🏛️" },
   { href: "/watchlist", label: "دیده‌بان", icon: "👁️" },
+  { href: "/market-watch", label: "دیدبان بازار", icon: "📋" },
   { href: "/alpha", label: "آلفا", icon: "⚡" },
-  { href: "/backtest", label: "بک‌تست", icon: "🧪" },
+  { href: "/backtest", label: "بک‌تست", icon: "🧪", children: [
+    { href: "/backtest/generate", label: "تولید خودکار", icon: "🚀" },
+    { href: "/backtest/compose", label: "ترکیب استراتژی", icon: "🔬" },
+    { href: "/backtest/walk-forward", label: "Walk-Forward", icon: "📊" },
+    { href: "/backtest/monte-carlo", label: "Monte Carlo", icon: "🎲" },
+  ]},
   { href: "/tests", label: "تست‌ها", icon: "✅" },
   { href: "/signals", label: "سیگنال‌ها", icon: "📡" },
   { href: "/risk", label: "ریسک", icon: "🛡️" },
@@ -35,6 +41,9 @@ const NAV_ITEMS = [
   { href: "/tables", label: "مرور جداول", icon: "🗃️" },
   { href: "/ml", label: "یادگیری ماشین", icon: "🧠" },
   { href: "/admin", label: "مدیریت", icon: "⚙️" },
+  { href: "/crypto-market", label: "بازار رمز ارز", icon: "🪙" },
+  { href: "/crypto-exchange", label: "صرافی ارز دیجیتال", icon: "🔄" },
+  { href: "/tabdeal-api", label: "API تبدیل", icon: "🔑" },
 ];
 
 const AUTH_ITEMS = [
@@ -96,19 +105,42 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href;
+          const hasChildren = item.children && item.children.length > 0;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                active
-                  ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
-                  : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
-              }`}
-            >
-              <span className="text-lg shrink-0">{item.icon}</span>
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </Link>
+            <div key={item.href}>
+              <Link
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                  active
+                    ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
+                    : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
+                }`}
+              >
+                <span className="text-lg shrink-0">{item.icon}</span>
+                {!collapsed && <span className="truncate">{item.label}</span>}
+              </Link>
+              {hasChildren && (active || pathname.startsWith(item.href + "/")) && !collapsed && (
+                <div className="ml-8 mt-1 space-y-0.5">
+                  {item.children!.map((child) => {
+                    const childActive = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        className={`flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                          childActive
+                            ? "bg-primary-600/20 text-primary-300"
+                            : "text-surface-400 hover:text-surface-200 hover:bg-surface-800/50"
+                        }`}
+                      >
+                        <span>{child.icon}</span>
+                        <span>{child.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>

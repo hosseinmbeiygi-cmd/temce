@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,102 @@ from schemas.common.responses import ApiResponse
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+# ──────────────────────────────────────────────
+#  BrsApi Scheduler Jobs Management
+#  (Enable/disable scheduler jobs via Web UI)
+# ──────────────────────────────────────────────
+
+
+def _get_brsapi_registry():
+    """Get the BrsApi job registry singleton."""
+    from brsapi.jobs.registry import get_brsapi_job_registry
+    return get_brsapi_job_registry()
+
+
+@router.get(
+    "/scheduler",
+    summary="List BrsApi scheduler jobs",
+    description="List all BrsApi scheduler jobs with their enabled/disabled status, cron schedule, and description",
+)
+async def list_scheduler_jobs() -> ApiResponse[list[dict[str, Any]]]:
+    """List all BrsApi sync jobs with their status."""
+    try:
+        registry = _get_brsapi_registry()
+        jobs = registry.list_all_jobs()
+
+        # Augment with APScheduler runtime info if available
+        if registry.scheduler:
+            for job_info in jobs:
+                aps_job = registry.scheduler.get_job(job_info["name"])
+                if aps_job:
+                    job_info["next_run_time"] = (
+                        aps_job.next_run_time.isoformat() if aps_job.next_run_time else None
+                    )
+                else:
+                    job_info["next_run_time"] = None
+        else:
+            for job_info in jobs:
+                job_info["next_run_time"] = None
+
+        enabled_count = sum(1 for j in jobs if j["enabled"])
+        return ApiResponse(
+            success=True,
+            data={
+                "jobs": jobs,
+                "total": len(jobs),
+                "enabled": enabled_count,
+                "disabled": len(jobs) - enabled_count,
+            },
+        )
+    except Exception as exc:
+        logger.exception("Failed to list scheduler jobs")
+        return ApiResponse(success=False, error={"message": str(exc)}, data={"jobs": [], "total": 0, "enabled": 0, "disabled": 0})
+
+
+@router.post(
+    "/scheduler/{job_name}/toggle",
+    summary="Toggle a scheduler job",
+    description="Enable or disable a BrsApi scheduler job at runtime. Changes take effect immediately.",
+)
+async def toggle_scheduler_job(job_name: str) -> ApiResponse[dict[str, Any]]:
+    """Toggle a job's enabled/disabled status."""
+    registry = _get_brsapi_registry()
+    job = registry.get(job_name)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Unknown scheduler job: {job_name}")
+    try:
+        result = registry.toggle_job(job_name)
+        return ApiResponse(success=True, data=result)
+    except Exception as exc:
+        logger.exception("Failed to toggle job '%s'", job_name)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post(
+    "/scheduler/{job_name}/run",
+    summary="Run a scheduler job now",
+    description="Trigger an immediate run of a BrsApi scheduler job (bypasses the scheduler).",
+)
+async def run_scheduler_job(job_name: str) -> ApiResponse[dict[str, Any]]:
+    """Trigger an immediate run of a specific scheduler job."""
+    registry = _get_brsapi_registry()
+    job = registry.get(job_name)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Unknown scheduler job: {job_name}")
+    try:
+        result = await registry.run_job_now(job_name)
+        return ApiResponse(success=result.get("success", False), data=result)
+    except Exception as exc:
+        logger.exception("Failed to run job '%s'", job_name)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ──────────────────────────────────────────────
+#  Job Run History (existing)
+# ──────────────────────────────────────────────
+
 
 JOBS_LIST_QUERY = """
     SELECT id, job_type, status, progress_pct,
@@ -130,7 +226,7 @@ async def list_jobs(
             "stats": stats,
             "job_types": job_types,
         })
-    except Exception as exc:
+    except Exception:
         logger.exception("Failed to fetch jobs")
         return ApiResponse[dict[str, Any]](
             success=True,

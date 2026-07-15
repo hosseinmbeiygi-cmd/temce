@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from ingestion.library_sources.base_adapter import BaseLibraryAdapter, CollectedData
-
 from core.logging import get_logger
+from ingestion.library_sources.base_adapter import BaseLibraryAdapter, CollectedData
 
 logger = get_logger(__name__)
 

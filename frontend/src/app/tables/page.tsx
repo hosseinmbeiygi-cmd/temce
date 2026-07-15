@@ -63,7 +63,7 @@ function TableList({
         className="w-full px-3 py-2.5 bg-surface-800 border border-surface-700 rounded-lg focus:outline-none focus:border-primary-500 mb-3" />
       <div className="space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto">
         {list.map(t => (
-          <button key={t.name} onClick={() => onSelect(t.name)}
+          <button key={`${t.name}-${t.row_count}`} onClick={() => onSelect(t.name)}
             style={{ fontWeight: 700, fontSize: 14, color: selected === t.name ? "#a5b4fc" : "#e2e8f0",
               background: selected === t.name ? "rgba(79,70,229,0.15)" : "transparent",
               border: selected === t.name ? "1px solid rgba(99,102,241,0.3)" : "1px solid transparent" }}
@@ -112,8 +112,8 @@ function DataTable({ data }: { data: TableData }) {
           <thead>
             <tr style={{ background: "rgba(30,41,59,0.8)", borderBottom: "1px solid #334155" }}>
               <th style={{ padding: "12px 12px", fontWeight: 700, fontSize: 14, color: "#cbd5e1", width: 40 }}>#</th>
-              {dis.columns.map(col => (
-                <th key={col.name} style={{ padding: "12px 12px", fontWeight: 700, fontSize: 14, color: "#cbd5e1", whiteSpace: "nowrap", textAlign: "right" }}>
+              {dis.columns.map((col, ci) => (
+                <th key={`${col.name}-${ci}`} style={{ padding: "12px 12px", fontWeight: 700, fontSize: 14, color: "#cbd5e1", whiteSpace: "nowrap", textAlign: "right" }}>
                   <div>{col.name}</div>
                   <div style={{ fontSize: 11, color: "#64748b", fontFamily: "monospace" }}>{col.type}</div>
                 </th>
@@ -131,11 +131,11 @@ function DataTable({ data }: { data: TableData }) {
                   <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: 13, color: "#64748b", fontFamily: "monospace" }}>
                     {(dis.page - 1) * dis.page_size + i + 1}
                   </td>
-                  {dis.columns.map(col => {
+                  {dis.columns.map((col, ci) => {
                     const val = row[col.name];
                     const sv = val == null ? "—" : typeof val === "object" ? JSON.stringify(val) : String(val);
                     return (
-                      <td key={col.name} style={{ padding: "10px 12px", fontWeight: 700, fontSize: 13, color: "#f1f5f9", fontFamily: "monospace", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      <td key={`${col.name}-${ci}`} style={{ padding: "10px 12px", fontWeight: 700, fontSize: 13, color: "#f1f5f9", fontFamily: "monospace", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                         title={sv.length > 60 ? sv : undefined}>
                         {sv.length > 60 ? sv.slice(0, 60) + "..." : sv}
                       </td>
@@ -230,19 +230,19 @@ function GlobalSearch({ query }: { query: string }) {
                 <table style={{ width: "100%", textAlign: "right", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #334155" }}>
-                      {r.columns.map(col => (
-                        <th key={col.name} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 14, color: "#cbd5e1", whiteSpace: "nowrap", textAlign: "right" }}>{col.name}</th>
+                      {r.columns.map((col, ci) => (
+                        <th key={`${col.name}-${ci}`} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 14, color: "#cbd5e1", whiteSpace: "nowrap", textAlign: "right" }}>{col.name}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {r.rows.map((row, i) => (
                       <tr key={i} style={{ borderBottom: "1px solid rgba(30,41,59,0.3)" }}>
-                        {r.columns.map(col => {
+                        {r.columns.map((col, ci) => {
                           const val = row[col.name];
                           const sv = val == null ? "—" : typeof val === "object" ? JSON.stringify(val) : String(val);
                           return (
-                            <td key={col.name} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 13, color: "#f1f5f9", fontFamily: "monospace", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={sv}>
+                            <td key={`${col.name}-${ci}`} style={{ padding: "8px 12px", fontWeight: 700, fontSize: 13, color: "#f1f5f9", fontFamily: "monospace", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={sv}>
                               {sv.length > 45 ? sv.slice(0, 45) + "..." : sv}
                             </td>
                           );

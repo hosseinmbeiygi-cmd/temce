@@ -74,7 +74,8 @@ async def main(api_key: str) -> int:
     # ── 6. Verify in database ─────────────────────
     print("\nVerifying data in PostgreSQL...")
     async with get_session() as session:
-        from sqlalchemy import func as sa_func, select
+        from sqlalchemy import func as sa_func
+        from sqlalchemy import select
 
         from brsapi.models import SymbolSnapshotModel
 
@@ -123,7 +124,7 @@ async def main(api_key: str) -> int:
 
     # ── 7. Summary ────────────────────────────────
     print(f"\n{'='*50}")
-    print(f"  [PASS] INTEGRATION TEST PASSED")
+    print("  [PASS] INTEGRATION TEST PASSED")
     print(f"  Fetched {report.items_count} records for {distinct} unique symbols")
     print(f"  Stored in brsapi_symbol_snapshots ({total} total rows)")
     print(f"{'='*50}")

@@ -13,7 +13,7 @@ def sample_instrument(id: str = "inst_test_001", symbol: str = "فولاد") -> 
         market_type=MarketType.BOURS,
         asset_class=AssetClass.EQUITY,
         status=InstrumentStatus.ACTIVE,
-        sector_code="metal",
+        sector_code="27",  # فلزات اساسی
         group_code="01",
         tick_size=1.0,
         lot_size=1000,

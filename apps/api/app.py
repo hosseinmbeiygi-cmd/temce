@@ -14,12 +14,28 @@ from apps.api.router import Router
 from core.cache import get_cache
 from core.config import settings
 from core.database import close_database, get_session, init_database
-from core.event_bus import event_bus
 from core.logging import get_logger, setup_logging
 from ml.models import register_all_models
 
 logger = get_logger(__name__)
 
+
+# ── Notification callback for rate limit alerts ──
+
+async def _rate_limit_notify(message: str) -> None:
+    """Send rate limit alerts via Telegram if configured, always log."""
+    logger.warning("RATE LIMIT ALERT: %s", message)
+    try:
+        from integrations.notifications.telegram_sender import TelegramSender
+        sender = TelegramSender()
+        result = await sender.send(f"⚠️ <b>BrsApi Rate Limit</b>\n\n{message}")
+        if not result.success:
+            logger.debug("Telegram notification not sent (not configured?): %s", result.error)
+    except Exception:
+        pass
+
+
+# ── Startup background tasks ──
 
 async def _fetch_news_on_startup() -> None:
     """Background task: fetch news from RSS feeds on API startup."""
@@ -49,6 +65,70 @@ async def _fetch_news_on_startup() -> None:
         logger.exception("Startup news fetch failed")
 
 
+async def _brsapi_startup_sync() -> None:
+    """
+    Startup sync: fetch ALL BrsApi endpoints in order.
+    Respects rate limits automatically (the rate limiter enforces 10K/day, 500/5min).
+    """
+    try:
+        from brsapi.client import get_client
+        from brsapi.services.sync_service import BrsApiSyncService
+
+        logger.info("=" * 60)
+        logger.info("BrsApi STARTUP SYNC — fetching ALL endpoints in order")
+        logger.info("=" * 60)
+
+        client = await get_client()
+        session_obtained = False
+
+        async for session in get_session():
+            session_obtained = True
+            service = BrsApiSyncService(client=client, session=session)
+
+            # sync_all runs every endpoint in sequence, respecting rate limits
+            reports = await service.sync_all(session)
+
+            # Log summary
+            ok = sum(1 for r in reports if r.success)
+            fail = sum(1 for r in reports if not r.success)
+            skipped = sum(1 for r in reports if r.skipped)
+            total_items = sum(r.items_count for r in reports)
+            total_ms = sum(r.duration_ms for r in reports)
+
+            logger.info("=" * 60)
+            logger.info("STARTUP SYNC COMPLETE: %d ok, %d failed, %d skipped", ok, fail, skipped)
+            logger.info("Total items synced: %d | Total time: %.1fs", total_items, total_ms / 1000)
+            logger.info("=" * 60)
+
+            for r in reports:
+                status = "OK" if r.success else ("SKIP" if r.skipped else "FAIL")
+                logger.info(
+                    "  [%s] %s — %d items, %.0fms%s",
+                    status, r.endpoint, r.items_count, r.duration_ms,
+                    f" — {r.error}" if r.error else "",
+                )
+
+            # Log rate limiter status
+            from brsapi.rate_limiter import get_rate_limiter
+            rl_status = get_rate_limiter().status()
+            g = rl_status["global"]
+            logger.info(
+                "Rate limits: daily %d/%d (%.0f%%) | 5min %d/%d (%.0f%%)",
+                g["daily_count"], g["daily_limit"], g["daily_used_pct"],
+                g["5min_count"], g["5min_limit"], g["5min_used_pct"],
+            )
+
+            break
+
+        if not session_obtained:
+            logger.warning("Could not obtain DB session for BrsApi startup sync")
+
+    except Exception:
+        logger.exception("BrsApi startup sync failed")
+
+
+# ── Lifespan ──
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
@@ -76,7 +156,32 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.warning("Cache init failed, using null cache")
 
-    # Auto-fetch news in background (non-blocking)
+    # ── Register rate limit notification callback ──
+    try:
+        from brsapi.rate_limiter import get_rate_limiter
+        rl = get_rate_limiter()
+        rl.on_threshold(_rate_limit_notify)
+        logger.info(
+            "Rate limiter initialized: daily=%d, 5min=%d",
+            rl._daily_limit, rl._five_min_limit,
+        )
+    except Exception:
+        logger.warning("Rate limiter notification setup failed")
+
+    # ── Start BrsApi scheduler (periodic sync jobs) ──
+    try:
+        from apps.scheduler.app import SchedulerApp
+        _scheduler_app = SchedulerApp()
+        _scheduler_app.start()
+        job_count = len(_scheduler_app.scheduler.get_jobs())
+        logger.info("BrsApi scheduler started with %d periodic jobs", job_count)
+    except Exception:
+        logger.exception("BrsApi scheduler startup failed — periodic syncs disabled")
+
+    # ── Initial full sync (ALL endpoints, ordered) ──
+    asyncio.create_task(_brsapi_startup_sync())
+
+    # Auto-fetch news in background
     asyncio.create_task(_fetch_news_on_startup())
 
     logger.info("Starting %s", settings.app_name)
@@ -117,6 +222,14 @@ def create_app() -> FastAPI:
     @app.get("/")
     async def root():
         return RedirectResponse(url="/docs")
+
+    # ── Rate limit status endpoint ──
+    @app.get("/api/v1/rate-limits")
+    async def rate_limit_status():
+        """Check BrsApi rate limit status (daily, 5min, per-endpoint)."""
+        from brsapi.rate_limiter import get_rate_limiter
+        from schemas.common.responses import ApiResponse
+        return ApiResponse(success=True, data=get_rate_limiter().status())
 
     router = Router()
     app.include_router(router.setup(), prefix=settings.api_prefix)

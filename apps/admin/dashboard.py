@@ -25,10 +25,10 @@ DAILY_RECORDS_QUERY = """
         (SELECT COUNT(*) FROM quotes WHERE created_at >= CURRENT_DATE) AS quotes_today,
         (SELECT COUNT(*) FROM trades WHERE created_at >= CURRENT_DATE) AS trades_today,
         (SELECT COUNT(*) FROM orderbooks WHERE created_at >= CURRENT_DATE) AS orderbooks_today,
-        (SELECT COUNT(*) FROM news WHERE created_at >= CURRENT_DATE) AS news_today,
+        (SELECT COUNT(*) FROM news_articles WHERE created_at >= CURRENT_DATE) AS news_today,
         (SELECT COUNT(*) FROM signals WHERE created_at >= CURRENT_DATE) AS signals_today,
         (SELECT COUNT(*) FROM recommendations WHERE created_at >= CURRENT_DATE) AS recommendations_today,
-        (SELECT COUNT(*) FROM codal WHERE created_at >= CURRENT_DATE) AS codal_today,
+        (SELECT COUNT(*) FROM codal_reports WHERE created_at >= CURRENT_DATE) AS codal_today,
         (SELECT COUNT(*) FROM job_runs WHERE created_at >= CURRENT_DATE) AS job_runs_today
 """
 
@@ -78,7 +78,7 @@ async def dashboard_overview(
             table_rows = []
             for tbl in [
                 "instruments", "quotes", "trades", "orderbooks", "signals",
-                "recommendations", "news", "codal", "macro", "indicators",
+                "recommendations", "news_articles", "codal_reports", "macro_indicators", "indicators",
                 "portfolios", "alerts", "job_runs", "users", "brsapi_symbol_details",
                 "brsapi_option_snapshots", "brsapi_nav_records",
                 "brsapi_historical_daily", "brsapi_historical_real_legal",

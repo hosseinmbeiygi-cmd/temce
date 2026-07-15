@@ -135,9 +135,8 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
         )
 
     def _to_domain(self, orm: BacktestRunModel) -> BacktestRun:
-        from datetime import date
-
         import json
+        from datetime import date
 
         symbols = []
         if orm.symbols:

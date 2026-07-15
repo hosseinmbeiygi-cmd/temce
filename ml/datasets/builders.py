@@ -20,12 +20,12 @@ class DatasetBuilder(BaseDatasetBuilder):
     async def load(self, config: dict[str, Any]) -> tuple[FeatureMatrix, TargetVector]:
         if not config.get("instrument_ids"):
             raise ValueError("Instrument IDs must be specified")
-            
+
         start_date = config.get("start_date", "")
         end_date = config.get("end_date", "")
         if not start_date or not end_date:
             raise ValueError("Both start_date and end_date must be specified")
-            
+
         print(f"Trying to load data for {config['instrument_ids']} from {start_date} to {end_date}")
         prices = await self.loader.load_market_data(
             config["instrument_ids"],

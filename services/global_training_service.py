@@ -6,8 +6,6 @@ persist within the server process.
 
 from __future__ import annotations
 
-from typing import Any
-
 from services.training_service import TrainingService
 
 

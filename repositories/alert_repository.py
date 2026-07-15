@@ -6,7 +6,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.result import PaginatedResult, Result
-from domain.alerts.entities import Alert, AlertRule
+from domain.alerts.entities import Alert
 from domain.common.base_entity import BaseEntity
 from models.alert import AlertHistoryModel, AlertModel
 from repositories.base_repository import InMemoryRepository

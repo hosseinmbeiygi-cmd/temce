@@ -114,9 +114,9 @@ const PHASE_LABELS: Record<string, string> = {
 // ── Mock data generators (for fallback) ────────────────────────────────────────────────────────────────────────────────
 function generateMockIndices() {
   return [
-    { name: "شاخص بورس", code: "TEDPIX", value: 5_187_263, change: 1.16, pe: 7.07, trading_value: 125.94 },
-    { name: "شاخص فرابورس", code: "IFX", value: 39_771, change: 1.56, pe: 7.84, trading_value: 30.17 },
-    { name: "شاخص بورس ایران", code: "IREX", value: 5_011_383, change: 1.23, pe: 7.15, trading_value: 157.02 },
+    { name: "شاخص کل", code: "TEDPIX", value: 5_286_856, change: -0.46, pe: 7.07, trading_value: 125.94 },
+    { name: "شاخص کل (هم وزن)", code: "IFX", value: 814_271, change: -1.18, pe: 7.84, trading_value: 30.17 },
+    { name: "شاخص قیمت (هم وزن)", code: "IREX", value: 665_016, change: -0.46, pe: 7.15, trading_value: 157.02 },
   ];
 }
 
@@ -210,12 +210,12 @@ function generateMockFinancialRatios() {
 
 function generateMockNews() {
   return [
-    { symbol: "دشیری", title: "گزارش فعالیت ماهانه دوره 1 ماهه منتهی به 1405/03/31", date: "1405-04-10", source: "کدال", sentiment: "neutral" },
-    { symbol: "سبد مانی", title: "صورت‌های مالی سال مالی منتهی به 1404/06/31 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral" },
-    { symbol: "وملی", title: "خلاصه تصمیمات مجمع عمومی عادی سالیانه دوره 12 ماهه منتهی به 1404/12/29", date: "1405-04-10", source: "کدال", sentiment: "neutral" },
-    { symbol: "فرابورس", title: "صورت‌های مالی سال مالی منتهی به 1404/12/29 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral" },
-    { symbol: "خکار", title: "صورت‌های مالی تلفیقی سال مالی منتهی به 1404/12/29 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral" },
-    { symbol: "لبوتان", title: "صورت‌های مالی تلفیقی سال مالی منتهی به 1404/12/29 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral" },
+    { symbol: "دشیری", title: "گزارش فعالیت ماهانه دوره 1 ماهه منتهی به 1405/03/31", date: "1405-04-10", source: "کدال", sentiment: "neutral", url: "" },
+    { symbol: "سبد مانی", title: "صورت‌های مالی سال مالی منتهی به 1404/06/31 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral", url: "" },
+    { symbol: "وملی", title: "خلاصه تصمیمات مجمع عمومی عادی سالیانه دوره 12 ماهه منتهی به 1404/12/29", date: "1405-04-10", source: "کدال", sentiment: "neutral", url: "" },
+    { symbol: "فرابورس", title: "صورت‌های مالی سال مالی منتهی به 1404/12/29 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral", url: "" },
+    { symbol: "خکار", title: "صورت‌های مالی تلفیقی سال مالی منتهی به 1404/12/29 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral", url: "" },
+    { symbol: "لبوتان", title: "صورت‌های مالی تلفیقی سال مالی منتهی به 1404/12/29 (حسابرسی شده)", date: "1405-04-10", source: "کدال", sentiment: "neutral", url: "" },
   ];
 }
 
@@ -249,21 +249,106 @@ export default function DashboardPage() {
   });
 
   // ── Fallback data ──
-  const indices = useMemo(() => generateMockIndices(), []);
+  const mockIndices = useMemo(() => generateMockIndices(), []);
+
+  // Fetch indices directly from /market/indices (fast, separate from slow dashboard)
+  const { data: realIndices } = useQuery({
+    queryKey: ["home-indices"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ name: string; index_value: number; index_change_pct: number; index_change: number; trade_value?: number }> }>("/market/indices");
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          return res.data.slice(0, 3).map((idx) => ({
+            name: idx.name,
+            code: idx.name,
+            value: idx.index_value,
+            change: idx.index_change_pct,
+            pe: 0,
+            trading_value: idx.trade_value ? Math.round(idx.trade_value / 1e12 * 10) / 10 : 0,
+          }));
+        }
+      } catch {}
+      return null;
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const indices = realIndices && realIndices.length > 0 ? realIndices : mockIndices;
   const marketIndicators = useMemo(() => generateMockMarketIndicators(), []);
   const sectors = useMemo(() => generateMockSectors(), []);
-  const currencies = useMemo(() => generateMockCurrencies(), []);
-  const coins = useMemo(() => generateMockCoins(), []);
+  const financialRatios = useMemo(() => generateMockFinancialRatios(), []);
+
+  // ── Fetch real currencies from BrsApi ──
+  const { data: currencyData } = useQuery({
+    queryKey: ["home-currency"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ name: string; symbol: string; price: number; change_value: number; change_percent: number }> }>("/brsapi/currency?limit=6");
+        return res?.data ?? [];
+      } catch { return []; }
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+  const currencies = useMemo(() => {
+    if (currencyData && currencyData.length > 0) {
+      return currencyData.map(c => ({
+        name: c.name || c.symbol,
+        price: c.price || 0,
+        change: c.change_value || 0,
+        pct: c.change_percent || 0,
+      }));
+    }
+    return generateMockCurrencies();
+  }, [currencyData]);
+
+  // ── Fetch real gold/coins from BrsApi ──
+  const { data: goldCoinData } = useQuery({
+    queryKey: ["home-gold-coin"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ name: string; symbol: string; price: number; change_value: number; change_percent: number }> }>("/brsapi/gold-coin?limit=8");
+        return res?.data ?? [];
+      } catch { return []; }
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+  const coins = useMemo(() => {
+    if (goldCoinData && goldCoinData.length > 0) {
+      return goldCoinData.map(g => ({
+        name: g.name || g.symbol,
+        price: g.price || 0,
+        change: g.change_value || 0,
+        pct: g.change_percent || 0,
+      }));
+    }
+    return generateMockCoins();
+  }, [goldCoinData]);
   const goldOunce = useMemo(() => generateMockGoldOunce(), []);
   const energy = useMemo(() => generateMockEnergy(), []);
   const metals = useMemo(() => generateMockMetals(), []);
-  const financialRatios = useMemo(() => generateMockFinancialRatios(), []);
+
+  // ── Fetch real crypto from BrsApi ──
+  const { data: cryptoData } = useQuery({
+    queryKey: ["home-crypto"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ name: string; symbol: string; price_usd: number; change_percent: number; market_cap: number }> }>("/brsapi/crypto?limit=6");
+        return res?.data ?? [];
+      } catch { return []; }
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+
   // ── Fetch real news from API ──
   const { data: realNews } = useQuery({
     queryKey: ["home-news"],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: { items?: Array<{ id: string; title: string; summary?: string; source?: string; published_at?: string; symbols?: string[]; category?: string; sentiment?: string }>; total?: number } }>("/news?page_size=10");
+        const res = await apiGet<{ success: boolean; data: { items?: Array<{ id: string; title: string; summary?: string; source?: string; url?: string; published_at?: string; symbols?: string[]; category?: string; sentiment?: string }>; total?: number } }>("/news?page_size=10");
         return (res?.data?.items ?? []);
       } catch { return []; }
     },
@@ -272,7 +357,7 @@ export default function DashboardPage() {
   });
   const mockNews = useMemo(() => generateMockNews(), []);
   const news = (realNews && realNews.length > 0)
-    ? realNews.map((item: any) => ({ symbol: (item.symbols && item.symbols.length > 0 ? item.symbols[0] : (item.source || "خبر")), title: item.title || "", date: (item.published_at || "").split("T")[0] || "", source: item.source || "", sentiment: item.sentiment || "neutral" }))
+    ? realNews.map((item: any) => ({ symbol: (item.symbols && item.symbols.length > 0 ? item.symbols[0] : (item.source || "خبر")), title: item.title || "", date: (item.published_at || "").split("T")[0] || "", source: item.source || "", sentiment: item.sentiment || "neutral", url: item.url || "" }))
     : mockNews;
   const topTraded = useMemo(() => generateMockTopTraded(), []);
 
@@ -282,9 +367,11 @@ export default function DashboardPage() {
   const losers = dashboardData?.losers ?? [];
   const active = dashboardData?.active ?? [];
 
-  const gainersCount = overview?.gainers ?? 760;
-  const losersCount = overview?.losers ?? 176;
-  const totalValue = overview?.total_value ?? 2_556_447_000_000_000;
+  const gainersCount = overview?.gainers ?? 0;
+  const losersCount = overview?.losers ?? 0;
+  const totalValue = overview?.total_value ?? 0;
+  const totalSymbols = gainersCount + losersCount;
+  const hasBreadth = totalSymbols > 0;
 
   return (
     <AppLayout>
@@ -317,13 +404,28 @@ export default function DashboardPage() {
       {/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════
           ROW 2: Market Indicators (Demand Pressure, Buying Power, etc.)
           ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
-        {marketIndicators.map((ind) => (
-          <div key={ind.label} className="glass-card p-3">
-            <div className="text-[10px] text-surface-500 mb-2">{ind.label}</div>
-            <div className="grid grid-cols-3 gap-1">
-              {ind.values.map((v, i) => (
-                <div key={i} className="text-center">
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4 animate-pulse">
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className="glass-card p-3">
+              <div className="h-3 bg-surface-700/50 rounded w-24 mb-3" />
+              <div className="grid grid-cols-3 gap-1">
+                <div className="h-8 bg-surface-700/30 rounded" />
+                <div className="h-8 bg-surface-700/30 rounded" />
+                <div className="h-8 bg-surface-700/30 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+          {marketIndicators.map((ind, indi) => (
+            <div key={`${ind.label}-${indi}`} className="glass-card p-3">
+              <div className="text-[10px] text-surface-500 mb-2">{ind.label}</div>
+              <div className="grid grid-cols-3 gap-1">
+                {ind.values.map((v, i) => (
+                  <div key={i} className="text-center">
                   <div className={`text-sm font-black ${ind.color}`}>{v}</div>
                   <div className="text-[8px] text-surface-600">
                     {i === 0 ? "بورس" : i === 1 ? "فرابورس" : "ایران"}
@@ -334,6 +436,7 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════
           ROW 3: Quick Links
@@ -367,8 +470,8 @@ export default function DashboardPage() {
         {/* Sector Performance */}
         <Card title="عملکرد صنایع">
           <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
-            {sectors.map((s) => (
-              <div key={s.name} className="flex items-center gap-2 py-1">
+            {sectors.map((s, si) => (
+              <div key={`${s.name}-${si}`} className="flex items-center gap-2 py-1">
                 <span className="text-xs text-surface-400 w-24 truncate">{s.name}</span>
                 <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden">
                   <div
@@ -397,7 +500,7 @@ export default function DashboardPage() {
                   cx="50" cy="50" r="40" fill="none"
                   stroke="#10b981"
                   strokeWidth="12"
-                  strokeDasharray={`${(gainersCount / (gainersCount + losersCount)) * 251.2} 251.2`}
+                  strokeDasharray={`${hasBreadth ? (gainersCount / totalSymbols) * 251.2 : 0} 251.2`}
                   strokeLinecap="round"
                 />
               </svg>
@@ -409,11 +512,11 @@ export default function DashboardPage() {
             <div className="flex gap-6 mt-4">
               <div className="text-center">
                 <div className="text-lg font-black text-accent-emerald">{gainersCount}</div>
-                <div className="text-[10px] text-surface-500">صعودی ({((gainersCount / (gainersCount + losersCount)) * 100).toFixed(1)}%)</div>
+                <div className="text-[10px] text-surface-500">صعودی ({hasBreadth ? ((gainersCount / totalSymbols) * 100).toFixed(1) : "—"}%)</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-black text-accent-rose">{losersCount}</div>
-                <div className="text-[10px] text-surface-500">نزولی ({((losersCount / (gainersCount + losersCount)) * 100).toFixed(1)}%)</div>
+                <div className="text-[10px] text-surface-500">نزولی ({hasBreadth ? ((losersCount / totalSymbols) * 100).toFixed(1) : "—"}%)</div>
               </div>
             </div>
             <div className="text-xs text-surface-500 mt-3">
@@ -470,32 +573,41 @@ export default function DashboardPage() {
         {/* News */}
         <Card title={realNews && realNews.length > 0 ? "📰 آخرین اخبار بازار" : "اطلاعیه‌ها و مجامع"}>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {news.map((item, i) => (
-              <div key={i} className="flex items-start gap-2 py-2 border-b border-surface-800/50 last:border-0">
-                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                  item.sentiment === "positive" ? "bg-accent-emerald" :
-                  item.sentiment === "negative" ? "bg-accent-rose" : "bg-primary-500"
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-surface-200">{item.symbol}</span>
-                    {item.source && <span className="text-[9px] text-surface-500">{item.source}</span>}
-                    <span className="text-[9px] text-surface-600">{item.date}</span>
+            {news.map((item, i) => {
+              const itemKey = (item as any).id || `${item.symbol || i}-${i}`;
+              return (
+                <a
+                  key={itemKey}
+                  href={item.url || "#"}
+                  target={item.url ? "_blank" : undefined}
+                  rel={item.url ? "noopener noreferrer" : undefined}
+                  className="flex items-start gap-2 py-2 border-b border-surface-800/50 last:border-0 hover:bg-surface-800/30 rounded px-1 transition-colors"
+                >
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                    item.sentiment === "positive" ? "bg-accent-emerald" :
+                    item.sentiment === "negative" ? "bg-accent-rose" : "bg-primary-500"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-surface-200">{item.symbol}</span>
+                      {item.source && <span className="text-[9px] text-surface-500">{item.source}</span>}
+                      <span className="text-[9px] text-surface-600">{item.date}</span>
+                    </div>
+                    <p className="text-[11px] text-surface-400 mt-0.5 truncate">{item.title}</p>
                   </div>
-                  <p className="text-[11px] text-surface-400 mt-0.5 truncate">{item.title}</p>
-                </div>
-              </div>
-            ))}
+                </a>
+              );
+            })}
             <Link href={realNews && realNews.length > 0 ? "/news" : "/codal"} className="block text-center text-xs text-primary-400 hover:text-primary-300 py-2">
               لیست کامل {realNews && realNews.length > 0 ? "اخبار" : "اطلاعیه‌ها"} ←
             </Link>
           </div>
         </Card>
 
-        {/* Screener Top */}
+        {/* Top Active */}
         <Card
-          title="غربالگر پیشرفته - برترین SMC"
-          actions={<Link href="/screener" className="text-xs text-primary-400 hover:text-primary-300">مشاهده همه ←</Link>}
+          title="فعال‌ترین نمادها"
+          actions={<Link href="/smart-screener" className="text-xs text-primary-400 hover:text-primary-300">غربالگر پیشرفته ←</Link>}
         >
           <div className="overflow-hidden max-h-[300px]">
             {screener.length > 0 ? (
@@ -504,9 +616,9 @@ export default function DashboardPage() {
                   <tr className="text-surface-500 border-b border-surface-800">
                     <th className="py-1.5 text-right font-normal">#</th>
                     <th className="py-1.5 text-right font-normal">نماد</th>
+                    <th className="py-1.5 text-right font-normal">قیمت</th>
                     <th className="py-1.5 text-right font-normal">تغییر</th>
-                    <th className="py-1.5 text-right font-normal">SMC</th>
-                    <th className="py-1.5 text-right font-normal">فاز</th>
+                    <th className="py-1.5 text-right font-normal">ارزش معاملات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -518,23 +630,11 @@ export default function DashboardPage() {
                           {item.symbol}
                         </Link>
                       </td>
-                      <td className={`py-1.5 font-mono ${item.change_pct >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                        {item.change_pct >= 0 ? "+" : ""}{item.change_pct.toFixed(2)}%
+                      <td className="py-1.5 text-surface-300 font-mono">{Number(item.price || 0).toLocaleString("fa-IR")}</td>
+                      <td className={`py-1.5 font-mono ${(item.change_pct ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        {(item.change_pct ?? 0) >= 0 ? "+" : ""}{(item.change_pct ?? 0).toFixed(2)}%
                       </td>
-                      <td className="py-1.5">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                          item.smc_score >= 0.7 ? "bg-accent-emerald/15 text-accent-emerald" :
-                          item.smc_score >= 0.5 ? "bg-accent-amber/15 text-accent-amber" :
-                          "bg-surface-600/30 text-surface-400"
-                        }`}>
-                          {Math.round(item.smc_score * 100)}
-                        </span>
-                      </td>
-                      <td className="py-1.5">
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${PHASE_COLORS[item.phase] || PHASE_COLORS.neutral}`}>
-                          {PHASE_LABELS[item.phase] || item.phase}
-                        </span>
-                      </td>
+                      <td className="py-1.5 text-surface-400 font-mono">{fmt(item.value ?? 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -555,8 +655,8 @@ export default function DashboardPage() {
         {/* Currencies */}
         <Card title="ارز آزاد">
           <div className="space-y-1">
-            {currencies.map((c) => (
-              <div key={c.name} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
+            {currencies.map((c, ci) => (
+              <div key={`${c.name}-${ci}`} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
                 <span className="text-xs text-surface-300">{c.name}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-surface-200">{c.price.toLocaleString("fa-IR")}</span>
@@ -572,8 +672,8 @@ export default function DashboardPage() {
         {/* Gold Ounce */}
         <Card title="انس">
           <div className="space-y-1">
-            {goldOunce.map((g) => (
-              <div key={g.name} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
+            {goldOunce.map((g, gi) => (
+              <div key={`${g.name}-${gi}`} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
                 <span className="text-xs text-surface-300">{g.name}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-surface-200">{g.price.toLocaleString("fa-IR")}</span>
@@ -589,8 +689,8 @@ export default function DashboardPage() {
         {/* Coins */}
         <Card title="سکه">
           <div className="space-y-1">
-            {coins.map((c) => (
-              <div key={c.name} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
+            {coins.map((c, ci) => (
+              <div key={`${c.name}-${ci}`} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
                 <span className="text-xs text-surface-300">{c.name}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-surface-200">{fmtPrice(c.price)}</span>
@@ -611,8 +711,8 @@ export default function DashboardPage() {
         {/* Energy */}
         <Card title="نفت و انرژی">
           <div className="space-y-1">
-            {energy.map((e) => (
-              <div key={e.name} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
+            {energy.map((e, ei) => (
+              <div key={`${e.name}-${ei}`} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
                 <span className="text-xs text-surface-300">{e.name}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-surface-200">{e.price}</span>
@@ -628,8 +728,8 @@ export default function DashboardPage() {
         {/* Metals */}
         <Card title="فلزات اساسی">
           <div className="space-y-1">
-            {metals.map((m) => (
-              <div key={m.name} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
+            {metals.map((m, mi) => (
+              <div key={`${m.name}-${mi}`} className="flex items-center justify-between py-1.5 border-b border-surface-800/50 last:border-0">
                 <span className="text-xs text-surface-300">{m.name}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-mono text-surface-200">{m.price.toLocaleString("fa-IR")}</span>
@@ -655,8 +755,8 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {financialRatios.map((r) => (
-                  <tr key={r.label} className="border-b border-surface-800/50">
+                {financialRatios.map((r, ri) => (
+                  <tr key={`${r.label}-${ri}`} className="border-b border-surface-800/50">
                     <td className="py-1.5 text-surface-400">{r.label}</td>
                     <td className="py-1.5 text-surface-200 font-mono">{r.bourse}</td>
                     <td className="py-1.5 text-surface-200 font-mono">{r.farabourse}</td>
@@ -675,13 +775,18 @@ export default function DashboardPage() {
       <div className="mb-4">
         <Card title="ارز دیجیتال">
           <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-            {(dashboardData?.crypto ?? [
-              { name: "بیت کوین", symbol: "BTC", price: 62_650, change: 22, change_pct: 0 },
-              { name: "اتریوم", symbol: "ETH", price: 1_760, change: 9.1, change_pct: 0.5 },
-              { name: "تتر", symbol: "USDT", price: 1_754_350, change: 2_590, change_pct: 0.2 },
-              { name: "دش", symbol: "DASH", price: 36, change: -0.2, change_pct: -0.6 },
-              { name: "ریپل", symbol: "XRP", price: 1.13, change: -0.01, change_pct: -0.9 },
-              { name: "لایت کوین", symbol: "LTC", price: 44.8, change: 0.2, change_pct: 0.4 },
+            {(cryptoData && cryptoData.length > 0 ? cryptoData.map(c => ({
+              name: c.name,
+              symbol: c.symbol,
+              price: c.price_usd || 0,
+              change_pct: c.change_percent || 0,
+            })) : [
+              { name: "بیت کوین", symbol: "BTC", price: 62_650, change_pct: 0 },
+              { name: "اتریوم", symbol: "ETH", price: 1_760, change_pct: 0.5 },
+              { name: "تتر", symbol: "USDT", price: 1_754_350, change_pct: 0.2 },
+              { name: "دش", symbol: "DASH", price: 36, change_pct: -0.6 },
+              { name: "ریپل", symbol: "XRP", price: 1.13, change_pct: -0.9 },
+              { name: "لایت کوین", symbol: "LTC", price: 44.8, change_pct: 0.4 },
             ]).map((c) => (
               <div key={c.symbol} className="glass-card p-3 text-center">
                 <div className="text-[10px] text-surface-500 mb-1">{c.symbol}</div>

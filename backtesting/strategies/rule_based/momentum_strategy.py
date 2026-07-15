@@ -9,8 +9,10 @@ from domain.common.enum_types import OrderSide, OrderType
 
 
 class MomentumStrategy(BaseStrategy):
-    def __init__(self, lookback: int = 20, threshold_pct: float = 5.0, instrument_id: str = "") -> None:
-        super().__init__(name=f"Momentum_{lookback}_{threshold_pct}")
+    def __init__(self, lookback: int = 20, threshold_pct: float = 5.0, instrument_id: str = "",
+                 sizing_method: str = "fixed", sizing_value: float = 1000.0) -> None:
+        super().__init__(name=f"Momentum_{lookback}_{threshold_pct}",
+                         sizing_method=sizing_method, sizing_value=sizing_value)
         self.lookback = lookback
         self.threshold_pct = threshold_pct
         self.instrument_id = instrument_id
@@ -28,29 +30,31 @@ class MomentumStrategy(BaseStrategy):
         momentum = ((price - start_price) / start_price * 100) if start_price else 0.0
         orders: list[OrderEvent] = []
         if momentum > self.threshold_pct and self._position <= 0:
+            qty = self._compute_quantity(price)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
-                    quantity=1000,
+                    quantity=qty,
                     price=price,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
-        elif momentum < -self.threshold_pct and self._position >= 0:
+        elif momentum < -self.threshold_pct and self._position > 0:
+            qty = self._compute_quantity(price)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
-                    quantity=1000,
+                    quantity=qty,
                     price=price,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
-            self._position = -1
+            self._position = 0
         return orders
 
     def reset(self) -> None:

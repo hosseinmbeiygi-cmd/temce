@@ -29,7 +29,7 @@ for fname in sorted(os.listdir(SCRIPTS_DIR)):
     if not fname.endswith(".py") or fname.startswith("_"):
         continue
     fpath = os.path.join(SCRIPTS_DIR, fname)
-    with open(fpath, "r", encoding="utf-8") as f:
+    with open(fpath, encoding="utf-8") as f:
         content = f.read()
 
     if not PROJECT_IMPORTS.search(content):

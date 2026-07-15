@@ -4,9 +4,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
-from schemas.api.alerts import AlertCreate, AlertListResponse, AlertResponse, AlertUpdate
+from core.logging import get_logger
+from schemas.api.alerts import AlertCreate, AlertUpdate
 from schemas.common.responses import ApiResponse
 from services.alert_service import AlertService
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 

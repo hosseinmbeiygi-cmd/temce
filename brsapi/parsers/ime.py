@@ -12,7 +12,7 @@ Covers:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
@@ -31,7 +31,7 @@ class ImeParser:
         """``/IME/Futures.php`` response."""
         items = cls._ensure_list(data)
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         for item in items:
             if not isinstance(item, dict):
@@ -97,7 +97,7 @@ class ImeParser:
         """``/IME/Option.php`` response."""
         items = cls._ensure_list(data)
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         for item in items:
             if not isinstance(item, dict):
@@ -205,7 +205,7 @@ class ImeParser:
         """``/IME/Certificate.php`` response."""
         items = cls._ensure_list(data)
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         for item in items:
             if not isinstance(item, dict):
@@ -259,7 +259,7 @@ class ImeParser:
         """``/IME/Fund.php`` response."""
         items = cls._ensure_list(data)
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         for item in items:
             if not isinstance(item, dict):
@@ -318,7 +318,7 @@ class ImeParser:
         """``/IME/Physical.php`` response."""
         items = cls._ensure_list(data)
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc).isoformat()[:30]
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
         for item in items:
             if not isinstance(item, dict):

@@ -3,10 +3,14 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query
+
 from apps.api.dependencies import get_brsapi_query_service, get_market_service
+from core.logging import get_logger
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 from services.market_service import MarketService
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -15,6 +19,12 @@ router = APIRouter()
 async def market_overview(service: MarketService = Depends(get_market_service)) -> ApiResponse[dict[str, Any]]:
     result = await service.get_overview()
     return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
+
+
+@router.get("/indices", summary="Market indices", description="Get latest index values (TSE, FaraBourse, etc.)")
+async def market_indices(service: MarketService = Depends(get_market_service)) -> ApiResponse[list[dict[str, Any]]]:
+    result = await service.get_index_values()
+    return ApiResponse[list[dict[str, Any]]](success=result.success, data=result.value)
 
 
 @router.get("/gainers", summary="Top gainers", description="Get top gaining symbols")
@@ -49,7 +59,7 @@ async def market_watch(service: MarketService = Depends(get_market_service)) -> 
     result = await service.get_market_watch()
     if not result.success:
         return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
-    
+
     items = result.value
     return ApiResponse[PaginatedResult[Any]](
         success=True,
@@ -83,13 +93,9 @@ async def get_bourse(service: MarketService = Depends(get_market_service)) -> Ap
 
 
 @router.get("/energy-commodity", summary="Energy & Commodity", description="List energy and commodity instruments")
-async def get_energy_commodity(service: MarketService = Depends(get_market_service)) -> dict[str, Any]:
+async def get_energy_commodity(service: MarketService = Depends(get_market_service)) -> ApiResponse[dict[str, Any]]:
     result = await service.get_energy_commodity_summary()
-    return {
-        "success": result.success,
-        "summary": result.value.get("summary", {}),
-        "sub_markets": result.value.get("sub_markets", [])
-    }
+    return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
 
 
 @router.get("/heatmap", summary="Market heatmap", description="Symbol heatmap data for visualisation")
@@ -112,6 +118,7 @@ async def market_heatmap(
         cells.sort(key=lambda x: abs(x["change"]), reverse=True)
         return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
     except Exception as exc:
+        logger.exception("Market heatmap failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -194,6 +201,7 @@ async def market_sparklines(
             data=result.value if result.success else {},
         )
     except Exception as exc:
+        logger.exception("Market sparklines failed")
         return ApiResponse[dict[str, list[float]]](
             success=False,
             data={},
@@ -206,7 +214,7 @@ async def market_enriched_heatmap(
     brsapi=Depends(get_brsapi_query_service),
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
-        enriched = await brsapi.get_enriched_snapshots(limit=100)
+        enriched = await brsapi.get_enriched_snapshots(limit=500)
         cells = [
             {
                 "symbol": s.get("symbol", ""),
@@ -229,4 +237,62 @@ async def market_enriched_heatmap(
         ]
         return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
     except Exception as exc:
+        logger.exception("Enriched heatmap failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+
+
+@router.get("/treemap", summary="Market treemap", description="Hierarchical treemap data grouped by sector for visualization")
+async def market_treemap(
+    limit: int = Query(2000, ge=50, le=5000),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[dict[str, Any]]:
+    """Return symbols grouped by sector for treemap visualization."""
+    try:
+        from collections import defaultdict
+
+        enriched = await brsapi.get_enriched_snapshots(limit=limit)
+
+        # Group by sector
+        sectors: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for s in enriched:
+            symbol = s.get("symbol", "")
+            if not symbol:
+                continue
+            sector = s.get("sector", "سایر")
+            trade_value = s.get("trade_value", 0) or 0
+
+            sectors[sector].append({
+                "name": symbol,
+                "size": max(trade_value, 1),  # Minimum size for dormant symbols
+                "change": round(s.get("price_last_change_pct", 0) or 0, 2),
+                "price": s.get("price_last", 0) or 0,
+                "volume": s.get("trade_volume", 0) or 0,
+                "eps": s.get("eps", 0) or 0,
+                "peRatio": s.get("pe_ratio", 0) or 0,
+                "freeFloatPct": s.get("free_float_pct", 0) or 0,
+                "state": s.get("state", ""),
+                "sector": sector,
+            })
+
+        # Sort sectors by total trade value
+        sorted_sectors = sorted(sectors.items(), key=lambda x: sum(c["size"] for c in x[1]), reverse=True)
+
+        # Build hierarchical structure
+        children = []
+        for sector_name, symbols in sorted_sectors:
+            children.append({
+                "name": sector_name,
+                "children": symbols,
+            })
+
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={"children": children},
+        )
+    except Exception as exc:
+        logger.exception("Market treemap failed")
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={"children": []},
+            error={"message": str(exc)},
+        )
