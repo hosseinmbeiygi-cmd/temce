@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,7 +14,7 @@ from backtesting.strategies.registry import get_strategy_registry, register_all_
 from core.ids import new_id
 from core.logging import get_logger
 from models.compare import CompareResultModel
-from schemas.api.backtest import BacktestRequest, BacktestResponse
+from schemas.api.backtest import BacktestRequest
 
 logger = get_logger(__name__)
 from apps.api.pagination import PaginatedResult as PydanticPaginatedResult
@@ -31,7 +31,7 @@ router = APIRouter()
 async def run_backtest(
     body: BacktestRequest,
     service: BacktestService = Depends(get_backtest_service),
-) -> ApiResponse[BacktestResponse | dict[str, Any]]:
+) -> ApiResponse[dict[str, Any]]:
     # Multi-symbol: run all symbols and return combined results
     if len(body.symbols) > 1:
         result = await service.run_multi_symbol(
@@ -45,8 +45,13 @@ async def run_backtest(
             data_source=body.data_source,
             commission_pct=body.commission_pct,
             slippage_bps=body.slippage_bps,
+            sizing_method=body.sizing_method,
+            sizing_value=body.sizing_value,
+            stop_loss_pct=body.stop_loss_pct,
+            take_profit_pct=body.take_profit_pct,
+            benchmark_symbol=body.benchmark_symbol,
         )
-        return ApiResponse[BacktestResponse | dict[str, Any]](
+        return ApiResponse[dict[str, Any]](
             success=result.success,
             data=result.value,
             error={"message": result.error} if not result.success and result.error else None,
@@ -70,9 +75,9 @@ async def run_backtest(
         take_profit_pct=body.take_profit_pct,
         benchmark_symbol=body.benchmark_symbol,
     )
-    return ApiResponse[BacktestResponse](
+    return ApiResponse[dict[str, Any]](
         success=result.success,
-        data=result.value,
+        data=result.value.model_dump() if hasattr(result.value, "model_dump") else result.value,
         error={"message": result.error} if not result.success and result.error else None,
     )
 
@@ -227,6 +232,7 @@ async def run_backtest_on_all_symbols(
 
     # ── Parallel execution with concurrency control ──
     MAX_CONCURRENT = 10  # Max parallel backtests at once
+    MAX_TIMEOUT = 600  # 10 minutes max for all backtests combined
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
     async def _run_one(symbol: str) -> dict[str, Any]:
@@ -270,9 +276,13 @@ async def run_backtest_on_all_symbols(
                     "error": result.error,
                 }
 
-    # Run all symbols in parallel (limited by semaphore)
+    # Run all symbols in parallel (limited by semaphore + timeout)
     all_tasks = [_run_one(sym) for sym in symbols]
-    results = await asyncio.gather(*all_tasks)
+    try:
+        results = await asyncio.wait_for(asyncio.gather(*all_tasks), timeout=MAX_TIMEOUT)
+    except TimeoutError:
+        logger.warning("run-all timed out after %ds for %d symbols", MAX_TIMEOUT, len(symbols))
+        results = [{"symbol": s, "status": "failed", "error": "TIMEOUT"} for s in symbols]
 
     return ApiResponse[dict[str, Any]](success=True, data={
         "strategy_type": strategy_type,
@@ -309,7 +319,7 @@ async def save_compare_result(
         executed_at=datetime.now(),
     )
     session.add(orm)
-    await session.flush()
+    await session.commit()
     return ApiResponse[dict[str, Any]](success=True, data={"id": compare_id, "saved": True})
 
 
@@ -501,14 +511,16 @@ async def compare_strategies(
         logger.warning("Deflated Sharpe computation failed: %s", dsr_err)
 
     # Re-rank by Deflated Sharpe (if available), otherwise by raw Sharpe
+    dsr_best = None
+    dsr_worst = None
     if completed:
         def _rank_key(r):
             dsr = r.get("deflated_sharpe", {}).get("deflated_sharpe", 0)
             sharpe = r["metrics"].get("sharpe_ratio", 0) or 0
             return dsr if dsr > 0 else sharpe
 
-        best = max(completed, key=_rank_key)
-        worst = min(completed, key=_rank_key)
+        dsr_best = max(completed, key=_rank_key)
+        dsr_worst = min(completed, key=_rank_key)
 
     return ApiResponse[dict[str, Any]](success=True, data={
         "symbol": symbol,
@@ -517,6 +529,9 @@ async def compare_strategies(
         "failed": sum(1 for r in results if r["status"] == "failed"),
         "best": best["strategy"] if best else None,
         "worst": worst["strategy"] if worst else None,
+        "dsr_best": dsr_best["strategy"] if dsr_best else None,
+        "dsr_worst": dsr_worst["strategy"] if dsr_worst else None,
+        "dsr_note": f"Deflated Sharpe-adjusted ranking: best={dsr_best['strategy'] if dsr_best else 'N/A'}, worst={dsr_worst['strategy'] if dsr_worst else 'N/A'}",
         "multiple_testing_note": f"Rankings adjusted for {len(completed)} strategies tested (Deflated Sharpe Ratio)",
         "results": results,
     })
@@ -637,8 +652,8 @@ async def save_strategies(body: SaveStrategyRequest) -> ApiResponse[dict[str, An
             passed_filter=len(body.strategies),
             saved_to_db=0,
             status="completed",
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
         )
         session.add(batch)
 
@@ -730,7 +745,77 @@ async def get_saved_strategies(
     return ApiResponse[dict[str, Any]](success=True, data={"strategies": strategies, "total": len(strategies)})
 
 
-# ── Data Info Endpoints ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# ── All-Indicators Full Scan (Phase 2: 30 indicators via SignalStrategy) ──────────────────────────────────────────────────────────────────
+
+@router.post("/scan-indicators", summary="Scan all 30 indicators with 6-stage filter")
+async def scan_indicators(
+    body: dict[str, Any],
+) -> ApiResponse[dict[str, Any]]:
+    """Run all 30 indicators via SignalStrategy with 6-stage filter across symbols.
+    Returns results immediately (fire-and-forget). Poll /backtests/scan-indicators/status for progress."""
+    from services.mass_scanner_service import get_mass_scanner
+
+    scanner = get_mass_scanner()
+    if scanner.is_running:
+        return ApiResponse[dict[str, Any]](success=False, error={"message": "Scan already in progress"})
+
+    symbols = body.get("symbols")
+    indicator_ids = body.get("indicator_ids")
+    filters = body.get("filters")
+    start_date = body.get("start_date")
+    end_date = body.get("end_date")
+    capital = body.get("capital", 1_000_000_000)
+    batch_size = body.get("batch_size", 10)
+    max_concurrent = body.get("max_concurrent", 10)
+
+    asyncio.create_task(scanner.scan_all(
+        symbols=symbols,
+        indicator_ids=indicator_ids,
+        filters=filters,
+        start_date=date.fromisoformat(start_date) if start_date else None,
+        end_date=date.fromisoformat(end_date) if end_date else None,
+        capital=capital,
+        batch_size=batch_size,
+        max_concurrent=max_concurrent,
+    ))
+
+    return ApiResponse[dict[str, Any]](success=True, data={"message": "Indicator scan started", "batch_id": scanner._batch_id})
+
+
+@router.get("/scan-indicators/status", summary="Indicator scan status")
+async def scan_indicators_status() -> ApiResponse[dict[str, Any]]:
+    """Check progress of running indicator scan."""
+    from services.mass_scanner_service import get_mass_scanner
+    scanner = get_mass_scanner()
+    return ApiResponse[dict[str, Any]](success=True, data=scanner.progress)
+
+
+@router.get("/scan-indicators/results", summary="Indicator scan results")
+async def scan_indicators_results(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Get results from the last indicator scan from the database."""
+    from sqlalchemy import text
+    result = await session.execute(text("""
+        SELECT id, symbol, entry_indicator, entry_params, exit_condition,
+               total_return_pct, sharpe_ratio, max_drawdown_pct, win_rate,
+               profit_factor, total_trades, score, batch_id
+        FROM generated_strategies
+        WHERE strategy_type = 'indicator'
+        ORDER BY score DESC LIMIT 200
+    """))
+    rows = result.fetchall()
+    items = []
+    for row in rows:
+        items.append({
+            "id": row[0], "symbol": row[1], "indicator": row[2],
+            "params": row[3], "exit_condition": row[4],
+            "total_return_pct": row[5], "sharpe_ratio": row[6],
+            "max_drawdown_pct": row[7], "win_rate": row[8],
+            "profit_factor": row[9], "total_trades": row[10],
+            "score": row[11], "batch_id": row[12],
+        })
+    return ApiResponse[dict[str, Any]](success=True, data={"results": items, "total": len(items)})
 
 @router.get("/data/stats", summary="Backtest data statistics")
 async def data_stats(
@@ -764,12 +849,14 @@ class WalkForwardRequest(BaseModel):
 
 
 @router.post("/walk-forward", summary="Walk-forward optimization")
-async def walk_forward(body: WalkForwardRequest) -> ApiResponse[dict[str, Any]]:
+async def walk_forward(
+    body: WalkForwardRequest,
+    service: BacktestService = Depends(get_backtest_service),
+) -> ApiResponse[dict[str, Any]]:
     """Run walk-forward optimization to prevent overfitting."""
     from backtesting.optimization.walk_forward import WalkForwardOptimizer
     from services.strategy_generator import STRATEGY_PARAM_RANGES
 
-    service = BacktestService()
     today = date.today()
     start = date.fromisoformat(body.start_date) if body.start_date else date(today.year - 2, 1, 1)
     end = date.fromisoformat(body.end_date) if body.end_date else today
@@ -810,11 +897,13 @@ class MonteCarloRequest(BaseModel):
 
 
 @router.post("/monte-carlo", summary="Monte Carlo simulation")
-async def monte_carlo(body: MonteCarloRequest) -> ApiResponse[dict[str, Any]]:
+async def monte_carlo(
+    body: MonteCarloRequest,
+    service: BacktestService = Depends(get_backtest_service),
+) -> ApiResponse[dict[str, Any]]:
     """Run Monte Carlo simulation for confidence intervals."""
     from backtesting.optimization.monte_carlo import MonteCarloSimulator
 
-    service = BacktestService()
     today = date.today()
     start = date.fromisoformat(body.start_date) if body.start_date else date(today.year - 2, 1, 1)
     end = date.fromisoformat(body.end_date) if body.end_date else today
@@ -1047,8 +1136,9 @@ async def cascade_combinations(
     generations: int = Query(default=12),
 ) -> ApiResponse[dict[str, Any]]:
     from services.cascade_engine import compute_total_combinations
+    from services.strategy_generator import STRATEGY_PARAM_RANGES
     total = compute_total_combinations(
-        strategies=strategies or list(PARAM_GRID.keys()),
+        strategies=strategies or list(STRATEGY_PARAM_RANGES.keys()),
         use_genetic=use_genetic,
         population_size=population_size,
         generations=generations,
