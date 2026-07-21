@@ -325,11 +325,15 @@ export default function SmartMoneyPage() {
               <AreaChartCard
                 title=""
                 data={historyData}
-                height={220}
+                height={260}
                 yAxisFormatter={(v) => `${v}%`}
                 tooltipFormatter={(v) => `${v}%`}
                 strokeColor="#06b6d4"
                 gradientId="smcGradient"
+                crosshair
+                animate
+                showAverage
+                primaryLabel="امتیاز SMC"
               />
             </Card>
           </div>

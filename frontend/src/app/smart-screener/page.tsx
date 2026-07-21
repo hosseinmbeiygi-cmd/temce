@@ -301,7 +301,7 @@ function SmartScreenerPageInner() {
   const [newValue, setNewValue] = useState("");
   const [newValueTo, setNewValueTo] = useState("");
 
-  const [defaultLimit, setDefaultLimit] = useState(20);
+  const [defaultLimit, setDefaultLimit] = useState(50);
 
   // ── Data fetch ──
   const queryKey = JSON.stringify({ filters, filterLogic, marketFilter, minScore, sortBy, sortOrder });
@@ -319,7 +319,7 @@ function SmartScreenerPageInner() {
         logic: filterLogic,
         sort_by: sortBy,
         sort_order: sortOrder,
-        limit: 100,
+        limit: 500,
         market: marketFilter || undefined,
         min_score: minScore / 100,
         include_details: true,
@@ -361,11 +361,11 @@ function SmartScreenerPageInner() {
                    null;
   const isAnyLoading = isLoading || isDefaultLoading;
 
-  // ── Staggered loading: first batch (20) loads immediately, then expand to 50 ──
+  // ── Staggered loading: first batch loads immediately, then expand to full ──
   useEffect(() => {
-    if (!isDefaultLoading && defaultLimit === 20 && defaultData && (defaultData.items?.length ?? 0) > 0) {
+    if (!isDefaultLoading && defaultLimit === 50 && defaultData && (defaultData.items?.length ?? 0) > 0) {
       const timer = setTimeout(() => {
-        setDefaultLimit(50);
+        setDefaultLimit(500);
       }, 2500);
       return () => clearTimeout(timer);
     }
@@ -1033,7 +1033,7 @@ function SmartScreenerPageInner() {
                         </tr>
                       </thead>
                       <tbody>
-                        {items.slice(0, 100).map((item, i) => (
+                        {items.map((item, i) => (
                           <tr
                             key={`${item.symbol}-${i}`}
                             className="border-b border-surface-800/30 hover:bg-white/[0.02] transition-colors cursor-pointer"

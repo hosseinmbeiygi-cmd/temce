@@ -9,8 +9,9 @@ import {
 } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
-import { apiPost, apiGet, extractArray } from "@/lib/api";
+import { apiPost, apiGet } from "@/lib/api";
 import { toJalali, gregorianToJalali, jalaliToGregorian } from "@/lib/dates";
+import BacktestResultsDashboard from "@/components/charts/BacktestResultsDashboard";
 
 interface CompareHistoryItem {
   id: string;
@@ -351,8 +352,8 @@ export default function BacktestPage() {
       setCompareWorst(r?.data?.worst ?? null);
       setCompareSnapshotSymbol(compareSymbol);
       setCompareSnapshotDates({
-        start: jalaliToGregorian(startDateJalali),
-        end: jalaliToGregorian(endDateJalali),
+        start: jalaliToGregorian(startDateJalali) || "",
+        end: jalaliToGregorian(endDateJalali) || "",
       });
       toast.success("مقایسه " + (r?.data?.successful ?? 0) + " استراتژی انجام شد");
       setShowCompare(true);
@@ -379,8 +380,8 @@ export default function BacktestPage() {
       const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
       const bestReturn = completed.length > 0 ? Math.max(...returns) : 0;
       const worstReturn = completed.length > 0 ? Math.min(...returns) : 0;
-      const startDate = compareSnapshotDates.start || jalaliToGregorian(startDateJalali);
-      const endDate = compareSnapshotDates.end || jalaliToGregorian(endDateJalali);
+      const startDate = compareSnapshotDates.start || jalaliToGregorian(startDateJalali) || "";
+      const endDate = compareSnapshotDates.end || jalaliToGregorian(endDateJalali) || "";
       return await apiPost('/backtests/compare/save', {
         symbol: compareSnapshotSymbol,
         total_strategies: compareResults.length,
@@ -902,13 +903,13 @@ export default function BacktestPage() {
               <label className="block mb-1 text-sm text-surface-400 font-bold">از تاریخ (شمسی)</label>
               <input type="text" dir="ltr" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-200 focus:outline-none focus:border-primary-500"
                 value={startDateJalali} onChange={e => setStartDateJalali(e.target.value)} placeholder="1403/01/01" />
-              <div className="text-[10px] text-surface-600 mt-1">{gregorianToJalali(jalaliToGregorian(startDateJalali) || "2024-01-01")}</div>
+              <div className="text-[10px] text-surface-600 mt-1">{gregorianToJalali(jalaliToGregorian(startDateJalali))}</div>
             </div>
             <div>
               <label className="block mb-1 text-sm text-surface-400 font-bold">تا تاریخ (شمسی)</label>
               <input type="text" dir="ltr" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-sm text-surface-200 focus:outline-none focus:border-primary-500"
                 value={endDateJalali} onChange={e => setEndDateJalali(e.target.value)} placeholder="1404/04/01" />
-              <div className="text-[10px] text-surface-600 mt-1">{gregorianToJalali(jalaliToGregorian(endDateJalali) || "2025-01-01")}</div>
+              <div className="text-[10px] text-surface-600 mt-1">{gregorianToJalali(jalaliToGregorian(endDateJalali))}</div>
             </div>
           </div>
 
@@ -1010,8 +1011,8 @@ export default function BacktestPage() {
               stop_loss_pct: formData.stop_loss_pct !== "" ? Number(formData.stop_loss_pct) : null,
               take_profit_pct: formData.take_profit_pct !== "" ? Number(formData.take_profit_pct) : null,
               benchmark_symbol: formData.benchmark_symbol || null,
-              start_date: jalaliToGregorian(startDateJalali),
-              end_date: jalaliToGregorian(endDateJalali),
+              start_date: jalaliToGregorian(startDateJalali) || undefined,
+              end_date: jalaliToGregorian(endDateJalali) || undefined,
               initial_capital: formData.capital,
             })} disabled={runMutation.isPending || formData.symbols.length === 0}
               className="flex-1 bg-primary-600 text-white py-2.5 rounded-lg font-bold hover:bg-primary-500 disabled:opacity-50 transition-colors">
@@ -1023,8 +1024,8 @@ export default function BacktestPage() {
               strategy_params: formData.strategyParams,
               commission_pct: formData.commission_pct / 100,
               slippage_bps: formData.slippage_bps,
-              start_date: jalaliToGregorian(startDateJalali),
-              end_date: jalaliToGregorian(endDateJalali),
+              start_date: jalaliToGregorian(startDateJalali) || undefined,
+              end_date: jalaliToGregorian(endDateJalali) || undefined,
               initial_capital: formData.capital,
             })} disabled={runAllMutation.isPending}
               className="px-4 py-2.5 bg-accent-amber/20 hover:bg-accent-amber/30 border border-accent-amber/30 text-accent-amber rounded-lg font-bold transition-all flex items-center gap-1.5">
@@ -1049,8 +1050,8 @@ export default function BacktestPage() {
               </select>
               <button onClick={() => compareMutation.mutate({
                 symbol: compareSymbol,
-                start_date: jalaliToGregorian(startDateJalali),
-                end_date: jalaliToGregorian(endDateJalali),
+                start_date: jalaliToGregorian(startDateJalali) || undefined,
+                end_date: jalaliToGregorian(endDateJalali) || undefined,
                 initial_capital: formData.capital,
               })} disabled={compareMutation.isPending}
                 className="px-4 py-2.5 bg-accent-purple/30 hover:bg-accent-purple/40 border border-accent-purple/40 text-accent-purple rounded-lg font-bold transition-all whitespace-nowrap">

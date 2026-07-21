@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import Link from "next/link";
 import { AuditBadge } from "@/components/AuditBadge";
 import { DonutChart } from "@/components/DonutChart";
@@ -16,7 +17,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
-import { apiGet, extractArray, extractItems } from "@/lib/api";
+import { apiGet, apiPost, extractArray, extractItems } from "@/lib/api";
 import { formatDateShamsi, formatTime } from "@/lib/dates";
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -125,6 +126,8 @@ const TABS = [
   { key: "news", label: "اخبار", icon: "📰" },
   { key: "holders", label: "سهامداران", icon: "👥" },
   { key: "trades", label: "ریز معاملات", icon: "🔄" },
+  { key: "ml", label: "پیش‌بینی ML", icon: "🧠" },
+  { key: "backtest", label: "بک‌تست", icon: "🧪" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -239,7 +242,7 @@ export default function SymbolPage() {
         apiGet<{ success: boolean; data: { trades: InsiderTrade[] } }>(`/codal/${decodedSymbol}/insider`),
         apiGet<{ success: boolean; data: { dividends: DividendRecord[] } }>(`/codal/${decodedSymbol}/dividends`),
         apiGet<{ success: boolean; data: { quarters: FinancialQuarter[] } }>(`/codal/${decodedSymbol}/financials`),
-        apiGet<{ success: boolean; data: { items: IntradayTrade[] } }>(`/trades/${encodeURIComponent(decodedSymbol)}?limit=200`),
+        apiGet<{ success: boolean; data: { items: IntradayTrade[] } }>(`/trades/${encodeURIComponent(decodedSymbol)}?limit=2000`),
         // Fetch real OHLCV data for sparkline
         apiGet<{ success: boolean; data: { date: string; close: number }[] }>(
           `/market/history/${encodeURIComponent(decodedSymbol)}?limit=60`
@@ -361,6 +364,8 @@ export default function SymbolPage() {
         {tab === "news" && <NewsTab news={news} symbol={decodedSymbol} />}
         {tab === "holders" && <HoldersTab holders={holders} insider={insider} />}
         {tab === "trades" && <TradesTab trades={trades} symbol={decodedSymbol} />}
+        {tab === "ml" && <MLTab symbol={decodedSymbol} />}
+        {tab === "backtest" && <BacktestTab symbol={decodedSymbol} />}
 
         {/* ------ Quick Links --------------------------------------------------------------------------------------------------- */}
         <div className="flex flex-wrap gap-2 text-xs">
@@ -1003,6 +1008,7 @@ function CodalTab({ codal, brsapiCodal, symbol }: { codal: CodalReport[]; brsapi
           {!showBrsapi && codal.length > 0 && (
             <span className="text-xs text-surface-500 px-2 py-1.5">گزارش‌های ذخیره‌شده</span>
           )}
+          <Link href={`/codal/analysis/${encodeURIComponent(symbol)}`} className="text-xs text-accent-emerald hover:text-accent-emerald/80 transition-colors">📊 تحلیل بنیادی</Link>
           <Link href="/codal/import" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">+ ورود اطلاعات</Link>
         </div>
       </div>
@@ -1292,48 +1298,479 @@ function HoldersTab({ holders, insider }: { holders: MajorHolder[]; insider: Ins
 
 // ------ Trades Tab ---------------------------------------------------------------------------------------------------------------------------------------------
 function TradesTab({ trades, symbol }: { trades: IntradayTrade[]; symbol: string }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 100;
+  const totalPages = Math.ceil(trades.length / pageSize);
+  const pageTrades = trades.slice((page - 1) * pageSize, page * pageSize);
+
+  // Summary stats
+  const totalVolume = trades.reduce((s, t) => s + (t.volume || 0), 0);
+  const totalValue = trades.reduce((s, t) => s + (t.price * t.volume || 0), 0);
+  const canceledCount = trades.filter(t => t.canceled).length;
+  const avgPrice = trades.length > 0 ? trades.reduce((s, t) => s + t.price, 0) / trades.length : 0;
+
   return (
     <div className="space-y-4">
+      {/* Summary */}
+      {trades.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="glass-card p-3 text-center">
+            <p className="text-lg font-bold text-surface-100">{trades.length.toLocaleString()}</p>
+            <p className="text-[10px] text-surface-500">کل معاملات</p>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <p className="text-lg font-bold text-accent-emerald">{formatCurrency(totalVolume)}</p>
+            <p className="text-[10px] text-surface-500">حجم کل</p>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <p className="text-lg font-bold text-primary-300">{formatCurrency(totalValue)}</p>
+            <p className="text-[10px] text-surface-500">ارزش کل</p>
+          </div>
+          <div className="glass-card p-3 text-center">
+            <p className={`text-lg font-bold ${canceledCount > 0 ? "text-accent-rose" : "text-surface-400"}`}>{canceledCount}</p>
+            <p className="text-[10px] text-surface-500">لغو شده</p>
+          </div>
+        </div>
+      )}
+
       <Card title="🔄 ریز معاملات" subtitle={symbol + " - آخرین معاملات روز"}>
         {trades.length === 0 ? (
-          <div className="text-center py-12 text-surface-500">ریز معامله‌ای برای این نماد در دسترس نیست</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-sm">
-              <thead>
-                <tr className="text-surface-500 border-b border-surface-700 text-xs">
-                  <th className="pb-2 px-2">#</th>
-                  <th className="pb-2 px-2">زمان</th>
-                  <th className="pb-2 px-2">قیمت (ریال)</th>
-                  <th className="pb-2 px-2">حجم</th>
-                  <th className="pb-2 px-2">ارزش (ریال)</th>
-                  <th className="pb-2 px-2">وضعیت</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map((t, i) => {
-                  const tradeValue = t.price * t.volume;
-                  return (
-                    <tr key={t.id ?? i} className="border-b border-surface-800/50 hover:bg-white/5">
-                      <td className="py-2 px-2 font-mono text-surface-500 text-xs">{i + 1}</td>
-                      <td className="py-2 px-2 font-mono text-surface-200 text-xs">{t.time || "-"}</td>
-                      <td className="py-2 px-2 font-mono text-surface-200">{t.price.toLocaleString()}</td>
-                      <td className="py-2 px-2 font-mono text-surface-200">{t.volume.toLocaleString()}</td>
-                      <td className="py-2 px-2 font-mono text-surface-200">{tradeValue.toLocaleString()}</td>
-                      <td className="py-2 px-2">
-                        {t.canceled
-                          ? <span className="text-xs px-1.5 py-0.5 rounded bg-accent-rose/15 text-accent-rose">لغو شده</span>
-                          : <span className="text-xs px-1.5 py-0.5 rounded bg-accent-emerald/15 text-accent-emerald">عادی</span>
-                        }
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="text-center py-12 text-surface-500">
+            <p className="text-4xl mb-3">🔄</p>
+            <p>ریز معامله‌ای برای {symbol} در دسترس نیست</p>
+            <p className="text-xs text-surface-600 mt-1">ممکن است داده‌های intraday هنوز sync نشده باشند</p>
           </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-sm">
+                <thead>
+                  <tr className="text-surface-500 border-b border-surface-700 text-xs">
+                    <th className="pb-2 px-2">#</th>
+                    <th className="pb-2 px-2">زمان</th>
+                    <th className="pb-2 px-2">قیمت (ریال)</th>
+                    <th className="pb-2 px-2">حجم</th>
+                    <th className="pb-2 px-2">ارزش (ریال)</th>
+                    <th className="pb-2 px-2">وضعیت</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageTrades.map((t, i) => {
+                    const tradeValue = t.price * t.volume;
+                    const rowIdx = (page - 1) * pageSize + i + 1;
+                    return (
+                      <tr key={t.id ?? i} className="border-b border-surface-800/50 hover:bg-white/5">
+                        <td className="py-2 px-2 font-mono text-surface-500 text-xs">{rowIdx}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200 text-xs">{t.time || "-"}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200">{t.price.toLocaleString()}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200">{t.volume.toLocaleString()}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200">{tradeValue.toLocaleString()}</td>
+                        <td className="py-2 px-2">
+                          {t.canceled
+                            ? <span className="text-xs px-1.5 py-0.5 rounded bg-accent-rose/15 text-accent-rose">لغو شده</span>
+                            : <span className="text-xs px-1.5 py-0.5 rounded bg-accent-emerald/15 text-accent-emerald">عادی</span>
+                          }
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex justify-center gap-1 mt-4">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 rounded-lg bg-surface-800 text-surface-300 text-xs disabled:opacity-40">قبلی</button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+                  if (p > totalPages) return null;
+                  return <button key={p} onClick={() => setPage(p)} className={`px-3 py-1.5 rounded-lg text-xs ${p === page ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-300"}`}>{p}</button>;
+                })}
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1.5 rounded-lg bg-surface-800 text-surface-300 text-xs disabled:opacity-40">بعدی</button>
+              </div>
+            )}
+          </>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ------ ML Prediction Tab ------------------------------------------------------------------------------------------------------------------------------------
+function MLTab({ symbol }: { symbol: string }) {
+  const [selectedModel, setSelectedModel] = useState("xgboost");
+  const [prediction, setPrediction] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [featureGroups, setFeatureGroups] = useState<string[]>(["price", "technical"]);
+
+  const { data: models = [] } = useQuery({
+    queryKey: ["ml-models-list"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: any[] }>("/ml/models");
+        return res?.data ?? [];
+      } catch { return []; }
+    },
+    staleTime: 300_000,
+  });
+
+  const { data: dataPreview } = useQuery({
+    queryKey: ["ml-data-preview", symbol],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: any }>(`/ml/data-preview/${encodeURIComponent(symbol)}`);
+        return res?.data ?? null;
+      } catch { return null; }
+    },
+    staleTime: 60_000,
+  });
+
+  const toggleFeatureGroup = (fg: string) => {
+    if (fg === "all") { setFeatureGroups(["price", "technical", "trades", "microstructure"]); return; }
+    setFeatureGroups(prev => {
+      const next = prev.includes(fg) ? prev.filter(x => x !== fg) : [...prev, fg];
+      return next.length === 0 ? ["price"] : next;
+    });
+  };
+
+  const handlePredict = useCallback(async () => {
+    if (!selectedModel) return;
+    setLoading(true);
+    setPrediction(null);
+    try {
+      const res = await apiPost<{ success: boolean; data: any }>("/ml/predict-real", {
+        model_id: selectedModel, symbol,
+      });
+      if (res?.success && res.data) setPrediction(res.data);
+    } catch (e) { console.error("ML predict failed:", e); }
+    setLoading(false);
+  }, [selectedModel, symbol]);
+
+  const fmtPct = (v: number) => (v >= 0 ? "+" : "") + (v * 100).toFixed(2) + "%";
+
+  return (
+    <div className="space-y-4">
+      {/* Data Preview */}
+      {dataPreview && (
+        <Card title="📊 موجودی داده" subtitle={symbol}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {[
+              { label: "OHLCV", value: dataPreview.ohlcv_rows?.toLocaleString("fa-IR") ?? "0", ok: (dataPreview.ohlcv_rows ?? 0) > 0 },
+              { label: "تاریخچه", value: dataPreview.history_rows?.toLocaleString("fa-IR") ?? "0", ok: (dataPreview.history_rows ?? 0) > 0 },
+              { label: "حقیقی/حقوقی", value: dataPreview.trade_flow_rows?.toLocaleString("fa-IR") ?? "0", ok: (dataPreview.trade_flow_rows ?? 0) > 0 },
+              { label: "ریزمعاملات", value: dataPreview.trade_rows?.toLocaleString("fa-IR") ?? "0", ok: (dataPreview.trade_rows ?? 0) > 0 },
+              { label: "ویژگی‌ها", value: dataPreview.estimated_features ?? "—", ok: true },
+            ].map(d => (
+              <div key={d.label} className="bg-surface-800/50 rounded-xl p-2.5 text-center">
+                <p className={`text-sm font-black font-mono ${d.ok ? "text-accent-emerald" : "text-surface-500"}`}>{d.value}</p>
+                <p className="text-[8px] text-surface-500">{d.label}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Controls */}
+      <Card title="🧠 پیش‌بینی ML" subtitle="انتخاب مدل و گروه ویژگی">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Model */}
+          <div>
+            <label className="text-[10px] text-surface-500 font-bold mb-1 block">🤖 مدل</label>
+            <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)}
+              className="w-full bg-surface-900 border border-surface-700 rounded-xl px-3 py-2 text-xs text-surface-200 focus:outline-none focus:border-primary-500">
+              {(models.length > 0 ? models : [
+                { id: "xgboost", name: "xgboost" }, { id: "lightgbm", name: "lightgbm" },
+                { id: "catboost", name: "catboost" }, { id: "random_forest", name: "random_forest" },
+              ]).map((m: any) => <option key={m.id || m.name} value={m.id || m.name}>{m.name || m.id}</option>)}
+            </select>
+          </div>
+
+          {/* Feature Groups */}
+          <div>
+            <label className="text-[10px] text-surface-500 font-bold mb-1 block">🧩 گروه ویژگی</label>
+            <div className="flex flex-wrap gap-1">
+              {["price", "technical", "trades", "microstructure"].map(fg => (
+                <button key={fg} onClick={() => toggleFeatureGroup(fg)}
+                  className={`px-2 py-1 rounded-lg text-[9px] font-medium border transition-all ${
+                    featureGroups.includes(fg)
+                      ? "bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan"
+                      : "bg-surface-800/50 border-surface-700/50 text-surface-500"
+                  }`}>
+                  {fg}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Predict Button */}
+          <div className="flex items-end">
+            <button onClick={handlePredict} disabled={loading}
+              className="w-full py-2.5 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-500 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+              {loading ? <><span className="material-icons animate-spin text-sm">refresh</span> در حال پیش‌بینی...</> : "🔮 پیش‌بینی"}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Prediction Result */}
+      {prediction && (
+        <Card title="🎯 نتیجه پیش‌بینی" subtitle={`${selectedModel} • ${symbol}`}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="glass-card p-3 text-center">
+              <p className={`text-2xl font-black font-mono ${(prediction.prediction ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                {fmtPct(prediction.prediction ?? 0)}
+              </p>
+              <p className="text-[9px] text-surface-500">📈 تغییر پیش‌بینی</p>
+            </div>
+            <div className="glass-card p-3 text-center">
+              <p className="text-2xl font-black font-mono text-surface-200">
+                {prediction.confidence != null ? (prediction.confidence * 100).toFixed(0) + "%" : "—"}
+              </p>
+              <p className="text-[9px] text-surface-500">🎯 اطمینان</p>
+            </div>
+            <div className="glass-card p-3 text-center">
+              <p className={`text-2xl font-black ${prediction.predicted_change_pct != null ? (prediction.predicted_change_pct >= 0 ? "text-accent-emerald" : "text-accent-rose") : "text-surface-500"}`}>
+                {prediction.predicted_change_pct != null ? fmtPct(prediction.predicted_change_pct) : prediction.direction === "up" ? "📈 صعود" : prediction.direction === "down" ? "📉 نزول" : "—"}
+              </p>
+              <p className="text-[9px] text-surface-500">جهت پیش‌بینی</p>
+            </div>
+            <div className="glass-card p-3 text-center">
+              <p className="text-2xl font-black font-mono text-surface-400">{prediction.last_price?.toLocaleString("fa-IR") ?? "—"}</p>
+              <p className="text-[9px] text-surface-500">💰 قیمت آخر</p>
+            </div>
+          </div>
+
+          {/* Feature Importance */}
+          {prediction.feature_importance && Object.keys(prediction.feature_importance).length > 0 && (
+            <div className="mt-4">
+              <p className="text-[10px] text-surface-400 font-bold mb-2">🔥 اهمیت ویژگی‌ها</p>
+              <div className="space-y-1">
+                {Object.entries(prediction.feature_importance)
+                  .sort(([, a]: any, [, b]: any) => b - a)
+                  .slice(0, 10)
+                  .map(([feat, val]: [string, any]) => (
+                    <div key={feat} className="flex items-center gap-2">
+                      <span className="text-[9px] text-surface-400 w-28 truncate text-right font-mono">{feat}</span>
+                      <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden" dir="ltr">
+                        <div className="h-full bg-accent-amber rounded-full" style={{ width: `${(val as number) * 100}%` }} />
+                      </div>
+                      <span className="text-[9px] font-mono text-surface-500 w-10 text-left">{(val as number * 100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {!prediction && !loading && (
+        <div className="glass-card p-10 text-center text-surface-500">
+          <p className="text-4xl mb-3">🧠</p>
+          <p className="font-bold text-surface-400">پیش‌بینی ML برای {symbol}</p>
+          <p className="text-sm mt-1">مدل و گروه ویژگی را انتخاب کنید و دکمه پیش‌بینی را بزنید</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------ Backtest Tab -----------------------------------------------------------------------------------------------------------------------------------------
+function BacktestTab({ symbol }: { symbol: string }) {
+  const [btModel, setBtModel] = useState("xgboost");
+  const [btSplits, setBtSplits] = useState(5);
+  const [btResult, setBtResult] = useState<any>(null);
+  const [btLoading, setBtLoading] = useState(false);
+  const [btFeatureGroups, setBtFeatureGroups] = useState<string[]>(["price", "technical"]);
+
+  const { data: models = [] } = useQuery({
+    queryKey: ["ml-models-list"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: any[] }>("/ml/models");
+        return res?.data ?? [];
+      } catch { return []; }
+    },
+    staleTime: 300_000,
+  });
+
+  const toggleFeatureGroup = (fg: string) => {
+    setBtFeatureGroups(prev => {
+      const next = prev.includes(fg) ? prev.filter(x => x !== fg) : [...prev, fg];
+      return next.length === 0 ? ["price"] : next;
+    });
+  };
+
+  const handleRunBacktest = useCallback(async () => {
+    setBtLoading(true);
+    setBtResult(null);
+    try {
+      const res = await apiPost<{ success: boolean; data: any }>("/ml/backtest", {
+        symbol,
+        model_type: btModel,
+        n_splits: btSplits,
+        feature_groups: btFeatureGroups,
+      });
+      if (res?.success && res.data) {
+        setBtResult(res.data);
+        toast.success("✅ بک‌تست انجام شد");
+      }
+    } catch (e: any) { toast.error(e.message || "خطا در بک‌تست"); }
+    setBtLoading(false);
+  }, [btModel, btSplits, btFeatureGroups, symbol]);
+
+  // Parse nested response
+  const agg = btResult?.aggregate_metrics ?? btResult ?? {};
+  const folds = btResult?.folds ?? [];
+  const mean_r2 = agg.mean_r2 ?? null;
+  const mean_mae = agg.mean_mae ?? null;
+  const mean_rmse = agg.mean_rmse ?? null;
+  const dir_acc = agg.mean_directional_accuracy ?? null;
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <Card title="🧪 بک‌تست Walk-Forward" subtitle={symbol}>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-[10px] text-surface-500 font-bold mb-1 block">🤖 مدل</label>
+            <select value={btModel} onChange={e => setBtModel(e.target.value)}
+              className="w-full bg-surface-900 border border-surface-700 rounded-xl px-3 py-2 text-xs text-surface-200 focus:outline-none focus:border-primary-500">
+              {(models.length > 0 ? models : [
+                { id: "xgboost", name: "xgboost" }, { id: "lightgbm", name: "lightgbm" },
+                { id: "catboost", name: "catboost" }, { id: "random_forest", name: "random_forest" },
+              ]).map((m: any) => <option key={m.id || m.name} value={m.id || m.name}>{m.name || m.id}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-surface-500 font-bold mb-1 block">📐 Fold‌ها</label>
+            <div className="flex gap-1">
+              {[3, 5, 10].map(n => (
+                <button key={n} onClick={() => setBtSplits(n)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    btSplits === n ? "bg-primary-600/30 text-primary-300" : "bg-surface-800 text-surface-500 hover:text-surface-300"
+                  }`}>{n}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-surface-500 font-bold mb-1 block">🧩 ویژگی‌ها</label>
+            <div className="flex flex-wrap gap-1">
+              {["price", "technical", "trades", "microstructure"].map(fg => (
+                <button key={fg} onClick={() => toggleFeatureGroup(fg)}
+                  className={`px-2 py-1 rounded-lg text-[9px] font-medium border transition-all ${
+                    btFeatureGroups.includes(fg)
+                      ? "bg-accent-cyan/10 border-accent-cyan/30 text-accent-cyan"
+                      : "bg-surface-800/50 border-surface-700/50 text-surface-500"
+                  }`}>{fg}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-end">
+            <button onClick={handleRunBacktest} disabled={btLoading}
+              className="w-full py-2.5 bg-accent-amber/15 text-accent-amber border border-accent-amber/30 rounded-xl text-xs font-bold hover:bg-accent-amber/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {btLoading ? <><span className="material-icons animate-spin text-sm">refresh</span> در حال اجرا...</> : "🚀 اجرای بک‌تست"}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Loading */}
+      {btLoading && (
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+        </div>
+      )}
+
+      {/* Results */}
+      {btResult && !btLoading && (
+        <div className="space-y-4">
+          {/* Summary */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {[
+              { icon: "📊", label: "R² میانگین", value: mean_r2 != null ? mean_r2.toFixed(4) : "—", color: (mean_r2 ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose" },
+              { icon: "📉", label: "MAE", value: mean_mae != null ? mean_mae.toFixed(4) : "—", color: "text-surface-200" },
+              { icon: "📉", label: "RMSE", value: mean_rmse != null ? mean_rmse.toFixed(4) : "—", color: "text-surface-200" },
+              { icon: "🎯", label: "دقت جهت", value: dir_acc != null ? (dir_acc * 100).toFixed(1) + "%" : "—", color: (dir_acc ?? 0) >= 0.5 ? "text-accent-emerald" : "text-accent-rose" },
+              { icon: "📐", label: "Fold‌ها", value: `${folds.length}/${btResult.n_folds ?? "?"}`, color: "text-surface-200" },
+            ].map(m => (
+              <div key={m.label} className="glass-card p-3 text-center hover:scale-[1.02] transition-transform">
+                <p className={`text-lg font-black font-mono ${m.color}`}>{m.value}</p>
+                <p className="text-[8px] text-surface-500">{m.icon} {m.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Fold Details */}
+          {folds.length > 0 && (
+            <Card title="📋 جزئیات Fold‌ها" subtitle={`${folds.length} fold • ${btModel}`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-[10px]">
+                  <thead>
+                    <tr className="text-surface-500 border-b border-surface-700">
+                      <th className="pb-2 px-2">Fold</th>
+                      <th className="pb-2 px-2 text-center font-mono">R²</th>
+                      <th className="pb-2 px-2 text-center font-mono">MAE</th>
+                      <th className="pb-2 px-2 text-center font-mono">RMSE</th>
+                      <th className="pb-2 px-2 text-center">دقت جهت</th>
+                      <th className="pb-2 px-2 text-center">آموزش</th>
+                      <th className="pb-2 px-2 text-center">تست</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {folds.map((fold: any, i: number) => {
+                      const fm = fold.metrics ?? fold;
+                      return (
+                        <tr key={i} className="border-b border-surface-800/30 hover:bg-white/5">
+                          <td className="py-2 px-2 font-bold text-surface-200">Fold {i + 1}</td>
+                          <td className={`py-2 px-2 text-center font-mono ${(fm.r2 ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                            {fm.r2?.toFixed(4) ?? "—"}
+                          </td>
+                          <td className="py-2 px-2 text-center font-mono text-surface-300">{fm.mae?.toFixed(4) ?? "—"}</td>
+                          <td className="py-2 px-2 text-center font-mono text-surface-300">{fm.rmse?.toFixed(4) ?? "—"}</td>
+                          <td className="py-2 px-2 text-center font-mono text-surface-300">
+                            {fm.directional_accuracy != null ? (fm.directional_accuracy * 100).toFixed(1) + "%" : "—"}
+                          </td>
+                          <td className="py-2 px-2 text-center font-mono text-surface-400">{fold.train_size ?? "—"}</td>
+                          <td className="py-2 px-2 text-center font-mono text-surface-400">{fold.test_size ?? "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Feature Importance */}
+          {btResult.feature_importance && Object.keys(btResult.feature_importance).length > 0 && (
+            <Card title="🔥 اهمیت ویژگی‌ها">
+              <div className="space-y-1">
+                {Object.entries(btResult.feature_importance)
+                  .sort(([, a]: any, [, b]: any) => b - a)
+                  .slice(0, 15)
+                  .map(([feat, val]: [string, any]) => (
+                    <div key={feat} className="flex items-center gap-2">
+                      <span className="text-[9px] text-surface-400 w-28 truncate text-right font-mono">{feat}</span>
+                      <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden" dir="ltr">
+                        <div className="h-full bg-accent-amber rounded-full" style={{ width: `${(val as number) * 100}%` }} />
+                      </div>
+                      <span className="text-[9px] font-mono text-surface-500 w-10 text-left">{(val as number * 100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {!btResult && !btLoading && (
+        <div className="glass-card p-10 text-center text-surface-500">
+          <p className="text-4xl mb-3">🧪</p>
+          <p className="font-bold text-surface-400">بک‌تست Walk-Forward برای {symbol}</p>
+          <p className="text-sm mt-1">مدل، تعداد fold و گروه ویژگی را انتخاب کنید</p>
+        </div>
+      )}
     </div>
   );
 }

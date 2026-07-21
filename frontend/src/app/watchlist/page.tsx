@@ -77,7 +77,7 @@ function AddSymbolDialog({ onAdd, onClose }: { onAdd: (symbol: string) => void; 
     queryFn: async () => {
       if (!search || search.length < 1) return [];
       const res = await apiGet<{ success: boolean; data: { items: { symbol: string; name: string }[] } }>(
-        `/instruments?search=${encodeURIComponent(search)}&page_size=15`
+        `/instruments/search?q=${encodeURIComponent(search)}`
       );
       return res?.data?.items ?? [];
     },

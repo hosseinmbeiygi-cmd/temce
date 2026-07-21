@@ -45,6 +45,7 @@ function AnnouncementCard({ item }: { item: CodalAnnouncement }) {
   const hasPdf = !!item.link_pdf;
   const hasExcel = !!item.link_excel;
   const hasAttachment = !!item.link_attachment;
+  const hasSymbol = !!item.symbol;
 
   return (
     <div className="glass-card p-4 hover:bg-surface-800/50 transition-colors">
@@ -58,6 +59,15 @@ function AnnouncementCard({ item }: { item: CodalAnnouncement }) {
             >
               {item.symbol || "—"}
             </Link>
+            {hasSymbol && (
+              <Link
+                href={`/codal/analysis/${encodeURIComponent(item.symbol)}`}
+                className="text-[10px] bg-accent-emerald/10 text-accent-emerald px-1.5 py-0.5 rounded-md hover:bg-accent-emerald/20 transition-colors"
+                title="تحلیل بنیادی"
+              >
+                📊
+              </Link>
+            )}
             <span className="text-xs text-surface-400 truncate">
               {item.company_name || ""}
             </span>
@@ -242,12 +252,20 @@ export default function CodalPage() {
             <h1 className="text-2xl font-bold text-surface-100">اطلاعیه‌های کدال</h1>
             <p className="text-sm text-surface-500 mt-1">جستجو و مشاهده اطلاعیه‌های شرکت‌ها</p>
           </div>
-          <Link
-            href="/codal/import"
-            className="text-sm bg-primary-600/15 text-primary-300 px-4 py-2 rounded-xl hover:bg-primary-600/25 transition-colors"
-          >
-            + ورود اطلاعات کدال
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/codal/analysis/فولاد"
+              className="text-sm bg-accent-emerald/15 text-accent-emerald px-4 py-2 rounded-xl hover:bg-accent-emerald/25 transition-colors"
+            >
+              📊 تحلیل بنیادی
+            </Link>
+            <Link
+              href="/codal/import"
+              className="text-sm bg-primary-600/15 text-primary-300 px-4 py-2 rounded-xl hover:bg-primary-600/25 transition-colors"
+            >
+              + ورود اطلاعات کدال
+            </Link>
+          </div>
         </div>
 
         {/* Marketing Banner */}
@@ -443,6 +461,9 @@ export default function CodalPage() {
           </Link>
           <Link href="/symbol/فولاد" className="text-surface-500 hover:text-surface-200 transition-colors px-2 py-1">
             نماد فولاد
+          </Link>
+          <Link href="/codal/analysis/فولاد" className="text-accent-emerald/80 hover:text-accent-emerald transition-colors px-2 py-1">
+            📊 تحلیل بنیادی فولاد
           </Link>
           <Link href="/analysis" className="text-surface-500 hover:text-surface-200 transition-colors px-2 py-1">
             تحلیل بازار

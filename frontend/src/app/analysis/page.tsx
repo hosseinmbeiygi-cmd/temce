@@ -13,6 +13,14 @@ const CandleChartCard = dynamic(() => import("@/components/charts/TradingViewCha
   loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 400 }} />,
 });
 
+// Format ریال to میلیارد تومان
+function fmtToman(rials: number): string {
+  const toman = rials / 10;  // 1 تومان = 10 ریال
+  if (toman >= 1_000_000) return (toman / 1_000_000).toFixed(1) + " همت";
+  if (toman >= 1_000) return (toman / 1_000).toFixed(1) + " م.ت";
+  return toman.toFixed(1) + " م.ت";
+}
+
 
 interface SentimentItem {
   date: string;
@@ -96,7 +104,7 @@ const TABS: { key: AnalysisTab; label: string }[] = [
 ];
 
 // ------ Technical Analysis Constants (default symbol) ------
-const TECH_SYMBOL = "فولاد";
+const TECH_SYMBOL = "فخاس";  // فولاد خراسان - has data in DB
 
 function TrendIndicator({ value }: { value: number }) {
   const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
@@ -676,20 +684,20 @@ export default function AnalysisPage() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="bg-surface-800/50 rounded-lg p-3 text-center">
                           <div className="text-xs text-surface-500">ارزش کل معاملات</div>
-                          <div className="text-lg font-bold text-surface-200">{(liquidityData.total_trade_value / 1e12).toFixed(1)}T</div>
+                          <div className="text-lg font-bold text-surface-200">{fmtToman(liquidityData.total_trade_value)}</div>
                         </div>
                         <div className="bg-surface-800/50 rounded-lg p-3 text-center">
                           <div className="text-xs text-surface-500">ورود پول</div>
-                          <div className="text-lg font-bold text-accent-emerald">+{(liquidityData.total_inflow / 1e12).toFixed(1)}T</div>
+                          <div className="text-lg font-bold text-accent-emerald">+{fmtToman(liquidityData.total_inflow)}</div>
                         </div>
                         <div className="bg-surface-800/50 rounded-lg p-3 text-center">
                           <div className="text-xs text-surface-500">خروج پول</div>
-                          <div className="text-lg font-bold text-accent-rose">-{(liquidityData.total_outflow / 1e12).toFixed(1)}T</div>
+                          <div className="text-lg font-bold text-accent-rose">-{fmtToman(liquidityData.total_outflow)}</div>
                         </div>
                         <div className="bg-surface-800/50 rounded-lg p-3 text-center">
                           <div className="text-xs text-surface-500">خالص جریان</div>
                           <div className={`text-lg font-bold ${liquidityData.net_flow >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                            {liquidityData.net_flow >= 0 ? "+" : ""}{(liquidityData.net_flow / 1e12).toFixed(1)}T
+                            {liquidityData.net_flow >= 0 ? "+" : ""}{fmtToman(liquidityData.net_flow)}
                           </div>
                         </div>
                       </div>
@@ -703,7 +711,7 @@ export default function AnalysisPage() {
                             <div key={s.sector} className="bg-surface-800/30 rounded-lg p-3">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-sm font-medium text-surface-200">{s.sector}</span>
-                                <span className="text-xs font-mono text-accent-emerald">+{(s.inflow / 1e12).toFixed(1)}T</span>
+                                <span className="text-xs font-mono text-accent-emerald">+{fmtToman(s.inflow)}</span>
                               </div>
                               <div className="flex flex-wrap gap-1">
                                 {s.symbols.map((sym) => (
@@ -721,7 +729,7 @@ export default function AnalysisPage() {
                             <div key={s.sector} className="bg-surface-800/30 rounded-lg p-3">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-sm font-medium text-surface-200">{s.sector}</span>
-                                <span className="text-xs font-mono text-accent-rose">-{(s.outflow / 1e12).toFixed(1)}T</span>
+                                <span className="text-xs font-mono text-accent-rose">-{fmtToman(s.outflow)}</span>
                               </div>
                               <div className="flex flex-wrap gap-1">
                                 {s.symbols.map((sym) => (

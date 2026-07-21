@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -9,6 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  ReferenceLine,
 } from "recharts";
 import { Card } from "@/components/ui/Card";
 import ChartContainer from "@/components/charts/ChartContainer";
@@ -23,6 +25,12 @@ interface BarChartCardProps {
   height?: number;
   yAxisFormatter?: (value: number) => string;
   tooltipFormatter?: (value: number) => string;
+  /** Label for the value axis */
+  valueLabel?: string;
+  /** Enable bar animation */
+  animate?: boolean;
+  /** Show average reference line */
+  showAverage?: boolean;
 }
 
 const defaultFormat = (v: number) => {
@@ -32,76 +40,151 @@ const defaultFormat = (v: number) => {
   return v.toLocaleString("fa-IR");
 };
 
+function CustomTooltip({
+  active,
+  payload,
+  label,
+  fmt,
+  labelName,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  fmt: (v: number) => string;
+  labelName: string;
+}) {
+  if (!active || !payload?.length) return null;
+
+  const val = Number(payload[0]?.value) || 0;
+
+  return (
+    <div
+      className="rounded-xl px-4 py-3 shadow-2xl text-xs border backdrop-blur-xl"
+      style={{
+        background: "rgba(15, 23, 42, 0.96)",
+        border: "1px solid rgba(71, 85, 105, 0.5)",
+        color: "#e2e8f0",
+        minWidth: 140,
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+      }}
+    >
+      <p className="text-[11px] font-bold text-surface-300 mb-2 pb-1.5 border-b border-surface-700/50">
+        🕒 {label}
+      </p>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-surface-400 text-[11px]">{labelName}</span>
+        <span className="font-mono font-bold text-surface-100 tracking-wide" dir="ltr">
+          {fmt(val)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function BarChartCard({
   title,
   data,
   dataKey = "value",
-  colorPositive = "var(--positive)",
-  colorNegative = "var(--negative)",
+  colorPositive = "var(--accent-emerald)",
+  colorNegative = "var(--accent-rose)",
   height = 200,
   yAxisFormatter = defaultFormat,
   tooltipFormatter: customTooltip,
+  valueLabel = "مقدار",
+  animate = true,
+  showAverage = false,
 }: BarChartCardProps) {
   const fmt = customTooltip || yAxisFormatter;
 
-  // Determine if data has positive/negative volume markers
+  // Determine if data has positive/negative markers
   const hasSign = data.length > 0 && "volume" in data[0] && typeof data[0].volume === "number";
+
+  // Calculate average
+  const avgVal = useMemo(() => 
+    showAverage && data.length > 0
+      ? data.reduce((s, d) => s + (Number((d as any)[dataKey]) || 0), 0) / data.length
+      : null
+  , [data, dataKey, showAverage]);
+
+  // Color gradient based on value direction
+  const getBarColor = (entry: ChartDataPoint, i: number) => {
+    if (hasSign) {
+      return entry.volume !== undefined && entry.volume >= 0 ? colorPositive : colorNegative;
+    }
+    // Use alternating subtle colors based on position
+    return i % 2 === 0 ? "var(--accent-primary)" : "var(--accent-secondary)";
+  };
 
   return (
     <Card title={title}>
       <ChartContainer height={height}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-          <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 5 }}>
+            <defs>
+              <linearGradient id="barPrimaryGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity={0.85} />
+                <stop offset="100%" stopColor="var(--accent-primary)" stopOpacity={0.4} />
+              </linearGradient>
+              <linearGradient id="barSecondaryGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="var(--accent-secondary)" stopOpacity={0.85} />
+                <stop offset="100%" stopColor="var(--accent-secondary)" stopOpacity={0.4} />
+              </linearGradient>
+            </defs>
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(128,128,128,0.08)"
+              stroke="rgba(100, 116, 139, 0.1)"
               vertical={false}
             />
             <XAxis
               dataKey="time"
-              tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+              tick={{ fill: "#64748b", fontSize: 9, fontWeight: 500 }}
               tickLine={false}
-              axisLine={false}
+              axisLine={{ stroke: "rgba(100, 116, 139, 0.15)", strokeWidth: 1 }}
               interval="preserveStartEnd"
               minTickGap={40}
             />
             <YAxis
-              tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+              tick={{ fill: "#64748b", fontSize: 9, fontWeight: 500 }}
               tickLine={false}
-              axisLine={false}
+              axisLine={{ stroke: "rgba(100, 116, 139, 0.15)", strokeWidth: 1 }}
               tickFormatter={yAxisFormatter}
               width={50}
             />
             <Tooltip
-              contentStyle={{
-                background: "var(--bg-card)",
-                border: "1px solid var(--glass-border)",
-                borderRadius: "8px",
-                color: "var(--text-primary)",
-                fontSize: "11px",
-                backdropFilter: "blur(10px)",
+              content={<CustomTooltip fmt={fmt} labelName={valueLabel} />}
+              cursor={{
+                fill: "rgba(148, 163, 184, 0.06)",
               }}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(value: any) => [fmt(Number(value) || 0), "حجم"]}
-              labelStyle={{ color: "var(--text-secondary)", fontWeight: 600 }}
             />
+            {/* Average reference line */}
+            {showAverage && avgVal != null && (
+              <ReferenceLine
+                y={avgVal}
+                stroke="rgba(251, 191, 36, 0.5)"
+                strokeDasharray="6 3"
+                strokeWidth={1.5}
+                label={{
+                  value: `میانگین: ${fmt(avgVal)}`,
+                  fill: "#f59e0b",
+                  fontSize: 9,
+                  position: "insideTopRight",
+                }}
+              />
+            )}
             <Bar
               dataKey={dataKey}
-              radius={[3, 3, 0, 0]}
-              maxBarSize={20}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={28}
+              isAnimationActive={animate}
+              animationDuration={600}
+              animationEasing="ease-out"
             >
-              {hasSign
-                ? data.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={
-                        entry.volume !== undefined && entry.volume >= 0
-                          ? colorPositive
-                          : colorNegative
-                      }
-                    />
-                  ))
-                : null}
+              {data.map((entry, i) => (
+                <Cell
+                  key={i}
+                  fill={getBarColor(entry, i)}
+                />
+              ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -109,3 +192,4 @@ export default function BarChartCard({
     </Card>
   );
 }
+

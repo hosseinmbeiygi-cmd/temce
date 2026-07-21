@@ -79,12 +79,23 @@ interface MarketDashboardData {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+function dedupeByName<T extends { name?: string; symbol?: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    const key = item.name || item.symbol || "";
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function fmt(n: number): string {
-  if (n >= 1_000_000_000_000) return (n / 1_000_000_000_000).toFixed(1) + "T";
-  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString("fa-IR");
+  // Show in میلیارد تومان (1 میلیارد تومان = 10 میلیارد ریال)
+  const toman = n / 10;
+  if (toman >= 1_000_000) return (toman / 1_000_000).toFixed(1) + " همت";
+  if (toman >= 1_000) return (toman / 1_000).toFixed(1) + " م.ت";
+  if (toman >= 1) return toman.toFixed(1) + " م.ت";
+  return n.toLocaleString("fa-IR") + " ریال";
 }
 
 function fmtPrice(n: number): string {
@@ -275,8 +286,61 @@ export default function DashboardPage() {
   });
 
   const indices = realIndices && realIndices.length > 0 ? realIndices : mockIndices;
-  const marketIndicators = useMemo(() => generateMockMarketIndicators(), []);
-  const sectors = useMemo(() => generateMockSectors(), []);
+
+  // ── Fetch real market indicators from DB ──
+  const { data: realIndicators } = useQuery({
+    queryKey: ["home-market-indicators"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: { bourse: Record<string, number>; farabourse: Record<string, number>; total: Record<string, number> } }>("/market/indicators");
+        if (res?.success && res.data) return res.data;
+      } catch {}
+      return null;
+    },
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+
+  const marketIndicators = useMemo(() => {
+    if (realIndicators && realIndicators.total) {
+      const b = realIndicators.bourse;
+      const f = realIndicators.farabourse;
+      const t = realIndicators.total;
+      return [
+        { label: "فشار تقاضا (%)", values: [b.demand_pressure, f.demand_pressure, t.demand_pressure], color: "text-accent-emerald" },
+        { label: "قدرت خرید حقیقی (همت)", values: [b.buying_power, f.buying_power, t.buying_power], color: "text-primary-300" },
+        { label: "سرانه خرید حقیقی (م.تومان)", values: [b.per_capita_buy, f.per_capita_buy, t.per_capita_buy], color: "text-accent-amber" },
+        { label: "خالص خرید حقیقی (%)", values: [b.net_real_pct, f.net_real_pct, t.net_real_pct], color: "text-accent-cyan" },
+        { label: "خالص خرید (همت)", values: [b.net_real_billion, f.net_real_billion, t.net_real_billion], color: "text-accent-violet" },
+      ];
+    }
+    return generateMockMarketIndicators();
+  }, [realIndicators]);
+
+  // ── Fetch real sector data from DB ──
+  const { data: realSectors } = useQuery({
+    queryKey: ["home-sectors"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ name: string; change: number; count: number; total_value: number }> }>("/market/sectors");
+        if (res?.success && res.data && res.data.length > 0) return res.data;
+      } catch {}
+      return null;
+    },
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+
+  const sectors = useMemo(() => {
+    if (realSectors && realSectors.length > 0) {
+      return realSectors.slice(0, 15).map(s => ({
+        name: s.name,
+        change: s.change || 0,
+        color: (s.change || 0) >= 0 ? "#10b981" : "#f43f5e",
+      }));
+    }
+    return generateMockSectors();
+  }, [realSectors]);
   const financialRatios = useMemo(() => generateMockFinancialRatios(), []);
 
   // ── Fetch real currencies from BrsApi ──
@@ -326,9 +390,63 @@ export default function DashboardPage() {
     }
     return generateMockCoins();
   }, [goldCoinData]);
-  const goldOunce = useMemo(() => generateMockGoldOunce(), []);
-  const energy = useMemo(() => generateMockEnergy(), []);
-  const metals = useMemo(() => generateMockMetals(), []);
+  // ── Fetch real commodity data (gold ounce, metals, energy) from BrsApi ──
+  const { data: commodityData } = useQuery({
+    queryKey: ["home-commodities"],
+    queryFn: async () => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ name: string; symbol: string; price: number; change_value: number; change_percent: number; category: string }> }>("/brsapi/commodities");
+        return res?.data ?? [];
+      } catch { return []; }
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+
+  const goldOunce = useMemo(() => {
+    if (commodityData && commodityData.length > 0) {
+      const precious = dedupeByName(commodityData.filter(c => c.category === "precious_metal"));
+      if (precious.length > 0) {
+        return precious.map(c => ({
+          name: c.name || c.symbol,
+          price: c.price || 0,
+          change: c.change_value || 0,
+          pct: c.change_percent || 0,
+        }));
+      }
+    }
+    return generateMockGoldOunce();
+  }, [commodityData]);
+
+  const metals = useMemo(() => {
+    if (commodityData && commodityData.length > 0) {
+      const base = dedupeByName(commodityData.filter(c => c.category === "base_metal"));
+      if (base.length > 0) {
+        return base.map(c => ({
+          name: c.name || c.symbol,
+          price: c.price || 0,
+          change: c.change_value || 0,
+          pct: c.change_percent || 0,
+        }));
+      }
+    }
+    return generateMockMetals();
+  }, [commodityData]);
+
+  const energy = useMemo(() => {
+    if (commodityData && commodityData.length > 0) {
+      const eng = dedupeByName(commodityData.filter(c => c.category === "energy"));
+      if (eng.length > 0) {
+        return eng.map(c => ({
+          name: c.name || c.symbol,
+          price: c.price || 0,
+          change: c.change_value || 0,
+          pct: c.change_percent || 0,
+        }));
+      }
+    }
+    return generateMockEnergy();
+  }, [commodityData]);
 
   // ── Fetch real crypto from BrsApi ──
   const { data: cryptoData } = useQuery({
@@ -395,7 +513,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-left space-y-1">
               <div className="text-xs text-surface-500">P/E <span className="text-surface-300 font-mono">{idx.pe}</span></div>
-              <div className="text-xs text-surface-500">ارزش معاملات <span className="text-surface-300 font-mono">{idx.trading_value}T</span></div>
+              <div className="text-xs text-surface-500">ارزش معاملات <span className="text-surface-300 font-mono">{fmt(idx.trading_value * 1e9)}</span></div>
             </div>
           </div>
         ))}
@@ -490,38 +608,102 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* Market Breadth */}
+        {/* Market Breadth / Supply & Demand Pressure */}
         <Card title="فشار عرضه و تقاضا">
-          <div className="flex flex-col items-center justify-center h-full py-4">
-            <div className="relative w-40 h-40">
-              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="12" />
-                <circle
-                  cx="50" cy="50" r="40" fill="none"
-                  stroke="#10b981"
-                  strokeWidth="12"
-                  strokeDasharray={`${hasBreadth ? (gainersCount / totalSymbols) * 251.2 : 0} 251.2`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-black text-surface-100">{gainersCount + losersCount}</span>
-                <span className="text-[10px] text-surface-500">کل نمادها</span>
+          <div className="space-y-2 max-h-[320px] overflow-y-auto">
+            {realIndicators?.total ? (
+              <>
+                {/* Demand Pressure */}
+                <div className="flex items-center justify-between py-2 border-b border-surface-800/50">
+                  <span className="text-xs text-surface-400">فشار تقاضا</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-black ${(realIndicators.total.demand_pressure ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                      {(realIndicators.total.demand_pressure ?? 0).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                {/* Buying Power */}
+                <div className="flex items-center justify-between py-2 border-b border-surface-800/50">
+                  <span className="text-xs text-surface-400">قدرت خرید حقیقی</span>
+                  <span className="text-sm font-black text-primary-300">
+                    {(realIndicators.total.buying_power ?? 0).toFixed(1)} همت
+                  </span>
+                </div>
+                {/* Per Capita Buy */}
+                <div className="flex items-center justify-between py-2 border-b border-surface-800/50">
+                  <span className="text-xs text-surface-400">سرانه خرید حقیقی</span>
+                  <span className="text-sm font-black text-accent-amber">
+                    {(realIndicators.total.per_capita_buy ?? 0).toFixed(1)} م.تومان
+                  </span>
+                </div>
+                {/* Net Real % */}
+                <div className="flex items-center justify-between py-2 border-b border-surface-800/50">
+                  <span className="text-xs text-surface-400">خالص خرید حقیقی</span>
+                  <span className={`text-sm font-black ${(realIndicators.total.net_real_pct ?? 0) >= 0 ? "text-accent-cyan" : "text-accent-rose"}`}>
+                    {(realIndicators.total.net_real_pct ?? 0).toFixed(1)}%
+                  </span>
+                </div>
+                {/* Net Real Billion */}
+                <div className="flex items-center justify-between py-2 border-b border-surface-800/50">
+                  <span className="text-xs text-surface-400">خالص خرید (همت)</span>
+                  <span className={`text-sm font-black ${(realIndicators.total.net_real_billion ?? 0) >= 0 ? "text-accent-violet" : "text-accent-rose"}`}>
+                    {(realIndicators.total.net_real_billion ?? 0).toFixed(1)} همت
+                  </span>
+                </div>
+                {/* Bourse vs Farabourse comparison */}
+                <div className="mt-3 pt-3 border-t border-surface-800/50">
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div>
+                      <div className="text-[10px] text-surface-500 mb-1">بورس</div>
+                      <div className={`text-sm font-bold ${(realIndicators.bourse?.demand_pressure ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        فشار: {(realIndicators.bourse?.demand_pressure ?? 0).toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-surface-500">
+                        خالص: {(realIndicators.bourse?.net_real_pct ?? 0).toFixed(1)}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-surface-500 mb-1">فرابورس</div>
+                      <div className={`text-sm font-bold ${(realIndicators.farabourse?.demand_pressure ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        فشار: {(realIndicators.farabourse?.demand_pressure ?? 0).toFixed(1)}%
+                      </div>
+                      <div className="text-[10px] text-surface-500">
+                        خالص: {(realIndicators.farabourse?.net_real_pct ?? 0).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full py-6">
+                <div className="relative w-32 h-32">
+                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="12" />
+                    <circle
+                      cx="50" cy="50" r="40" fill="none"
+                      stroke="#10b981"
+                      strokeWidth="12"
+                      strokeDasharray={`${hasBreadth ? (gainersCount / totalSymbols) * 251.2 : 0} 251.2`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-xl font-black text-surface-100">{gainersCount + losersCount}</span>
+                    <span className="text-[9px] text-surface-500">کل نمادها</span>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-3">
+                  <div className="text-center">
+                    <div className="text-sm font-black text-accent-emerald">{gainersCount}</div>
+                    <div className="text-[9px] text-surface-500">صعودی</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-black text-accent-rose">{losersCount}</div>
+                    <div className="text-[9px] text-surface-500">نزولی</div>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-6 mt-4">
-              <div className="text-center">
-                <div className="text-lg font-black text-accent-emerald">{gainersCount}</div>
-                <div className="text-[10px] text-surface-500">صعودی ({hasBreadth ? ((gainersCount / totalSymbols) * 100).toFixed(1) : "—"}%)</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-black text-accent-rose">{losersCount}</div>
-                <div className="text-[10px] text-surface-500">نزولی ({hasBreadth ? ((losersCount / totalSymbols) * 100).toFixed(1) : "—"}%)</div>
-              </div>
-            </div>
-            <div className="text-xs text-surface-500 mt-3">
-              ارزش معاملات بورس و فرابورس: {fmt(totalValue)}
-            </div>
+            )}
           </div>
         </Card>
 
@@ -607,10 +789,10 @@ export default function DashboardPage() {
         {/* Top Active */}
         <Card
           title="فعال‌ترین نمادها"
-          actions={<Link href="/smart-screener" className="text-xs text-primary-400 hover:text-primary-300">غربالگر پیشرفته ←</Link>}
+          actions={<Link href="/markets?tab=active" className="text-xs text-primary-400 hover:text-primary-300">مشاهده همه ←</Link>}
         >
           <div className="overflow-hidden max-h-[300px]">
-            {screener.length > 0 ? (
+            {active.length > 0 ? (
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-surface-500 border-b border-surface-800">
@@ -618,11 +800,12 @@ export default function DashboardPage() {
                     <th className="py-1.5 text-right font-normal">نماد</th>
                     <th className="py-1.5 text-right font-normal">قیمت</th>
                     <th className="py-1.5 text-right font-normal">تغییر</th>
-                    <th className="py-1.5 text-right font-normal">ارزش معاملات</th>
+                    <th className="py-1.5 text-right font-normal">حجم</th>
+                    <th className="py-1.5 text-right font-normal">ارزش</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {screener.slice(0, 10).map((item, i) => (
+                  {active.slice(0, 10).map((item: any, i: number) => (
                     <tr key={item.symbol} className="border-b border-surface-800/50 hover:bg-white/[0.02]">
                       <td className="py-1.5 text-surface-500">{i + 1}</td>
                       <td className="py-1.5">
@@ -630,10 +813,11 @@ export default function DashboardPage() {
                           {item.symbol}
                         </Link>
                       </td>
-                      <td className="py-1.5 text-surface-300 font-mono">{Number(item.price || 0).toLocaleString("fa-IR")}</td>
-                      <td className={`py-1.5 font-mono ${(item.change_pct ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
-                        {(item.change_pct ?? 0) >= 0 ? "+" : ""}{(item.change_pct ?? 0).toFixed(2)}%
+                      <td className="py-1.5 text-surface-300 font-mono">{Number(item.price_last || 0).toLocaleString("fa-IR")}</td>
+                      <td className={`py-1.5 font-mono ${(item.price_change_pct ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        {(item.price_change_pct ?? 0) >= 0 ? "+" : ""}{(item.price_change_pct ?? 0).toFixed(2)}%
                       </td>
+                      <td className="py-1.5 text-surface-400 font-mono">{fmt(item.volume ?? 0)}</td>
                       <td className="py-1.5 text-surface-400 font-mono">{fmt(item.value ?? 0)}</td>
                     </tr>
                   ))}

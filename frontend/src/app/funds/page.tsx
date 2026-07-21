@@ -106,12 +106,16 @@ export default function FundsPage() {
     queryFn: async () => {
       try {
         const res = await apiGet<Record<string, unknown>>("/tables/brsapi_ime_funds?page=1&page_size=500");
-        return extractFunds(res);
+        const extracted = extractFunds(res);
+        if (extracted.length > 0) return extracted;
       } catch {
-        // Fallback: try market-info/funds for at least basic data
-        try {
-          const fallback = await apiGet<{ success: boolean; data: { items: { symbol: string; name: string; nav: number; date: string }[] } }>("/market-info/funds");
-          const items = fallback?.data?.items ?? [];
+        // ignore, will try fallback
+      }
+      // Fallback: try market-info/funds or BrsApi direct
+      try {
+        const fallback = await apiGet<{ success: boolean; data: { items: { symbol: string; name: string; nav: number; date: string }[] } }>("/market-info/funds");
+        const items = fallback?.data?.items ?? [];
+        if (items.length > 0) {
           return items.map((f) => ({
             symbol: f.symbol,
             name: f.name,
@@ -136,9 +140,17 @@ export default function FundsPage() {
             sell_legal_volume: 0,
             time: "",
           }));
-        } catch {
-          return [];
         }
+      } catch {
+        // ignore
+      }
+      // Final fallback: BrsApi IME funds endpoint directly
+      try {
+        const brsRes = await apiGet<{ success: boolean; data: { items: Record<string, unknown>[] } }>("/brsapi/manage/sections");
+        // If sections exist, the user needs to sync IME Funds first
+        return [];
+      } catch {
+        return [];
       }
     },
     refetchInterval: 120_000,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, extractArray } from "@/lib/api";
 import { generateMockHeatmap } from "@/lib/types";
 import { useClientData } from "@/hooks/useClientData";
+import { useMarketWebSocket } from "@/hooks/useWebSocket";
 import SSRSafe from "@/components/SSRSafe";
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------
@@ -324,6 +325,20 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
   const [mockCurrency] = useClientData(() => generateMockCurrency(), [] as CurrencyItem[]);
   const [mockCrypto] = useClientData(() => generateMockCrypto(), [] as CryptoItem[]);
 
+  // WebSocket connection for real-time symbol data
+  const { prices: wsPrices, connected: wsConnected } = useMarketWebSocket(
+    mockCells.map((c) => c.symbol)
+  );
+
+  // Track whether WS has delivered any data for symbols
+  const [wsHasData, setWsHasData] = useState(false);
+
+  useEffect(() => {
+    if (wsConnected && wsPrices.size > 0) {
+      setWsHasData(true);
+    }
+  }, [wsConnected, wsPrices]);
+
   // ------ Fetch enriched real-time symbol data ---------------------------
   const { data: symbolCells = mockCells as LiveSymbolCell[], isFetching: symbolsLoading, dataUpdatedAt: symbolsUpdatedAt } = useQuery<LiveSymbolCell[]>({
     queryKey: ["live-market-symbols-enriched"],
@@ -336,9 +351,24 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
         return mockCells;
       }
     },
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: wsHasData ? false : 30_000,
+    staleTime: wsHasData ? Infinity : 15_000,
   });
+
+  // Merge WS prices into symbol cells when available
+  const mergedSymbolCells = useMemo(() => {
+    if (!wsHasData) return symbolCells;
+    return symbolCells.map((cell) => {
+      const wsUpdate = wsPrices.get(cell.symbol);
+      if (!wsUpdate) return cell;
+      return {
+        ...cell,
+        price: wsUpdate.price ?? cell.price,
+        change: wsUpdate.change ?? cell.change,
+        volume: wsUpdate.volume ?? cell.volume,
+      };
+    });
+  }, [symbolCells, wsPrices, wsHasData]);
 
   // ------ Fetch gold/coin prices ---------------------------------------------------------------------
   const { data: goldData = mockGold, dataUpdatedAt: goldUpdatedAt } = useQuery({
@@ -390,8 +420,8 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
 
   // ------ Compute gainers & losers ---------------------------------------------------------------
   const sortedCells = useMemo(() => {
-    return [...symbolCells].sort((a, b) => b.change - a.change);
-  }, [symbolCells]);
+    return [...mergedSymbolCells].sort((a, b) => b.change - a.change);
+  }, [mergedSymbolCells]);
 
   const gainers = useMemo(() => sortedCells.filter((c) => c.change > 0), [sortedCells]);
   const losers = useMemo(() => sortedCells.filter((c) => c.change < 0), [sortedCells]);
@@ -408,7 +438,7 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
   return (
     <Card
       title="📊 بازار زنده"
-      subtitle={"آخرین به‌روزرسانی: " + lastUpdateTime}
+      subtitle={`${wsConnected ? "●" : "○"} آخرین به‌روزرسانی: ${lastUpdateTime}`}
       className={className}
       headerClassName="live-market-header"
       actions={
@@ -446,12 +476,12 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
               <span className="live-header-label">حجم</span>
             </div>
             <div className="live-symbol-list">
-              {symbolCells.length === 0 ? (
+              {mergedSymbolCells.length === 0 ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <Skeleton key={i} className="h-10 w-full mb-1" />
                 ))
               ) : (
-                symbolCells.slice(0, 8).map((cell, i) => (
+                mergedSymbolCells.slice(0, 8).map((cell, i) => (
                   <SymbolRow key={`${cell.symbol}-${i}`} cell={cell} />
                 ))
               )}

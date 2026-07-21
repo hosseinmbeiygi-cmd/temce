@@ -3,6 +3,7 @@
 import { useState, lazy, Suspense } from "react";
 import Sidebar from "@/components/Sidebar";
 import FloatingAssistant from "@/components/FloatingAssistant";
+import SyncStatus from "@/components/SyncStatus";
 import { useTheme } from "@/hooks/useTheme";
 
 const TickerTape = lazy(() => import("./TickerTape"));
@@ -35,6 +36,8 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
               {!collapsed && "داشبورد بازار سرمایه ایران"}
             </div>
             <div className="header-actions">
+              {/* Sync Status Widget */}
+              <SyncStatus />
               <div className="theme-toggle" onClick={toggleTheme}>
                 <span className="material-icons">{isDark ? "light_mode" : "dark_mode"}</span>
               </div>

@@ -65,17 +65,19 @@ function scoreBadgeBg(score: number): string {
 
 function PhaseBadge({ phase, reason }: { phase: string; reason: string }) {
   const phaseColors: Record<string, string> = {
-    accumulation: "bg-accent-emerald/15 text-accent-emerald",
-    distribution: "bg-accent-rose/15 text-accent-rose",
-    markup: "bg-primary-600/20 text-primary-300",
-    markdown: "bg-accent-rose/20 text-accent-rose",
+    confirmed_smart_money: "bg-accent-emerald/15 text-accent-emerald",
+    breakout_ready: "bg-accent-cyan/15 text-accent-cyan",
+    float_lock: "bg-accent-purple/15 text-accent-purple",
+    active_absorption: "bg-accent-amber/15 text-accent-amber",
+    early_accumulation: "bg-primary-600/20 text-primary-300",
     neutral: "bg-surface-600/30 text-surface-400",
   };
   const phaseLabels: Record<string, string> = {
-    accumulation: "تجمع",
-    distribution: "توزیع",
-    markup: "مارکاپ",
-    markdown: "مارک‌داون",
+    confirmed_smart_money: "پول هوشمند",
+    breakout_ready: "آماده شکست",
+    float_lock: "قفل شناور",
+    active_absorption: "جذب فعال",
+    early_accumulation: "تجمع اولیه",
     neutral: "خنثی",
   };
   return (
@@ -142,21 +144,32 @@ const MARKET_OPTIONS = [
   { key: "COMMODITY", label: "کالا" },
 ];
 
+const PHASE_OPTIONS = [
+  { key: "", label: "همه فازها", color: "" },
+  { key: "confirmed_smart_money", label: "پول هوشمند", color: "#22c55e" },
+  { key: "breakout_ready", label: "آماده شکست", color: "#06b6d4" },
+  { key: "float_lock", label: "قفل شناور", color: "#8b5cf6" },
+  { key: "active_absorption", label: "جذب فعال", color: "#f59e0b" },
+  { key: "early_accumulation", label: "تجمع اولیه", color: "#3b82f6" },
+  { key: "neutral", label: "خنثی", color: "#64748b" },
+];
+
 export default function ScreenerPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("smc_score");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [minScore, setMinScore] = useState(0);
   const [marketFilter, setMarketFilter] = useState("");
+  const [phaseFilter, setPhaseFilter] = useState("");
 
-  // ── Fetch screener data ──
+  // ── Fetch screener data (get ALL available symbols, max 1000) ──
   const { data: rawData, isLoading } = useQuery({
     queryKey: ["screener", sortBy, sortOrder, minScore, marketFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("sort_by", sortBy);
       params.set("sort_order", sortOrder);
-      params.set("limit", "100");
+      params.set("limit", "1000");
       if (minScore > 0) params.set("min_score", String(minScore));
       if (marketFilter) params.set("market", marketFilter);
 
@@ -172,7 +185,7 @@ export default function ScreenerPage() {
 
   // ── Sparklines ──
   const sparkQuery = useMemo(() => {
-    const syms = items.slice(0, 50).map((i) => i.symbol);
+    const syms = items.slice(0, 200).map((i) => i.symbol);
     return syms.join(",");
   }, [items]);
 
@@ -195,15 +208,26 @@ export default function ScreenerPage() {
 
   // ── Search filter (client-side) ──
   const filtered = useMemo(() => {
-    if (!search.trim()) return items;
-    const q = search.trim().toLowerCase();
-    return items.filter(
-      (i) =>
-        i.symbol.toLowerCase().includes(q) ||
-        i.name.toLowerCase().includes(q) ||
-        i.industry.toLowerCase().includes(q)
-    );
-  }, [items, search]);
+    let result = items;
+
+    // Phase filter
+    if (phaseFilter) {
+      result = result.filter((i) => i.phase === phaseFilter);
+    }
+
+    // Search filter
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(
+        (i) =>
+          i.symbol.toLowerCase().includes(q) ||
+          i.name.toLowerCase().includes(q) ||
+          i.industry.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [items, search, phaseFilter]);
 
   // ── Stats ──
   const stats = useMemo(() => {
@@ -217,7 +241,10 @@ export default function ScreenerPage() {
       total > 0
         ? filtered.reduce((sum, i) => sum + i.liquidity_score, 0) / total
         : 0;
-    return { total, highScore, avgScore, avgLiq };
+    const bullishPhases = filtered.filter((i) =>
+      ["confirmed_smart_money", "breakout_ready", "float_lock", "active_absorption"].includes(i.phase)
+    ).length;
+    return { total, highScore, avgScore, avgLiq, bullishPhases };
   }, [filtered]);
 
   // ── Render ──
@@ -227,7 +254,7 @@ export default function ScreenerPage() {
       subtitle="غربال‌گری هوشمند با ۵ فاز Smart Money"
     >
       {/* ── Stats cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
         <div className="glass-card p-3 text-center">
           <p className="text-xl font-black text-surface-100">{stats.total}</p>
           <p className="text-xs text-surface-500">نماد</p>
@@ -235,6 +262,10 @@ export default function ScreenerPage() {
         <div className="glass-card p-3 text-center">
           <p className="text-xl font-black text-accent-emerald">{stats.highScore}</p>
           <p className="text-xs text-surface-500">SMC ≥ 60%</p>
+        </div>
+        <div className="glass-card p-3 text-center">
+          <p className="text-xl font-black text-accent-cyan">{stats.bullishPhases}</p>
+          <p className="text-xs text-surface-500">فاز صعودی</p>
         </div>
         <div className="glass-card p-3 text-center">
           <p className="text-xl font-black text-surface-100">
@@ -310,6 +341,27 @@ export default function ScreenerPage() {
             </button>
           ))}
         </div>
+
+        <div className="flex gap-1 flex-wrap">
+          {PHASE_OPTIONS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPhaseFilter(p.key)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                phaseFilter === p.key
+                  ? "text-white"
+                  : "bg-surface-800 text-surface-400 hover:text-surface-200"
+              }`}
+              style={
+                phaseFilter === p.key
+                  ? { background: p.color || "var(--color-primary-600)" }
+                  : undefined
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Loading ── */}
@@ -337,7 +389,7 @@ export default function ScreenerPage() {
       {/* ── Results ── */}
       {!isLoading && filtered.length > 0 && (
         <div className="space-y-2">
-          {filtered.slice(0, 100).map((item) => {
+          {filtered.map((item) => {
             const sparkData = sparkMap?.[item.symbol];
             const smcNum = pctScore(item.smc_score);
             return (

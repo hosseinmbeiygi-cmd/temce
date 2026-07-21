@@ -36,16 +36,24 @@ export function toJalali(gy: number, gm: number, gd: number): string {
 }
 
 /** Convert ISO date string "YYYY-MM-DD" to Jalali "YYYY/MM/DD" */
-export function gregorianToJalali(isoDate: string): string {
-  if (!isoDate || isoDate.length < 10) return isoDate;
+export function gregorianToJalali(isoDate: string | null | undefined): string {
+  if (!isoDate || isoDate.length < 10) return "—";
   const [y, m, d] = isoDate.split("-").map(Number);
-  if (isNaN(y) || isNaN(m) || isNaN(d)) return isoDate;
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return "—";
   return toJalali(y, m, d);
 }
 
 /** Convert Jalali "YYYY/MM/DD" back to ISO "YYYY-MM-DD" */
-export function jalaliToGregorian(jalaliStr: string): string {
-  const [jy, jm, jd] = jalaliStr.split("/").map(Number);
+export function jalaliToGregorian(jalaliStr: string): string | null {
+  if (!jalaliStr || typeof jalaliStr !== "string") return null;
+  const parts = jalaliStr.split("/");
+  if (parts.length !== 3) return null;
+  const [jy, jm, jd] = parts.map(Number);
+  if (isNaN(jy) || isNaN(jm) || isNaN(jd)) return null;
+  if (jm < 1 || jm > 12) return null;
+  if (jd < 1 || jd > 31) return null;
+  if (jm <= 6 && jd > 31) return null;
+  if (jm > 6 && jd > 30) return null;
   let gy = jy + 1595;
   let days =
     -355668 +

@@ -18,7 +18,10 @@ const TABS = [
   { id: "news", label: "اخبار و نظرات", icon: "article", href: "/news" },
   { id: "analysis", label: "تحلیل و پیش‌بینی", icon: "analytics", href: "/analysis" },
   { id: "watchlist", label: "علاقه‌مندی‌ها", icon: "star", href: "/watchlist" },
-  { id: "smart-money", label: "پول هوشمند", icon: "psychology", href: "/smart-money" },
+  { id: "personal", label: "داشبورد شخصی", icon: "person", href: "/personal" },
+  { id: "smart-money", label: "پول هوشمند", icon: "psychology", href: "/smart-money", children: [
+    { id: "smart-money-monitor", label: "مانیتورینگ فاز", icon: "monitor", href: "/smart-money/monitor" },
+  ]},
   { id: "signals", label: "سیگنال‌ها", icon: "trending_up", href: "/signals" },
   { id: "backtest", label: "بک‌تست", icon: "science", href: "/backtest", children: [
     { id: "backtest-methods", label: "چارچوب بک‌تست", icon: "menu_book", href: "/backtest/methods" },

@@ -21,10 +21,30 @@ interface MacroIndicator {
 
 interface BrsapiItem {
   symbol: string;
+  name?: string;
   price: number;
+  price_close?: number;
+  price_last?: number;
   change: number;
+  change_value?: number;
+  close_change?: number;
   change_pct: number;
+  change_percent?: number;
   time: string;
+}
+
+function normalizeBrsapiItem(raw: Record<string, unknown>): BrsapiItem {
+  const price = Number(raw.price ?? raw.price_close ?? raw.price_last ?? raw.price_now ?? 0);
+  const change = Number(raw.change ?? raw.change_value ?? raw.close_change ?? 0);
+  const changePct = Number(raw.change_pct ?? raw.change_percent ?? 0);
+  return {
+    symbol: String(raw.symbol ?? ""),
+    name: String(raw.name ?? raw.symbol ?? ""),
+    price,
+    change,
+    change_pct: changePct,
+    time: String(raw.time ?? raw.fetched_at ?? ""),
+  };
 }
 
 // ------ Indicator Configuration (matches MOCK_INDICATORS in backend) ------------------------------------------------
@@ -43,8 +63,8 @@ const INDICATOR_META: Record<string, { label: string; icon: string; category: st
 const CATEGORY_ORDER = ["اقتصاد کلان", "کامودیتی", "ارز"];
 
 // BrsApi gold/coin/currency symbols for live data
-const GOLD_SYMBOLS = ["18ayar", "24ayar", "emi", "bahar", "nim", "rob", "sekee"];
-const CURRENCY_SYMBOLS = ["usd", "eur", "gbp", "aed", "try", "cny", "jpy"];
+const GOLD_SYMBOLS = ["18ayar", "24ayar", "emi", "bahar", "nim", "rob", "sekee", "طلا", "سکه", "گرمی"];
+const CURRENCY_SYMBOLS = ["usd", "eur", "gbp", "aed", "try", "cny", "jpy", "دلار", "یورو", "پوند", "درهم"];
 
 // ------ Helpers -----------------------------------------------------------------------------------------------------
 
@@ -178,8 +198,15 @@ export default function MacroPage() {
   const { data: indicators, isLoading, isError, refetch } = useQuery({
     queryKey: ["macro-indicators"],
     queryFn: async () => {
-      const res = await apiGet<{ success: boolean; data: string[] }>("/macro/");
-      const keys = res?.data ?? [];
+      const res = await apiGet<{ success: boolean; data: { items: { key: string }[]; total: number } | string[] }>("/macro/");
+      const rawData = res?.data;
+      // Backend returns PaginatedResult with items: [{key: "inflation"}, ...]
+      let keys: string[] = [];
+      if (Array.isArray(rawData)) {
+        keys = rawData;
+      } else if (rawData && typeof rawData === "object" && "items" in rawData) {
+        keys = (rawData.items ?? []).map((i) => i.key);
+      }
       
       // Fetch each indicator detail
       const detailPromises = keys.map(async (key) => {
@@ -207,8 +234,8 @@ export default function MacroPage() {
     queryKey: ["macro-gold"],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: BrsapiItem[] }>("/brsapi/gold-coin");
-        return res?.data ?? [];
+        const res = await apiGet<{ success: boolean; data: Record<string, unknown>[] }>("/brsapi/gold-coin");
+        return (res?.data ?? []).map(normalizeBrsapiItem);
       } catch {
         return [];
       }
@@ -221,8 +248,8 @@ export default function MacroPage() {
     queryKey: ["macro-currency"],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: BrsapiItem[] }>("/brsapi/currency");
-        return res?.data ?? [];
+        const res = await apiGet<{ success: boolean; data: Record<string, unknown>[] }>("/brsapi/currency");
+        return (res?.data ?? []).map(normalizeBrsapiItem);
       } catch {
         return [];
       }
@@ -246,14 +273,18 @@ export default function MacroPage() {
     : groupedIndicators;
 
   // Filter gold data to show relevant items
-  const filteredGold = goldData?.filter((g) => 
-    GOLD_SYMBOLS.some((s) => g.symbol.toLowerCase().includes(s))
-  ) ?? [];
+  const filteredGold = goldData?.filter((g) => {
+    const sym = (g.symbol || "").toLowerCase();
+    const nm = (g.name || "").toLowerCase();
+    return GOLD_SYMBOLS.some((s) => sym.includes(s) || nm.includes(s));
+  }) ?? [];
 
   // Filter currency data
-  const filteredCurrency = currencyData?.filter((c) =>
-    CURRENCY_SYMBOLS.some((s) => c.symbol.toLowerCase().includes(s))
-  ) ?? [];
+  const filteredCurrency = currencyData?.filter((c) => {
+    const sym = (c.symbol || "").toLowerCase();
+    const nm = (c.name || "").toLowerCase();
+    return CURRENCY_SYMBOLS.some((s) => sym.includes(s) || nm.includes(s));
+  }) ?? [];
 
   // Selected indicator detail
   const selectedDetail = selectedIndicator ? indicatorData[selectedIndicator] : null;
