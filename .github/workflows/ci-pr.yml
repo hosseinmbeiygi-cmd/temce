@@ -1,0 +1,229 @@
+# ── Pull Request Quality Gate ──────────────────────────────────
+# Fast feedback workflow triggered on every pull request.
+# Runs ruff lint, mypy type-check (strict on signal chain), and
+# pytest unit tests with PostgreSQL 16 + Redis 7 services.
+#
+# Intended to complete in < 5 minutes for most PRs.
+# Optimised: each job installs only packages it actually needs.
+
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "frontend/src/**/*.ts"
+      - "frontend/src/**/*.tsx"
+      - "frontend/src/**/*.js"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/tsconfig.json"
+      - "frontend/next.config.*"
+      - "frontend/eslint.config.mjs"
+      - "Dockerfile*"
+      - ".github/workflows/ci-pr.yml"
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  # ── JOB 1: Lint (ruff) ──────────────────────────────────────
+  # Needs:  ruff
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check . --output-format=github
+
+  # ── JOB 2: Type-check (mypy) ────────────────────────────────
+  # Needs:  mypy + sqlalchemy (imported by signal-chain files)
+  # All other imports are stdlib or internal (core.*, services.*)
+  # --ignore-missing-imports handles anything else.
+  typecheck:
+    name: Type-check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install mypy + sqlalchemy
+        run: pip install mypy sqlalchemy
+
+      - name: Mypy -- signal chain (strict)
+        run: >
+          mypy
+          services/quant_signal_orchestrator.py
+          services/signal_voting_system.py
+          services/confidence_scorer.py
+          services/probability_calibrator.py
+          services/signal_decision_engine.py
+          services/signal_accuracy_tracker.py
+          services/ml_signal_connector.py
+          services/auto_retrain_pipeline.py
+          core/calibration_bootstrap.py
+          core/db_utils.py
+          --show-error-codes
+          --ignore-missing-imports
+          --output-format=github
+
+  # ── JOB 3: Unit Tests (pytest) ──────────────────────────────
+  # Needs:  pytest + asyncio + timeout + httpx + fastapi +
+  #         sqlalchemy + numpy + pydantic + asyncpg + redis + aiosqlite
+  # PostgreSQL + Redis services provided so DB-dependent tests run.
+  # aiosqlite kept as fallback for tests preferring local SQLite.
+  test:
+    name: Unit Tests (pytest)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: market_test
+          POSTGRES_USER: market
+          POSTGRES_PASSWORD: market
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install test dependencies
+        run: >
+          pip install pytest pytest-asyncio pytest-timeout
+          httpx fastapi sqlalchemy numpy pydantic asyncpg redis aiosqlite
+
+      - name: Run unit tests
+        run: >
+          python -m pytest tests/unit
+          --timeout=60
+          --tb=short
+          --no-header
+          -q 2>&1
+        env:
+          ENV: test
+          DATABASE_URL: postgresql+asyncpg://market:market@localhost:5432/market_test
+          REDIS_URL: redis://localhost:6379/0
+
+  # ── JOB 4: Signal Quality Benchmark ─────────────────────────
+  # Runs in quick mock mode — no external packages needed beyond
+  # stdlib + internal project modules. pydantic kept as safety net
+  # for dataclass serialisation in benchmark script.
+  # continue-on-error as this is informational only.
+  benchmark:
+    name: Signal Quality Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install pydantic (for EnrichedSignal dataclass)
+        run: pip install pydantic
+
+      - name: Run benchmark (quick mock)
+        run: python tests/benchmark_signal_quality.py --quick 2>&1
+        continue-on-error: true
+
+  # ── JOB 5: Frontend Lint & Typecheck ────────────────────────
+  # Runs TypeScript type-check (tsc --noEmit) and ESLint on
+  # the Next.js frontend.
+  frontend:
+    name: Frontend Lint (tsc + eslint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: npm-${{ env.NODE_VERSION }}-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            npm-${{ env.NODE_VERSION }}-
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: TypeScript type-check (tsc --noEmit)
+        run: cd frontend && npx tsc --noEmit
+
+      - name: ESLint
+        run: cd frontend && npm run lint
+        continue-on-error: true
+
+  # ── JOB 6: Dockerfile Lint (hadolint) ────────────────────────
+  # Lints all Dockerfiles using hadolint.
+  # Uses a matrix to lint each Dockerfile in parallel.
+  dockerfile:
+    name: Dockerfile Lint (hadolint)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dockerfile:
+          - Dockerfile
+          - Dockerfile.api
+          - Dockerfile.admin
+          - Dockerfile.worker
+          - Dockerfile.frontend
+          - Dockerfile.scheduler
+          - Dockerfile.decision-engine
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint ${{ matrix.dockerfile }}
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          failure-threshold: warning

@@ -21,12 +21,16 @@ class TestTsetmcMarketWatchParser:
         assert events == []
 
     async def test_parse_single_record(self) -> None:
-        payload = json.dumps([{
-            "insCode": "123",
-            "lVal18AFC": "فولاد",
-            "pDrCotVal": "50000",
-            "qTotTran5J": "1000",
-        }]).encode()
+        payload = json.dumps(
+            [
+                {
+                    "insCode": "123",
+                    "lVal18AFC": "فولاد",
+                    "pDrCotVal": "50000",
+                    "qTotTran5J": "1000",
+                }
+            ]
+        ).encode()
         parser = TsetmcMarketWatchParser()
         events = await parser.parse(payload)
         assert len(events) == 1
@@ -39,9 +43,11 @@ class TestTsetmcMarketWatchParser:
 
 class TestTsetmcTradeParser:
     async def test_parse_trades(self) -> None:
-        payload = json.dumps({
-            "closingPriceData": [{"insCode": "123", "pClosing": "15000", "qTotTran5J": "500"}],
-        }).encode()
+        payload = json.dumps(
+            {
+                "closingPriceData": [{"insCode": "123", "pClosing": "15000", "qTotTran5J": "500"}],
+            }
+        ).encode()
         parser = TsetmcTradeParser()
         events = await parser.parse(payload)
         assert len(events) == 1
@@ -56,11 +62,13 @@ class TestTsetmcTradeParser:
 
 class TestTsetmcOrderBookParser:
     async def test_parse_orderbook(self) -> None:
-        payload = json.dumps({
-            "insCode": "123",
-            "buyRows": [{"pPrice": "100", "qTit": "10", "zOrder": "3", "xOrder": "1"}],
-            "sellRows": [{"pPrice": "101", "qTit": "5", "zOrder": "2", "xOrder": "1"}],
-        }).encode()
+        payload = json.dumps(
+            {
+                "insCode": "123",
+                "buyRows": [{"pPrice": "100", "qTit": "10", "zOrder": "3", "xOrder": "1"}],
+                "sellRows": [{"pPrice": "101", "qTit": "5", "zOrder": "2", "xOrder": "1"}],
+            }
+        ).encode()
         parser = TsetmcOrderBookParser()
         events = await parser.parse(payload)
         assert len(events) == 2
@@ -71,4 +79,3 @@ class TestTsetmcOrderBookParser:
         parser = TsetmcOrderBookParser()
         events = await parser.parse(json.dumps({}).encode())
         assert events == []
-

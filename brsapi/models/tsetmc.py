@@ -9,7 +9,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, Index, Integer, PrimaryKeyConstraint, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -110,13 +122,21 @@ class SymbolSnapshotModel(InstrumentRefMixin, BrsApiBase):
 
     # Meta
     time: Mapped[str | None] = mapped_column(String(20))
-    fetched_at: Mapped[str | None] = mapped_column(String(30), index=True)
+    # timestamptz in the live DB (migration 001) — match it, like IndexValueModel.
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     raw_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
     __table_args__ = (
         Index("idx_snap_ins_fetched", "ins_id", "fetched_at"),
         Index("idx_snap_symbol_fetched", "symbol", "fetched_at"),
+        # Unique per (symbol, fetched_at) so the bulk-insert upsert
+        # (INSERT ... ON CONFLICT DO NOTHING) actually deduplicates rows
+        # instead of appending a new snapshot every 2-minute sync cycle.
+        # Without this the table grows unboundedly and the latest-wins
+        # DISTINCT ON (symbol) query in the alert/quote jobs keeps seeing
+        # stale rows.
+        UniqueConstraint("symbol", "fetched_at", name="uq_snap_symbol_fetched"),
     )
 
 
@@ -226,7 +246,9 @@ class IndexValueModel(InstrumentRefMixin, BrsApiBase):
     max: Mapped[float | None] = mapped_column(Float)
     date: Mapped[str | None] = mapped_column(String(20), index=True)
     time: Mapped[str | None] = mapped_column(String(20))
-    fetched_at: Mapped[str | None] = mapped_column(String(30))
+    # Live DB column is DateTime (created by migration 001) — keep the model in
+    # sync so the parser can bind a real datetime (asyncpg rejects str here).
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime)
     raw_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

@@ -1,7 +1,7 @@
 # ── Continuous Integration ──────────────────────────────────────
-# Runs on push/PR to main/develop.
+# Runs on push/PR to main/develop when relevant files change.
 # - Lint & typecheck Python + Node.js
-# - Run backend tests
+# - Run backend tests (with PostgreSQL + Redis services)
 # - Build & push Docker images (main only)
 # - Scan images for vulnerabilities (main only)
 
@@ -10,8 +10,38 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "frontend/src/**/*.ts"
+      - "frontend/src/**/*.tsx"
+      - "frontend/src/**/*.js"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/tsconfig.json"
+      - "frontend/next.config.*"
+      - "frontend/eslint.config.mjs"
+      - "Dockerfile*"
+      - "docker-compose*.yml"
+      - ".github/workflows/ci.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "frontend/src/**/*.ts"
+      - "frontend/src/**/*.tsx"
+      - "frontend/src/**/*.js"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/tsconfig.json"
+      - "frontend/next.config.*"
+      - "frontend/eslint.config.mjs"
+      - "Dockerfile*"
+      - "docker-compose*.yml"
+      - ".github/workflows/ci.yml"
 
 env:
   REGISTRY: ghcr.io

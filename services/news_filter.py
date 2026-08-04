@@ -34,11 +34,11 @@ class NewsFilter:
         self.min_content_length = min_content_length
         self.from_date = from_date
         self.to_date = to_date
-        self.sources_whitelist = set(s.lower() for s in sources_whitelist) if sources_whitelist else None
-        self.sources_blacklist = set(s.lower() for s in sources_blacklist) if sources_blacklist else None
-        self.categories = set(c.lower() for c in categories) if categories else None
+        self.sources_whitelist = {s.lower() for s in sources_whitelist} if sources_whitelist else None
+        self.sources_blacklist = {s.lower() for s in sources_blacklist} if sources_blacklist else None
+        self.categories = {c.lower() for c in categories} if categories else None
         self.keywords = [k.lower() for k in keywords] if keywords else None
-        self.symbols = set(s.strip() for s in symbols) if symbols else None
+        self.symbols = {s.strip() for s in symbols} if symbols else None
 
         # Persian economy-related keywords for stock market relevance
         self._default_economy_keywords: list[str] = [

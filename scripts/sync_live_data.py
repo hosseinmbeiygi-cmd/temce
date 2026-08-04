@@ -16,10 +16,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import _db
+
 from brsapi.client import close_client, get_client
 from brsapi.services.sync_service import BrsApiSyncService
 
-DATABASE_URL = "postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db"
+DATABASE_URL = _db.database_url_async()
 
 
 async def sync_all():

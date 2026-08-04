@@ -30,8 +30,120 @@ logger = get_logger(__name__)
 _prediction_results: dict[str, dict[str, Any]] = {}
 
 
+async def _db_list_models(session: AsyncSession) -> list[dict] | None:
+    """List real registered models from ml_models + ml_model_versions tables."""
+    import json as json_lib
+
+    from models.ml import MlModelModel, MlModelVersionModel
+    from sqlalchemy import select
+
+    rows = (await session.execute(select(MlModelModel).order_by(MlModelModel.name))).scalars().all()
+    if not rows:
+        return None
+
+    # Single query for all versions (avoids N+1) and group by model id
+    all_versions = (
+        await session.execute(select(MlModelVersionModel).order_by(MlModelVersionModel.version))
+    ).scalars().all()
+    versions_by_model: dict[str, list] = {}
+    for v in all_versions:
+        versions_by_model.setdefault(v.model_id, []).append(v)
+
+    out: list[dict] = []
+    for m in rows:
+        versions = versions_by_model.get(m.id, [])
+        tags: list[str] = []
+        if m.tags:
+            try:
+                tags = json_lib.loads(m.tags)
+            except (json_lib.JSONDecodeError, TypeError):
+                tags = [s.strip() for s in m.tags.split(",") if s.strip()]
+        out.append({
+            "id": m.id,
+            "name": m.name,
+            "task": m.task or "regression",
+            "framework": m.framework or "sklearn",
+            "model_type": m.framework or m.name,
+            "latest_version": m.latest_version or "1.0.0",
+            "description": m.description or "",
+            "tags": tags,
+            "versions": [
+                {
+                    "version": v.version,
+                    "stage": v.stage or "development",
+                    "metrics": _safe_json(v.metrics),
+                    "parameters": _safe_json(v.parameters),
+                    "artifact_path": v.artifact_path or "",
+                    "created_at": v.created_at.isoformat() if v.created_at else None,
+                }
+                for v in versions
+            ],
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        })
+    return out
+
+
+async def _db_list_runs(session: AsyncSession, limit: int = 200) -> list[dict] | None:
+    """List training runs from ml_training_runs table."""
+    from models.ml import MlTrainingRunModel
+    from sqlalchemy import select
+
+    rows = (
+        await session.execute(
+            select(MlTrainingRunModel).order_by(MlTrainingRunModel.created_at.desc()).limit(limit)
+        )
+    ).scalars().all()
+    if not rows:
+        return None
+
+    out: list[dict] = []
+    for r in rows:
+        out.append(_run_to_dict(r))
+    return out
+
+
+def _run_to_dict(r) -> dict:
+    """Map an MlTrainingRunModel ORM row to the API run dict shape."""
+    config = _safe_json(r.config) or {}
+    return {
+        "id": r.id,
+        "experiment_name": r.experiment_name or "",
+        "run_name": r.run_name or "",
+        "model_type": r.model_type or "",
+        "symbol": config.get("symbol") if isinstance(config, dict) else None,
+        "symbols": [config["symbol"]] if isinstance(config, dict) and config.get("symbol") else [],
+        "status": r.status or "pending",
+        "metrics": _safe_json(r.metrics) or {},
+        "best_params": _safe_json(r.best_params) or {},
+        "progress_pct": r.progress_pct or 0,
+        "started_at": r.started_at.isoformat() if r.started_at else None,
+        "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+def _safe_json(value: str | None) -> dict:
+    import json as json_lib
+
+    if not value:
+        return {}
+    try:
+        parsed = json_lib.loads(value)
+        return parsed if isinstance(parsed, dict) else {}
+    except (json_lib.JSONDecodeError, TypeError):
+        return {}
+
+
 @router.get("/models", summary="List ML models", description="List all registered ML models")
-async def list_models() -> ApiResponse[list[dict]]:
+async def list_models(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[list[dict]]:
+    # Prefer the real trained models registered in the database
+    try:
+        db_models = await _db_list_models(session)
+        if db_models:
+            return ApiResponse[list[dict]](success=True, data=db_models)
+    except Exception as e:
+        logger.warning("Could not read ML models from DB, falling back to registry: %s", e)
+
     from ml.global_registry import get_registry
 
     registry = get_registry()
@@ -40,7 +152,15 @@ async def list_models() -> ApiResponse[list[dict]]:
 
 
 @router.get("/runs", summary="List training runs", description="List all training runs")
-async def list_runs() -> ApiResponse[list[dict]]:
+async def list_runs(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[list[dict]]:
+    # Prefer training runs persisted in the database
+    try:
+        db_runs = await _db_list_runs(session)
+        if db_runs:
+            return ApiResponse[list[dict]](success=True, data=db_runs)
+    except Exception as e:
+        logger.warning("Could not read ML runs from DB, falling back to in-memory service: %s", e)
+
     from services.global_training_service import get_training_service
 
     service = get_training_service()
@@ -49,7 +169,20 @@ async def list_runs() -> ApiResponse[list[dict]]:
 
 
 @router.get("/runs/{run_id}", summary="Get training run", description="Get details of a specific training run")
-async def get_run(run_id: str) -> ApiResponse[dict]:
+async def get_run(run_id: str, session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict]:
+    # Prefer DB-persisted run (direct lookup by id)
+    try:
+        from models.ml import MlTrainingRunModel
+        from sqlalchemy import select
+
+        row = (
+            await session.execute(select(MlTrainingRunModel).where(MlTrainingRunModel.id == run_id))
+        ).scalar_one_or_none()
+        if row is not None:
+            return ApiResponse[dict](success=True, data=_run_to_dict(row))
+    except Exception as e:
+        logger.warning("DB run lookup failed: %s", e)
+
     from services.global_training_service import get_training_service
 
     service = get_training_service()
@@ -197,9 +330,13 @@ async def predict_all(
         )
 
     # ── 2. Create inference service with DB access for real predictions ──
+    from repositories.ml_repository import MlRepository
     from repositories.quote_repository import QuoteRepository
 
-    inference = InferenceService(quote_repo=QuoteRepository(session=session))
+    inference = InferenceService(
+        quote_repo=QuoteRepository(session=session),
+        model_repo=MlRepository(session=session),
+    )
 
     batch_id = uuid.uuid4().hex[:12]
     results: list[dict[str, Any]] = []

@@ -7,10 +7,37 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
+from core.db_utils import safe_row_str
 from core.logging import get_logger
-from schemas.common.responses import ApiResponse
+from services.history_backfill_service import BACKFILL_PHASES, get_backfill_stats
 
 logger = get_logger(__name__)
+
+
+def _build_coverage_item(data_type: str, table_name: str, stats: dict[str, Any]) -> dict[str, Any]:
+    """Build a single backfill coverage response item."""
+    total = stats.get("total_instruments", 0)
+    with_data = stats.get("with_data", 0)
+    coverage_pct = round((with_data / total) * 100, 2) if total else 0.0
+    return {
+        "data_type": data_type,
+        "table_name": table_name,
+        "total_instruments": total,
+        "with_data": with_data,
+        "missing": stats.get("missing", 0),
+        "coverage_pct": coverage_pct,
+        "total_rows": stats.get("total_rows", 0),
+        "avg_rows_per_symbol": stats.get("avg_rows_per_symbol", 0.0),
+    }
+
+
+async def _get_backfill_coverage(session: AsyncSession) -> list[dict[str, Any]]:
+    """Compute per-data-type backfill coverage for active instruments."""
+    coverage: list[dict[str, Any]] = []
+    for data_type, phase in BACKFILL_PHASES.items():
+        stats = await get_backfill_stats(session, phase)
+        coverage.append(_build_coverage_item(data_type, phase.table_name, stats))
+    return coverage
 
 router = APIRouter()
 
@@ -62,7 +89,7 @@ RECENT_JOBS_QUERY = """
 @router.get("")
 async def dashboard_overview(
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse[dict[str, Any]]:
+) -> dict[str, Any]:
     try:
         # ── Table row estimates ──
         table_rows: list[dict[str, Any]] = []
@@ -146,8 +173,8 @@ async def dashboard_overview(
             r = await session.execute(text(RECENT_JOBS_QUERY))
             for row in r.fetchall():
                 recent_jobs.append({
-                    "id": row[0] or "",
-                    "job_type": row[1] or "",
+                    "id": safe_row_str(row, idx=0),
+                    "job_type": safe_row_str(row, idx=1),
                     "status": row[2] or "unknown",
                     "started_at": row[3].isoformat() if row[3] else None,
                     "completed_at": row[4].isoformat() if row[4] else None,
@@ -192,6 +219,13 @@ async def dashboard_overview(
         elif failed_jobs > 0:
             overall_status = "warning"
 
+        # ── Backfill coverage per data type ──
+        try:
+            backfill_coverage = await _get_backfill_coverage(session)
+        except Exception:
+            logger.warning("Could not fetch backfill coverage stats")
+            backfill_coverage = []
+
         return {
             "metrics": {
                 "total_instruments": instruments_count,
@@ -212,7 +246,12 @@ async def dashboard_overview(
             "table_rows": table_rows,
             "ml_models": ml_models,
             "strategies": strategies,
+            "backfill_coverage": backfill_coverage,
             "system_status": overall_status,
+            "market_breakdown": {},
+            "top_gainers": [],
+            "top_losers": [],
+            "recent_announcements": [],
         }
     except Exception as exc:
         logger.exception("Dashboard error")
@@ -236,6 +275,23 @@ async def dashboard_overview(
             "table_rows": [],
             "ml_models": [],
             "strategies": [],
+            "backfill_coverage": [],
             "system_status": "error",
+            "market_breakdown": {},
+            "top_gainers": [],
+            "top_losers": [],
+            "recent_announcements": [],
             "error": str(exc),
         }
+
+
+@router.get("/backfill-coverage")
+async def backfill_coverage(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
+    """Return per-data-type backfill coverage for active instruments."""
+    try:
+        return await _get_backfill_coverage(session)
+    except Exception:
+        logger.exception("Backfill coverage error")
+        return []

@@ -30,4 +30,3 @@ def test_commission_zero_value():
 
     model = CommissionModel(commission_pct=0.0035)
     assert model.calculate(trade_value=0) == 0
-

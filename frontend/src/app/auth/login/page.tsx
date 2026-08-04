@@ -4,12 +4,13 @@ import { Suspense, useState, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
-import { apiPost, storeAuth } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
+  const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,11 +21,7 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      const response = await apiPost<{ success: boolean; data: { user: Record<string, unknown>; access_token: string; refresh_token: string } }>("/auth/login", {
-        username,
-        password,
-      });
-      storeAuth(response.data ?? response);
+      await login(username, password);
       router.push(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

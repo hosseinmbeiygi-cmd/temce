@@ -8,6 +8,7 @@ async def test_fixes():
     print("1. Testing app import...")
     try:
         from apps.api.app import app
+
         print("   ✓ App imported successfully")
     except Exception as e:
         print(f"   ✗ Failed to import app: {e}")
@@ -17,6 +18,7 @@ async def test_fixes():
     print("2. Testing root route...")
     try:
         from fastapi.testclient import TestClient
+
         client = TestClient(app)
 
         response = client.get("/")
@@ -36,6 +38,7 @@ async def test_fixes():
     except Exception as e:
         print(f"   ✗ Failed to test root route: {e}")
         return False
+
 
 if __name__ == "__main__":
     success = asyncio.run(test_fixes())

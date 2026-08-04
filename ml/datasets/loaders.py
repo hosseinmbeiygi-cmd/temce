@@ -37,11 +37,10 @@ class DataLoader:
         params = {'text': symbol}
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=10) as response:
-                    data = await response.json()
-                    if data and data['instrumentSearch']:
-                        return data['instrumentSearch'][0]
+            async with aiohttp.ClientSession() as session, session.get(url, params=params, timeout=10) as response:
+                data = await response.json()
+                if data and data['instrumentSearch']:
+                    return data['instrumentSearch'][0]
         except Exception as e:
             logger.warning(f"Failed to get stock info for {symbol}: {str(e)}")
         return None

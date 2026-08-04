@@ -1,0 +1,353 @@
+# ── Decision Engine CI/CD ─────────────────────────────────────────
+# Builds, pushes, and optionally deploys the Decision Engine microservice.
+#
+# Triggers:
+#   - push/PR to main/develop (CI build only)
+#   - push semver tag v*.*.*  (CI + release)
+#
+# Images pushed to ghcr.io:
+#   ghcr.io/iran-market-platform/decision-engine:{sha}
+#   ghcr.io/iran-market-platform/decision-engine:latest
+#   ghcr.io/iran-market-platform/decision-engine:{semver}  (tagged release)
+
+name: Decision Engine
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "apps/api/endpoints/decision_engine.py"
+      - "apps/decision_engine/**"
+      - "models/decision_engine.py"
+      - "migrations/versions/0013_decision_engine_tables.py"
+      - "json/*.json"
+      - "Dockerfile.decision-engine"
+      - "alembic.ini"
+      - "migrations/**"
+      - ".github/workflows/decision-engine.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "pyproject.toml"
+      - "requirements*.txt"
+      - "apps/api/endpoints/decision_engine.py"
+      - "apps/decision_engine/**"
+      - "models/decision_engine.py"
+      - "migrations/versions/0013_decision_engine_tables.py"
+      - "json/*.json"
+      - "Dockerfile.decision-engine"
+      - "alembic.ini"
+      - "migrations/**"
+      - ".github/workflows/decision-engine.yml"
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DOCKERFILE: Dockerfile.decision-engine
+  SERVICE_NAME: decision-engine
+
+jobs:
+  # ── Lint ────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff -r requirements.txt
+
+      - name: Lint Python with ruff
+        run: ruff check apps/decision_engine apps/api/endpoints/decision_engine.py models/decision_engine.py --output-format=github
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ env.DOCKERFILE }}
+          failure-threshold: warning
+
+      - name: Validate JSON files
+        run: |
+          for f in json/*.json; do
+            python -c "import json; json.load(open('$f'))" && echo "  ✅ $f" || echo "  ❌ $f"
+          done
+
+  # ── Build & Push ────────────────────────────────────────────────
+  build:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    needs: [lint]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag (release only)
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            echo "semver=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "semver=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ env.SERVICE_NAME }}
+          tags: |
+            type=sha,format=long,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
+          labels: |
+            org.opencontainers.image.title=Decision Engine
+            org.opencontainers.image.description=سامانه تصمیم‌یار بورس تهران — Enterprise Decision Support System
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: Build & push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=decision-engine
+          cache-to: type=gha,mode=max,scope=decision-engine
+          provenance: true
+          sbom: true
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          format: sarif
+          output: trivy-results-decision-engine.sarif
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results-decision-engine.sarif
+          category: trivy-decision-engine
+
+  # ── Migration (alembic upgrade head against PostgreSQL) ───────────
+  migrate:
+    name: DB Migration
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tse_quant
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env for migration
+        run: |
+          cat > .env << EOF
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/tse_quant
+          DATABASE_URL_ASYNC=postgresql+asyncpg://postgres:postgres@localhost:5432/tse_quant
+          LOG_LEVEL=INFO
+          EOF
+
+      - name: Run Alembic migration
+        run: |
+          echo "📦 Running Alembic migration..."
+          alembic upgrade head
+          echo "✅ Migration complete"
+
+      - name: Verify migration status
+        run: |
+          echo "📊 Checking migration status..."
+          python -c "
+          from sqlalchemy import create_engine, text
+          engine = create_engine('postgresql://postgres:postgres@localhost:5432/tse_quant')
+          with engine.connect() as conn:
+              result = conn.execute(text('SELECT version_num FROM alembic_version'))
+              print(f'Current revision: {result.scalar()}')
+
+              # Check tables exist
+              for tbl in ['decision_architectures', 'decision_results']:
+                  count = conn.execute(text(f'SELECT COUNT(*) FROM {tbl}')).scalar()
+                  print(f'  {tbl}: {count} rows')
+          engine.dispose()
+          "
+
+      - name: Seed architecture data (if empty)
+        continue-on-error: true
+        run: |
+          python -c "
+          from pathlib import Path
+          import json
+          from sqlalchemy import create_engine, text
+
+          engine = create_engine('postgresql://postgres:postgres@localhost:5432/tse_quant')
+          with engine.connect() as conn:
+              count = conn.execute(text('SELECT COUNT(*) FROM decision_architectures')).scalar()
+              if count == 0:
+                  print('📂 Seeding architecture data from JSON...')
+                  arch = {}
+                  for fname in ['architecture.json', 'features.json', 'services.json', 'database.json', 'api.json']:
+                      path = Path('json') / fname
+                      if path.exists():
+                          data = json.loads(path.read_text(encoding='utf-8'))
+                          key = fname.replace('.json', '')
+                          if key == 'architecture':
+                              arch = data
+                          else:
+                              arch[key] = data
+                          print(f'  ✅ Loaded {fname}')
+
+                  version = arch.get('system', {}).get('version', 'unknown')
+                  title = arch.get('system', {}).get('name', 'DSS')
+                  conn.execute(text("""
+                      INSERT INTO decision_architectures (version, title, data, is_active, created_at)
+                      VALUES (:v, :t, :d::jsonb, true, NOW())
+                  """).bindparams(v=version, t=title, d=json.dumps(arch))
+                  )
+                  conn.commit()
+                  print(f'  ✅ Seeded architecture v{version}')
+              else:
+                  print(f'  ⏭️  Architecture already seeded ({count} records)')
+          engine.dispose()
+          "
+
+  # ── Test API (against JSON data) ────────────────────────────────
+  test:
+    name: API Test
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx pytest -r requirements.txt
+
+      - name: Start decision-engine server (JSON mode — no DB needed)
+        run: |
+          uvicorn apps.decision_engine.app:app --host 127.0.0.1 --port 8002 &
+          sleep 5
+          # Wait for server to be ready
+          for i in $(seq 1 10); do
+            if curl -sf http://127.0.0.1:8002/health > /dev/null 2>&1; then
+              echo "Server ready!"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run API smoke tests
+        run: |
+          set -e
+          echo "=== Health Check ==="
+          curl -sf http://127.0.0.1:8002/health | python -c "import sys,json; d=json.load(sys.stdin); assert d['status']=='ok'; print('  ✅ Health OK')"
+
+          echo "=== Architecture Endpoint ==="
+          curl -sf http://127.0.0.1:8002/decision-engine/architecture | python -c "
+          import sys,json; d=json.load(sys.stdin);
+          assert d['success']; assert 'layers' in d['data']; assert len(d['data']['layers'])==12;
+          print(f\"  ✅ Architecture: {len(d['data']['layers'])} layers\")
+          "
+
+          echo "=== Features Endpoint ==="
+          curl -sf http://127.0.0.1:8002/decision-engine/features | python -c "
+          import sys,json; d=json.load(sys.stdin);
+          assert d['success']; assert d['data']['meta']['total_features']==110;
+          print(f\"  ✅ Features: {d['data']['meta']['total_features']} total in {d['data']['meta']['blocks']} blocks\")
+          "
+
+          echo "=== Services Endpoint ==="
+          curl -sf http://127.0.0.1:8002/decision-engine/services | python -c "
+          import sys,json; d=json.load(sys.stdin);
+          assert d['success']; assert d['data']['meta']['total_services']==22;
+          print(f\"  ✅ Services: {d['data']['meta']['total_services']} services\")
+          "
+
+          echo "=== Database Endpoint ==="
+          curl -sf http://127.0.0.1:8002/decision-engine/database | python -c "
+          import sys,json; d=json.load(sys.stdin);
+          assert d['success']; assert len(d['data']['tables'])>=5;
+          print(f\"  ✅ Database: {len(d['data']['tables'])} table groups\")
+          "
+
+          echo "=== API Endpoints ==="
+          curl -sf http://127.0.0.1:8002/decision-engine/api | python -c "
+          import sys,json; d=json.load(sys.stdin);
+          assert d['success'];
+          total = len(d['data'].get('internal',[])) + len(d['data'].get('external',[]));
+          print(f\"  ✅ API: {total} endpoints\")
+          "
+
+          echo "=== Overview Endpoint ==="
+          curl -sf http://127.0.0.1:8002/decision-engine/overview | python -c "
+          import sys,json; d=json.load(sys.stdin);
+          assert d['success'];
+          assert 'system' in d['data']; assert 'layers' in d['data'];
+          print(f\"  ✅ Overview: system + {len(d['data']['layers'])} layers\")
+          "
+
+          echo ""
+          echo "🎯 All smoke tests passed!"

@@ -37,13 +37,13 @@ interface SignalSummary {
   buy_count: number;
   sell_count: number;
   hold_count: number;
-  markets: Record<string, { buy: number; sell: number; hold: number; top_buy?: any }>;
+  markets: Record<string, { buy: number; sell: number; hold: number; top_buy?: { symbol: string } }>;
 }
 
 interface SignalResponse {
   signals: MarketSignal[];
   summary: SignalSummary;
-  filters: Record<string, any>;
+  filters: Record<string, unknown>;
   generated_at: string;
 }
 

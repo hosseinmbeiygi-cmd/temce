@@ -28,4 +28,3 @@ class TestIngestionConfig:
     def test_dedup_window_default(self) -> None:
         config = IngestionConfig()
         assert config.dedup_window_minutes == 60
-

@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "total_internal": 16,
+    "total_external": 15,
+    "version": "Enterprise-Final-1.0"
+  },
+  "internal": [
+    { "method": "POST", "path": "/internal/ingestion/quotes/run", "title_fa": "دریافت داده تابلو", "description": "اجرای سرویس دریافت داده تابلو", "request_body": "{ sources?: string[], force?: boolean }", "response": "{ run_id, records_count, errors }" },
+    { "method": "POST", "path": "/internal/ingestion/candles/run", "title_fa": "دریافت داده کندل", "description": "اجرای سرویس دریافت داده کندل", "request_body": "{ symbols?: string[], timeframes?: string[] }", "response": "{ run_id, records_count, errors }" },
+    { "method": "POST", "path": "/internal/ingestion/microtrades/run", "title_fa": "دریافت ریزمعاملات", "description": "اجرای سرویس دریافت ریزمعاملات", "request_body": "{ symbols?: string[], date?: string }", "response": "{ run_id, records_count, errors }" },
+    { "method": "POST", "path": "/internal/ingestion/codal/run", "title_fa": "دریافت داده کدال", "description": "اجرای سرویس دریافت داده کدال", "request_body": "{ symbols?: string[], event_types?: string[] }", "response": "{ run_id, records_count, errors }" },
+    { "method": "POST", "path": "/internal/ingestion/macro/run", "title_fa": "دریافت داده کلان", "description": "اجرای سرویس دریافت داده کلان", "request_body": "{ series_codes?: string[] }", "response": "{ run_id, records_count, errors }" },
+    { "method": "POST", "path": "/internal/quality/validate", "title_fa": "اعتبارسنجی کیفیت", "description": "اجرای اعتبارسنجی کیفیت داده برای نمادهای مشخص", "request_body": "{ symbol_ids?: number[], run_id?: string }", "response": "{ run_id, validated_count, anomalies, quality_scores }" },
+    { "method": "POST", "path": "/internal/features/calculate", "title_fa": "محاسبه ویژگی‌ها", "description": "محاسبه ۱۱۰ ویژگی برای نمادهای مشخص با نسخه خاص", "request_body": "{ symbol_ids?: number[], model_version?: string, run_id?: string }", "response": "{ run_id, features_count, symbol_count, feature_hash }" },
+    { "method": "POST", "path": "/internal/scoring/base", "title_fa": "امتیازدهی پایه", "description": "محاسبه ۸ سوبرسکور و BaseScore با وزن‌های نسخه‌دار", "request_body": "{ model_version?: string, run_id?: string }", "response": "{ run_id, scored_count, base_scores, candidates }" },
+    { "method": "POST", "path": "/internal/candidates/enqueue", "title_fa": "ورود به صف کاندیداها", "description": "ورود کاندیداهای واجد شرایط به صف پردازش سنگین", "request_body": "{ candidate_ids: number[], priority?: 'high' | 'normal' | 'low' }", "response": "{ enqueued_count, queue_status }" },
+    { "method": "POST", "path": "/internal/scoring/micro", "title_fa": "تحلیل ریزمعاملات", "description": "تحلیل عمیق ریزمعاملات کاندیداهای منتخب", "request_body": "{ symbol_ids: number[], run_id?: string }", "response": "{ run_id, analyzed_count, micro_scores, adjustments }" },
+    { "method": "POST", "path": "/internal/risk/evaluate", "title_fa": "ارزیابی ریسک", "description": "ارزیابی ریسک مستقل و اعمال جریمه", "request_body": "{ symbol_ids: number[], run_id?: string }", "response": "{ run_id, risk_levels, penalties, hard_stop_flags }" },
+    { "method": "POST", "path": "/internal/decision/finalize", "title_fa": "تصمیم نهایی", "description": "ترکیب امتیازها و اعمال Rulebook برای تولید تصمیم نهایی", "request_body": "{ rulebook_version?: string, run_id?: string, scenario?: string }", "response": "{ run_id, decisions, summary, alerts }" },
+    { "method": "POST", "path": "/internal/report/build", "title_fa": "ساخت گزارش", "description": "تولید گزارش Executive و Analyst برای نمادهای مشخص", "request_body": "{ symbol_ids: number[], report_types: ['executive' | 'analyst'], run_id?: string }", "response": "{ run_id, reports }" },
+    { "method": "GET", "path": "/internal/audit/{snapshotId}", "title_fa": "دریافت ممیزی", "description": "دریافت جزئیات کامل ممیزی برای یک snapshot خاص", "response": "{ audit_data, inputs, features, scores, decision, metadata }" },
+    { "method": "POST", "path": "/internal/replay/run", "title_fa": "بازپخش روز", "description": "بازتولید کامل تصمیمات یک روز مشخص با داده و نسخه مشابه", "request_body": "{ target_date: string, model_version?: string, simulate_only?: boolean }", "response": "{ replay_id, results, comparisons }" },
+    { "method": "POST", "path": "/internal/backtest/run", "title_fa": "اجرای بک‌تست", "description": "اجرای بک‌تست walk-forward روی بازه تاریخی مشخص", "request_body": "{ start_date: string, end_date: string, model_versions: string[], walk_forward_windows?: number }", "response": "{ backtest_id, results, metrics, comparisons }" }
+  ],
+  "external": [
+    { "method": "GET", "path": "/api/v1/symbols", "title_fa": "لیست نمادها", "description": "لیست همه نمادهای فعال بازار", "auth": "JWT", "response": "{ symbols: [...], total: number }" },
+    { "method": "GET", "path": "/api/v1/symbols/{ticker}", "title_fa": "اطلاعات نماد", "description": "اطلاعات کامل یک نماد شامل دیتاهای جاری", "auth": "JWT", "response": "{ symbol, quotes, features, scores }" },
+    { "method": "GET", "path": "/api/v1/symbols/{ticker}/latest-decision", "title_fa": "آخرین تصمیم", "description": "آخرین تصمیم صادرشده برای یک نماد", "auth": "JWT", "response": "{ ticker, decision, final_score, date, confidence }" },
+    { "method": "GET", "path": "/api/v1/symbols/{ticker}/decision-history", "title_fa": "تاریخچه تصمیمات", "description": "تاریخچه کامل تصمیمات یک نماد", "auth": "JWT", "response": "{ decisions: [...], total: number }" },
+    { "method": "GET", "path": "/api/v1/symbols/{ticker}/report", "title_fa": "گزارش کامل", "description": "گزارش کامل تحلیلی و مدیریتی یک نماد", "auth": "JWT", "response": "{ executive_report, analyst_report }" },
+    { "method": "GET", "path": "/api/v1/market/buy-candidates", "title_fa": "کاندیدهای خرید", "description": "لیست نمادهای با تصمیم BUY", "auth": "JWT", "response": "{ candidates: [...], total: number }" },
+    { "method": "GET", "path": "/api/v1/market/watchlist", "title_fa": "واچ‌لیست", "description": "لیست نمادهای با تصمیم WATCHLIST", "auth": "JWT", "response": "{ watchlist: [...], total: number }" },
+    { "method": "GET", "path": "/api/v1/market/rejected", "title_fa": "نمادهای ردشده", "description": "لیست نمادهای با تصمیم REJECT", "auth": "JWT", "response": "{ rejected: [...], total: number }" },
+    { "method": "GET", "path": "/api/v1/market/summary/daily", "title_fa": "خلاصه روزانه", "description": "خلاصه آماری روزانه از تصمیمات و وضعیت بازار", "auth": "JWT", "response": "{ total_analyzed, buy_count, watchlist_count, hold_count, reduce_count, reject_count }" },
+    { "method": "GET", "path": "/api/v1/reports/daily", "title_fa": "گزارش روزانه", "description": "گزارش کامل روزانه با جزئیات", "auth": "Admin+", "response": "{ report }" },
+    { "method": "GET", "path": "/api/v1/reports/executive", "title_fa": "گزارش مدیریتی", "description": "گزارش مدیریتی (خلاصه اجرایی)", "auth": "Admin+", "response": "{ executive_summary, key_metrics }" },
+    { "method": "GET", "path": "/api/v1/reports/analyst", "title_fa": "گزارش تحلیلی", "description": "گزارش تحلیلی دقیق با نمودارها و تحلیل‌ها", "auth": "Analyst+", "response": "{ analyst_report }" },
+    { "method": "POST", "path": "/api/v1/overrides", "title_fa": "مداخله دستی", "description": "ثبت مداخله دستی برای تغییر تصمیم", "auth": "Admin+", "request_body": "{ symbol_id, new_decision, reason }", "response": "{ override_id, status }" },
+    { "method": "GET", "path": "/api/v1/jobs/status", "title_fa": "وضعیت کارها", "description": "مشاهده وضعیت و تاریخچه اجرای کارها", "auth": "Admin+", "response": "{ running_jobs, recent_runs }" },
+    { "method": "GET", "path": "/api/v1/alerts", "title_fa": "هشدارها", "description": "لیست هشدارهای فعال و تاریخچه", "auth": "JWT", "response": "{ active_alerts: [...], total: number }" }
+  ]
+}

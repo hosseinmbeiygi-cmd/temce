@@ -20,7 +20,7 @@ async def list_indicators(
     if not result.success:
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
-            data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=0),
+            data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),
         )
     items = [{"key": k} for k in result.value]
     return ApiResponse[PaginatedResult[dict[str, Any]]](
@@ -48,7 +48,7 @@ async def get_indicator_history(
     if not result.success:
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
-            data=PaginatedResult(items=[], total=0, page=1, page_size=limit, total_pages=0),
+            data=PaginatedResult(items=[], total=0, page=1, page_size=limit, total_pages=1),
         )
     items = result.value if isinstance(result.value, list) else []
     return ApiResponse[PaginatedResult[dict[str, Any]]](

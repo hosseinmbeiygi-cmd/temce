@@ -112,7 +112,7 @@ function MonthlyReturnsHeatmap({ equityCurve }: { equityCurve: { timestamp: stri
     }
     
     return Object.entries(monthly)
-      .filter(([_, v]) => v.firstNav > 0)
+      .filter(([, v]) => v.firstNav > 0)
       .map(([key, val]) => ({
         month: key,
         return: ((val.lastNav - val.firstNav) / val.firstNav) * 100,
@@ -212,7 +212,6 @@ function TradeDistribution({ trades }: { trades: { pnl?: number }[] }) {
   }, [trades]);
 
   if (histogram.length < 2) return null;
-  const maxCount = Math.max(...histogram.map(h => h.count), 1);
 
   return (
     <Card title="📊 توزیع سود/زیان معاملات" subtitle={`${trades.length} معامله`}>
@@ -408,8 +407,10 @@ function CumulativeReturns({ equityCurve }: { equityCurve: { timestamp: string; 
 // ── Main Dashboard ─────────────────────────────────────────────────────
 
 export default function BacktestResultsDashboard({ result }: BacktestResultsDashboardProps) {
-  const equityCurve = result.equity_curve || [];
-  const trades = result.trades || [];
+  // Stable references so downstream useMemo hooks don't re-run every render
+  // (result.equity_curve || [] creates a fresh array on each render otherwise).
+  const equityCurve = useMemo(() => result.equity_curve || [], [result]);
+  const trades = useMemo(() => result.trades || [], [result]);
 
   // Convert equity curve to positions format for EquityCurveChart
   const positionsData = useMemo(() => {

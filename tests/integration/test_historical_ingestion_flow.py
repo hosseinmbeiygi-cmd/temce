@@ -34,4 +34,3 @@ async def test_quote_latest_flow():
     service = QuoteService()
     result = await service.get_latest("inst_test_001")
     assert result.success or not result.success
-

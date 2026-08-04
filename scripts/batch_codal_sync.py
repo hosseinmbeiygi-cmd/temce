@@ -101,7 +101,7 @@ async def _sync_one(
 ) -> dict[str, Any]:
     """
     Fetch Codal announcements for a single symbol from BrsApi and store in DB.
-    
+
     Returns a result dict::
         {"symbol": str, "success": bool, "count": int, "stored": int, "error": str | None}
     """
@@ -267,7 +267,6 @@ async def main() -> None:
         start_time = time.monotonic()
         consecutive_failures = 0
         retry_cycles = 0
-        processed = 0
 
         for idx, symbol in enumerate(remaining):
             progress_pct = (idx + 1) / len(remaining) * 100

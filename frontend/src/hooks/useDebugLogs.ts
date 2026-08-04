@@ -65,7 +65,7 @@ export function useDebugLogs(maxLogs: number = MAX_LOGS) {
         error,
         method,
         timestamp: new Date().toLocaleTimeString('fa-IR'),
-        duration: (data as Record<string, any> | undefined)?.__duration as number | undefined,
+        duration: (data as Record<string, unknown> | undefined)?.__duration as number | undefined,
       };
 
       setLogs((prev) => {

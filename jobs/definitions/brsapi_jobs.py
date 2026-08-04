@@ -53,7 +53,7 @@ class _BrsApiSyncBaseJob(BaseJob):
     _params: dict[str, str] | None = None
 
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import close_client, get_client
+        from brsapi.client import get_client
         from brsapi.config import BrsApiEndpoints
         from brsapi.services.sync_service import BrsApiSyncService
         from core.database import get_session
@@ -94,7 +94,7 @@ class _BrsApiSyncBaseJob(BaseJob):
             logger.exception("BrsApi job %s failed", self._name)
             return JobResult.failure(str(e), job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 # ── Individual job classes ────────────────────────────────────────
@@ -146,9 +146,7 @@ class BrsApiAllSymbolsJob(_BrsApiSyncBaseJob):
             logger.exception("BrsApi job %s failed", self._name)
             return JobResult.failure(str(e), job_name=self._name)
         finally:
-            if client:
-                from brsapi.client import close_client
-                await close_client()
+            pass
 
 
 class BrsApiIndexJob(BrsApiAllSymbolsJob):
@@ -182,7 +180,7 @@ class BrsApiIndexJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiIndexFaraboursJob(BrsApiIndexJob):
@@ -219,7 +217,7 @@ class BrsApiOptionsJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiImeFuturesJob(BrsApiAllSymbolsJob):
@@ -248,7 +246,7 @@ class BrsApiImeFuturesJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiImeOptionsJob(BrsApiAllSymbolsJob):
@@ -277,7 +275,7 @@ class BrsApiImeOptionsJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiImeCertificatesJob(BrsApiAllSymbolsJob):
@@ -306,7 +304,7 @@ class BrsApiImeCertificatesJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiImeFundsJob(BrsApiAllSymbolsJob):
@@ -335,7 +333,7 @@ class BrsApiImeFundsJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiCommoditiesJob(BrsApiAllSymbolsJob):
@@ -364,7 +362,7 @@ class BrsApiCommoditiesJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiCryptoJob(BrsApiAllSymbolsJob):
@@ -393,7 +391,7 @@ class BrsApiCryptoJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiCodalJob(BrsApiAllSymbolsJob):
@@ -422,7 +420,7 @@ class BrsApiCodalJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class BrsApiImePhysicalJob(BrsApiAllSymbolsJob):
@@ -451,4 +449,4 @@ class BrsApiImePhysicalJob(BrsApiAllSymbolsJob):
                     )
                 return JobResult.failure(report.error or "sync failed", job_name=self._name)
         finally:
-            await close_client()
+            pass

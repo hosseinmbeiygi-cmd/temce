@@ -1,34 +1,15 @@
+"""Logging bootstrap — thin re-export of the canonical ``setup_logging``.
+
+The actual implementation lives in ``core.logging.__init__`` (it uses the
+Unicode-safe ``SafeStreamHandler``).  This module exists for backward
+compatibility with imports like ``from core.logging.setup import setup_logging``.
+"""
+
 from __future__ import annotations
 
-import logging
-import sys
-from pathlib import Path
+from core.logging import setup_logging  # noqa: F401  — canonical implementation
 
-from core.config import settings
-from core.logging import JsonFormatter
+setup_root_logger = setup_logging  # compatibility alias
 
 
-def setup_logging() -> None:
-    fmt = settings.log_format
-    level = getattr(logging, settings.log_level.upper(), logging.INFO)
-    handlers: list[logging.Handler] = []
-
-    console = logging.StreamHandler(sys.stdout)
-    if fmt == "json":
-        console.setFormatter(JsonFormatter())
-    else:
-        console.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-    handlers.append(console)
-
-    if settings.log_file:
-        path = Path(settings.log_file)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fh = logging.FileHandler(str(path), encoding="utf-8")
-        fh.setFormatter(JsonFormatter())
-        handlers.append(fh)
-
-    logging.basicConfig(level=level, handlers=handlers, force=True)
-
-
-def setup_root_logger() -> None:
-    setup_logging()
+__all__ = ["setup_logging", "setup_root_logger"]

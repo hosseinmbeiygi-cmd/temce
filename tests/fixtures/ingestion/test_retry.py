@@ -78,6 +78,7 @@ class TestCircuitBreaker:
             await cb.call(fail_fn)
 
         import asyncio
+
         await asyncio.sleep(0.06)
 
         async def ok_fn() -> str:
@@ -85,4 +86,3 @@ class TestCircuitBreaker:
 
         result = await cb.call(ok_fn)
         assert result == "recovered"
-

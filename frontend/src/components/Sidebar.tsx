@@ -58,8 +58,17 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
   const [symbolQuery, setSymbolQuery] = useState("");
 
   useEffect(() => {
-    setMounted(true);
-    setAuth(getStoredAuth());
+    let cancelled = false;
+    // Defer so the state updates don't run synchronously during commit
+    const frame = window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      setMounted(true);
+      setAuth(getStoredAuth());
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
   }, []);
 
   function handleSymbolSearch(e: FormEvent) {

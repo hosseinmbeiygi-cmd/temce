@@ -27,18 +27,14 @@ class TechnicalFeatures(BaseFeatureBuilder):
         # ── RSI ──────────────────────────────────────────────────────
         zero_loss = (avg_loss == 0).sum()
         if zero_loss > 0:
-            logger.warning(
-                "TechnicalFeatures: %d rows have zero avg_loss — "
-                "RSI will be NaN for those rows and dropped",
+            logger.info(
+                "TechnicalFeatures: %d rows have zero avg_loss — RSI will be set to 100",
                 zero_loss,
             )
 
         rs = avg_gain / avg_loss.replace(0, np.nan)
         df["rsi"] = 100 - (100 / (1 + rs))
-
-        rsi_nan = df["rsi"].isna().sum()
-        if rsi_nan > 0:
-            logger.info("TechnicalFeatures: %d NaN values in RSI (will be dropped)", rsi_nan)
+        df["rsi"] = df["rsi"].fillna(100)
 
         # ── MACD ─────────────────────────────────────────────────────
         df["macd"] = close.ewm(span=12).mean() - close.ewm(span=26).mean()
@@ -48,20 +44,19 @@ class TechnicalFeatures(BaseFeatureBuilder):
         # ── ATR ──────────────────────────────────────────────────────
         if high is not None and low is not None:
             df["atr"] = (high - low).rolling(14).mean()
+            df["atr"] = df["atr"].fillna(method='ffill').fillna(0)
 
         # ── Volume ───────────────────────────────────────────────────
         if volume is not None:
             df["volume_sma"] = volume.rolling(20).mean()
-
             zero_vol = (df["volume_sma"] == 0).sum()
             if zero_vol > 0:
-                logger.warning(
-                    "TechnicalFeatures: %d rows have zero volume_sma — "
-                    "volume_ratio will be NaN and dropped",
+                logger.info(
+                    "TechnicalFeatures: %d rows have zero volume_sma — volume_ratio will be set to 1",
                     zero_vol,
                 )
-
             df["volume_ratio"] = volume / df["volume_sma"].replace(0, np.nan)
+            df["volume_ratio"] = df["volume_ratio"].fillna(1)
 
         # ── Half Trend ───────────────────────────────────────────────
         if high is not None and low is not None:
@@ -141,8 +136,6 @@ class TechnicalFeatures(BaseFeatureBuilder):
             sr_res = []
             sr_sup = []
             sr_break = []
-            prev_above = False
-            prev_below = False
             for i in range(len(c_list)):
                 start = max(0, i - 19)
                 sup = min(l_list[start : i + 1])
@@ -154,14 +147,14 @@ class TechnicalFeatures(BaseFeatureBuilder):
                 is_up = 1 if (c_list[i] > res and vol_ok) else 0
                 is_dn = -1 if (c_list[i] < sup and vol_ok) else 0
                 sr_break.append(is_up if is_up else is_dn)
-                prev_above = bool(is_up)
-                prev_below = bool(is_dn)
-            df["sr_distance_to_resistance"] = [(c - r) / c if c and r else 0.0 for c, r in zip(c_list, sr_res)]
-            df["sr_distance_to_support"] = [(c - s) / c if c and s else 0.0 for c, s in zip(c_list, sr_sup)]
+            df["sr_distance_to_resistance"] = [(c - r) / c if c and r else 0.0 for c, r in zip(c_list, sr_res, strict=False)]
+            df["sr_distance_to_support"] = [(c - s) / c if c and s else 0.0 for c, s in zip(c_list, sr_sup, strict=False)]
             df["sr_break_signal"] = sr_break
 
+        df = df.fillna(0)
+
         return FeatureMatrix(
-            data=df.dropna(),
+            data=df,
             feature_names=[c for c in df.columns if c not in ("date", "time", "symbol")],
         )
 

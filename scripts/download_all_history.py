@@ -20,6 +20,7 @@ from sqlalchemy import text
 from brsapi.client import get_client
 from brsapi.services.sync_service import BrsApiSyncService
 from core.database import close_database, get_session, init_database
+from core.db_utils import safe_row_str
 
 DOWNLOAD_ALL = False   # set True for full download, False for test
 
@@ -28,13 +29,12 @@ async def download_all():
     await init_database()
     total = 0
     errors = 0
-    skipped = 0
 
     async for session in get_session():
         r = await session.execute(
             text("SELECT symbol FROM instruments ORDER BY symbol")
         )
-        symbols = [str(row[0]) for row in r.fetchall()]
+        symbols = [safe_row_str(row, idx=0) for row in r.fetchall()]
         print(f"Total instruments: {len(symbols)}")
 
         # get existing symbols with history to skip

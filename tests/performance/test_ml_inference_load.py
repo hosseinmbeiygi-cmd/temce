@@ -40,4 +40,3 @@ async def test_batch_inference():
     elapsed = max(time.monotonic() - start, 0.001)
     throughput = batch_size / elapsed
     assert throughput > 10, f"Inference throughput {throughput:.2f} req/s below 10 req/s threshold"
-

@@ -56,10 +56,7 @@ class AlphaPortfolio:
             inv_cov = np.linalg.inv(self._cov_matrix + np.eye(n) * 1e-6)
             raw_weights = inv_cov @ self._mean_returns
             total = np.sum(raw_weights)
-            if total > 0:
-                weights = raw_weights / total
-            else:
-                weights = np.ones(n) / n if n > 0 else np.array([])
+            weights = raw_weights / total if total > 0 else np.ones(n) / n if n > 0 else np.array([])
         except np.linalg.LinAlgError:
             weights = np.ones(n) / n if n > 0 else np.array([])
 

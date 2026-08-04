@@ -22,6 +22,8 @@ interface DonutChartProps {
   size?: number;
   /** Inner label (default "کل"). */
   centerLabel?: string;
+  /** Optional click handler — fires with the slice label when a slice/legend row is clicked. */
+  onSliceClick?: (label: string) => void;
 }
 
 // ------ DonutSlice (low-level) ---------------------------------------------------------------------------------------------------
@@ -46,9 +48,11 @@ interface DonutChartProps {
 export function DonutSlice({
   cx, cy, r, sw,
   total, value, offset, color,
+  onClick,
 }: {
   cx: number; cy: number; r: number; sw: number;
   total: number; value: number; offset: number; color: string;
+  onClick?: () => void;
 }) {
   if (total === 0 || value === 0) return null;
 
@@ -63,7 +67,8 @@ export function DonutSlice({
       strokeDasharray={`${dashLength} ${circumference - dashLength}`}
       strokeDashoffset={dashOffsetValue}
       transform={`rotate(-90 ${cx} ${cy})`}
-      className="transition-all duration-500"
+      onClick={onClick}
+      className={`transition-all duration-500 ${onClick ? "cursor-pointer hover:opacity-80" : ""}`}
     />
   );
 }
@@ -88,6 +93,7 @@ export function DonutChart({
   total: explicitTotal,
   size = 80,
   centerLabel = "کل",
+  onSliceClick,
 }: DonutChartProps) {
   const total = explicitTotal ?? slices.reduce((s, sl) => s + sl.value, 0);
   if (total === 0) return null;
@@ -97,14 +103,13 @@ export function DonutChart({
   const r = size * 0.375;      // radius = 37.5 % of size
   const sw = size * 0.15;       // stroke width = 15 % of size
 
-  let offset = 0;
-
   return (
     <div className="flex items-center gap-5 flex-wrap">
       {/* SVG donut */}
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
         {slices.map((sl, si) => {
-          const sliceEl = (
+          const offset = slices.slice(0, si).reduce((acc, s) => acc + s.value, 0);
+          return (
             <DonutSlice
               key={`${sl.label}-${si}`}
               cx={cx} cy={cy} r={r} sw={sw}
@@ -112,10 +117,11 @@ export function DonutChart({
               value={sl.value}
               offset={offset}
               color={sl.color}
+              onClick={
+                onSliceClick ? () => onSliceClick(sl.label) : undefined
+              }
             />
           );
-          offset += sl.value;
-          return sliceEl;
         })}
         <text
           x={cx} y={cy - 5}
@@ -135,12 +141,20 @@ export function DonutChart({
         </text>
       </svg>
 
-      {/* Legend */}
+      {/* Legend (clickable rows when onSliceClick is provided) */}
       <div className="flex flex-col gap-1.5">
         {slices.map((sl, si) => {
           const pct = Math.round((sl.value / total) * 100);
           return (
-            <div key={`${sl.label}-${si}`} className="flex items-center gap-2">
+            <button
+              key={`${sl.label}-${si}`}
+              type="button"
+              onClick={onSliceClick ? () => onSliceClick(sl.label) : undefined}
+              disabled={!onSliceClick}
+              className={`flex items-center gap-2 text-left p-0 border-0 bg-transparent ${
+                onSliceClick ? "cursor-pointer hover:opacity-80 transition-opacity" : ""
+              }`}
+            >
               <span
                 className="w-2.5 h-2.5 rounded-full shrink-0"
                 style={{ backgroundColor: sl.color }}
@@ -155,7 +169,7 @@ export function DonutChart({
               <span className="text-[10px] text-surface-500 w-10 text-left">
                 {pct}%
               </span>
-            </div>
+            </button>
           );
         })}
       </div>

@@ -30,4 +30,3 @@ def sample_instrument(id: str = "inst_test_001", symbol: str = "فولاد") -> 
 def sample_instrument_list(count: int = 5) -> list[Instrument]:
     symbols = ["فولاد", "فملی", "وبانک", "کگل", "خودرو"]
     return [sample_instrument(id=f"inst_{i:04d}", symbol=symbols[i % len(symbols)]) for i in range(count)]
-

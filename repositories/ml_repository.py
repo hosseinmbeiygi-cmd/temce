@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import datetime
 
@@ -91,13 +92,13 @@ class MlRepository:
     async def get_versions_by_model(self, model_id: str) -> Result[list[ModelVersion]]:
         if self._db:
             return await self._db.get_versions_by_model(model_id)
-        matches = [v for v in self._mem_version._store.values() if v.id.startswith(model_id)]
+        matches = [v for v in self._mem_version._store.values() if v.model_name == model_id]
         return Result.ok(matches)
 
     async def get_latest_version(self, model_id: str) -> Result[ModelVersion]:
         if self._db:
             return await self._db.get_latest_version(model_id)
-        matches = [v for v in self._mem_version._store.values() if v.id.startswith(model_id)]
+        matches = [v for v in self._mem_version._store.values() if v.model_name == model_id]
         if not matches:
             return Result.fail(f"No versions for model {model_id}")
         return Result.ok(sorted(matches, key=lambda v: v.version, reverse=True)[0])
@@ -321,16 +322,12 @@ class _MlDbRepo(DbRepository):
     def _version_to_domain(self, orm: MlModelVersionModel) -> ModelVersion:
         metrics = {}
         if orm.metrics:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 metrics = json.loads(orm.metrics)
-            except (json.JSONDecodeError, TypeError):
-                pass
         params = {}
         if orm.parameters:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 params = json.loads(orm.parameters)
-            except (json.JSONDecodeError, TypeError):
-                pass
         stage = ModelStage(orm.stage) if orm.stage else ModelStage.DEVELOPMENT
         return ModelVersion(
             id=orm.id,
@@ -360,16 +357,12 @@ class _MlDbRepo(DbRepository):
     def _run_to_domain(self, orm: MlTrainingRunModel) -> TrainingRun:
         config = {}
         if orm.config:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 config = json.loads(orm.config)
-            except (json.JSONDecodeError, TypeError):
-                pass
         run_metrics = {}
         if orm.metrics:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 run_metrics = json.loads(orm.metrics)
-            except (json.JSONDecodeError, TypeError):
-                pass
         return TrainingRun(
             id=orm.id,
             model_version_id=orm.id,

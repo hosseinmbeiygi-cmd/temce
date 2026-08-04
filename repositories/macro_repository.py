@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from datetime import date
 
 from sqlalchemy import desc, select
@@ -102,10 +103,8 @@ class _MacroDbRepo(DbRepository[MacroEntity, MacroIndicatorModel]):
     def _to_domain(self, orm: MacroIndicatorModel) -> MacroEntity:
         d = None
         if orm.date:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 d = date.fromisoformat(orm.date)
-            except (ValueError, TypeError):
-                pass
         return MacroEntity(
             id=orm.id,
             name=orm.indicator,

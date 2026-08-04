@@ -26,9 +26,13 @@ async def verify_token(credentials: HTTPAuthorizationCredentials | None = Depend
         token = credentials.credentials
         if len(token) < 8:
             raise HTTPException(status_code=401, detail="Invalid token")
-        from core.security.tokens import decode_access_token
+        from core.security.tokens import decode_access_token, is_token_revoked
         try:
-            decode_access_token(token)
+            payload = decode_access_token(token)
+            if await is_token_revoked(payload.get("jti")):
+                raise HTTPException(status_code=401, detail="Token has been revoked")
+        except HTTPException:
+            raise
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
     return credentials.credentials if credentials else ""

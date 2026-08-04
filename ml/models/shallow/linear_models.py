@@ -7,6 +7,7 @@ import numpy as np
 
 from core.paths import validate_safe_path
 from ml.models.base import BaseModel
+from ml.models.registry import model_registry
 from ml.types import FeatureMatrix, PredictionResult, TargetVector
 
 
@@ -63,3 +64,7 @@ class LogisticRegressionModel(BaseModel):
         safe = validate_safe_path(path)
         self._model = pickle.loads(safe.read_bytes())
         self._is_fitted = True
+
+
+model_registry.register("linear_regression", LinearRegressionModel)
+model_registry.register("logistic_regression", LogisticRegressionModel)

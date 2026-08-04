@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from core.logging import get_logger
+from core.rate_limit import get_rate_limiter
 from schemas.api.screener_filter import (
     FilteredItem,
     ScreenerFilterRequest,
@@ -22,6 +24,40 @@ router = APIRouter()
 # ── Simple in-memory cache for screener results (TTL = 60s) ──
 _CACHE: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 60  # seconds
+
+# ── Valid sort columns ──
+VALID_SORT_COLUMNS = {
+    "smc_score", "change_pct", "volume", "value", "liquidity_score",
+    "power_score", "structure_score", "orderflow_score", "trigger_score",
+    "pe_ratio", "eps", "market_value", "last_price",
+}
+
+
+def _validate_sort_by(sort_by: str) -> str:
+    """Validate sort_by column name to prevent injection."""
+    if sort_by not in VALID_SORT_COLUMNS:
+        return "smc_score"  # default
+    return sort_by
+
+
+# ── Rate limiting (per-IP, sliding window) ──
+# Uses the shared core RateLimiter instead of a duplicated in-memory window.
+_RATE_LIMIT_WINDOW = 60  # seconds
+_RATE_LIMIT_MAX = 30  # max requests per window
+_screener_limiter = get_rate_limiter()
+
+
+def _check_rate_limit(client_ip: str) -> bool:
+    """Check if client has exceeded rate limit. Returns True if allowed."""
+    key = f"screener:{client_ip}"
+    if not _screener_limiter.has_limit(key):
+        _screener_limiter.set_limit(
+            key,
+            rate=_RATE_LIMIT_MAX / _RATE_LIMIT_WINDOW,
+            burst=_RATE_LIMIT_MAX,
+            window_seconds=_RATE_LIMIT_WINDOW,
+        )
+    return _screener_limiter.allow(key)
 
 
 def _cache_get(key: str) -> Any | None:
@@ -46,62 +82,16 @@ async def _fetch_screen_data(limit: int = 200) -> tuple[list[dict[str, Any]], li
     Returns (instruments, market_watch, session) — session is kept open
     so ScreenerService can query historical tables.
     """
+    from brsapi.services.query_service import BrsApiQueryService
     from core.database import get_session
+    from services.market_watch_helper import fetch_market_watch
 
-    instruments: list[dict[str, Any]] = []
-    market_watch: list[dict[str, Any]] = []
     session = None
 
     async for sess in get_session():
         session = sess
-        from brsapi.services.query_service import BrsApiQueryService
-
         svc = BrsApiQueryService(session=sess)
-
-        try:
-            snapshots = await svc.get_enriched_snapshots(limit=limit)
-        except Exception:
-            snapshots = await svc.get_latest_snapshots(limit=limit)
-
-        if snapshots:
-            for s in snapshots:
-                sym = s.get("symbol", "")
-                if not sym:
-                    continue
-                instrument = {
-                    "symbol": sym,
-                    "name": s.get("name", sym),
-                    "market": s.get("market", ""),
-                    "industry": s.get("sector", ""),
-                }
-                instruments.append(instrument)
-                # Pass the full snapshot row as watch_item (for filter lookups)
-                watch_item = {
-                    "symbol": sym,
-                    "name": s.get("name", sym),
-                    "last_price": s.get("price_last", 0) or 0,
-                    "close": s.get("price_close", 0) or 0,
-                    "change": s.get("price_last_change_pct", 0) or 0,
-                    "change_value": s.get("price_last_change", 0) or 0,
-                    "volume": s.get("trade_volume", 0) or 0,
-                    "value": s.get("trade_value", 0) or 0,
-                    "high": s.get("price_max", 0) or 0,
-                    "low": s.get("price_min", 0) or 0,
-                    "sector": s.get("sector", ""),
-                    "market": s.get("market", ""),
-                    "pe_ratio": s.get("pe_ratio"),
-                    "eps": s.get("eps"),
-                    "market_value": s.get("market_value"),
-                    "trade_count": s.get("trade_count"),
-                    "price_first": s.get("price_first"),
-                    "price_yesterday": s.get("price_yesterday"),
-                    "price_min": s.get("price_min"),
-                    "price_max": s.get("price_max"),
-                    "shares_count": s.get("shares_count"),
-                    # Raw snapshot for quote building
-                    "_snapshot": s,
-                }
-                market_watch.append(watch_item)
+        instruments, market_watch = await fetch_market_watch(svc, limit=limit)
         break
 
     return instruments, market_watch, session
@@ -120,9 +110,23 @@ async def screener(
     market: str | None = Query(None, description="Market filter (e.g. BOURS, FARA)"),
     page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: int | None = Query(None, ge=1, le=200, description="Page size"),
+    request: Request = None,
 ) -> ApiResponse[dict[str, Any]]:
     """Run the 5-phase Smart Money screener over real market data."""
-    cache_key = f"screen:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}"
+    # Rate limiting
+    client_ip = getattr(request, "client", None)
+    ip = client_ip.host if client_ip else "unknown"
+    if not _check_rate_limit(ip):
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={"items": [], "total": 0},
+            error={"message": "Rate limit exceeded. Please wait before making more requests."},
+        )
+
+    # Validate sort_by
+    sort_by = _validate_sort_by(sort_by)
+
+    cache_key = hashlib.md5(f"screen:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()).hexdigest()
     cached = _cache_get(cache_key)
     if cached is not None:
         return ApiResponse[dict[str, Any]](success=True, data=cached)
@@ -185,10 +189,24 @@ async def screener(
 )
 async def screener_filter(
     body: ScreenerFilterRequest,
+    request: Request = None,
 ) -> ApiResponse[ScreenerFilterResponse]:
     """Run the screener pipeline and apply user-defined filters on real data."""
-    filters_key = json.dumps([{"field": f.field, "operator": f.operator, "value": f.value, "value_to": f.value_to} for f in body.filters], default=str)
-    cache_key = f"filter:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}"
+    # Rate limiting
+    client_ip = getattr(request, "client", None)
+    ip = client_ip.host if client_ip else "unknown"
+    if not _check_rate_limit(ip):
+        return ApiResponse[ScreenerFilterResponse](
+            success=False,
+            data=ScreenerFilterResponse(items=[], total=0),
+            error={"message": "Rate limit exceeded. Please wait before making more requests."},
+        )
+
+    # Validate sort_by
+    body.sort_by = _validate_sort_by(body.sort_by)
+
+    filters_key = hashlib.md5(json.dumps([{"field": f.field, "operator": f.operator, "value": f.value, "value_to": f.value_to} for f in body.filters], default=str).encode()).hexdigest()
+    cache_key = hashlib.md5(f"filter:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()).hexdigest()
     cached = _cache_get(cache_key)
     if cached is not None:
         return ApiResponse[ScreenerFilterResponse](success=True, data=cached)
@@ -232,6 +250,8 @@ async def screener_filter(
         # ── 4. Build response ──
         items = []
         for r in results:
+            details = r.details or {}
+            trade_count_raw = details.get("trade_count")
             item = FilteredItem(
                 symbol=r.symbol,
                 name=r.name,
@@ -250,11 +270,35 @@ async def screener_filter(
                 structure_score=r.structure_score,
                 orderflow_score=r.orderflow_score,
                 trigger_score=r.trigger_score,
-                pe_ratio=r.details.get("pe_ratio"),
-                eps=r.details.get("eps"),
-                market_value=r.details.get("market_value"),
-                trade_count=int(r.details.get("trade_count", 0)) if r.details.get("trade_count") else None,
-                details=r.details,
+                pe_ratio=details.get("pe_ratio"),
+                eps=details.get("eps"),
+                market_value=details.get("market_value"),
+                trade_count=int(trade_count_raw) if trade_count_raw is not None else None,
+                # V2 advanced analytics (may be present if V2 engine was used)
+                rsi=details.get("rsi"),
+                macd_histogram=details.get("macd_histogram"),
+                bb_pct=details.get("bb_pct"),
+                atr_pct=details.get("atr_pct"),
+                adx=details.get("adx"),
+                trend_direction=details.get("trend_direction"),
+                trend_strength=details.get("trend_strength"),
+                volatility_regime=details.get("volatility_regime"),
+                pattern_signal=details.get("pattern_signal"),
+                pattern_confidence=details.get("pattern_confidence"),
+                technical_score=details.get("technical_score"),
+                momentum_score=details.get("momentum_score"),
+                risk_score=details.get("risk_score"),
+                composite_score=details.get("composite_score"),
+                composite_signal=details.get("composite_signal"),
+                support_level=details.get("support_level"),
+                resistance_level=details.get("resistance_level"),
+                distance_to_support=details.get("distance_to_support"),
+                distance_to_resistance=details.get("distance_to_resistance"),
+                poc_price=details.get("poc_price"),
+                value_area_high=details.get("value_area_high"),
+                value_area_low=details.get("value_area_low"),
+                volume_trend=details.get("volume_trend"),
+                details=details,
             )
             items.append(item)
 
@@ -266,7 +310,7 @@ async def screener_filter(
             stats=stats,
             applied_filters=body.filters,
         )
-        _cache_set(cache_key, response_data)
+        _cache_set(cache_key, response_data.model_dump())
 
         return ApiResponse[ScreenerFilterResponse](
             success=True,

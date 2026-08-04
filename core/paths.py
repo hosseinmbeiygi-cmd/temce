@@ -19,11 +19,11 @@ def sanitize_path_component(component: str) -> str:
 def safe_resolve(base: Path | str, user_path: str) -> Path:
     """
     Safely resolve a user-supplied path against a base directory.
-    
+
     Prevents path traversal attacks by:
     1. Resolving the full path
     2. Checking the resolved path starts with the resolved base directory
-    
+
     Raises ValueError if path traversal is detected.
     """
     base_resolved = Path(base).resolve()
@@ -59,7 +59,7 @@ def safe_ensure_dir(base: Path | str, subdir: str = "") -> Path:
 def validate_safe_path(path: str | Path) -> Path:
     """
     Validate that a path does not contain path traversal patterns.
-    
+
     This is a lighter check for standalone path arguments (not relative to a base).
     """
     p = Path(path)

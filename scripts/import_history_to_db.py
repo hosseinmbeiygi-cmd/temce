@@ -247,7 +247,7 @@ async def main() -> None:
 
         # Process each file
         # Log progress every 50 files
-        progress_log_interval = max(1, len(json_files) // 30)
+        max(1, len(json_files) // 30)
 
         for idx, json_path in enumerate(json_files, 1):
             symbol = json_path.stem.replace("_history", "").strip()

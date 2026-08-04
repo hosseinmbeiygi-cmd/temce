@@ -24,4 +24,3 @@ async def test_codal_search():
     service = CodalService()
     result = await service.list_all(page=1, page_size=50)
     assert result.success
-

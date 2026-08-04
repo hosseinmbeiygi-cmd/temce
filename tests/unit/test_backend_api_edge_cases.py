@@ -2,30 +2,13 @@
 
 Covers: combined filters, empty params, special characters,
 boundary values, response consistency, and cross-endpoint validation.
+The ``client`` fixture is provided by ``tests/unit/conftest.py`` (session-scoped app).
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
-from apps.api.app import app
-
-
-@pytest_asyncio.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
-
-
+from httpx import AsyncClient
 
 # ============================================================================
 # Combined filters (multi-param)
@@ -49,9 +32,9 @@ async def test_instruments_combined_search_market(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_signals_combined_type_signal(client: AsyncClient):
-    """Filter signals by both type and direction."""
-    resp = await client.get("/api/v1/signals", params={"type": "تکنیکال", "signal": "خرید"})
+async def test_signals_combined_type_signal(user_client: AsyncClient):
+    """Filter signals by both type and direction (requires user)."""
+    resp = await user_client.get("/api/v1/signals", params={"type": "تکنیکال", "signal": "خرید"})
     assert resp.status_code == 200
     resp.json()
 
@@ -91,9 +74,9 @@ async def test_instruments_nonexistent_market(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_signals_nonexistent_type(client: AsyncClient):
-    """Filter by nonexistent signal type should return empty."""
-    resp = await client.get("/api/v1/signals", params={"type": "ناموجود"})
+async def test_signals_nonexistent_type(user_client: AsyncClient):
+    """Filter by nonexistent signal type should return empty (requires user)."""
+    resp = await user_client.get("/api/v1/signals", params={"type": "ناموجود"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["data"]["total"] == 0
@@ -195,9 +178,9 @@ async def test_instrument_consistent_across_endpoints(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_market_breakdown_matches_total(client: AsyncClient):
-    """Sum of market_breakdown counts equals total_instruments."""
-    resp = await client.get("/api/v1/dashboard")
+async def test_market_breakdown_matches_total(admin_client: AsyncClient):
+    """Sum of market_breakdown counts equals total_instruments (requires admin)."""
+    resp = await admin_client.get("/api/v1/dashboard")
     data = resp.json()
     total_from_breakdown = sum(b["count"] for b in data["market_breakdown"])
     assert total_from_breakdown == data["metrics"]["total_instruments"]
@@ -239,9 +222,9 @@ async def test_volumes_are_non_negative(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_signal_scores_in_range(client: AsyncClient):
-    """Signal scores should be between 0 and 100."""
-    resp = await client.get("/api/v1/signals")
+async def test_signal_scores_in_range(user_client: AsyncClient):
+    """Signal scores should be between 0 and 100 (requires user)."""
+    resp = await user_client.get("/api/v1/signals")
     assert resp.status_code == 200
     data = resp.json()
     for s in data["data"]["items"]:
@@ -266,11 +249,17 @@ async def test_fund_navs_are_positive(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_has_all_sections(client: AsyncClient):
-    """Dashboard response has all expected top-level keys."""
-    resp = await client.get("/api/v1/dashboard")
+async def test_dashboard_has_all_sections(admin_client: AsyncClient):
+    """Dashboard response has all expected top-level keys (requires admin)."""
+    resp = await admin_client.get("/api/v1/dashboard")
     data = resp.json()
-    assert set(data.keys()) == {"metrics", "market_breakdown", "top_gainers", "top_losers", "recent_announcements"}
+    assert set(data.keys()) == {
+        "metrics",
+        "market_breakdown",
+        "top_gainers",
+        "top_losers",
+        "recent_announcements",
+    }
 
 
 @pytest.mark.asyncio
@@ -278,7 +267,13 @@ async def test_news_pagination_structure(client: AsyncClient):
     """News response has all pagination fields."""
     resp = await client.get("/api/v1/news")
     data = resp.json()
-    assert set(data["data"].keys()) == {"items", "total", "page", "page_size", "total_pages"}
+    assert set(data["data"].keys()) == {
+        "items",
+        "total",
+        "page",
+        "page_size",
+        "total_pages",
+    }
     assert data["data"]["page"] >= 1
     assert data["data"]["page_size"] >= 1
     assert data["data"]["total_pages"] >= 1
@@ -310,9 +305,9 @@ async def test_cors_allowed_origin(client: AsyncClient):
             "Access-Control-Request-Method": "GET",
         },
     )
-    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000", (
-        "CORS header missing or incorrect"
-    )
+    assert (
+        resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    ), "CORS header missing or incorrect"
 
 
 @pytest.mark.asyncio
@@ -362,9 +357,9 @@ async def test_energy_commodity_sub_market_totals_match(client: AsyncClient):
     resp = await client.get("/api/v1/market/energy-commodity")
     data = resp.json()
     sub_total = sum(sm["count"] for sm in data["sub_markets"])
-    assert sub_total == data["summary"]["total_symbols"], (
-        f"Sub-market counts ({sub_total}) != total_symbols ({data['summary']['total_symbols']})"
-    )
+    assert (
+        sub_total == data["summary"]["total_symbols"]
+    ), f"Sub-market counts ({sub_total}) != total_symbols ({data['summary']['total_symbols']})"
 
 
 # ============================================================================
@@ -373,9 +368,9 @@ async def test_energy_commodity_sub_market_totals_match(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_top_gainers_are_sorted(client: AsyncClient):
-    """Top gainers should be sorted descending by change."""
-    resp = await client.get("/api/v1/dashboard")
+async def test_top_gainers_are_sorted(admin_client: AsyncClient):
+    """Top gainers should be sorted descending by change (requires admin)."""
+    resp = await admin_client.get("/api/v1/dashboard")
     data = resp.json()
     changes = [g["change"] for g in data["top_gainers"]]
     assert changes == sorted(changes, reverse=True), "Top gainers not sorted descending"
@@ -418,9 +413,8 @@ async def test_invalid_announcement_id_string(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_signals_filter_sell_only(client: AsyncClient):
-    """Filtering for only 'فروش' signals should return correct count."""
-    resp = await client.get("/api/v1/signals", params={"signal": "فروش"})
+async def test_signals_filter_sell_only(user_client: AsyncClient):
+    """Filtering for only 'فروش' signals should return correct count (requires user)."""
+    resp = await user_client.get("/api/v1/signals", params={"signal": "فروش"})
     assert resp.status_code == 200
     resp.json()
-

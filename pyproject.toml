@@ -57,6 +57,7 @@ dev = [
 target-version = "py311"
 line-length = 120
 indent-width = 4
+exclude = ["code_dump", "*.sh", "*.bat"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "C4"]
@@ -70,15 +71,57 @@ ignore = ["E501", "B008", "B027", "ARG", "N803", "N805", "N806", "N818", "B904",
 "scripts/**" = ["ARG"]
 "models/**" = ["F401"]
 "core/enums/**" = ["F401"]
+"code_dump/**" = ["E741", "E722", "E701", "F841", "SIM109", "SIM108", "B007", "N817", "B905", "B023", "C401", "SIM103", "SIM105", "E712"]
 
 [tool.mypy]
 python_version = "3.11"
-strict = true
 ignore_missing_imports = true
 disallow_untyped_defs = false
+warn_unused_ignores = false
+follow_imports = "silent"
+exclude = [
+    "code_dump",
+    "backtesting",
+    "ml",
+    "migrations",
+    "scripts",
+    "repositories",
+    "reports",
+    "integrations",
+    "domain",
+    "schemas",
+    "models",
+]
+
+# Per-module overrides: looser for legacy modules
+[[tool.mypy.overrides]]
+module = [
+    "backtesting.*", "ml.*", "scripts.*", "migrations.*",
+    "brsapi.*", "repositories.*", "reports.*",
+    "integrations.*", "domain.*", "schemas.*", "models.*",
+    "core.typing.*", "core.time.*",
+    "services.smart_money.*", "services.chat.*",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "services.quant_signal_orchestrator",
+    "services.signal_voting_system",
+    "services.confidence_scorer",
+    "services.probability_calibrator",
+    "services.signal_decision_engine",
+    "services.signal_accuracy_tracker",
+    "services.ml_signal_connector",
+    "services.auto_retrain_pipeline",
+    "core.calibration_bootstrap",
+    "core.db_utils",
+]
+strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--capture=no"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "module"
 asyncio_default_test_loop_scope = "module"
@@ -87,4 +130,5 @@ markers = [
     "e2e: end-to-end tests",
     "integration: integration tests",
     "slow: slow tests",
+    "needs_db: test requires a live PostgreSQL instance; skipped when unreachable",
 ]

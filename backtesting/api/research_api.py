@@ -85,6 +85,8 @@ class ResearchAPI:
             job.status = ExperimentStatus.RUNNING
             if isinstance(simulator, HybridMarketSimulator):
                 result = await simulator.run(**kwargs)
+            elif isinstance(simulator, BacktestSimulator):
+                result = simulator.run(strategy=None, initial_capital=initial_capital, **kwargs)
             else:
                 result = await simulator.run(strategy=None, initial_capital=initial_capital, **kwargs)
 

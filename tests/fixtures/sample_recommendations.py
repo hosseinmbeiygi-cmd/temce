@@ -38,4 +38,3 @@ def sample_recommendation_list(count: int = 5) -> list[Recommendation]:
         )
         for i in range(count)
     ]
-

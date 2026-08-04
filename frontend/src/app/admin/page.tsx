@@ -106,7 +106,8 @@ const nearestPreset = (v: number) => PRESET_VALUES.reduce((p, c) => Math.abs(c -
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
 function Toast({ message, type, onClose }: { message: string; type: "success" | "error" | "warning"; onClose: () => void }) {
-  const ref = useRef(onClose); ref.current = onClose;
+  const ref = useRef(onClose);
+  useEffect(() => { ref.current = onClose; }, [onClose]);
   useEffect(() => { const t = setTimeout(() => ref.current(), 4000); return () => clearTimeout(t); }, []);
   const styles = { success: "bg-accent-emerald/15 text-accent-emerald border-accent-emerald/30", error: "bg-accent-rose/15 text-accent-rose border-accent-rose/30", warning: "bg-accent-amber/15 text-accent-amber border-accent-amber/30" };
   return (<div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-5 py-3 rounded-xl shadow-2xl text-sm font-medium border ${styles[type]}`} style={{ animation: "slideUp 0.3s ease-out" }}><span>{message}</span><button onClick={onClose} className="mr-3 opacity-60 hover:opacity-100">✕</button><style>{`@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style></div>);
@@ -135,7 +136,7 @@ export default function AdminUnifiedPage() {
 
   const effectiveStatus = useMemo(() => {
     if (!syncStatus) return undefined;
-    const result: Record<string, any> = {};
+    const result: Record<string, TableSyncInfo> = {};
     for (const [key, info] of Object.entries(syncStatus)) {
       const custom = freshnessSettings[key]; const over = { ...info };
       if (custom && custom.maxAgeMinutes > 0) {
@@ -514,12 +515,12 @@ function TablesTab() {
 function GlobalSearchResults({ query }: { query: string }) {
   const [open, setOpen] = useState<string | null>(null);
   const { data: resp, isLoading } = useQuery({ queryKey: ["global-search", query], queryFn: async () => {
-    const ps = SEARCHABLE_TABLES.map(async tn => { try { const r = await apiGet<unknown>(`/tables/${tn}?page=1&page_size=20&search=${encodeURIComponent(query)}`); const d = r && typeof r === "object" && "data" in r ? (r as { data?: unknown }).data : null; if (d && typeof d === "object" && "rows" in d && Array.isArray((d as any).rows) && (d as any).rows.length > 0) return { table: tn, total: (d as any).total, columns: (d as any).columns, rows: (d as any).rows } as SearchResult; } catch {} return null; });
+    const ps = SEARCHABLE_TABLES.map(async tn => { try { const r = await apiGet<{ data?: { rows?: Record<string, unknown>[]; total?: number; columns?: ColumnInfo[] } }>(`/tables/${tn}?page=1&page_size=20&search=${encodeURIComponent(query)}`); const d = r?.data; if (d && Array.isArray(d.rows) && d.rows.length > 0) return { table: tn, total: d.total ?? 0, columns: d.columns ?? [], rows: d.rows } as SearchResult; } catch {} return null; });
     return (await Promise.all(ps)).filter(Boolean) as SearchResult[];
   }});
   const results = resp || [];
   if (isLoading) return <div className="space-y-4">{[1,2,3].map(i => <div key={i} className="glass-card p-4"><Skeleton className="h-7 w-36 mb-3" />{[1,2,3].map(j => <Skeleton key={j} className="h-9 w-full mb-1" />)}</div>)}</div>;
-  if (results.length === 0) return <div className="text-center py-20 text-surface-500"><p className="text-lg mb-2">نتیجه‌ای برای "{query}" یافت نشد</p></div>;
+  if (results.length === 0) return <div className="text-center py-20 text-surface-500"><p className="text-lg mb-2">نتیجه‌ای برای «{query}» یافت نشد</p></div>;
   return (<div className="space-y-4">
     <div className="text-xs text-surface-400">{results.length} جدول — {results.reduce((s, r) => s + r.total, 0).toLocaleString()} ردیف یافت شد</div>
     {results.map(r => { const isOn = open === r.table; return (<div key={r.table} className="glass-card overflow-hidden">

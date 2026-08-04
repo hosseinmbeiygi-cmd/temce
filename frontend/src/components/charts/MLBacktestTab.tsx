@@ -6,7 +6,29 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiPost, apiGet } from "@/lib/api";
-import BacktestResultsDashboard from "@/components/charts/BacktestResultsDashboard";
+import BacktestResultsDashboard, { type BacktestResultData } from "@/components/charts/BacktestResultsDashboard";
+
+interface MLBacktestFold {
+  metrics?: Record<string, number>;
+  r2?: number;
+  mae?: number;
+  rmse?: number;
+  directional_accuracy?: number;
+  train_size?: number | null;
+  test_size?: number | null;
+}
+
+interface MLBacktestResult extends Partial<BacktestResultData> {
+  folds?: MLBacktestFold[];
+  feature_importance?: Record<string, number>;
+  n_folds?: number;
+  aggregate_metrics?: Record<string, number>;
+  mean_r2?: number | null;
+  mean_mae?: number | null;
+  mean_rmse?: number | null;
+  mean_directional_accuracy?: number | null;
+  directional_accuracy?: number | null;
+}
 
 const ALL_MODELS = [
   "xgboost", "lightgbm", "catboost", "random_forest",
@@ -48,7 +70,7 @@ export default function MLBacktestTab() {
   const [btSymbol, setBtSymbol] = useState("فولاد");
   const [btModel, setBtModel] = useState("xgboost");
   const [btSplits, setBtSplits] = useState(5);
-  const [btResult, setBtResult] = useState<any>(null);
+  const [btResult, setBtResult] = useState<MLBacktestResult | null>(null);
   const [btLoading, setBtLoading] = useState(false);
   const [btFeatureGroups, setBtFeatureGroups] = useState<string[]>(["price", "technical"]);
 
@@ -63,7 +85,7 @@ export default function MLBacktestTab() {
   const handleRunBacktest = async () => {
     setBtLoading(true);
     try {
-      const res = await apiPost<{ success: boolean; data: any }>("/ml/backtest", {
+      const res = await apiPost<{ success: boolean; data: MLBacktestResult }>("/ml/backtest", {
         symbol: btSymbol,
         model_type: btModel,
         n_splits: btSplits,
@@ -73,8 +95,8 @@ export default function MLBacktestTab() {
       });
       setBtResult(res?.data ?? null);
       if (res?.success) toast.success("✅ بک‌تست انجام شد");
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "خطا در بک‌آزمون");
       setBtResult(null);
     }
     setBtLoading(false);
@@ -183,7 +205,7 @@ export default function MLBacktestTab() {
                     </tr>
                   </thead>
                   <tbody>
-                    {folds.map((fold: any, i: number) => {
+                    {folds.map((fold: MLBacktestFold, i: number) => {
                       const fm = fold.metrics ?? fold;
                       return (
                         <tr key={i} className="border-b border-surface-800/30 hover:bg-white/5">
@@ -215,24 +237,24 @@ export default function MLBacktestTab() {
                 trades: btResult.trades || [],
                 initial_capital: btResult.initial_capital ?? 0,
                 final_value: btResult.final_value ?? 0,
-                total_return_pct: btResult.total_return_pct ?? null,
-                annualized_return_pct: btResult.annualized_return_pct ?? null,
-                sharpe_ratio: btResult.sharpe_ratio ?? null,
-                sortino_ratio: btResult.sortino_ratio ?? null,
-                calmar_ratio: btResult.calmar_ratio ?? null,
-                max_drawdown_pct: btResult.max_drawdown_pct ?? null,
-                win_rate: btResult.win_rate ?? null,
+                total_return_pct: btResult.total_return_pct ?? undefined,
+                annualized_return_pct: btResult.annualized_return_pct ?? undefined,
+                sharpe_ratio: btResult.sharpe_ratio ?? undefined,
+                sortino_ratio: btResult.sortino_ratio ?? undefined,
+                calmar_ratio: btResult.calmar_ratio ?? undefined,
+                max_drawdown_pct: btResult.max_drawdown_pct ?? undefined,
+                win_rate: btResult.win_rate ?? undefined,
                 total_trades: btResult.total_trades ?? 0,
                 winning_trades: btResult.winning_trades ?? 0,
                 losing_trades: btResult.losing_trades ?? 0,
-                profit_factor: btResult.profit_factor ?? null,
-                value_at_risk_95: btResult.value_at_risk_95 ?? null,
-                cvar_95: btResult.cvar_95 ?? null,
-                benchmark_return_pct: btResult.benchmark_return_pct ?? null,
-                alpha: btResult.alpha ?? null,
-                beta: btResult.beta ?? null,
-                up_capture: btResult.up_capture ?? null,
-                down_capture: btResult.down_capture ?? null,
+                profit_factor: btResult.profit_factor ?? undefined,
+                value_at_risk_95: btResult.value_at_risk_95 ?? undefined,
+                cvar_95: btResult.cvar_95 ?? undefined,
+                benchmark_return_pct: btResult.benchmark_return_pct ?? undefined,
+                alpha: btResult.alpha ?? undefined,
+                beta: btResult.beta ?? undefined,
+                up_capture: btResult.up_capture ?? undefined,
+                down_capture: btResult.down_capture ?? undefined,
               }}
             />
           )}
@@ -242,9 +264,9 @@ export default function MLBacktestTab() {
             <Card title="🔥 اهمیت ویژگی‌ها" subtitle={`${Object.keys(btResult.feature_importance).length} ویژگی`}>
               <div className="space-y-1.5">
                 {Object.entries(btResult.feature_importance)
-                  .sort(([, a]: any, [, b]: any) => b - a)
+                  .sort(([, a], [, b]) => b - a)
                   .slice(0, 15)
-                  .map(([feat, val]: [string, any]) => (
+                  .map(([feat, val]) => (
                     <div key={feat} className="flex items-center gap-2">
                       <span className="text-[9px] text-surface-400 w-36 truncate text-right font-mono" title={feat}>{feat}</span>
                       <div className="flex-1 h-3 bg-surface-800 rounded-full overflow-hidden" dir="ltr">

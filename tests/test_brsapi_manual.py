@@ -19,13 +19,8 @@
 
 import argparse
 import asyncio
-import io
-import sys
+import os
 from datetime import datetime
-
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 from dotenv import load_dotenv
 
@@ -72,8 +67,9 @@ from brsapi.parsers.ime import ImeParser
 from brsapi.parsers.tsetmc import TsetmcParser
 
 # ── DB URL ──────────────────────────────────────
-DATABASE_URL = "postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db"
-API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"
+# No hardcoded credentials — read from env, fall back to a credential-free URL
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://localhost:5432/market")
+API_KEY = os.environ.get("BRSAPI_API_KEY", "")
 BASE_URL = "https://Api.BrsApi.ir"
 
 
@@ -194,27 +190,33 @@ SECTIONS = {
 #  Helpers
 # ============================================
 
-def P(msg):
+
+def pr(msg):
     print(msg)
 
-def OK(msg):
-    P(f"  [OK] {msg}")
 
-def ERR(msg):
-    P(f"  [ERR] {msg}")
+def ok(msg):
+    pr(f"  [OK] {msg}")
 
-def INFO(msg):
-    P(f"  [..] {msg}")
 
-def HEADER(title):
-    P("\n" + "=" * 60)
-    P(f"  {title}")
-    P("=" * 60)
+def err(msg):
+    pr(f"  [ERR] {msg}")
+
+
+def info(msg):
+    pr(f"  [..] {msg}")
+
+
+def header(title):
+    pr("\n" + "=" * 60)
+    pr(f"  {title}")
+    pr("=" * 60)
 
 
 # ============================================
 #  Fetch data from API
 # ============================================
+
 
 def fetch_api(endpoint_path: str, extra_params: dict = None) -> dict | list | None:
     url = f"{BASE_URL}{endpoint_path}"
@@ -228,16 +230,17 @@ def fetch_api(endpoint_path: str, extra_params: dict = None) -> dict | list | No
         resp = httpx.get(url, params=params, headers=headers, timeout=30)
         if resp.status_code == 200:
             return resp.json()
-        ERR(f"HTTP {resp.status_code}")
+        err(f"HTTP {resp.status_code}")
         return None
     except Exception as e:
-        ERR(f"Connection error: {e}")
+        err(f"Connection error: {e}")
         return None
 
 
 # ============================================
 #  Save parsed records to database
 # ============================================
+
 
 async def save_records(session: AsyncSession, model_class, records: list[dict]) -> int:
     if not records:
@@ -251,6 +254,7 @@ async def save_records(session: AsyncSession, model_class, records: list[dict]) 
 # ============================================
 #  Sync a single section
 # ============================================
+
 
 async def sync_section(session: AsyncSession, section_id: str, cfg: dict) -> int:
     """
@@ -271,11 +275,11 @@ async def sync_section(session: AsyncSession, section_id: str, cfg: dict) -> int
     try:
         records = parser(raw)
     except Exception as e:
-        ERR(f"Parse error: {e}")
+        err(f"Parse error: {e}")
         return 0
 
     if not records:
-        INFO("No records parsed")
+        info("No records parsed")
         return 0
 
     # 3. Save
@@ -288,56 +292,57 @@ async def sync_section(session: AsyncSession, section_id: str, cfg: dict) -> int
 #  CLI commands
 # ============================================
 
+
 async def cmd_test_connection():
-    HEADER("Testing API Connection")
+    header("Testing API Connection")
     data = fetch_api(BrsApiEndpoints.COMMODITY.path)
     if data is None:
-        ERR("Cannot connect to BrsApi!")
+        err("Cannot connect to BrsApi!")
         return
 
     total = 0
     if isinstance(data, dict):
-        for k, v in data.items():
+        for _k, v in data.items():
             if isinstance(v, list):
                 total += len(v)
     elif isinstance(data, list):
         total = len(data)
 
-    OK(f"Connected! Received {total} items")
+    ok(f"Connected! Received {total} items")
 
 
 async def cmd_sync_all():
-    HEADER("Syncing ALL sections to database")
+    header("Syncing ALL sections to database")
     engine = create_async_engine(DATABASE_URL, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with async_session() as session:
         total_saved = 0
         for section_id, cfg in SECTIONS.items():
-            P(f"\n  [{section_id}] {cfg['name']} ...")
+            pr(f"\n  [{section_id}] {cfg['name']} ...")
             try:
                 count = await sync_section(session, section_id, cfg)
                 total_saved += count
                 if count > 0:
-                    OK(f"Saved {count} records")
+                    ok(f"Saved {count} records")
                 else:
-                    INFO("No data")
+                    info("No data")
             except Exception as e:
-                ERR(f"Failed: {e}")
+                err(f"Failed: {e}")
             await asyncio.sleep(2)
 
     await engine.dispose()
-    HEADER(f"DONE - Total saved: {total_saved} records")
+    header(f"DONE - Total saved: {total_saved} records")
 
 
 async def cmd_sync_section(section_id: str):
     if section_id not in SECTIONS:
-        ERR(f"Unknown section: {section_id}")
-        P(f"  Available: {', '.join(SECTIONS.keys())}")
+        err(f"Unknown section: {section_id}")
+        pr(f"  Available: {', '.join(SECTIONS.keys())}")
         return
 
     cfg = SECTIONS[section_id]
-    HEADER(f"Syncing: {cfg['name']} ({section_id})")
+    header(f"Syncing: {cfg['name']} ({section_id})")
 
     engine = create_async_engine(DATABASE_URL, echo=False)
     async_session = async_sessionmaker(engine, expire_on_commit=False)
@@ -345,28 +350,29 @@ async def cmd_sync_section(section_id: str):
     async with async_session() as session:
         count = await sync_section(session, section_id, cfg)
         if count > 0:
-            OK(f"Saved {count} records to {cfg['model'].__tablename__}")
+            ok(f"Saved {count} records to {cfg['model'].__tablename__}")
         else:
-            INFO("No data received from API")
+            info("No data received from API")
 
     await engine.dispose()
 
 
 async def cmd_list_sections():
-    HEADER("Available BrsApi Sections")
-    P("")
+    header("Available BrsApi Sections")
+    pr("")
     for sid, cfg in SECTIONS.items():
         table = cfg["model"].__tablename__
-        P(f"  {sid:<20} | {cfg['name']:<25} | {table}")
-    P("")
-    P("Usage:")
-    P("  python test_brsapi_manual.py --section <id>")
-    P("  python test_brsapi_manual.py --all")
+        pr(f"  {sid:<20} | {cfg['name']:<25} | {table}")
+    pr("")
+    pr("Usage:")
+    pr("  python test_brsapi_manual.py --section <id>")
+    pr("  python test_brsapi_manual.py --all")
 
 
 # ============================================
 #  Main
 # ============================================
+
 
 def main():
     parser = argparse.ArgumentParser(description="BrsApi manual test tool")
@@ -377,9 +383,9 @@ def main():
 
     args = parser.parse_args()
 
-    HEADER("BrsApi.ir - Manual Sync Tool")
-    P(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    P(f"  Database: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
+    header("BrsApi.ir - Manual Sync Tool")
+    pr(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    pr(f"  Database: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
 
     if args.test:
         asyncio.run(cmd_test_connection())
@@ -391,11 +397,11 @@ def main():
         asyncio.run(cmd_list_sections())
     else:
         asyncio.run(cmd_test_connection())
-        P("\n  Usage:")
-        P("    python test_brsapi_manual.py --test          # Test connection")
-        P("    python test_brsapi_manual.py --list           # List sections")
-        P("    python test_brsapi_manual.py --section crypto # Sync one section")
-        P("    python test_brsapi_manual.py --all            # Sync everything")
+        pr("\n  Usage:")
+        pr("    python test_brsapi_manual.py --test          # Test connection")
+        pr("    python test_brsapi_manual.py --list           # List sections")
+        pr("    python test_brsapi_manual.py --section crypto # Sync one section")
+        pr("    python test_brsapi_manual.py --all            # Sync everything")
 
 
 if __name__ == "__main__":

@@ -21,22 +21,17 @@ def _safe_str(val: Any) -> str | None:
     return str(val)
 
 
+from core.db_utils import safe_float, safe_int
+
+
 def _safe_float(val: Any) -> float | None:
-    if val is None:
-        return None
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return None
+    """Return None on failure (backward-compat)."""
+    return safe_float(val, default=None)
 
 
 def _safe_int(val: Any) -> int | None:
-    if val is None:
-        return None
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return None
+    """Return None on failure (backward-compat)."""
+    return safe_int(val, default=None)
 
 
 # TSETMC common field aliases used by all 4 libraries

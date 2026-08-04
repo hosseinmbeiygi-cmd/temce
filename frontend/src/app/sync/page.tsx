@@ -135,7 +135,9 @@ function StatusDot({ status, size = "md" }: { status: string; size?: "sm" | "md"
 
 function Toast({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) {
   const ref = useRef(onClose);
-  ref.current = onClose;
+  useEffect(() => {
+    ref.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     const t = setTimeout(() => ref.current(), 4000);
     return () => clearTimeout(t);

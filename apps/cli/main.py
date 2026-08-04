@@ -47,7 +47,7 @@ def main() -> None:
     elif args.command == "serve":
         serve(args.port)
     elif args.command == "seed":
-        seed(args.type)
+        print(f"Seed command not yet implemented for type: {args.type}")
     else:
         parser.print_help()
 

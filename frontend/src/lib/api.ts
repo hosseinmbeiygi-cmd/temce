@@ -1,7 +1,97 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
+const LONG_TIMEOUT_MS = 600_000; // 10 minutes for heavy sync operations
 
-// ------ Helper: fetch with timeout ------------------------------------------------------
+// ── Auth token helpers ──────────────────────────────────────────
+
+const AUTH_STORAGE_KEY = "auth";
+
+function getStoredAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredAuth() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+function writeStoredAuth(data: { access_token: string; refresh_token?: string }) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+      ...parsed,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token ?? parsed.refresh_token,
+    }));
+  } catch { /* ignore */ }
+}
+
+// ── Silent Token Refresh ────────────────────────────────────────
+
+let _refreshPromise: Promise<string | null> | null = null;
+
+async function _silentRefresh(): Promise<string | null> {
+  // Deduplicate concurrent refresh attempts
+  if (_refreshPromise) return _refreshPromise;
+
+  _refreshPromise = (async () => {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) return null;
+      const stored = JSON.parse(raw);
+      if (!stored?.refresh_token) return null;
+
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: stored.refresh_token }),
+      });
+
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      const data = json.data ?? json;
+      const newAccessToken = data.access_token;
+      const newRefreshToken = data.refresh_token ?? stored.refresh_token;
+
+      writeStoredAuth({ access_token: newAccessToken, refresh_token: newRefreshToken });
+
+      return newAccessToken;
+    } catch {
+      return null;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
+
+// ── 401 Handler ─────────────────────────────────────────────────
+
+function _handle401() {
+  clearStoredAuth();
+  if (typeof window !== "undefined") {
+    const currentPath = window.location.pathname;
+    if (!currentPath.startsWith("/auth/")) {
+      window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`;
+    }
+  }
+}
+
+// ── Helper: fetch with timeout ──────────────────────────────────
+
+
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -13,15 +103,28 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
-// ------ Core API Functions ------------
+// ── Core API Functions ──────────────────────────────────────────
+
 export async function apiGet<T>(
   endpoint: string,
   token?: string | null
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token ?? getStoredAccessToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers });
+  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers });
+
+  // Silent refresh on 401
+  if (response.status === 401 && !endpoint.includes('/auth/')) {
+    const newToken = await _silentRefresh();
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers });
+    }
+  }
+
+  if (response.status === 401) { _handle401(); }
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
@@ -32,16 +135,33 @@ export async function apiGet<T>(
 export async function apiPost<T>(
   endpoint: string,
   data?: Record<string, unknown>,
-  token?: string | null
+  token?: string | null,
+  timeoutMs?: number
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token ?? getStoredAccessToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
     body: data ? JSON.stringify(data) : undefined,
-  });
+  }, timeoutMs ?? LONG_TIMEOUT_MS);
+
+  // Silent refresh on 401
+  if (response.status === 401 && !endpoint.includes('/auth/')) {
+    const newToken = await _silentRefresh();
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+      }, timeoutMs ?? LONG_TIMEOUT_MS);
+    }
+  }
+
+  if (response.status === 401) { _handle401(); }
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
@@ -55,13 +175,29 @@ export async function apiPut<T>(
   token?: string | null
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token ?? getStoredAccessToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
     method: 'PUT',
     headers,
     body: data ? JSON.stringify(data) : undefined,
   });
+
+  // Silent refresh on 401
+  if (response.status === 401 && !endpoint.includes('/auth/')) {
+    const newToken = await _silentRefresh();
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+        method: 'PUT',
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+      });
+    }
+  }
+
+  if (response.status === 401) { _handle401(); }
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
@@ -74,12 +210,27 @@ export async function apiDelete<T>(
   token?: string | null
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const authToken = token ?? getStoredAccessToken();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
-  const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
     method: 'DELETE',
     headers,
   });
+
+  // Silent refresh on 401
+  if (response.status === 401 && !endpoint.includes('/auth/')) {
+    const newToken = await _silentRefresh();
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`;
+      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers,
+      });
+    }
+  }
+
+  if (response.status === 401) { _handle401(); }
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
@@ -87,11 +238,13 @@ export async function apiDelete<T>(
   return response.json();
 }
 
-// ------ Auth Helpers ------------------------------------------------------------------------------------------------------------------
+// ── Auth Helpers (legacy, kept for backward compatibility) ───────
+// New code should use useAuth() hook from auth-context.tsx instead.
+
 export function getStoredAuth() {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem('auth');
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -100,12 +253,12 @@ export function getStoredAuth() {
 
 export function clearAuth() {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem('auth');
+  localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
 export function storeAuth(data: { user: Record<string, unknown>; access_token: string; refresh_token?: string }) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem('auth', JSON.stringify(data));
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
 }
 
 // ------ Array Extraction (اصلاح‌شده) ------------------------------------------------------------------------------------------------------

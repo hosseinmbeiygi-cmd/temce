@@ -6,6 +6,7 @@ instead of fabricated financials.
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -93,10 +94,8 @@ class FundamentalService:
         except Exception:
             snap = None
         detail = None
-        try:
+        with contextlib.suppress(Exception):
             detail = await self._brsapi.get_enriched_symbol_detail(symbol)
-        except Exception:
-            pass
         return snap, detail
 
     async def get_ratios(self, symbol: str) -> Result[dict[str, Any]]:
@@ -170,47 +169,59 @@ class FundamentalService:
         pb = f.get("pb", 0)
         roe = f.get("roe_pct", 0)
         de = f.get("debt_to_equity", 0)
-        net_margin = f.get("net_margin_pct", 0)
-        current_ratio = f.get("current_ratio", 0)
+        f.get("net_margin_pct", 0)
+        f.get("current_ratio", 0)
 
         if pe and pe > 0:
             if pe < 8:
-                score += 20; details.append({"factor": "P/E پایین", "score": 20, "desc": "ارزنده"})
+                score += 20
+                details.append({"factor": "P/E پایین", "score": 20, "desc": "ارزنده"})
             elif pe < 15:
-                score += 15; details.append({"factor": "P/E متعادل", "score": 15, "desc": "مناسب"})
+                score += 15
+                details.append({"factor": "P/E متعادل", "score": 15, "desc": "مناسب"})
             else:
-                score += 5; details.append({"factor": "P/E بالا", "score": 5, "desc": "گران"})
+                score += 5
+                details.append({"factor": "P/E بالا", "score": 5, "desc": "گران"})
         else:
             details.append({"factor": "P/E", "score": 0, "desc": "داده موجود نیست"})
 
         if pb and pb > 0:
             if pb < 1:
-                score += 15; details.append({"factor": "P/B کمتر از ۱", "score": 15, "desc": "زیر ارزش ذاتی"})
+                score += 15
+                details.append({"factor": "P/B کمتر از ۱", "score": 15, "desc": "زیر ارزش ذاتی"})
             elif pb < 3:
-                score += 10; details.append({"factor": "P/B متعادل", "score": 10, "desc": "مناسب"})
+                score += 10
+                details.append({"factor": "P/B متعادل", "score": 10, "desc": "مناسب"})
             else:
-                score += 5; details.append({"factor": "P/B بالا", "score": 5, "desc": "گران"})
+                score += 5
+                details.append({"factor": "P/B بالا", "score": 5, "desc": "گران"})
         else:
             details.append({"factor": "P/B", "score": 0, "desc": "داده موجود نیست"})
 
         # ROE, D/E, margins — only score if we have real data
         if roe > 0:
             if roe > 30:
-                score += 20; details.append({"factor": "ROE عالی", "score": 20, "desc": "بازده حقوق صاحبان سهام بالا"})
+                score += 20
+                details.append({"factor": "ROE عالی", "score": 20, "desc": "بازده حقوق صاحبان سهام بالا"})
             elif roe > 15:
-                score += 15; details.append({"factor": "ROE خوب", "score": 15, "desc": "بازده مناسب"})
+                score += 15
+                details.append({"factor": "ROE خوب", "score": 15, "desc": "بازده مناسب"})
             else:
-                score += 5; details.append({"factor": "ROE پایین", "score": 5, "desc": "نیاز به بهبود"})
+                score += 5
+                details.append({"factor": "ROE پایین", "score": 5, "desc": "نیاز به بهبود"})
         else:
             details.append({"factor": "ROE", "score": 0, "desc": "داده موجود نیست"})
 
         if de > 0:
             if de < 0.5:
-                score += 15; details.append({"factor": "D/E پایین", "score": 15, "desc": "بدهی کم"})
+                score += 15
+                details.append({"factor": "D/E پایین", "score": 15, "desc": "بدهی کم"})
             elif de < 1.5:
-                score += 10; details.append({"factor": "D/E متعادل", "score": 10, "desc": "بدهی قابل قبول"})
+                score += 10
+                details.append({"factor": "D/E متعادل", "score": 10, "desc": "بدهی قابل قبول"})
             else:
-                score += 3; details.append({"factor": "D/E بالا", "score": 3, "desc": "بدهی زیاد"})
+                score += 3
+                details.append({"factor": "D/E بالا", "score": 3, "desc": "بدهی زیاد"})
         else:
             details.append({"factor": "D/E", "score": 0, "desc": "داده موجود نیست"})
 

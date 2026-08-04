@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -147,16 +149,17 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
 
         start = None
         if orm.start_date:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 start = date.fromisoformat(orm.start_date)
-            except (ValueError, TypeError):
-                pass
         end = None
         if orm.end_date:
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 end = date.fromisoformat(orm.end_date)
-            except (ValueError, TypeError):
-                pass
+
+        extra = {}
+        if orm.metrics:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
+                extra = json.loads(orm.metrics)
 
         return BacktestRun(
             id=orm.id,
@@ -170,6 +173,7 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
             total_pnl=0.0,
             total_return_pct=orm.total_return_pct or 0.0,
             status=orm.status or "draft",
+            extra=extra,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
         )
@@ -178,6 +182,7 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
         import json
 
         symbols_json = json.dumps(domain.instrument_ids, ensure_ascii=False) if domain.instrument_ids else None
+        metrics_json = json.dumps(domain.extra, ensure_ascii=False) if domain.extra else None
         return BacktestRunModel(
             id=domain.id,
             name=domain.name,
@@ -189,6 +194,7 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
             initial_capital=domain.initial_capital or None,
             current_value=domain.current_capital or None,
             total_return_pct=domain.total_return_pct or None,
+            metrics=metrics_json,
             created_at=domain.created_at,
             updated_at=domain.updated_at,
         )

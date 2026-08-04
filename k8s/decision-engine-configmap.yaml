@@ -1,0 +1,29 @@
+# ── Decision Engine ConfigMap ─────────────────────────────────────
+# Non-sensitive configuration for the Decision Engine microservice.
+# Apply with: kubectl apply -f k8s/decision-engine-configmap.yaml
+# Reference in pod: $(DECISION_ENGINE_PORT), $(LOG_LEVEL), etc.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: decision-engine-config
+  namespace: default
+  labels:
+    app: decision-engine
+    component: config
+data:
+  # ── Service ──
+  DECISION_ENGINE_PORT: "8002"
+  API_PREFIX: "/api/v1"
+  APP_NAME: "Decision-Engine"
+  LOG_LEVEL: "INFO"
+
+  # ── Database ──
+  DATABASE_NAME: "decision_engine"
+  DATABASE_USER: "decision_user"
+  DATABASE_HOST: "decision-engine-postgres"
+  DATABASE_PORT: "5432"
+
+  # ── Redis ──
+  REDIS_HOST: "decision-engine-redis"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"

@@ -29,10 +29,7 @@ class AdaptiveImpactModel(ImpactModel):
     def calculate_impact(self, quantity: int, adv: float, price: float = 1.0) -> float:
         eta_adj, alpha_adj = self._get_regime_params()
         participation = quantity / max(adv, 1)
-        if self.use_sqrt_law:
-            impact = eta_adj * (participation ** alpha_adj)
-        else:
-            impact = eta_adj * participation
+        impact = eta_adj * participation ** alpha_adj if self.use_sqrt_law else eta_adj * participation
         return impact
 
     def get_execution_price(self, quantity: int, adv: float, price: float, side: str) -> float:

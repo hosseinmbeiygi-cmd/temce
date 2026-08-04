@@ -116,7 +116,7 @@ class FeatureSet:
         ask = market_state.get("best_ask", 0.0)
         bid_vol = market_state.get("bid_volume", 0)
         ask_vol = market_state.get("ask_volume", 0)
-        last_price = market_state.get("last_price", 0)
+        market_state.get("last_price", 0)
 
         computed: dict[str, float] = {}
 

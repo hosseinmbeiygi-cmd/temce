@@ -5,11 +5,13 @@ Tests APScheduler integration, job registration, and lifecycle.
 
 from __future__ import annotations
 
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 # ── Fixtures ─────────────────────────────────────────────────
+
 
 @pytest.fixture
 def scheduler_app():
@@ -24,6 +26,7 @@ def scheduler_app():
 
 # ── Initialization ──────────────────────────────────────────
 
+
 def test_init_creates_scheduler():
     """Verify SchedulerApp creates an AsyncIOScheduler on init."""
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -37,6 +40,7 @@ def test_init_creates_scheduler():
 
 
 # ── add_job ─────────────────────────────────────────────────
+
 
 def test_add_job_calls_scheduler_add_job(scheduler_app):
     """add_job should delegate to APScheduler's add_job."""
@@ -57,6 +61,7 @@ def test_add_job_default_trigger_is_interval(scheduler_app):
 
 
 # ── start ────────────────────────────────────────────────────
+
 
 def test_start_adds_default_jobs(scheduler_app):
     """start() should register legacy jobs (SyncInstrumentsJob, SyncQuotesJob, SyncCodalJob, NewsIngestionJob) + BrsApi registry jobs."""
@@ -86,10 +91,10 @@ def test_start_adds_sync_quotes(scheduler_app):
     quote_call = None
     for call in calls:
         kwargs = call[1]
-        if "minutes" in kwargs and kwargs.get("minutes") == 5:
+        if "minutes" in kwargs and kwargs.get("minutes") == 2:
             quote_call = call
             break
-    assert quote_call is not None, "sync_quotes job not found with minutes=5"
+    assert quote_call is not None, "sync_quotes job not found with minutes=2"
 
 
 def test_start_adds_sync_codal(scheduler_app):
@@ -110,13 +115,14 @@ def test_start_adds_sync_news(scheduler_app):
     news_call = None
     for call in calls:
         kwargs = call[1]
-        if "hours" in kwargs and kwargs.get("hours") == 1:
+        if "minutes" in kwargs and kwargs.get("minutes") == 10:
             news_call = call
             break
-    assert news_call is not None, "sync_news job not found with hours=1"
+    assert news_call is not None, "sync_news job not found with minutes=10"
 
 
 # ── run_forever ──────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_run_forever_calls_start():
@@ -135,10 +141,8 @@ async def test_run_forever_calls_start():
         await asyncio.sleep(0)
         await asyncio.sleep(0)
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
     await run_until_start()
 
@@ -147,6 +151,7 @@ async def test_run_forever_calls_start():
 
 
 # ── Job Wrapper ─────────────────────────────────────────────
+
 
 def test_add_job_wrapper_calls_dispatcher(scheduler_app):
     """The wrapper function inside add_job should call job_dispatcher.dispatch."""
@@ -160,5 +165,6 @@ def test_add_job_wrapper_calls_dispatcher(scheduler_app):
     # Call the wrapper and verify it dispatches
     with patch.object(job_dispatcher, "dispatch", new_callable=AsyncMock) as mock_dispatch:
         import asyncio
+
         asyncio.run(wrapper_fn())
         mock_dispatch.assert_awaited_once_with("sync_test")

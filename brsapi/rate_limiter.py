@@ -45,7 +45,10 @@ class Bucket:
 
     def __post_init__(self) -> None:
         self.tokens = float(self.max_tokens)
-        self.last_refill = asyncio.get_event_loop().time()
+        # ``time.monotonic()`` — the same clock as ``asyncio``'s loop time,
+        # but safe to call when no event loop is running (e.g. during
+        # ``configure()`` at client construction time).
+        self.last_refill = time.monotonic()
 
     def _refill(self, now: float) -> None:
         elapsed = now - self.last_refill
@@ -201,7 +204,7 @@ class RateLimiter:
         """Set the rate limit for a given category."""
         if key in self._buckets:
             bucket = self._buckets[key]
-            now = asyncio.get_event_loop().time()
+            now = time.monotonic()
             bucket._refill(now)
             bucket.max_tokens = float(requests_per_minute)
             bucket.refill_rate = requests_per_minute / 60.0
@@ -238,7 +241,7 @@ class RateLimiter:
                 self.configure(key, int(self._default_refill_rate * 60))
                 bucket = self._buckets[key]
 
-            now = asyncio.get_event_loop().time()
+            now = time.monotonic()
             bucket._refill(now)
 
             if bucket.max_tokens <= 0:
@@ -259,7 +262,7 @@ class RateLimiter:
         async with self._lock:
             bucket = self._buckets.get(key)
             if bucket:
-                now = asyncio.get_event_loop().time()
+                now = time.monotonic()
                 bucket._refill(now)
                 bucket.tokens = max(0.0, bucket.tokens - tokens)
             self._record_request(endpoint)
@@ -305,6 +308,17 @@ class RateLimiter:
             "max_tokens": bucket.max_tokens,
             "current_tokens": round(bucket.tokens, 1),
             "refill_rate": round(bucket.refill_rate, 3),
+        }
+
+    def all_bucket_status(self) -> dict[str, Any]:
+        """Return a combined snapshot of global and per-category rate limits."""
+        status = self.status()
+        return {
+            "global": status.get("global", {}),
+            "per_category": {
+                key: self.get_bucket_status(key) or {}
+                for key in self._buckets
+            },
         }
 
     # ── Context manager ────────────────────────

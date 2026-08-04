@@ -1,0 +1,50 @@
+{
+  "meta": {
+    "total_tables": 30,
+    "version": "Enterprise-Final-1.0",
+    "categories": ["reference", "raw", "quality", "feature", "score", "decision", "ops"]
+  },
+  "tables": [
+    { "group": "reference", "tables": [
+      { "name": "ref_symbols", "title_fa": "نمادها", "key_columns": "symbol_id, ticker, industry_id, float_shares, is_active", "description": "اطلاعات پایه نمادها شامل شناسه، نام، صنعت، شناوری و وضعیت فعال بودن" },
+      { "name": "ref_industries", "title_fa": "صنایع", "key_columns": "industry_id, industry_name, sector_code", "description": "اطلاعات صنایع و بخش‌های اقتصادی" },
+      { "name": "ref_data_sources", "title_fa": "منابع داده", "key_columns": "source_id, source_name, base_url, is_active", "description": "تعریف و پیکربندی منابع داده (TSETMC, CODAL, BRSAPI)" },
+      { "name": "ref_feature_definitions", "title_fa": "تعاریف ویژگی‌ها", "key_columns": "feature_id, feature_code, formula_text, category, version", "description": "متادیتای کامل ۱۱۰ ویژگی شامل نام، فرمول، دسته و نسخه" },
+      { "name": "ref_score_weights", "title_fa": "وزن‌های امتیاز", "key_columns": "weight_id, model_version, score_code, weight_value", "description": "وزن‌های ۸ سوبرسکور و زیرویژگی‌ها با نسخه‌بندی" },
+      { "name": "ref_decision_rules", "title_fa": "قواعد تصمیم", "key_columns": "rule_id, rulebook_version, rule_expression, priority", "description": "قواعد Rulebook برای تصمیم‌گیری نهایی با اولویت و نسخه" },
+      { "name": "ref_reason_codes", "title_fa": "کدهای دلیل", "key_columns": "reason_code, reason_title, reason_type", "description": "کدهای استاندارد برای دلایل مثبت/منفی هر تصمیم" }
+    ]},
+    { "group": "raw", "tables": [
+      { "name": "raw_quotes", "title_fa": "داده‌های تابلو", "key_columns": "symbol_id, timestamp, open, high, low, close, volume, value, inst_buy, inst_sell", "description": "داده‌های لحظه‌ای تابلو شامل قیمت، حجم، ارزش و رفتار حقیقی/حقوقی" },
+      { "name": "raw_candles", "title_fa": "داده‌های کندل", "key_columns": "symbol_id, timestamp, timeframe, open, high, low, close, volume", "description": "داده‌های کندل OHLCV با تایم‌فریم‌های مختلف (daily, weekly, monthly)" },
+      { "name": "raw_microtrades", "title_fa": "ریزمعاملات", "key_columns": "symbol_id, trade_time, price, volume, buyer_type, seller_type, trade_id", "description": "ریزمعاملات (تیک دیتا) با جزئیات خریدار/فروشنده" },
+      { "name": "raw_codal_events", "title_fa": "رویدادهای کدال", "key_columns": "symbol_id, event_date, event_type, value, description", "description": "رویدادهای کدال شامل EPS، سود، زیان، افزایش سرمایه و مجامع" },
+      { "name": "raw_macro_series", "title_fa": "داده‌های کلان", "key_columns": "series_code, date, value", "description": "داده‌های کلان شامل نرخ دلار، طلا، تورم، نرخ بهره و شاخص‌های اقتصادی" }
+    ]},
+    { "group": "quality", "tables": [
+      { "name": "dq_validation_results", "title_fa": "نتایج اعتبارسنجی", "key_columns": "run_id, symbol_id, check_name, severity, status, message", "description": "نتایج اعتبارسنجی کیفیت داده برای هر نماد با سطح شدت" },
+      { "name": "dq_anomaly_events", "title_fa": "رویدادهای ناهنجاری", "key_columns": "event_id, symbol_id, anomaly_type, value, threshold, detected_at", "description": "رویدادهای ناهنجاری داده شامل outlier، ناسازگاری و شکاف داده" }
+    ]},
+    { "group": "feature", "tables": [
+      { "name": "feat_symbol_snapshot", "title_fa": "اسنپ‌شات ویژگی‌ها", "key_columns": "snapshot_id, symbol_id, calculation_run_id, model_version, ...110 feature columns", "description": "اسنپ‌شات ۱۱۰ ویژگی برای هر نماد با calculation_run_id و model_version" },
+      { "name": "feat_quality_flags", "title_fa": "پرچم‌های کیفیت", "key_columns": "snapshot_id, symbol_id, flag_name, flag_value", "description": "پرچم‌های کیفیت برای هر اسنپ‌شات (DEGRADED, WARNING, STALE)" }
+    ]},
+    { "group": "score", "tables": [
+      { "name": "score_base_results", "title_fa": "نتایج امتیاز پایه", "key_columns": "run_id, symbol_id, S_F, S_V, S_T, S_L, S_O, S_M, S_K, S_E, base_score, candidate_eligibility", "description": "نتایج ۸ سوبرسکور و BaseScore و وضعیت واجد شرایط بودن" },
+      { "name": "score_micro_results", "title_fa": "نتایج ریزمعاملات", "key_columns": "run_id, symbol_id, S_M, micro_adjustment, micro_confidence, acc_dist_flag", "description": "نتایج تحلیل ریزمعاملات با امتیاز و اطمینان" },
+      { "name": "score_risk_results", "title_fa": "نتایج ریسک", "key_columns": "run_id, symbol_id, risk_level, penalty, neg_events_count, volatility_score, gap_risk_score", "description": "نتایج ارزیابی ریسک با سطح، جریمه و جزئیات" },
+      { "name": "score_final_results", "title_fa": "نتایج نهایی", "key_columns": "run_id, symbol_id, final_score, final_decision, decision_confidence, rulebook_version", "description": "نتایج نهایی تصمیم‌گیری با امتیاز، تصمیم، اطمینان و نسخه Rulebook" }
+    ]},
+    { "group": "decision", "tables": [
+      { "name": "candidate_queue", "title_fa": "صف کاندیداها", "key_columns": "symbol_id, status, priority, enqueued_at, processing_started_at, completed_at, retry_count", "description": "صف کاندیداها با وضعیت‌های new, processing_micro, micro_completed, risk_pending, finalized, rejected, failed, retry, dead_letter" },
+      { "name": "decision_reports", "title_fa": "گزارش‌های تصمیم", "key_columns": "report_id, symbol_id, run_id, report_type, report_json, report_text", "description": "گزارش نهایی هر نماد به صورت JSON و متن" },
+      { "name": "decision_audit_log", "title_fa": "لاگ ممیزی", "key_columns": "log_id, run_id, symbol_id, input_hash, feature_hash, model_version, rulebook_version, intermediate_values, final_decision", "description": "ثبت کامل ممیزی برای بازتولید تصمیم" },
+      { "name": "decision_overrides", "title_fa": "مداخلات دستی", "key_columns": "override_id, symbol_id, previous_decision, new_decision, reason, approved_by, created_at", "description": "مداخلات دستی با ثبت دلیل و تأییدکننده" }
+    ]},
+    { "group": "ops", "tables": [
+      { "name": "job_runs", "title_fa": "اجرای کارها", "key_columns": "run_id, job_name, started_at, ended_at, records_count, error_count, status", "description": "تاریخچه اجرای کارها (شروع، پایان، تعداد رکوردها، خطاها)" },
+      { "name": "job_errors", "title_fa": "خطاهای اجرا", "key_columns": "error_id, run_id, symbol_id, error_code, error_message, stack_trace, created_at", "description": "خطاهای ثبت‌شده در حین اجرا با جزئیات کامل" },
+      { "name": "alert_events", "title_fa": "رویدادهای هشدار", "key_columns": "alert_id, alert_type, severity, message, source_service, created_at, resolved_at", "description": "رویدادهای هشدار (نوع، شدت، پیام، زمان ایجاد و حل)" }
+    ]}
+  ]
+}

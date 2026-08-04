@@ -62,8 +62,8 @@ export default function IndicatorChart({
           contentStyle={TOOLTIP_STYLE}
           formatter={
             tooltipFormatter
-              ? ((value: number, name: string) => tooltipFormatter(value, name)) as any
-              : ((value: number) => `${formatNum(value)}`) as any
+              ? (value, name) => tooltipFormatter(Number(value ?? 0), name as string)
+              : (value) => `${formatNum(Number(value ?? 0))}`
           }
         />
         {children}

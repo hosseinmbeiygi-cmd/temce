@@ -39,4 +39,3 @@ def test_macro_format_value():
     parser = MacroParser()
     assert parser.format_value(42.5, "percent") == 42.5
     assert parser.format_value(2500000000000, "rial") == 2500000000000
-

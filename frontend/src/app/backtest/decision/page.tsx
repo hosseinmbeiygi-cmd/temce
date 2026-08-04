@@ -252,13 +252,7 @@ export default function DecisionPage() {
   const handleEnsemble = useCallback(async () => {
     setLoading("ensemble");
     try {
-      const signals = symbols.flatMap(s => [
-        { strategy: "momentum", symbol: s, signal: 1, score: 0.4 },
-        { strategy: "mean_reversion", symbol: s, signal: -1, score: -0.2 },
-        { strategy: "moving_average_cross", symbol: s, signal: 1, score: 0.3 },
-        { strategy: "rsi_reversion", symbol: s, signal: 0, score: 0.1 },
-      ]);
-      const r = await apiPost<{ success: boolean; data: EnsembleResult }>("/backtests/adaptive/decide", {
+      await apiPost<{ success: boolean; data: EnsembleResult }>("/backtests/adaptive/decide", {
         market_data: { return_1d: 0.01, return_5d: 0.03, return_20d: 0.05, volatility_20d: 0.02, rsi_14: 55, volume_ratio: 1.3, buy_power_ratio: 1.5, sector_strength: 0.7, market_regime: regime?.current_regime ?? 1, position_pct: 0.3 },
         portfolio_returns: [0.01, -0.005, 0.008, -0.002, 0.015],
       });
@@ -286,12 +280,12 @@ export default function DecisionPage() {
   const handleSimulate = useCallback(async () => {
     setLoading("sim");
     try {
-      const r = await apiPost<{ success: boolean; data: SimResult }>("/backtests/cascade/run", {
+      await apiPost<{ success: boolean; data: SimResult }>("/backtests/cascade/run", {
         symbols, start_date: startDate, end_date: endDate, capital: 1e9,
         strategies: ["momentum", "moving_average_cross", "mean_reversion"],
       });
       // Build local sim result
-      const equity = [1e9]; let cash = 1e9; let pos = 0; const trades: SimResult["trades"] = [];
+      const equity = [1e9];
       for (let i = 0; i < 100; i++) {
         const change = (Math.random() - 0.48) * 0.02 * equity[equity.length - 1];
         const newEq = equity[equity.length - 1] + change;

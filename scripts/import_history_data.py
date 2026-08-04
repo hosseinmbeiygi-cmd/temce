@@ -1,23 +1,10 @@
+"""Import crypto_history + history_data JSON files into database.
+
+Tables:
+  - brsapi_crypto_daily_history  (new) — crypto OHLCV
+  - brsapi_gold_coin_history     (existing, empty) — gold/coin OHLC
+  - brsapi_gold_currency_pro_daily_history (existing, empty) — currency OHLC
 """
-Import historical data from JSON files in history_data/ into the quotes table.
-
-Each JSON file is named after the Persian symbol with _history suffix (e.g., khodro_history.json)
-and contains an array of daily OHLCV records (same format as backtest data).
-
-Usage:
-    python scripts/import_history_data.py
-"""
-
-from __future__ import annotations
-
-# --- auto PYTHONPATH ---
-import sys
-from pathlib import Path
-
-_project_root = Path(__file__).resolve().parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-# --- end auto PYTHONPATH ---
 
 import asyncio
 import json
@@ -25,249 +12,219 @@ import sys
 import time
 from pathlib import Path
 
-# Force UTF-8 for console output on Windows
-if sys.platform == "win32":
-    sys.stdin.reconfigure(encoding="utf-8")
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
+sys.path.insert(0, ".")
 
-_project_root = str(Path(__file__).resolve().parent.parent)
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+CRYPTO_DIR = Path("crypto_history")
+HISTORY_DIR = Path("history_data")
 
-from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+# Symbol → table mapping
+CRYPTO_TABLE = "brsapi_crypto_daily_history"
+GOLD_TABLE = "brsapi_gold_coin_history"
+CURRENCY_TABLE = "brsapi_gold_currency_pro_daily_history"
 
-from core.database import close_database, get_session, init_database
-from core.logging import get_logger
-from models.instrument import InstrumentModel
-from models.quote import QuoteModel
-
-logger = get_logger(__name__)
-
-HISTORY_DATA_DIR = Path("history_data")
-BATCH_SIZE = 5000
+# Gold/coin symbols go to gold table
+GOLD_SYMBOLS = {
+    "IR_GOLD_18K", "IR_GOLD_24K", "IR_GOLD_MELTED",
+    "IR_COIN_1G", "IR_COIN_BAHAR", "IR_COIN_EMAMI",
+    "IR_COIN_HALF", "IR_COIN_QUARTER",
+    "IR_PCOIN_1-1G", "IR_PCOIN_1-2G", "IR_PCOIN_1-3G", "IR_PCOIN_1-4G",
+    "IR_PCOIN_1-5G", "IR_PCOIN_100MG", "IR_PCOIN_1G", "IR_PCOIN_200MG",
+    "IR_PCOIN_300MG", "IR_PCOIN_400MG", "IR_PCOIN_500MG", "IR_PCOIN_600MG",
+    "IR_PCOIN_700MG", "IR_PCOIN_800MG", "IR_PCOIN_900MG",
+}
 
 
-def parse_json_record(record: dict, symbol: str, instrument_id: str) -> dict | None:
-    """Map a JSON record from the history file to a QuoteModel-compatible dict."""
-    date_str = record.get("date", "")
-    time_str = record.get("time", "")
-    tno = record.get("tno", 0) or 0
-    tvol = record.get("tvol", 0) or 0
-    tval = record.get("tval", 0) or 0
-    pmin = record.get("pmin", 0) or 0
-    pmax = record.get("pmax", 0) or 0
-    py = record.get("py", 0) or 0
-    pf = record.get("pf", 0) or 0
-    pl = record.get("pl", 0) or 0
-    plc = record.get("plc", 0) or 0
-    plp = record.get("plp", 0) or 0
-    pc = record.get("pc", 0) or 0
-
-    # Skip zero-volume records (non-trading days)
-    if tvol == 0 and tval == 0 and tno == 0 and pc == 0:
+def parse_value(v) -> float | None:
+    """Parse a value that might be string or number."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).replace(",", "").replace("٬", "").strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
         return None
 
-    quote_id = f"ht_{instrument_id}_{date_str}"
 
-    return {
-        "id": quote_id,
-        "instrument_id": instrument_id,
-        "symbol": symbol,
-        "price_close": float(pc) if pc else None,
-        "price_open": float(pf) if pf else None,
-        "price_high": float(pmax) if pmax else None,
-        "price_low": float(pmin) if pmin else None,
-        "price_last": float(pl) if pl else None,
-        "price_change": float(plc) if plc else None,
-        "price_change_pct": float(plp) if plp else None,
-        "volume": int(tvol) if tvol else None,
-        "value": float(tval) if tval else None,
-        "trade_count": int(tno) if tno else None,
-        "price_yesterday": float(py) if py else None,
-        "price_first": float(pf) if pf else None,
-        "price_max": float(pmax) if pmax else None,
-        "price_min": float(pmin) if pmin else None,
-        "time": time_str or None,
-        "date": date_str or None,
-        "timeframe": "1d",
-        "data_source": "history",
-    }
+async def create_crypto_table(session):
+    """Create brsapi_crypto_daily_history if not exists."""
+    await session.execute(__import__("sqlalchemy").text(f"""
+        CREATE TABLE IF NOT EXISTS {CRYPTO_TABLE} (
+            id BIGSERIAL PRIMARY KEY,
+            symbol VARCHAR(20) NOT NULL,
+            date VARCHAR(20) NOT NULL,
+            price_open DOUBLE PRECISION,
+            price_high DOUBLE PRECISION,
+            price_low DOUBLE PRECISION,
+            price_close DOUBLE PRECISION,
+            volume DOUBLE PRECISION,
+            fetched_at VARCHAR(30),
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            UNIQUE(symbol, date)
+        )
+    """))
+    await session.execute(__import__("sqlalchemy").text(f"""
+        CREATE INDEX IF NOT EXISTS idx_crypto_hist_sym_date ON {CRYPTO_TABLE}(symbol, date)
+    """))
+    await session.commit()
+    print(f"Table {CRYPTO_TABLE} ready")
 
 
-async def build_symbol_map(session) -> dict[str, str]:
-    """Build a mapping from symbol -> instrument_id from the instruments table."""
-    stmt = select(InstrumentModel.symbol, InstrumentModel.id)
-    result = await session.execute(stmt)
-    rows = result.fetchall()
-    symbol_map = {row[0]: row[1] for row in rows}
-    logger.info("Loaded %d instruments from database", len(symbol_map))
-    return symbol_map
+async def import_file(session, filepath: Path, table: str, symbol_override: str | None = None):
+    """Import one JSON file into a table. Returns (inserted, skipped)."""
+    symbol = symbol_override or filepath.stem.replace("_history", "")
 
+    with open(filepath, encoding="utf-8") as f:
+        data = json.load(f)
 
-async def import_file(
-    session,
-    file_path: Path,
-    symbol: str,
-    instrument_id: str,
-    stats: dict,
-) -> int:
-    """Import a single JSON file's records into the quotes table."""
-    try:
-        raw = json.loads(file_path.read_text("utf-8"))
-    except Exception as e:
-        logger.warning("  [SKIP] %s: could not parse JSON: %s", repr(symbol), e)
-        stats["failed_files"] += 1
-        return 0
+    if not data:
+        return 0, 0
 
-    if not isinstance(raw, list):
-        logger.warning("  [SKIP] %s: JSON is not a list", repr(symbol))
-        stats["failed_files"] += 1
-        return 0
+    inserted = 0
+    skipped = 0
 
-    records = []
-    for record in raw:
-        parsed = parse_json_record(record, symbol, instrument_id)
-        if parsed is not None:
-            records.append(parsed)
+    # Batch insert for speed
+    from sqlalchemy import text
 
-    if not records:
-        return 0
+    rows = []
+    for item in data:
+        date = item.get("date", "")
+        if not date:
+            skipped += 1
+            continue
 
-    # Batch insert with upsert (ON CONFLICT DO NOTHING)
-    total_inserted = 0
-    for i in range(0, len(records), BATCH_SIZE):
-        batch = records[i : i + BATCH_SIZE]
-        try:
-            stmt = pg_insert(QuoteModel).values(batch)
-            stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
-            await session.execute(stmt)
-            await session.flush()
-            total_inserted += len(batch)
-        except Exception as e:
-            logger.warning("  [ERR] %s batch at %d: %s", repr(symbol), i, str(e)[:150])
-            for rec in batch:
-                try:
-                    await session.execute(
-                        pg_insert(QuoteModel).values(rec).on_conflict_do_nothing(index_elements=["id"])
-                    )
-                    await session.flush()
-                    total_inserted += 1
-                except Exception as e2:
-                    logger.warning("  [SKIP] %s record %s: %s", repr(symbol), rec.get("date"), str(e2)[:100])
+        # Normalize date: 1405/05/01 → 1405-05-01
+        date_norm = date.replace("/", "-")
 
-    logger.info("  [OK] %s: %d records (total %d in file)", repr(symbol), total_inserted, len(records))
-    stats["total_records"] += total_inserted
-    stats["total_files"] += 1
-    return total_inserted
+        o = parse_value(item.get("open"))
+        h = parse_value(item.get("high"))
+        lo = parse_value(item.get("low"))
+        c = parse_value(item.get("close"))
+        v = parse_value(item.get("volume"))
 
+        if c is None or c <= 0:
+            skipped += 1
+            continue
 
-def extract_symbol_from_filename(filename: str) -> str:
-    """Extract symbol from filename like 'khodro_history.json' -> 'khodro'."""
-    name = filename
-    # Remove _history suffix and .json extension
-    if name.endswith("_history.json"):
-        name = name[: -len("_history.json")]
-    elif name.endswith(".json"):
-        name = name[: -len(".json")]
-    return name
+        if table == CRYPTO_TABLE:
+            rows.append({
+                "symbol": symbol, "date": date_norm,
+                "price_open": o, "price_high": h, "price_low": lo, "price_close": c,
+                "volume": v,
+            })
+        elif table in (GOLD_TABLE, CURRENCY_TABLE):
+            rows.append({
+                "symbol": symbol, "date": date_norm,
+                "price_open": o, "price_high": h, "price_low": lo, "price_close": c,
+            })
+
+    # Batch upsert
+    if table == CRYPTO_TABLE:
+        for row in rows:
+            try:
+                await session.execute(text(f"""
+                    INSERT INTO {CRYPTO_TABLE} (symbol, date, price_open, price_high, price_low, price_close, volume)
+                    VALUES (:symbol, :date, :price_open, :price_high, :price_low, :price_close, :volume)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                        price_open = EXCLUDED.price_open,
+                        price_high = EXCLUDED.price_high,
+                        price_low = EXCLUDED.price_low,
+                        price_close = EXCLUDED.price_close,
+                        volume = EXCLUDED.volume
+                """), row)
+                inserted += 1
+            except Exception:
+                skipped += 1
+    elif table == GOLD_TABLE:
+        for row in rows:
+            try:
+                await session.execute(text(f"""
+                    INSERT INTO {GOLD_TABLE} (symbol, date, price_open, price_high, price_low, price_close)
+                    VALUES (:symbol, :date, :price_open, :price_high, :price_low, :price_close)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                        price_open = EXCLUDED.price_open,
+                        price_high = EXCLUDED.price_high,
+                        price_low = EXCLUDED.price_low,
+                        price_close = EXCLUDED.price_close
+                """), row)
+                inserted += 1
+            except Exception:
+                skipped += 1
+    elif table == CURRENCY_TABLE:
+        for row in rows:
+            try:
+                await session.execute(text(f"""
+                    INSERT INTO {CURRENCY_TABLE} (symbol, date, price_open, price_high, price_low, price_close)
+                    VALUES (:symbol, :date, :price_open, :price_high, :price_low, :price_close)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                        price_open = EXCLUDED.price_open,
+                        price_high = EXCLUDED.price_high,
+                        price_low = EXCLUDED.price_low,
+                        price_close = EXCLUDED.price_close
+                """), row)
+                inserted += 1
+            except Exception:
+                skipped += 1
+
+    await session.commit()
+    return inserted, skipped
 
 
 async def main():
-    print("=" * 60)
-    print("  Import History Data -> quotes table")
-    print("=" * 60)
-
-    if not HISTORY_DATA_DIR.is_dir():
-        logger.error("Directory not found: %s", HISTORY_DATA_DIR)
-        return 1
-
-    # Find all JSON files
-    json_files = sorted(HISTORY_DATA_DIR.glob("*.json"))
-    if not json_files:
-        logger.error("No JSON files found in %s", HISTORY_DATA_DIR)
-        return 1
-
-    logger.info("Found %d JSON files in %s", len(json_files), HISTORY_DATA_DIR)
-
+    from core.database import init_database
     await init_database()
 
-    async for session in get_session():
-        symbol_map = await build_symbol_map(session)
+    from core.database import async_session_factory
 
-        # Pre-count existing history quotes
-        cnt_before = await session.execute(
-            select(func.count()).select_from(QuoteModel).where(QuoteModel.data_source == "history")
-        )
-        existing_before = cnt_before.scalar() or 0
-        logger.info("Existing history quotes before import: %d", existing_before)
+    total_inserted = 0
+    total_skipped = 0
+    start = time.time()
 
-        missing_instruments = []
+    async with async_session_factory() as session:
+        # 1. Create crypto table
+        await create_crypto_table(session)
 
-        stats = {
-            "total_files": 0,
-            "total_records": 0,
-            "failed_files": 0,
-        }
+        # 2. Import crypto_history
+        print("\n=== Crypto History ===")
+        crypto_files = sorted(CRYPTO_DIR.glob("*.json"))
+        for fp in crypto_files:
+            ins, skip = await import_file(session, fp, CRYPTO_TABLE)
+            total_inserted += ins
+            total_skipped += skip
+            print(f"  {fp.stem}: +{ins} rows ({skip} skipped)")
 
-        start_time = time.time()
+        # 3. Import history_data
+        print("\n=== History Data ===")
+        history_files = sorted(HISTORY_DIR.glob("*.json"))
+        for fp in history_files:
+            symbol = fp.stem.replace("_history", "")
+            table = GOLD_TABLE if symbol in GOLD_SYMBOLS else CURRENCY_TABLE
 
-        for file_path in json_files:
-            symbol = extract_symbol_from_filename(file_path.name)
+            ins, skip = await import_file(session, fp, table)
+            total_inserted += ins
+            total_skipped += skip
+            target = "GOLD" if table == GOLD_TABLE else "CURRENCY"
+            print(f"  {fp.stem} → {target}: +{ins} rows ({skip} skipped)")
 
-            instrument_id = symbol_map.get(symbol)
-            if instrument_id is None:
-                missing_instruments.append(symbol)
-                continue
+    elapsed = time.time() - start
+    print("\n=== DONE ===")
+    print(f"Inserted: {total_inserted:,} rows")
+    print(f"Skipped: {total_skipped:,} rows")
+    print(f"Time: {elapsed:.1f}s")
 
-            await import_file(session, file_path, symbol, instrument_id, stats)
-
-            if stats["total_files"] % 100 == 0 and stats["total_files"] > 0:
-                await session.commit()
-                elapsed = time.time() - start_time
-                logger.info(
-                    "Progress: %d/%d files, %d records, %.1f sec",
-                    stats["total_files"],
-                    len(json_files),
-                    stats["total_records"],
-                    elapsed,
-                )
-
-        await session.commit()
-        elapsed = time.time() - start_time
-
-        print("\n" + "=" * 60)
-        print("  Import Summary")
-        print("=" * 60)
-        print(f"  Total JSON files:      {len(json_files)}")
-        print(f"  Successfully imported: {stats['total_files']} files")
-        print(f"  Total records:         {stats['total_records']:,}")
-        print(f"  Failed files:          {stats['failed_files']}")
-        print(f"  Missing instruments:   {len(missing_instruments)}")
-        print(f"  Time elapsed:          {elapsed:.1f} sec")
-
-        if missing_instruments:
-            print("\n  Symbols not found in instruments table (first 20):")
-            for sym in missing_instruments[:20]:
-                print(f"    - {sym}")
-            if len(missing_instruments) > 20:
-                print(f"    ... and {len(missing_instruments) - 20} more")
-
-        cnt_after = await session.execute(
-            select(func.count()).select_from(QuoteModel).where(QuoteModel.data_source == "history")
-        )
-        existing_after = cnt_after.scalar() or 0
-        print(f"\n  History quotes before:  {existing_before:,}")
-        print(f"  History quotes after:   {existing_after:,}")
-        print(f"  Net increase:           {existing_after - existing_before:,}")
-        print("=" * 60)
-
-        break
-
-    await close_database()
-    return 0
+    # Final counts
+    async with async_session_factory() as session:
+        from sqlalchemy import text
+        for t in [CRYPTO_TABLE, GOLD_TABLE, CURRENCY_TABLE]:
+            try:
+                r = await session.execute(text(f"SELECT COUNT(*) FROM {t}"))
+                print(f"  {t}: {r.scalar():,} rows")
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    asyncio.run(main())

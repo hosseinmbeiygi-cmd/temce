@@ -1,12 +1,10 @@
-# test_kiss.py
-from kiss_agent_framework import Agent
+import pytest
 
-# تعریف یک عامل ساده
-agent = Agent(
-    name="test_agent",
-    instructions="You are a helpful assistant."
-)
+# Skip the entire module if the optional kiss_agent_framework is not installed.
+kiss = pytest.importorskip("kiss_agent_framework", reason="kiss_agent_framework is not installed")
 
-# اجرای عامل با یک پیام
-response = agent.run("سلام! وضعیت هوش مصنوعی چطور است؟")
-print(response)
+
+def test_kiss_agent():
+    agent = kiss.Agent(name="test_agent", instructions="You are a helpful assistant.")
+    response = agent.run("سلام! وضعیت هوش مصنوعی چطور است؟")
+    print(response)

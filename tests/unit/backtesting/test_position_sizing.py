@@ -47,4 +47,3 @@ def test_risk_based_sizing():
     size = sizer.calculate(capital=1_000_000_000, price=15000, stop_loss_pct=2.0)
     expected = (1_000_000_000 * 0.02) / (15000 * 0.02)
     assert size == pytest.approx(expected, rel=0.01)
-

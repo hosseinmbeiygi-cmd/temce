@@ -14,7 +14,11 @@ export function useNotifications(): UseNotificationsReturn {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPermission(Notification.permission as Permission);
+      // Defer so the state update doesn't run synchronously during commit
+      const timer = setTimeout(() => {
+        setPermission(Notification.permission as Permission);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, []);
 

@@ -39,7 +39,19 @@ class SchedulerApp:
         self.add_job("SyncQuotesJob", trigger="interval", minutes=2)
         self.add_job("SyncSnapshotsToQuotesJob", trigger="interval", minutes=2)
         self.add_job("SyncCodalJob", trigger="interval", hours=6)
+        self.add_job(
+            "CodalAttachmentDownloadJob",
+            trigger="interval",
+            minutes=15,
+            max_instances=1,
+            replace_existing=True,
+        )
+        self.add_job("SyncNavAllJob", trigger="cron", hour=9, minute=0, max_instances=1, replace_existing=True)
         self.add_job("NewsIngestionJob", trigger="interval", minutes=10)
+
+        # ── Evaluate user price/volume/RSI alerts against live data ──
+        # Runs every 2 minutes so alerts fire shortly after the condition holds.
+        self.add_job("EvaluateAlertsJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
 
         # ── Backfill historical data (daily, off-peak hours) ──
         self.add_job(
@@ -55,6 +67,16 @@ class SchedulerApp:
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 
     async def run_forever(self) -> None:
+        # Init Redis cache in the background so JobLocking uses the
+        # distributed (Redis) lock in this process instead of the
+        # single-process in-memory fallback. Non-blocking: until the
+        # connection is ready, JobLocking degrades to in-memory locking.
+        try:
+            from core.cache import get_cache
+
+            asyncio.create_task(get_cache().initialize())
+        except Exception:
+            logger.warning("Redis cache init failed; scheduler falls back to in-memory locks")
         self.start()
         while True:
             await asyncio.sleep(3600)

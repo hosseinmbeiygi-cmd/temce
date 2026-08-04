@@ -9,16 +9,19 @@ import { apiGet, apiPost, extractArray } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface StrategyLeg { side: string; type: string; strike?: number; premium?: number; quantity: number; }
+interface CostResult { gross_pnl: number; commission: number; net_pnl: number; net_pnl_pct: number; breakeven: number; }
+interface SizingResult { max_contracts: number; total_cost: number; pct_of_capital: number; }
 interface StrategyInfo { id: string; name: string; name_fa: string; category: string; market: string; risk: string; legs: number; score?: number; }
 interface StrategyAnalysis {
-  strategy_name: string; strategy_name_fa: string; legs: any[];
+  strategy_name: string; strategy_name_fa: string; legs: StrategyLeg[];
   max_profit: number; max_loss: number; break_even: number[];
   initial_cost: number; market_condition: string; risk_level: string;
-  description: string; description_fa: string; best_for: string; example: any;
+  description: string; description_fa: string; best_for: string; example: unknown;
   profit_at_expiry: { price: number; profit: number }[];
 }
 interface OptionContract { symbol: string; name: string; type: string; strike: number; price: number; volume: number; oi: number; days_to_expiry: number; underlying_price: number; bid: number; ask: number; open: number; high: number; low: number; trades: number; }
-interface ChainData { calls: OptionContract[]; puts: OptionContract[]; underlying_price: number; analysis?: Record<string, any>; total_contracts?: number; }
+interface ChainData { calls: OptionContract[]; puts: OptionContract[]; underlying_price: number; analysis?: Record<string, unknown>; total_contracts?: number; }
 interface LiveSymbol { symbol: string; contracts: number; volume: number; price: number; }
 interface GlossaryItem { fa: string; en: string; desc: string; }
 interface MistakeItem { mistake: string; solution: string; }
@@ -245,7 +248,7 @@ export default function OptionsPage() {
                   <div className="mb-3">
                     <p className="text-[10px] text-surface-500 mb-1">اجزای استراتژی</p>
                     <div className="space-y-1">
-                      {analysis.legs.map((leg: any, i: number) => (
+                      {analysis.legs.map((leg: StrategyLeg, i: number) => (
                         <div key={i} className="flex items-center gap-1.5 text-[10px]">
                           <span className={`px-1.5 py-0.5 rounded-full ${leg.side === "buy" ? "bg-accent-emerald/20 text-accent-emerald" : "bg-accent-rose/20 text-accent-rose"}`}>{leg.side === "buy" ? "خرید" : "فروش"}</span>
                           <span className="text-surface-300">{leg.type === "stock" ? "سهام" : leg.type === "call" ? "Call" : "Put"}</span>
@@ -315,7 +318,7 @@ export default function OptionsPage() {
                   <Card title="تحلیل زنجیره">
                     <div className="space-y-2 text-xs">
                       {[{ k: "atm_strike", l: "ATM Strike" }, { k: "put_call_ratio", l: "Put-Call Ratio" }, { k: "max_pain", l: "Max Pain" }, { k: "pcr_interpretation", l: "سیگنال" }].map(({ k, l }) => (
-                        <div key={k} className="flex justify-between"><span className="text-surface-500">{l}</span><span className="text-surface-200 font-mono">{chainData.analysis?.[k] ?? "—"}</span></div>
+                        <div key={k} className="flex justify-between"><span className="text-surface-500">{l}</span><span className="text-surface-200 font-mono">{String(chainData.analysis?.[k] ?? "—")}</span></div>
                       ))}
                     </div>
                   </Card>
@@ -412,11 +415,11 @@ function ProfessionalTab() {
   const [sizingLoss, setSizingLoss] = useState(500);
 
   const costMutation = useMutation({
-    mutationFn: async () => { const d = await apiPost<{ data: any }>("/options/professional/costs", { entry_price: costEntry, exit_price: costExit, quantity: costQty, is_option: true }); return d.data; },
+    mutationFn: async () => { const d = await apiPost<{ data: CostResult }>("/options/professional/costs", { entry_price: costEntry, exit_price: costExit, quantity: costQty, is_option: true }); return d.data; },
   });
 
   const sizingMutation = useMutation({
-    mutationFn: async () => { const d = await apiPost<{ data: any }>("/options/professional/position-sizing", { capital: sizingCapital, risk_per_trade_pct: sizingRisk, max_loss_per_contract: sizingLoss }); return d.data; },
+    mutationFn: async () => { const d = await apiPost<{ data: SizingResult }>("/options/professional/position-sizing", { capital: sizingCapital, risk_per_trade_pct: sizingRisk, max_loss_per_contract: sizingLoss }); return d.data; },
   });
 
   return (

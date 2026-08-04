@@ -126,6 +126,45 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Reverse proxy / TLS termination ──────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro
+      - ./deploy/nginx/logs:/var/log/nginx
+    depends_on:
+      - api
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: "128M"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: ghcr.io/${REPOSITORY:-iran-market-platform}/frontend:${VERSION:-latest}
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://nginx/api/v1
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "512M"
+
 networks:
   internal:
     driver: overlay

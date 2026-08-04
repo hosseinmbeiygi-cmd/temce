@@ -16,6 +16,10 @@ type AuditRow = {
   total_reports: number; analysis_status: string;
 };
 
+interface HealthDistRow { health_classification: string; cnt: number; avg_score: number; }
+interface TopRoeRow { symbol: string; roe: number; net_margin: number; health_score: number; health_classification: string; }
+interface AuditStatsData { health_distribution: HealthDistRow[]; top_roe: TopRoeRow[]; }
+
 function fmt(v: number | null, pct = false): string {
   if (v === null || v === undefined) return "-";
   if (pct) return (v * 100).toFixed(1) + "%";
@@ -52,17 +56,17 @@ export default function CodalAuditPage() {
 
   const { data: summary, isLoading: sLoad } = useQuery({
     queryKey: ["ca-sum", page, search, health, sortBy, sortDir],
-    queryFn: () => apiGet<any>("/codal-audit/summary?page=" + page + "&page_size=50&search=" + search + "&health=" + health + "&sort_by=" + sortBy + "&sort_dir=" + sortDir),
+    queryFn: () => apiGet<{ data?: { items?: AuditRow[]; total?: number; total_pages?: number } }>("/codal-audit/summary?page=" + page + "&page_size=50&search=" + search + "&health=" + health + "&sort_by=" + sortBy + "&sort_dir=" + sortDir),
   });
 
   const { data: stats, isLoading: stLoad } = useQuery({
     queryKey: ["ca-stats"],
-    queryFn: () => apiGet<any>("/codal-audit/stats"),
+    queryFn: () => apiGet<{ data?: AuditStatsData }>("/codal-audit/stats"),
   });
 
   const { data: sym, isLoading: symLoad } = useQuery({
     queryKey: ["ca-sym", sel],
-    queryFn: () => apiGet<any>("/codal-audit/symbol/" + sel),
+    queryFn: () => apiGet<{ data?: AuditRow }>("/codal-audit/symbol/" + sel),
     enabled: !!sel,
   });
 
@@ -86,7 +90,7 @@ export default function CodalAuditPage() {
         {tab === "stats" && sd && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {sd.health_distribution.map((h: any) => (
+              {sd.health_distribution.map((h: HealthDistRow) => (
                 <div key={h.health_classification} className="bg-surface-800 rounded-xl p-4 border border-surface-700">
                   <div className={"text-sm font-medium " + hc(h.health_classification).split(" ")[0]}>{hl(h.health_classification)}</div>
                   <div className="text-2xl font-bold text-white mt-1">{h.cnt}</div>
@@ -102,7 +106,7 @@ export default function CodalAuditPage() {
                     <th className="py-2 text-right">نماد</th><th className="py-2 text-right">ROE</th><th className="py-2 text-right">حاشيه سود</th><th className="py-2 text-right">امتياز</th><th className="py-2 text-right">وضعيت</th>
                   </tr></thead>
                   <tbody>
-                    {sd.top_roe.map((r: any) => (
+                    {sd.top_roe.map((r: TopRoeRow) => (
                       <tr key={r.symbol} className="border-b border-surface-700/50 hover:bg-surface-700/30 cursor-pointer" onClick={() => setSel(r.symbol)}>
                         <td className="py-2 text-white font-medium">{r.symbol}</td>
                         <td className="py-2 text-green-400">{fmt(r.roe)}</td>

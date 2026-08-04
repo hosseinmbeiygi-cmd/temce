@@ -5,7 +5,7 @@ from typing import Any
 from domain.analytics.indicator import Indicator
 from domain.analytics.recommendation import Recommendation
 from domain.analytics.signal import Signal
-from domain.instruments.entities import Instrument
+from domain.instruments.instrument import Instrument
 from domain.market_data.quote import Quote
 
 

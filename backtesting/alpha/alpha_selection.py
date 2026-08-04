@@ -65,7 +65,7 @@ class AlphaSelection:
             List of selected alpha IDs
         """
         selected: list[str] = []
-        for cluster_id, alpha_ids in clusters.items():
+        for _cluster_id, alpha_ids in clusters.items():
             if not alpha_ids:
                 continue
 
@@ -129,7 +129,7 @@ class AlphaSelection:
     @staticmethod
     def capacity_analysis(alpha_turnover: dict[str, float], adv: float, max_participation: float = 0.1) -> dict[str, float]:
         """Estimate alpha capacity (how much capital it can handle).
-        
+
         Capacity ≈ ADV * participation / turnover
         """
         capacity: dict[str, float] = {}

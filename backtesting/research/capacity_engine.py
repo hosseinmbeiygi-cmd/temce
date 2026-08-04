@@ -89,10 +89,7 @@ class CapacityEngine:
 
         # Determine limiting factor
         max_capital = min(max_capital_turnover, max_capital_impact)
-        if max_capital_turnover <= max_capital_impact:
-            limiting_factor = "participation_rate"
-        else:
-            limiting_factor = "market_impact"
+        limiting_factor = "participation_rate" if max_capital_turnover <= max_capital_impact else "market_impact"
 
         # Expected impact at max capital
         effective_q = max_capital * turnover

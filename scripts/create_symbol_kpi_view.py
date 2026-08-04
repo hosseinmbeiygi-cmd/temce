@@ -5,14 +5,13 @@ Uses a two-step approach to avoid timing out on the 7.3M quotes table:
 2. Create the materialized view using the pre-computed data
 """
 import asyncio
+import contextlib
 import sys
 
 sys.path.insert(0, ".")
 
-try:
+with contextlib.suppress(AttributeError):
     sys.stdout.reconfigure(encoding="utf-8")
-except AttributeError:
-    pass
 
 
 async def create_view():

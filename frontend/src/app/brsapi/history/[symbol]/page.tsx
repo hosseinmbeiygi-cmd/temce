@@ -156,7 +156,7 @@ export default function BrsapiHistoryPage() {
       } else {
         setData([]);
         setTotal(0);
-        throw new Error((res as any)?.error || "داده‌ای یافت نشد");
+        throw new Error((res as { error?: string })?.error || "داده‌ای یافت نشد");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطا در دریافت داده");
@@ -165,12 +165,17 @@ export default function BrsapiHistoryPage() {
     setLoading(false);
   }, [decodedSymbol, range, dateStart, dateEnd, page]);
 
+  // Reset page when filters change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional synchronous state reset on mount/filter change
     setPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decodedSymbol, range, dateStart, dateEnd]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional synchronous state reset on mount/filter change
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData]);
 
   // Derived data for chart

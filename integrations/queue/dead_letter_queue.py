@@ -9,6 +9,12 @@ logger = get_logger(__name__)
 
 
 class DeadLetterQueue:
+    """
+    Dead-letter queue that retains the *full original message* so that
+    ``replay`` can faithfully re-publish it (fixes a bug where only the
+    message id was stored and replays always sent an empty body).
+    """
+
     def __init__(self, broker: Broker, queue_name: str = "dead_letter"):
         self._broker = broker
         self._queue_name = queue_name
@@ -27,20 +33,41 @@ class DeadLetterQueue:
             headers={"x-dead-letter": "true", "x-reason": reason},
         )
         await self._broker.publish(self._queue_name, dlq_msg)
-        self._messages.append({"message_id": message.message_id, "reason": reason})
+        self._messages.append(
+            {
+                "message_id": message.message_id,
+                "reason": reason,
+                "original_body": message.body,
+                "original_routing_key": message.routing_key,
+                "original_headers": message.headers,
+            }
+        )
         logger.warning("Message %s sent to DLQ: %s", message.message_id, reason)
 
     async def list_messages(self) -> list[dict[str, Any]]:
         return list(self._messages)
 
     async def replay(self, message_id: str, target_queue: str) -> bool:
+        """Replay a dead-lettered message to ``target_queue``.
+
+        The message is re-published with its original body and headers; the
+        delivery destination is always the explicitly requested
+        ``target_queue`` (the original routing key is kept in the DLQ entry
+        for reference).
+        """
         for entry in self._messages:
             if entry["message_id"] == message_id:
-                original = entry.get("original_body", {})
-                msg = Message(body=original, routing_key=target_queue)
+                original = entry.get("original_body")
+                headers = dict(entry.get("original_headers") or {})
+                msg = Message(body=original, routing_key=target_queue, headers=headers)
                 await self._broker.publish(target_queue, msg)
                 self._messages.remove(entry)
-                logger.info("Replayed message %s to %s", message_id, target_queue)
+                logger.info(
+                    "Replayed message %s to %s (originally %s)",
+                    message_id,
+                    target_queue,
+                    entry.get("original_routing_key") or "?",
+                )
                 return True
         return False
 

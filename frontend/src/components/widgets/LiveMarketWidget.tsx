@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
@@ -330,14 +330,8 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
     mockCells.map((c) => c.symbol)
   );
 
-  // Track whether WS has delivered any data for symbols
-  const [wsHasData, setWsHasData] = useState(false);
-
-  useEffect(() => {
-    if (wsConnected && wsPrices.size > 0) {
-      setWsHasData(true);
-    }
-  }, [wsConnected, wsPrices]);
+  // Track whether WS has delivered any data for symbols (derived — no effect needed)
+  const wsHasData = wsConnected && wsPrices.size > 0;
 
   // ------ Fetch enriched real-time symbol data ---------------------------
   const { data: symbolCells = mockCells as LiveSymbolCell[], isFetching: symbolsLoading, dataUpdatedAt: symbolsUpdatedAt } = useQuery<LiveSymbolCell[]>({

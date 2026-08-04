@@ -43,4 +43,3 @@ def test_manual_provider_list_submissions():
     provider = ManualProvider()
     submissions = provider.list_submissions()
     assert isinstance(submissions, list)
-

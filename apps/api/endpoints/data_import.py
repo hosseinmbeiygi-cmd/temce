@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
+from core.db_utils import safe_row_str
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -32,8 +33,8 @@ async def get_import_history(
         jobs: list[dict[str, Any]] = []
         for row in r.fetchall():
             jobs.append({
-                "id": row[0] or "",
-                "job_type": row[1] or "",
+                "id": safe_row_str(row, idx=0),
+                "job_type": safe_row_str(row, idx=1),
                 "status": row[2] or "unknown",
                 "started_at": row[3].isoformat() if row[3] else None,
                 "completed_at": row[4].isoformat() if row[4] else None,

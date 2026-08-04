@@ -308,7 +308,10 @@ export default function GeneratePage() {
   const [allDbSymbols, setAllDbSymbols] = useState<{ symbol: string; bar_count: number }[]>([]);
   const [loadingDbSymbols, setLoadingDbSymbols] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setMounted(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   // Strategy selection
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([

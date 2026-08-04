@@ -34,15 +34,15 @@ class SqueezeMomentumStrategy(BaseStrategy):
         self._was_squeezing = False
 
     def on_bar(self, bar: dict[str, Any]) -> list[OrderEvent]:
-        h = bar.get("high", 0)
-        l = bar.get("low", 0)
-        c = bar.get("close", 0)
-        if c <= 0:
+        high = bar.get("high", 0)
+        low = bar.get("low", 0)
+        close = bar.get("close", 0)
+        if close <= 0:
             return []
 
-        self._highs.append(h)
-        self._lows.append(l)
-        self._closes.append(c)
+        self._highs.append(high)
+        self._lows.append(low)
+        self._closes.append(close)
 
         min_len = max(self.bb_period, self.kc_period) + 1
         if len(self._closes) < min_len:
@@ -63,26 +63,26 @@ class SqueezeMomentumStrategy(BaseStrategy):
         orders: list[OrderEvent] = []
 
         if self._was_squeezing and not is_squeezing and mom_positive and self._position <= 0:
-            qty = self._compute_quantity(c)
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
                     quantity=qty,
-                    price=c,
+                    price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
         elif not mom_positive and self._position > 0 and not is_squeezing:
-            qty = self._compute_quantity(c)
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
                     quantity=qty,
-                    price=c,
+                    price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )

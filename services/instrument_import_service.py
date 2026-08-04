@@ -245,7 +245,7 @@ class InstrumentImportService:
         if isinstance(rows[0], dict) and "symbol" not in rows[0]:
             return Result.fail(
                 "File must have a 'symbol' column. Found columns: "
-                + ", ".join(sorted(str(k) for k in rows[0].keys()))
+                + ", ".join(sorted(str(k) for k in rows[0]))
             )
 
         kwargs_list: list[dict[str, Any]] = []

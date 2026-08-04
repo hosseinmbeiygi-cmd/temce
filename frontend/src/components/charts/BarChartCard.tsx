@@ -33,6 +33,14 @@ interface BarChartCardProps {
   showAverage?: boolean;
 }
 
+interface TooltipEntry {
+  value?: number | string;
+  dataKey?: string;
+  color?: string;
+  stroke?: string;
+  name?: string;
+}
+
 const defaultFormat = (v: number) => {
   if (v >= 1_000_000_000_000) return `${(v / 1_000_000_000_000).toFixed(1)}T`;
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)}B`;
@@ -48,7 +56,7 @@ function CustomTooltip({
   labelName,
 }: {
   active?: boolean;
-  payload?: any[];
+  payload?: TooltipEntry[];
   label?: string;
   fmt: (v: number) => string;
   labelName: string;
@@ -102,7 +110,7 @@ export default function BarChartCard({
   // Calculate average
   const avgVal = useMemo(() => 
     showAverage && data.length > 0
-      ? data.reduce((s, d) => s + (Number((d as any)[dataKey]) || 0), 0) / data.length
+      ? data.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0) / data.length
       : null
   , [data, dataKey, showAverage]);
 

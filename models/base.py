@@ -9,4 +9,12 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC).replace(tzinfo=None), server_default=func.now())
+    # Both defaults come from the DB clock (``now()``) so Python-side inserts
+    # and server-side defaults are guaranteed consistent — no naive/aware or
+    # UTC/local mismatch depending on who writes the row.  Column stays naive
+    # ``timestamp`` to match the existing migration history.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=func.now(),
+        server_default=func.now(),
+    )

@@ -66,4 +66,3 @@ class TestLogger:
             assert "INFO" in output
         finally:
             handler.stream = old_stream
-

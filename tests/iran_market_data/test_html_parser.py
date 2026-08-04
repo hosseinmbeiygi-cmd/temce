@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from iran_market_data.app.parsers.html_parser import extract_links, parse_tables_with_pandas
+from iran_market_data.app.parsers.html_parser import (
+    extract_links,
+    parse_tables_with_pandas,
+)
 
 
 class TestParseTables:
@@ -85,4 +88,3 @@ class TestExtractLinks:
         hrefs = [link["href"] for link in links]
         assert any("report.pdf" in h for h in hrefs)
         assert any("data.xlsx" in h for h in hrefs)
-

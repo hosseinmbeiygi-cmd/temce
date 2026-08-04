@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import {
   loadSyncSettings,
@@ -112,13 +112,9 @@ function SectionRow({ sectionKey, setting, onChange, previewStatus }: SectionRow
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SyncSettingsPage() {
-  const [settings, setSettings] = useState<SyncSettingsMap>({ ...DEFAULT_SYNC_SETTINGS });
+  const [settings, setSettings] = useState<SyncSettingsMap>(() => loadSyncSettings());
   const [saved, setSaved] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
-
-  useEffect(() => {
-    setSettings(loadSyncSettings());
-  }, []);
 
   const handleChange = useCallback((key: string, value: number) => {
     setSettings((prev) => ({

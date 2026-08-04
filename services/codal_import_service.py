@@ -117,7 +117,7 @@ def parse_xlsx(content: bytes) -> tuple[list[dict[str, str]], list[str]]:
 
     raw_rows: list[list[Any]] = []
     for row in ws.iter_rows(values_only=True):
-        raw_rows.append([cell for cell in row])
+        raw_rows.append(list(row))
 
     wb.close()
 
@@ -162,12 +162,12 @@ def row_to_disclosure_kwargs(
     }
 
     # Map columns
-    for col, field in col_map.items():
+    for col, target_field in col_map.items():
         # Try normalised key first, then raw cleaned key
         val = norm_lookup.get(_normalise_key(col), "") or norm_lookup.get(col, "")
         if not val:
             continue
-        kwargs[field] = val
+        kwargs[target_field] = val
 
     # Symbol: prefer mapped symbol, fall back to default
     if not kwargs.get("symbol"):

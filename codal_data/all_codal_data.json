@@ -1,0 +1,66 @@
+[
+  {
+    "symbol": "آباد",
+    "total_announcements": 692,
+    "total_pages": 35,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:32:32.333694",
+    "announcements": []
+  },
+  {
+    "symbol": "آتش",
+    "total_announcements": 100,
+    "total_pages": 5,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:32:38.177853",
+    "announcements": []
+  },
+  {
+    "symbol": "آرام",
+    "total_announcements": 136,
+    "total_pages": 7,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:32:43.757616",
+    "announcements": []
+  },
+  {
+    "symbol": "آردینه",
+    "total_announcements": 168,
+    "total_pages": 9,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:32:54.432764",
+    "announcements": []
+  },
+  {
+    "symbol": "آسيا",
+    "total_announcements": 598,
+    "total_pages": 30,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:32:59.848725",
+    "announcements": []
+  },
+  {
+    "symbol": "آسیا",
+    "total_announcements": 598,
+    "total_pages": 30,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:33:16.119791",
+    "announcements": []
+  },
+  {
+    "symbol": "آفاق",
+    "total_announcements": 140,
+    "total_pages": 7,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:33:21.764285",
+    "announcements": []
+  },
+  {
+    "symbol": "آكنتور",
+    "total_announcements": 206,
+    "total_pages": 11,
+    "fetched_count": 0,
+    "fetched_at": "2026-07-21T08:33:27.634607",
+    "announcements": []
+  }
+]

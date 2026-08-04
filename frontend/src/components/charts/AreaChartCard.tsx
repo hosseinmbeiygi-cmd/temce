@@ -60,6 +60,14 @@ interface AreaChartCardProps {
 
 const defaultFormatter = (v: number) => v.toLocaleString("fa-IR");
 
+interface TooltipEntry {
+  value?: number | string;
+  dataKey?: string;
+  color?: string;
+  stroke?: string;
+  name?: string;
+}
+
 // ── Custom Tooltip (Advanced) ───────────────────────────────────────────────
 function CustomTooltip({
   active,
@@ -71,7 +79,7 @@ function CustomTooltip({
   allData,
 }: {
   active?: boolean;
-  payload?: any[];
+  payload?: TooltipEntry[];
   label?: string;
   labelMap: Record<string, string>;
   fmt: (v: number) => string;
@@ -81,7 +89,7 @@ function CustomTooltip({
   if (!active || !payload?.length) return null;
 
   const currentIndex = allData.findIndex(d => 
-    (d as any).time === label || d.date === label
+    (d as { time?: string }).time === label || d.date === label
   );
   
   const prevItem = currentIndex > 0 ? allData[currentIndex - 1] : null;
@@ -90,7 +98,7 @@ function CustomTooltip({
   // Calculate change from previous
   let changePct: number | null = null;
   if (prevItem) {
-    const prevVal = Number((prevItem as any)[dataKey]) || 0;
+    const prevVal = Number(prevItem[dataKey]) || 0;
     if (prevVal > 0) {
       changePct = ((currentValue - prevVal) / prevVal) * 100;
     }
@@ -128,9 +136,9 @@ function CustomTooltip({
 
       {/* Series values */}
       <div className="space-y-1.5">
-        {payload.map((entry: any, idx: number) => {
+        {payload.map((entry: TooltipEntry, idx: number) => {
           const color = entry.color || entry.stroke || "#888";
-          const name = labelMap[entry.dataKey] || entry.dataKey;
+          const name = (entry.dataKey && labelMap[entry.dataKey]) || entry.dataKey || "";
           const val = fmt(Number(entry.value) || 0);
           return (
             <div key={idx} className="flex items-center justify-between gap-4">
@@ -155,7 +163,7 @@ function CustomTooltip({
           <span className="text-surface-500 text-[10px]">مجموع</span>
           <span className="font-mono font-bold text-surface-100 tracking-wide" dir="ltr">
             {fmt(
-              payload.reduce((s: number, p: any) => s + (Number(p.value) || 0), 0),
+              payload.reduce((s: number, p: TooltipEntry) => s + (Number(p.value) || 0), 0),
             )}
           </span>
         </div>
@@ -165,11 +173,11 @@ function CustomTooltip({
 }
 
 // ── Legend Content ──────────────────────────────────────────────────────────
-function ChartLegend({ payload }: { payload?: any[] }) {
+function ChartLegend({ payload }: { payload?: TooltipEntry[] }) {
   if (!payload?.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-3 mt-2 justify-center">
-      {payload.map((entry: any, idx: number) => (
+      {payload.map((entry: TooltipEntry, idx: number) => (
         <div key={idx} className="flex items-center gap-1.5 text-[10px]">
           <span
             className="w-3 h-3 rounded-sm"
@@ -219,7 +227,7 @@ export default function AreaChartCard({
   // Calculate average for reference line
   const avgVal = useMemo(() => 
     showAverage && data.length > 0
-      ? data.reduce((s, d) => s + (Number((d as any)[dataKey]) || 0), 0) / data.length
+      ? data.reduce((s, d) => s + (Number(d[dataKey]) || 0), 0) / data.length
       : null
   , [data, dataKey, showAverage]);
 
@@ -228,7 +236,7 @@ export default function AreaChartCard({
     if (!showMinMax || data.length === 0) return { minVal: null, maxVal: null };
     let mn = Infinity, mx = -Infinity;
     data.forEach((d) => {
-      const v = Number((d as any)[dataKey]) || 0;
+      const v = Number(d[dataKey]) || 0;
       if (v < mn) { mn = v; }
       if (v > mx) { mx = v; }
     });

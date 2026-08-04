@@ -5,10 +5,13 @@ from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
+from core.db_utils import safe_row_str
 from core.exceptions import NotFoundError
 from core.logging import get_logger
 from core.result import PaginatedResult
@@ -16,6 +19,7 @@ from schemas.api.codal import CodalListResponse, CodalReportResponse, CodalSearc
 
 logger = get_logger(__name__)
 from schemas.common.responses import ApiResponse
+from services.codal_attachment_service import CodalAttachmentDownloadService
 from services.codal_service import CodalService
 
 
@@ -159,36 +163,71 @@ async def brsapi_search_announcements(
     audited: str | None = Query(None, description="Audited filter (true/false)"),
     unaudited: str | None = Query(None, description="Unaudited filter (true/false)"),
     page: int = Query(1, ge=1, le=100),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
-    """Proxy search to the BrsApi Codal Announcement API with all filters."""
-    from brsapi.client import get_client
-    from brsapi.config import BrsApiEndpoints
-    from brsapi.parsers import CodalParser
+    """Search codal announcements from local database."""
+    conditions = []
+    params: dict[str, Any] = {}
+
+    if symbol:
+        conditions.append("symbol = :symbol")
+        params["symbol"] = symbol
+    if date_start:
+        conditions.append("publish_date >= :date_start")
+        params["date_start"] = date_start
+    if date_end:
+        conditions.append("publish_date <= :date_end")
+        params["date_end"] = date_end
+    if audited == "true":
+        conditions.append("audit_status = 'audited'")
+    elif unaudited == "true":
+        conditions.append("audit_status = 'unaudited'")
+
+    where = " AND ".join(conditions) if conditions else "1=1"
+    limit = 20
+    offset = (page - 1) * limit
 
     try:
-        client = await get_client()
-        params: dict[str, str] = {"page": str(page)}
-        if symbol:
-            params["l18"] = symbol
-        if category:
-            params["category"] = category
-        if date_start:
-            params["date_start"] = date_start
-        if date_end:
-            params["date_end"] = date_end
-        if audited is not None:
-            params["audited"] = audited
-        if unaudited is not None:
-            params["unaudited"] = unaudited
+        # Count
+        count_r = await session.execute(text(f"""
+            SELECT COUNT(*) FROM codal_reports WHERE {where}
+        """), params)
+        total = count_r.scalar() or 0
 
-        result = await client.fetch(BrsApiEndpoints.CODAL_ANNOUNCEMENT, params=params)
-        if not result.success:
-            return ApiResponse[dict[str, Any]](success=False, error={"message": result.error or "API error"})
+        # Fetch page
+        rows_r = await session.execute(text(f"""
+            SELECT symbol, company_name, report_type, period, audit_status,
+                   publish_date, summary, attachment_url
+            FROM codal_reports WHERE {where}
+            ORDER BY publish_date DESC
+            LIMIT {limit} OFFSET {offset}
+        """), params)
 
-        parsed = CodalParser.parse(result.value.data)
-        return ApiResponse[dict[str, Any]](success=True, data=parsed)
+        announcements = []
+        for row in rows_r.fetchall():
+            announcements.append({
+                "l18": row[0], "l30": safe_row_str(row, idx=1),
+                "title": safe_row_str(row, idx=6) or safe_row_str(row, idx=2),
+                "code": safe_row_str(row, idx=2),
+                "date_title": safe_row_str(row, idx=5),
+                "date_send": safe_row_str(row, idx=5),
+                "time_send": "",
+                "date_publish": safe_row_str(row, idx=5),
+                "time_publish": "",
+                "link": safe_row_str(row, idx=7),
+                "link_pdf": "",
+                "link_excel": "",
+                "link_attachment": safe_row_str(row, idx=7),
+                "audit_status": safe_row_str(row, idx=4),
+            })
+
+        return ApiResponse[dict[str, Any]](success=True, data={
+            "count_announcement": total,
+            "count_page": (total + limit - 1) // limit,
+            "announcement": announcements,
+        })
     except Exception as exc:
-        logger.exception("BrsApi announcement search failed")
+        logger.exception("Codal search failed")
         return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
 
 
@@ -213,10 +252,7 @@ async def search_announcements(
         )
         has_next = len(items) > page_size
         page_items = items[:page_size]
-        if has_next:
-            estimated_total = page * page_size + 1
-        else:
-            estimated_total = (page - 1) * page_size + len(page_items)
+        estimated_total = page * page_size + 1 if has_next else (page - 1) * page_size + len(page_items)
         total_pages = max(1, (estimated_total + page_size - 1) // page_size)
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=True,
@@ -232,7 +268,7 @@ async def search_announcements(
         logger.exception("Announcements search failed")
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
-            data=PaginatedResult(items=[], total=0, page=1, page_size=page_size, total_pages=0),
+            data=PaginatedResult(items=[], total=0, page=1, page_size=page_size, total_pages=1),
             error={"message": str(exc)},
         )
 
@@ -600,3 +636,98 @@ async def insider_trades(code: str) -> ApiResponse[dict[str, Any]]:
         ],
     }
     return ApiResponse[dict[str, Any]](success=True, data=data)
+
+
+@router.get("/announcements/{announcement_id}/attachments")
+async def list_announcement_attachments(
+    announcement_id: int,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[list[dict[str, Any]]]:
+    """List downloaded/stored attachments for a Codal announcement."""
+    from sqlalchemy import select
+
+    from brsapi.models.codal import CodalAttachmentModel
+
+    rows = await session.execute(
+        select(CodalAttachmentModel).where(CodalAttachmentModel.announcement_id == announcement_id)
+    )
+    items = []
+    for row in rows.scalars().all():
+        items.append(
+            {
+                "id": row.id,
+                "announcement_id": row.announcement_id,
+                "symbol": row.symbol,
+                "code": row.code,
+                "attachment_type": row.attachment_type,
+                "source_url": row.source_url,
+                "storage_type": row.storage_type,
+                "storage_path": row.storage_path,
+                "file_size": row.file_size,
+                "mime_type": row.mime_type,
+                "status": row.status,
+                "error_message": row.error_message,
+                "downloaded_at": row.downloaded_at.isoformat() if row.downloaded_at else None,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=items)
+
+
+@router.get("/announcements/{announcement_id}/attachments/{attachment_type}/download")
+async def download_announcement_attachment(
+    announcement_id: int,
+    attachment_type: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> StreamingResponse:
+    """Download a stored Codal attachment (pdf/excel/attachment/html)."""
+    from sqlalchemy import select
+
+    from brsapi.models.codal import CodalAttachmentModel
+
+    row = (
+        await session.execute(
+            select(CodalAttachmentModel).where(
+                CodalAttachmentModel.announcement_id == announcement_id,
+                CodalAttachmentModel.attachment_type == attachment_type,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if not row:
+        raise NotFoundError(
+            entity="CodalAttachment",
+            identifier=f"{announcement_id}/{attachment_type}",
+        )
+
+    if row.status != "done":
+        raise NotFoundError(
+            entity="CodalAttachment",
+            identifier=f"{announcement_id}/{attachment_type}",
+        )
+
+    service = CodalAttachmentDownloadService(session, storage_type=row.storage_type)
+
+    # Local storage streams from disk; S3 reads the object into memory. Both
+    # paths are exposed as an async iterator so StreamingResponse stays uniform.
+    async def _stream():
+        async for chunk in await service.get_attachment_stream(row):
+            yield chunk
+
+    content_iterator = _stream()
+
+    filename = f"{row.symbol or 'codal'}_{row.code or announcement_id}_{attachment_type}"
+    if row.mime_type == "application/pdf":
+        filename += ".pdf"
+    elif row.mime_type and "excel" in row.mime_type:
+        filename += ".xlsx"
+    elif row.mime_type == "text/html":
+        filename += ".html"
+    else:
+        filename += ".bin"
+
+    return StreamingResponse(
+        content_iterator,
+        media_type=row.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

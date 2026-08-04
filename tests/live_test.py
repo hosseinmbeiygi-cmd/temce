@@ -13,13 +13,18 @@ from apps.api.app import app
 async def test():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        r = await c.post("/api/v1/backtests/run", json={
-            "name": "T", "symbols": ["فولاد"],
-            "strategy_type": "moving_average_cross",
-            "strategy_params": {"fast_period": 5, "slow_period": 20},
-            "start_date": "2025-03-01", "end_date": "2025-06-01",
-            "initial_capital": 1000000000,
-        })
+        r = await c.post(
+            "/api/v1/backtests/run",
+            json={
+                "name": "T",
+                "symbols": ["فولاد"],
+                "strategy_type": "moving_average_cross",
+                "strategy_params": {"fast_period": 5, "slow_period": 20},
+                "start_date": "2025-03-01",
+                "end_date": "2025-06-01",
+                "initial_capital": 1000000000,
+            },
+        )
         j = r.json()
         print("RUN success:", j.get("success"), "id:", j.get("data", {}).get("id"))
         rid = j.get("data", {}).get("id")
@@ -38,12 +43,20 @@ async def test():
                 print("trades:", d.get("total_trades"))
                 print("sharpe:", d.get("sharpe_ratio"))
 
-        r3 = await c.post("/api/v1/ml/predict/linear_regression", json={"price_close": 38500, "volume": 1000000})
+        r3 = await c.post(
+            "/api/v1/ml/predict/linear_regression",
+            json={"price_close": 38500, "volume": 1000000},
+        )
         j3 = r3.json()
         print("ML predict success:", j3.get("success"))
         if j3.get("data"):
-            print("prediction:", j3["data"].get("prediction"), "confidence:", j3["data"].get("confidence"))
+            print(
+                "prediction:",
+                j3["data"].get("prediction"),
+                "confidence:",
+                j3["data"].get("confidence"),
+            )
+
 
 if __name__ == "__main__":
     asyncio.run(test())
-

@@ -25,5 +25,5 @@ async def t():
             else:
                 print("error:", j.get("error"))
 
-asyncio.run(t())
 
+asyncio.run(t())

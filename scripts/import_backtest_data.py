@@ -205,7 +205,6 @@ async def main():
         logger.info("Existing backtest quotes before import: %d", existing_before)
 
         # Track skipped files
-        skipped_symbols = []
         missing_instruments = []
 
         stats = {

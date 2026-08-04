@@ -20,10 +20,12 @@ except ImportError:
 
 
 class DatabaseConnection:
-    def __init__(self, url: str | None = None, pool_size: int = 5, max_overflow: int = 10) -> None:
+    def __init__(self, url: str | None = None, pool_size: int | None = None, max_overflow: int | None = None) -> None:
         self.url = url or settings.database_url_async
-        self.pool_size = pool_size
-        self.max_overflow = max_overflow
+        # Defaults come from core settings (single source of truth), so the
+        # pool size stays consistent across the codebase.
+        self.pool_size = pool_size if pool_size is not None else settings.database_pool_size
+        self.max_overflow = max_overflow if max_overflow is not None else settings.database_max_overflow
         self._engine: Any = None
         self._session_factory: Any = None
 

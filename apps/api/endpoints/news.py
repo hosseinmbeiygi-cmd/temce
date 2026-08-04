@@ -33,15 +33,9 @@ def _item_to_response(item: NewsItem | dict) -> NewsResponse:
         return NewsResponse(**item, trending=trending)
     pub_date = ""
     if item.publish_date:
-        if isinstance(item.publish_date, datetime):
-            pub_date = item.publish_date.isoformat()
-        else:
-            pub_date = str(item.publish_date)
+        pub_date = item.publish_date.isoformat() if isinstance(item.publish_date, datetime) else str(item.publish_date)
     elif item.created_at:
-        if isinstance(item.created_at, datetime):
-            pub_date = item.created_at.isoformat()
-        else:
-            pub_date = str(item.created_at)
+        pub_date = item.created_at.isoformat() if isinstance(item.created_at, datetime) else str(item.created_at)
     # Mark as trending if sentiment is strong (positive or negative)
     trending = item.sentiment_label in ("positive", "negative") and abs(item.sentiment or 0) > 0.3
     return NewsResponse(
@@ -135,7 +129,7 @@ async def list_news(
     if page > 1:
         return ApiResponse[PaginatedResult[NewsResponse]](
             success=True,
-            data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=0),
+            data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1),
         )
     market_news = await _get_market_news(session, page_size)
     if category and category != "market":
@@ -187,7 +181,7 @@ async def search_news(
         )
     return ApiResponse[PaginatedResult[NewsResponse]](
         success=True,
-        data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0),
+        data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=1),
     )
 
 
@@ -213,7 +207,7 @@ async def news_by_symbol(
         )
     return ApiResponse[PaginatedResult[NewsResponse]](
         success=True,
-        data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=0),
+        data=PaginatedResult(items=[], total=0, page=page, page_size=50, total_pages=1),
     )
 
 
@@ -282,23 +276,9 @@ async def trending_news(
     market_news = await _get_market_news(session, limit)
     if market_news:
         return ApiResponse[list[NewsResponse]](success=True, data=market_news[:limit])
-    # Last resort: generate placeholder trending items
-    placeholder = [
-        NewsResponse(
-            id=f"trending_{i}",
-            title=f"Trending News #{i}",
-            summary=f"Sample trending news item {i}",
-            source="Sample",
-            category="market",
-            symbols=[],
-            published_at="",
-            sentiment="neutral",
-            sentiment_score=0,
-            created_at="",
-        )
-        for i in range(limit)
-    ]
-    return ApiResponse[list[NewsResponse]](success=True, data=placeholder)
+    # No trending data available — return empty list instead of placeholders
+    logger.info("No trending news available from DB or market snapshots")
+    return ApiResponse[list[NewsResponse]](success=True, data=[])
 
 
 @router.post("/refresh")

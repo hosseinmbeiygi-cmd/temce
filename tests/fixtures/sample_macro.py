@@ -25,6 +25,11 @@ def sample_macro_indicator(
 
 
 def sample_macro_list(count: int = 5) -> list[MacroEntity]:
-    indicators = ["inflation", "unemployment", "gdp_growth", "interest_rate", "money_supply"]
+    indicators = [
+        "inflation",
+        "unemployment",
+        "gdp_growth",
+        "interest_rate",
+        "money_supply",
+    ]
     return [sample_macro_indicator(indicator=indicators[i % len(indicators)]) for i in range(count)]
-

@@ -603,8 +603,8 @@ export default function TradingViewChart({
   const lastPrice = filteredData.length > 0 ? filteredData[filteredData.length - 1].close : 0;
   const firstPrice = filteredData.length > 0 ? filteredData[0].close : 1;
   const changePct = ((lastPrice - firstPrice) / firstPrice) * 100;
-  const highAll = Math.max(...filteredData.map((d) => d.high));
-  const lowAll = Math.min(...filteredData.map((d) => d.low));
+  const highAll = filteredData.length > 0 ? Math.max(...filteredData.map((d) => d.high)) : 0;
+  const lowAll = filteredData.length > 0 ? Math.min(...filteredData.map((d) => d.low)) : 0;
   const volAll = filteredData.reduce((s, d) => s + d.volume, 0);
 
   // ── Render ──────────────────────────────────────────────────────────────

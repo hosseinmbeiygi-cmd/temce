@@ -2,53 +2,20 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from apps.admin.dashboard import router as admin_dashboard_router
-from apps.api.dependencies import get_optional_user
-from apps.api.endpoints import (
-    alerts_router,
-    alpha_router,
-    analysis_router,
-    anomalies_router,
-    assistant_router,
-    auth_router,
-    backtests_router,
-    brsapi_router,
-    chat_router,
-    codal_router,
-    data_import_router,
-    economic_calendar_router,
-    fundamental_router,
-    health_router,
-    indicators_router,
-    jobs_router,
-    macro_router,
-    market_dashboard_router,
-    market_info_router,
-    market_router,
-    market_watch_router,
-    ml_router,
-    news_router,
-    orderbooks_router,
-    portfolios_router,
-    quotes_router,
-    recommendations_router,
-    reports_router,
-    risk_router,
-    screener_router,
-    signals_router,
-    smart_money_router,
-    stock_assistant_router,
-    symbols_router,
-    tabdeal_router,
-    tables_router,
-    tests_router,
-    trades_router,
-    watchlist_router,
-)
+from apps.api.dependencies import get_current_user, get_optional_user
+from apps.api.dependencies import require_roles as require_any_role
 from schemas.common.responses import ApiResponse
 
 # Auth dependency that makes user info available if token is provided (optional)
 _optional_auth = [Depends(get_optional_user)]
+
+# Required auth dependency — token is mandatory for sensitive endpoints
+_required_auth = [Depends(get_current_user)]
+
+# Role-based dependencies (require_any_role: user must have ANY of the listed roles)
+_require_analyst = [Depends(require_any_role("analyst", "admin"))]
+_require_admin = [Depends(require_any_role("admin"))]
+_require_user = [Depends(require_any_role("user", "analyst", "admin"))]
 
 _ENDPOINTS = [
     {"path": "/health", "tag": "Health", "description": "Health check"},
@@ -68,6 +35,11 @@ _ENDPOINTS = [
         "path": "/instruments",
         "tag": "Symbols",
         "description": "Stock & instrument data",
+    },
+    {
+        "path": "/symbols",
+        "tag": "Symbols",
+        "description": "Static symbol catalog & search (DB-free)",
     },
     {
         "path": "/quotes",
@@ -117,6 +89,16 @@ _ENDPOINTS = [
         "description": "Smart money stock screener",
     },
     {
+        "path": "/saved-filters",
+        "tag": "Saved Filters",
+        "description": "User-saved screener filter presets",
+    },
+    {
+        "path": "/screener110",
+        "tag": "Screener110",
+        "description": "110-column CANSLIM screener — populate profiles & run model",
+    },
+    {
         "path": "/stock-assistant",
         "tag": "Stock Assistant",
         "description": "Conversational Q&A stock assistant",
@@ -145,6 +127,26 @@ _ENDPOINTS = [
         "tag": "BrsApi",
         "description": "Commodities, crypto, global data",
     },
+    {
+        "path": "/market-insights",
+        "tag": "Market Insights",
+        "description": "Fake queues, accumulation, manipulation, fear-greed, market health, block trades",
+    },
+    {
+        "path": "/decision-engine",
+        "tag": "Decision Engine",
+        "description": "Enterprise architecture data & decisions for the Decision Support System",
+    },
+    {
+        "path": "/market-info",
+        "tag": "Market Info",
+        "description": "Industries & funds list (market-info namespace)",
+    },
+    {
+        "path": "/screener-v2",
+        "tag": "Smart Screener V2",
+        "description": "Advanced analytics screener, compare & sector analysis",
+    },
 ]
 
 
@@ -162,12 +164,69 @@ class Router:
                 },
             )
 
+        # ── Lazy imports: all endpoint routers ─────────────────────────
+        # These are imported here (not at module level) so that importing
+        # the Router class (~300ms) doesn't trigger loading all 45 endpoint
+        # files (~45s cumulative).  Each endpoint loads only when setup()
+        # is called, which happens once at app creation time.
+        from apps.admin.dashboard import router as admin_dashboard_router
+        from apps.api.endpoints.alerts import router as alerts_router
+        from apps.api.endpoints.alpha import router as alpha_router
+        from apps.api.endpoints.analysis import router as analysis_router
+        from apps.api.endpoints.anomalies import router as anomalies_router
+        from apps.api.endpoints.assistant import router as assistant_router
+        from apps.api.endpoints.auth import router as auth_router
+        from apps.api.endpoints.backtests import router as backtests_router
+        from apps.api.endpoints.brsapi import router as brsapi_router
+        from apps.api.endpoints.chat import router as chat_router
+        from apps.api.endpoints.codal import router as codal_router
+        from apps.api.endpoints.compose import router as compose_router
+        from apps.api.endpoints.data_import import router as data_import_router
+        from apps.api.endpoints.decision_engine import router as decision_engine_router
+        from apps.api.endpoints.economic_calendar import router as economic_calendar_router
+        from apps.api.endpoints.fundamental import router as fundamental_router
+        from apps.api.endpoints.funds import router as funds_router
+        from apps.api.endpoints.health import router as health_router
+        from apps.api.endpoints.indicators import router as indicators_router
+        from apps.api.endpoints.jobs import router as jobs_router
+        from apps.api.endpoints.macro import router as macro_router
+        from apps.api.endpoints.market import router as market_router
+        from apps.api.endpoints.market_dashboard import router as market_dashboard_router
+        from apps.api.endpoints.market_info import router as market_info_router
+        from apps.api.endpoints.market_insights import router as market_insights_router
+        from apps.api.endpoints.market_watch import router as market_watch_router
+        from apps.api.endpoints.ml import router as ml_router
+        from apps.api.endpoints.multi_market_signals import router as multi_market_signals_router
+        from apps.api.endpoints.news import router as news_router
+        from apps.api.endpoints.orderbooks import router as orderbooks_router
+        from apps.api.endpoints.portfolios import router as portfolios_router
+        from apps.api.endpoints.queue_analysis import router as queue_analysis_router
+        from apps.api.endpoints.quotes import router as quotes_router
+        from apps.api.endpoints.recommendations import router as recommendations_router
+        from apps.api.endpoints.reports import router as reports_router
+        from apps.api.endpoints.risk import router as risk_router
+        from apps.api.endpoints.saved_filters import router as saved_filters_router
+        from apps.api.endpoints.screener import router as screener_router
+        from apps.api.endpoints.screener110 import router as screener110_router
+        from apps.api.endpoints.screener_v2 import router as screener_v2_router
+        from apps.api.endpoints.signal_insights import router as signal_insights_router
+        from apps.api.endpoints.signals import router as signals_router
+        from apps.api.endpoints.smart_money import router as smart_money_router
+        from apps.api.endpoints.stock_assistant import router as stock_assistant_router
+        from apps.api.endpoints.symbol_search import router as symbol_search_router
+        from apps.api.endpoints.symbols import router as symbols_router
+        from apps.api.endpoints.tabdeal import router as tabdeal_router
+        from apps.api.endpoints.tables import router as tables_router
+        from apps.api.endpoints.tests_runner import router as tests_router
+        from apps.api.endpoints.trades import router as trades_router
+        from apps.api.endpoints.watchlist import router as watchlist_router
+        from apps.api.endpoints.websocket import router as websocket_router
+
         # Health and auth routers are intentionally unprotected
         router.include_router(health_router, prefix="/health", tags=["Health"])
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # All data routers have optional auth — token is checked if provided, but not required
-        # Note: alerts_router has its own endpoint-level Depends(get_current_user), so no router-level dep needed
-        router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"])
+        router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"], dependencies=_require_user)
         router.include_router(
             market_router,
             prefix="/market",
@@ -192,6 +251,13 @@ class Router:
             tags=["Symbols"],
             dependencies=_optional_auth,
         )
+        # DB-free static symbol catalog & search — works without PostgreSQL.
+        router.include_router(
+            symbol_search_router,
+            prefix="/symbols",
+            tags=["Symbols"],
+            dependencies=_optional_auth,
+        )
         router.include_router(
             quotes_router,
             prefix="/quotes",
@@ -210,11 +276,10 @@ class Router:
             tags=["Trades"],
             dependencies=_optional_auth,
         )
-        router.include_router(
-            signals_router,
+        router.include_router(signals_router,
             prefix="/signals",
             tags=["Signals"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             recommendations_router,
@@ -234,11 +299,10 @@ class Router:
         router.include_router(
             codal_router, prefix="/codal", tags=["Codal"], dependencies=_optional_auth
         )
-        router.include_router(
-            data_import_router,
+        router.include_router(data_import_router,
             prefix="/data-import",
             tags=["Data Import"],
-            dependencies=_optional_auth,
+            dependencies=_require_admin,
         )
         router.include_router(
             economic_calendar_router,
@@ -250,7 +314,7 @@ class Router:
             news_router, prefix="/news", tags=["News"], dependencies=_optional_auth
         )
         router.include_router(
-            jobs_router, prefix="/jobs", tags=["Jobs"], dependencies=_optional_auth
+            jobs_router, prefix="/jobs", tags=["Jobs"], dependencies=_require_admin
         )
         router.include_router(
             macro_router, prefix="/macro", tags=["Macro"], dependencies=_optional_auth
@@ -261,14 +325,17 @@ class Router:
             tags=["Fundamental Analysis"],
             dependencies=_optional_auth,
         )
-        router.include_router(
-            backtests_router,
+        router.include_router(backtests_router,
             prefix="/backtests",
             tags=["Backtests"],
-            dependencies=_optional_auth,
+            dependencies=_require_analyst,
         )
+        router.include_router(ml_router, prefix="/ml", tags=["ML"], dependencies=_require_analyst)
         router.include_router(
-            ml_router, prefix="/ml", tags=["ML"], dependencies=_optional_auth
+            multi_market_signals_router,
+            prefix="/multi-market-signals",
+            tags=["Multi-Market Signals"],
+            dependencies=_optional_auth,
         )
         router.include_router(
             reports_router,
@@ -301,9 +368,33 @@ class Router:
             risk_router, prefix="/risk", tags=["Risk"], dependencies=_optional_auth
         )
         router.include_router(
+            funds_router,
+            prefix="/funds",
+            tags=["Funds"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            saved_filters_router,
+            prefix="/saved-filters",
+            tags=["Saved Filters"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
             screener_router,
             prefix="/screener",
             tags=["Screener"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            screener110_router,
+            prefix="/screener110",
+            tags=["Screener110"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            screener_v2_router,
+            prefix="/screener-v2",
+            tags=["Smart Screener V2"],
             dependencies=_optional_auth,
         )
         router.include_router(
@@ -321,11 +412,10 @@ class Router:
         router.include_router(
             tests_router, prefix="/tests", tags=["Tests"], dependencies=_optional_auth
         )
-        router.include_router(
-            portfolios_router,
+        router.include_router(portfolios_router,
             prefix="/portfolios",
             tags=["Portfolios"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             watchlist_router,
@@ -337,10 +427,15 @@ class Router:
             admin_dashboard_router,
             prefix="/dashboard",
             tags=["Admin Dashboard"],
-            dependencies=_optional_auth,
+            dependencies=_require_admin,
         )
+        # Mounted under /market-info so its /funds and /industries routes do not
+        # collide with the dedicated funds_router (mounted at /funds).
         router.include_router(
-            market_info_router, tags=["Market Info"], dependencies=_optional_auth
+            market_info_router,
+            prefix="/market-info",
+            tags=["Market Info"],
+            dependencies=_optional_auth,
         )
         # BrsApi endpoints (commodities, crypto, global data)
         router.include_router(
@@ -364,11 +459,43 @@ class Router:
             dependencies=_optional_auth,
         )
         # Strategy Composition
-        from apps.api.endpoints.compose import router as compose_router
         router.include_router(
             compose_router,
             prefix="/compose",
             tags=["Strategy Composition"],
             dependencies=_optional_auth,
+        )
+        # Market Insights (fake queues, accumulation, manipulation, fear-greed, etc.)
+        router.include_router(
+            market_insights_router,
+            prefix="/market-insights",
+            tags=["Market Insights"],
+            dependencies=_optional_auth,
+        )
+        # Signal Insights (accuracy, backtesting, walk-forward, ensemble)
+        router.include_router(signal_insights_router,
+            prefix="/signal-insights",
+            tags=["Signal Insights"],
+            dependencies=_require_analyst,
+        )
+        # Decision Engine Architecture API
+        router.include_router(
+            decision_engine_router,
+            prefix="/decision-engine",
+            tags=["Decision Engine"],
+            dependencies=_optional_auth,
+        )
+        # Queue Analysis (Phase 1 — real queue detection from TSETMC data)
+        router.include_router(
+            queue_analysis_router,
+            prefix="/queue-analysis",
+            tags=["Queue Analysis"],
+            dependencies=_optional_auth,
+        )
+        # WebSocket for real-time market data
+        router.include_router(
+            websocket_router,
+            prefix="/ws",
+            tags=["WebSocket"],
         )
         return router

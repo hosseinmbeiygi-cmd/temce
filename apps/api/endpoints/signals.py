@@ -28,7 +28,7 @@ async def list_all_signals(
         logger.exception("Signal list failed")
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
-            data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=0),
+            data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1),
             error={"message": str(exc)},
         )
 
@@ -82,6 +82,6 @@ async def list_signals(
             logger.exception("Signal list failed for %s", instrument_id)
             return ApiResponse[PaginatedResult[dict[str, Any]]](
                 success=False,
-                data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=0),
+                data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1),
                 error={"message": str(exc)},
             )

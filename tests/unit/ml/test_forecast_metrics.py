@@ -53,4 +53,3 @@ def test_direction_accuracy():
     predicted = [110, 190, 160, 290, 260]
     acc = metrics.direction_accuracy(actual, predicted)
     assert 0 <= acc <= 100
-

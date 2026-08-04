@@ -62,5 +62,35 @@ class ISIN(ValueObject):
     value: str
 
     def __post_init__(self) -> None:
-        if not self.value or len(self.value) != 12:
+        value = self.value.strip().upper()
+        if len(value) != 12:
             raise ValueError("ISIN must be 12 characters")
+        if not value[:2].isalpha():
+            raise ValueError("ISIN must start with a 2-letter country code")
+        if not value.isalnum():
+            raise ValueError("ISIN contains invalid characters")
+        if not self._valid_luhn(value):
+            raise ValueError("ISIN failed Luhn checksum validation")
+        # Normalise (strip/upper) while keeping the dataclass frozen.
+        object.__setattr__(self, "value", value)
+
+    @staticmethod
+    def _valid_luhn(value: str) -> bool:
+        """Validate the ISO 6166 Luhn check digit of an ISIN.
+
+        Letters are converted to their numeric position (A=10 … Z=35)
+        before applying the standard Luhn (mod-10) algorithm.
+        """
+        digits = "".join(
+            str(ord(ch) - ord("A") + 10) if ch.isalpha() else ch
+            for ch in value
+        )
+        total = 0
+        for i, ch in enumerate(reversed(digits)):
+            n = int(ch)
+            if i % 2 == 1:
+                n *= 2
+                if n > 9:
+                    n -= 9
+            total += n
+        return total % 10 == 0

@@ -83,11 +83,21 @@ class _SignalDbRepo(DbRepository[Signal, SignalModel]):
     async def get_by_instrument(
         self, instrument_id: str, page: int = 1, page_size: int = 50
     ) -> Result[PaginatedResult[Signal]]:
-        count_stmt = select(SignalModel).where(SignalModel.instrument_id == instrument_id)
-        total_result = await self.session.execute(count_stmt)
-        total = len(total_result.scalars().all())
+        from sqlalchemy import func as sa_func
 
-        stmt = count_stmt.order_by(desc(SignalModel.created_at)).offset((page - 1) * page_size).limit(page_size)
+        count_stmt = (
+            select(sa_func.count()).select_from(SignalModel).where(SignalModel.instrument_id == instrument_id)
+        )
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        stmt = (
+            select(SignalModel)
+            .where(SignalModel.instrument_id == instrument_id)
+            .order_by(desc(SignalModel.created_at))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(

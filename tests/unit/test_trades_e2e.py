@@ -108,9 +108,12 @@ MOCK_SYMBOL_SNAPSHOT = {
 # Mock BrsApiClient.fetch() response
 # ═══════════════════════════════════════════════════════════════
 
+
 class MockBrsApiResponse:
     """Simulates a BrsApiResponse from BrsApiClient.fetch()."""
+
     success: bool = True
+
     def __init__(self, data: dict) -> None:
         self.data = data
 
@@ -123,22 +126,26 @@ class MockBrsApiClient:
 
     async def fetch(self, endpoint, params=None, category_override=None):
 
-        self.calls.append({
-            "path": endpoint.path,
-            "params": params,
-        })
+        self.calls.append(
+            {
+                "path": endpoint.path,
+                "params": params,
+            }
+        )
 
         # Return symbol snapshot for l18 resolution
         if endpoint.path == "/Tsetmc/AllSymbols.php":
             return MagicMock(
                 success=True,
-                value=MockBrsApiResponse({
-                    "code_http": 200,
-                    "successful": True,
-                    "data": {
-                        "all_symbols": [MOCK_SYMBOL_SNAPSHOT],
-                    },
-                }),
+                value=MockBrsApiResponse(
+                    {
+                        "code_http": 200,
+                        "successful": True,
+                        "data": {
+                            "all_symbols": [MOCK_SYMBOL_SNAPSHOT],
+                        },
+                    }
+                ),
             )
         # Return transaction data
         if endpoint.path == "/Tsetmc/Transaction.php":
@@ -154,6 +161,7 @@ class MockBrsApiClient:
 # Fixtures
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest_asyncio.fixture
 async def trades_client():
     """FastAPI test client for the trades endpoint."""
@@ -165,6 +173,7 @@ async def trades_client():
 # ═══════════════════════════════════════════════════════════════
 # Test 1: API endpoint returns valid response structure
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_trades_endpoint_returns_valid_structure(trades_client):
@@ -219,6 +228,7 @@ async def test_trades_endpoint_with_english_symbol(trades_client):
 # ═══════════════════════════════════════════════════════════════
 # Test 2: TradeService live fallback pipeline (with mocked BrsApi)
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_trade_service_live_fallback():
@@ -312,6 +322,7 @@ async def test_trade_service_save_trade():
 # Test 3: Frontend extractItems compatibility
 # ═══════════════════════════════════════════════════════════════
 
+
 class TestFrontendExtraction:
     """Verify that the API response can be extracted the way the frontend does."""
 
@@ -323,9 +334,27 @@ class TestFrontendExtraction:
             "success": True,
             "data": {
                 "items": [
-                    {"id": 1, "symbol": "فولاد", "price": 42500, "volume": 5000, "time": "091345"},
-                    {"id": 2, "symbol": "فولاد", "price": 42550, "volume": 2000, "time": "091503"},
-                    {"id": 3, "symbol": "فولاد", "price": 42600, "volume": 3500, "time": "092145"},
+                    {
+                        "id": 1,
+                        "symbol": "فولاد",
+                        "price": 42500,
+                        "volume": 5000,
+                        "time": "091345",
+                    },
+                    {
+                        "id": 2,
+                        "symbol": "فولاد",
+                        "price": 42550,
+                        "volume": 2000,
+                        "time": "091503",
+                    },
+                    {
+                        "id": 3,
+                        "symbol": "فولاد",
+                        "price": 42600,
+                        "volume": 3500,
+                        "time": "092145",
+                    },
                 ],
                 "total": 3,
                 "page": 1,
@@ -413,6 +442,7 @@ class TestFrontendExtraction:
 # Helper: simulated frontend extractItems
 # ═══════════════════════════════════════════════════════════════
 
+
 def extract_items_simulated(response: dict) -> list[dict]:
     """
     Simulates the frontend's extractItems() / extractArray() logic.
@@ -453,6 +483,7 @@ def extract_items_simulated(response: dict) -> list[dict]:
 # Test 4: BrsApi parser integration
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_brsapi_parser_handles_transaction_response():
     """Verify TsetmcParser.parse_transactions() correctly parses the mock data."""
@@ -482,14 +513,13 @@ async def test_brsapi_parser_handles_empty_response():
     assert TsetmcParser.parse_transactions(None) == []
 
     # Missing transaction key
-    assert TsetmcParser.parse_transactions(
-        {"code_http": 200, "successful": True, "data": {}}
-    ) == []
+    assert TsetmcParser.parse_transactions({"code_http": 200, "successful": True, "data": {}}) == []
 
 
 # ═══════════════════════════════════════════════════════════════
 # Test 5: Recent trades endpoint
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_trades_recent_endpoint(trades_client):
@@ -511,6 +541,7 @@ async def test_trades_recent_endpoint(trades_client):
 # ═══════════════════════════════════════════════════════════════
 # Test 6: Pipeline smoke test (end-to-end without DB)
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_full_pipeline_response_envelope(trades_client):

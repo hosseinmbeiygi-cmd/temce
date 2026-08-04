@@ -8,10 +8,32 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import BigInteger, DateTime, Float, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from brsapi.models.base import BrsApiBase, InstrumentRefMixin
+
+
+class CryptoDailyHistoryModel(InstrumentRefMixin, BrsApiBase):
+    """Daily OHLC history for cryptocurrencies (created by scripts/import_history_data.py)."""
+
+    __tablename__ = "brsapi_crypto_daily_history"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    date: Mapped[str] = mapped_column(String(20), nullable=False)
+    price_open: Mapped[float | None] = mapped_column(Float)
+    price_high: Mapped[float | None] = mapped_column(Float)
+    price_low: Mapped[float | None] = mapped_column(Float)
+    price_close: Mapped[float | None] = mapped_column(Float)
+    volume: Mapped[float | None] = mapped_column(Float)
+    fetched_at: Mapped[str | None] = mapped_column(String(30))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("symbol", "date"),
+        Index("idx_crypto_hist_sym_date", "symbol", "date"),
+    )
 
 
 class CryptoPriceModel(InstrumentRefMixin, BrsApiBase):

@@ -24,4 +24,3 @@ async def test_signal_for_symbol():
     service = SignalService()
     result = await service.get_by_symbol("فولاد")
     assert result.success or not result.success
-

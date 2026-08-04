@@ -22,6 +22,12 @@ from logging import getLogger
 from typing import Any, TypeVar
 
 import httpx
+from httpx import AsyncHTTPTransport, Limits
+
+# Fix stale Windows registry proxy BEFORE any HTTP connections
+from core.fix_network import fix_network as _fix_network
+
+_fix_network()
 
 from brsapi.config import BrsApiEndpoints, EndpointCategory, EndpointConfig
 from brsapi.config import settings as brsapi_settings
@@ -107,6 +113,7 @@ class BrsApiClient:
         self._pool_size = brsapi_settings.connection_pool_size
         self._raw_sink_enabled = brsapi_settings.raw_payload_sink_enabled
         self._proxy_url = proxy_url or brsapi_settings.proxy_url
+        self._verify_ssl = brsapi_settings.verify_ssl
 
         self._rate_limiter = rate_limiter or get_rate_limiter()
         self._client: httpx.AsyncClient | None = None
@@ -121,19 +128,29 @@ class BrsApiClient:
         """Initialise the HTTP client session."""
         if self._client is not None:
             return
-        limits = httpx.Limits(
+        limits = Limits(
             max_connections=self._pool_size,
             max_keepalive_connections=self._pool_size,
         )
-        client_kwargs = dict(
-            limits=limits,
-            timeout=httpx.Timeout(self._timeout),
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
-            verify=False,
-        )
+        client_kwargs: dict[str, Any] = {
+            "limits": limits,
+            "timeout": httpx.Timeout(self._timeout),
+            "headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"},
+        }
         if self._proxy_url:
-            client_kwargs["proxies"] = self._proxy_url
+            # httpx ≥0.28: proxy via a transport mount
+            proxy_transport = AsyncHTTPTransport(
+                verify=self._verify_ssl,
+                proxy=self._proxy_url,
+            )
+            client_kwargs["mounts"] = {"all://": proxy_transport}
             logger.info("Using proxy: %s", self._proxy_url)
+        else:
+            # Explicit direct connection — httpx ≥0.28 removed proxies=.
+            # On Windows, urllib may pick up a stale system proxy from the
+            # registry.  An explicit transport with proxy=None forces direct.
+            transport = AsyncHTTPTransport(verify=self._verify_ssl, proxy=None)
+            client_kwargs["transport"] = transport
         self._client = httpx.AsyncClient(**client_kwargs)
         logger.info("BrsApiClient started – base=%s pool=%d", self._base_url, self._pool_size)
 
@@ -309,7 +326,8 @@ class BrsApiClient:
         cfg = brsapi_settings
         limits: dict[str, int] = {
             EndpointCategory.TSETMC.value: cfg.rate_limit_tsetmc or 30,
-            EndpointCategory.CODAL.value: cfg.rate_limit_codal or 20,
+            # Config default is 12 (matching CODAL_ANNOUNCEMENT's 2/10s).
+            EndpointCategory.CODAL.value: cfg.rate_limit_codal or 12,
             EndpointCategory.IME.value: cfg.rate_limit_ime or 15,
             EndpointCategory.COMMODITY.value: cfg.rate_limit_commodity or 15,
             EndpointCategory.CRYPTOCURRENCY.value: cfg.rate_limit_crypto or 15,

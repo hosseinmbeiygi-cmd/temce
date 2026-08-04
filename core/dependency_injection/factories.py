@@ -48,8 +48,7 @@ class FactoryRegistry:
     def create(self, name: str, **kwargs: Any) -> Any:
         factory = self._factories.get(name)
         if factory is None:
-            logger.debug("Factory not found: %s", name)
-        raise KeyError("No factory registered")
+            raise KeyError(f"No factory registered: {name}")
         return factory(**kwargs)
 
     def has(self, name: str) -> bool:

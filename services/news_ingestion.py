@@ -123,6 +123,7 @@ class NewsIngestionService:
         sentiment_classifier: SentimentClassifier | None = None,
         session: AsyncSession | None = None,
     ) -> None:
+        self._session = session
         self.news_service = news_service or NewsService(session=session)
         self.deduplicator = deduplicator or NewsDeduplicator(ttl_seconds=86400.0)
         self.news_filter = news_filter or NewsFilter(min_content_length=30)
@@ -292,6 +293,15 @@ class NewsIngestionService:
                 except Exception as e:
                     logger.error("Failed to save article '%s': %s", article.get("title", "?"), e)
                     stats["errors"] += 1
+                    # A failed flush (e.g. StringDataRightTruncationError) puts the
+                    # session into PendingRollbackError state — every subsequent
+                    # query (exists_by_url_or_title, save) on the same session
+                    # would fail. Roll back so the next article can proceed.
+                    if self._session is not None:
+                        try:
+                            await self._session.rollback()
+                        except Exception:
+                            logger.debug("Session rollback after article save failure failed", exc_info=True)
             stats["saved"] = saved_count
 
             if verbose:
@@ -325,7 +335,7 @@ class NewsIngestionService:
         pub_date_str = article.get("published_at") or article.get("pubDate")
         pub_date = _parse_rss_date(pub_date_str) if pub_date_str else None
         if pub_date is None:
-            pub_date = datetime.now(UTC)
+            pub_date = datetime.now(UTC).replace(microsecond=0)
 
         # Extract stock symbols from article text
         text = (article.get("title") or "") + " " + (article.get("description") or "")

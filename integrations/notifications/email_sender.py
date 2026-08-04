@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Any
 
 from core.config import settings
 from core.logging import get_logger
@@ -28,6 +30,15 @@ class EmailSender:
         self._use_tls = use_tls
         self._from = default_from or getattr(settings, "smtp_from", "noreply@market.local")
 
+    def _send_sync(self, msg: Any, all_recipients: list[str]) -> None:
+        """Blocking SMTP delivery — runs inside a worker thread."""
+        with smtplib.SMTP(self._host, self._port, timeout=30) as server:
+            if self._use_tls:
+                server.starttls()
+            if self._username:
+                server.login(self._username, self._password)
+            server.sendmail(self._from, all_recipients, msg.as_string())
+
     async def send(
         self,
         to: str | list[str],
@@ -49,12 +60,8 @@ class EmailSender:
             msg.attach(MIMEText(html, "html", "utf-8"))
         all_recipients = recipients + (cc or []) + (bcc or [])
         try:
-            with smtplib.SMTP(self._host, self._port, timeout=30) as server:
-                if self._use_tls:
-                    server.starttls()
-                if self._username:
-                    server.login(self._username, self._password)
-                server.sendmail(self._from, all_recipients, msg.as_string())
+            # SMTP is blocking I/O — never run it on the event loop.
+            await asyncio.to_thread(self._send_sync, msg, all_recipients)
             logger.info("Email sent to %s: %s", ", ".join(recipients), subject)
             return Result.ok(True)
         except smtplib.SMTPAuthenticationError:

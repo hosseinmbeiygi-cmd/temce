@@ -308,7 +308,6 @@ class HybridMarketSimulator:
 
     def _process_merged_flow(self, event: MarketEvent) -> list[FillEvent]:
         fills: list[FillEvent] = []
-        event_type = event.event_type
 
         while True:
             merged = self.order_merge.pop_next()

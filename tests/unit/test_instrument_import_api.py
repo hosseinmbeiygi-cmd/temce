@@ -55,6 +55,7 @@ def _stub_db_save(monkeypatch: pytest.MonkeyPatch):
     and "commit" rows without the test harness needing a multi-connection
     in-memory database. Validates parser/service logic; persistence
     correctness is covered by repository-level integration tests."""
+
     async def _fake_save(self, entity):
         return Result.ok(entity)
 
@@ -115,9 +116,9 @@ async def test_import_csv_malformed_rows(client: AsyncClient):
     summary so callers can act on each error individually."""
     csv_bytes = (
         b"symbol,lot_size,par_value\n"
-        b"GOOD,100,1000\n"          # valid
-        b"BAD,bad,2000\n"          # lot_size not numeric
-        b"BAD2,200,worse\n"        # par_value not numeric
+        b"GOOD,100,1000\n"  # valid
+        b"BAD,bad,2000\n"  # lot_size not numeric
+        b"BAD2,200,worse\n"  # par_value not numeric
     )
 
     resp = await client.post(
@@ -130,7 +131,7 @@ async def test_import_csv_malformed_rows(client: AsyncClient):
     assert body["success"] is True
     data = body["data"]
     assert data["total_rows"] == 3
-    assert data["imported"] == 1            # only the "GOOD" row commits
+    assert data["imported"] == 1  # only the "GOOD" row commits
     assert data["import_errors"] == []
     assert len(data["parse_errors"]) == 2
     assert any("lot_size" in e for e in data["parse_errors"])
@@ -157,18 +158,15 @@ async def test_import_over_size_file_rejected(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_import_server_error_envelope(
-    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-):
+async def test_import_server_error_envelope(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
     """5. Any uncaught ``Exception`` raised by the import service is
     wrapped into a 200 ``ApiResponse`` with ``success=False`` — never a
     raw 500 stack — so the front-end can surface the real cause."""
+
     async def _fake_import_from_bytes(self, filename, content, *, max_errors=50):
         raise RuntimeError("boom from inside the service")
 
-    monkeypatch.setattr(
-        InstrumentImportService, "import_from_bytes", _fake_import_from_bytes
-    )
+    monkeypatch.setattr(InstrumentImportService, "import_from_bytes", _fake_import_from_bytes)
 
     csv_bytes = "symbol\nفولاد\nفملی\n".encode()
     resp = await client.post(

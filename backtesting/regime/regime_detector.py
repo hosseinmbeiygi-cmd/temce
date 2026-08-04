@@ -53,10 +53,7 @@ class RegimeDetector:
         features = self.features.update(market_state)
         self._last_features = features
 
-        if self.mode == "rule_based":
-            regime = self._detect_rule_based(features)
-        else:
-            regime = self._detect_adaptive(features)
+        regime = self._detect_rule_based(features) if self.mode == "rule_based" else self._detect_adaptive(features)
 
         # Smooth regime transitions
         if regime != self._current_regime:

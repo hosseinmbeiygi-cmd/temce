@@ -6,7 +6,7 @@
 /** Convert Gregorian (y,m,d) to Jalali string "YYYY/MM/DD" */
 export function toJalali(gy: number, gm: number, gd: number): string {
   const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-  let gy2 = gm > 2 ? gy + 1 : gy;
+  const gy2 = gm > 2 ? gy + 1 : gy;
   let days =
     355666 +
     365 * gy +
@@ -55,7 +55,7 @@ export function jalaliToGregorian(jalaliStr: string): string | null {
   if (jm <= 6 && jd > 31) return null;
   if (jm > 6 && jd > 30) return null;
   let gy = jy + 1595;
-  let days =
+  const days =
     -355668 +
     365 * jy +
     Math.floor(jy / 33) * 8 +

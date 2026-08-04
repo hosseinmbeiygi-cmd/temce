@@ -54,7 +54,7 @@ class JobDispatcher:
                 context.record_start()
                 result = await job.run(context)
                 if result.success:
-                    await self._retry_policy.clear_retries(context.job_id)
+                    self._retry_policy.clear_retries(context.job_id)
                 return result
         except Exception as e:
             logger.error("Dispatch error for %s: %s", job_name, e)

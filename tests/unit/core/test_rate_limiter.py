@@ -32,7 +32,7 @@ def test_rate_limiter_resets_after_window():
 
     limiter = RateLimiter()
     # Window is 1 second; burst=2 means 2 tokens allowed per second
-    limiter.set_limit("test", rate=100, burst=2)
+    limiter.set_limit("test", rate=100, burst=2, window_seconds=1.0)
     assert limiter.allow("test") is True
     assert limiter.allow("test") is True
     assert limiter.allow("test") is False  # Burst exhausted
@@ -60,4 +60,3 @@ def test_unlimited_key():
     limiter = RateLimiter()
     for _ in range(1000):
         assert limiter.allow("unlimited_key") is True
-

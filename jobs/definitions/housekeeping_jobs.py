@@ -25,20 +25,25 @@ class DataRetentionJob(BaseJob):
 
 class CacheWarmupJob(BaseJob):
     async def execute(self, context: JobContext) -> JobResult:
-        instrument_ids = context.get_param("instrument_ids", [])
-        from integrations.cache.memory_cache import MemoryCache
-        from integrations.cache.redis_client import RedisClient
+        """Warm the shared Redis cache (get_cache) for the given instruments.
 
-        cache = MemoryCache()
-        redis = RedisClient()
-        await redis.connect()
+        Previously this wrote to a throwaway in-memory MemoryCache that was
+        discarded at the end of the job — effectively a no-op. Now it warms
+        the app-wide Redis cache (single shared connection).
+        NOTE: with a large ``instrument_ids`` list this writes day-long TTL
+        entries into Redis for each id — a real write burst by design.
+        """
+        instrument_ids = context.get_param("instrument_ids", [])
+        from core.cache import get_cache
+
+        cache = get_cache()
+        await cache.initialize()
         warmed = 0
         for inst_id in instrument_ids:
             key = f"instrument:{inst_id}"
-            if not cache.exists(key):
-                cache.set(key, {"id": inst_id, "warmed": True})
+            if await cache.get(key) is None:
+                await cache.set(key, {"id": inst_id, "warmed": True}, ttl=86400)
                 warmed += 1
-        await redis.disconnect()
         return JobResult.success_result(job_name=self.name, data={"warmed": warmed})
 
 
@@ -46,13 +51,11 @@ class HealthCheckJob(BaseJob):
     async def execute(self, context: JobContext) -> JobResult:
         checks = {}
         try:
-            from integrations.cache.redis_client import RedisClient
+            from core.cache import get_cache
 
-            redis = RedisClient()
-            await redis.connect()
-            await redis.ping()
-            checks["redis"] = "ok"
-            await redis.disconnect()
+            cache = get_cache()
+            await cache.initialize()
+            checks["redis"] = "ok" if await cache.ping() else "unreachable"
         except Exception as e:
             checks["redis"] = str(e)
         try:

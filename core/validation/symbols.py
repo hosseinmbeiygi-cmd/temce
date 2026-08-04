@@ -1,24 +1,23 @@
+"""Symbol / ISIN validation and normalization.
+
+The canonical ``validate_symbol`` / ``validate_isin`` live in
+``core.validation`` (package root).  This module re-exports them and adds
+ticker-specific helpers.
+"""
+
 from __future__ import annotations
 
 import re
 
-from core.validation import validate_required
+from core.validation import (  # noqa: F401 — re-exported for backward compat
+    IR_SYMBOL_PATTERN,
+    ISIN_PATTERN,
+    validate_isin,
+    validate_required,
+    validate_symbol,
+)
 
-IR_SYMBOL_PATTERN = re.compile(r"^[آ-یA-Za-z0-9_-]+$")
-ISIN_PATTERN = re.compile(r"^IR[A-Z0-9]{10}$")
 TICKER_PATTERN = re.compile(r"^[A-Za-zآ-ی0-9]+$")
-
-
-def validate_symbol(symbol: str) -> None:
-    validate_required(symbol, "symbol")
-    if not IR_SYMBOL_PATTERN.match(symbol):
-        raise ValueError(f"Invalid symbol format: {symbol}")
-
-
-def validate_isin(isin: str) -> None:
-    validate_required(isin, "isin")
-    if not ISIN_PATTERN.match(isin):
-        raise ValueError(f"Invalid ISIN format: {isin}")
 
 
 def validate_ticker(ticker: str) -> None:
@@ -33,3 +32,15 @@ def normalize_symbol(symbol: str) -> str:
 
 def normalize_isin(isin: str) -> str:
     return isin.strip().upper()
+
+
+__all__ = [
+    "validate_symbol",
+    "validate_isin",
+    "validate_ticker",
+    "normalize_symbol",
+    "normalize_isin",
+    "IR_SYMBOL_PATTERN",
+    "ISIN_PATTERN",
+    "TICKER_PATTERN",
+]

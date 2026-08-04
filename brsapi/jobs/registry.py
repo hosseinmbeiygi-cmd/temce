@@ -10,7 +10,7 @@ The registry makes it easy to bulk-register all jobs with APScheduler.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from brsapi.client import BrsApiClient, get_client
@@ -20,6 +20,7 @@ from brsapi.models import GoldCurrencyProPriceModel
 from brsapi.services.sync_service import BrsApiSyncService, SyncReport
 from core.database import get_session
 from core.logging import get_logger
+from jobs.market_hours import is_tehran_codal_window, is_tehran_market_open
 
 logger = get_logger(__name__)
 
@@ -50,6 +51,16 @@ class BrsApiSyncJob:
     params: dict[str, str] | None = None
     enabled: bool = True
     description: str = ""
+    # When True the job only runs inside Tehran trading hours — the free
+    # BrsApi daily quota is reserved for when the market is actually open.
+    market_hours_only: bool = False
+    # When True (together with market_hours_only) the job follows the wider
+    # Codal office-hours window (08:00–18:00) instead of trading hours,
+    # because announcements are usually published after the session.
+    codal_window: bool = False
+    # Optional override so users can still force a sync out of hours
+    # via the manage API (``run_job_now`` bypasses the gate).
+    forced: bool = field(default=False, repr=False)
 
 
 # ──────────────────────────────────────────────
@@ -74,6 +85,7 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         endpoint_config=BrsApiEndpoints.ALL_SYMBOLS,
         cron=_EVERY_2_MIN,
         description="Sync all TSETMC symbols (prices, volumes, orderbook)",
+        market_hours_only=True,
     ),
     BrsApiSyncJob(
         name="brsapi_index",
@@ -82,6 +94,7 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         category="tsetmc",
         params={"type": "1"},
         description="Sync TSE main index",
+        market_hours_only=True,
     ),
     BrsApiSyncJob(
         name="brsapi_index_farabours",
@@ -90,12 +103,14 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         category="tsetmc",
         params={"type": "2"},
         description="Sync Farabours index",
+        market_hours_only=True,
     ),
     BrsApiSyncJob(
         name="brsapi_options",
         endpoint_config=BrsApiEndpoints.OPTION,
         cron=_EVERY_5_MIN,
         description="Sync TSETMC option contracts",
+        market_hours_only=True,
     ),
     # ── NAV Realtime ────────────────────────────
     BrsApiSyncJob(
@@ -126,24 +141,28 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         endpoint_config=BrsApiEndpoints.IME_FUTURES,
         cron=_EVERY_5_MIN,
         description="Sync IME futures contracts",
+        market_hours_only=True,
     ),
     BrsApiSyncJob(
         name="brsapi_ime_options",
         endpoint_config=BrsApiEndpoints.IME_OPTION,
         cron=_EVERY_5_MIN,
         description="Sync IME option contracts",
+        market_hours_only=True,
     ),
     BrsApiSyncJob(
         name="brsapi_ime_certificates",
         endpoint_config=BrsApiEndpoints.IME_CERTIFICATE,
         cron=_EVERY_5_MIN,
         description="Sync IME certificate/depository receipts",
+        market_hours_only=True,
     ),
     BrsApiSyncJob(
         name="brsapi_ime_funds",
         endpoint_config=BrsApiEndpoints.IME_FUND,
         cron=_EVERY_5_MIN,
         description="Sync IME commodity funds",
+        market_hours_only=True,
     ),
     # ── Global Markets ──────────────────────────
     BrsApiSyncJob(
@@ -206,6 +225,8 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         endpoint_config=BrsApiEndpoints.CODAL_ANNOUNCEMENT,
         cron=_EVERY_15_MIN,
         description="Sync Codal announcements",
+        market_hours_only=True,
+        codal_window=True,
     ),
     # ── Read-side enabled endpoints (data already synced by other jobs) ──
     # TRANSACTION is fetched on-demand via TradeService live fallback when
@@ -270,7 +291,8 @@ class BrsApiJobRegistry:
         """
         Return a serialisable list of all BrsApi sync jobs with their status.
 
-        Each entry contains: name, enabled, cron, description, endpoint.
+        Each entry contains: name, enabled, cron, description, endpoint,
+        category and the market-hours-only gate flag.
         """
         result = []
         for job in self._jobs.values():
@@ -281,6 +303,7 @@ class BrsApiJobRegistry:
                 "description": job.description,
                 "endpoint": job.endpoint_config.path,
                 "category": job.category or job.endpoint_config.category.value,
+                "market_hours_only": job.market_hours_only,
             })
         return result
 
@@ -316,15 +339,27 @@ class BrsApiJobRegistry:
             "message": f"Job '{job_name}' is now {'enabled' if job.enabled else 'disabled'}",
         }
 
-    async def run_job_now(self, job_name: str) -> dict[str, Any]:
+    async def run_job_now(self, job_name: str, force: bool = True) -> dict[str, Any]:
         """
         Trigger an immediate run of a job.
+
+        Manual runs (e.g. from the manage API / web UI) bypass the
+        ``market_hours_only`` gate by default so an admin can always
+        force a sync; pass ``force=False`` to respect the gate.
 
         Returns a dict with job name, success status, and items count.
         """
         try:
-            report = await self.run_job(job_name)
+            job = self._jobs.get(job_name)
+            report = await self.run_job(job_name, force=force)
             if report is None:
+                if job is not None and job.market_hours_only and not force:
+                    return {
+                        "name": job_name,
+                        "success": False,
+                        "skipped": True,
+                        "message": f"Job '{job_name}' skipped: outside Tehran market hours",
+                    }
                 return {"name": job_name, "success": False, "message": f"Unknown or failed job: {job_name}"}
             return {
                 "name": job_name,
@@ -391,11 +426,20 @@ class BrsApiJobRegistry:
 
     async def _get_pro_symbols(self, session: Any, max_symbols: int = 50) -> list[str]:
         """
-        Query distinct symbols from GoldCurrencyProPriceModel table.
+        Return distinct symbols for history sync jobs.
 
-        Returns up to ``max_symbols`` symbols. Used by history_24h and
-        daily_history jobs to iterate over available Pro symbols.
+        Two input modes are supported:
+        - an async SQLAlchemy session  → runs ``SELECT DISTINCT symbol``
+          against ``GoldCurrencyProPriceModel`` with a ``LIMIT``;
+        - a plain sequence of symbols (already loaded / test doubles)
+          → filtered and sliced directly without touching the DB.
+
+        Returns up to ``max_symbols`` symbols.
         """
+        if isinstance(session, (list, tuple, set)):
+            symbols = [s for s in session if s]
+            return symbols[:max_symbols]
+
         from sqlalchemy import distinct, select
 
         stmt = select(distinct(GoldCurrencyProPriceModel.symbol)).limit(max_symbols)
@@ -406,17 +450,37 @@ class BrsApiJobRegistry:
 
     # ── Run a single job ────────────────────────
 
-    async def run_job(self, job_name: str) -> SyncReport | None:
+    async def run_job(self, job_name: str, *, force: bool = False) -> SyncReport | None:
         """
         Execute a named sync job.
 
         Spins up its own DB session and client, runs the sync,
         then cleans up.
+
+        Jobs flagged ``market_hours_only`` are skipped outside Tehran
+        trading hours unless ``force=True`` (manual/on-demand runs).
         """
         job = self._jobs.get(job_name)
         if job is None:
             logger.warning("Unknown BrsApi job: %s", job_name)
             return None
+
+        # ── Market-hours gate ─────────────────────────────────────
+        # The free BrsApi tier has a limited daily quota. Running the
+        # TSETMC/IME jobs around the clock burns it at night (market
+        # closed) so by morning the API answers HTTP 402 and data stops
+        # updating. Skip those jobs outside trading hours unless forced.
+        if job.market_hours_only and not force:
+            # Codal jobs use the wider office-hours window (announcements are
+            # published after the session); everything else uses market hours.
+            gate_open = is_tehran_codal_window() if job.codal_window else is_tehran_market_open()
+            if not gate_open:
+                logger.info(
+                    "BrsApi job '%s' skipped: outside Tehran %s window (market_hours_only)",
+                    job_name,
+                    "Codal office-hours" if job.codal_window else "market hours",
+                )
+                return None
 
         logger.info("Running BrsApi job: %s", job_name)
 

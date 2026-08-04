@@ -11,7 +11,18 @@ from services.market_service import MarketService
 @pytest.mark.performance
 async def test_indicator_bulk_computation():
     service = MarketService()
-    symbols = ["فولاد", "فملی", "وبانک", "کگل", "خودرو", "شستا", "حافظ", "آریا", "دماوند", "سینا"]
+    symbols = [
+        "فولاد",
+        "فملی",
+        "وبانک",
+        "کگل",
+        "خودرو",
+        "شستا",
+        "حافظ",
+        "آریا",
+        "دماوند",
+        "سینا",
+    ]
     indicator_types = ["sma", "ema", "rsi", "macd", "bbands"]
 
     start = time.monotonic()
@@ -23,4 +34,3 @@ async def test_indicator_bulk_computation():
     elapsed = time.monotonic() - start
     avg = elapsed / count
     assert avg < 1.0, f"Average indicator computation {avg:.2f}s exceeds 1s threshold"
-

@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.ids import new_id
@@ -14,6 +14,43 @@ from models.alert import AlertHistoryModel, AlertModel
 
 logger = get_logger(__name__)
 
+# Normalize equivalent field names so conditions created from the frontend
+# (e.g. field="price") match the data pipeline field (e.g. "price_last").
+_FIELD_ALIASES: dict[str, str] = {
+    "price": "price",
+    "price_last": "price",
+    "last_price": "price",
+    "close": "price",
+    "price_close": "price",
+    "volume": "volume",
+    "trade_volume": "volume",
+    "rsi": "rsi",
+    "rsi_14": "rsi",
+    "sma_cross_above": "sma_cross_above",
+    "sma_cross_below": "sma_cross_below",
+}
+
+
+def _normalize_field(field: str) -> str:
+    key = (field or "").strip().lower()
+    return _FIELD_ALIASES.get(key, key)
+
+
+def _condition_met(operator: str, value: float, threshold: float) -> bool:
+    if operator == "gte":
+        return value >= threshold
+    if operator == "gt":
+        return value > threshold
+    if operator == "lte":
+        return value <= threshold
+    if operator == "lt":
+        return value < threshold
+    if operator == "eq":
+        return abs(value - threshold) < 0.001
+    if operator == "neq":
+        return abs(value - threshold) >= 0.001
+    return False
+
 
 class AlertService:
     def __init__(self, session: AsyncSession) -> None:
@@ -21,11 +58,13 @@ class AlertService:
 
     async def list_alerts(self, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
         try:
+            from sqlalchemy import func as sa_func
+
             offset = (page - 1) * page_size
             result = await self.session.execute(
                 select(AlertModel).order_by(AlertModel.created_at.desc()).offset(offset).limit(page_size)
             )
-            total = await self.session.scalar(select(text("COUNT(*)")).select_from(AlertModel.__tablename__))
+            total = await self.session.scalar(select(sa_func.count(AlertModel.id)))
             items = result.scalars().all()
             return Result.ok({
                 "items": [self._alert_to_dict(a) for a in items],
@@ -51,6 +90,8 @@ class AlertService:
             )
             self.session.add(alert)
             await self.session.flush()
+            await self.session.commit()
+            logger.info("Alert created: %s (%s — %s)", alert.id, symbol, alert_type)
             return Result.ok(self._alert_to_dict(alert))
         except Exception as e:
             logger.error("Create alert failed: %s", e)
@@ -94,12 +135,17 @@ class AlertService:
 
     async def get_alert_history(self, alert_id: str, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
         try:
+            from sqlalchemy import func as sa_func
+
             offset = (page - 1) * page_size
             result = await self.session.execute(
                 select(AlertHistoryModel)
                 .where(AlertHistoryModel.alert_id == alert_id)
                 .order_by(AlertHistoryModel.triggered_at.desc())
                 .offset(offset).limit(page_size)
+            )
+            total = await self.session.scalar(
+                select(sa_func.count(AlertHistoryModel.id)).where(AlertHistoryModel.alert_id == alert_id)
             )
             items = result.scalars().all()
             return Result.ok({
@@ -114,75 +160,128 @@ class AlertService:
                     }
                     for h in items
                 ],
-                "total": len(items),
+                "total": total or 0,
+                "page": page,
+                "page_size": page_size,
             })
         except Exception as e:
             logger.error("Get alert history failed: %s", e)
             return Result.fail(str(e))
 
-    async def _deliver_notification(self, message: str, channels: list[str]) -> None:
+    async def _deliver_notification(self, message: str, channels: list[str]) -> bool:
+        """Deliver an alert across its configured channels.
+
+        Returns True if at least one channel delivered successfully.
+        """
+        delivered = False
         for channel in channels:
             try:
                 if channel == "console":
                     logger.info("[ALERT] %s", message)
+                    delivered = True
                 elif channel == "sound":
                     logger.info("[ALERT][SOUND] Notification sound would play: %s", message)
+                    delivered = True
+                elif channel == "telegram":
+                    from integrations.notifications.telegram_sender import TelegramSender
+
+                    res = await TelegramSender().send(message)
+                    if res.success:
+                        delivered = True
+                    else:
+                        logger.debug("[ALERT][TELEGRAM] Not sent: %s", res.error)
                 elif channel == "email":
                     logger.info("[ALERT][EMAIL] Email would be sent: %s", message)
+                    delivered = True
             except Exception as e:
                 logger.error("Failed to deliver alert via %s: %s", channel, e)
+        return delivered
 
     async def evaluate_and_trigger(self, instrument_id: str, symbol: str, field: str, value: float) -> list[dict[str, Any]]:
+        """Evaluate all enabled alerts for a symbol/instrument and trigger matches.
+
+        Alerts are matched by instrument_id OR symbol — the frontend form only
+        stores a symbol (instrument_id stays empty until resolved), so matching
+        on symbol alone must work. Field names are normalized so a condition
+        stored with field="price" matches pipeline data under "price_last".
+
+        Top-level failures (e.g. the alerts table missing or the query itself
+        failing) are logged and re-raised so callers — like EvaluateAlertsJob —
+        can surface the failure instead of silently reporting zero triggers.
+        Per-alert errors are isolated and logged individually.
+        """
         triggered: list[dict[str, Any]] = []
         try:
+            # Match by instrument_id OR symbol — but only include the branches
+            # that actually have a value. The frontend stores alerts with an
+            # empty instrument_id, so matching on instrument_id == "" alone
+            # would pull EVERY symbol's alerts into every evaluation.
+            match_clauses: list[Any] = []
+            if instrument_id:
+                match_clauses.append(AlertModel.instrument_id == instrument_id)
+            if symbol:
+                match_clauses.append(AlertModel.symbol == symbol)
+            if not match_clauses:
+                return []
             result = await self.session.execute(
-                select(AlertModel).where(
-                    AlertModel.instrument_id == instrument_id,
-                    AlertModel.enabled == True,
-                )
+                select(AlertModel).where(or_(*match_clauses), AlertModel.enabled)
             )
             alerts = result.scalars().all()
+            now = datetime.now(UTC).replace(tzinfo=None)
             for alert in alerts:
                 try:
                     cond = json.loads(alert.condition) if isinstance(alert.condition, str) else alert.condition or {}
                     threshold = float(cond.get("threshold", 0))
                     operator = cond.get("operator", "gte")
-                    trigger_field = cond.get("field", field)
+                    trigger_field = _normalize_field(str(cond.get("field", field)))
+                    current_field = _normalize_field(field)
 
-                    if trigger_field != field:
+                    if trigger_field != current_field:
                         continue
 
-                    triggered_flag = False
-                    if operator == "gte" and value >= threshold or operator == "gt" and value > threshold or operator == "lte" and value <= threshold or operator == "lt" and value < threshold or operator == "eq" and abs(value - threshold) < 0.001:
-                        triggered_flag = True
+                    # Cooldown: skip if triggered recently (anti-spam).
+                    # Compare both timestamps as naive datetimes so a
+                    # timezone-aware last_triggered from the DB can't raise.
+                    cooldown_minutes = float(cond.get("cooldown_minutes", 0) or 0)
+                    if cooldown_minutes > 0 and alert.last_triggered:
+                        from datetime import timedelta
 
-                    if triggered_flag:
-                        channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
-                        message = f"{symbol} {field} reached {value} (threshold: {threshold})"
-                        await self._deliver_notification(message, channels)
-                        history = AlertHistoryModel(
-                            id=new_id("alh"),
-                            alert_id=alert.id,
-                            trigger_value=value,
-                            message=message,
-                            delivered=True,
-                        )
-                        self.session.add(history)
-                        alert.triggered_count = (alert.triggered_count or 0) + 1
-                        alert.last_triggered = datetime.now(UTC).replace(tzinfo=None)
-                        triggered.append({
-                            "alert_id": alert.id,
-                            "symbol": symbol,
-                            "value": value,
-                            "threshold": threshold,
-                            "message": message,
-                        })
-                except Exception:
-                    continue
+                        last = alert.last_triggered
+                        if getattr(last, "tzinfo", None) is not None:
+                            last = last.replace(tzinfo=None)
+                        if now - last < timedelta(minutes=cooldown_minutes):
+                            continue
+
+                    if not _condition_met(operator, value, threshold):
+                        continue
+
+                    channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
+                    message = f"{symbol} {current_field} reached {value} (threshold: {threshold})"
+                    delivered = await self._deliver_notification(message, channels)
+                    history = AlertHistoryModel(
+                        id=new_id("alh"),
+                        alert_id=alert.id,
+                        trigger_value=value,
+                        message=message,
+                        delivered=delivered,
+                    )
+                    self.session.add(history)
+                    alert.triggered_count = (alert.triggered_count or 0) + 1
+                    alert.last_triggered = now
+                    triggered.append({
+                        "alert_id": alert.id,
+                        "symbol": symbol,
+                        "value": value,
+                        "threshold": threshold,
+                        "message": message,
+                    })
+                except Exception as e:
+                    logger.warning("Alert %s evaluation skipped: %s", getattr(alert, "id", "?"), e)
             if triggered:
                 await self.session.flush()
         except Exception as e:
             logger.error("Evaluate alerts failed: %s", e)
+            raise
         return triggered
 
     def _alert_to_dict(self, alert: AlertModel) -> dict[str, Any]:

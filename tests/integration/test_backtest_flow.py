@@ -34,4 +34,3 @@ async def test_backtest_get_result():
     result = await service.get_result("non_existent")
     assert result.success is True
     assert result.value is None
-

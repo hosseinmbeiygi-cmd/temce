@@ -5,6 +5,7 @@ from enum import StrEnum
 
 class MarketType(StrEnum):
     BOURS = "bours"
+    STOCK = "stock"
     FARABOURS = "farabours"
     PAYEH = "payeh"
     OPTION = "option"

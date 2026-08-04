@@ -51,4 +51,3 @@ def test_bollinger_bands():
     upper, middle, lower = pipeline.bollinger_bands(prices, period=5, num_std=2)
     assert len(upper) == len(prices)
     assert all(upper[i] >= middle[i] >= lower[i] for i in range(len(prices)) if upper[i] is not None)
-

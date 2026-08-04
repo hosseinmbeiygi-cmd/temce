@@ -167,11 +167,6 @@ class GoldCurrencyParser:
         return cls._extract_section(data, "currency")
 
     @classmethod
-    def parse_crypto(cls, data: Any) -> list[dict[str, Any]]:
-        """Extract cryptocurrency records from the combined response."""
-        return cls._extract_section(data, "cryptocurrency")
-
-    @classmethod
     def _extract_section(cls, data: Any, section: str) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
@@ -505,7 +500,7 @@ class GoldCurrencyProParser:
         elif isinstance(data, list):
             items = [(None, entry) for entry in data if isinstance(entry, dict)]
 
-        for subcategory, entry in items:
+        for _subcategory, entry in items:
             rec = {
                 "section": section_name,
                 "symbol": cls._str(entry.get("symbol", "")),

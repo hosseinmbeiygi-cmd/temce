@@ -115,7 +115,7 @@ EVENTS: list[dict[str, Any]] = [
 ]
 
 
-CATEGORIES = sorted(set(e["category"] for e in EVENTS))
+CATEGORIES = sorted({e["category"] for e in EVENTS})
 
 
 # ── Subscription Endpoints ────────────────────────────────────────────────────

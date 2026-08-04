@@ -617,10 +617,7 @@ class MarketService:
         # Senkou Span B = mid(senkou_b_period), shifted forward 26 periods
         senkou_b = _mid(senkou_b_period)
         # Chikou Span = close shifted backward 26 periods
-        if n > kijun_period:
-            chikou = closes[kijun_period:]
-        else:
-            chikou = []
+        chikou = closes[kijun_period:] if n > kijun_period else []
         return tenkan, kijun, senkou_a, senkou_b, chikou
 
     # ── Live data fetching ────────────────────────────
@@ -857,10 +854,7 @@ class MarketService:
             return []
 
         data = result.value.data
-        if indicator == "gold":
-            parsed = GoldCurrencyParser.parse_gold(data)
-        else:
-            parsed = GoldCurrencyParser.parse_currency(data)
+        parsed = GoldCurrencyParser.parse_gold(data) if indicator == "gold" else GoldCurrencyParser.parse_currency(data)
 
         if isinstance(parsed, list):
             return parsed

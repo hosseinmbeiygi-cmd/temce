@@ -63,4 +63,3 @@ def test_retry_decorator_failure():
 
         asyncio.run(always_fails())
     assert call_count == 3
-

@@ -69,7 +69,7 @@ class PnLAttributionEngine:
             side = t.get("side", "buy")
             commission = t.get("commission", 0)
             slippage = t.get("slippage", 0)
-            expected_price = t.get("expected_price", price)
+            t.get("expected_price", price)
 
             trade_value = price * qty
             attr.commission_total += commission
@@ -120,10 +120,7 @@ class PnLAttributionEngine:
             side = f.get("side", "buy")
 
             if exp_p > 0:
-                if side == "buy":
-                    bps = ((exe_p - exp_p) / exp_p) * 10000
-                else:
-                    bps = ((exp_p - exe_p) / exp_p) * 10000
+                bps = (exe_p - exp_p) / exp_p * 10000 if side == "buy" else (exp_p - exe_p) / exp_p * 10000
                 slippages_bps.append(bps)
                 total_cost += bps * qty * exp_p / 10000
 

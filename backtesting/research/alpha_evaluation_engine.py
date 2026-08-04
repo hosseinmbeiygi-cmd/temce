@@ -178,7 +178,7 @@ class AlphaEvaluationEngine:
     def compare(self, evaluations: list[AlphaEvaluation]) -> list[dict[str, Any]]:
         """Compare multiple alphas and rank them."""
         ranked = []
-        for i, ev in enumerate(evaluations):
+        for ev in evaluations:
             score = (
                 ev.ic_ratio * 0.3
                 + min(ev.sharpe_ratio, 5) / 5 * 0.2

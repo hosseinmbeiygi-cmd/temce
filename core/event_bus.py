@@ -22,18 +22,29 @@ class EventBus:
         logger.debug("Handler subscribed to %s", event_type)
 
     def unsubscribe(self, event_type: str, handler: Handler) -> None:
-        self._handlers[event_type].remove(handler)
+        try:
+            self._handlers[event_type].remove(handler)
+        except ValueError:
+            logger.debug("Handler not subscribed to %s (no-op)", event_type)
         logger.debug("Handler unsubscribed from %s", event_type)
 
     async def publish(self, event: DomainEvent) -> None:
+        """Publish an event to all subscribed handlers.
+
+        Handlers run in subscription order; one failing handler does **not**
+        prevent the remaining handlers from running (each is isolated).
+        """
         handlers = self._handlers.get(event.event_type, [])
         if not handlers:
             return
         for handler in handlers:
-            if inspect.iscoroutinefunction(handler):
-                await handler(event)
-            else:
-                handler(event)
+            try:
+                if inspect.iscoroutinefunction(handler):
+                    await handler(event)
+                else:
+                    handler(event)
+            except Exception:
+                logger.exception("Event handler %r failed for %s", handler, event.event_type)
 
     def clear(self) -> None:
         self._handlers.clear()

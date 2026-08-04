@@ -6,7 +6,10 @@ from tests.fixtures.sample_ml_runs import sample_ml_model, sample_ml_run
 from tests.fixtures.sample_news import sample_news_article, sample_news_list
 from tests.fixtures.sample_orderbooks import sample_orderbook, sample_orderbook_level
 from tests.fixtures.sample_quotes import sample_quote, sample_quote_list
-from tests.fixtures.sample_recommendations import sample_recommendation, sample_recommendation_list
+from tests.fixtures.sample_recommendations import (
+    sample_recommendation,
+    sample_recommendation_list,
+)
 from tests.fixtures.sample_signals import sample_signal, sample_signal_list
 from tests.fixtures.sample_trades import sample_trade, sample_trade_list
 
@@ -34,4 +37,3 @@ __all__ = [
     "sample_backtest_run",
     "sample_backtest_result",
 ]
-

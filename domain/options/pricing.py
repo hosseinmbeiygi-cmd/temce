@@ -29,7 +29,7 @@ class OptionPrice:
 
 def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
     """Calculate d1 in Black-Scholes formula.
-    
+
     d1 = (ln(S/K) + (r + sigma^2/2) * T) / (sigma * sqrt(T))
     """
     return (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
@@ -37,7 +37,7 @@ def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
 
 def _d2(d1: float, sigma: float, T: float) -> float:
     """Calculate d2 in Black-Scholes formula.
-    
+
     d2 = d1 - sigma * sqrt(T)
     """
     return d1 - sigma * math.sqrt(T)
@@ -45,14 +45,14 @@ def _d2(d1: float, sigma: float, T: float) -> float:
 
 def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> float:
     """Black-Scholes call option price.
-    
+
     Args:
         S: Current asset price
         K: Strike price
         T: Time to expiration (in years)
         r: Risk-free interest rate (decimal)
         sigma: Volatility (decimal)
-    
+
     Returns:
         Call option price
     """
@@ -65,14 +65,14 @@ def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> 
 
 def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> float:
     """Black-Scholes put option price.
-    
+
     Args:
         S: Current asset price
         K: Strike price
         T: Time to expiration (in years)
         r: Risk-free interest rate (decimal)
         sigma: Volatility (decimal)
-    
+
     Returns:
         Put option price
     """
@@ -85,7 +85,7 @@ def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> f
 
 def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> OptionPrice:
     """Full Black-Scholes pricing with all Greeks.
-    
+
     Args:
         S: Current asset price
         K: Strike price
@@ -93,7 +93,7 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
         r: Risk-free interest rate (decimal, e.g. 0.05 for 5%%)
         sigma: Volatility (decimal, e.g. 0.30 for 30%%)
         option_type: "call" or "put"
-    
+
     Returns:
         OptionPrice dataclass with price, Greeks, and intrinsic/time values.
         Theta is per calendar day. Vega is per 1%% vol change. Rho is per 1%% rate change.
@@ -157,7 +157,7 @@ def implied_volatility(
     tol: float = 1e-6,
 ) -> float:
     """Calculate implied volatility using Newton-Raphson method.
-    
+
     Args:
         market_price: Observed market price of the option
         S: Current asset price
@@ -168,7 +168,7 @@ def implied_volatility(
         initial_guess: Starting volatility estimate
         max_iter: Maximum iterations
         tol: Convergence tolerance
-    
+
     Returns:
         Implied volatility
     """

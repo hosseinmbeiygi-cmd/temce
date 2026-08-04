@@ -12,16 +12,32 @@ from core.config import settings
 
 class SafeStreamHandler(logging.StreamHandler):
     def emit(self, record: logging.LogRecord) -> None:
+        # NOTE: we must NOT delegate to super().emit() here — the stdlib
+        # StreamHandler.emit catches every exception internally and routes it
+        # to handleError(), which prints a noisy "--- Logging error ---"
+        # traceback instead of letting our UnicodeEncodeError handler run.
+        # Writing the formatted message directly lets us degrade gracefully
+        # on consoles that cannot encode non-ASCII text (e.g. Windows cp1252
+        # with Persian/→ characters in exception text).
         try:
-            super().emit(record)
+            msg = self.format(record)
+            self.stream.write(msg + self.terminator)
+            self.flush()
         except UnicodeEncodeError:
             if record.exc_info and record.exc_info[0]:
+                # Exception text can't be encoded — drop silently rather than
+                # spamming "--- Logging error ---" for every failed record.
                 return
-            safe_msg = self.format(record).replace(
-                record.getMessage(), "[TEXT ENCODING ERROR]", 1
-            )
-            self.stream.write(safe_msg + self.terminator)
-            self.flush()
+            try:
+                safe_msg = self.format(record).replace(
+                    record.getMessage(), "[TEXT ENCODING ERROR]", 1
+                )
+                self.stream.write(safe_msg + self.terminator)
+                self.flush()
+            except Exception:
+                self.handleError(record)
+        except Exception:
+            self.handleError(record)
 
 
 class JsonFormatter(logging.Formatter):
@@ -62,6 +78,15 @@ def setup_logging() -> None:
         handlers.append(fh)
 
     logging.basicConfig(level=level, handlers=handlers, force=True)
+
+    # Centralized aggregation via Redis Streams (best-effort, opt-in)
+    if getattr(settings, "log_aggregation_enabled", False):
+        try:
+            from integrations.observability.log_aggregator import install_aggregation_handler
+
+            install_aggregation_handler(source=settings.log_aggregation_source)
+        except Exception:
+            logging.getLogger(__name__).debug("Log aggregation handler not installed", exc_info=True)
 
 
 _loggers: dict[str, logging.Logger] = {}

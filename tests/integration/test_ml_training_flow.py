@@ -26,4 +26,3 @@ async def test_ml_inference_flow():
         features={},
     )
     assert result.success
-

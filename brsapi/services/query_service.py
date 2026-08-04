@@ -25,6 +25,7 @@ from brsapi.models import (
     Gold24hModel,
     GoldCoinPriceModel,
     HistoricalDailyModel,
+    HistoricalRealLegalModel,
     ImeCertificateModel,
     ImeFundModel,
     ImeFutureModel,
@@ -142,7 +143,7 @@ class BrsApiQueryService:
         Uses a subquery to find the MAX(id) per symbol, then fetches
         only those rows — prevents the same symbol appearing multiple times.
         """
-        from sqlalchemy import func, text
+        from sqlalchemy import func
 
         subq = (
             select(
@@ -338,7 +339,108 @@ class BrsApiQueryService:
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]
 
-    # ── Historical ────────────────────────────────
+    # ── Historical (batch) ─────────────────────────
+
+    async def get_batch_historical_daily(self, limit: int = 61) -> list[dict[str, Any]]:
+        """Batch: latest daily OHLCV for ALL symbols, newest-first, up to ``limit`` days per symbol."""
+        from sqlalchemy import func
+
+        # Subquery: latest id per symbol per date group
+        # We need newest N rows per symbol — use ROW_NUMBER
+        inner = (
+            select(
+                HistoricalDailyModel.symbol,
+                HistoricalDailyModel.date,
+                HistoricalDailyModel.trade_volume,
+                HistoricalDailyModel.trade_value,
+                HistoricalDailyModel.price_min,
+                HistoricalDailyModel.price_max,
+                HistoricalDailyModel.price_first,
+                HistoricalDailyModel.price_last,
+                HistoricalDailyModel.price_close,
+                HistoricalDailyModel.price_last_change_pct,
+                func.row_number().over(
+                    partition_by=HistoricalDailyModel.symbol,
+                    order_by=HistoricalDailyModel.date.desc(),
+                ).label("rn"),
+            )
+            .where(HistoricalDailyModel.symbol.isnot(None))
+            .where(HistoricalDailyModel.symbol != "")
+        ).subquery()
+
+        stmt = (
+            select(inner)
+            .where(inner.c.rn <= limit)
+            .order_by(inner.c.symbol, inner.c.date.desc())
+        )
+        result = await self.session.execute(stmt)
+        return [
+            {
+                "symbol": r.symbol,
+                "trade_date": r.date,
+                "price_close": r.price_close,
+                "price_max": r.price_max,
+                "price_min": r.price_min,
+                "price_last": r.price_last,
+                "price_first": r.price_first,
+                "trade_volume": r.trade_volume,
+                "trade_value": r.trade_value,
+                "price_last_change_pct": r.price_last_change_pct,
+            }
+            for r in result
+        ]
+
+    async def get_batch_historical_real_legal(self, limit: int = 36) -> list[dict[str, Any]]:
+        """
+        Batch: latest daily real/legal breakdown for ALL symbols,
+        newest-first, up to ``limit`` days per symbol.
+
+        Uses HistoricalRealLegalModel (brsapi_historical_real_legal table).
+        """
+        from sqlalchemy import func
+
+        inner = (
+            select(
+                HistoricalRealLegalModel.symbol,
+                HistoricalRealLegalModel.date,
+                HistoricalRealLegalModel.buy_real_volume,
+                HistoricalRealLegalModel.sell_real_volume,
+                HistoricalRealLegalModel.buy_legal_volume,
+                HistoricalRealLegalModel.sell_legal_volume,
+                HistoricalRealLegalModel.buy_real_value,
+                HistoricalRealLegalModel.sell_real_value,
+                HistoricalRealLegalModel.buy_legal_value,
+                HistoricalRealLegalModel.sell_legal_value,
+                func.row_number().over(
+                    partition_by=HistoricalRealLegalModel.symbol,
+                    order_by=HistoricalRealLegalModel.date.desc(),
+                ).label("rn"),
+            )
+            .where(HistoricalRealLegalModel.symbol.isnot(None))
+            .where(HistoricalRealLegalModel.symbol != "")
+        ).subquery()
+
+        stmt = (
+            select(inner)
+            .where(inner.c.rn <= limit)
+            .order_by(inner.c.symbol, inner.c.date.desc())
+        )
+        result = await self.session.execute(stmt)
+        return [
+            {
+                "symbol": r.symbol,
+                "trade_date": r.date,
+                "legal_buy_volume": r.buy_legal_volume,
+                "legal_sell_volume": r.sell_legal_volume,
+                "real_buy_volume": r.buy_real_volume,
+                "real_sell_volume": r.sell_real_volume,
+                "real_buy_value": r.buy_real_value,
+                "real_sell_value": r.sell_real_value,
+                "legal_buy_value": r.buy_legal_value,
+                "legal_sell_value": r.sell_legal_value,
+            }
+            for r in result
+        ]
 
     async def get_historical_daily(
         self, symbol: str, ins_id: str | None = None, limit: int = 365

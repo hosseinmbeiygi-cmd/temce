@@ -1,90 +1,114 @@
+"""Shared pytest configuration and environment fixes.
+
+Auto-skip logic
+---------------
+Tests marked with ``@pytest.mark.needs_db`` are automatically skipped
+when no PostgreSQL instance is reachable (checked once per session via
+``pytest_collection_modifyitems``).  This lets developers run the
+``tests/unit/`` suite locally without a running database while the full
+suite (including DB-dependent tests) still runs in CI where
+``services.postgres`` is configured.
+"""
+
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 
-import core.database as db
-from core.config import settings
-from core.database import _create_all_tables
-
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+# ── UTF-8 reconfigure (Windows compat) ──────────────────────────
+# On Windows the default console encoding (cp1252) cannot handle Persian text or
+# emojis printed by some tests. Reconfigure stdout/stderr to UTF-8 so that
+# collection and reporting do not crash with UnicodeEncodeError.
 
 
-@pytest_asyncio.fixture(scope="module")
-async def db_engine(request):
-    """Initialize database with a NullPool engine to avoid cross-loop pool issues."""
-    from sqlalchemy import NullPool
+def _reconfigure_stream(stream):
+    import contextlib
 
-    test_engine = create_async_engine(
-        settings.database_url_async,
-        echo=settings.database_echo,
-        poolclass=NullPool,
+    with contextlib.suppress(AttributeError):
+        # Python 3.7+ allows reconfiguring an existing TextIOWrapper.
+        stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+_reconfigure_stream(sys.stdout)
+_reconfigure_stream(sys.stderr)
+
+
+# ── PostgreSQL availability check ───────────────────────────────
+# Used by ``pytest_collection_modifyitems`` to skip ``needs_db`` tests
+# when there is no reachable PostgreSQL instance.
+
+
+def _db_url() -> str:
+    """Return the DATABASE_URL to probe, falling back to localhost."""
+    return os.environ.get(
+        "DATABASE_URL",
+        "postgresql+asyncpg://market:market@localhost:5432/market_test",
     )
-    test_session_factory = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False,
-    )
-
-    old_engine = db.engine
-    old_factory = db.async_session_factory
-    db.engine = test_engine
-    db.async_session_factory = test_session_factory
-
-    async with test_engine.begin() as conn:
-        await conn.execute(text("SELECT 1"))
-    await _create_all_tables()
-
-    yield test_engine
-
-    await test_engine.dispose()
-    db.engine = old_engine
-    db.async_session_factory = old_factory
 
 
-@pytest_asyncio.fixture(scope="function")
-async def db_session(db_engine):
-    """Provide a clean database session for each test."""
-    async with db.async_session_factory() as session:
-        yield session
-        await session.rollback()
-        await session.close()
+def _is_postgres_reachable() -> bool:
+    """Return ``True`` iff PostgreSQL responds to ``SELECT 1``.
+
+    The check is performed synchronously (``asyncio.run``) so it can
+    be called from ``pytest_collection_modifyitems`` which is a
+    synchronous hook.
+    """
+    db_url = _db_url()
+
+    # SQLite is always "available" locally but is not real PostgreSQL;
+    # tests that need *PostgreSQL* semantics (JSONB, TimescaleDB
+    # hypertables, etc.) should not run on SQLite.
+    if "sqlite" in db_url:
+        return False
+
+    async def _ping() -> bool:
+        engine = create_async_engine(db_url)
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+            return True
+        except Exception:
+            return False
+        finally:
+            await engine.dispose()
+
+    try:
+        return asyncio.run(_ping())
+    except Exception:
+        return False
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _db_engine_auto(db_engine):
-    """Ensure db_engine is initialized for every test module."""
-    pass
+_DB_AVAILABLE: bool | None = None  # lazy cache, set once per session
 
 
-@pytest.fixture
-def sample_instrument_data():
-    return {
-        "id": "inst_test_001",
-        "symbol": "فولاد",
-        "name": "فولاد مبارکه اصفهان",
-        "isin": "IRO1FOLD0001",
-        "market_type": "bours",
-        "asset_class": "equity",
-    }
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Auto-skip ``@pytest.mark.needs_db`` tests when PostgreSQL is unreachable.
 
+    The connectivity check runs **at most once** per session; the result
+    is cached on ``config`` so that the same engine / ``asyncio.run``
+    call is not repeated for every collected item.
+    """
+    global _DB_AVAILABLE  # noqa: PLW0603  — module-level cache is intentional
 
-@pytest.fixture
-def sample_quote_data():
-    return {
-        "id": "q_test_001",
-        "instrument_id": "inst_test_001",
-        "symbol": "فولاد",
-        "price_close": 15000,
-        "price_open": 14900,
-        "price_high": 15100,
-        "price_low": 14850,
-        "volume": 5000000,
-        "value": 75000000000,
-        "date": "2024-01-15",
-        "time": "12:30:00",
-    }
+    if _DB_AVAILABLE is None:
+        _DB_AVAILABLE = _is_postgres_reachable()
+
+    if _DB_AVAILABLE:
+        return  # no need to skip anything
+
+    for item in items:
+        if item.get_closest_marker("needs_db"):
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=(
+                        "PostgreSQL is not reachable at "
+                        f"{_db_url().split('@')[-1] if '@' in _db_url() else _db_url()}; "
+                        "skipping test that requires a database"
+                    )
+                )
+            )

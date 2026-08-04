@@ -28,8 +28,8 @@ _VOLUMES: list[float] = []
 
 price = 1000.0
 for _ in range(_N):
-    change_pct = random.gauss(0, 2.0)          # daily return ~ N(0, 2%)
-    bar_range = abs(random.gauss(0, 1.0))       # intraday range
+    change_pct = random.gauss(0, 2.0)  # daily return ~ N(0, 2%)
+    bar_range = abs(random.gauss(0, 1.0))  # intraday range
     close = price * (1 + change_pct / 100)
     high = close + bar_range
     low = close - bar_range
@@ -44,14 +44,15 @@ for _ in range(_N):
 
 # ── Thresholds (seconds) ──────────────────────────────────
 
-SIMPLE_THRESHOLD = 0.5       # sma / ema / obv / williams_r
-MEDIUM_THRESHOLD = 1.5       # rsi / atr
-COMPLEX_THRESHOLD = 3.0      # macd / bollinger / stochastic / ichimoku
+SIMPLE_THRESHOLD = 0.5  # sma / ema / obv / williams_r
+MEDIUM_THRESHOLD = 1.5  # rsi / atr
+COMPLEX_THRESHOLD = 3.0  # macd / bollinger / stochastic / ichimoku
 
 
 # ═══════════════════════════════════════════════════════════
 #  Single-indicator benchmarks (static methods)
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.mark.performance
 def test_sma_5000() -> None:
@@ -117,7 +118,7 @@ def test_atr_5000() -> None:
     t0 = time.perf_counter()
     result = MarketService._atr(_HIGHS, _LOWS, _PRICES, 14)
     elapsed = time.perf_counter() - t0
-    assert len(result) == _N - 14   # 5000-1-14+1=4986
+    assert len(result) == _N - 14  # 5000-1-14+1=4986
     assert elapsed < MEDIUM_THRESHOLD, f"ATR 5000: {elapsed:.4f}s > {MEDIUM_THRESHOLD}s"
     print(f"  ATR(14)  x5000: {elapsed:.4f}s  ({len(result)} values)")
 
@@ -146,15 +147,23 @@ def test_williams_r_5000() -> None:
 def test_ichimoku_5000() -> None:
     t0 = time.perf_counter()
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
-        _HIGHS, _LOWS, _PRICES, 9, 26, 52,
+        _HIGHS,
+        _LOWS,
+        _PRICES,
+        9,
+        26,
+        52,
     )
     elapsed = time.perf_counter() - t0
     assert len(tenkan) == _N - 9 + 1
     assert elapsed < COMPLEX_THRESHOLD, f"Ichimoku 5000: {elapsed:.4f}s > {COMPLEX_THRESHOLD}s"
-    print(f"  Ichimoku(9,26,52) x5000: {elapsed:.4f}s  (t={len(tenkan)} k={len(kijun)} sa={len(senkou_a)} sb={len(senkou_b)} c={len(chikou)})")
+    print(
+        f"  Ichimoku(9,26,52) x5000: {elapsed:.4f}s  (t={len(tenkan)} k={len(kijun)} sa={len(senkou_a)} sb={len(senkou_b)} c={len(chikou)})"
+    )
 
 
 # ── _compute_indicator routing ─────────────────────────────
+
 
 @pytest.mark.performance
 def test_compute_indicator_routing_overhead() -> None:
@@ -169,6 +178,7 @@ def test_compute_indicator_routing_overhead() -> None:
 # ═══════════════════════════════════════════════════════════
 #  Full pipeline (with mock DB) benchmark
 # ═══════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 @pytest.mark.performance

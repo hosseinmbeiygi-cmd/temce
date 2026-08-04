@@ -1,0 +1,154 @@
+{
+  "total": 21,
+  "success": 0,
+  "failed": 21,
+  "results": [
+    {
+      "symbol": "فولاد",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "فملی",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.3
+    },
+    {
+      "symbol": "وبانک",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "کگل",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "خودرو",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "شستا",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "شپنا",
+      "model": "xgboost",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "فولاد",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "فملی",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "وبانک",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "کگل",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.3
+    },
+    {
+      "symbol": "خودرو",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "شستا",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "شپنا",
+      "model": "lightgbm",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "فولاد",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "فملی",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.3
+    },
+    {
+      "symbol": "وبانک",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "کگل",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "خودرو",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    },
+    {
+      "symbol": "شستا",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.1
+    },
+    {
+      "symbol": "شپنا",
+      "model": "random_forest",
+      "ok": false,
+      "error": "password authentication failed for user \"market\"",
+      "time": 0.2
+    }
+  ]
+}

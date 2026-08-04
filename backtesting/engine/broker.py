@@ -150,10 +150,7 @@ class Broker:
             daily_volume=getattr(order, "daily_volume", None),
         )
 
-        if order.side == "buy":
-            exec_price = order.price + slippage
-        else:
-            exec_price = order.price - slippage
+        exec_price = order.price + slippage if order.side == "buy" else order.price - slippage
 
         exec_price = max(exec_price, 0.01)
 

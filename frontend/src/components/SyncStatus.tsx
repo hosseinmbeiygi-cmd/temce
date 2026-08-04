@@ -64,7 +64,9 @@ function getLabel(key: string): { label: string; icon: string } {
 function Toast({ message, type, onClose }: { message: string; type: "success" | "error" | "warning"; onClose: () => void }) {
   const router = useRouter();
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const timer = setTimeout(() => onCloseRef.current(), 4000);
@@ -308,18 +310,25 @@ export default function SyncStatus() {
       });
 
     if (outdatedKeys.length > 0) {
-      setToast({
-        message: `⚠️ داده‌های ${outdatedKeys.join("، ")} قدیمی هستند — لطفاً sync کنید`,
-        type: "warning",
-      });
-      hasShownOutdatedToast.current = true;
-
-      // Browser Notification API
       const sectionNames = outdatedKeys.join("، ");
-      sendBrowserNotification(
-        "⚠️ داده‌های قدیمی — همگام‌سازی نیاز است",
-        `${sectionNames} — برای sync کلیک کنید`
-      );
+      // Defer so the toast/notification side effects don't run synchronously in the effect.
+      // The flag is set inside the timer so a re-run before it fires re-schedules
+      // instead of silently dropping the toast.
+      const timer = setTimeout(() => {
+        if (hasShownOutdatedToast.current) return;
+        hasShownOutdatedToast.current = true;
+        setToast({
+          message: `⚠️ داده‌های ${outdatedKeys.join("، ")} قدیمی هستند — لطفاً sync کنید`,
+          type: "warning",
+        });
+
+        // Browser Notification API
+        sendBrowserNotification(
+          "⚠️ داده‌های قدیمی — همگام‌سازی نیاز است",
+          `${sectionNames} — برای sync کلیک کنید`
+        );
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [syncStatus, sendBrowserNotification]);
 

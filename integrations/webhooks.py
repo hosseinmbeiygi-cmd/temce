@@ -20,3 +20,7 @@ class WebhookClient:
         except Exception as e:
             logger.error("Webhook failed to %s: %s", url, e)
             return False
+
+    async def close(self) -> None:
+        """Release the underlying HTTP client (connection pool)."""
+        await self.http.close()

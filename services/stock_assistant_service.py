@@ -12,31 +12,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from core.db_utils import safe_float, safe_int
 from core.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _safe_float(value: Any, default: float = 0.0) -> float:
-    try:
-        if value is None:
-            return default
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _safe_int(value: Any, default: int = 0) -> int:
-    try:
-        if value is None:
-            return default
-        return int(value)
-    except (TypeError, ValueError):
-        return default
 
 
 # ---------------------------------------------------------------------------
@@ -102,13 +81,13 @@ class TechnicalIndicators:
         offset = len(ema12) - len(ema26)
         if offset > 0:
             ema12 = ema12[offset:]
-        macd_line = [a - b for a, b in zip(ema12, ema26)]
+        macd_line = [a - b for a, b in zip(ema12, ema26, strict=False)]
         signal_line = TechnicalIndicators.ema(macd_line, 9)
         if not signal_line:
             return {"macd": macd_line, "signal": [], "histogram": []}
         offset2 = len(macd_line) - len(signal_line)
         aligned_macd = macd_line[offset2:]
-        histogram = [m - s for m, s in zip(aligned_macd, signal_line)]
+        histogram = [m - s for m, s in zip(aligned_macd, signal_line, strict=False)]
         return {"macd": aligned_macd, "signal": signal_line, "histogram": histogram}
 
     @staticmethod
@@ -307,11 +286,11 @@ class CandlestickPatterns:
             return []
         patterns = []
         i = len(opens) - 1
-        o, h, l, c = opens[i], highs[i], lows[i], closes[i]
+        o, h, low, c = opens[i], highs[i], lows[i], closes[i]
         body = abs(c - o)
         upper_shadow = h - max(o, c)
-        lower_shadow = min(o, c) - l
-        total_range = h - l if h != l else 0.001
+        lower_shadow = min(o, c) - low
+        total_range = h - low if h != low else 0.001
 
         if body < total_range * 0.1 and upper_shadow < total_range * 0.1 and lower_shadow < total_range * 0.1:
             patterns.append({"name": "دوجی", "type": "neutral", "description": "بی‌تصمیمی بازار"})
@@ -330,7 +309,7 @@ class CandlestickPatterns:
                 patterns.append({"name": "شمع بزرگ نزولی", "type": "bearish", "description": "قدرتنمایی فروشندگان"})
 
         if i >= 1:
-            o2, h2, l2, c2 = opens[i-1], highs[i-1], lows[i-1], closes[i-1]
+            o2, _h2, _l2, c2 = opens[i-1], highs[i-1], lows[i-1], closes[i-1]
             body2 = abs(c2 - o2)
             if c2 < o2 and c > o and o <= c2 and c >= o2 and body > body2 * 1.5:
                 patterns.append({"name": "الگوی اینگالفینگ صعودی", "type": "bullish", "description": "شکست نزولی با قدرت"})
@@ -366,12 +345,12 @@ class CandlestickPatterns:
 
 def _calculate_score(info: dict[str, Any], tech: dict[str, Any] | None = None) -> int:
     score = 50
-    pe = _safe_float(info.get("pe"), 10)
-    roe = _safe_float(info.get("roe"), 15)
-    rsi_val = _safe_float(info.get("rsi"), 50)
-    ret = _safe_float(info.get("return_1d"), 0)
-    debt = _safe_float(info.get("debt"), 40)
-    beta = _safe_float(info.get("beta"), 1.0)
+    pe = safe_float(info.get("pe"), 10)
+    roe = safe_float(info.get("roe"), 15)
+    rsi_val = safe_float(info.get("rsi"), 50)
+    ret = safe_float(info.get("return_1d"), 0)
+    debt = safe_float(info.get("debt"), 40)
+    beta = safe_float(info.get("beta"), 1.0)
 
     if pe > 0:
         if pe < 5:
@@ -535,7 +514,6 @@ _COLLOQUIAL_MAP: dict[str, list[str]] = {
     "مقایسه کن": ["مقایسه"],
     "با هم مقایسه": ["مقایسه"],
     "کدوم بهتره": ["مقایسه"],
-    "کدوم بهتره": ["مقایسه"],
     "کدوم سود بیشتری": ["مقایسه"],
     "تفاوت": ["مقایسه"],
 
@@ -553,7 +531,6 @@ _COLLOQUIAL_MAP: dict[str, list[str]] = {
     "بروزرسانی": ["بروزرسانی"],
     "به‌روزرسانی": ["بروزرسانی"],
     "آپدیت": ["بروزرسانی"],
-    "刷新": ["بروزرسانی"],
     "تازه کن": ["بروزرسانی"],
 
     # History
@@ -967,18 +944,18 @@ class VolumeProfile:
         poc_level = max(levels, key=lambda x: x["volume"]) if levels else None
         poc = poc_level["price"] if poc_level else (min_price + max_price) / 2
 
-        total_volume = sum(l["volume"] for l in levels)
+        total_volume = sum(level["volume"] for level in levels)
         target_volume = total_volume * 0.7
         sorted_levels = sorted(levels, key=lambda x: x["volume"], reverse=True)
         cumulative = 0
         value_area_levels = []
-        for l in sorted_levels:
-            cumulative += l["volume"]
-            value_area_levels.append(l)
+        for level in sorted_levels:
+            cumulative += level["volume"]
+            value_area_levels.append(level)
             if cumulative >= target_volume:
                 break
 
-        va_prices = [l["price"] for l in value_area_levels]
+        va_prices = [level["price"] for level in value_area_levels]
         value_area_high = max(va_prices) if va_prices else max_price
         value_area_low = min(va_prices) if va_prices else min_price
 
@@ -1043,19 +1020,19 @@ class ReportGenerator:
             return "داده‌ای برای گزارش موجود نیست."
 
         count = len(stocks)
-        avg_pe = round(sum(_safe_float(s.get("pe"), 0) for s in stocks) / count, 2)
-        avg_roe = round(sum(_safe_float(s.get("roe"), 0) for s in stocks) / count, 2)
-        positive = sum(1 for s in stocks if _safe_float(s.get("return_1d"), 0) > 0)
-        negative = sum(1 for s in stocks if _safe_float(s.get("return_1d"), 0) < 0)
+        avg_pe = round(sum(safe_float(s.get("pe"), 0) for s in stocks) / count, 2)
+        avg_roe = round(sum(safe_float(s.get("roe"), 0) for s in stocks) / count, 2)
+        positive = sum(1 for s in stocks if safe_float(s.get("return_1d"), 0) > 0)
+        negative = sum(1 for s in stocks if safe_float(s.get("return_1d"), 0) < 0)
         unchanged = count - positive - negative
-        total_value = sum(_safe_float(s.get("value"), 0) for s in stocks)
-        avg_change = round(sum(_safe_float(s.get("return_1d"), 0) for s in stocks) / count, 2)
+        total_value = sum(safe_float(s.get("value"), 0) for s in stocks)
+        avg_change = round(sum(safe_float(s.get("return_1d"), 0) for s in stocks) / count, 2)
 
-        sorted_by_return = sorted(stocks, key=lambda s: _safe_float(s.get("return_1d"), 0), reverse=True)
+        sorted_by_return = sorted(stocks, key=lambda s: safe_float(s.get("return_1d"), 0), reverse=True)
         top5 = sorted_by_return[:5]
         bottom5 = sorted_by_return[-5:]
 
-        sorted_by_volume = sorted(stocks, key=lambda s: _safe_float(s.get("volume"), 0), reverse=True)
+        sorted_by_volume = sorted(stocks, key=lambda s: safe_float(s.get("volume"), 0), reverse=True)
         top_volume = sorted_by_volume[:5]
 
         lines = [
@@ -1073,17 +1050,17 @@ class ReportGenerator:
             "🏆 برترین‌ها:",
         ]
         for s in top5:
-            lines.append(f"  🟢 {s.get('symbol', '')}: {_safe_float(s.get('return_1d'), 0):+.2f}%")
+            lines.append(f"  🟢 {s.get('symbol', '')}: {safe_float(s.get('return_1d'), 0):+.2f}%")
 
         lines.append("")
         lines.append("⚠️ ضعیف‌ترین‌ها:")
         for s in bottom5:
-            lines.append(f"  🔴 {s.get('symbol', '')}: {_safe_float(s.get('return_1d'), 0):+.2f}%")
+            lines.append(f"  🔴 {s.get('symbol', '')}: {safe_float(s.get('return_1d'), 0):+.2f}%")
 
         lines.append("")
         lines.append("📊 بیشترین حجم:")
         for s in top_volume:
-            lines.append(f"  📈 {s.get('symbol', '')}: {_safe_int(s.get('volume'), 0):,}")
+            lines.append(f"  📈 {s.get('symbol', '')}: {safe_int(s.get('volume'), 0):,}")
 
         if alerts:
             lines.append("")
@@ -1164,8 +1141,8 @@ class StockAssistantService:
             normalized = [
                 {
                     "date": h.get("date", ""),
-                    "close": _safe_float(h.get("price_close") or h.get("price_last"), 0),
-                    "volume": _safe_int(h.get("trade_volume"), 0),
+                    "close": safe_float(h.get("price_close") or h.get("price_last"), 0),
+                    "volume": safe_int(h.get("trade_volume"), 0),
                 }
                 for h in history
             ]
@@ -1183,17 +1160,17 @@ class StockAssistantService:
             "symbol": item.get("symbol", ""),
             "name": item.get("name", ""),
             "sector": item.get("sector", item.get("industry", "")),
-            "price": _safe_float(item.get("price_last") or item.get("price"), 0),
-            "pe": _safe_float(item.get("pe_ratio") or item.get("pe"), 0),
-            "roe": _safe_float(item.get("roe"), 0),
-            "rsi": _safe_float(item.get("rsi"), 50),
-            "return_1d": _safe_float(item.get("price_last_change_pct") or item.get("change_percent"), 0),
-            "volume": _safe_int(item.get("trade_volume") or item.get("volume"), 0),
-            "debt": _safe_float(item.get("debt"), 0),
-            "beta": _safe_float(item.get("beta"), 1.0),
-            "eps": _safe_float(item.get("eps"), 0),
+            "price": safe_float(item.get("price_last") or item.get("price"), 0),
+            "pe": safe_float(item.get("pe_ratio") or item.get("pe"), 0),
+            "roe": safe_float(item.get("roe"), 0),
+            "rsi": safe_float(item.get("rsi"), 50),
+            "return_1d": safe_float(item.get("price_last_change_pct") or item.get("change_percent"), 0),
+            "volume": safe_int(item.get("trade_volume") or item.get("volume"), 0),
+            "debt": safe_float(item.get("debt"), 0),
+            "beta": safe_float(item.get("beta"), 1.0),
+            "eps": safe_float(item.get("eps"), 0),
             "market": item.get("market", ""),
-            "value": _safe_float(item.get("trade_value"), 0),
+            "value": safe_float(item.get("trade_value"), 0),
         }
 
     # ── Public API ──
@@ -1363,12 +1340,12 @@ class StockAssistantService:
             return {"text": "داده‌ای برای بازار در دسترس نیست.", "type": "error"}
 
         count = len(stocks)
-        avg_pe = round(sum(_safe_float(s.get("pe"), 0) for s in stocks) / count, 2) if count else 0
-        avg_roe = round(sum(_safe_float(s.get("roe"), 0) for s in stocks) / count, 2) if count else 0
-        avg_rsi = round(sum(_safe_float(s.get("rsi"), 0) for s in stocks) / count, 2) if count else 0
-        positive = sum(1 for s in stocks if _safe_float(s.get("return_1d"), 0) > 0)
-        negative = sum(1 for s in stocks if _safe_float(s.get("return_1d"), 0) < 0)
-        total_value = sum(_safe_float(s.get("value"), 0) for s in stocks)
+        avg_pe = round(sum(safe_float(s.get("pe"), 0) for s in stocks) / count, 2) if count else 0
+        avg_roe = round(sum(safe_float(s.get("roe"), 0) for s in stocks) / count, 2) if count else 0
+        avg_rsi = round(sum(safe_float(s.get("rsi"), 0) for s in stocks) / count, 2) if count else 0
+        positive = sum(1 for s in stocks if safe_float(s.get("return_1d"), 0) > 0)
+        negative = sum(1 for s in stocks if safe_float(s.get("return_1d"), 0) < 0)
+        total_value = sum(safe_float(s.get("value"), 0) for s in stocks)
 
         lines = [
             "📊 خلاصه بازار",
@@ -1383,13 +1360,13 @@ class StockAssistantService:
         ]
 
         # Top gainers
-        sorted_stocks = sorted(stocks, key=lambda s: _safe_float(s.get("return_1d"), 0), reverse=True)
+        sorted_stocks = sorted(stocks, key=lambda s: safe_float(s.get("return_1d"), 0), reverse=True)
         top3 = sorted_stocks[:3]
         if top3:
             lines.append("")
             lines.append("🏆 برترین‌ها:")
             for s in top3:
-                lines.append(f"  🟢 {s['symbol']}: {_safe_float(s.get('return_1d'), 0):+.2f}%")
+                lines.append(f"  🟢 {s['symbol']}: {safe_float(s.get('return_1d'), 0):+.2f}%")
 
         # Top losers
         bottom3 = sorted_stocks[-3:]
@@ -1397,7 +1374,7 @@ class StockAssistantService:
             lines.append("")
             lines.append("⚠️ ضعیف‌ترین‌ها:")
             for s in bottom3:
-                lines.append(f"  🔴 {s['symbol']}: {_safe_float(s.get('return_1d'), 0):+.2f}%")
+                lines.append(f"  🔴 {s['symbol']}: {safe_float(s.get('return_1d'), 0):+.2f}%")
 
         return {"text": "\n".join(lines), "type": "market", "data": {"count": count, "positive": positive, "negative": negative}}
 
@@ -1443,7 +1420,7 @@ class StockAssistantService:
 
     async def _find_cheap(self) -> dict[str, Any]:
         stocks = await self._get_all_stocks()
-        cheap = [s for s in stocks if 0 < _safe_float(s.get("pe"), 999) < 8]
+        cheap = [s for s in stocks if 0 < safe_float(s.get("pe"), 999) < 8]
         if not cheap:
             return {"text": "سهم ارزنده‌ای با P/E کمتر از ۸ پیدا نشد.", "type": "info"}
 
@@ -1461,7 +1438,7 @@ class StockAssistantService:
             lines.append(
                 f"{i}. {item['symbol']} | امتیاز: {item['score']}\n"
                 f"   P/E: {info.get('pe', 'N/A')} | ROE: {info.get('roe', 'N/A')}% | "
-                f"قیمت: {_safe_float(info.get('price'), 0):,.0f}"
+                f"قیمت: {safe_float(info.get('price'), 0):,.0f}"
             )
 
         return {"text": "\n".join(lines), "type": "screener", "data": {"count": len(analyzed)}}
@@ -1485,7 +1462,7 @@ class StockAssistantService:
             lines.append(
                 f"{i}. {item['symbol']} | امتیاز: {item['score']} | {_recommendation_text(item['score'])}\n"
                 f"   P/E: {info.get('pe', 'N/A')} | ROE: {info.get('roe', 'N/A')}% | "
-                f"RSI: {info.get('rsi', 'N/A')} | بازده: {_safe_float(info.get('return_1d'), 0):+.1f}%"
+                f"RSI: {info.get('rsi', 'N/A')} | بازده: {safe_float(info.get('return_1d'), 0):+.1f}%"
             )
 
         best = analyzed[0]
@@ -1527,11 +1504,11 @@ class StockAssistantService:
         score2 = _calculate_score(s2, tech2)
 
         comparisons = [
-            ("قیمت", _safe_float(s1.get("price")), _safe_float(s2.get("price")), False),
-            ("P/E", _safe_float(s1.get("pe")), _safe_float(s2.get("pe")), False),
-            ("ROE", _safe_float(s1.get("roe")), _safe_float(s2.get("roe")), True),
-            ("RSI", _safe_float(s1.get("rsi")), _safe_float(s2.get("rsi")), False),
-            ("بازده", _safe_float(s1.get("return_1d")), _safe_float(s2.get("return_1d")), True),
+            ("قیمت", safe_float(s1.get("price")), safe_float(s2.get("price")), False),
+            ("P/E", safe_float(s1.get("pe")), safe_float(s2.get("pe")), False),
+            ("ROE", safe_float(s1.get("roe")), safe_float(s2.get("roe")), True),
+            ("RSI", safe_float(s1.get("rsi")), safe_float(s2.get("rsi")), False),
+            ("بازده", safe_float(s1.get("return_1d")), safe_float(s2.get("return_1d")), True),
         ]
 
         lines = [f"⚖️ مقایسه {sym1} و {sym2}", "═" * 60]
@@ -1567,10 +1544,10 @@ class StockAssistantService:
         results = []
 
         for s in stocks:
-            rsi_val = _safe_float(s.get("rsi"), 0)
-            roe_val = _safe_float(s.get("roe"), 0)
-            pe_val = _safe_float(s.get("pe"), 0)
-            ret_val = _safe_float(s.get("return_1d"), 0)
+            rsi_val = safe_float(s.get("rsi"), 0)
+            roe_val = safe_float(s.get("roe"), 0)
+            pe_val = safe_float(s.get("pe"), 0)
+            ret_val = safe_float(s.get("return_1d"), 0)
 
             if "rsi_min" in conditions and rsi_val < conditions["rsi_min"]:
                 continue
@@ -1604,7 +1581,7 @@ class StockAssistantService:
                 f"RSI: {info.get('rsi', 'N/A')} | "
                 f"ROE: {info.get('roe', 'N/A')}% | "
                 f"P/E: {info.get('pe', 'N/A')} | "
-                f"بازده: {_safe_float(info.get('return_1d'), 0):+.1f}%"
+                f"بازده: {safe_float(info.get('return_1d'), 0):+.1f}%"
             )
 
         return {"text": "\n".join(lines), "type": "filter", "data": {"count": len(results), "conditions": conditions}}
@@ -1639,7 +1616,7 @@ class StockAssistantService:
         history = await self._get_stock_history(symbol)
         if not history or len(history) < 20:
             return None
-        closes = [_safe_float(h.get("close"), 0) for h in history]
+        closes = [safe_float(h.get("close"), 0) for h in history]
         closes = [c for c in closes if c > 0]
         if not closes:
             return None
@@ -1658,10 +1635,10 @@ class StockAssistantService:
         rec = _recommendation_text(score)
 
         factors = []
-        pe = _safe_float(info.get("pe"), 0)
-        roe = _safe_float(info.get("roe"), 0)
-        rsi_val = _safe_float(info.get("rsi"), 50)
-        ret = _safe_float(info.get("return_1d"), 0)
+        pe = safe_float(info.get("pe"), 0)
+        roe = safe_float(info.get("roe"), 0)
+        rsi_val = safe_float(info.get("rsi"), 50)
+        ret = safe_float(info.get("return_1d"), 0)
 
         if pe > 0:
             if pe < 5:
@@ -1702,9 +1679,9 @@ class StockAssistantService:
             "═" * 50,
             f"نام: {info.get('name', '-')}",
             f"گروه: {info.get('sector', '-')}",
-            f"قیمت: {_safe_float(info.get('price'), 0):,.0f}",
+            f"قیمت: {safe_float(info.get('price'), 0):,.0f}",
             f"P/E: {info.get('pe', 'N/A')} | ROE: {info.get('roe', 'N/A')}% | RSI: {info.get('rsi', 'N/A')}",
-            f"بازده روز: {_safe_float(info.get('return_1d'), 0):+.2f}% | حجم: {_safe_int(info.get('volume'), 0):,}",
+            f"بازده روز: {safe_float(info.get('return_1d'), 0):+.2f}% | حجم: {safe_int(info.get('volume'), 0):,}",
         ]
 
         if tech:
@@ -1749,7 +1726,7 @@ class StockAssistantService:
             )
             lines.append(
                 f"   P/E: {info.get('pe', 'N/A')} | ROE: {info.get('roe', 'N/A')}% | "
-                f"RSI: {info.get('rsi', 'N/A')} | بازده: {_safe_float(info.get('return_1d'), 0):+.1f}%"
+                f"RSI: {info.get('rsi', 'N/A')} | بازده: {safe_float(info.get('return_1d'), 0):+.1f}%"
             )
 
         best = analyzed[0]
@@ -1777,7 +1754,7 @@ class StockAssistantService:
 
         if re.search(r"خلاصه|summary|وضعیت", text):
             stocks = await self._get_all_stocks()
-            prices = {s["symbol"]: _safe_float(s.get("price"), 0) for s in stocks}
+            prices = {s["symbol"]: safe_float(s.get("price"), 0) for s in stocks}
             self.portfolio.update_prices(prices)
             summary = self.portfolio.get_summary()
 
@@ -1945,8 +1922,8 @@ class StockAssistantService:
             "",
             "بیشترین حجم در سطوح:",
         ]
-        for l in vp.get("levels", [])[:5]:
-            lines.append(f"  • {l['price']:,.2f}: {l['volume']:,.0f}")
+        for level in vp.get("levels", [])[:5]:
+            lines.append(f"  • {level['price']:,.2f}: {level['volume']:,.0f}")
 
         return {"text": "\n".join(lines), "type": "volume_profile", "data": vp}
 

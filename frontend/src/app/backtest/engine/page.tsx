@@ -219,7 +219,7 @@ function SymbolSearch({ symbols, onAdd, onRemove, onClearAll, onSelectAll, allDb
             {!isLoading && results.map(item => {
               const sel = symbols.includes(item.symbol);
               return (
-                <button key={item.symbol} onClick={() => { sel ? onRemove(item.symbol) : onAdd(item.symbol); setInput(""); setOpen(false); }}
+                <button key={item.symbol} onClick={() => { if (sel) { onRemove(item.symbol); } else { onAdd(item.symbol); } setInput(""); setOpen(false); }}
                   className={`w-full text-right px-3 py-1.5 text-xs flex items-center justify-between transition-colors ${sel ? "bg-primary-600/20 text-primary-300" : "text-surface-200 hover:bg-surface-700"}`}>
                   <div className="flex items-center gap-1.5">
                     {sel && <span className="text-primary-400">✓</span>}
@@ -317,7 +317,7 @@ export default function EnginePage() {
   const [symbols, setSymbols] = useState<string[]>([]);
   const [allDbSymbols, setAllDbSymbols] = useState<SymbolOption[]>([]);
   const [loadingDb, setLoadingDb] = useState(false);
-  const [selectedStrategies, setSelectedStrategies] = useState<string[]>(STRATEGY_TYPES.map(s => s.id));
+  const [selectedStrategies] = useState<string[]>(STRATEGY_TYPES.map(s => s.id));
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(["rsi", "macd", "atr", "ema", "volume_ratio", "ibp", "smart_money"]);
   const [populationSize, setPopulationSize] = useState(50);
   const [generations, setGenerations] = useState(12);
@@ -390,7 +390,6 @@ export default function EnginePage() {
 
   const addSymbol = useCallback((s: string) => { if (s && !symbols.includes(s)) setSymbols([...symbols, s]); }, [symbols]);
   const removeSymbol = useCallback((s: string) => { setSymbols(symbols.filter(x => x !== s)); }, [symbols]);
-  const toggleStrategy = useCallback((id: string) => { setSelectedStrategies(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]); }, []);
   const toggleFeature = useCallback((id: string) => { setSelectedFeatures(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]); }, []);
 
   const totalCombinations = useMemo(() => {

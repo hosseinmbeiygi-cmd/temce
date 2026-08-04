@@ -89,4 +89,3 @@ class TestExcelParser:
 
         with pytest.raises((FileNotFoundError, Exception)):
             read_excel_file("/nonexistent/path/file.xlsx")
-

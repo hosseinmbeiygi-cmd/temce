@@ -22,7 +22,12 @@ def sample_signal(
         timeframe="1d",
         extra={
             "direction": "up",
-            "indicators": {"rsi": 65.0, "macd": 120.0, "sma_20": 14900, "sma_50": 14700},
+            "indicators": {
+                "rsi": 65.0,
+                "macd": 120.0,
+                "sma_20": 14900,
+                "sma_50": 14700,
+            },
             "data_source": "system",
         },
     )
@@ -38,4 +43,3 @@ def sample_signal_list(count: int = 5) -> list[Signal]:
         )
         for i in range(count)
     ]
-

@@ -87,27 +87,6 @@ class DatabaseHandler:
         result = self._execute_query(query, values, 'one')
         return result[0] if result else -1
 
-    def save_trade(self, data: dict[str, Any]) -> int:
-        query = "INSERT INTO trades (instrument_id, trade_time, price, volume, side, trade_type, created_at)"
-        query += " VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        query += " ON CONFLICT (instrument_id, trade_time) DO NOTHING"
-        values = (
-            data.get('instrument_id'),
-            data.get('trade_time'),
-            data.get('price'),
-            data.get('volume'),
-            data.get('side'),
-            data.get('trade_type'),
-            data.get('created_at')
-        )
-        self._execute_query(query, values)
-        return data.get('instrument_id') or -1
-
-    def save_codal_announcement(self, data: dict[str, Any]) -> int:
-        query, values = self._build_upsert_query('codal_announcements', data, 'announcement_id')
-        result = self._execute_query(query, values, 'one')
-        return result[0] if result else -1
-
     def save_news(self, data: dict[str, Any]) -> int:
         query = "INSERT INTO news (title, summary, content, source, url, published_at, ticker_related, sentiment_score, created_at)"
         query += " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
@@ -162,24 +141,6 @@ class DatabaseHandler:
         )
         self._execute_query(query, values)
         return data.get('announcement_id') or -1
-
-    def save_news(self, data: dict[str, Any]) -> int:
-        query = "INSERT INTO news (title, summary, content, source, url, published_at, ticker_related, sentiment_score, created_at)"
-        query += " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-        query += " ON CONFLICT (url) DO NOTHING"
-        values = (
-            data.get('title'),
-            data.get('summary'),
-            data.get('content'),
-            data.get('source'),
-            data.get('url'),
-            data.get('published_at'),
-            data.get('ticker_related'),
-            data.get('sentiment_score'),
-            data.get('created_at')
-        )
-        self._execute_query(query, values)
-        return data.get('url') or -1
 
     def log_audit(self, data: dict[str, Any]) -> int:
         query = """INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, ip_address, logged_at)
@@ -256,7 +217,7 @@ class DatabaseHandler:
         try:
             match = re.search(r'/instruments/(\d+)', url)
             return int(match.group(1)) if match else None
-        except:
+        except Exception:
             return None
 
     def _get_last_insert_id(self) -> int:

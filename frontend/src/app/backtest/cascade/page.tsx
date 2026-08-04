@@ -154,7 +154,7 @@ function SymbolPicker({ symbols, onAdd, onRemove, allDb, loadingDb }: {
             {!isLoading && res.map(it => {
               const sel = symbols.includes(it.symbol);
               return (
-                <button key={it.symbol} onClick={() => { sel ? onRemove(it.symbol) : onAdd(it.symbol); setQ(""); setOpen(false); }}
+                <button key={it.symbol} onClick={() => { if (sel) { onRemove(it.symbol); } else { onAdd(it.symbol); } setQ(""); setOpen(false); }}
                   className={`w-full text-right px-3 py-1.5 text-xs flex items-center justify-between transition-colors ${sel ? "bg-primary-600/20 text-primary-300" : "text-surface-200 hover:bg-surface-700"}`}>
                   <div className="flex items-center gap-1.5">{sel && <span className="text-primary-400">✓</span>}
                     <span className="font-mono font-bold">{it.symbol}</span></div>
@@ -277,7 +277,7 @@ export default function CascadePage() {
   const [wfWin, setWfWin] = useState(5);
   const [wfTrain, setWfTrain] = useState(70);
   const [stopLoss, setStopLoss] = useState(8);
-  const [trailStop, setTrailStop] = useState(true);
+  const [trailStop] = useState(true);
   const [trailPct, setTrailPct] = useState(5);
   const [startDate, setStartDate] = useState("2021-01-01");
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);

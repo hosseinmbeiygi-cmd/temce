@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 from core.logging import get_logger
 from core.result import Result
@@ -76,6 +77,21 @@ class LocalStorage:
     async def size(self, relative_path: str) -> int:
         full = self._resolve(relative_path)
         return full.stat().st_size if full.exists() else 0
+
+    async def stat(self, relative_path: str) -> Result[Any]:
+        """Return file metadata (``modified`` mtime, ``size`` bytes).
+
+        Used by ``RetentionManager`` to decide whether a file is old
+        enough to be deleted.
+        """
+        full = self._resolve(relative_path)
+        if not full.exists():
+            return Result.fail(f"File not found: {relative_path}")
+        try:
+            s = full.stat()
+            return Result.ok({"size": s.st_size, "modified": s.st_mtime})
+        except OSError as e:
+            return Result.fail(str(e))
 
     def _resolve(self, relative_path: str) -> Path:
         from core.paths import safe_resolve

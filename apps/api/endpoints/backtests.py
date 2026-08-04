@@ -156,10 +156,7 @@ async def run_backtest_on_all_symbols(
         # Fetch ALL symbols including delisted/suspended for survivorship-bias-free backtesting
         # Only filter by status when user explicitly requests it (include_delisted=false)
         include_delisted = body.get("include_delisted", True)  # Default: True for unbiased testing
-        if include_delisted:
-            status_filter = ""  # No filter — get all symbols
-        else:
-            status_filter = "AND (i.status IS NULL OR i.status = 'active')"
+        status_filter = "" if include_delisted else "AND (i.status IS NULL OR i.status = 'active')"
 
         db_result = await session.execute(
             text(f"""
@@ -172,8 +169,8 @@ async def run_backtest_on_all_symbols(
             """)
         )
         db_symbols = [row[0] for row in db_result.fetchall()]
-    except Exception:
-        logger.warning("Failed to fetch symbols from instruments table — DB may be down")
+    except Exception as exc:
+        logger.warning("Failed to fetch symbols from instruments table — DB may be down: %s", exc)
         db_symbols = []
 
     # Also try to get symbols from quotes table that have historical data
@@ -188,8 +185,8 @@ async def run_backtest_on_all_symbols(
             """)
         )
         quote_symbols = [row[0] for row in q_result.fetchall()]
-    except Exception:
-        logger.warning("Failed to fetch symbols from quotes table")
+    except Exception as exc:
+        logger.warning("Failed to fetch symbols from quotes table: %s", exc)
         quote_symbols = []
 
     # Also try brsapi_historical_daily
@@ -204,8 +201,8 @@ async def run_backtest_on_all_symbols(
             """)
         )
         hist_symbols = [row[0] for row in h_result.fetchall()]
-    except Exception:
-        logger.warning("Failed to fetch symbols from brsapi_historical_daily table")
+    except Exception as exc:
+        logger.warning("Failed to fetch symbols from brsapi_historical_daily table: %s", exc)
         hist_symbols = []
 
     # Merge all sources: use body.symbols if provided, otherwise merge all DB sources
@@ -635,7 +632,6 @@ async def save_strategies(body: SaveStrategyRequest) -> ApiResponse[dict[str, An
         session_factory = sf
     except ImportError:
         logger.warning("Database import failed — saving strategies unavailable")
-        pass
 
     if session_factory is None:
         return ApiResponse[dict[str, Any]](success=False, error={"message": "Database not available"})
@@ -929,7 +925,7 @@ async def monte_carlo(
             clean_params[k] = v
 
     strategy = cls(**clean_params)
-    result = await service.simulator.run(strategy, initial_capital=body.capital, data=data)
+    result = service.simulator.run(strategy, initial_capital=body.capital, data=data)
     if not result.success:
         return ApiResponse[dict[str, Any]](success=False, error={"message": result.error})
 

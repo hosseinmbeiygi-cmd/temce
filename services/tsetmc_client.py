@@ -112,7 +112,7 @@ class TsetmcClient:
         return await self._get(f"/Trade/GetTradeIntraDay/{ins_code}")
 
     async def get_trade_history(self, ins_code: str, date: str, grouped: bool = False) -> Result[dict[str, Any]]:
-        """تاریخچه معاملات یک روز特定"""
+        """تاریخچه معاملات یک روز مشخص"""
         return await self._get(f"/Trade/GetTradeHistory/{ins_code}/{date}/{str(grouped).lower()}")
 
     # ── Client Type (حقیقی/حقوقی) ─────────────────────

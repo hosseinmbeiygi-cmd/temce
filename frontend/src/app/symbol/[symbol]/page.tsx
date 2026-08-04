@@ -19,6 +19,47 @@ import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
 import { apiGet, apiPost, extractArray, extractItems } from "@/lib/api";
 import { formatDateShamsi, formatTime } from "@/lib/dates";
+import { seededRandom, stringSeed } from "@/lib/seeded-random";
+
+// ------ ML / prediction types (backend responses) ----------------------------------------------------------------------------------
+interface MlModelBrief {
+  id: string;
+  name: string;
+}
+
+interface MLPredictionResult {
+  prediction?: number;
+  predicted_change_pct?: number;
+  confidence?: number;
+  direction?: string;
+  last_price?: number;
+  feature_importance?: Record<string, number>;
+}
+
+interface MLBacktestFold {
+  metrics?: Record<string, number>;
+  r2?: number;
+  mae?: number;
+  rmse?: number;
+  directional_accuracy?: number;
+  train_size?: number | null;
+  test_size?: number | null;
+}
+
+interface MLBacktestResult {
+  folds?: MLBacktestFold[];
+  feature_importance?: Record<string, number>;
+  n_folds?: number;
+  aggregate_metrics?: Record<string, number>;
+}
+
+interface DataPreviewInfo {
+  ohlcv_rows?: number;
+  history_rows?: number;
+  trade_flow_rows?: number;
+  trade_rows?: number;
+  estimated_features?: string | number;
+}
 
 // ------ Types ------------------------------------------------------------------------------------------------------------------------------------------------------
 interface CompanyProfile {
@@ -262,7 +303,7 @@ export default function SymbolPage() {
 
       // Real sparkline data from market history API
       if (sparkRes.status === "fulfilled" && sparkRes.value?.success && Array.isArray(sparkRes.value.data)) {
-        const closes = sparkRes.value.data.map((d: any) => d.close || 0);
+        const closes = sparkRes.value.data.map((d: { close?: number }) => d.close || 0);
         if (closes.length > 0) {
           setSparkHistory(closes.reverse()); // chronological order for sparkline
         }
@@ -271,7 +312,10 @@ export default function SymbolPage() {
     setLoading(false);
   }, [decodedSymbol]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    const timer = setTimeout(fetchAll, 0);
+    return () => clearTimeout(timer);
+  }, [fetchAll]);
 
   // Derive quote data from profile (no separate quote API needed)
   const derivedQuote = useMemo(() => profile ? deriveQuoteFromProfile(profile) : null, [profile]);
@@ -441,16 +485,24 @@ function FundamentalCompareCard({ currentSymbol, currentProfile }: { currentSymb
   const [targetProfile, setTargetProfile] = useState<CompanyProfile | null>(null);
   const [loadingCompare, setLoadingCompare] = useState(false);
 
+  // Clear the comparison target when the input is emptied (adjust state during render)
+  const [prevCompareWith, setPrevCompareWith] = useState(compareWith);
+  if (compareWith !== prevCompareWith) {
+    setPrevCompareWith(compareWith);
+    if (!compareWith) setTargetProfile(null);
+  }
+
   // Fetch comparison data
   useEffect(() => {
-    if (!compareWith) { setTargetProfile(null); return; }
+    if (!compareWith) return;
     let cancelled = false;
-    setLoadingCompare(true);
+    // Defer so the state update doesn't run synchronously during commit
+    const loadingTimer = setTimeout(() => { if (!cancelled) setLoadingCompare(true); }, 0);
     apiGet<{ success: boolean; data: CompanyProfile }>(`/codal/${compareWith}/profile`)
       .then(res => { if (!cancelled && res?.data) setTargetProfile(res.data); })
       .catch(() => { if (!cancelled) setTargetProfile(null); })
       .finally(() => { if (!cancelled) setLoadingCompare(false); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(loadingTimer); };
   }, [compareWith]);
 
   // Search symbols for the comparison selector
@@ -845,21 +897,22 @@ function PriceTab({ symbol, quote }: { symbol: string; quote: QuoteData }) {
         v: bar.volume || 0,
       }));
     }
-    // Fallback to random data if API returns nothing
+    // Fallback: deterministic pseudo-random candles (stable per symbol)
+    const rnd = seededRandom(stringSeed(symbol));
     const base = quote.price_close;
     const bars: { t: string; o: number; h: number; l: number; c: number; v: number }[] = [];
     let price = base * 0.85;
     for (let i = 60; i >= 0; i--) {
-      const change = (Math.random() - 0.48) * 0.04;
+      const change = (rnd() - 0.48) * 0.04;
       const open = price;
       const close = price * (1 + change);
-      const high = Math.max(open, close) * (1 + Math.random() * 0.02);
-      const low = Math.min(open, close) * (1 - Math.random() * 0.02);
-      bars.push({ t: "۱۴۰۳-" + String((i % 12) + 1).padStart(2, "0") + "-" + String((i % 30) + 1).padStart(2, "0"), o: Math.round(open), h: Math.round(high), l: Math.round(low), c: Math.round(close), v: Math.round(1000000 + Math.random() * 10000000) });
+      const high = Math.max(open, close) * (1 + rnd() * 0.02);
+      const low = Math.min(open, close) * (1 - rnd() * 0.02);
+      bars.push({ t: "۱۴۰۳-" + String((i % 12) + 1).padStart(2, "0") + "-" + String((i % 30) + 1).padStart(2, "0"), o: Math.round(open), h: Math.round(high), l: Math.round(low), c: Math.round(close), v: Math.round(1000000 + rnd() * 10000000) });
       price = close;
     }
     return bars;
-  }, [ohlcv, quote.price_close]);
+  }, [ohlcv, quote.price_close, symbol]);
 
   const minC = Math.min(...candleData.map(b => b.l));
   const maxC = Math.max(...candleData.map(b => b.h));
@@ -1399,7 +1452,7 @@ function TradesTab({ trades, symbol }: { trades: IntradayTrade[]; symbol: string
 // ------ ML Prediction Tab ------------------------------------------------------------------------------------------------------------------------------------
 function MLTab({ symbol }: { symbol: string }) {
   const [selectedModel, setSelectedModel] = useState("xgboost");
-  const [prediction, setPrediction] = useState<any>(null);
+  const [prediction, setPrediction] = useState<MLPredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [featureGroups, setFeatureGroups] = useState<string[]>(["price", "technical"]);
 
@@ -1407,7 +1460,7 @@ function MLTab({ symbol }: { symbol: string }) {
     queryKey: ["ml-models-list"],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: any[] }>("/ml/models");
+        const res = await apiGet<{ success: boolean; data: MlModelBrief[] }>("/ml/models");
         return res?.data ?? [];
       } catch { return []; }
     },
@@ -1418,7 +1471,7 @@ function MLTab({ symbol }: { symbol: string }) {
     queryKey: ["ml-data-preview", symbol],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: any }>(`/ml/data-preview/${encodeURIComponent(symbol)}`);
+        const res = await apiGet<{ success: boolean; data: DataPreviewInfo }>(`/ml/data-preview/${encodeURIComponent(symbol)}`);
         return res?.data ?? null;
       } catch { return null; }
     },
@@ -1438,7 +1491,7 @@ function MLTab({ symbol }: { symbol: string }) {
     setLoading(true);
     setPrediction(null);
     try {
-      const res = await apiPost<{ success: boolean; data: any }>("/ml/predict-real", {
+      const res = await apiPost<{ success: boolean; data: MLPredictionResult }>("/ml/predict-real", {
         model_id: selectedModel, symbol,
       });
       if (res?.success && res.data) setPrediction(res.data);
@@ -1481,7 +1534,7 @@ function MLTab({ symbol }: { symbol: string }) {
               {(models.length > 0 ? models : [
                 { id: "xgboost", name: "xgboost" }, { id: "lightgbm", name: "lightgbm" },
                 { id: "catboost", name: "catboost" }, { id: "random_forest", name: "random_forest" },
-              ]).map((m: any) => <option key={m.id || m.name} value={m.id || m.name}>{m.name || m.id}</option>)}
+              ]).map((m: MlModelBrief) => <option key={m.id || m.name} value={m.id || m.name}>{m.name || m.id}</option>)}
             </select>
           </div>
 
@@ -1546,9 +1599,9 @@ function MLTab({ symbol }: { symbol: string }) {
               <p className="text-[10px] text-surface-400 font-bold mb-2">🔥 اهمیت ویژگی‌ها</p>
               <div className="space-y-1">
                 {Object.entries(prediction.feature_importance)
-                  .sort(([, a]: any, [, b]: any) => b - a)
+                  .sort(([, a], [, b]) => b - a)
                   .slice(0, 10)
-                  .map(([feat, val]: [string, any]) => (
+                  .map(([feat, val]) => (
                     <div key={feat} className="flex items-center gap-2">
                       <span className="text-[9px] text-surface-400 w-28 truncate text-right font-mono">{feat}</span>
                       <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden" dir="ltr">
@@ -1578,7 +1631,7 @@ function MLTab({ symbol }: { symbol: string }) {
 function BacktestTab({ symbol }: { symbol: string }) {
   const [btModel, setBtModel] = useState("xgboost");
   const [btSplits, setBtSplits] = useState(5);
-  const [btResult, setBtResult] = useState<any>(null);
+  const [btResult, setBtResult] = useState<MLBacktestResult | null>(null);
   const [btLoading, setBtLoading] = useState(false);
   const [btFeatureGroups, setBtFeatureGroups] = useState<string[]>(["price", "technical"]);
 
@@ -1586,7 +1639,7 @@ function BacktestTab({ symbol }: { symbol: string }) {
     queryKey: ["ml-models-list"],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: any[] }>("/ml/models");
+        const res = await apiGet<{ success: boolean; data: MlModelBrief[] }>("/ml/models");
         return res?.data ?? [];
       } catch { return []; }
     },
@@ -1604,7 +1657,7 @@ function BacktestTab({ symbol }: { symbol: string }) {
     setBtLoading(true);
     setBtResult(null);
     try {
-      const res = await apiPost<{ success: boolean; data: any }>("/ml/backtest", {
+      const res = await apiPost<{ success: boolean; data: MLBacktestResult }>("/ml/backtest", {
         symbol,
         model_type: btModel,
         n_splits: btSplits,
@@ -1614,17 +1667,17 @@ function BacktestTab({ symbol }: { symbol: string }) {
         setBtResult(res.data);
         toast.success("✅ بک‌تست انجام شد");
       }
-    } catch (e: any) { toast.error(e.message || "خطا در بک‌تست"); }
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا در بک‌تست"); }
     setBtLoading(false);
   }, [btModel, btSplits, btFeatureGroups, symbol]);
 
   // Parse nested response
-  const agg = btResult?.aggregate_metrics ?? btResult ?? {};
+  const agg = (btResult?.aggregate_metrics ?? btResult ?? {}) as unknown as Record<string, unknown>;
   const folds = btResult?.folds ?? [];
-  const mean_r2 = agg.mean_r2 ?? null;
-  const mean_mae = agg.mean_mae ?? null;
-  const mean_rmse = agg.mean_rmse ?? null;
-  const dir_acc = agg.mean_directional_accuracy ?? null;
+  const mean_r2 = (agg.mean_r2 as number | undefined) ?? null;
+  const mean_mae = (agg.mean_mae as number | undefined) ?? null;
+  const mean_rmse = (agg.mean_rmse as number | undefined) ?? null;
+  const dir_acc = (agg.mean_directional_accuracy as number | undefined) ?? null;
 
   return (
     <div className="space-y-4">
@@ -1638,7 +1691,7 @@ function BacktestTab({ symbol }: { symbol: string }) {
               {(models.length > 0 ? models : [
                 { id: "xgboost", name: "xgboost" }, { id: "lightgbm", name: "lightgbm" },
                 { id: "catboost", name: "catboost" }, { id: "random_forest", name: "random_forest" },
-              ]).map((m: any) => <option key={m.id || m.name} value={m.id || m.name}>{m.name || m.id}</option>)}
+              ]).map((m: MlModelBrief) => <option key={m.id || m.name} value={m.id || m.name}>{m.name || m.id}</option>)}
             </select>
           </div>
           <div>
@@ -1718,7 +1771,7 @@ function BacktestTab({ symbol }: { symbol: string }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {folds.map((fold: any, i: number) => {
+                    {folds.map((fold: MLBacktestFold, i: number) => {
                       const fm = fold.metrics ?? fold;
                       return (
                         <tr key={i} className="border-b border-surface-800/30 hover:bg-white/5">
@@ -1747,9 +1800,9 @@ function BacktestTab({ symbol }: { symbol: string }) {
             <Card title="🔥 اهمیت ویژگی‌ها">
               <div className="space-y-1">
                 {Object.entries(btResult.feature_importance)
-                  .sort(([, a]: any, [, b]: any) => b - a)
+                  .sort(([, a], [, b]) => b - a)
                   .slice(0, 15)
-                  .map(([feat, val]: [string, any]) => (
+                  .map(([feat, val]) => (
                     <div key={feat} className="flex items-center gap-2">
                       <span className="text-[9px] text-surface-400 w-28 truncate text-right font-mono">{feat}</span>
                       <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden" dir="ltr">

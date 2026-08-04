@@ -50,3 +50,51 @@ htmlcov/
 node_modules
 .aider*
 nul
+
+# Runtime artifacts
+*.pid
+*.rdb
+*.whl
+*.pkl
+*.pth
+
+# ML training artifacts & model outputs
+ml_artifacts/
+train_all_models_results.json
+catboost_info/
+
+# Data dumps / fetched history
+history_data/
+crypto_history/
+code_dump/
+test_results/
+
+# Local DB / TimescaleDB install
+pgdata/
+timescaledb_temp/
+dump.rdb
+
+# Charts / diagnostics outputs
+charts/*.png
+diagnostics/*.json
+
+# Backtest reports & temp benchmark scripts
+backtest_report_*.json
+bench_schema_temp.py
+bench_schema2_temp.py
+
+# Agent tool internals (mimocode / freebuff)
+.mimocode/
+.freebuff/
+
+# Misc local tooling
+frontend-all-code.txt
+go
+go.cmd
+go.ps1
+start
+stop
+
+# Local install archives
+timescaledb.zip
+tree.txt

@@ -8,6 +8,7 @@ import pytest
 # Fixtures: common test parameters
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def atm_params() -> dict:
     """At-the-money call option: S = K = 100, T = 1 year, r = 5%, sigma = 20%."""
@@ -29,6 +30,7 @@ def otm_call_params() -> dict:
 # ---------------------------------------------------------------------------
 # _d1 / _d2
 # ---------------------------------------------------------------------------
+
 
 class TestD1D2:
     def test_d1_atm(self, atm_params):
@@ -67,6 +69,7 @@ class TestD1D2:
 # ---------------------------------------------------------------------------
 # black_scholes_call
 # ---------------------------------------------------------------------------
+
 
 class TestBlackScholesCall:
     def test_call_atm_price(self, atm_params):
@@ -140,6 +143,7 @@ class TestBlackScholesCall:
 # black_scholes_put
 # ---------------------------------------------------------------------------
 
+
 class TestBlackScholesPut:
     def test_put_atm_price(self, atm_params):
         from domain.options.pricing import black_scholes_put
@@ -191,6 +195,7 @@ class TestBlackScholesPut:
 # Put-Call parity
 # ---------------------------------------------------------------------------
 
+
 class TestPutCallParity:
     """Verify C - P = S - K * exp(-rT) for all test cases."""
 
@@ -237,6 +242,7 @@ class TestPutCallParity:
 # ---------------------------------------------------------------------------
 # black_scholes_price (full pricing with Greeks)
 # ---------------------------------------------------------------------------
+
 
 class TestBlackScholesPrice:
     def test_price_call(self, atm_params):
@@ -322,6 +328,7 @@ class TestBlackScholesPrice:
 # ---------------------------------------------------------------------------
 # implied_volatility (Newton-Raphson)
 # ---------------------------------------------------------------------------
+
 
 class TestImpliedVolatility:
     def test_iv_recovers_input_vol(self, atm_params):

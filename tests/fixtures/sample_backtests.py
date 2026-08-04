@@ -67,4 +67,3 @@ def sample_backtest_result() -> dict:
         "metrics": {"sharpe_ratio": 1.5, "sortino_ratio": 2.0, "calmar_ratio": 2.08},
         "completed_at": datetime.now(UTC).isoformat(),
     }
-

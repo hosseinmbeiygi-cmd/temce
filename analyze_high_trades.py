@@ -1,3 +1,4 @@
+import contextlib
 import json
 from pathlib import Path
 
@@ -50,20 +51,14 @@ def analyze_symbol(symbol, data):
         tval = day.get('tval')
 
         if tno is not None:
-            try:
+            with contextlib.suppress(BaseException):
                 tno_list.append(float(tno))
-            except:
-                pass
         if tvol is not None:
-            try:
+            with contextlib.suppress(BaseException):
                 tvol_list.append(float(tvol))
-            except:
-                pass
         if tval is not None:
-            try:
+            with contextlib.suppress(BaseException):
                 tval_list.append(float(tval))
-            except:
-                pass
 
     if len(tno_list) < MIN_DAYS:
         return None

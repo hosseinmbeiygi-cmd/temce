@@ -1,372 +1,243 @@
-# BrsApi.ir Integration Module
+# 📊 یکپارچه‌سازی BrsApi.ir
 
-Complete, production-ready integration with [BrsApi.ir](https://brsapi.ir) — Iran's
-comprehensive financial data API provider. Fetches, parses, stores, and serves
-realtime and historical data from TSETMC, IME, Codal, global commodities, and
-cryptocurrency markets.
+یکپارچه‌سازی کامل با **BrsApi.ir** — ارائه‌دهنده داده جامع بازار سرمایه ایران. این ماژول داده‌های لحظه‌ای و تاریخی TSETMC، IME، کالاهای جهانی، رمزارز و اطلاعیه‌های کدال را با رعایت دقیق محدودیت‌های نرخ دریافت می‌کند.
 
 ---
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Your Application                           │
-│  (Backtest, AI, News, Analytics, API endpoints, Dashboards, etc.)  │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│                      BrsApiQueryService                             │
-│              Read-optimised access to cached DB data                │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────────────────┐
-│                      BrsApiSyncService                              │
-│        Orchestrates fetch → parse → store pipeline                  │
-└──────┬────────────┬──────────────┬──────────────┬───────────────────┘
-       │            │              │              │
-       ▼            ▼              ▼              ▼
-┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐
-│ Parser   │ │ Model    │ │ Repository   │ │ SyncLog/Raw  │
-│ (raw→dict)│ │ (ORM)    │ │ (bulk insert)│ │ (audit)      │
-└──────────┘ └──────────┘ └──────────────┘ └──────────────┘
-       ▲                                                  │
-       │                                                  ▼
-┌──────┴──────────────────────────────────────────────────────────┐
-│                      BrsApiClient                               │
-│    HTTP client with circuit-breaker, retry, rate limiter, cache │
-└──────────────────────────────┬───────────────────────────────────┘
-                               │
-                               ▼
-                       BrsApi.ir API
-                 (https://Api.BrsApi.ir)
-```
-
----
-
-## Directory Structure
+## 🗂️ معماری لایه‌ای
 
 ```
 brsapi/
-├── __init__.py              # Package exports
-├── config.py                # Endpoint definitions, rate limits, sync intervals
-├── client.py                # HTTP client (retry, circuit-breaker, rate-limit)
-├── rate_limiter.py          # Token-bucket rate limiter per category
-├── parsers/
-│   ├── __init__.py
-│   ├── tsetmc.py            # TSETMC symbol, index, option, NAV, trade parsers
-│   ├── commodity.py         # Global commodity prices (metals, energy)
-│   ├── crypto.py            # Cryptocurrency prices
-│   ├── ime.py               # IME futures, options, certificates, funds, physical
-│   └── codal.py             # Codal announcements
-├── models/
-│   ├── __init__.py
-│   ├── base.py              # BrsApiBase, RawPayloadModel, SyncLogModel
-│   ├── tsetmc.py            # 10 ORM models for TSETMC data
-│   ├── ime.py               # 5 ORM models for IME data
-│   ├── commodity.py         # CommodityPriceModel
-│   ├── crypto.py            # CryptoPriceModel
-│   └── codal.py             # CodalAnnouncementModel
-├── repositories/
-│   ├── __init__.py
-│   └── base.py              # BulkUpsert, SyncLog, RawPayload repositories
-├── services/
-│   ├── __init__.py
-│   ├── sync_service.py      # Sync orchestration
-│   └── query_service.py     # Read-optimised queries
-├── jobs/
-│   ├── __init__.py
-│   └── registry.py          # 13 pre-defined sync jobs for APScheduler
-├── migrations/
-│   └── 001_create_brsapi_tables.py  # Alembic migration
-└── README.md
+├── config.py          ← تنظیمات env، تعریف endpoint ها و نرخ‌های مجاز
+├── client.py          ← کلاینت HTTP با retry، مدارشکن، rate-limit و کش
+├── rate_limiter.py    ← محدودکننده نرخ ۳ لایه (روزانه / ۵دقیقه / سطل هر دسته)
+├── constants.py       ← فهرست نمادهای صندوق ایرانی (فال‌بک)
+├── parsers/           ← تبدیل JSON خام به dict ساختاریافته
+│   ├── tsetmc.py      ├── ime.py      ├── commodity.py
+│   ├── crypto.py      └── codal.py
+├── models/            ← مدل‌های ORM (پیشوند brsapi_)
+│   ├── base.py        ├── tsetmc.py   ├── ime.py  ├── commodity.py
+│   ├── crypto.py      └── codal.py
+├── repositories/      ← دسترسی داده: SyncLog, RawPayload, BulkUpsert
+├── services/          ← ارکستراسیون sync
+│   ├── sync_service.py            ├── query_service.py
+│   └── history_fetch_service.py
+├── jobs/              ← تعریف جاب‌های APScheduler
+├── migrations/        ← مهاجرت‌های مستقل BrsApi
+└── tests/             ← تست‌های یکپارچه‌سازی
 ```
 
 ---
 
-## Quick Start
+## ⚙️ پیکربندی (`config.py`)
 
-### 1. Get an API Key
+### تنظیمات محیطی (`BrsApiSettings` — پیشوند `BRSAPI_`)
 
-1. Go to [https://brsapi.ir](https://brsapi.ir)
-2. Request a free API key
-3. Add it to your `.env` file:
+| متغیر | پیش‌فرض | توضیح |
+|-------|---------|-------|
+| `BRSAPI_API_KEY` | `""` | کلید API |
+| `BRSAPI_BASE_URL` | `https://api.brsapi.ir` | آدرس پایه |
+| `BRSAPI_REQUEST_TIMEOUT` | `30.0` | تایم‌اوت هر درخواست |
+| `BRSAPI_MAX_RETRIES` | `3` | تعداد retry |
+| `BRSAPI_RETRY_BACKOFF_BASE` | `1.5` | پایه backoff |
+| `BRSAPI_RETRY_MAX_DELAY` | `60.0` | حداکثر تأخیر |
+| `BRSAPI_CONNECTION_POOL_SIZE` | `10` | اندازه pool اتصال |
+| `BRSAPI_VERIFY_SSL` | `true` | اعتبارسنجی TLS (برای گواهی نامعتبر `false`) |
+| `BRSAPI_PROXY_URL` | — | پروکسی (اختیاری) |
+| `BRSAPI_RAW_PAYLOAD_SINK_ENABLED` | `false` | ذخیره پاسخ‌های خام برای ممیزی |
+| `BRSAPI_MAX_RAW_PAYLOAD_AGE_DAYS` | `30` | نگهداری پاسخ‌های خام |
+| `BRSAPI_GLOBAL_DAILY_LIMIT` | `10000` | سقف روزانه همه endpoint ها |
+| `BRSAPI_GLOBAL_5MIN_LIMIT` | `500` | سقف پنج‌دقیقه‌ای (پکیج AIO) |
+| `BRSAPI_RATE_LIMIT_TSETMC` | `30` | نرخ دسته tsetmc (در دقیقه) |
+| `BRSAPI_RATE_LIMIT_CODAL` | `12` | نرخ دسته codal |
+| `BRSAPI_RATE_LIMIT_IME` | `12` | نرخ دسته ime |
+| `BRSAPI_RATE_LIMIT_COMMODITY` | `1` | نرخ دسته commodity |
+| `BRSAPI_RATE_LIMIT_CRYPTO` | `1` | نرخ دسته crypto |
+| `BRSAPI_ONLY_DURING_MARKET_HOURS` | `true` | فقط در ساعات بازار |
+| `BRSAPI_MARKET_OPEN` / `MARKET_CLOSE` | `08:30` / `15:30` | ساعات بازار |
 
-```env
-BRSAPI_API_KEY=your-api-key-here
-BRSAPI_BASE_URL=https://Api.BrsApi.ir
-BRSAPI_REQUEST_TIMEOUT=30
-BRSAPI_MAX_RETRIES=3
-BRSAPI_CACHE_ENABLED=true
-BRSAPI_ONLY_DURING_MARKET_HOURS=true
+### تعریف endpoint ها (`BrsApiEndpoints`)
+
+نرخ‌ها دقیقاً بر اساس مستندات رسمی BrsApi تنظیم شده‌اند:
+
+| Endpoint | نرخ رسمی | معادل در دقیقه |
+|----------|----------|----------------|
+| `ALL_SYMBOLS` | 2/100s | 1 |
+| `SYMBOL_DETAIL` | 3/10s | 18 |
+| `INDEX` | 2/100s | 1 |
+| `NAV` | 1/10s | 6 |
+| `OPTION` | 3/10s | 18 |
+| `TRANSACTION` | 2/10s | 12 |
+| `HISTORY_PRICE` / `HISTORY_REALLEGAL` | 4/10s | 24 |
+| `CANDLESTICK` | 2/10s | 12 |
+| `SHAREHOLDER` | 2/10s | 12 |
+| `CODAL_ANNOUNCEMENT` | 2/10s | 12 |
+| `IME_FUTURES` / `IME_OPTION` | 2/10s | 12 |
+| `IME_CERTIFICATE` / `IME_FUND` | 1/10s | 6 |
+| `IME_PHYSICAL` | 3/10s | 18 |
+| `COMMODITY` / `CRYPTOCURRENCY` | 3/1500s | 1 |
+| `GOLD_COIN` / `CURRENCY` / `GOLD_CURRENCY` | — | 1 |
+| `GOLD_CURRENCY_PRO` | — | 6 |
+| `GOLD_COIN_HISTORY` / `CURRENCY_HISTORY` | — | 1 |
+
+هر `EndpointConfig` شامل: `path`، `category`، `rate_limit_per_minute`، `sync_interval_seconds`، `required_params`، `optional_params`، `default_params`، `ttl_cache_seconds`.
+
+> ⚠️ `GOLD_24H` و `CURRENCY_24H` حذف شده‌اند (از ~ژوئن ۲۰۲۶ خطای 404 می‌دهند) — داده‌های آن‌ها از `Gold_Currency.php` در دسترس است. همین‌طور `Coin.php`/`Currency.php` قدیمی deprecated شده‌اند.
+
+---
+
+## 🌐 کلاینت (`client.py`)
+
+```python
+from brsapi import BrsApiClient, BrsApiEndpoints
+from brsapi.client import get_client, close_client
+
+client = await get_client()                 # singleton lazy + start
+result = await client.fetch(BrsApiEndpoints.ALL_SYMBOLS)
+if result.success:
+    print(result.value.data)                # JSON پارس‌شده
+await close_client()
 ```
 
-### 2. Run Database Migration
+ویژگی‌ها:
+
+- **Connection pooling** با `httpx.AsyncClient` و `Limits`
+- **Retry با backoff** برای timeout و خطاهای شبکه + احترام به هدر `Retry-After` برای 429/503
+- **مدارشکن** (`CircuitBreaker`) مستقل برای هر مسیر endpoint
+- **Rate limiting** سه‌لایه از `rate_limiter`
+- **حل مشکل پروکسی رجیستری ویندوز** — `core.fix_network.fix_network()` در import
+- **پشتیبانی proxy** از طریق transport mount (سازگار با httpx ≥ 0.28)
+- **پاسخ استاندارد** `BrsApiResponse` با `is_empty` برای تشخیص پاسخ‌های بدون داده
+
+---
+
+## ⏱️ محدودکننده نرخ (`rate_limiter.py`)
+
+سه لایه برای **هر** درخواست اعمال می‌شود:
+
+1. **سقف روزانه** — ۱۰,۰۰۰ درخواست/روز (زمان تهران، ریست نیمه‌شب)
+2. **پنجره ۵ دقیقه‌ای** — حداکثر ۵۰۰ درخواست در هر پنجره لغزان
+3. **سطل توکن (Token Bucket)** — مستقل برای هر دسته (`tsetmc`، `codal`, ...)
+
+```python
+from brsapi.rate_limiter import get_rate_limiter
+limiter = get_rate_limiter()
+await limiter.acquire("tsetmc", endpoint="/Tsetmc/AllSymbols.php")
+limiter.status()   # گزارش لحظه‌ای برای داشبورد
+```
+
+- **اعلان آستانه**: هنگام رسیدن به ۸۰٪، ۹۰٪، ۹۵٪ و ۱۰۰٪ مصرف روزانه، callback ثبت‌شده صدا زده می‌شود (`on_threshold`)
+- همه اندازه‌گیری‌ها با `time.monotonic()` انجام می‌شود (بدون وابستگی به event loop جاری)
+
+> ✅ **رفع فاز ۲:** قبل از این `asyncio.get_event_loop().time()` استفاده می‌شد که هنگام ساخت کلاینت (خارج از حلقه رویداد) در Python جدید `RuntimeError` می‌داد.
+
+---
+
+## 🧩 پارسرها (`parsers/`)
+
+| پارسر | endpoint ها | خروجی |
+|-------|-------------|-------|
+| `TsetmcParser` | AllSymbols، Symbol، Index، Nav، Option، Transaction، History (price + real/legal)، Candlestick، Shareholder | dict/list آماده ORM با `raw_json` |
+| `ImeParser` | Futures، Option (call/put)، Certificate، Fund، Physical | قراردادهای آتی، اختیار دوطرفه، گواهی، صندوق کالایی |
+| `CommodityParser` | Market/Commodity | قیمت کالاهای جهانی |
+| `CryptoParser` | Market/Cryptocurrency | قیمت رمزارزها |
+| `GoldCoinParser` / `CurrencyParser` | Coin/Currency/History | طلا، سکه، ارز |
+| `GoldCurrencyProParser` | Gold_Currency_Pro | قیمت‌های Pro + تاریخچه ۲۴ساعته/روزانه |
+| `CodalParser` | Announcement | اطلاعیه‌های کدال |
+
+الگو: `parse_*` به‌صورت `classmethod`، مقاوم در برابر داده نامعتبر (برمی‌گرداند `[]`/`None` و log می‌کند)، و مقادیر را با `_int`/`_float` تمیز می‌کند.
+
+---
+
+## 🗄️ مدل‌ها (`models/`)
+
+جدول‌های اصلی (`tsetmc.py`):
+
+| مدل | جدول | کلید |
+|-----|------|------|
+| `SymbolSnapshotModel` | `brsapi_symbol_snapshots` | یکتا `(symbol, fetched_at)` — dedup خودکار upsert |
+| `SymbolDetailModel` | `brsapi_symbol_details` | PK `ins_id` (آخرین نسخه نگهداری می‌شود) |
+| `IndexValueModel` | `brsapi_index_values` | هر اسنپ‌شات شاخص |
+| `NavRecordModel` | `brsapi_nav_records` | NAV صدور/ابطال |
+| `OptionSnapshotModel` | `brsapi_option_snapshots` | قرارداد اختیار |
+| `IntradayTradeModel` | `brsapi_intraday_trades` | تیک‌های معاملات |
+| `HistoricalDailyModel` | `brsapi_historical_daily` | تاریخچه روزانه (پارتیشن `date`) |
+| `HistoricalRealLegalModel` | `brsapi_historical_real_legal` | تفکیک حقیقی/حقوقی |
+| `CandlestickModel` | `brsapi_candlesticks` | شمع‌های OHLCV |
+| `ShareholderRecordModel` | `brsapi_shareholder_records` | ترکیب سهامداران |
+
+مدل‌های پایه (`base.py`):
+
+- `RawPayloadModel` — پاسخ‌های خام برای ممیزی (اختیاری)
+- `SyncLogModel` — لاگ هر sync برای مشاهده‌پذیری و dedup
+- `InstrumentRefMixin` — اتصال به جدول `instruments` اصلی
+
+---
+
+## 📚 مخازن (`repositories/`)
+
+- `SyncLogRepository` — ثبت، `last_sync`، `needs_sync`، `count_since` (با `func.count()`)، `get_sync_stats`
+- `RawPayloadRepository` — ذخیره/حذف پاسخ‌های خام (پاک‌سازی حجیم با `DELETE`)
+- `BulkUpsertRepository` — درج گروهی با `ON CONFLICT DO NOTHING` یا `DO UPDATE`، `truncate`، `count`، `get_latest_by_symbol`
+
+> ✅ **رفع فاز ۲:** `count_since` قبلاً همه ردیف‌ها را بارگذاری می‌کرد (`len(scalars().all())`) — حالا از `func.count()` در SQL استفاده می‌کند. `purge_older_than` قبلاً UTC aware را با ستون naive مقایسه می‌کرد — حالا همگام با `datetime.now()` مدل است و با یک `DELETE` حجیم انجام می‌شود.
+
+---
+
+## ⚙️ سرویس‌ها (`services/`)
+
+- `sync_service.py` — ارکستراسیون اصلی: `sync(endpoint, parser, model_class, ...)` با لاگ SyncReport، پارس، upsert گروهی و مدیریت خطا
+- `query_service.py` — کوئری‌های خواندنی (قیمت‌ها، شاخص‌ها، NAV)
+- `history_fetch_service.py` — واکشی تاریخچه با throttling و backfill
+
+---
+
+## ⏰ جاب‌ها (`jobs/registry.py`)
+
+`BrsApiSyncJob` + `BrsApiJobRegistry`:
+
+- تعریف جاب‌های cron: `brsapi_all_symbols` (هر ۲ دقیقه)، `brsapi_index`، `brsapi_options`، `brsapi_ime_*`، `brsapi_gold_currency`، `brsapi_codal` و ...
+- جاب‌های نیازمند نماد (`history_*`) به‌صورت on-demand با `_get_pro_symbols(session, max_symbols)` فعال می‌شوند
+- `toggle_job()` — فعال/غیرفعال کردن جاب در حال اجرا
+- `run_job_now()` — اجرای فوری
+- `register_with_apscheduler()` — ثبت خودکار در APScheduler
+
+> ✅ **رفع فاز ۲:** `_get_pro_symbols` حالا حالت دوگانه دارد — هم با AsyncSession (کوئری `SELECT DISTINCT`) و هم با لیست نمادهای از پیش‌بارگذاری‌شده کار می‌کند (برای تست/استفاده‌های خاص).
+
+---
+
+## 🧪 تست‌ها
 
 ```bash
-alembic upgrade head
+python -m pytest tests/test_brsapi_manual.py tests/test_brsapi_job_registry.py -q
+python -m pytest tests/unit/services/test_fund_service_update_brsapi.py -q
+python brsapi/tests/test_tsetmc_symbols_integration.py   # تست زنده (نیاز به کلید API + DB)
 ```
 
-This creates all 20 BrsApi tables (see model list below).
+---
 
-### 3. Use the Sync Service
+## 🚀 شروع سریع
 
-```python
+```bash
+# 1. تنظیم env
+echo "BRSAPI_API_KEY=your_key" >> .env
+
+# 2. مهاجرت جداول BrsApi
+alembic upgrade head   # یا migration مستقل brsapi/migrations
+
+# 3. استفاده مستقیم
+python - <<'EOF'
 import asyncio
-from brsapi import BrsApiClient, BrsApiConfig
-from brsapi.services import BrsApiSyncService
-from core.database import get_session
+from brsapi.client import get_client, close_client
 
-async def sync_market():
-    client = BrsApiClient()
-    await client.start()
+async def main():
+    client = await get_client()
+    res = await client.fetch(client.__class__.BrsApiEndpoints.ALL_SYMBOLS) if hasattr(client.__class__, "BrsApiEndpoints") else None
+    print("client ready:", client.is_ready)
+    await close_client()
 
-    async for session in get_session():
-        service = BrsApiSyncService(client=client)
-
-        # Sync all TSETMC symbols
-        report = await service.sync_all_symbols(session)
-        print(f"Symbols: {report.items_count} items in {report.duration_ms:.0f}ms")
-
-        # Sync market indices
-        report = await service.sync_index(session, "1")
-        print(f"Index: {report.items_count} items")
-
-        # Sync commodity prices
-        report = await service.sync_commodities(session)
-        print(f"Commodities: {report.items_count} items")
-
-    await client.stop()
-
-asyncio.run(sync_market())
+asyncio.run(main())
+EOF
 ```
 
-### 4. Query the Data
-
-```python
-from brsapi.services import BrsApiQueryService
-from core.database import get_session
-
-async def query():
-    async for session in get_session():
-        qs = BrsApiQueryService(session)
-
-        # Top gainers
-        gainers = await qs.get_top_gainers(10)
-        for g in gainers:
-            print(f"{g['symbol']}: {g['price_last_change_pct']:.2f}%")
-
-        # Latest indices
-        indices = await qs.get_latest_indices()
-
-        # Commodity prices
-        metals = await qs.get_commodity_prices(category="precious_metal")
-
-        # Crypto prices
-        crypto = await qs.get_crypto_prices(limit=20)
-```
-
----
-
-## API Endpoints Covered
-
-| Endpoint | Path | Category | Rate Limit | Sync Interval |
-|---|---|---|---|---|
-| All Symbols | `/Tsetmc/AllSymbols.php` | TSETMC | 30/min | 60s |
-| Symbol Detail | `/Tsetmc/Symbol.php` | TSETMC | 30/min | 60s |
-| Index | `/Tsetmc/Index.php` | TSETMC | 20/min | 60s |
-| NAV | `/Tsetmc/Nav.php` | TSETMC | 20/min | 60s |
-| Options | `/Tsetmc/Option.php` | TSETMC | 15/min | 120s |
-| Transactions | `/Tsetmc/Transaction.php` | TSETMC | 20/min | 300s |
-| History (Price) | `/Tsetmc/History.php?type=0` | TSETMC | 20/min | 3600s |
-| History (Real/Legal) | `/Tsetmc/History.php?type=1` | TSETMC | 20/min | 3600s |
-| Candlestick | `/Tsetmc/Candlestick.php` | TSETMC | 30/min | 60s |
-| Shareholder | `/Tsetmc/Shareholder.php` | TSETMC | 15/min | 3600s |
-| IME Futures | `/IME/Futures.php` | IME | 15/min | 60s |
-| IME Options | `/IME/Option.php` | IME | 15/min | 60s |
-| IME Certificates | `/IME/Certificate.php` | IME | 15/min | 60s |
-| IME Funds | `/IME/Fund.php` | IME | 15/min | 60s |
-| IME Physical | `/IME/Physical.php` | IME | 10/min | 3600s |
-| Commodities | `/Market/Commodity.php` | GLOBAL | 15/min | 60s |
-| Crypto | `/Market/Cryptocurrency.php` | GLOBAL | 15/min | 60s |
-| Codal | `/Codal/Announcement.php` | CODAL | 20/min | 900s |
-
----
-
-## Database Tables (20)
-
-| Table | Rows represent | Key columns |
-|---|---|---|
-| `brsapi_raw_payloads` | Audit trail of raw JSON | endpoint, payload, fetched_at |
-| `brsapi_sync_log` | Sync operation history | endpoint, status, items_count, duration_ms |
-| `brsapi_symbol_snapshots` | Realtime symbol data | ins_id, symbol, prices, trades, orderbook (5L) |
-| `brsapi_symbol_details` | Enriched symbol info | ins_id, fundamentals, sectors, limits |
-| `brsapi_index_values` | Market index snapshots | name, value, change, market_value |
-| `brsapi_nav_records` | ETF fund NAV | symbol, nav_issue, nav_redemption |
-| `brsapi_option_snapshots` | Option contracts | symbol, underlying, strike, greeks |
-| `brsapi_intraday_trades` | Trade ticks | symbol, time, volume, price |
-| `brsapi_historical_daily` | Daily OHLCV summary | symbol, date, prices, volumes |
-| `brsapi_historical_real_legal` | Daily real/legal breakdown | symbol, date, buy/sell real/legal |
-| `brsapi_candlesticks` | OHLCV candles | symbol, date, open/high/low/close/volume |
-| `brsapi_shareholder_records` | Major shareholders | symbol, name, volume, percent |
-| `brsapi_ime_futures` | IME futures contracts | contract_code, prices, open_interest |
-| `brsapi_ime_options` | IME option contracts | strike, call/put sides, all fields |
-| `brsapi_ime_certificates` | IME depository receipts | contract_code, commodity, prices |
-| `brsapi_ime_funds` | IME commodity funds | symbol, prices, trades, real/legal |
-| `brsapi_ime_physical_trades` | IME physical trades | symbol, prices, volumes, parties |
-| `brsapi_commodity_prices` | Global commodity prices | symbol, price, category, change |
-| `brsapi_crypto_prices` | Crypto prices | symbol, price_usd, price_toman, rank |
-| `brsapi_codal_announcements` | Codal reports | symbol, title, links, dates |
-
----
-
-## Rate Limit & Data Management
-
-### How it works
-
-1. **Token-bucket rate limiter**: Each API category (TSETMC, IME, CODAL, commodities, crypto) has its own bucket configured with requests-per-minute limits.
-
-2. **Circuit breaker**: If an endpoint fails 5+ consecutive times, the circuit opens for 30 seconds, preventing any requests until recovery.
-
-3. **Exponential backoff retry**: Failed requests retry with 1.5× backoff, up to 3 retries (configurable).
-
-4. **Dedup via sync log**: Before fetching, the service checks if a recent successful sync exists for the same endpoint. If so, the fetch is skipped (dedup window configurable per endpoint).
-
-5. **Market-hours only** (optional): By default, realtime syncs only run between 08:30 and 15:30 Tehran time — no point polling a closed market.
-
-6. **Raw payload storage** (optional): Raw JSON can be stored for audit with configurable retention (default 30 days auto-purge).
-
-### Configuration
-
-All settings via environment variables with `BRSAPI_` prefix:
-
-```env
-# Required
-BRSAPI_API_KEY=your-key
-
-# Connection
-BRSAPI_BASE_URL=https://Api.BrsApi.ir
-BRSAPI_REQUEST_TIMEOUT=30
-BRSAPI_MAX_RETRIES=3
-
-# Rate limits (requests per minute, 0 = unlimited)
-BRSAPI_RATE_LIMIT_TSETMC=30
-BRSAPI_RATE_LIMIT_CODAL=20
-BRSAPI_RATE_LIMIT_IME=15
-BRSAPI_RATE_LIMIT_COMMODITY=15
-BRSAPI_RATE_LIMIT_CRYPTO=15
-
-# Cache
-BRSAPI_CACHE_ENABLED=true
-BRSAPI_CACHE_TTL_DEFAULT=55
-
-# Market hours
-BRSAPI_MARKET_TIMEZONE=Asia/Tehran
-BRSAPI_MARKET_OPEN=08:30
-BRSAPI_MARKET_CLOSE=15:30
-BRSAPI_ONLY_DURING_MARKET_HOURS=true
-
-# Audit
-BRSAPI_RAW_PAYLOAD_SINK_ENABLED=false
-BRSAPI_MAX_RAW_PAYLOAD_AGE_DAYS=30
-```
-
----
-
-## Integration with Other Systems
-
-### Backtesting
-
-```python
-from brsapi.services import BrsApiQueryService
-
-# Get daily price history for backtesting
-history = await qs.get_historical_daily(symbol="فملی", limit=365)
-# Returns list of dicts with date, open, high, low, close, volume
-```
-
-### AI / ML
-
-```python
-# Get candlestick data for feature engineering
-candles = await qs.get_candlesticks(symbol="فملی", candle_type="3", limit=500)
-
-# Get cross-market features
-commodities = await qs.get_commodity_prices()
-indices = await qs.get_latest_indices()
-crypto = await qs.get_crypto_prices()
-```
-
-### News / Analytics
-
-```python
-# Get recent codal announcements
-announcements = await qs.get_recent_announcements(limit=20)
-
-# Market overview
-gainers = await qs.get_top_gainers(10)
-losers = await qs.get_top_losers(10)
-active = await qs.get_most_active(10)
-```
-
-### Pricing Service
-
-```python
-# Get realtime price for a symbol
-snapshot = await qs.get_symbol_snapshot(symbol="فملی")
-# → {symbol, price_last, price_last_change_pct, ...}
-```
-
----
-
-## Adding a New Data Field
-
-The system is designed for extensibility:
-
-1. **New column**: Add a `Mapped` field to the relevant model in `brsapi/models/`.
-2. **New parser**: Add parsing logic in the relevant parser class in `brsapi/parsers/`.
-3. **Migration**: Create a new Alembic migration with `op.add_column()`.
-4. **Query**: Add a method to `BrsApiQueryService` in `brsapi/services/query_service.py`.
-
-No code outside the `brsapi/` package needs to change.
-
----
-
-## Running Scheduled Jobs
-
-### With APScheduler
-
-```python
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from brsapi.jobs import register_all_brsapi_jobs
-
-scheduler = AsyncIOScheduler()
-registry = register_all_brsapi_jobs()
-registry.register_with_apscheduler(scheduler)
-scheduler.start()
-```
-
-### With Celery Beat
-
-```python
-# celery_config.py
-from celery.schedules import crontab
-from brsapi.jobs import BRsAPI_SYNC_JOBS
-
-beat_schedule = {}
-for job in BRsAPI_SYNC_JOBS:
-    beat_schedule[job.name] = {
-        "task": f"brsapi.tasks.sync_{job.name}",
-        "schedule": job.cron if isinstance(job.cron, int) else crontab(*job.cron.split()),
-    }
-```
-
-### Standalone
-
-```python
-from brsapi.jobs import register_all_brsapi_jobs
-
-registry = register_all_brsapi_jobs()
-report = await registry.run_job("brsapi_all_symbols")
-print(f"Synced {report.items_count} symbols")
-```
+> 📌 برای استفاده از `fetch(endpoint)`، `BrsApiEndpoints` را از `brsapi.config` ایمپورت کنید.

@@ -32,11 +32,11 @@ interface WatchlistItemData {
 // ------ Components ------------------------------------------------------------------------------------------------
 
 function PriceRangeBar({ low, high, current }: { low?: number; high?: number; current?: number }) {
+  const [hovered, setHovered] = useState(false);
   if (low == null || high == null || high <= low || current == null) return null;
   const pct = Math.max(2, Math.min(98, ((current - low) / (high - low)) * 100));
   const distToFloor = ((current - low) / (high - low)) * 100;
   const distToCeiling = 100 - distToFloor;
-  const [hovered, setHovered] = useState(false);
   return (
     <div dir="ltr" className="flex items-center gap-1.5 w-full relative">
       <span className="text-[10px] text-surface-500 min-w-[48px] text-left font-mono">{low.toLocaleString()}</span>

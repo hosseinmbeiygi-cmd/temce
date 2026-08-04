@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta
+import contextlib
+from datetime import date, datetime
 from typing import Any
 
 from backtesting.engine.simulator import BacktestSimulator
@@ -9,6 +10,7 @@ from backtesting.strategies.base import BaseStrategy
 from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
 from backtesting.types import BacktestResult
 from core.config import settings
+from core.db_utils import safe_row_str
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -48,22 +50,14 @@ def _compute_metrics(result: BacktestResult, risk_free_rate: float | None = None
 
     all_metrics: dict[str, float] = {}
 
-    try:
+    with contextlib.suppress(Exception):
         all_metrics.update(RiskMetrics.compute(result, risk_free_rate))
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         all_metrics.update(TradeMetrics.compute(result))
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         all_metrics.update(ReturnMetrics.compute(result))
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         all_metrics.update(DrawdownMetrics.compute(result))
-    except Exception:
-        pass
 
     # Ensure backward-compatible keys exist
     trading_days = len(result.equity_curve)
@@ -71,7 +65,8 @@ def _compute_metrics(result: BacktestResult, risk_free_rate: float | None = None
     all_metrics.setdefault("total_return_pct", result.total_return_pct)
     all_metrics.setdefault("annualized_return_pct",
         round(((1 + result.total_return_pct / 100) ** (1 / years) - 1) * 100, 2) if years > 0 else 0.0)
-    all_metrics.setdefault("max_drawdown_pct", round(abs(result.max_drawdown), 2))
+    # Use DrawdownMetrics output if available, else fallback to result.max_drawdown
+    all_metrics.setdefault("max_drawdown_pct", round(abs(all_metrics.get("max_drawdown", result.max_drawdown)), 2))
 
     # Round all float values
     return {k: round(v, 4) if isinstance(v, float) else v for k, v in all_metrics.items()}
@@ -156,6 +151,9 @@ class BacktestService:
             # ── ML-based strategy: pre-compute predictions ──
             if strategy_type == "ml_signal":
                 await self._inject_ml_predictions(data, symbols[0], strategy_params)
+
+            # Track whether data is synthetic (always False since we fail if no real data found)
+            is_synthetic = False
 
             # BUG FIX #7: Data quality validation
             data_quality_report = None
@@ -340,10 +338,10 @@ class BacktestService:
         """Convert a DB row (date, open, high, low, close, volume, value) to OHLCV dict."""
         return {
             "timestamp": str(row[0]) + "T09:00:00",
-            "open": float(row[1] or row[4]),
-            "high": float(row[2] or row[4]),
-            "low": float(row[3] or row[4]),
-            "close": float(row[4]),
+            "open": float(row[1] or row[4] or 0),
+            "high": float(row[2] or row[4] or 0),
+            "low": float(row[3] or row[4] or 0),
+            "close": float(row[4] or 0),
             "volume": int(row[5] or 0),
             "value": float(row[6] or 0),
         }
@@ -361,14 +359,19 @@ class BacktestService:
         - "intraday": aggregate brsapi_intraday_trades to daily OHLCV
         """
         try:
+            import jdatetime
             from sqlalchemy import text
 
-            from core.database import async_session_factory
+            import core.database as _db
 
-            if async_session_factory is None:
+            if _db.async_session_factory is None:
                 return []
 
-            async with async_session_factory() as session:
+            # Convert Gregorian dates to Jalali (DB stores Jalali date strings)
+            jalali_start = jdatetime.date.fromgregorian(date=start).strftime("%Y-%m-%d")
+            jalali_end = jdatetime.date.fromgregorian(date=end).strftime("%Y-%m-%d")
+
+            async with _db.async_session_factory() as session:
                 # Source: historical daily
                 if source in ("auto", "historical"):
                     result = await session.execute(
@@ -381,12 +384,15 @@ class BacktestService:
                               AND price_close IS NOT NULL AND price_close > 0
                             ORDER BY date ASC
                         """),
-                        {"symbol": symbol, "start": str(start), "end": str(end)},
+                        {"symbol": symbol, "start": jalali_start, "end": jalali_end},
                     )
                     rows = result.fetchall()
                     if rows:
                         logger.info("Loaded %d bars from brsapi_historical_daily for %s", len(rows), symbol)
-                        return [self._row_to_ohlcv(r) for r in rows]
+                        bars = [self._row_to_ohlcv(r) for r in rows]
+                        for b in bars:
+                            b["instrument_id"] = symbol
+                        return bars
 
                 # Source: quotes table
                 if source in ("auto", "quotes"):
@@ -400,12 +406,15 @@ class BacktestService:
                               AND price_close IS NOT NULL AND price_close > 0
                             ORDER BY date ASC
                         """),
-                        {"symbol": symbol, "start": str(start), "end": str(end)},
+                        {"symbol": symbol, "start": jalali_start, "end": jalali_end},
                     )
                     rows = result.fetchall()
                     if rows:
                         logger.info("Loaded %d bars from quotes for %s", len(rows), symbol)
-                        return [self._row_to_ohlcv(r) for r in rows]
+                        bars = [self._row_to_ohlcv(r) for r in rows]
+                        for b in bars:
+                            b["instrument_id"] = symbol
+                        return bars
 
                 # Source: intraday trades aggregated to daily
                 if source in ("auto", "intraday"):
@@ -425,7 +434,7 @@ class BacktestService:
                             GROUP BY trade_date
                             ORDER BY trade_date ASC
                         """),
-                        {"symbol": symbol, "start": str(start), "end": str(end)},
+                        {"symbol": symbol, "start": jalali_start, "end": jalali_end},
                     )
                     rows = result.fetchall()
                     if rows:
@@ -433,12 +442,13 @@ class BacktestService:
                         return [
                             {
                                 "timestamp": str(row[0]) + "T09:00:00",
-                                "open": float(row[1] or row[4]),
-                                "high": float(row[2] or row[4]),
-                                "low": float(row[3] or row[4]),
-                                "close": float(row[4]),
+                                "open": float(row[1] or row[4] or 0),
+                                "high": float(row[2] or row[4] or 0),
+                                "low": float(row[3] or row[4] or 0),
+                                "close": float(row[4] or 0),
                                 "volume": int(row[5] or 0),
                                 "value": float(row[6] or 0),
+                                "instrument_id": symbol,
                             }
                             for row in rows
                         ]
@@ -455,12 +465,12 @@ class BacktestService:
         try:
             from sqlalchemy import text
 
-            from core.database import async_session_factory
+            import core.database as _db
 
-            if async_session_factory is None:
+            if _db.async_session_factory is None:
                 return []
 
-            async with async_session_factory() as session:
+            async with _db.async_session_factory() as session:
                 # Merge symbols from both historical tables
                 result = await session.execute(text("""
                     SELECT symbol, MIN(date) as start_date, MAX(date) as end_date, COUNT(*) as bar_count
@@ -481,8 +491,8 @@ class BacktestService:
                 return [
                     {
                         "symbol": row[0],
-                        "start_date": str(row[1]) if row[1] else None,
-                        "end_date": str(row[2]) if row[2] else None,
+                        "start_date": safe_row_str(row, idx=1, default=None),
+                        "end_date": safe_row_str(row, idx=2, default=None),
                         "bar_count": row[3],
                     }
                     for row in rows
@@ -562,7 +572,7 @@ class BacktestService:
                         "strategy_type": r.strategy_name,
                         "symbols": r.instrument_ids,
                         "initial_capital": r.initial_capital,
-                        "current_value": r.current_capital,
+                        "current_value": r.current_value,
                         "total_return_pct": r.total_return_pct,
                         "created_at": r.created_at.isoformat() if r.created_at else None,
                     })
@@ -594,9 +604,7 @@ class BacktestService:
         return Result.ok(self._runs.get(run_id))
 
     async def get_result(self, run_id: str) -> Result[dict[str, Any] | None]:
-        # Try in-memory first (has full result data), then DB
-        if run_id in self._runs:
-            return Result.ok(self._runs.get(run_id))
+        # Try DB first (has full metrics in extra), then fallback to in-memory
         try:
             db_result = await self._repo.get(run_id)
             if db_result.success and db_result.value:
@@ -607,11 +615,13 @@ class BacktestService:
                     "status": r.status,
                     "total_return_pct": r.total_return_pct,
                     "initial_capital": r.initial_capital,
-                    "final_value": r.current_capital,
-                    "metrics": r.extra or {},
+                    "final_value": r.current_value,
+                    "metrics": r.metrics or {},
                 })
         except Exception as e:
             logger.warning("Failed to get result from DB: %s", e)
+        if run_id in self._runs:
+            return Result.ok(self._runs.get(run_id))
         return Result.ok(None)
 
     async def cancel_run(self, run_id: str) -> Result[bool]:
@@ -666,10 +676,8 @@ class BacktestService:
             model_obj, _ = artifact_mgr.load_model(model_id)
             model = model_obj
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 model = model_registry.create("xgboost")
-            except Exception:
-                pass
 
         if model is None or not hasattr(model, "predict"):
             logger.warning("No ML model available for %s, using zero predictions", symbol)

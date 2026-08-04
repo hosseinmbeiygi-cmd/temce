@@ -14,8 +14,13 @@ vi.mock("@/components/charts/ChartContainer", () => ({
 // Our mock does both synchronously.
 vi.mock("recharts", async () => {
   const actual = await vi.importActual("recharts");
+  // ResponsiveContainer clones its child and injects measured width/height.
+  // Type the props so TS accepts the injected size props.
   const MockResponsiveContainer = ({ children }: { children: ReactElement }) =>
-    cloneElement(children, { width: 600, height: 300 });
+    cloneElement(
+      children as ReactElement<{ width?: number; height?: number }>,
+      { width: 600, height: 300 },
+    );
   return { ...actual, ResponsiveContainer: MockResponsiveContainer };
 });
 

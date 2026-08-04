@@ -67,4 +67,3 @@ async def test_get_top_gainers():
 
     result = await service.quote_repo.get_top_gainers(5)
     assert result.success
-

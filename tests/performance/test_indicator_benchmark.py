@@ -22,11 +22,11 @@ for _ in range(_N):
     rng = abs(random.gauss(0, 1.0))
     c = pr * (1 + chg / 100)
     h = c + rng
-    l = c - rng
+    low = c - rng
     v = random.randint(1_000_000, 50_000_000)
     prices.append(c)
     highs.append(h)
-    lows.append(l)
+    lows.append(low)
     volumes.append(float(v))
     pr = c
 
@@ -34,6 +34,7 @@ for _ in range(_N):
 # ═══════════════════════════════════════════════════════════
 # SMA
 # ═══════════════════════════════════════════════════════════
+
 
 def test_bench_sma(benchmark) -> None:
     benchmark(MarketService._sma, prices, 14)
@@ -51,6 +52,7 @@ def test_bench_sma_200(benchmark) -> None:
 # EMA
 # ═══════════════════════════════════════════════════════════
 
+
 def test_bench_ema(benchmark) -> None:
     benchmark(MarketService._ema, prices, 14)
 
@@ -63,6 +65,7 @@ def test_bench_ema_50(benchmark) -> None:
 # RSI
 # ═══════════════════════════════════════════════════════════
 
+
 def test_bench_rsi(benchmark) -> None:
     benchmark(MarketService._rsi, prices, 14)
 
@@ -74,6 +77,7 @@ def test_bench_rsi_9(benchmark) -> None:
 # ═══════════════════════════════════════════════════════════
 # MACD
 # ═══════════════════════════════════════════════════════════
+
 
 def test_bench_macd(benchmark) -> None:
     benchmark(MarketService._macd, prices, 12, 26, 9)
@@ -91,6 +95,7 @@ def test_bench_macd_long(benchmark) -> None:
 # Bollinger
 # ═══════════════════════════════════════════════════════════
 
+
 def test_bench_bollinger(benchmark) -> None:
     benchmark(MarketService._bollinger, prices, 20, 2)
 
@@ -103,6 +108,7 @@ def test_bench_bollinger_50(benchmark) -> None:
 # Stochastic
 # ═══════════════════════════════════════════════════════════
 
+
 def test_bench_stochastic(benchmark) -> None:
     benchmark(MarketService._stochastic, highs, lows, prices, 14, 3, 3)
 
@@ -110,6 +116,7 @@ def test_bench_stochastic(benchmark) -> None:
 # ═══════════════════════════════════════════════════════════
 # ATR
 # ═══════════════════════════════════════════════════════════
+
 
 def test_bench_atr(benchmark) -> None:
     benchmark(MarketService._atr, highs, lows, prices, 14)
@@ -119,6 +126,7 @@ def test_bench_atr(benchmark) -> None:
 # OBV
 # ═══════════════════════════════════════════════════════════
 
+
 def test_bench_obv(benchmark) -> None:
     benchmark(MarketService._obv, prices, volumes)
 
@@ -126,6 +134,7 @@ def test_bench_obv(benchmark) -> None:
 # ═══════════════════════════════════════════════════════════
 # Williams %R
 # ═══════════════════════════════════════════════════════════
+
 
 def test_bench_williams_r(benchmark) -> None:
     benchmark(MarketService._williams_r, highs, lows, prices, 14)
@@ -135,6 +144,7 @@ def test_bench_williams_r(benchmark) -> None:
 # Ichimoku
 # ═══════════════════════════════════════════════════════════
 
+
 def test_bench_ichimoku(benchmark) -> None:
     benchmark(MarketService._ichimoku, highs, lows, prices, 9, 26, 52)
 
@@ -142,6 +152,7 @@ def test_bench_ichimoku(benchmark) -> None:
 # ═══════════════════════════════════════════════════════════
 # _compute_indicator routing
 # ═══════════════════════════════════════════════════════════
+
 
 def test_bench_compute_routing(benchmark) -> None:
     benchmark(MarketService._compute_indicator, "sma", prices, {"period": 14})

@@ -7,7 +7,10 @@ from typing import Any
 
 import orjson
 
+from core.logging import get_logger
 from core.paths import validate_safe_path
+
+logger = get_logger(__name__)
 
 
 def loads(s: str | bytes, use_orjson: bool = True) -> Any:

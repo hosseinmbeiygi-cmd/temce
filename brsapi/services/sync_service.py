@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any
 
@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.client import BrsApiClient, BrsApiResponse, get_client
 from brsapi.config import BrsApiEndpoints, EndpointConfig
+from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from brsapi.models import (
     CandlestickModel,
     CodalAnnouncementModel,
@@ -70,6 +71,54 @@ from brsapi.repositories import (
 logger = getLogger(__name__)
 
 
+def _to_jalali_date(value: str | None) -> str | None:
+    """Convert a Gregorian ``YYYY-MM-DD`` date to Jalali (Shamsi) format.
+
+    BrsApi TSETMC endpoints (e.g. ``/Tsetmc/Transaction.php``) expect the
+    ``date`` parameter in the Persian calendar (e.g. ``1404-02-22``), NOT the
+    Gregorian one. This helper:
+
+    - Returns already-Jalali dates untouched (year 1200–1500 is treated as Jalali).
+    - Converts Gregorian dates via ``jdatetime``.
+    - Returns the (stripped) input unchanged when the value is unparseable.
+
+    Example:
+        _to_jalali_date("2026-08-04")  → "1405-05-13"
+        _to_jalali_date("1404-02-22")  → "1404-02-22"
+    """
+    if not value:
+        return value
+    v = value.strip()
+    if not v:
+        return v
+    # Jalali (Shamsi) years are 1200–1500 (currently 1405); Gregorian here are 20xx.
+    # Only treat full YYYY-MM-DD values as Jalali to avoid passing garbage through.
+    if len(v) == 10 and v[:4].isdigit() and 1200 <= int(v[:4]) <= 1500:
+        return v
+    try:
+        from datetime import datetime
+
+        import jdatetime
+
+        gdate = datetime.strptime(v, "%Y-%m-%d").date()
+        return jdatetime.date.fromgregorian(date=gdate).strftime("%Y-%m-%d")
+    except Exception:
+        logger.warning("Could not convert date %r to Jalali; passing through", value)
+        return value
+
+
+def _dedupe_symbols(symbols: list[str]) -> list[str]:
+    """Return a deduplicated list of non-empty, stripped symbols, preserving order."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in symbols:
+        symbol = raw.strip() if raw else ""
+        if symbol and symbol not in seen:
+            seen.add(symbol)
+            result.append(symbol)
+    return result
+
+
 # ──────────────────────────────────────────────
 #  Sync Report
 # ──────────────────────────────────────────────
@@ -84,6 +133,7 @@ class SyncReport:
     duration_ms: float = 0.0
     error: str | None = None
     skipped: bool = False       # True when dedup prevented a fetch
+    failed_symbols: list[str] = field(default_factory=list)  # Symbols that failed during batch sync
 
 
 # ──────────────────────────────────────────────
@@ -187,6 +237,7 @@ class BrsApiSyncService:
                 duration_ms=elapsed_ms,
                 params=params,
             )
+            await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=False,
@@ -213,9 +264,11 @@ class BrsApiSyncService:
                 duration_ms=elapsed_ms,
             )
 
-        # 3. Parse
+        # 3. Parse (support both sync and async parsers)
         try:
             parsed = parser(brs_resp.data)
+            if asyncio.iscoroutine(parsed):
+                parsed = await parsed
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
             logger.exception("Parse error for %s", endpoint.path)
@@ -227,6 +280,7 @@ class BrsApiSyncService:
                 duration_ms=elapsed_ms,
                 params=params,
             )
+            await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=False,
@@ -263,6 +317,11 @@ class BrsApiSyncService:
         # 4. Store
         repo = BulkUpsertRepository(sess, model_class)
 
+        # Snapshots carry the (symbol, fetched_at) unique constraint — refresh
+        # on conflict instead of silently appending a duplicate row.
+        on_conflict_update = model_class is SymbolSnapshotModel
+        conflict_target = ["symbol", "fetched_at"] if on_conflict_update else None
+
         try:
             if truncate_first:
                 await repo.truncate()
@@ -271,7 +330,11 @@ class BrsApiSyncService:
             total = 0
             for i in range(0, len(records), batch_size):
                 batch = records[i:i + batch_size]
-                inserted = await repo.bulk_insert(batch)
+                inserted = await repo.bulk_insert(
+                    batch,
+                    on_conflict_update=on_conflict_update,
+                    conflict_target=conflict_target,
+                )
                 total += inserted
 
             await sess.commit()
@@ -289,6 +352,7 @@ class BrsApiSyncService:
                 duration_ms=elapsed_ms,
                 params=params,
             )
+            await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=False,
@@ -318,6 +382,7 @@ class BrsApiSyncService:
             duration_ms=elapsed_ms,
             params=params,
         )
+        await sess.commit()
 
         logger.info("Synced %s → %d records in %.0fms", endpoint.path, total, elapsed_ms)
         return SyncReport(
@@ -339,7 +404,7 @@ class BrsApiSyncService:
             model_class=SymbolSnapshotModel,
             params={"type": symbol_type},
             dedup_seconds=30,
-            truncate_first=True,
+            truncate_first=False,  # upsert — don't destroy existing data
             session=session,
         )
 
@@ -401,20 +466,150 @@ class BrsApiSyncService:
             session=session,
         )
 
+    async def sync_nav_all(
+        self,
+        session: AsyncSession,
+        symbols: list[str] | None = None,
+        sleep_seconds: float = 11.0,
+    ) -> SyncReport:
+        """
+        Sync NAV for a list of ETF/fund symbols sequentially.
+
+        Args:
+            session: Database session.
+            symbols: List of symbols to sync. If None, queries the DB for
+                symbols whose sector contains "صندوق" or "fund".
+            sleep_seconds: Delay between requests to respect the NAV endpoint
+                rate limit (1 req / 10s → default 11s).
+        """
+        if symbols is None:
+            symbols = await self._get_fund_symbols(session)
+
+        # Drop empty/whitespace-only symbols silently
+        symbols = [s for s in symbols if s and str(s).strip()]
+
+        if not symbols:
+            return SyncReport(
+                endpoint=BrsApiEndpoints.NAV.path,
+                success=True,
+                items_count=0,
+                error="No fund symbols found",
+            )
+
+        start_time = time.monotonic()
+        success_count = 0
+        fail_count = 0
+        total_items = 0
+        failed_symbols: list[str] = []
+
+        symbols = _dedupe_symbols(symbols)
+
+        for i, symbol in enumerate(symbols):
+            if i > 0 and sleep_seconds > 0:
+                await asyncio.sleep(sleep_seconds)
+
+            try:
+                report = await self.sync_nav(session, symbol)
+                if report.success:
+                    success_count += 1
+                    total_items += report.items_count
+                else:
+                    fail_count += 1
+                    failed_symbols.append(symbol)
+                    logger.warning("NAV sync failed for %s: %s", symbol, report.error)
+            except Exception:
+                fail_count += 1
+                failed_symbols.append(symbol)
+                logger.exception("NAV sync exception for %s", symbol)
+
+            if (i + 1) % 10 == 0:
+                logger.info(
+                    "NAV sync progress: %d/%d symbols (%d ok, %d fail)",
+                    i + 1,
+                    len(symbols),
+                    success_count,
+                    fail_count,
+                )
+
+        duration_ms = (time.monotonic() - start_time) * 1000
+        success = fail_count == 0
+        error: str | None = None
+        if not success:
+            shown = failed_symbols[:10]
+            suffix = f" and {len(failed_symbols) - 10} more" if len(failed_symbols) > 10 else ""
+            error = f"{fail_count} symbols failed: {', '.join(shown)}{suffix}"
+
+        return SyncReport(
+            endpoint=BrsApiEndpoints.NAV.path,
+            success=success,
+            items_count=total_items,
+            duration_ms=duration_ms,
+            error=error,
+            failed_symbols=failed_symbols,
+        )
+
+    async def _get_fund_symbols(self, session: AsyncSession) -> list[str]:
+        """Return a list of fund/ETF symbols from the latest snapshots.
+
+        First attempts to identify funds dynamically from the symbol snapshots
+        table by sector name. The result is then combined (union) with the
+        curated ``BRSAPI_ETF_SYMBOLS`` list so the NAV sync job is never left
+        with an empty symbol list and newly-listed funds discovered by sector
+        are still synced.
+        """
+        from sqlalchemy import func, select
+
+        from brsapi.models import SymbolSnapshotModel
+
+        db_symbols: list[str] = []
+        try:
+            # Try to identify funds by sector name containing "صندوق" or "fund"
+            sector_col = SymbolSnapshotModel.sector
+            stmt = (
+                select(SymbolSnapshotModel.symbol)
+                .where(
+                    (sector_col.ilike("%صندوق%")) |
+                    (func.lower(sector_col).like("%fund%")) |
+                    (func.lower(sector_col).like("%etf%"))
+                )
+                .group_by(SymbolSnapshotModel.symbol)
+            )
+            result = await session.execute(stmt)
+            db_symbols = [row[0] for row in result.fetchall() if row[0]]
+            logger.info("Found %d fund symbols from snapshots", len(db_symbols))
+        except Exception:
+            logger.warning("Could not query fund symbols from snapshots; using hardcoded ETF list", exc_info=True)
+
+        # Build a union of DB-discovered funds and the curated ETF list,
+        # preserving the curated order while appending any extra DB symbols.
+        return _dedupe_symbols(db_symbols + BRSAPI_ETF_SYMBOLS)
+
     # ── Transactions ─────────────────────────────────
     async def sync_transactions(
         self, session: AsyncSession, symbol: str, date: str | None = None
     ) -> SyncReport:
-        """Sync intraday trades for a symbol."""
+        """Sync intraday trades (ریز معاملات) for a symbol.
+
+        BrsApi expects the ``date`` parameter in **Jalali (Shamsi)** format
+        (e.g. ``1404-02-22``). Gregorian input (``2026-08-04``) is converted
+        automatically via :func:`_to_jalali_date`.
+        """
         ins_id = await self._lookup_ins_id(session, symbol)
         params = {"l18": symbol}
         if date:
-            params["date"] = date
+            params["date"] = _to_jalali_date(date)
 
         def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
             records = TsetmcParser.parse_transactions(data)
             for r in records:
+                # ``id`` from the API is a per-symbol counter (starts at 1 for
+                # every symbol) — using it as the PK would collide across
+                # symbols and get dropped by ON CONFLICT DO NOTHING. Let the
+                # DB autoincrement the PK instead.
+                r.pop("id", None)
                 r["symbol"] = symbol
+                # The requested date (Jalali) is what the trades belong to.
+                r["trade_date"] = params.get("date") or ""
                 if ins_id:
                     r["ins_id"] = ins_id
             return records
@@ -709,7 +904,7 @@ class BrsApiSyncService:
             ("cryptocurrency", GoldCurrencyParser.parse_crypto, CryptoPriceModel, "Crypto", "crypto_prices"),
         ]
 
-        for section_name, parser_fn, model_class, label, table_name in sections:
+        for section_name, parser_fn, model_class, label, _table_name in sections:
             start = time.monotonic()
             try:
                 records = parser_fn(data)
@@ -968,71 +1163,200 @@ class BrsApiSyncService:
         )
 
     # ── Codal ───────────────────────────────────────
-    async def sync_codal(self, session: AsyncSession) -> SyncReport:
-        """Sync Codal announcements."""
+    async def _attach_codal_instrument_refs(
+        self, session: AsyncSession, records: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Attach ins_id and instrument_id to codal records by symbol."""
+        if not records:
+            return records
 
-        async def _parse_with_instrument_ref(data: Any) -> list[dict[str, Any]]:
-            records = CodalParser.parse_announcements_only(data)
-            if not records:
-                return records
+        symbols = list({r["symbol"] for r in records if r.get("symbol")})
+        if not symbols:
+            return records
 
-            # Collect unique symbols to batch-lookup ins_id + instrument_id
-            symbols = list({r["symbol"] for r in records if r.get("symbol")})
-            if not symbols:
-                return records
+        from sqlalchemy import String, column, select, text
 
-            # Build a lookup map: symbol -> (ins_id, instrument_id)
-            from sqlalchemy import select
+        from brsapi.models import SymbolSnapshotModel
 
-            from brsapi.models import SymbolSnapshotModel
+        lookup: dict[str, tuple[str | None, str | None]] = {}
 
-            lookup: dict[str, tuple[str | None, str | None]] = {}
+        stmt = select(
+            SymbolSnapshotModel.symbol,
+            SymbolSnapshotModel.ins_id,
+            SymbolSnapshotModel.instrument_id,
+        ).where(SymbolSnapshotModel.symbol.in_(symbols))
+        result = await session.execute(stmt)
+        for row in result:
+            lookup[row.symbol] = (row.ins_id, row.instrument_id)
 
-            # Try from snapshots first
-            stmt = select(
-                SymbolSnapshotModel.symbol,
-                SymbolSnapshotModel.ins_id,
-                SymbolSnapshotModel.instrument_id,
-            ).where(SymbolSnapshotModel.symbol.in_(symbols))
-            result = await session.execute(stmt)
-            for row in result:
-                lookup[row.symbol] = (row.ins_id, row.instrument_id)
-
-            # Fallback: try instruments table for symbols not in snapshots
-            missing = [s for s in symbols if s not in lookup]
-            if missing:
-                from sqlalchemy import String, column, text
+        missing = [s for s in symbols if s not in lookup]
+        if missing:
+            try:
                 stmt2 = (
                     select(column("symbol", String), column("id", String).label("instrument_id"))
                     .select_from(text("instruments"))
                     .where(column("symbol", String).in_(missing))
                 )
+                result2 = await session.execute(stmt2)
+                for row in result2:
+                    lookup[row.symbol] = (None, str(row.instrument_id) if row.instrument_id else None)
+            except Exception:
+                pass
+
+        for r in records:
+            sym = r.get("symbol", "")
+            ins_id: str | None = None
+            instrument_id: str | None = None
+            if sym in lookup:
+                ins, instr = lookup[sym]
+                ins_id = ins
+                instrument_id = instr
+            r["ins_id"] = ins_id
+            r["instrument_id"] = instrument_id
+
+        return records
+
+    async def sync_codal(
+        self,
+        session: AsyncSession,
+        backfill: bool = False,
+        start_page: int = 1,
+        max_pages: int | None = None,
+    ) -> SyncReport:
+        """Sync Codal announcements with pagination.
+
+        Args:
+            session: Database session.
+            backfill: If True, fetch all pages until the API end. If False
+                (default), stop as soon as a full page yields no new records,
+                which makes incremental syncs fast and resumable.
+            start_page: First page to fetch (1-indexed).
+            max_pages: Optional cap on pages to process (useful for tests).
+        """
+        start_time = time.monotonic()
+        client = await self._ensure_client()
+        sync_log, _raw_payload = self._ensure_repos(session)
+        repo = BulkUpsertRepository(session, CodalAnnouncementModel)
+
+        current_page = start_page
+        total_inserted = 0
+        total_pages_api = 1
+        pages_processed = 0
+
+        while current_page <= total_pages_api:
+            iter_start = time.monotonic()
+
+            result = await client.fetch(
+                BrsApiEndpoints.CODAL_ANNOUNCEMENT,
+                params={"page": str(current_page)},
+            )
+
+            if not result.success:
+                elapsed_ms = (time.monotonic() - start_time) * 1000
+                await sync_log.record(
+                    endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+                    category=BrsApiEndpoints.CODAL_ANNOUNCEMENT.category.value,
+                    status="error",
+                    error_message=result.error,
+                    duration_ms=elapsed_ms,
+                    params={"page": str(current_page), "backfill": str(backfill)},
+                )
+                await session.commit()
+                return SyncReport(
+                    endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+                    success=False,
+                    error=result.error,
+                    duration_ms=elapsed_ms,
+                )
+
+            brs_resp: BrsApiResponse = result.value
+            parsed = CodalParser.parse(brs_resp.data)
+            count_page = max(int(parsed.get("count_page") or 0), 0)
+
+            # First page tells us how many pages exist
+            if current_page == start_page:
+                total_pages_api = count_page
+                if max_pages:
+                    total_pages_api = min(total_pages_api, start_page + max_pages - 1)
+
+            records: list[dict[str, Any]] = parsed.get("announcements", [])
+            if records:
+                records = await self._attach_codal_instrument_refs(session, records)
+
+            inserted = 0
+            if records:
                 try:
-                    result2 = await session.execute(stmt2)
-                    for row in result2:
-                        lookup[row.symbol] = (None, str(row.instrument_id) if row.instrument_id else None)
-                except Exception:
-                    pass
+                    inserted = await repo.bulk_insert(records)
+                    await session.commit()
+                except Exception as exc:
+                    await session.rollback()
+                    elapsed_ms = (time.monotonic() - start_time) * 1000
+                    await sync_log.record(
+                        endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+                        category=BrsApiEndpoints.CODAL_ANNOUNCEMENT.category.value,
+                        status="error",
+                        error_message=f"DBError: {exc}",
+                        items_count=len(records),
+                        duration_ms=elapsed_ms,
+                        params={"page": str(current_page), "backfill": str(backfill)},
+                    )
+                    await session.commit()
+                    return SyncReport(
+                        endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+                        success=False,
+                        error=f"DBError: {exc}",
+                        duration_ms=elapsed_ms,
+                    )
 
-            # Apply to records
-            for r in records:
-                sym = r.get("symbol", "")
-                if sym in lookup:
-                    ins, instr = lookup[sym]
-                    if ins:
-                        r["ins_id"] = ins
-                    if instr:
-                        r["instrument_id"] = instr
+            total_inserted += inserted
+            pages_processed += 1
 
-            return records
+            logger.info(
+                "Codal page %d/%d processed (inserted %d/%d)",
+                current_page,
+                total_pages_api,
+                inserted,
+                len(records),
+            )
 
-        return await self.sync(
-            endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT,
-            parser=_parse_with_instrument_ref,
-            model_class=CodalAnnouncementModel,
-            params=None,
-            dedup_seconds=300,
-            session=session,
+            # Incremental sync stop condition: a full page of duplicates means
+            # we've caught up with existing data.
+            if not backfill and inserted == 0 and len(records) > 0:
+                logger.info("Codal incremental sync reached existing data at page %d.", current_page)
+                break
+
+            # If there are no records at all, there is nothing more to fetch.
+            if len(records) == 0:
+                break
+
+            current_page += 1
+
+            # Respect rate limit: 2 req / 10s => sleep ~5.1s between pages
+            elapsed_iter = time.monotonic() - iter_start
+            sleep_time = max(0.0, 5.1 - elapsed_iter)
+            if current_page <= total_pages_api and sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+
+        duration_ms = (time.monotonic() - start_time) * 1000
+        await sync_log.record(
+            endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+            category=BrsApiEndpoints.CODAL_ANNOUNCEMENT.category.value,
+            status="success",
+            items_count=total_inserted,
+            duration_ms=duration_ms,
+            params={
+                "pages_processed": str(pages_processed),
+                "backfill": str(backfill),
+                "start_page": str(start_page),
+            },
+        )
+        await session.commit()
+
+        return SyncReport(
+            endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+            success=True,
+            items_count=total_inserted,
+            duration_ms=duration_ms,
         )
 
     # ── Bulk sync ──────────────────────────────────
@@ -1056,12 +1380,9 @@ class BrsApiSyncService:
             ("Commodities", lambda: self.sync_commodities(session)),
             ("Crypto", lambda: self.sync_crypto(session)),
             ("Gold/Currency (combined)", lambda: self.sync_gold_currency(session)),
-            # Gold 24h and Currency 24h removed — these API endpoints
-            # now return HTTP 404. The data is available via the combined
-            # Gold_Currency.php endpoint (synced above).
-            # ("Gold 24h", lambda: self.sync_gold_24h(session)),
-            # ("Currency 24h", lambda: self.sync_currency_24h(session)),
-            # Codal removed from batch sync – requires l18 param (per-symbol)
+            # Codal is intentionally excluded from sync_all() because the
+            # Announcement endpoint is paginated (~610k items, 20/page).
+            # Use sync_codal(session) directly or a dedicated paginator.
         ]
         for name, op in operations:
             logger.info("Starting sync: %s", name)

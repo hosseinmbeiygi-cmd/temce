@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 
 from sqlalchemy import desc, select
@@ -90,16 +91,12 @@ class _OrderBookDbRepo(DbRepository[OrderBookSnapshot, OrderbookModel]):
     def _to_domain(self, orm: OrderbookModel) -> OrderBookSnapshot:
         bids = []
         if orm.bids:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 bids = json.loads(orm.bids)
-            except (json.JSONDecodeError, TypeError):
-                pass
         asks = []
         if orm.asks:
-            try:
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
                 asks = json.loads(orm.asks)
-            except (json.JSONDecodeError, TypeError):
-                pass
         return OrderBookSnapshot(
             id=orm.id,
             instrument_id=orm.instrument_id,

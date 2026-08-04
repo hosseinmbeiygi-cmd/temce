@@ -5,9 +5,11 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from apps.api.dependencies import get_brsapi_query_service
+from core.logging import get_logger
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -28,7 +30,7 @@ async def list_industries(
             data=PaginatedResult(items=items, total=len(items), page=1, page_size=50, total_pages=1),
         )
     except Exception:
-        pass
+        logger.exception("Failed to fetch industries")
     return ApiResponse[PaginatedResult[dict[str, Any]]](
         success=True,
         data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),
@@ -51,7 +53,7 @@ async def list_funds(
             data=PaginatedResult(items=items, total=len(items), page=1, page_size=50, total_pages=1),
         )
     except Exception:
-        pass
+        logger.exception("Failed to fetch funds")
     return ApiResponse[PaginatedResult[dict[str, Any]]](
         success=True,
         data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),

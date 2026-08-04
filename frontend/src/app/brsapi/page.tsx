@@ -119,6 +119,106 @@ function SectionIcon({ icon }: { icon: string }) {
   return <span className="text-lg">{icon}</span>;
 }
 
+// ── History Data Section (Crypto/Gold/Currency from BrsApi) ──────────────
+
+interface HistoryStatus {
+  [key: string]: {
+    table: string;
+    rows: number;
+    min_date: string | null;
+    max_date: string | null;
+    symbols: number;
+    error?: string;
+  };
+}
+
+function HistoryDataSection() {
+  const [importing, setImporting] = useState(false);
+  const [lastResult, setLastResult] = useState<{ total_inserted: number; files_imported: number; duration_s: number } | null>(null);
+
+  const { data: historyStatus, refetch: refetchHistory } = useQuery<HistoryStatus>({
+    queryKey: ["brsapi-history-status"],
+    queryFn: async () => {
+      const res = await apiGet<{ success: boolean; data: HistoryStatus }>("/brsapi/manage/history-status");
+      return res?.data ?? {};
+    },
+    refetchInterval: false,
+  });
+
+  const doImportJson = useCallback(async () => {
+    setImporting(true);
+    setLastResult(null);
+    try {
+      const res = await apiPost<{ success: boolean; data: { total_inserted: number; files_imported: number; duration_s: number } }>(
+        "/brsapi/manage/import-json-history"
+      );
+      if (res?.success) {
+        setLastResult(res.data);
+        refetchHistory();
+      }
+    } catch (err) {
+      console.error("Import error:", err);
+    }
+    setImporting(false);
+  }, [refetchHistory]);
+
+  return (
+    <div className="glass-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-surface-100">📊 تاریخچه داده‌ها</h3>
+        <button onClick={() => refetchHistory()} className="text-xs text-surface-500 hover:text-surface-200 flex items-center gap-1">
+          <span className="material-icons text-sm">refresh</span> بروزرسانی
+        </button>
+      </div>
+
+      {/* Status Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        {historyStatus && Object.entries(historyStatus).map(([label, info]) => (
+          <div key={label} className="bg-surface-800/50 rounded-xl p-3">
+            <div className="text-xs text-surface-500 mb-1">{label}</div>
+            <div className="text-lg font-bold font-mono text-surface-100">{formatNumber(info.rows)}</div>
+            <div className="text-[10px] text-surface-500 mt-1">
+              {info.symbols} نماد • {info.min_date || "—"} → {info.max_date || "—"}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Instructions */}
+      <div className="bg-surface-800/30 rounded-lg p-3 mb-3 text-xs text-surface-400 space-y-1">
+        <div className="font-medium text-surface-300">مراحل دریافت داده تاریخچه:</div>
+        <div>۱. اسکریپت دریافت را از ترمینال اجرا کنید: <code className="bg-surface-700 px-1 rounded text-accent-emerald">python scripts/fetch_all_history.py</code></div>
+        <div>۲. دکمه زیر را بزنید تا فایل‌ها وارد دیتابیس شوند</div>
+      </div>
+
+      {/* Import Button */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={doImportJson}
+          disabled={importing}
+          className={`flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+            importing
+              ? "bg-accent-emerald/20 text-accent-emerald animate-pulse"
+              : "bg-accent-emerald hover:bg-accent-emerald/80 text-white"
+          } disabled:opacity-50`}
+        >
+          <span className={`material-icons text-sm ${importing ? "animate-spin" : ""}`}>
+            {importing ? "sync" : "download"}
+          </span>
+          {importing ? "در حال وارد کردن..." : "وارد کردن از JSON فایل‌ها"}
+        </button>
+      </div>
+
+      {/* Last Result */}
+      {lastResult && (
+        <div className="mt-3 bg-accent-emerald/10 border border-accent-emerald/20 rounded-lg p-3 text-xs text-accent-emerald">
+          ✅ {lastResult.files_imported} فایل • {formatNumber(lastResult.total_inserted)} ردیف وارد شد • {lastResult.duration_s}s
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SyncButton({
   sectionId,
   label,
@@ -200,7 +300,7 @@ export default function BrsapiManagementPage() {
         if (res?.success) {
           showNotification("success", `Sync completed: ${res.data.items_count} items in ${formatDuration(res.data.duration_ms)}`);
         } else {
-          showNotification("error", `Sync failed: ${(res as any)?.error || "Unknown error"}`);
+          showNotification("error", `Sync failed: ${(res as { error?: string })?.error || "Unknown error"}`);
         }
       } catch (err) {
         showNotification("error", `Sync error: ${err instanceof Error ? err.message : "Unknown"}`);
@@ -225,7 +325,7 @@ export default function BrsapiManagementPage() {
             `Top ${limit} symbols synced: ${res.data.success_count} OK, ${res.data.fail_count} failed in ${formatDuration(res.data.total_duration_ms)}`
           );
         } else {
-          showNotification("error", (res as any)?.error || "Sync failed");
+          showNotification("error", (res as { error?: string })?.error || "Sync failed");
         }
       } catch (err) {
         showNotification("error", `Sync error: ${err instanceof Error ? err.message : "Unknown"}`);
@@ -250,7 +350,7 @@ export default function BrsapiManagementPage() {
             `History sync completed: ${res.data.success_count}/${res.data.total} OK, ${formatDuration(res.data.total_duration_ms)}`
           );
         } else {
-          showNotification("error", (res as any)?.error || "Sync failed");
+          showNotification("error", (res as { error?: string })?.error || "Sync failed");
         }
       } catch (err) {
         showNotification("error", `Sync error: ${err instanceof Error ? err.message : "Unknown"}`);
@@ -402,6 +502,9 @@ export default function BrsapiManagementPage() {
             </Link>
           </div>
         </div>
+
+        {/* History Data Status & Sync */}
+        <HistoryDataSection />
 
         {/* Category Filters */}
         <div className="flex flex-wrap gap-2">

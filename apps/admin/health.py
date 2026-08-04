@@ -31,7 +31,6 @@ async def dashboard_health() -> ApiResponse[dict[str, Any]]:
 
     # ── 1. PostgreSQL ─────────────────────────────────
     db_start = time.monotonic()
-    db_ok = False
     try:
         from core.database import async_session_factory
 
@@ -43,7 +42,6 @@ async def dashboard_health() -> ApiResponse[dict[str, Any]]:
 
             async with async_session_factory() as session:
                 await session.execute(text("SELECT 1"))
-            db_ok = True
             latency = round((time.monotonic() - db_start) * 1000, 2)
             checks["postgresql"] = {"status": "ok", "latency_ms": latency, "detail": "Connected"}
     except Exception as exc:

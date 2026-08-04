@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
 from jobs.base_job import BaseJob
 from jobs.job_context import JobContext
 from jobs.job_result import JobResult
+from jobs.market_hours import is_tehran_codal_window, is_tehran_market_open
 
 logger = get_logger(__name__)
+
+
+_QUOTA_SAVING_NOTE = (
+    " skipped outside Tehran market hours to preserve the free BrsApi daily quota"
+    " (otherwise the TSETMC endpoints answer HTTP 402 by morning)"
+)
+_CODAL_WINDOW_NOTE = (
+    " skipped outside the Tehran office-hours window to preserve the free"
+    " BrsApi daily quota (otherwise Codal answers HTTP 402 by morning)"
+)
 
 
 class SyncInstrumentsJob(BaseJob):
@@ -18,7 +30,13 @@ class SyncInstrumentsJob(BaseJob):
     in the brsapi_symbol_snapshots table.
     """
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import close_client, get_client
+        if not is_tehran_market_open():
+            logger.info("SyncInstrumentsJob%s", _QUOTA_SAVING_NOTE)
+            return JobResult.success_result(
+                job_name=self._name,
+                data={"skipped": True, "message": "Outside Tehran market hours"},
+            )
+        from brsapi.client import get_client
         from brsapi.config import BrsApiEndpoints
         from brsapi.models import SymbolSnapshotModel
         from brsapi.parsers import TsetmcParser
@@ -53,7 +71,7 @@ class SyncInstrumentsJob(BaseJob):
             logger.exception("SyncInstrumentsJob failed")
             return JobResult.failure(str(e), job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class SyncQuotesJob(BaseJob):
@@ -64,7 +82,13 @@ class SyncQuotesJob(BaseJob):
     Also fetches indices for market-wide quote context.
     """
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import close_client, get_client
+        if not is_tehran_market_open():
+            logger.info("SyncQuotesJob%s", _QUOTA_SAVING_NOTE)
+            return JobResult.success_result(
+                job_name=self._name,
+                data={"skipped": True, "message": "Outside Tehran market hours"},
+            )
+        from brsapi.client import get_client
         from brsapi.config import BrsApiEndpoints
         from brsapi.models import IndexValueModel, SymbolSnapshotModel
         from brsapi.parsers import TsetmcParser
@@ -77,13 +101,17 @@ class SyncQuotesJob(BaseJob):
             indices_count = 0
             async for session in get_session():
                 service = BrsApiSyncService(client=client)
-                # Sync all symbols (includes price/volume)
+                # Sync all symbols (includes price/volume).
+                # NOTE: truncate_first MUST stay False — the brsapi_all_symbols
+                # job writes to the SAME table every 2 minutes. Truncating here
+                # would race with it (and with EvaluateAlertsJob reading it),
+                # silently wiping snapshot data and causing alerts to skip.
                 symbols_report = await service.sync(
                     endpoint=BrsApiEndpoints.ALL_SYMBOLS,
                     parser=TsetmcParser.parse_all_symbols,
                     model_class=SymbolSnapshotModel,
                     params={"type": "1"},
-                    truncate_first=True,
+                    truncate_first=False,
                     session=session,
                 )
                 symbols_count = symbols_report.items_count
@@ -105,7 +133,7 @@ class SyncQuotesJob(BaseJob):
             logger.exception("SyncQuotesJob failed")
             return JobResult.failure(str(e), job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 class SyncCodalJob(BaseJob):
@@ -115,7 +143,13 @@ class SyncCodalJob(BaseJob):
     recent announcements and stores them in brsapi_codal_announcements.
     """
     async def execute(self, context: JobContext) -> JobResult:
-        from brsapi.client import close_client, get_client
+        if not is_tehran_codal_window():
+            logger.info("SyncCodalJob%s", _CODAL_WINDOW_NOTE)
+            return JobResult.success_result(
+                job_name=self._name,
+                data={"skipped": True, "message": "Outside Tehran office-hours window"},
+            )
+        from brsapi.client import get_client
         from brsapi.config import BrsApiEndpoints
         from brsapi.models import CodalAnnouncementModel
         from brsapi.parsers import CodalParser
@@ -149,7 +183,7 @@ class SyncCodalJob(BaseJob):
             logger.exception("SyncCodalJob failed")
             return JobResult.failure(str(e), job_name=self._name)
         finally:
-            await close_client()
+            pass
 
 
 # ── Legacy stub functions (kept for CLI/script backwards compatibility) ──
@@ -195,7 +229,11 @@ class SyncSnapshotsToQuotesJob(BaseJob):
         async with async_session_factory() as session:
             # ── 1. Get the latest snapshot per symbol (today's data) ──
             #    The snapshots table is append-only with a fetched_at timestamp.
-            #    We want the most recent row per symbol.
+            #    NOTE: fetched_at is a TIMESTAMPTZ column — the cutoff MUST be a
+            #    datetime/date object. asyncpg infers the parameter type from the
+            #    column and raises `DataError: expected a datetime.date or
+            #    datetime.datetime instance, got 'str'` when given a string.
+            today = datetime.combine(datetime.now(UTC).date(), datetime.min.time(), tzinfo=UTC)
             try:
                 rows = await session.execute(text("""
                     SELECT DISTINCT ON (s.symbol)
@@ -219,10 +257,10 @@ class SyncSnapshotsToQuotesJob(BaseJob):
                         s.time,
                         s.fetched_at
                     FROM brsapi_symbol_snapshots s
-                    WHERE s.fetched_at >= CURRENT_DATE::text
+                    WHERE s.fetched_at >= :today
                       AND s.symbol IS NOT NULL AND s.symbol != ''
                     ORDER BY s.symbol, s.fetched_at DESC
-                """))
+                """), {"today": today})
                 snapshots = rows.fetchall()
             except Exception as e:
                 logger.exception("Failed to query snapshots")
@@ -275,9 +313,14 @@ class SyncSnapshotsToQuotesJob(BaseJob):
                 # SQLAlchemy Row objects support dict-like access via _mapping
                 row_dict = row._mapping
                 symbol = row_dict["symbol"]
-                fetched_at = row_dict["fetched_at"] or ""
+                fetched_at_raw = row_dict["fetched_at"]
+                # fetched_at is a datetime object (TIMESTAMPTZ column)
+                fetched_at = str(fetched_at_raw) if fetched_at_raw is not None else ""
                 # Extract date from fetched_at (ISO format: "2026-07-09 09:24:15")
-                date_str = fetched_at[:10] if len(fetched_at) >= 10 else fetched_at
+                if isinstance(fetched_at_raw, datetime):
+                    date_str = fetched_at_raw.date().isoformat()
+                else:
+                    date_str = fetched_at[:10] if len(fetched_at) >= 10 else fetched_at
                 record_id = f"brsapi_{symbol}_{date_str}"
 
                 record = {
@@ -333,6 +376,48 @@ class SyncSnapshotsToQuotesJob(BaseJob):
             job_name=self._name,
             data={"copied": copied, "skipped": skipped},
         )
+
+
+class SyncNavAllJob(BaseJob):
+    """Sync NAV for all ETF/fund symbols via BrsApi.
+
+    Iterates through known fund symbols, fetches NAV per symbol from
+    /Tsetmc/Nav.php, and stores results in brsapi_nav_records.  Rate limit
+    is respected (1 req / 10s).
+    """
+
+    async def execute(self, context: JobContext) -> JobResult:
+        from brsapi.client import get_client
+        from brsapi.services.sync_service import BrsApiSyncService
+        from core.database import get_session
+
+        client = await get_client()
+        report = None
+        try:
+            async for session in get_session():
+                service = BrsApiSyncService(client=client)
+                report = await service.sync_nav_all(session)
+            if report is None:
+                return JobResult.failure("Could not obtain DB session", job_name=self._name)
+
+            if report.items_count == 0 and not report.error:
+                logger.warning("SyncNavAllJob: no fund symbols discovered and no NAV data synced")
+
+            return JobResult.success_result(
+                job_name=self._name,
+                data={
+                    "success": report.success,
+                    "items_count": report.items_count,
+                    "duration_ms": report.duration_ms,
+                    "error": report.error,
+                    "failed_symbols": report.failed_symbols,
+                },
+            )
+        except Exception as e:
+            logger.exception("SyncNavAllJob failed")
+            return JobResult.failure(str(e), job_name=self._name)
+        finally:
+            pass
 
 
 async def sync_news(source: str = "rss") -> dict[str, Any]:

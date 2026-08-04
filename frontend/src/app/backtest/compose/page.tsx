@@ -34,7 +34,7 @@ export default function ComposePage() {
   const [maxBatches, setMaxBatches] = useState(5);
   const [progress, setProgress] = useState<ComposeProgress | null>(null);
   const [results, setResults] = useState<StrategyResult[]>([]);
-  const [indicators, setIndicators] = useState<any[]>([]);
+  const [indicators, setIndicators] = useState<Array<{ id: string; name_fa: string; group: string; conditions?: unknown[] }>>([]);
   const [filterEntry, setFilterEntry] = useState("");
   const [filterExit, setFilterExit] = useState("");
   const [loading, setLoading] = useState(false);
@@ -194,7 +194,7 @@ export default function ComposePage() {
         <div className="glass-card p-5 mb-6">
           <h2 className="text-base font-bold text-surface-200 mb-3">اندیکاتورها ({indicators.length})</h2>
           <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-2">
-            {indicators.map((ind: any) => (
+            {indicators.map((ind) => (
               <div key={ind.id} className="bg-surface-800/50 rounded p-2 text-center">
                 <p className="text-xs font-bold text-surface-200">{ind.name_fa}</p>
                 <p className="text-[10px] text-surface-500">{ind.group}</p>

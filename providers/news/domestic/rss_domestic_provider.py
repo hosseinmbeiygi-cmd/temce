@@ -11,11 +11,9 @@ logger = get_logger(__name__)
 
 
 DOMESTIC_RSS_FEEDS: dict[str, str] = {
-    # Note: mehrnews, tasnim, irna, fars, donya-eqtesad — blocked or no valid RSS.
-    # Note: isna removed — general news, not market-relevant.
-    # Only fardayeeghtesad (business/economy/Bourse-focused) feeds remain.
-
+    # ═══════════════════════════════════════════════════════════════════
     # روزنامه فردای اقتصاد (Fardaye Eqtesad) — اقتصاد و بورس
+    # ═══════════════════════════════════════════════════════════════════
     "fardaye_latest": "https://www.fardayeeghtesad.com/rss",                    # آخرین اخبار
     "fardaye_homepage": "https://www.fardayeeghtesad.com/rss-homepage",          # صفحه اصلی
     "fardaye_popular": "https://www.fardayeeghtesad.com/rss/pl/232",             # پربیننده
@@ -29,27 +27,52 @@ DOMESTIC_RSS_FEEDS: dict[str, str] = {
     "fardaye_auto": "https://www.fardayeeghtesad.com/rss/tp/19",                # خودرو
     "fardaye_tech": "https://www.fardayeeghtesad.com/rss/tp/16",                # تکنولوژی و استارتاپ
     "fardaye_companies": "https://www.fardayeeghtesad.com/rss/tp/66",           # شرکت‌ها
-    "fardaye_enterprise": "https://www.fardayeeghtesad.com/rss/tp/78",          # بنگاه‌ها
-    "fardaye_market": "https://www.fardayeeghtesad.com/rss/tp/61",              # بازارچه
-    "fardaye_think_tank": "https://www.fardayeeghtesad.com/rss/tp/67",          # اندیشکده
-    # برنامه‌های تخصصی بورس و اقتصاد فردای اقتصاد
     "fardaye_prog_boursan": "https://www.fardayeeghtesad.com/rss/tp/88",        # برنامه‌ها > بورسان
     "fardaye_prog_bank": "https://www.fardayeeghtesad.com/rss/tp/131",          # برنامه‌ها > میز بانک
-    "fardaye_prog_crypto": "https://www.fardayeeghtesad.com/rss/tp/94",         # برنامه‌ها > فردای کریپتو
     "fardaye_prog_oil": "https://www.fardayeeghtesad.com/rss/tp/108",           # برنامه‌ها > نفت و پتروشیمی
     "fardaye_prog_mining": "https://www.fardayeeghtesad.com/rss/tp/128",        # برنامه‌ها > میز معدن و فولاد
     "fardaye_prog_market": "https://www.fardayeeghtesad.com/rss/tp/132",        # برنامه‌ها > فردای بازارها
-    "fardaye_prog_industry": "https://www.fardayeeghtesad.com/rss/tp/92",       # برنامه‌ها > فردای صنعت
     "fardaye_prog_auto": "https://www.fardayeeghtesad.com/rss/tp/129",          # برنامه‌ها > میز خودرو
     "fardaye_prog_trade": "https://www.fardayeeghtesad.com/rss/tp/126",         # برنامه‌ها > میز صنعت و تجارت
-    "fardaye_prog_innovation": "https://www.fardayeeghtesad.com/rss/tp/134",    # برنامه‌ها > اقتصاد نوآوری
     "fardaye_prog_startup": "https://www.fardayeeghtesad.com/rss/tp/95",        # برنامه‌ها > تک شاخ
     "fardaye_prog_equity": "https://www.fardayeeghtesad.com/rss/tp/90",         # برنامه‌ها > خط سود
     "fardaye_prog_invest": "https://www.fardayeeghtesad.com/rss/tp/105",        # برنامه‌ها > سواد سرمایه‌گذاری
-    "fardaye_prog_watchlist": "https://www.fardayeeghtesad.com/rss/tp/125",     # برنامه‌ها > واچ‌لیست
-    "fardaye_prog_editorial": "https://www.fardayeeghtesad.com/rss/tp/99",      # برنامه‌ها > سرمقاله
-    "fardaye_prog_policy": "https://www.fardayeeghtesad.com/rss/tp/91",         # برنامه‌ها > سیاست و دیپلماسی
-    "fardaye_prog_gov": "https://www.fardayeeghtesad.com/rss/tp/93",            # برنامه‌ها > حکمرانی خوب
+
+    # ═══════════════════════════════════════════════════════════════════
+    # بورس پرس (Boursepress) — پربیننده‌ترین سایت بورس ایران
+    # ═══════════════════════════════════════════════════════════════════
+    "boursepress_latest": "https://boursepress.ir/feed",                         # آخرین اخبار
+    "boursepress_bourse": "https://boursepress.ir/feed/category/1",             # اخبار بورس
+    "boursepress_macro": "https://boursepress.ir/feed/category/5",              # اقتصاد کلان
+    "boursepress_gold": "https://boursepress.ir/feed/category/4",               # طلا و سکه
+
+    # ═══════════════════════════════════════════════════════════════════
+    # اکوایران (EcoIran) — تارنمای اقتصاد و بازار ایران
+    # ═══════════════════════════════════════════════════════════════════
+    "ecoiran_latest": "https://ecoiran.com/feeds",                              # آخرین اخبار
+
+    # ═══════════════════════════════════════════════════════════════════
+    # تجارت نیوز (TejaratNews) — اخبار صنعت و اقتصاد
+    # ═══════════════════════════════════════════════════════════════════
+    "tejarat_latest": "https://tejaratnews.com/feed",                           # آخرین اخبار
+    "tejarat_market": "https://tejaratnews.com/feed/category/%D8%A8%D8%A7%D8%B2%D8%A7%D8%B1",  # بازار
+    "tejarat_industry": "https://tejaratnews.com/feed/category/%D8%B5%D9%86%D8%B9%D8%AA",      # صنعت
+    "tejarat_economy": "https://tejaratnews.com/feed/category/%D8%A7%D9%82%D8%AA%D8%B5%D8%A7%D8%AF",  # اقتصاد
+
+    # ═══════════════════════════════════════════════════════════════════
+    # اقتصاد آنلاین (EghtesadOnline) — رسانه اقتصاد و بازار
+    # ═══════════════════════════════════════════════════════════════════
+    "eghtesadonline_latest": "https://www.eghtesadonline.com/feeds",            # آخرین اخبار
+    "eghtesadonline_economy": "https://www.eghtesadonline.com/rss/tp/108",      # اقتصاد کلان
+    "eghtesadonline_bourse": "https://www.eghtesadonline.com/rss/tp/110",       # اخبار بورس
+
+    # ═══════════════════════════════════════════════════════════════════
+    # ایسنا (ISNA) — اقتصادی
+    # ═══════════════════════════════════════════════════════════════════
+    "isna_economy": "https://www.isna.ir/rss/tp/68",                            # اقتصادی
+    "isna_energy": "https://www.isna.ir/rss/tp/7",                              # نفت و انرژی
+    "isna_industry": "https://www.isna.ir/rss/tp/11",                           # صنعت و معدن
+    "isna_bourse": "https://www.isna.ir/rss/tp/57",                             # بازار سرمایه
 }
 
 

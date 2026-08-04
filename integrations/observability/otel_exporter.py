@@ -30,6 +30,10 @@ class OTelExporter:
         exporter = OTLPSpanExporter(endpoint=self._endpoint, insecure=True)
         self._provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(self._provider)
+        # The tracer must be (re)created AFTER the provider is installed —
+        # a tracer fetched earlier is bound to the default no-op provider
+        # and would silently drop every span.
+        self._tracer = trace.get_tracer(self._service_name)
         logger.info("OpenTelemetry exporter configured for %s", self._endpoint)
 
     def start_span(self, name: str, attributes: dict[str, Any] | None = None) -> trace.Span:

@@ -1,0 +1,112 @@
+# ── Decision Engine Stack ────────────────────────────────────────
+# Standalone deployment of the Decision Engine microservice.
+#
+# Includes:
+#   - PostgreSQL (TimescaleDB) for persistence
+#   - Redis for cache & queue
+#   - decision-engine service (port 8002)
+#
+# Usage:
+#   docker compose -f docker-compose.decision-engine.yml up -d
+#   docker compose -f docker-compose.decision-engine.yml logs -f
+#   docker compose -f docker-compose.decision-engine.yml down
+#
+# Combined with main stack:
+#   docker compose -f docker-compose.yml -f docker-compose.decision-engine.yml up -d
+#
+# Production (Docker Swarm):
+#   docker stack deploy -c docker-compose.decision-engine.yml decision-stack
+
+version: '3.8'
+
+services:
+  # ── PostgreSQL / TimescaleDB ──────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: de_postgres
+    environment:
+      - POSTGRES_DB=decision_engine
+      - POSTGRES_USER=decision_user
+      - POSTGRES_PASSWORD=decision_pass_456
+    ports:
+      - "5433:5432"
+    volumes:
+      - de_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U decision_user -d decision_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - decision-net
+
+  # ── Redis ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7.0-alpine
+    container_name: de_redis
+    command: redis-server --appendonly yes --requirepass de_redis_pass_789
+    ports:
+      - "6380:6379"
+    volumes:
+      - de_redisdata:/data
+    restart: always
+    networks:
+      - decision-net
+
+  # ── Decision Engine Service ───────────────────────────────────
+  decision-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.decision-engine
+    container_name: tse_decision_engine
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8002:8002"
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://decision_user:decision_pass_456@postgres:5432/decision_engine
+      - DATABASE_URL_ASYNC=postgresql+asyncpg://decision_user:decision_pass_456@postgres:5432/decision_engine
+      # Redis
+      - REDIS_URL=redis://:de_redis_pass_789@redis:6379/0
+      # Service config
+      - DECISION_ENGINE_PORT=8002
+      - API_PREFIX=/api/v1
+      - APP_NAME=Decision-Engine
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./json:/app/json
+    restart: always
+    networks:
+      - decision-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  # ── Note: Auto-seed is handled automatically by the decision-engine
+  # app lifespan (_auto_seed_on_startup). No separate seed job needed.
+  #
+  # Manual seed (optional):
+  #   curl -X POST http://localhost:8002/decision-engine/seed
+  #
+  # Or via seed script:
+  #   python scripts/seed_decisions.py --url http://localhost:8002
+
+networks:
+  decision-net:
+    driver: bridge
+    name: decision-engine-network
+
+volumes:
+  de_pgdata:
+    name: decision-engine-pgdata
+  de_redisdata:
+    name: decision-engine-redisdata

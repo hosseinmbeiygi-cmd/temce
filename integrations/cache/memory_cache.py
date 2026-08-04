@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from threading import Lock
 from typing import Any
 
@@ -62,13 +63,12 @@ class MemoryCache:
             self._store.popitem(last=False)
 
     def purge_expired(self) -> int:
-        time.monotonic()
         expired = [k for k, v in self._store.items() if v.expired]
         for k in expired:
             self._delete(k)
         return len(expired)
 
-    def get_or_set(self, key: str, factory: callable, ttl: float | None = None) -> Any:
+    def get_or_set(self, key: str, factory: Callable[[], Any], ttl: float | None = None) -> Any:
         existing = self.get(key)
         if existing is not None:
             return existing

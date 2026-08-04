@@ -44,10 +44,7 @@ class NewsParser:
                 title = item.findtext(f"{ns}title", "")
                 desc = item.findtext(f"{ns}description", "") or item.findtext(f"{ns}summary", "") or item.findtext(f"{ns}content", "")
                 link_elem = item.find(f"{ns}link")
-                if link_elem is not None:
-                    link = link_elem.get("href") or link_elem.text or ""
-                else:
-                    link = ""
+                link = link_elem.get("href") or link_elem.text or "" if link_elem is not None else ""
                 pub_date_elem = item.find(f"{ns}pubDate") or item.find(f"{ns}published") or item.find(f"{ns}updated")
                 pub_date = pub_date_elem.text if pub_date_elem is not None and pub_date_elem.text else ""
                 items.append({

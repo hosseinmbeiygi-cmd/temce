@@ -20,10 +20,7 @@ class ImpactModel:
 
     def calculate_impact(self, quantity: int, adv: float, price: float = 1.0) -> float:
         participation = quantity / max(adv, 1)
-        if self.use_sqrt_law:
-            impact = self.eta * (participation ** self.alpha)
-        else:
-            impact = self.eta * participation
+        impact = self.eta * participation ** self.alpha if self.use_sqrt_law else self.eta * participation
         return impact
 
     def get_execution_price(self, quantity: int, adv: float, price: float, side: str) -> float:
@@ -34,10 +31,7 @@ class ImpactModel:
 
     def apply_to_fill(self, fill: FillEvent, adv: float) -> FillEvent:
         impact_pct = self.calculate_impact(fill.quantity, adv, fill.price)
-        if fill.side == "buy":
-            adjusted_price = fill.price * (1.0 + impact_pct)
-        else:
-            adjusted_price = fill.price * (1.0 - impact_pct)
+        adjusted_price = fill.price * (1.0 + impact_pct) if fill.side == "buy" else fill.price * (1.0 - impact_pct)
         from dataclasses import replace
         return replace(fill, price=round(adjusted_price, 2))
 

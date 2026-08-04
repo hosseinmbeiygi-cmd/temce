@@ -50,3 +50,49 @@ class UpdateProfileRequest(BaseModel):
     full_name: str = Field(default="", max_length=100)
     phone: str = Field(default="", max_length=20)
     email: str | None = None
+
+
+class MFASetupRequest(BaseModel):
+    """Start MFA enrollment for the current user.
+
+    ``method`` selects how one-time codes are produced:
+    - ``totp`` (default): secret + otpauth URI for an authenticator app
+    - ``email``: a 6-digit code generated with ``generate_otp`` is emailed
+    - ``telegram``: the code is sent to the configured Telegram chat
+    """
+
+    password: str = Field(..., min_length=1, description="Current password (re-auth before MFA setup)")
+    method: str = Field(default="totp", pattern=r"^(totp|email|telegram)$")
+
+
+class MFAVerifyRequest(BaseModel):
+    """Confirm MFA setup with a valid TOTP code — enables MFA for the user."""
+
+    code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
+
+
+class MFADisableRequest(BaseModel):
+    """Disable MFA.
+
+    ``send_code=true`` (first call, OTP methods only) delivers a fresh
+    verification code; the subsequent call with that ``code`` disables MFA.
+    """
+
+    password: str = Field(..., min_length=1)
+    code: str = Field(default="", min_length=6, max_length=8, pattern=r"^\d+$")
+    send_code: bool = Field(default=False, description="Request a fresh code for OTP-delivery methods")
+
+
+class MFALoginRequest(BaseModel):
+    """Second step of a two-factor login: username + pending MFA token + code."""
+
+    mfa_token: str = Field(..., min_length=8)
+    code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
+
+
+class MFAStatusResponse(BaseModel):
+    enabled: bool = False
+    pending: bool = False
+    method: str | None = None
+    secret: str | None = None
+    uri: str | None = None

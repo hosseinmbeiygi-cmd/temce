@@ -5,7 +5,12 @@ def test_quote_validator_required_fields():
     from pipelines.quotes.validator import QuoteValidator
 
     validator = QuoteValidator()
-    valid = {"symbol": "فولاد", "price_close": 15000, "volume": 5000000, "date": "2024-01-15"}
+    valid = {
+        "symbol": "فولاد",
+        "price_close": 15000,
+        "volume": 5000000,
+        "date": "2024-01-15",
+    }
     assert validator.validate(valid) is True
 
 
@@ -41,4 +46,3 @@ def test_quote_validator_ohlc():
     invalid_ohlc = {"high": 14800, "low": 14900, "open": 14900, "close": 15000}
     assert validator.validate_ohlc(**valid_ohlc) is True
     assert validator.validate_ohlc(**invalid_ohlc) is False
-

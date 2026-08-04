@@ -17,4 +17,3 @@ async def test_recommendation_list():
     service = RecommendationService()
     result = await service.list_recommendations()
     assert result.success or not result.success
-

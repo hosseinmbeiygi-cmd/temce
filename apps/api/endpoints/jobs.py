@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
+from core.db_utils import safe_row_str
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -145,17 +146,17 @@ JOBS_TYPES_QUERY = """
 
 
 def _row_to_dict(row: tuple) -> dict[str, Any]:
-    created = row[9]
+    row[9]
     return {
-        "id": row[0] or "",
-        "job_type": row[1] or "",
+        "id": safe_row_str(row, idx=0),
+        "job_type": safe_row_str(row, idx=1),
         "status": row[2] or "unknown",
         "progress_pct": row[3] or 0,
         "started_at": row[4].isoformat() if row[4] else None,
         "completed_at": row[5].isoformat() if row[5] else None,
         "duration_seconds": row[6] or 0,
         "error_message": row[7][:300] if row[7] else None,
-        "triggered_by": row[8] or "",
+        "triggered_by": safe_row_str(row, idx=8),
         "created_at": row[9].isoformat() if row[9] else None,
     }
 

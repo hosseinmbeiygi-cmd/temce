@@ -9,6 +9,7 @@ from apps.api.app import app
 @pytest.fixture
 async def client():
     from core.database import close_database, init_database
+
     await close_database()
     await init_database()
     transport = ASGITransport(app=app)
@@ -33,4 +34,3 @@ async def test_health_returns_json(client: AsyncClient):
         assert "success" in data
         if data.get("success"):
             assert data.get("data", {}).get("status") == "ok"
-

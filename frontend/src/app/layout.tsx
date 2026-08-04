@@ -1,20 +1,29 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Vazirmatn, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NotificationProvider } from "./notification-provider";
 
-const vazirmatn = Vazirmatn({
-  subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
+// Fonts are self-hosted (next/font/local) so the build never depends on
+// fetching from Google Fonts — the app must build & run offline/behind
+// restricted networks (Google domains are often unreachable in IR).
+const vazirmatn = localFont({
+  src: [
+    { path: "../fonts/Vazirmatn-Light.woff2", weight: "300", style: "normal" },
+    { path: "../fonts/Vazirmatn-Regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/Vazirmatn-Medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/Vazirmatn-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/Vazirmatn-Bold.woff2", weight: "700", style: "normal" },
+    { path: "../fonts/Vazirmatn-ExtraBold.woff2", weight: "800", style: "normal" },
+    { path: "../fonts/Vazirmatn-Black.woff2", weight: "900", style: "normal" },
+  ],
   display: "swap",
   variable: "--font-vazirmatn",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+const jetbrainsMono = localFont({
+  src: "../fonts/JetBrainsMono-wght.woff2",
   display: "swap",
   variable: "--font-jetbrains-mono",
 });

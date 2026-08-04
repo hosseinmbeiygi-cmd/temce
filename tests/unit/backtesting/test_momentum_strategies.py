@@ -9,14 +9,21 @@ Tests the ZeroDivision guards and core logic of:
 
 from __future__ import annotations
 
-from backtesting.strategies.factor_based.momentum_factor_strategy import MomentumFactorStrategy
-from backtesting.strategies.rule_based.mean_reversion_strategy import MeanReversionStrategy
+from backtesting.strategies.factor_based.momentum_factor_strategy import (
+    MomentumFactorStrategy,
+)
+from backtesting.strategies.rule_based.mean_reversion_strategy import (
+    MeanReversionStrategy,
+)
 from backtesting.strategies.rule_based.momentum_strategy import MomentumStrategy
-from backtesting.strategies.rule_based.moving_average_cross import MovingAverageCrossStrategy
+from backtesting.strategies.rule_based.moving_average_cross import (
+    MovingAverageCrossStrategy,
+)
 
 # ──────────────────────────────────────────────
 # MomentumStrategy
 # ──────────────────────────────────────────────
+
 
 class TestMomentumStrategy:
     def test_init(self):
@@ -59,7 +66,8 @@ class TestMomentumStrategy:
     def test_momentum_sell_signal(self):
         s = MomentumStrategy(lookback=3, threshold_pct=2.0, instrument_id="test")
         s._prices = [100, 102, 101, 103]
-        # price=85, start_price=100, momentum=(85-100)/100*100=-15% < -2% → SELL
+        s._position = 1  # Currently long so a sell signal can fire
+        # price=85, start_price=102, momentum=(85-102)/102*100=-16.7% < -2% → SELL
         orders = s.on_bar({"close": 85})
         assert len(orders) == 1
         assert orders[0].side.value == "sell"
@@ -75,6 +83,7 @@ class TestMomentumStrategy:
 # ──────────────────────────────────────────────
 # MomentumFactorStrategy
 # ──────────────────────────────────────────────
+
 
 class TestMomentumFactorStrategy:
     def test_init(self):
@@ -138,6 +147,7 @@ class TestMomentumFactorStrategy:
 # MovingAverageCrossStrategy
 # ──────────────────────────────────────────────
 
+
 class TestMovingAverageCrossStrategy:
     def test_init(self):
         s = MovingAverageCrossStrategy(fast_period=5, slow_period=20)
@@ -200,6 +210,7 @@ class TestMovingAverageCrossStrategy:
 # MeanReversionStrategy
 # ──────────────────────────────────────────────
 
+
 class TestMeanReversionStrategy:
     def test_init(self):
         s = MeanReversionStrategy(lookback=20, entry_z=2.0, exit_z=0.5)
@@ -221,7 +232,8 @@ class TestMeanReversionStrategy:
         # Prices stable around 100
         for price in [100, 101, 99, 100, 102]:
             s.on_bar({"close": price})
-        # mean ≈ 100.4, std ≈ 1.14, then price=120 → z ≈ 17 >> 1.5
+        s._position = 1  # Currently long so a sell signal can fire
+        # mean ≈ 104.4, std ≈ 8.05, then price=120 → z ≈ 1.94 >> 1.5
         orders = s.on_bar({"close": 120})
         assert len(orders) == 1
         assert orders[0].side.value == "sell"

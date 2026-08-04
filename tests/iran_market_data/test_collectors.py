@@ -91,4 +91,3 @@ class TestHttpClientMock:
         client = HttpClient()
         with pytest.raises(Exception):
             client.get("http://nonexistent.invalid.url.xyz")
-

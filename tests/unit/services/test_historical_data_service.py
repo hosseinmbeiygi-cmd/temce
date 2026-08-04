@@ -38,4 +38,3 @@ async def test_get_macro_data():
     service = MarketService()
     result = await service.get_macro_data("inflation", "iran")
     assert result.success or not result.success
-

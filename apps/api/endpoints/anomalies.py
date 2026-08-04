@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_session
+from core.db_utils import safe_row_str
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -35,7 +36,7 @@ def _detect_anomalies(
     stdev_p = statistics.stdev(closes) if len(closes) > 1 else 0.0
 
     if stdev_p > 0:
-        for i, (price, vol, dt) in enumerate(zip(closes, volumes, dates, strict=False)):
+        for _i, (price, vol, dt) in enumerate(zip(closes, volumes, dates, strict=False)):
             z_price = (price - mean_p) / stdev_p
 
             # Price spike
@@ -61,7 +62,7 @@ def _detect_anomalies(
             mean_v = statistics.mean(positive_vols)
             stdev_v = statistics.stdev(positive_vols) if len(positive_vols) > 1 else 0.0
             if stdev_v > 0:
-                for i, (price, vol, dt) in enumerate(zip(closes, volumes, dates, strict=False)):
+                for _i, (price, vol, dt) in enumerate(zip(closes, volumes, dates, strict=False)):
                     if not vol or vol <= 0:
                         continue
                     z_vol = (float(vol) - mean_v) / stdev_v
@@ -125,7 +126,7 @@ async def get_anomalies(
 
                 closes = [float(row[0]) for row in rows]
                 volumes = [int(row[1] or 0) for row in rows]
-                dates = [str(row[2] or "") for row in rows]
+                dates = [safe_row_str(row, idx=2) for row in rows]
 
                 anomalies = _detect_anomalies(
                     symbol=symbol,

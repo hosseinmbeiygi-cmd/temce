@@ -234,9 +234,10 @@ export default function PhaseMonitorPage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    // Defer the first fetch so setState doesn't run synchronously during commit
+    const timer = setTimeout(fetchData, 0);
     const interval = setInterval(fetchData, 30000); // Poll every 30s
-    return () => clearInterval(interval);
+    return () => { clearTimeout(timer); clearInterval(interval); };
   }, [fetchData]);
 
   const historyData = generateMockHistory(30);

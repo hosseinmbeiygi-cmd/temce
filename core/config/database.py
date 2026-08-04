@@ -8,8 +8,8 @@ class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DB_", env_file=".env", extra="ignore")
 
     url: str = Field(default="postgresql+asyncpg://market:market@localhost:5432/market", alias="DATABASE_URL")
-    pool_size: int = 5
-    max_overflow: int = 10
+    pool_size: int = 20
+    max_overflow: int = 30
     echo: bool = False
     pool_pre_ping: bool = True
     pool_recycle: int = 3600

@@ -3,24 +3,31 @@ Train an ML model directly (bypasses API auth) for a stock symbol.
 Registers the model in the global registry and creates a training run.
 """
 import asyncio
+import contextlib
 import sys
 
 sys.path.insert(0, ".")
 
-try:
+with contextlib.suppress(AttributeError):
     sys.stdout.reconfigure(encoding="utf-8")
-except AttributeError:
-    pass
 
 
 async def main():
     symbol = "فولاد"
 
-    # 1️⃣ Train the model via InferenceService
-    from services.inference_service import InferenceService
+    # 0️⃣ Initialize DB session
+    from core.database import init_database
+    await init_database()
+    from core.database import async_session_factory
+    from repositories.quote_repository import QuoteRepository
+    async with async_session_factory() as session:
+        quote_repo = QuoteRepository(session=session)
 
-    inference = InferenceService()
-    result = await inference.train("xgboost", symbol, "2024-01-01", "2024-12-31")
+        # 1️⃣ Train the model via InferenceService
+        from services.inference_service import InferenceService
+
+        inference = InferenceService(quote_repo=quote_repo)
+        result = await inference.train("xgboost", symbol, "2024-01-01", "2024-12-31")
     if result.success and result.value:
         print("Model trained successfully!")
         print(f"  Accuracy:       {result.value.get('accuracy', 0) * 100:.1f}%")

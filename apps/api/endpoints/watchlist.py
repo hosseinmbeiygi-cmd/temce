@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from apps.api.dependencies import get_watchlist_service
 from core.logging import get_logger
@@ -14,6 +14,15 @@ from services.watchlist_service import WatchlistService
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/search", summary="Search symbols", description="Search for symbols to add to watchlist")
+async def search_symbols(
+    q: str = Query(..., min_length=1, description="Search query (symbol or name)"),
+    service: WatchlistService = Depends(get_watchlist_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    results = await service.search_symbols(q)
+    return ApiResponse[list[dict[str, Any]]](success=True, data=results)
 
 
 @router.get("/", summary="Watchlist", description="Get watchlist symbols with latest prices")

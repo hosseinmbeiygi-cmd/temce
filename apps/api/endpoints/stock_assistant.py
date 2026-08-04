@@ -157,7 +157,7 @@ async def get_indicators() -> ApiResponse[dict[str, Any]]:
         success=True,
         data={
             "indicators": [
-                {"name": "SMA", "description": "میانگین ساده移动平均"},
+                {"name": "SMA", "description": "میانگین متحرک ساده"},
                 {"name": "EMA", "description": "میانگین نمایی"},
                 {"name": "RSI", "description": "شاخص قدرت نسبی"},
                 {"name": "MACD", "description": "همگرایی/واگرایی میانگین متحرک"},

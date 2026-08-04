@@ -5,7 +5,11 @@ def test_news_parse_article():
     from providers.news.parser import NewsParser
 
     parser = NewsParser()
-    raw = {"title": "Test Title", "description": "Test Description", "link": "https://example.com"}
+    raw = {
+        "title": "Test Title",
+        "description": "Test Description",
+        "link": "https://example.com",
+    }
     article = parser.parse_article(raw)
     assert article["title"] == "Test Title"
 
@@ -41,4 +45,3 @@ def test_news_normalize_date():
     parser = NewsParser()
     normalized = parser.normalize_date("2024-01-15T10:30:00")
     assert normalized is not None
-

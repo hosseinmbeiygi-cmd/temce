@@ -372,7 +372,7 @@ class BrsApiSettings(BaseSettings):
     model_config = {"env_prefix": "BRSAPI_", "env_file": ".env", "extra": "ignore"}
 
     api_key: str = Field(default="", description="BrsApi.ir API key")
-    base_url: str = Field(default="http://Api.BrsApi.ir", description="BrsApi base URL")
+    base_url: str = Field(default="https://api.brsapi.ir", description="BrsApi base URL")
     request_timeout: float = Field(default=30.0, ge=1.0)
     max_retries: int = Field(default=3, ge=0)
     retry_backoff_base: float = Field(default=1.5, ge=1.0)
@@ -394,6 +394,9 @@ class BrsApiSettings(BaseSettings):
     rate_limit_crypto: int = Field(default=1, ge=0)
 
     proxy_url: str | None = Field(default=None)
+    # TLS certificate verification. Default True (secure). Set BRSAPI_VERIFY_SSL=false
+    # only if the API endpoint presents an invalid/self-signed certificate.
+    verify_ssl: bool = Field(default=True)
     health_check_interval_seconds: int = Field(default=60)
     raw_payload_sink_enabled: bool = Field(default=False)
     max_raw_payload_age_days: int = Field(default=30)

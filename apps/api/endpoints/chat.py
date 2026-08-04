@@ -62,6 +62,14 @@ async def get_chat_engine(
             logger.warning("StockAssistantService unavailable: %s", e)
             stock_assistant = None
 
+        # Lazy-import screener service (needed by UnifiedAssistantService)
+        try:
+            from services.screener_service import ScreenerService
+            screener_service = ScreenerService()
+        except Exception as e:
+            logger.warning("ScreenerService unavailable: %s", e)
+            screener_service = None
+
         # Lazy-import the unified assistant
         try:
             from services.unified_assistant_service import UnifiedAssistantService
@@ -69,18 +77,11 @@ async def get_chat_engine(
                 brsapi_service=brsapi,
                 market_service=market_service,
                 watchlist_service=watchlist_service,
+                screener_service=screener_service,
             )
         except Exception as e:
             logger.warning("UnifiedAssistantService unavailable: %s", e)
             unified_assistant = None
-
-        # Lazy-import screener service
-        try:
-            from services.screener_service import ScreenerService
-            screener_service = ScreenerService()
-        except Exception as e:
-            logger.warning("ScreenerService unavailable: %s", e)
-            screener_service = None
 
         # Lazy-import smart money service
         try:

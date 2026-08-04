@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -209,6 +211,17 @@ class _AlertDbRepo(DbRepository[Alert, AlertModel]):
         )
 
     def _to_domain(self, orm: AlertModel) -> Alert:
+        extra: dict[str, Any] = {}
+        if orm.condition:
+            try:
+                extra["condition"] = json.loads(orm.condition)
+            except Exception:
+                extra["condition"] = orm.condition
+        if orm.channels:
+            try:
+                extra["channels"] = json.loads(orm.channels)
+            except Exception:
+                extra["channels"] = orm.channels
         return Alert(
             id=orm.id,
             instrument_id=orm.instrument_id or "",
@@ -225,16 +238,27 @@ class _AlertDbRepo(DbRepository[Alert, AlertModel]):
             triggered_at=orm.last_triggered,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
+            extra=extra,
         )
 
     def _to_orm(self, domain: Alert) -> AlertModel:
+        extra = domain.extra or {}
+        condition_json = None
+        if extra.get("condition") is not None:
+            cond = extra["condition"]
+            # Avoid double-encoding when a raw string was stored (JSON parse fallback).
+            condition_json = cond if isinstance(cond, str) else json.dumps(cond)
+        channels_json = None
+        if extra.get("channels") is not None:
+            chans = extra["channels"]
+            channels_json = chans if isinstance(chans, str) else json.dumps(chans)
         return AlertModel(
             id=domain.id,
             instrument_id=domain.instrument_id or None,
             symbol=domain.symbol or None,
             alert_type=domain.alert_type,
-            condition=None,
-            channels=None,
+            condition=condition_json,
+            channels=channels_json,
             enabled=True,
             triggered_count=1 if domain.is_triggered else 0,
             last_triggered=domain.triggered_at,

@@ -76,7 +76,7 @@ async def create_symbol(
 @router.get("", summary="List symbols", description="List all trading symbols with pagination")
 async def list_symbols(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
+    page_size: int = Query(50, ge=1, le=10000),
     market: str | None = Query(None, description="Filter by market type (e.g. BOURS, IFB, OTC)"),
     service: SymbolService = Depends(get_symbol_service),
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:

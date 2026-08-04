@@ -56,7 +56,7 @@ class MicrostructureEngine:
         inst_id = event.instrument_id
         queue = self.get_or_create_queue(inst_id)
 
-        effective_ts = self.latency_model.apply_to_timestamp(event.timestamp)
+        self.latency_model.apply_to_timestamp(event.timestamp)
 
         if event.event_type == EventType.QUOTE:
             p = event.payload

@@ -1,0 +1,75 @@
+# ── Decision Engine Service ───────────────────────────────────────
+# Internal ClusterIP service for the Decision Engine microservice.
+# Also includes a Headless service for StatefulSet-like discovery.
+#
+# Apply:
+#   kubectl apply -f k8s/decision-engine-service.yaml
+#
+# Access from within cluster:
+#   curl http://decision-engine:8002/health
+#   curl http://decision-engine:8002/decision-engine/architecture
+#
+# Combined apply:
+#   kubectl apply -f k8s/
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: decision-engine
+  namespace: default
+  labels:
+    app: decision-engine
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8002
+      targetPort: 8002
+  selector:
+    app: decision-engine
+---
+# ── PostgreSQL Headless Service (for StatefulSet) ──
+# Uncomment if deploying PostgreSQL in-cluster instead of external.
+#
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: decision-engine-postgres
+#   namespace: default
+#   labels:
+#     app: decision-engine
+#     component: postgres
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - name: postgres
+#       protocol: TCP
+#       port: 5432
+#       targetPort: 5432
+#   selector:
+#     app: decision-engine
+#     component: postgres
+---
+# ── Redis Service ──
+# Uncomment if deploying Redis in-cluster instead of external.
+#
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: decision-engine-redis
+#   namespace: default
+#   labels:
+#     app: decision-engine
+#     component: redis
+# spec:
+#   type: ClusterIP
+#   ports:
+#     - name: redis
+#       protocol: TCP
+#       port: 6379
+#       targetPort: 6379
+#   selector:
+#     app: decision-engine
+#     component: redis

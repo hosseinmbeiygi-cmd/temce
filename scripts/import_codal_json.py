@@ -28,6 +28,7 @@ if str(_project_root) not in sys.path:
 # --- end auto PYTHONPATH ---
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import re
@@ -41,10 +42,8 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 # Fix console encoding for Persian characters
-try:
+with contextlib.suppress(AttributeError):
     sys.stdout.reconfigure(encoding='utf-8')
-except AttributeError:
-    pass
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert

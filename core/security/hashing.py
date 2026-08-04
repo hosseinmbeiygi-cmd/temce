@@ -6,18 +6,31 @@ import secrets
 
 from core.paths import validate_safe_path
 
+# Default PBKDF2 iteration count used when no rounds are embedded in the hash.
+_DEFAULT_ROUNDS = 100_000
 
-def hash_password(password: str, rounds: int = 100_000) -> str:
+# Hash format: ``{rounds}${salt}${hash}``. Older hashes (pre-rounds format)
+# are ``{salt}${hash}`` and are verified with _DEFAULT_ROUNDS.
+
+
+def hash_password(password: str, rounds: int = _DEFAULT_ROUNDS) -> str:
     salt = secrets.token_hex(16)
     pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), rounds)
-    return f"{salt}${pwd_hash.hex()}"
+    return f"{rounds}${salt}${pwd_hash.hex()}"
 
 
 def verify_password(password: str, hashed: str) -> bool:
     try:
-        salt, pwd_hash = hashed.split("$", 1)
+        parts = hashed.split("$")
+        if len(parts) == 3:
+            rounds, salt, pwd_hash = parts
+            rounds = int(rounds)
+        else:
+            # Legacy format: ``{salt}${hash}`` — verify with the default rounds.
+            salt, pwd_hash = parts
+            rounds = _DEFAULT_ROUNDS
         return hmac.compare_digest(
-            hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000).hex(),
+            hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), rounds).hex(),
             pwd_hash,
         )
     except (ValueError, AttributeError):

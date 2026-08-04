@@ -29,15 +29,15 @@ class HalfTrendStrategy(BaseStrategy):
         self._position = 0
 
     def on_bar(self, bar: dict[str, Any]) -> list[OrderEvent]:
-        h = bar.get("high", 0)
-        l = bar.get("low", 0)
-        c = bar.get("close", 0)
-        if c <= 0:
+        high = bar.get("high", 0)
+        low = bar.get("low", 0)
+        close = bar.get("close", 0)
+        if close <= 0:
             return []
 
-        self._highs.append(h)
-        self._lows.append(l)
-        self._closes.append(c)
+        self._highs.append(high)
+        self._lows.append(low)
+        self._closes.append(close)
 
         if len(self._closes) < self.amplitude + 1:
             return []
@@ -55,26 +55,26 @@ class HalfTrendStrategy(BaseStrategy):
         orders: list[OrderEvent] = []
 
         if buy and self._position <= 0:
-            qty = self._compute_quantity(c)
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
                     quantity=qty,
-                    price=c,
+                    price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
         elif sell and self._position > 0:
-            qty = self._compute_quantity(c)
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
                     quantity=qty,
-                    price=c,
+                    price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )

@@ -7,6 +7,7 @@ announcement records suitable for the existing ``CodalReportModel``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import UTC, datetime
@@ -98,6 +99,19 @@ class CodalParser:
         return parsed["announcements"]
 
     @classmethod
+    def _content_hash(cls, item: dict[str, Any]) -> str:
+        """Stable hash for idempotency across sync runs."""
+        payload = "|".join([
+            str(item.get("l18", "")),
+            str(item.get("code", "")),
+            str(item.get("date_publish", "")),
+            str(item.get("time_publish", "")),
+            str(item.get("title", "")),
+            str(item.get("link", "")),
+        ])
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @classmethod
     def _parse_item(cls, item: dict[str, Any]) -> dict[str, Any]:
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
         title = item.get("title", "")
@@ -116,6 +130,7 @@ class CodalParser:
             "link_excel": item.get("link_excel", ""),
             "link_attachment": item.get("link_attachment", ""),
             "audit_status": detect_audit_status(title),
+            "content_hash": cls._content_hash(item),
             "fetched_at": now,
             "raw_json": json.dumps(item, ensure_ascii=False),
         }

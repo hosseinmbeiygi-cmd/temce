@@ -25,4 +25,3 @@ async def test_quote_bulk_ingestion():
     throughput = 100 / elapsed
     assert throughput > 50, f"Ingestion throughput {throughput:.2f} quotes/s below 50 quotes/s threshold"
     assert True
-

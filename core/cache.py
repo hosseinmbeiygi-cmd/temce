@@ -23,6 +23,10 @@ class NullCache:
     async def delete(self, key: str) -> None:
         pass
 
+    async def pop(self, key: str) -> Any | None:
+        """Atomically return and remove a key (no-op for the null cache)."""
+        return None
+
     async def remember(self, key: str, ttl: int, factory: Callable[[], T]) -> T:
         return await factory() if asyncio.iscoroutinefunction(factory) else factory()
 
@@ -35,6 +39,14 @@ class CacheService:
         self._null_cache = NullCache()
 
     async def initialize(self) -> None:
+        # Idempotent: never create a second connection when already connected.
+        # This makes initialize() safe to call from multiple places (app
+        # lifespan, scheduler, RedisClient facade, health checks). After a
+        # close() the client is None again, so reconnect still works.
+        # Note: if the live connection drops (e.g. Redis restart) initialize()
+        # will not re-create it — use ping() as the liveness check.
+        if self._redis is not None:
+            return
         try:
             import redis.asyncio as aioredis
 
@@ -52,6 +64,16 @@ class CacheService:
     def is_connected(self) -> bool:
         """Return True if Redis is connected and reachable."""
         return self._redis is not None
+
+    @property
+    def client(self) -> Any | None:
+        """Raw redis.asyncio client, or None when Redis is unavailable.
+
+        Used by distributed components (e.g. JobLocking) that need direct
+        access to SET NX PX / Lua primitives rather than the serialized
+        get/set helpers.
+        """
+        return self._redis
 
     async def ping(self) -> bool:
         """Ping Redis. Returns True if reachable, False otherwise."""
@@ -92,10 +114,37 @@ class CacheService:
         serialized = self._serialize(value)
         await self._redis.setex(key, ttl, serialized)
 
+    async def set_persistent(self, key: str, value: Any) -> None:
+        """Set a key with no expiry.
+
+        Used for durable shared state (e.g. the orchestrator cron state)
+        that must survive the default TTL and be visible across workers.
+        """
+        if self._redis is None:
+            return
+        await self._redis.set(key, self._serialize(value))
+
     async def delete(self, key: str) -> None:
         if self._redis is None:
             return
         await self._redis.delete(key)
+
+    async def pop(self, key: str) -> Any | None:
+        """Atomically return and delete a key (single-use tokens, leases).
+
+        Uses ``GETDEL`` (Redis 6.2+) so concurrent consumers can never both
+        read the same value — exactly one caller gets it. Falls back to a
+        plain get+delete for compatibility with older servers.
+        """
+        if self._redis is None:
+            return None
+        try:
+            val = await self._redis.getdel(key)
+        except Exception:  # noqa: BLE001 — server may not support GETDEL
+            val = await self._redis.get(key)
+            if val is not None:
+                await self._redis.delete(key)
+        return self._deserialize(val)
 
     async def remember(self, key: str, ttl: int, factory: Callable[[], T]) -> T:
         cached = await self.get(key)

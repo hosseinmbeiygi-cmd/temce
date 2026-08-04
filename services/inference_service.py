@@ -26,12 +26,66 @@ from repositories.quote_repository import QuoteRepository
 logger = get_logger(__name__)
 
 
+class _PipelineAdapter:
+    """Adapt a raw sklearn Pipeline (model_pipeline.pkl) to the project's
+    FeatureMatrix-based predict API and expose feature-importance attributes.
+
+    The trained pipelines expect a DataFrame with their training columns
+    (38 features incl. trades/microstructure/candlestick) while the runtime
+    feature builder only produces price/technical columns — missing columns
+    are zero-filled so ``predict`` never raises on column mismatch.
+    """
+
+    def __init__(self, pipeline: Any, feature_names: list[str]) -> None:
+        self._pipeline = pipeline
+        self._feature_names = list(feature_names)
+
+    @property
+    def _final_estimator(self) -> Any:
+        steps = getattr(self._pipeline, "steps", None)
+        if steps:
+            return steps[-1][1]
+        return self._pipeline
+
+    @property
+    def _model(self) -> Any:
+        return self._final_estimator
+
+    @property
+    def feature_importances_(self) -> Any:
+        return getattr(self._final_estimator, "feature_importances_", None)
+
+    @property
+    def coef_(self) -> Any:
+        return getattr(self._final_estimator, "coef_", None)
+
+    def predict(self, fm: FeatureMatrix):
+        import numpy as np
+        from types import SimpleNamespace
+
+        df = fm.to_df().copy()
+        expected = getattr(self._pipeline, "feature_names_in_", None)
+        columns = list(expected) if expected is not None else self._feature_names
+        for col in columns:
+            if col not in df.columns:
+                df[col] = 0.0
+        df = df[columns]
+        raw = self._pipeline.predict(df)
+        return SimpleNamespace(predictions=np.asarray(raw))
+
+
 class InferenceService:
     """Real ML inference backed by trained models and live market data."""
 
-    def __init__(self, quote_repo: QuoteRepository | None = None, artifact_manager: ArtifactManager | None = None) -> None:
+    def __init__(
+        self,
+        quote_repo: QuoteRepository | None = None,
+        artifact_manager: ArtifactManager | None = None,
+        model_repo=None,
+    ) -> None:
         self.quote_repo = quote_repo
         self.artifact_manager = artifact_manager or ArtifactManager()
+        self.model_repo = model_repo  # MlRepository (optional) — DB-registered models
         self.price_features = PriceFeatures(window_sizes=[5, 10, 20])
         self.technical_features = TechnicalFeatures()
         self._model_cache: dict[str, Any] = {}
@@ -133,9 +187,9 @@ class InferenceService:
         if fm.shape[0] == 0:
             return Result.fail("Feature engineering produced no valid rows")
 
-        # 3. Load model — try multiple paths:
-        #    a) composite ID from training (e.g., "xgboost_فولاد")
-        #    b) composite + symbol (e.g., "xgboost_فولاد" with symbol "فولاد")
+        # 3. Load model — prefer DB-registered artifacts, then artifact files:
+        #    a) DB ml_model_versions row (artifact_path for "{model_id}_{symbol}")
+        #    b) composite ID from training (e.g., "xgboost_فولاد")
         #    c) bare model ID (e.g., "xgboost")
         model = None
         feature_names = fm.feature_names
@@ -145,15 +199,29 @@ class InferenceService:
             model_id,
             f"{model_id}_{symbol}",
         ]
-        for cid in candidate_ids:
-            try:
-                model_obj, meta = self.artifact_manager.load_model(cid)
-                model = model_obj
-                feature_names = meta.feature_names or feature_names
-                from_path = True
-                break
-            except Exception:
-                continue
+
+        # a) DB-registered artifact (new pipeline format: model_pipeline.pkl)
+        if self.model_repo is not None:
+            for cid in candidate_ids:
+                try:
+                    loaded = await self._load_from_db_registry(cid, fm)
+                    if loaded:
+                        model, feature_names, from_path = loaded
+                        break
+                except Exception:
+                    continue
+
+        # b) artifact file via ArtifactManager (model.pkl + metadata.json)
+        if model is None:
+            for cid in candidate_ids:
+                try:
+                    model_obj, meta = self.artifact_manager.load_model(cid)
+                    model = model_obj
+                    feature_names = meta.feature_names or feature_names
+                    from_path = True
+                    break
+                except Exception:
+                    continue
 
         if model is None:
             try:
@@ -200,6 +268,65 @@ class InferenceService:
             "timestamp": datetime.now(UTC).isoformat(),
         })
 
+    async def _load_from_db_registry(self, model_id: str, fm: FeatureMatrix):
+        """Load a model pipeline registered in ml_model_versions (DB).
+
+        Returns (model, feature_names, from_path) or None when not found.
+        Handles both ``model_pipeline.pkl`` (new format) and ``model.pkl``.
+        """
+        import json as json_lib
+        import pickle
+        from pathlib import Path
+
+        try:
+            from models.ml import MlModelVersionModel
+            from sqlalchemy import select
+
+            session = getattr(self.model_repo, "_session", None)
+            if session is None:
+                return None
+            # Prefer the production version (set from latest_path.txt by the
+            # registration script); fall back to most recently created.
+            stmt = (
+                select(MlModelVersionModel)
+                .where(MlModelVersionModel.model_id == model_id)
+                .order_by(MlModelVersionModel.created_at.desc())
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            row = next((r for r in rows if r.stage == "production"), rows[0] if rows else None)
+            if row is None or not row.artifact_path:
+                return None
+
+            artifact_dir = Path(row.artifact_path)
+            pipeline_file = artifact_dir / "model_pipeline.pkl"
+            if not pipeline_file.exists():
+                pipeline_file = artifact_dir / "model.pkl"
+            if not pipeline_file.exists():
+                return None
+
+            with open(pipeline_file, "rb") as f:
+                loaded = pickle.load(f)
+
+            trained_features: list[str] = list(fm.feature_names)
+            if row.parameters:
+                try:
+                    params = json_lib.loads(row.parameters)
+                    stored = params.get("feature_names")
+                    if isinstance(stored, list) and stored:
+                        trained_features = [str(s) for s in stored]
+                except (json_lib.JSONDecodeError, TypeError):
+                    pass
+
+            # Wrap raw pipelines so predict(fm) works with FeatureMatrix input
+            if hasattr(loaded, "predict"):
+                model = _PipelineAdapter(loaded, trained_features)
+            else:
+                model = loaded
+            return model, trained_features, True
+        except Exception as e:
+            logger.debug("DB registry load failed for %s: %s", model_id, e)
+            return None
+
     async def _mock_predict(self, model_id: str, symbol: str) -> Result[dict[str, Any]]:
         """No real model available — return error instead of mock prediction."""
         return Result.fail(
@@ -230,11 +357,67 @@ class InferenceService:
         return await trainer.train_with_db_data(symbol, model_id, start_date, end_date)
 
     async def get_comparison(self) -> Result[list[dict[str, Any]]]:
-        """Compare all trained models across all symbols by loading from artifact manager."""
+        """Compare all trained models across all symbols.
+
+        Sources (in priority order):
+        1. DB ml_models + ml_model_versions (real trained models)
+        2. Global training service completed runs
+        3. Artifact manager files
+        """
+        import json as json_lib
+
         comparisons = []
         seen: set[str] = set()
 
-        # 1. Check global training service for completed runs
+        # 1. DB-registered models (real trained artifacts)
+        try:
+            if self.model_repo is not None:
+                session = getattr(self.model_repo, "_session", None)
+                if session is not None:
+                    from models.ml import MlModelModel, MlModelVersionModel
+                    from sqlalchemy import select
+
+                    models = (await session.execute(select(MlModelModel))).scalars().all()
+                    versions = (
+                        await session.execute(
+                            select(MlModelVersionModel).order_by(MlModelVersionModel.created_at.desc())
+                        )
+                    ).scalars().all()
+                    ver_by_model: dict[str, list] = {}
+                    for v in versions:
+                        ver_by_model.setdefault(v.model_id, []).append(v)
+
+                    for m in models:
+                        m_versions = ver_by_model.get(m.id, [])
+                        if not m_versions:
+                            continue
+                        latest = next(
+                            (v for v in m_versions if v.stage == "production"),
+                            m_versions[0],
+                        )
+                        metrics = {}
+                        if latest.metrics:
+                            try:
+                                metrics = json_lib.loads(latest.metrics)
+                            except (json_lib.JSONDecodeError, TypeError):
+                                metrics = {}
+                        parts = m.name.split("_", 1)
+                        key = m.id
+                        if key not in seen:
+                            seen.add(key)
+                            comparisons.append({
+                                "model_type": parts[0] if len(parts) > 1 else (m.framework or ""),
+                                "symbol": parts[1] if len(parts) > 1 else "",
+                                "metrics": metrics,
+                                "version": latest.version,
+                                "run_id": latest.training_run_id or "",
+                                "artifact_path": latest.artifact_path or "",
+                                "source": "db",
+                            })
+        except Exception as e:
+            logger.warning("DB comparison failed: %s", e)
+
+        # 2. Check global training service for completed runs
         from services.global_training_service import get_training_service
 
         ts = get_training_service()
@@ -256,9 +439,10 @@ class InferenceService:
                             "metrics": run["metrics"],
                             "run_id": run.get("id", ""),
                             "experiment_name": run.get("experiment_name", ""),
+                            "source": "run",
                         })
 
-        # 2. Check artifact manager for saved models
+        # 3. Check artifact manager for saved models (filesystem fallback)
         try:
             for model_id in self.artifact_manager.list_models():
                 if model_id not in seen:
@@ -271,6 +455,7 @@ class InferenceService:
                             "metrics": meta.metrics,
                             "artifact_path": meta.path,
                             "version": meta.version,
+                            "source": "artifact",
                         })
                         seen.add(model_id)
                     except Exception:

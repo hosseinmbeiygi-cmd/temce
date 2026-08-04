@@ -40,4 +40,3 @@ def test_instrument_unique_symbol():
     rule = UniqueSymbolRule(existing_symbols=["فولاد", "فملی"])
     assert rule.validate(symbol="خودرو") is True
     assert rule.validate(symbol="فولاد") is False
-

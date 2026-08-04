@@ -15,6 +15,8 @@ interface NewsItem {
   category: string;
   fullContent: string;
   trending: boolean;
+  sentiment: string;
+  sentiment_score: number;
 }
 
 type CategoryKey = "all" | "market" | "companies" | "economic" | "political" | "international";
@@ -36,8 +38,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default function NewsPage() {
   const [filter, setFilter] = useState<CategoryKey>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const PAGE_SIZE = 20;
 
   const { data: news, isLoading, isError, error } = useQuery({
     queryKey: ["news-full"],
@@ -55,6 +60,8 @@ export default function NewsPage() {
           category: String(item.category || "market").replace("company", "companies"),
           fullContent: String(item.content || item.summary || ""),
           trending: Boolean(item.trending || false),
+          sentiment: String(item.sentiment || "neutral"),
+          sentiment_score: Number(item.sentiment_score || 0),
         })) as unknown as NewsItem[];
       }
       if (items.length > 0 && typeof items[0]?.title === "string") {
@@ -68,6 +75,8 @@ export default function NewsPage() {
           category: String(item.category || "market").replace("company", "companies"),
           fullContent: String(item.fullContent || item.content || item.summary || ""),
           trending: Boolean(item.trending || false),
+          sentiment: String(item.sentiment || "neutral"),
+          sentiment_score: Number(item.sentiment_score || 0),
         })) as unknown as NewsItem[];
       }
       return [] as NewsItem[];
@@ -82,7 +91,6 @@ export default function NewsPage() {
       return res;
     },
     onSuccess: () => {
-      // Start polling for status
       setRefreshActive(true);
     },
   });
@@ -99,7 +107,6 @@ export default function NewsPage() {
     refetchInterval: 2000,
   });
 
-  // When refresh finishes, refetch news and stop polling
   useEffect(() => {
     if (refreshActive && refreshStatus && !refreshStatus.running) {
       queryClient.invalidateQueries({ queryKey: ["news-full"] });
@@ -107,16 +114,42 @@ export default function NewsPage() {
     }
   }, [refreshActive, refreshStatus, queryClient]);
 
+  // Extract unique sources for filter
+  const allSources = news ? [...new Set(news.map((n: NewsItem) => n.source).filter(Boolean))].sort() : [];
+
+  // Filter + paginate
   const filtered = news?.filter((item: NewsItem) => {
     if (filter !== "all" && item.category !== filter) return false;
+    if (sourceFilter && item.source !== sourceFilter) return false;
     if (searchQuery) {
-      const q = searchQuery.trim();
-      return item.title.includes(q) || item.summary.includes(q) || item.source.includes(q);
+      const q = searchQuery.trim().toLowerCase();
+      return item.title.toLowerCase().includes(q) || item.summary.toLowerCase().includes(q) || item.source.toLowerCase().includes(q);
     }
     return true;
   });
 
+  const totalPages = Math.max(1, Math.ceil((filtered?.length || 0) / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered?.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE) || [];
   const trendingNews = news?.filter((n: NewsItem) => n.trending);
+
+  // Reset page when filters change — event-driven pagination sync, not derived state.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(1);
+  }, [filter, sourceFilter, searchQuery]);
+
+  const getSentimentColor = (sentiment_score: number) => {
+    if (sentiment_score > 0.3) return "text-accent-emerald";
+    if (sentiment_score < -0.3) return "text-accent-rose";
+    return "text-surface-500";
+  };
+
+  const getSentimentDot = (sentiment_score: number) => {
+    if (sentiment_score > 0.3) return "bg-accent-emerald";
+    if (sentiment_score < -0.3) return "bg-accent-rose";
+    return "bg-surface-500";
+  };
 
   const getCategoryBadge = (cat: string) => {
     const colors: Record<string, string> = {

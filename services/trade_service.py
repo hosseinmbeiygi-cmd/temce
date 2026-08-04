@@ -37,6 +37,7 @@ class TradeService:
 
         try:
             from datetime import date
+
             from brsapi.config import BrsApiEndpoints
             from brsapi.parsers import TsetmcParser
 

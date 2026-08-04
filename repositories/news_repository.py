@@ -229,6 +229,17 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         )
 
     def _to_orm(self, domain: NewsItem) -> NewsArticleModel:
+        # Normalize to second precision — `isoformat()` on a datetime with
+        # microseconds (e.g. `datetime.now(UTC)`) yields a 36-char string that
+        # exceeds the published_at VARCHAR(30) column and raises
+        # StringDataRightTruncationError. Stripping microseconds keeps every
+        # value <= 25 chars regardless of column width.
+        pub_str: str | None = None
+        if domain.publish_date:
+            pd = domain.publish_date
+            if hasattr(pd, "replace"):
+                pd = pd.replace(microsecond=0)
+            pub_str = pd.isoformat()
         return NewsArticleModel(
             id=domain.id,
             title=domain.title,
@@ -238,7 +249,7 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
             url=domain.url or None,
             category=domain.category or None,
             symbols=json.dumps(domain.symbols, ensure_ascii=False) if domain.symbols else None,
-            published_at=domain.publish_date.isoformat() if domain.publish_date else None,
+            published_at=pub_str,
             sentiment=domain.sentiment_label or "neutral",
             sentiment_score=domain.sentiment,
             data_source=domain.data_source or "rss",

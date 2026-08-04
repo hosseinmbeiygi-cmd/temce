@@ -49,4 +49,3 @@ def sample_quote_list(count: int = 10) -> list[Quote]:
         )
         for i in range(count)
     ]
-

@@ -31,6 +31,7 @@ from sqlalchemy.orm import sessionmaker
 
 from brsapi.client import get_client
 from brsapi.services.sync_service import BrsApiSyncService
+from core.config import settings
 
 # ── Top well-known TSE symbols (most traded) ──────────────
 SYMBOLS = [
@@ -73,11 +74,14 @@ async def main():
     safe_print(f"Delay between requests: {REQUEST_DELAY_SECONDS}s")
     safe_print("")
 
-    # Connect to DB
+    # Connect to DB (credentials from settings — no hardcoded passwords)
+    db_url = settings.database_url
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     engine = create_async_engine(
-        "postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db",
-        pool_size=5,
-        max_overflow=10,
+        db_url,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
     )
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -142,7 +146,7 @@ async def main():
     safe_print("")
 
     safe_print("Per-symbol results:")
-    for idx, (symbol, success, count, elapsed) in enumerate(results, 1):
+    for idx, (_, success, count, elapsed) in enumerate(results, 1):
         status = "OK" if success else "FAIL"
         # Use index-based output to avoid Persian char issues
         safe_print(f"  #{idx}: {status} - {count} records ({elapsed:.1f}s)")

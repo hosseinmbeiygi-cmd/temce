@@ -4,10 +4,11 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
-import { apiPost, storeAuth } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { register } = useAuth();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,13 +21,12 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
     try {
-      const response = await apiPost<{ success: boolean; data: { user: Record<string, unknown>; access_token: string; refresh_token: string } }>("/auth/register", {
+      await register({
         username,
         email,
         password,
         full_name: fullName,
       });
-      storeAuth(response.data ?? response);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");

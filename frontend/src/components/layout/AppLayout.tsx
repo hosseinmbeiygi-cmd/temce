@@ -13,13 +13,14 @@ interface AppLayoutProps {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+  header?: React.ReactNode;
 }
 
 function LoadingBar() {
   return <div className="h-8 bg-surface-800/30 animate-pulse rounded mb-2" />;
 }
 
-export default function AppLayout({ children, title, subtitle }: AppLayoutProps) {
+export default function AppLayout({ children, title, subtitle, header }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { toggleTheme, isDark } = useTheme();
 
@@ -54,6 +55,7 @@ export default function AppLayout({ children, title, subtitle }: AppLayoutProps)
 
           {/* Page Content */}
           <div className="dashboard-content">
+            {header}
             {title && (
               <div className="mb-4">
                 <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary-light)" }}>{title}</h1>

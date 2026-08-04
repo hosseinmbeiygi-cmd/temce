@@ -20,12 +20,163 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.db_utils import safe_row_float
 from services.smart_money.scoring_engine import ScoringEngine
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# TTL Cache with periodic purge and hard eviction bounds
+# ---------------------------------------------------------------------------
+
+
+class _CacheManager:
+    """Thread-safe (asyncio single-thread) TTL cache with LRU eviction.
+
+    Features:
+      - TTL-based expiry (entries older than ``ttl`` seconds are evicted)
+      - Periodic purge on every access (not just when size exceeds limit)
+      - Hard eviction of oldest entries when ``max_size`` is exceeded
+      - LRU semantics: accessing an entry refreshes its timestamp
+
+    Args:
+        max_size: Maximum number of entries before hard eviction kicks in.
+        ttl: Time-to-live in seconds. Entries older than this are evicted.
+        purge_interval: Minimum seconds between periodic purges (default: 5s).
+    """
+
+    def __init__(self, max_size: int = 200, ttl: float = 30.0, purge_interval: float = 5.0) -> None:
+        self._max_size = max_size
+        self._ttl = ttl
+        self._purge_interval = purge_interval
+        self._store: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self._last_purge: float = time.time()
+        self._total_hits: int = 0
+        self._total_misses: int = 0
+        self._total_evictions: int = 0
+
+    def get(self, key: str) -> Any | None:
+        """Retrieve a cached value, refreshing its LRU position.
+
+        Returns the cached value if it exists and hasn't expired, else None.
+        """
+        entry = self._store.get(key)
+        if entry is None:
+            self._total_misses += 1
+            return None
+
+        ts, value = entry
+        now = time.time()
+        if now - ts > self._ttl:
+            # Expired — remove and treat as miss
+            del self._store[key]
+            self._total_misses += 1
+            return None
+
+        # Move to end (most-recently used) and refresh timestamp
+        del self._store[key]
+        self._store[key] = (now, value)
+        self._total_hits += 1
+        return value
+
+    def put(self, key: str, value: Any) -> None:
+        """Insert or update a cache entry, evicting if necessary."""
+        now = time.time()
+
+        # If key exists, update in-place (move to end)
+        if key in self._store:
+            self._store[key] = (now, value)
+            self._store.move_to_end(key)
+            return
+
+        # Periodic purge before insertion
+        if now - self._last_purge >= self._purge_interval:
+            self._purge_expired()
+            self._last_purge = now
+
+        # Hard eviction if still over limit (evict oldest / least-recently used)
+        # After purge, at most 1 over capacity — single popitem suffices
+        if len(self._store) >= self._max_size:
+            evicted_key, _ = self._store.popitem(last=False)  # remove oldest
+            self._total_evictions += 1
+            logger.debug("Cache hard-evicted: %s (total evictions: %d)", evicted_key, self._total_evictions)
+
+        self._store[key] = (now, value)
+
+    def _purge_expired(self) -> int:
+        """Remove all expired entries. Returns the number of entries removed."""
+        now = time.time()
+        expired = [k for k, (ts, _) in self._store.items() if now - ts > self._ttl]
+        for k in expired:
+            del self._store[k]
+        if expired:
+            logger.debug("Cache purged %d expired entries (remaining: %d)", len(expired), len(self._store))
+        return len(expired)
+
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        self._store.clear()
+
+    @property
+    def size(self) -> int:
+        """Current number of entries in the cache."""
+        return len(self._store)
+
+    @property
+    def stats(self) -> dict[str, Any]:
+        """Cache statistics for monitoring."""
+        total = self._total_hits + self._total_misses
+        return {
+            "size": len(self._store),
+            "max_size": self._max_size,
+            "hits": self._total_hits,
+            "misses": self._total_misses,
+            "hit_rate_pct": round(self._total_hits / total * 100, 1) if total else 0.0,
+            "evictions": self._total_evictions,
+            "ttl_seconds": self._ttl,
+        }
+
+
+
+# ---------------------------------------------------------------------------
+# Filter helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_numeric(value: Any) -> float | None:
+    """Convert a value to float, tolerating Persian/English formatting.
+
+    Handles strings with commas, thousand separators, and percent signs.
+    Returns None if the value cannot be parsed as a number.
+    """
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        # Strip common formatting characters: commas, Persian/Arabic thousand separator, %
+        cleaned = value.strip().replace(",", "").replace("٬", "").replace("%", "").replace("+", "")
+        # Support negative numbers
+        if cleaned.startswith("-"):
+            negative = True
+            cleaned = cleaned[1:]
+        else:
+            negative = False
+        try:
+            result = float(cleaned)
+            return -result if negative else result
+        except ValueError:
+            return None
+    return None
+
+
+def _is_numeric(value: Any) -> bool:
+    return _parse_numeric(value) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +253,7 @@ def build_real_quote_from_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
 
     # real_buy_value / real_sell_value = value of real (حقیقی) trades
     # Approximate: real volume * average price of that day
-    avg_price = (high + low + close) / 3.0 if (high + low + close) else close or 1.0
+    avg_price = (high + low + close) / 3.0 if (high + low + close) > 0 else close or 1.0
     real_buy_value = buy_real_vol * avg_price
     real_sell_value = sell_real_vol * avg_price
 
@@ -179,7 +330,7 @@ def build_real_history_from_rows(
         avg_buy = (total_buy_vol / total_buy_cnt) if total_buy_cnt > 0 else 0.0
         avg_sell = (total_sell_vol / total_sell_cnt) if total_sell_cnt > 0 else 0.0
 
-        avg_price = (high + low + close) / 3.0 if (high + low + close) else close or 1.0
+        avg_price = (high + low + close) / 3.0 if (high + low + close) > 0 else close or 1.0
         real_buy_value = buy_real_vol * avg_price
         real_sell_value = sell_real_vol * avg_price
 
@@ -212,50 +363,132 @@ def build_real_history_from_rows(
 # ---------------------------------------------------------------------------
 
 
+#: Comprehensive filter field catalog.
+#: Maps user-facing field names to ScreenedSymbol attributes or details keys.
 _FILTER_FIELD_MAP: dict[str, str] = {
+    # ── Core info ──
+    "symbol": "symbol",
+    "name": "name",
+    "market": "market",
+    "industry": "industry",
+    "sector": "industry",
+
+    # ── Smart Money composite / phase scores ──
     "smc_score": "smc_score",
+    "smart_money_score": "smc_score",
     "liquidity_score": "liquidity_score",
     "power_score": "power_score",
     "structure_score": "structure_score",
     "orderflow_score": "orderflow_score",
+    "order_flow_score": "orderflow_score",
     "trigger_score": "trigger_score",
     "phase": "phase",
-    "change_pct": "change_pct",
-    "volume": "volume",
-    "value": "value",
+
+    # ── Price & change ──
     "last_price": "last_price",
+    "price": "last_price",
+    "close": "last_price",
+    "change_pct": "change_pct",
+    "price_change_pct": "change_pct",
+    "price_change_value": "price_change_value",
+    "price_change": "price_change_value",
+    "price_first": "price_first",
+    "open": "price_first",
+    "price_yesterday": "price_yesterday",
+    "price_min": "price_min",
+    "low": "price_min",
+    "price_max": "price_max",
+    "high": "price_max",
+
+    # ── Volume / turnover ──
+    "volume": "volume",
+    "trade_volume": "volume",
+    "value": "value",
+    "trade_value": "value",
+    "turnover": "value",
+    "trade_count": "trade_count",
+    "trades": "trade_count",
+    "shares_count": "shares_count",
+
+    # ── Fundamental ──
     "pe_ratio": "pe_ratio",
     "pe": "pe_ratio",
+    "p/e": "pe_ratio",
     "eps": "eps",
     "market_value": "market_value",
     "market_cap": "market_value",
-    "trade_count": "trade_count",
-    "price_change_pct": "change_pct",
-    "price_change_value": "price_change_value",
-    "price_first": "price_first",
-    "price_yesterday": "price_yesterday",
-    "price_min": "price_min",
-    "price_max": "price_max",
-    "shares_count": "shares_count",
+    "roe": "roe",
+    "debt_to_equity": "debt_to_equity",
+    "d/e": "debt_to_equity",
+    "net_margin": "net_margin",
+
+    # ── V2 advanced analytics (stored in item.details by V2 engine) ──
+    "rsi": "rsi",
+    "rsi_14": "rsi",
+    "macd_histogram": "macd_histogram",
+    "macd": "macd_histogram",
+    "bb_pct": "bb_pct",
+    "bollinger_pct": "bb_pct",
+    "atr_pct": "atr_pct",
+    "atr": "atr_pct",
+    "adx": "adx",
+    "trend_strength": "trend_strength",
+    "pattern_confidence": "pattern_confidence",
+    "technical_score": "technical_score",
+    "momentum_score": "momentum_score",
+    "risk_score": "risk_score",
+    "composite_score": "composite_score",
+    "support_level": "support_level",
+    "resistance_level": "resistance_level",
+    "distance_to_support": "distance_to_support",
+    "distance_to_resistance": "distance_to_resistance",
+    "poc_price": "poc_price",
+    "value_area_high": "value_area_high",
+    "value_area_low": "value_area_low",
+    "volume_trend": "volume_trend",
+    "volatility_regime": "volatility_regime",
+    "trend_direction": "trend_direction",
+    "pattern_signal": "pattern_signal",
 }
 
 
-def _get_filter_value(item: ScreenedSymbol, watch: dict[str, Any], field: str) -> float | None:
-    """Extract a numeric value from the screened item or watch data."""
+def _get_filter_value(item: ScreenedSymbol, watch: dict[str, Any], field: str) -> float | str | None:
+    """Extract a value (numeric or string) from the screened item or watch data.
+
+    Numeric values are returned as float, including formatted strings such as
+    ``"1,234"`` or ``"12.5%"``. Non-numeric strings are returned as-is.
+    """
+    if not field:
+        return None
+
     mapped = _FILTER_FIELD_MAP.get(field.lower(), field.lower())
-    val = getattr(item, mapped, None)
-    if val is not None and isinstance(val, (int, float)):
-        return float(val)
+    details = item.details or {}
 
-    val = item.details.get(mapped)
-    if val is not None and isinstance(val, (int, float)):
-        return float(val)
-
+    candidates: list[Any] = []
+    if hasattr(item, mapped):
+        candidates.append(getattr(item, mapped, None))
+    candidates.append(details.get(mapped))
     if isinstance(watch, dict):
-        for candidate in (mapped, field.lower(), f"price_{field.lower()}", f"trade_{field.lower()}"):
-            v = watch.get(candidate)
-            if v is not None and isinstance(v, (int, float)):
-                return float(v)
+        candidates.extend([
+            watch.get(mapped),
+            watch.get(field.lower()),
+            watch.get(f"price_{field.lower()}"),
+            watch.get(f"trade_{field.lower()}"),
+        ])
+
+    for val in candidates:
+        if val is None:
+            continue
+        if isinstance(val, bool):
+            # Treat booleans as numeric 0/1 so operators like gte/lte work
+            return float(int(val))
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, str) and val.strip():
+            numeric = _parse_numeric(val)
+            if numeric is not None:
+                return numeric
+            return val
 
     return None
 
@@ -268,8 +501,7 @@ def _get_filter_value(item: ScreenedSymbol, watch: dict[str, Any], field: str) -
 class ScreenerPipeline:
     """5-phase pipeline that scores a single instrument via the Smart Money engine."""
 
-    _score_cache: dict[str, tuple[float, ScreenedSymbol]] = {}
-    _CACHE_TTL = 30
+    _score_cache = _CacheManager(max_size=300, ttl=30.0, purge_interval=5.0)
 
     def __init__(self) -> None:
         self._engine = ScoringEngine()
@@ -281,13 +513,6 @@ class ScreenerPipeline:
         h_last = history[-1].get("price_close", 0) if history else 0
         return f"{symbol}:{hash(q_hash)}:{h_last:.0f}:{len(history)}"
 
-    @classmethod
-    def _cache_purge_expired(cls) -> None:
-        now = time.time()
-        expired = [k for k, (ts, _) in cls._score_cache.items() if now - ts > cls._CACHE_TTL]
-        for k in expired:
-            del cls._score_cache[k]
-
     def run(
         self,
         symbol: str,
@@ -298,14 +523,9 @@ class ScreenerPipeline:
         history: list[dict[str, Any]],
     ) -> ScreenedSymbol:
         cache_key = self._cache_key(symbol, quote, history)
-        now = time.time()
-        if cache_key in self._score_cache:
-            ts, cached = self._score_cache[cache_key]
-            if now - ts < self._CACHE_TTL:
-                return cached
-
-        if len(self._score_cache) > 300:
-            self._cache_purge_expired()
+        cached = self._score_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         try:
             result = self._engine.analyze(quote, history)
@@ -402,7 +622,7 @@ class ScreenerPipeline:
             phase=phase, reason=reason, details=details,
         )
 
-        ScreenerPipeline._score_cache[cache_key] = (now, result_obj)
+        self._score_cache.put(cache_key, result_obj)
         return result_obj
 
 
@@ -422,8 +642,7 @@ class ScreenerService:
     history_limit: how many days of history to fetch per symbol (default 60).
     """
 
-    _prebuilt_cache: dict[str, tuple[float, dict[str, Any], list[dict[str, Any]]]] = {}
-    _PREBUILT_TTL = 20
+    _prebuilt_cache = _CacheManager(max_size=200, ttl=20.0, purge_interval=5.0)
 
     def __init__(self, session=None, history_limit: int = 60) -> None:
         self._pipeline = ScreenerPipeline()
@@ -484,17 +703,78 @@ class ScreenerService:
     async def _prebuild(self, snap: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Build quote + fetch real history for a snapshot row."""
         sym = snap.get("symbol", "")
-        now = time.time()
 
-        if sym in self._prebuilt_cache:
-            ts, cached_q, cached_h = self._prebuilt_cache[sym]
-            if now - ts < self._PREBUILT_TTL:
-                return cached_q, cached_h
+        cached = self._prebuilt_cache.get(sym)
+        if cached is not None:
+            return cached
 
-        quote = build_real_quote_from_snapshot(snap)
+        quote = build_real_quote_from_snapshot(snap.get("_snapshot", snap))
         history = await self._fetch_real_history(sym)
-        self._prebuilt_cache[sym] = (now, quote, history)
+        self._prebuilt_cache.put(sym, (quote, history))
         return quote, history
+
+    async def _fetch_fundamental_data(self, symbols: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch Codal fundamental data for a list of symbols."""
+        if self._session is None or not symbols:
+            return {}
+
+        from sqlalchemy import text
+
+        placeholders = ", ".join([f":sym{i}" for i in range(len(symbols))])
+        params = {f"sym{i}": sym for i, sym in enumerate(symbols)}
+
+        result = await self._session.execute(text(f"""
+            SELECT symbol, pe_ratio, roe, debt_to_equity, net_margin, eps
+            FROM codal_financial_summary
+            WHERE symbol IN ({placeholders})
+        """), params)
+
+        return {row[0]: {
+            "pe_ratio": safe_row_float(row, idx=1),
+            "roe": safe_row_float(row, idx=2),
+            "debt_to_equity": safe_row_float(row, idx=3),
+            "net_margin": safe_row_float(row, idx=4),
+            "eps": safe_row_float(row, idx=5),
+        } for row in result.fetchall()}
+
+    def _apply_fundamental_filter(
+        self,
+        instruments: list[dict[str, Any]],
+        fundamental_data: dict[str, dict[str, Any]],
+        max_debt_to_equity: float = 5.0,
+        min_roe: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Filter instruments based on fundamental criteria.
+
+        Phase 0: Pre-filter based on Codal financial data.
+        - Remove stocks with Debt-to-Equity > max_debt_to_equity
+        - Remove stocks with ROE < min_roe (negative profitability)
+        """
+        filtered = []
+        for instr in instruments:
+            sym = instr.get("symbol", "")
+            fund = fundamental_data.get(sym)
+
+            if fund is None:
+                # No fundamental data available — keep (don't filter out unknowns)
+                filtered.append(instr)
+                continue
+
+            # Filter: Debt-to-Equity too high
+            dte = fund.get("debt_to_equity")
+            if dte is not None and dte > max_debt_to_equity:
+                logger.debug("Filtered %s: D/E=%.1f > %.1f", sym, dte, max_debt_to_equity)
+                continue
+
+            # Filter: ROE negative
+            roe = fund.get("roe")
+            if roe is not None and roe < min_roe:
+                logger.debug("Filtered %s: ROE=%.1f%% < %.1f%%", sym, roe, min_roe)
+                continue
+
+            filtered.append(instr)
+
+        return filtered
 
     async def screen(
         self,
@@ -507,11 +787,25 @@ class ScreenerService:
         market: str | None = None,
         page: int | None = None,
         page_size: int | None = None,
+        max_debt_to_equity: float = 5.0,
+        min_roe: float = 0.0,
     ) -> tuple[list[ScreenedSymbol], dict[str, Any]]:
-        """Run the full 5-phase pipeline over a list of instruments using real data."""
+        """Run the full pipeline (Phase 0: fundamental filter + 5-phase Smart Money) over instruments."""
         watch_map: dict[str, dict[str, Any]] = {}
         for w_item in market_watch:
             watch_map[w_item.get("symbol", "")] = w_item
+
+        # Phase 0: Apply fundamental filter if thresholds are meaningful
+        # Only run if the user explicitly set non-default thresholds
+        if max_debt_to_equity < 5.0 or min_roe > 0.0:
+            all_syms = [i.get("symbol", "") for i in instruments if i.get("symbol")]
+            fundamental_data = await self._fetch_fundamental_data(all_syms)
+            if fundamental_data:
+                instruments = self._apply_fundamental_filter(
+                    instruments, fundamental_data,
+                    max_debt_to_equity=max_debt_to_equity,
+                    min_roe=min_roe,
+                )
 
         results: list[ScreenedSymbol] = []
         for instr in instruments:
@@ -601,15 +895,16 @@ class ScreenerService:
             if item.smc_score < min_score:
                 continue
 
-            if filters and not self._apply_filter(item, w, filters, filter_logic):
-                continue
-
+            # Populate details BEFORE filtering so filters can use pe_ratio, eps, etc.
             if include_details:
                 for real_field in ("pe_ratio", "eps", "market_value", "trade_count",
                                    "price_change_value", "price_first", "price_yesterday",
                                    "price_min", "price_max", "shares_count"):
                     if real_field in w and w[real_field] is not None:
                         item.details[real_field] = float(w[real_field])
+
+            if filters and not self._apply_filter(item, w, filters, filter_logic):
+                continue
 
             all_scored.append(item)
 
@@ -619,17 +914,16 @@ class ScreenerService:
         for i, r in enumerate(all_scored, 1):
             r.rank = i
 
-        results = all_scored[:limit]
-
-        total_before_pagination = len(results)
+        total_before_pagination = len(all_scored)
 
         if page is not None and page_size is not None:
             offset = (page - 1) * page_size
-            paginated = results[offset:offset + page_size]
+            paginated = all_scored[offset:offset + page_size]
         else:
-            paginated = results
+            paginated = all_scored[:limit]
 
-        stats = self._compute_stats(paginated, all_scored, market_watch)
+        # Compute stats from ALL scored results, not just the paginated subset
+        stats = self._compute_stats(all_scored, all_scored, market_watch)
         stats["total"] = total_before_pagination
         stats["page"] = page or 1
         stats["page_size"] = page_size or limit
@@ -687,7 +981,14 @@ class ScreenerService:
         filters: list[dict[str, Any]],
         logic: str,
     ) -> bool:
+        """Apply a list of dynamic filters to a single screened symbol.
+
+        Supports numeric (gte, lte, gt, lt, eq, neq, between) and string
+        (eq, neq, contains, in, not_in) operators. Numeric values tolerate
+        strings with commas and percent signs.
+        """
         results: list[bool] = []
+        numeric_ops = {"gte", "lte", "gt", "lt", "eq", "neq", "between"}
 
         for f in filters:
             field = f.get("field", "")
@@ -697,33 +998,65 @@ class ScreenerService:
 
             item_val = _get_filter_value(item, watch, field)
             if item_val is None:
+                # Missing data: the only matching operators are is_null / is_not_null,
+                # which are not currently supported, so fail this filter.
                 results.append(False)
                 continue
 
-            try:
-                item_val = float(item_val)
-                val = float(value) if value is not None else 0
-                val_to = float(value_to) if value_to is not None else 0
-            except (TypeError, ValueError):
+            # String operators always compare as strings
+            if operator in {"contains", "in", "not_in"} or (operator in {"eq", "neq"} and isinstance(item_val, str) and _parse_numeric(item_val) is None):
+                item_str = str(item_val).lower()
+                if operator == "eq":
+                    results.append(item_str == str(value).lower())
+                elif operator == "neq":
+                    results.append(item_str != str(value).lower())
+                elif operator == "contains":
+                    results.append(str(value).lower() in item_str)
+                elif operator == "in":
+                    values_list = [str(v).lower() for v in (value if isinstance(value, list) else [value])]
+                    results.append(item_str in values_list)
+                elif operator == "not_in":
+                    values_list = [str(v).lower() for v in (value if isinstance(value, list) else [value])]
+                    results.append(item_str not in values_list)
+                else:
+                    results.append(False)
+                continue
+
+            # Numeric operators: attempt to coerce both sides to float
+            item_num = _parse_numeric(item_val)
+            val_num = _parse_numeric(value) if value is not None else None
+            val_to_num = _parse_numeric(value_to) if value_to is not None else None
+
+            if item_num is None:
                 results.append(False)
                 continue
 
-            if operator == "gte":
-                results.append(item_val >= val)
-            elif operator == "lte":
-                results.append(item_val <= val)
-            elif operator == "gt":
-                results.append(item_val > val)
-            elif operator == "lt":
-                results.append(item_val < val)
-            elif operator == "eq":
-                results.append(abs(item_val - val) < max(val * 0.01, 0.001))
-            elif operator == "neq":
-                results.append(abs(item_val - val) >= max(val * 0.01, 0.001))
-            elif operator == "between":
-                results.append(val <= item_val <= val_to)
+            if operator in numeric_ops:
+                if operator == "between":
+                    if val_num is None or val_to_num is None:
+                        results.append(False)
+                    else:
+                        results.append(val_num <= item_num <= val_to_num)
+                elif val_num is None:
+                    results.append(False)
+                elif operator == "gte":
+                    results.append(item_num >= val_num)
+                elif operator == "lte":
+                    results.append(item_num <= val_num)
+                elif operator == "gt":
+                    results.append(item_num > val_num)
+                elif operator == "lt":
+                    results.append(item_num < val_num)
+                elif operator == "eq":
+                    tolerance = max(abs(val_num) * 0.01, 0.001)
+                    results.append(abs(item_num - val_num) < tolerance)
+                elif operator == "neq":
+                    results.append(item_num != val_num)
+                else:
+                    results.append(True)
             else:
-                results.append(True)
+                # Unknown operator; fail closed
+                results.append(False)
 
         if not results:
             return True
@@ -735,7 +1068,11 @@ class ScreenerService:
         market_watch: list[dict[str, Any]],
         symbol: str,
     ) -> ScreenedSymbol | None:
-        """Run the pipeline for a single symbol (sync mode, no async history fetch)."""
+        """Run the pipeline for a single symbol (sync mode, no async history fetch).
+
+        Note: This method does NOT fetch history, so analysis quality is limited.
+        For full analysis, use screen() or screen_with_filters() which fetch real history.
+        """
         instr = next((i for i in instruments if i.get("symbol") == symbol), None)
         if not instr:
             return None
@@ -744,11 +1081,14 @@ class ScreenerService:
             return None
 
         quote = build_real_quote_from_snapshot(w)
+        # Try to get cached history if available
+        cached_entry = self._prebuilt_cache.get(symbol)
+        history = cached_entry[1] if cached_entry else []  # (quote, history) tuple
         return self._pipeline.run(
             symbol=symbol,
             name=instr.get("name", symbol),
             market=instr.get("market", ""),
             industry=instr.get("industry", ""),
             quote=quote,
-            history=[],
+            history=history,
         )

@@ -4,9 +4,11 @@ from core.config import settings
 
 
 class TTLManager:
+    # Some CACHE_TTL_* settings may not exist in Settings — fall back to
+    # sane defaults so importing this module never crashes at class definition.
     TTL_PRESETS: dict[str, int] = {
-        "quote": settings.CACHE_TTL_QUOTE,
-        "instrument": settings.CACHE_TTL_INSTRUMENT,
+        "quote": getattr(settings, "CACHE_TTL_QUOTE", 60),
+        "instrument": getattr(settings, "CACHE_TTL_INSTRUMENT", 86400),
         "signal": 600,
         "recommendation": 900,
         "analysis": 1800,
@@ -24,7 +26,7 @@ class TTLManager:
         for cat, ttl in self.TTL_PRESETS.items():
             if cat in key:
                 return ttl
-        return settings.redis_default_ttl
+        return getattr(settings, "redis_default_ttl", 300)
 
     def set_ttl(self, category: str, ttl: int) -> None:
         self.TTL_PRESETS[category] = ttl

@@ -52,10 +52,11 @@ export function loadSyncSettings(): SyncSettingsMap {
     // Merge with defaults so new sections always have a fallback
     const merged: SyncSettingsMap = { ...DEFAULT_SYNC_SETTINGS };
     for (const key of ALL_SECTION_KEYS) {
-      if (parsed[key]?.maxAgeMinutes != null && parsed[key]?.maxAgeMinutes! > 0) {
+      const setting = parsed[key];
+      if (setting?.maxAgeMinutes != null && setting.maxAgeMinutes > 0) {
         merged[key] = {
           ...merged[key],
-          maxAgeMinutes: parsed[key]!.maxAgeMinutes,
+          maxAgeMinutes: setting.maxAgeMinutes,
         };
       }
     }
@@ -115,17 +116,27 @@ export function recalcStatus(
  * Apply all user custom thresholds to an API sync-status map.
  * Returns a new map with overridden statuses.
  */
-export function applyCustomThresholds(
-  apiStatusMap: Record<string, any>,
+/** Minimal shape of a sync-status entry (subset of the backend response). */
+export interface SyncStatusInfo {
+  last_fetched?: string | null;
+  record_count?: number;
+  age_minutes?: number | null;
+  status?: string;
+  max_age_minutes?: number;
+  error?: string;
+}
+
+export function applyCustomThresholds<T extends SyncStatusInfo>(
+  apiStatusMap: Record<string, T>,
   settings: SyncSettingsMap,
-): Record<string, any> {
-  const result: Record<string, any> = {};
+): Record<string, T> {
+  const result: Record<string, T> = {};
   for (const [key, info] of Object.entries(apiStatusMap)) {
     const custom = settings[key];
-    const overridden = { ...info };
+    const overridden: T = { ...info };
     if (custom && custom.maxAgeMinutes > 0) {
       overridden.max_age_minutes = custom.maxAgeMinutes;
-      overridden.status = recalcStatus(info.status, info.age_minutes, custom.maxAgeMinutes);
+      overridden.status = recalcStatus(info.status ?? "unknown", info.age_minutes, custom.maxAgeMinutes) as T["status"];
     }
     result[key] = overridden;
   }

@@ -36,4 +36,3 @@ def test_partial_fill():
     simulator = ExecutionSimulator(slippage_bps=10, partial_fill_enabled=True)
     result = simulator.execute_market_order(side="buy", quantity=10_000_000, price=15000)
     assert result["filled_quantity"] > 0
-

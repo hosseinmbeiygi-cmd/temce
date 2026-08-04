@@ -7,6 +7,7 @@ fetched from BrsApi.ir and stored in PostgreSQL.
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
@@ -19,7 +20,9 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_db_session
+from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from brsapi.services.query_service import BrsApiQueryService
+from core.db_utils import safe_row_str
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
 
@@ -38,6 +41,7 @@ async def brsapi_health(
         stats = await service.get_brsapi_stats()
         return ApiResponse[dict[str, Any]](success=True, data={"status": "connected", **stats})
     except Exception as exc:
+        logger.exception("BrsApi health check failed")
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"status": "error", "message": str(exc)},
@@ -61,6 +65,7 @@ async def get_commodity_prices(
         data = await service.get_commodity_prices(category=category)
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
+        logger.exception("Failed to fetch commodity prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -77,6 +82,7 @@ async def get_commodity_categories(
         categories = await service.get_commodity_categories()
         return ApiResponse[list[dict[str, Any]]](success=True, data=categories)
     except Exception as exc:
+        logger.exception("Failed to fetch commodity categories")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -101,6 +107,7 @@ async def get_crypto_prices(
         data = await service.get_crypto_prices(limit=limit, sort_by=sort_by)
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
+        logger.exception("Failed to fetch crypto prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -117,6 +124,7 @@ async def get_top_crypto(
         data = await service.get_crypto_prices(limit=10, sort_by="market_cap")
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
+        logger.exception("Failed to fetch top crypto")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -136,6 +144,7 @@ async def get_gold_coin_prices(
         data = await service.get_gold_coin_prices()
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
+        logger.exception("Failed to fetch gold/coin prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -159,6 +168,7 @@ async def get_currency_prices(
         data = await service.get_currency_prices()
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
+        logger.exception("Failed to fetch currency prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
@@ -257,7 +267,7 @@ async def get_historical_daily(
                 ),
             )
     except Exception:
-        pass  # Fall through to quotes table
+        logger.debug("HistoricalDailyModel query failed for %s — falling through to quotes table", symbol)
 
     # ── Fallback: core quotes table (QuoteModel) ──
     try:
@@ -277,7 +287,7 @@ async def get_historical_daily(
         if q_total == 0:
             return ApiResponse[PaginatedResult[dict[str, Any]]](
                 success=True,
-                data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=limit, total_pages=0),
+                data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=limit, total_pages=1),
             )
 
         q_stmt = (
@@ -332,6 +342,7 @@ async def get_historical_daily(
             ),
         )
     except Exception as exc:
+        logger.exception("Failed to fetch historical daily for %s", symbol)
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=limit, total_pages=0),
@@ -411,7 +422,7 @@ async def get_codal_announcements(
                 for nr in name_result:
                     instrument_names[str(nr.id)] = str(nr.instr_symbol)
             except Exception:
-                pass
+                logger.debug("instrument_names lookup failed for %d instrument_ids", len(instr_ids))
 
         items = []
         for row in rows:
@@ -451,9 +462,10 @@ async def get_codal_announcements(
             ),
         )
     except Exception as exc:
+        logger.exception("Failed to fetch codal announcements")
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
-            data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=page_size, total_pages=0),
+            data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=page_size, total_pages=1),
             error={"message": str(exc)},
         )
 
@@ -571,6 +583,7 @@ async def get_codal_announcements_lazy(
         })
 
     except Exception as exc:
+        logger.exception("Failed to fetch lazy codal announcements for %s", symbol)
         return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
 
 
@@ -993,7 +1006,8 @@ async def list_sections(
                     "error_message": last.error_message if last else None,
                 } if last else None,
             }
-        except Exception:
+        except Exception as exc:
+            logger.warning("build_section failed for %s: %s", section_id, exc)
             return {
                 "id": section_id,
                 "name": cfg.get("name", section_id),
@@ -1183,49 +1197,8 @@ async def download_section(
     )
 
 
-# ── ETF symbols list (common Iranian ETF funds supported by BrsAPI) ──
-BRSAPI_ETF_SYMBOLS: list[str] = [
-    "اهرم", "توان", "شتاب", "جهش", "موج", "نارنج اهرم", "بيدار", "دوايكس",
-    "پيشران", "اطلس", "آساس", "كاريس", "الماس", "فيروزه", "كاردان", "ثروتم",
-    "آگاس", "آتيمس", "افق ملت", "سرو", "بذر", "دارا يكم", "ارزش", "آوا",
-    "مدير", "پالايش", "زرين", "وبازار", "فراز", "ثهام", "پادا", "داريوش",
-    "ويستا", "اوج", "ثمين", "انار", "رماس", "پتروما", "تاراز", "مرواريد",
-    "آرام", "سلام", "هم وزن", "درسا", "برليان", "عقيق", "هيوا", "ثنا",
-    "ترمه", "دريا", "پرتو", "اكسيژن", "پتروآگاه", "استيل", "پتروداريوش",
-    "صدف", "پتروصبا", "سمان", "هوشيار", "بهين رو", "تيام", "پيروز", "رويين",
-    "فلزفارابي", "متال", "آذرين", "خليج", "جاودان", "هامون", "نارين",
-    "پتروآبان", "فارما كيان", "تكپاد", "بازبيمه", "تخت گاز", "ثروت ساز",
-    "سپينود", "خبرگان", "آبنوس", "رخش", "پتروفارس", "فرصت", "رسانا", "مانا",
-    "پتروپاداش", "هومان", "سيمانيا", "رشدي كيان", "دي سهام", "جوانه كوچك",
-    "عرش", "همتا", "فارماني", "آس", "ابتكار", "آميتيس", "پناه", "رونق",
-    "فرا الگوريتم", "سهامدار", "هوشمند", "ديار", "پرتوسا", "رويش همراه",
-    "بانكدار", "اعتبارسهام", "يلدا", "لذيذ", "هم تراز", "آلكان", "يكم",
-    "سها", "كوانتوم", "بزرگ", "همسنگ", "هم ارز", "نبات", "جام سهند",
-    "رادان", "پتروسورين", "ثروين", "امتياز", "ولتاژ", "بانكو", "ناوگان",
-    "بانكيا", "آويد", "آوان", "آسام", "صنوين", "زيتون", "آفرين", "هيبريد",
-    "شيلد", "مختلط", "تداوم", "اعتماد", "صايند", "سخند", "آكورد", "پارند",
-    "كيان", "امين يكم", "كمند", "فيروزا", "اوصتا", "آساميد", "دارا",
-    "ارمغان", "گنجينه", "تصميم", "افران", "گنجين", "ياقوت", "داريك", "سپر",
-    "خاتم", "فردا", "كارين", "سپيدما", "كامياب", "سيناد", "هماي", "ماني",
-    "ثبات", "كارا", "يارا", "هامرز", "رشد", "پاداش", "نشان", "آفاق", "آوند",
-    "نخل", "ساحل", "لبخند", "كاج", "رايكا", "بازده", "اعتبار", "پايا",
-    "ديبا", "رابين", "سام", "درين", "نيلي", "صنهال", "آكام", "آلا", "فاخر",
-    "طلوع", "توسكا", "خورشيد", "اونيكس", "ثابت اكسيژن", "دامون", "ماهور",
-    "بمان", "پايش", "اصيل", "كارما", "همگام", "نيك گستر", "آتيه ملت",
-    "آرامش", "شميم", "ترنج ثابت", "اطمينان", "اركيده", "خزانه ملت",
-    "كارآمد", "آسود", "زمرد كوروش", "ستاره", "سپنتارود", "پاسارگاد",
-    "بلوط", "آسان", "اندوخته داريوش", "ماكان", "هدف", "آسا", "ثمر",
-    "رايبد", "سيلور", "سيمين", "رويش", "آتي1", "آشناتك", "تهران1",
-    "فنابا", "پارتين", "ونچر", "نوآور", "استارز", "ثروت", "كمان",
-    "پيشرفت", "ديوان", "سپهر", "اكسير", "ديتا", "تهران2", "افق نگر",
-    "تدبيريكم", "بامداد", "صنم", "تمشك", "خوشه", "ضمان", "گارانتي",
-    "طلا", "زر", "گوهر", "عيار", "كهربا", "مثقال", "زرفام", "نفيس",
-    "گنج", "ناب", "آلتون", "جواهر", "تابش", "ليان", "زروان", "درخشان",
-    "آتش", "قيراط", "گلديس", "زمرد", "امرالد", "رز ترنج", "درنا", "زرگر",
-    "ريتون", "گلدا", "رزگلد", "نگين فارس", "هميان", "ميراث", "دفينه",
-]
-
-
+# ETF symbol list moved to brsapi/constants.py so it can be reused
+# by the sync service without depending on the API layer.
 @router.post("/manage/sync-nav-all", summary="Batch sync NAV for all ETF funds")
 async def sync_nav_all(
     max_symbols: int = Query(0, ge=0, le=500, description="Max symbols to sync (0 = all ETFs)"),
@@ -1433,6 +1406,115 @@ async def sync_all_history(
     })
 
 
+@router.get("/manage/sync-stats", summary="Per-endpoint sync status dashboard")
+async def sync_stats(
+    window_days: int = Query(7, ge=1, le=90, description="Days to look back for error rate and avg duration"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """
+    Return per-endpoint sync statistics: freshness, error rate, and avg duration.
+
+    Computes for each endpoint that has sync logs in the given window:
+    - last_success_at / last_run_at
+    - error_rate (percentage of failed syncs)
+    - avg_duration_ms
+    - total_runs, success_count, error_count
+
+    Also merges with the static SECTIONS registry so endpoints that have
+    never run still appear with empty/null metrics.
+    """
+    from datetime import datetime
+
+    sync_repo = SyncLogRepository(session)
+    stats_rows = await sync_repo.get_sync_stats(window_days=window_days)
+
+    stats_by_endpoint: dict[str, dict[str, Any]] = {}
+    for row in stats_rows:
+        stats_by_endpoint[row["endpoint"]] = {
+            "endpoint": row["endpoint"],
+            "last_success_at": str(row["last_success_at"]) if row["last_success_at"] else None,
+            "last_run_at": str(row["last_run_at"]) if row["last_run_at"] else None,
+            "error_rate": round(float(row["error_rate"]), 2) if row["error_rate"] is not None else 0.0,
+            "avg_duration_ms": round(float(row["avg_duration_ms"]), 2) if row["avg_duration_ms"] is not None else 0.0,
+            "total_runs": int(row["total_runs"]) if row["total_runs"] else 0,
+            "success_count": int(row["success_count"]) if row["success_count"] else 0,
+            "error_count": int(row["error_count"]) if row["error_count"] else 0,
+        }
+
+    # Merge with static SECTIONS registry so endpoints that have never
+    # run still appear in the dashboard.
+    endpoint_to_section: dict[str, dict[str, Any]] = {}
+    for section_id, cfg in SECTIONS.items():
+        ep = cfg["endpoint"].path
+        endpoint_to_section.setdefault(ep, {
+            "section_id": section_id,
+            "name": cfg["name"],
+            "name_en": cfg["name_en"],
+            "icon": cfg["icon"],
+            "category": cfg["category"],
+        })
+
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    # First, output entries that have stats, enriched with section metadata.
+    for ep, stat in stats_by_endpoint.items():
+        meta = endpoint_to_section.get(ep, {})
+        seen.add(ep)
+        result.append({
+            **stat,
+            "section_id": meta.get("section_id"),
+            "name": meta.get("name"),
+            "name_en": meta.get("name_en"),
+            "icon": meta.get("icon"),
+            "category": meta.get("category", "other"),
+        })
+
+    # Then, output registered sections that have never produced a sync log.
+    for ep, meta in endpoint_to_section.items():
+        if ep in seen:
+            continue
+        result.append({
+            "endpoint": ep,
+            "section_id": meta["section_id"],
+            "name": meta["name"],
+            "name_en": meta["name_en"],
+            "icon": meta["icon"],
+            "category": meta["category"],
+            "last_success_at": None,
+            "last_run_at": None,
+            "error_rate": 0.0,
+            "avg_duration_ms": 0.0,
+            "total_runs": 0,
+            "success_count": 0,
+            "error_count": 0,
+        })
+
+    # Overall summary
+    now = datetime.now()
+    total_runs = sum(s["total_runs"] for s in result)
+    total_errors = sum(s["error_count"] for s in result)
+    never_synced = sum(1 for s in result if s["total_runs"] == 0)
+    stale_count = sum(
+        1 for s in result
+        if s["last_success_at"] is None or
+        (now - datetime.fromisoformat(s["last_success_at"])).total_seconds() > 24 * 3600
+    )
+
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "window_days": window_days,
+        "endpoints": result,
+        "summary": {
+            "total_endpoints": len(result),
+            "total_runs": total_runs,
+            "total_errors": total_errors,
+            "never_synced": never_synced,
+            "stale_endpoints": stale_count,
+            "overall_error_rate": round((total_errors / total_runs) * 100, 2) if total_runs else 0.0,
+        },
+    })
+
+
 @router.get("/manage/last-update/{section_id}", summary="Last update time for a section")
 async def section_last_update(
     section_id: str,
@@ -1456,3 +1538,313 @@ async def section_last_update(
         "completed_at": str(last.completed_at) if last.completed_at else None,
         "error_message": last.error_message,
     })
+
+
+# ── History Fetch from BrsApi (Crypto / Gold / Currency) ──────────────
+
+
+@router.get("/manage/history-status", summary="Status of history tables")
+async def history_status(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Check row counts for all history tables."""
+    tables = {
+        "brsapi_crypto_daily_history": "Crypto",
+        "brsapi_gold_coin_history": "Gold/Coins",
+        "brsapi_gold_currency_pro_daily_history": "Currency/XAUUSD",
+    }
+    result: dict[str, Any] = {}
+    for table, label in tables.items():
+        try:
+            r = await session.execute(text(f"SELECT COUNT(*) FROM {table}"))
+            count = r.scalar() or 0
+            r2 = await session.execute(text(f"SELECT MIN(date), MAX(date), COUNT(DISTINCT symbol) FROM {table}"))
+            row = r2.fetchone()
+            result[label] = {
+                "table": table,
+                "rows": count,
+                "min_date": row[0] if row else None,
+                "max_date": row[1] if row else None,
+                "symbols": row[2] if row else 0,
+            }
+        except Exception as e:
+            logger.exception("Failed to get history status for %s", label)
+            result[label] = {"table": table, "rows": 0, "error": str(e)}
+    return ApiResponse[dict[str, Any]](success=True, data=result)
+
+
+@router.post("/manage/sync-crypto-history", summary="Fetch crypto history from BrsApi")
+async def sync_crypto_history(
+    limit: int = Query(0, ge=0, le=500, description="Max symbols (0 = all)"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Fetch historical daily crypto data from BrsApi.ir and store in DB."""
+    from brsapi.services.history_fetch_service import HistoryFetchService
+
+    svc = HistoryFetchService(session=session)
+    reports = await svc.sync_crypto_history(limit=limit)
+
+    total_rows = sum(r.record_count for r in reports)
+    success = sum(1 for r in reports if r.success)
+    fail = sum(1 for r in reports if not r.success)
+    total_ms = sum(r.duration_ms for r in reports)
+
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "total_symbols": len(reports),
+        "success": success,
+        "failed": fail,
+        "total_rows": total_rows,
+        "duration_ms": round(total_ms, 1),
+        "results": [
+            {"symbol": r.symbol, "rows": r.record_count, "success": r.success,
+             "error": r.error, "duration_ms": round(r.duration_ms, 1)}
+            for r in reports[:50]
+        ],
+    })
+
+
+@router.post("/manage/sync-gold-currency-history", summary="Fetch gold/currency history from BrsApi")
+async def sync_gold_currency_history(
+    limit: int = Query(0, ge=0, le=500, description="Max symbols (0 = all)"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Fetch historical daily gold/currency data from BrsApi.ir and store in DB."""
+    from brsapi.services.history_fetch_service import HistoryFetchService
+
+    svc = HistoryFetchService(session=session)
+    reports = await svc.sync_gold_currency_history(limit=limit)
+
+    total_rows = sum(r.record_count for r in reports)
+    success = sum(1 for r in reports if r.success)
+    fail = sum(1 for r in reports if not r.success)
+    total_ms = sum(r.duration_ms for r in reports)
+
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "total_symbols": len(reports),
+        "success": success,
+        "failed": fail,
+        "total_rows": total_rows,
+        "duration_ms": round(total_ms, 1),
+        "results": [
+            {"symbol": r.symbol, "rows": r.record_count, "success": r.success,
+             "error": r.error, "duration_ms": round(r.duration_ms, 1)}
+            for r in reports[:50]
+        ],
+    })
+
+
+@router.post("/manage/import-json-history", summary="Import JSON files into history tables")
+async def import_json_history(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Read crypto_history/ and history_data/ JSON files and insert into DB."""
+    import json as _json
+    import time as _time
+    from pathlib import Path
+
+    t0 = _time.time()
+    total_inserted = 0
+    total_skipped = 0
+    files_count = 0
+
+    CRYPTO_DIR = Path("crypto_history")
+    HISTORY_DIR = Path("history_data")
+    CRYPTO_TABLE = "brsapi_crypto_daily_history"
+    GOLD_TABLE = "brsapi_gold_coin_history"
+    CURRENCY_TABLE = "brsapi_gold_currency_pro_daily_history"
+
+    GOLD_SYMBOLS = {
+        "IR_GOLD_18K", "IR_GOLD_24K", "IR_GOLD_MELTED",
+        "IR_COIN_1G", "IR_COIN_BAHAR", "IR_COIN_EMAMI",
+        "IR_COIN_HALF", "IR_COIN_QUARTER",
+    }
+    GOLD_SYMBOLS.update({f"IR_PCOIN_{s}" for s in [
+        "1-1G", "1-2G", "1-3G", "1-4G", "1-5G",
+        "100MG", "1G", "200MG", "300MG", "400MG",
+        "500MG", "600MG", "700MG", "800MG", "900MG",
+    ]})
+
+    def _num(v):
+        if v is None:
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).replace(",", "").replace("٬", "").strip()
+        if not s:
+            return None
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    async def _import_file(filepath: Path, table: str) -> tuple[int, int]:
+        symbol = filepath.stem.replace("_history", "")
+        with open(filepath, encoding="utf-8") as f:
+            data = _json.load(f)
+        if not data:
+            return 0, 0
+        inserted = 0
+        skipped = 0
+        for item in data:
+            date = str(item.get("date", "")).replace("/", "-")
+            if not date:
+                skipped += 1
+                continue
+            o = _num(item.get("open"))
+            h = _num(item.get("high"))
+            lo = _num(item.get("low"))
+            c = _num(item.get("close"))
+            v = _num(item.get("volume"))
+            if c is None or c <= 0:
+                skipped += 1
+                continue
+            try:
+                if table == CRYPTO_TABLE:
+                    await session.execute(text(f"""
+                        INSERT INTO {table} (symbol, date, price_open, price_high, price_low, price_close, volume)
+                        VALUES (:sym, :date, :o, :h, :l, :c, :v)
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            price_open = EXCLUDED.price_open, price_high = EXCLUDED.price_high,
+                            price_low = EXCLUDED.price_low, price_close = EXCLUDED.price_close, volume = EXCLUDED.volume
+                    """), {"sym": symbol, "date": date, "o": o, "h": h, "l": lo, "c": c, "v": v})
+                else:
+                    await session.execute(text(f"""
+                        INSERT INTO {table} (symbol, date, price_open, price_high, price_low, price_close)
+                        VALUES (:sym, :date, :o, :h, :l, :c)
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            price_open = EXCLUDED.price_open, price_high = EXCLUDED.price_high,
+                            price_low = EXCLUDED.price_low, price_close = EXCLUDED.price_close
+                    """), {"sym": symbol, "date": date, "o": o, "h": h, "l": lo, "c": c})
+                inserted += 1
+            except Exception:
+                skipped += 1
+        await session.commit()
+        return inserted, skipped
+
+    if CRYPTO_DIR.exists():
+        for fp in sorted(CRYPTO_DIR.glob("*.json")):
+            ins, skip = await _import_file(fp, CRYPTO_TABLE)
+            total_inserted += ins
+            total_skipped += skip
+            files_count += 1
+
+    if HISTORY_DIR.exists():
+        for fp in sorted(HISTORY_DIR.glob("*.json")):
+            symbol = fp.stem.replace("_history", "")
+            table = GOLD_TABLE if symbol in GOLD_SYMBOLS else CURRENCY_TABLE
+            ins, skip = await _import_file(fp, table)
+            total_inserted += ins
+            total_skipped += skip
+            files_count += 1
+
+    elapsed = _time.time() - t0
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "total_inserted": total_inserted,
+        "total_skipped": total_skipped,
+        "files_imported": files_count,
+        "duration_s": round(elapsed, 1),
+    })
+
+
+@router.get("/codal/{symbol}", summary="Codal financial data for a symbol")
+async def get_codal_data(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Get codal reports, financial statements, and audit summary for a symbol."""
+    import json as _json
+
+    result: dict[str, Any] = {"symbol": symbol}
+
+    # 1. Audit summary (financial metrics)
+    try:
+        r = await session.execute(text("""
+            SELECT revenue, net_profit, total_assets, total_equity, eps,
+                   roe, roa, gross_margin, net_margin, current_ratio,
+                   debt_to_equity, asset_turnover, revenue_growth, net_profit_growth,
+                   health_score, health_classification, forensic_risk,
+                   earnings_quality_score, analysis_status
+            FROM codal_audit_summary WHERE symbol = :sym LIMIT 1
+        """), {"sym": symbol})
+        row = r.fetchone()
+        if row:
+            result["audit"] = {
+                "revenue": row[0], "net_profit": row[1], "total_assets": row[2],
+                "total_equity": row[3], "eps": row[4], "roe": row[5], "roa": row[6],
+                "gross_margin": row[7], "net_margin": row[8], "current_ratio": row[9],
+                "debt_to_equity": row[10], "asset_turnover": row[11],
+                "revenue_growth": row[12], "net_profit_growth": row[13],
+                "health_score": row[14], "health_classification": row[15],
+                "forensic_risk": row[16], "earnings_quality_score": row[17],
+                "analysis_status": row[18],
+            }
+    except Exception:
+        result["audit"] = None
+
+    # 2. Latest financial statement (parsed_data)
+    try:
+        r = await session.execute(text("""
+            SELECT title, report_type, parsed_data, imported_at
+            FROM codal_financial_statements WHERE symbol = :sym
+            ORDER BY imported_at DESC LIMIT 1
+        """), {"sym": symbol})
+        row = r.fetchone()
+        if row:
+            parsed = row[2]
+            if isinstance(parsed, str):
+                parsed = _json.loads(parsed)
+            result["financial"] = {
+                "title": row[0], "report_type": row[1],
+                "parsed_data": parsed, "date": safe_row_str(row, idx=3, default=None),
+            }
+    except Exception:
+        result["financial"] = None
+
+    # 3. Recent announcements
+    try:
+        r = await session.execute(text("""
+            SELECT company_name, report_type, period, audit_status, publish_date, summary, attachment_url
+            FROM codal_reports WHERE symbol = :sym
+            ORDER BY publish_date DESC LIMIT 10
+        """), {"sym": symbol})
+        result["announcements"] = [
+            {
+                "company": row[0], "type": row[1], "period": row[2],
+                "audit": row[3], "date": row[4], "summary": row[5],
+                "url": row[6],
+            }
+            for row in r.fetchall()
+        ]
+    except Exception:
+        result["announcements"] = []
+
+    # 4. Report type counts
+    try:
+        r = await session.execute(text("""
+            SELECT report_type, COUNT(*) as cnt
+            FROM codal_reports WHERE symbol = :sym
+            GROUP BY report_type ORDER BY cnt DESC
+        """), {"sym": symbol})
+        result["report_types"] = {row[0]: row[1] for row in r.fetchall()}
+    except Exception:
+        result["report_types"] = {}
+
+    return ApiResponse[dict[str, Any]](success=True, data=result)
+
+
+@router.get("/codal-list", summary="List symbols with codal data")
+async def codal_list(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """List all symbols with their codal health score."""
+    r = await session.execute(text("""
+        SELECT symbol, health_score, health_classification, revenue, roe, net_margin
+        FROM codal_audit_summary
+        ORDER BY health_score DESC NULLS LAST
+    """))
+    items = [
+        {"symbol": row[0], "health": row[1], "class": row[2],
+         "revenue": row[3], "roe": row[4], "margin": row[5]}
+        for row in r.fetchall()
+    ]
+    return ApiResponse[dict[str, Any]](success=True, data={"symbols": items, "total": len(items)})

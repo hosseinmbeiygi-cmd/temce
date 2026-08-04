@@ -19,7 +19,10 @@ TSETMC_OLD = "http://old.tsetmc.com"
 ENDPOINTS = [
     ("Instrument List", f"{TSETMC_CDN}/Instrument/GetInstrumentList"),
     ("Market Data", f"{TSETMC_CDN}/MarketData/MarketData"),
-    ("Closing Price (sample)", f"{TSETMC_CDN}/ClosingPrice/GetClosingPriceHistory/43362635835198978"),
+    (
+        "Closing Price (sample)",
+        f"{TSETMC_CDN}/ClosingPrice/GetClosingPriceHistory/43362635835198978",
+    ),
     ("Order Book (sample)", f"{TSETMC_CDN}/OrderBook/GetOrderBook/43362635835198978"),
     ("Old Market Watch", f"{TSETMC_OLD}/tsev2/data/MarketWatchPlus.aspx"),
 ]

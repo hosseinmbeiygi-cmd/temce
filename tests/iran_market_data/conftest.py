@@ -61,4 +61,3 @@ def temp_raw_storage() -> Any:
     with tempfile.TemporaryDirectory() as tmpdir:
         storage = RawStorage(base_dir=str(Path(tmpdir) / "raw"))
         yield storage
-

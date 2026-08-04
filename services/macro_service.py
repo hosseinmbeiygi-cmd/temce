@@ -185,10 +185,7 @@ class MacroService:
             return []
 
         data = result.value.data
-        if indicator == "gold":
-            parsed = GoldCurrencyParser.parse_gold(data)
-        else:
-            parsed = GoldCurrencyParser.parse_currency(data)
+        parsed = GoldCurrencyParser.parse_gold(data) if indicator == "gold" else GoldCurrencyParser.parse_currency(data)
 
         if isinstance(parsed, list):
             return parsed

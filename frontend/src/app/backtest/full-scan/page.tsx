@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, apiPost } from "@/lib/api";
@@ -110,7 +110,6 @@ export default function FullScanPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [phase1Results, setPhase1Results] = useState<StrategyResult[]>([]);
   const [phase2Results, setPhase2Results] = useState<ScanResult[]>([]);
-  const [phase1Progress, setPhase1Progress] = useState<{ progress_pct: number; found: number; phase: string } | null>(null);
   const [phase2Progress, setPhase2Progress] = useState<{ progress_pct: number; total_passing: number } | null>(null);
   const [activeTab, setActiveTab] = useState<"config" | "results">("config");
   const [resultSortKey, setResultSortKey] = useState<string>("score");
@@ -157,7 +156,7 @@ export default function FullScanPage() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     setIsRunning(true);
     setPhase1Results([]); setPhase2Results([]);
-    setPhase1Progress(null); setPhase2Progress(null);
+    setPhase2Progress(null);
 
     try {
       // Phase 1: Strategy Generator (synchronous — results returned directly)
@@ -270,7 +269,6 @@ export default function FullScanPage() {
   const uniqueNames = [...new Set(allCombined.map(r => r.name))];
 
   // Helpers
-  const fmtRial = (v: number) => new Intl.NumberFormat("fa-IR").format(Math.round(v));
   const colorReturn = (v: number) => v >= 0 ? "text-accent-emerald" : "text-accent-rose";
   const colorSharpe = (v: number) => v >= 1 ? "text-accent-emerald" : v >= 0.5 ? "text-accent-amber" : "text-accent-rose";
 
@@ -301,6 +299,18 @@ export default function FullScanPage() {
               }`}>
               {isRunning ? "⏳ در حال اجرا..." : "🚀 شروع اسکن کامل"}
             </button>
+            {isRunning && phase2Progress && (
+              <div className="mt-2">
+                <div className="flex justify-between text-[9px] text-surface-500 mb-1">
+                  <span>فاز ۲: اسکن اندیکاتورها</span>
+                  <span className="font-mono">{phase2Progress.progress_pct}% · {phase2Progress.total_passing} عبور</span>
+                </div>
+                <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-primary-500 to-accent-purple rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.max(0, phase2Progress.progress_pct))}%` }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -414,7 +424,7 @@ export default function FullScanPage() {
                   <div key={key} className="flex items-center justify-between gap-2">
                     <span className="text-[11px] text-surface-400 w-32 truncate">{label}</span>
                     <input type="number" step={key.includes("sharpe") || key.includes("profit") ? 0.1 : 1}
-                      value={(filters as any)[key]} onChange={e => setFilters({ ...filters, [key]: Number(e.target.value) })}
+                      value={(filters as Record<string, number>)[key]} onChange={e => setFilters({ ...filters, [key]: Number(e.target.value) })}
                       className="w-20 bg-surface-800 border border-surface-700 rounded px-2 py-1 text-xs text-surface-100 font-mono outline-none focus:border-primary-500" />
                     <span className="text-[10px] text-surface-600 w-5">{unit}</span>
                   </div>

@@ -49,5 +49,5 @@ async def t():
         r = await c.get("/api/v1/analysis/profit-prediction/XXX")
         print("profit keys:", list(r.json().get("data", {}).keys()))
 
-asyncio.run(t())
 
+asyncio.run(t())

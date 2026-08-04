@@ -25,4 +25,12 @@ class UserModel(TimestampMixin, Base):
     refresh_token: Mapped[str | None] = mapped_column(Text)
     metadata_: Mapped[str | None] = mapped_column("metadata", Text)
 
+    # ── MFA / TOTP ──
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, server_default=sa.text("false"))
+    totp_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Which MFA delivery method is active: "totp" | "email" | "telegram" | None
+    # (None → falls back to "totp" for backward compatibility).
+    mfa_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)

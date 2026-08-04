@@ -1,0 +1,200 @@
+{
+  "meta": {
+    "total_features": 110,
+    "blocks": 8,
+    "version": "Enterprise-Final-1.0",
+    "description": "110 ویژگی استاندارد در 8 بلوک تخصصی برای تحلیل جامع نمادهای بورس تهران"
+  },
+  "blocks": [
+    {
+      "code": "A",
+      "name": "شناسه و کنترل کیفیت داده",
+      "name_en": "Identity & Data Quality",
+      "color": "#10b981",
+      "icon": "verified",
+      "feature_count": 10,
+      "features": [
+        { "id": 1, "key": "ticker", "name": "شناسه نماد", "description": "شناسه متنی نماد در بورس تهران", "source": "ورودی دستی / مرجع", "role": "کلید اصلی اتصال به منابع داده" },
+        { "id": 2, "key": "isin", "name": "کد ISIN", "description": "کد شناسایی بین‌المللی اوراق بهادار", "source": "تابلوی کل", "role": "تأیید هویت یکتای نماد" },
+        { "id": 3, "key": "market", "name": "نوع بازار", "description": "نوع بازار (بورس، فرابورس، پایه)", "source": "تابلوی کل", "role": "تعیین قواعد نقدشوندگی و دامنه نوسان" },
+        { "id": 4, "key": "industry_id", "name": "شناسه صنعت", "description": "شناسه عددی صنعت", "source": "تابلوی کل", "role": "مبنای محاسبه P/E نسبی و تحلیل همگروهی" },
+        { "id": 5, "key": "industry_name", "name": "نام صنعت", "description": "نام صنعت (مثلاً فلزات اساسی)", "source": "تابلوی کل", "role": "برای گزارش‌های انسانی و فیلترهای کیفی" },
+        { "id": 6, "key": "float_shares", "name": "سهام شناور آزاد", "description": "تعداد سهام شناور آزاد", "source": "تابلوی کل", "role": "ورودی کلیدی برای محاسبه نقدشوندگی (S_L)" },
+        { "id": 7, "key": "update_timestamp", "name": "زمان به‌روزرسانی", "description": "زمان آخرین به‌روزرسانی رکورد", "source": "سیستم", "role": "برای تشخیص stale data در زمان بک‌تست" },
+        { "id": 8, "key": "data_freshness_quote", "name": "تازگی داده تابلو", "description": "تأخیر داده تابلو به ثانیه", "source": "سیستم", "role": "اگر > 60 ثانیه، پرچم DEGRADED فعال می‌شود" },
+        { "id": 9, "key": "data_freshness_candle", "name": "تازگی داده کندل", "description": "تأخیر داده کندل به ثانیه", "source": "سیستم", "role": "معیار اعتبار تحلیل تکنیکال" },
+        { "id": 10, "key": "data_completeness", "name": "کامل بودن داده", "description": "درصد ستون‌های غیرتهی (0-100)", "source": "محاسبه", "role": "فیلتر حذفی: اگر < 90٪، سهم وارد صف نمی‌شود" }
+      ]
+    },
+    {
+      "code": "B",
+      "name": "داده‌های بنیادی",
+      "name_en": "Fundamental Data",
+      "color": "#3b82f6",
+      "icon": "account_balance",
+      "feature_count": 15,
+      "features": [
+        { "id": 11, "key": "eps_ttm", "name": "EPS جاری", "description": "سود هر سهم در 12 ماه اخیر (ریال)", "source": "صورت سود و زیان کدال", "role": "مبنای محاسبه P/E و بازده سود" },
+        { "id": 12, "key": "eps_last_year", "name": "EPS سال قبل", "description": "سود هر سهم در سال مالی قبل", "source": "کدال", "role": "برای محاسبه رشد سالانه" },
+        { "id": 13, "key": "base_fx_current", "name": "نرخ ارز مبنا (جاری)", "description": "نرخ ارز مبنا برای تعدیل جاری", "source": "ورودی ثابت (مثلاً 28500)", "role": "استانداردسازی سود شرکت‌های صادراتی" },
+        { "id": 14, "key": "base_fx_prior", "name": "نرخ ارز مبنا (قبل)", "description": "نرخ ارز مبنا برای سال قبل", "source": "ورودی ثابت", "role": "جلوگیری از خطای تک‌نرخی در رشد دلاری" },
+        { "id": 15, "key": "eps_dollar_ttm", "name": "EPS دلاری جاری", "description": "سود دلاری جاری = EPS_TTM / BaseFX_Current", "source": "محاسبه (11/13)", "role": "امکان مقایسه سودآوری با شرکت‌های همگروه" },
+        { "id": 16, "key": "eps_dollar_last_year", "name": "EPS دلاری سال قبل", "description": "سود دلاری سال قبل = EPS_LastYear / BaseFX_Prior", "source": "محاسبه (12/14)", "role": "مبنای محاسبه رشد واقعی" },
+        { "id": 17, "key": "eps_dollar_growth", "name": "رشد دلاری سود", "description": "رشد سود به دلار = (EPS_Dollar_TTM / EPS_Dollar_LastYear) - 1", "source": "محاسبه", "role": "حذف اثر تورم ارزی بر سود" },
+        { "id": 18, "key": "inflation_rate", "name": "نرخ تورم", "description": "نرخ تورم نقطه‌به‌نقطه", "source": "بانک مرکزی", "role": "تعدیل رشد اسمی به رشد واقعی" },
+        { "id": 19, "key": "eps_nominal_growth", "name": "رشد اسمی EPS", "description": "رشد اسمی EPS ریالی = (EPS_TTM / EPS_LastYear) - 1", "source": "محاسبه", "role": "برای محاسبه رشد واقعی" },
+        { "id": 20, "key": "eps_real_growth", "name": "رشد واقعی سود", "description": "رشد واقعی سود = (1+NominalGrowth)/(1+Inflation) - 1", "source": "محاسبه", "role": "کلیدی‌ترین شاخص بنیادی؛ نشان‌دهنده قدرت واقعی شرکت" },
+        { "id": 21, "key": "net_profit", "name": "سود خالص", "description": "سود خالص عملیاتی (میلیارد ریال)", "source": "کدال", "role": "سنجش اندازه شرکت و قدرت نقدینگی" },
+        { "id": 22, "key": "accumulated_loss", "name": "زیان انباشته", "description": "زیان انباشته (میلیارد ریال)", "source": "ترازنامه", "role": "هشدار ورشکستگی (ماده 141)" },
+        { "id": 23, "key": "registered_capital", "name": "سرمایه ثبت‌شده", "description": "سرمایه ثبت‌شده (میلیارد ریال)", "source": "ترازنامه", "role": "محاسبه نسبت زیان به سرمایه" },
+        { "id": 24, "key": "loss_to_capital_ratio", "name": "نسبت زیان به سرمایه", "description": "نسبت زیان به سرمایه = AccumulatedLoss / RegisteredCapital", "source": "محاسبه", "role": "اگر > 1، ریسک ورشکستگی جدی است" },
+        { "id": 25, "key": "gross_margin", "name": "حاشیه سود ناخالص", "description": "حاشیه سود ناخالص (%)", "source": "کدال", "role": "نشان‌دهنده قدرت رقابت و کنترل هزینه" }
+      ]
+    },
+    {
+      "code": "C",
+      "name": "ارزش‌گذاری و متغیرهای کلان",
+      "name_en": "Valuation & Macro",
+      "color": "#f59e0b",
+      "icon": "trending_up",
+      "feature_count": 10,
+      "features": [
+        { "id": 26, "key": "last_price", "name": "آخرین قیمت", "description": "آخرین قیمت معامله‌شده (تومان)", "source": "تابلوی کل", "role": "پایه تمام محاسبات قیمتی" },
+        { "id": 27, "key": "pe_ratio", "name": "نسبت P/E", "description": "نسبت قیمت به سود = Price / (EPS_TTM × 4)", "source": "محاسبه", "role": "معیار سنتی ارزندگی" },
+        { "id": 28, "key": "industry_pe", "name": "P/E صنعت", "description": "میانگین P/E صنعت", "source": "تابلوی کل", "role": "مبنای مقایسه نسبی" },
+        { "id": 29, "key": "pe_relative", "name": "P/E نسبی", "description": "نسبت P/E سهم به صنعت = PE / IndustryPE", "source": "محاسبه", "role": "ارزندگی واقعی: < 1.2 یعنی سهم ارزان است" },
+        { "id": 30, "key": "earnings_yield", "name": "بازده سود", "description": "بازده سود (%) = (EPS_TTM × 4 / Price) × 100", "source": "محاسبه", "role": "مقایسه با نرخ بدون ریسک" },
+        { "id": 31, "key": "bank_interest_rate", "name": "نرخ سود بانکی", "description": "نرخ سود سپرده بانکی", "source": "کلان", "role": "تعیین هزینه فرصت سرمایه‌گذاری" },
+        { "id": 32, "key": "bond_yield", "name": "بازده اوراق", "description": "بازده اوراق بدهی دولتی", "source": "کلان", "role": "نشان‌دهنده نقدینگی بازار" },
+        { "id": 33, "key": "usd_nima", "name": "دلار نیما", "description": "نرخ دلار نیما", "source": "طلا/ارز", "role": "قیمت پایه برای شرکت‌های صادراتی" },
+        { "id": 34, "key": "usd_free", "name": "دلار آزاد", "description": "نرخ دلار آزاد", "source": "طلا/ارز", "role": "نشان‌دهنده انتظارات تورمی" },
+        { "id": 35, "key": "usd_spread", "name": "شکاف دلار", "description": "شکاف دلار آزاد و نیما = USD_Free / USD_Nima", "source": "محاسبه", "role": "اگر > 1.2 باشد، ریسک ارزی بالا می‌رود" }
+      ]
+    },
+    {
+      "code": "D",
+      "name": "معاملات روزانه و تکنیکال",
+      "name_en": "Daily Trading & Technical",
+      "color": "#06b6d4",
+      "icon": "show_chart",
+      "feature_count": 15,
+      "features": [
+        { "id": 36, "key": "volume", "name": "حجم معاملات", "description": "حجم معاملات روز", "source": "تابلوی کل", "role": "تأیید اعتبار حرکت قیمت" },
+        { "id": 37, "key": "avg_volume_50", "name": "میانگین حجم 50 روزه", "description": "میانگین حجم 50 روزه", "source": "کندل", "role": "مبنای تشخیص جهش حجمی" },
+        { "id": 38, "key": "volume_spike", "name": "جهش حجمی", "description": "جهش حجمی = Volume / AvgVolume_50", "source": "محاسبه", "role": "اگر > 3، نشانه ورود پول هوشمند است" },
+        { "id": 39, "key": "trade_value", "name": "ارزش معاملات", "description": "ارزش معاملات (تومان)", "source": "تابلوی کل", "role": "معیار اصلی نقدشوندگی" },
+        { "id": 40, "key": "float_turnover_pct", "name": "گردش شناور", "description": "درصد گردش شناور = 100 × TradeValue / (FloatShares × LastPrice)", "source": "محاسبه", "role": "نقدشوندگی واقعی بر اساس شناوری" },
+        { "id": 41, "key": "price_change_pct", "name": "تغییر قیمت روز", "description": "تغییر قیمت روز (%)", "source": "تابلوی کل", "role": "شناسایی حرکت‌های شدید" },
+        { "id": 42, "key": "sma_20", "name": "میانگین متحرک 20 روزه", "description": "میانگین متحرک 20 روزه", "source": "کندل", "role": "تشخیص روند کوتاه‌مدت" },
+        { "id": 43, "key": "rsi_14", "name": "RSI 14", "description": "شاخص قدرت نسبی 14 روزه", "source": "کندل", "role": "شناسایی اشباع خرید/فروش" },
+        { "id": 44, "key": "macd_signal", "name": "سیگنال MACD", "description": "سیگنال MACD (1 = صعودی، -1 = نزولی)", "source": "کندل", "role": "تشخیص تغییر روند" },
+        { "id": 45, "key": "atr_14", "name": "ATR 14", "description": "میانگین محدوده واقعی 14 روزه", "source": "کندل", "role": "اندازه‌گیری نوسان برای حد ضرر پویا" },
+        { "id": 46, "key": "farabourse_price", "name": "قیمت فرابورس", "description": "قیمت در بازار فرابورس", "source": "فرابورس", "role": "تشخیص اختلاف قیمت و حمایت پنهان" },
+        { "id": 47, "key": "farabourse_volume_ratio", "name": "نسبت حجم فرابورس", "description": "نسبت حجم فرابورس به کل", "source": "محاسبه", "role": "اگر > 20٪، نشانه معاملات توافقی است" },
+        { "id": 48, "key": "breakout_flag", "name": "شکست مقاومت", "description": "شکست مقاومت (1 = بله، 0 = خیر)", "source": "محاسبه", "role": "تشکیل سیگنال خرید تکنیکال" },
+        { "id": 49, "key": "early_volume_ratio", "name": "نسبت حجم早期", "description": "نسبت حجم 15 دقیقه اول به کل روز", "source": "ریزمعاملات", "role": "اگر < 20٪ باشد، جمع‌آوری تدریجی است" },
+        { "id": 50, "key": "trend_20d", "name": "روند 20 روزه", "description": "روند قیمت 20 روزه (صعودی / نزولی / خنثی)", "source": "محاسبه", "role": "تشخیص جهت کلی بازار" }
+      ]
+    },
+    {
+      "code": "E",
+      "name": "جریان پول و رفتار حقیقی/حقوقی",
+      "name_en": "Money Flow & Real/Legal Behavior",
+      "color": "#a855f7",
+      "icon": "account_balance_wallet",
+      "feature_count": 10,
+      "features": [
+        { "id": 51, "key": "inst_buy_volume", "name": "حجم خرید حقوقی", "description": "حجم خرید حقوقی", "source": "تابلوی کل", "role": "نشانه ورود نهادهای بزرگ" },
+        { "id": 52, "key": "inst_sell_volume", "name": "حجم فروش حقوقی", "description": "حجم فروش حقوقی", "source": "تابلوی کل", "role": "نشانه خروج نهادهای بزرگ" },
+        { "id": 53, "key": "net_inst_volume", "name": "خالص خرید حقوقی", "description": "خالص خرید حقوقی = InstBuy - InstSell", "source": "محاسبه", "role": "اگر مثبت باشد، پول هوشمند وارد شده است" },
+        { "id": 54, "key": "net_inst_ratio", "name": "نسبت خالص حقوقی", "description": "نسبت خالص حقوقی به شناور = NetInst / FloatShares", "source": "محاسبه", "role": "اگر > 5٪، جمع‌آوری سنگین است" },
+        { "id": 55, "key": "inst_buy_count", "name": "تعداد حقوقی خریدار", "description": "تعداد کدهای حقوقی خریدار", "source": "تابلوی کل", "role": "تعداد بازیگران مؤثر" },
+        { "id": 56, "key": "inst_sell_count", "name": "تعداد حقوقی فروشنده", "description": "تعداد کدهای حقوقی فروشنده", "source": "تابلوی کل", "role": "شناسایی تخلیه هماهنگ" },
+        { "id": 57, "key": "retail_buy_volume", "name": "حجم خرید حقیقی", "description": "حجم خرید حقیقی", "source": "تابلوی کل", "role": "قدرت خریداران خرد" },
+        { "id": 58, "key": "retail_sell_volume", "name": "حجم فروش حقیقی", "description": "حجم فروش حقیقی", "source": "تابلوی کل", "role": "فشار فروش خرد" },
+        { "id": 59, "key": "retail_count_change", "name": "تغییر تعداد حقیقی", "description": "تغییر ماهانه تعداد حقیقی‌ها", "source": "گزارشات", "role": "کاهش تعداد حقیقی‌ها = جمع‌آوری" },
+        { "id": 60, "key": "retail_to_inst_ratio", "name": "نسبت حقیقی به حقوقی", "description": "نسبت خرید حقیقی به حقوقی = RetailBuy / InstBuy", "source": "محاسبه", "role": "اگر > 1.5، احتمال کد به کد وجود دارد" }
+      ]
+    },
+    {
+      "code": "F",
+      "name": "ریزمعاملات و میکروساختار",
+      "name_en": "Microstructure Analysis",
+      "color": "#ef4444",
+      "icon": "speed",
+      "feature_count": 10,
+      "features": [
+        { "id": 61, "key": "trade_count", "name": "تعداد معاملات", "description": "تعداد کل معاملات روز", "source": "ریزمعاملات", "role": "نقدشوندگی در سطح تیک" },
+        { "id": 62, "key": "avg_trade_size", "name": "میانگین حجم هر معامله", "description": "میانگین حجم هر معامله = Volume / TradeCount", "source": "محاسبه", "role": "اگر بالا باشد، معاملات بلوکی است" },
+        { "id": 63, "key": "max_block_volume", "name": "بزرگترین بلوک", "description": "بزرگترین حجم بلوک", "source": "ریزمعاملات", "role": "شناسایی سفارشات سنگین" },
+        { "id": 64, "key": "block_trade_detected", "name": "معاملات بلوکی", "description": "وجود معاملات بلوکی (1 اگر MaxBlock > 95٪ توزیع)", "source": "محاسبه", "role": "تأیید ورود پول نهادی" },
+        { "id": 65, "key": "vwap", "name": "VWAP", "description": "میانگین وزنی قیمت = Σ(قیمت × حجم) / Σ حجم", "source": "محاسبه", "role": "نقطه تعادل واقعی قیمت" },
+        { "id": 66, "key": "last_vs_vwap", "name": "فاصله از VWAP", "description": "فاصله قیمت آخر از VWAP = LastPrice - VWAP", "source": "محاسبه", "role": "اگر مثبت باشد، فشار خرید بالاست" },
+        { "id": 67, "key": "code2code_buy", "name": "کد به کد خرید", "description": "امتیاز کد به کد خرید (0-100)", "source": "الگوریتم", "role": "تشخیص خرید پنهان حقوقی با کد حقیقی" },
+        { "id": 68, "key": "code2code_sell", "name": "کد به کد فروش", "description": "امتیاز کد به کد فروش (0-100)", "source": "الگوریتم", "role": "تشخیص فروش پنهان" },
+        { "id": 69, "key": "trade_distribution", "name": "توزیع معاملات", "description": "توزیع معاملات (institutional / retail / mixed)", "source": "تحلیل", "role": "تشخیص نوع سرمایه‌گذار غالب" },
+        { "id": 70, "key": "microstructure_score", "name": "امتیاز میکروساختار", "description": "امتیاز نهایی ریزمعاملات (ترکیبی از 49, 61-69)", "source": "ترکیبی", "role": "اصلاح‌کننده نهایی BaseScore" }
+      ]
+    },
+    {
+      "code": "G",
+      "name": "رویدادها و ریسک‌های کیفی",
+      "name_en": "Events & Qualitative Risk",
+      "color": "#f97316",
+      "icon": "warning",
+      "feature_count": 20,
+      "features": [
+        { "id": 71, "key": "ceo_change_success", "name": "تغییر مدیرعامل (مثبت)", "description": "تغییر مدیرعامل مثبت", "source": "کدال/اخبار", "role": "امتیاز مثبت رویدادی" },
+        { "id": 72, "key": "ceo_change_fail", "name": "تغییر مدیرعامل (منفی)", "description": "تغییر مدیرعامل منفی", "source": "کدال/اخبار", "role": "ریسک منفی رویدادی" },
+        { "id": 73, "key": "agm_proximity", "name": "نزدیکی مجمع", "description": "نزدیکی مجمع سالیانه (< 45 روز)", "source": "کدال", "role": "ریسک توقف نماد" },
+        { "id": 74, "key": "agm_risk", "name": "ریسک مجمع", "description": "ریسک ریزش بعد از مجمع", "source": "تحلیل", "role": "جریمه ریسک رویدادی" },
+        { "id": 75, "key": "capital_inc_cash", "name": "افزایش سرمایه نقدی", "description": "افزایش سرمایه از محل آورده نقدی", "source": "کدال", "role": "امتیاز مثبت بنیادی" },
+        { "id": 76, "key": "capital_inc_reval", "name": "تجدید ارزیابی", "description": "افزایش سرمایه از محل تجدید ارزیابی دارایی‌ها", "source": "کدال", "role": "امتیاز مثبت بنیادی" },
+        { "id": 77, "key": "price_liberation", "name": "آزادسازی قیمت", "description": "خبر آزادسازی قیمت محصول", "source": "اخبار", "role": "امتیاز مثبت رویدادی" },
+        { "id": 78, "key": "gov_support", "name": "حمایت دولتی", "description": "حمایت دولتی اعلام‌شده", "source": "اخبار", "role": "امتیاز مثبت رویدادی" },
+        { "id": 79, "key": "heavy_legal_case", "name": "پرونده حقوقی", "description": "پرونده حقوقی سنگین (> 10٪ سود)", "source": "کدال/اخبار", "role": "جریمه ریسک رویدادی" },
+        { "id": 80, "key": "telegram_hype", "name": "هیجان تلگرامی", "description": "هیجان در بیش از 3 کانال تلگرامی", "source": "پایش", "role": "جریمه ریسک دستکاری بازار" },
+        { "id": 81, "key": "end_of_month", "name": "پایان ماه", "description": "روز پایانی ماه (فشار تسویه)", "source": "تقویم", "role": "جریمه ریسک موقت" },
+        { "id": 82, "key": "pre_holiday", "name": "پیش از تعطیلات", "description": "روز قبل از تعطیلات طولانی", "source": "تقویم", "role": "جریمه ریسک نقدشوندگی" },
+        { "id": 83, "key": "political_tension", "name": "تنش سیاسی", "description": "تنش سیاسی در 3 ماه آینده", "source": "تحلیل", "role": "جریمه ریسک کلان" },
+        { "id": 84, "key": "political_relief", "name": "گشایش سیاسی", "description": "گشایش سیاسی در 3 ماه آینده", "source": "تحلیل", "role": "امتیاز مثبت کلان" },
+        { "id": 85, "key": "feedstock_meeting", "name": "جلسه خوراک", "description": "جلسه تعیین نرخ خوراک در پیش", "source": "اخبار", "role": "جریمه ریسک صنعت" },
+        { "id": 86, "key": "big_ipo", "name": "عرضه اولیه بزرگ", "description": "عرضه اولیه بزرگ در 30 روز آینده", "source": "تقویم", "role": "جریمه ریسک نقدینگی بازار" },
+        { "id": 87, "key": "sector_outflow", "name": "خروج از صنعت", "description": "خروج نقدینگی از صنعت", "source": "تحلیل", "role": "جریمه ریسک صنعت" },
+        { "id": 88, "key": "sector_inflow", "name": "ورود به صنعت", "description": "ورود نقدینگی به صنعت", "source": "تحلیل", "role": "امتیاز مثبت صنعت" },
+        { "id": 89, "key": "market_index_3m", "name": "رشد شاخص 3 ماهه", "description": "رشد شاخص > 20٪ در 3 ماه", "source": "تحلیل", "role": "جریمه ریسک اشباع بازار" },
+        { "id": 90, "key": "market_regime", "name": "رژیم بازار", "description": "رژیم بازار (80 = صعودی, 50 = خنثی, 20 = نزولی)", "source": "تحلیل", "role": "تعیین جو عمومی بازار" }
+      ]
+    },
+    {
+      "code": "H",
+      "name": "امتیازها، جریمه و تصمیم نهایی",
+      "name_en": "Scores, Penalty & Final Decision",
+      "color": "#6366f1",
+      "icon": "fact_check",
+      "feature_count": 20,
+      "features": [
+        { "id": 91, "key": "score_fundamental", "name": "امتیاز بنیادی", "description": "امتیاز بنیادی (S_F)", "source": "ترکیب 11, 20, 21, 24, 25", "role": "زیرامتیاز سلامت مالی" },
+        { "id": 92, "key": "score_valuation", "name": "امتیاز ارزش‌گذاری", "description": "امتیاز ارزش‌گذاری (S_V)", "source": "ترکیب 29, 30", "role": "زیرامتیاز ارزندگی" },
+        { "id": 93, "key": "score_technical", "name": "امتیاز تکنیکال", "description": "امتیاز تکنیکال (S_T)", "source": "ترکیب 38, 43, 44, 48, 50", "role": "زیرامتیاز حرکت قیمت" },
+        { "id": 94, "key": "score_liquidity", "name": "امتیاز نقدشوندگی", "description": "امتیاز نقدشوندگی (S_L)", "source": "ترکیب 6, 40, 36, 37", "role": "زیرامتیاز قابلیت نقدشوندگی" },
+        { "id": 95, "key": "score_orderflow", "name": "امتیاز جریان پول", "description": "امتیاز جریان پول (S_O)", "source": "ترکیب 54, 57, 58, 60", "role": "زیرامتیاز رفتار بازیگران" },
+        { "id": 96, "key": "score_micro", "name": "امتیاز میکروساختار", "description": "امتیاز میکروساختار (S_M)", "source": "ترکیب 49, 64, 65, 66, 67, 68, 70", "role": "زیرامتیاز ریزساختار" },
+        { "id": 97, "key": "score_macro", "name": "امتیاز کلان", "description": "امتیاز کلان (S_K)", "source": "ترکیب 18, 35, 90", "role": "زیرامتیاز بستر اقتصاد کلان" },
+        { "id": 98, "key": "score_event", "name": "امتیاز رویدادی", "description": "امتیاز رویدادی (S_E)", "source": "ترکیب 71, 73, 75, 76, 77, 78, 84, 88", "role": "زیرامتیاز رویدادهای خاص" },
+        { "id": 99, "key": "raw_score", "name": "مجموع وزنی", "description": "مجموع وزنی 8 سوبرسکور = Σ(وزن × S_i)", "source": "محاسبه", "role": "امتیاز خام اولیه" },
+        { "id": 100, "key": "penalty", "name": "ضریب جریمه", "description": "ضریب جریمه ریسک = 1 - clip(0.04×NegEvents + 0.10×Vol + 0.10×GapRisk, 0, 0.35)", "source": "محاسبه", "role": "کاهنده امتیاز نهایی" },
+        { "id": 101, "key": "final_score", "name": "امتیاز نهایی", "description": "نمره نهایی = RawScore × 100", "source": "محاسبه", "role": "معیار نهایی رتبه‌بندی" },
+        { "id": 102, "key": "neg_events_count", "name": "تعداد رویدادهای منفی", "description": "تعداد رویدادهای منفی فعال", "source": "شمارش 72, 74, 79, 80, 81, 82, 83, 85, 86, 87, 89", "role": "ورودی قانون کنترل ریسک" },
+        { "id": 103, "key": "rule_50_30", "name": "قانون 50-30", "description": "قانون کنترل ریسک: اگر NegEvents >= 3 → REJECT", "source": "Rulebook", "role": "Hard Stop Rule" },
+        { "id": 104, "key": "stop_loss_7", "name": "حد ضرر 7٪", "description": "حد ضرر 7٪ = LastPrice × 0.93", "source": "محاسبه", "role": "حد ضرر ثابت" },
+        { "id": 105, "key": "stop_loss_atr", "name": "حد ضرر ATR", "description": "حد ضرر پویا = LastPrice - 2×ATR", "source": "محاسبه", "role": "حد ضرر مبتنی بر نوسان" },
+        { "id": 106, "key": "stop_loss", "name": "حد ضرر نهایی", "description": "حد ضرر نهایی = MAX(StopLoss_7, StopLoss_ATR)", "source": "محاسبه", "role": "محافظ ریسک نزول" },
+        { "id": 107, "key": "target_profit", "name": "هدف سود", "description": "هدف سود 20٪ = LastPrice × 1.20", "source": "محاسبه", "role": "نقطه خروج سود" },
+        { "id": 108, "key": "position_size", "name": "حجم معامله", "description": "حجم معامله = (0.01 × سرمایه کل) / (LastPrice - StopLoss)", "source": "محاسبه", "role": "مدیریت ریسک موقعیت" },
+        { "id": 109, "key": "final_decision", "name": "تصمیم نهایی", "description": "تصمیم نهایی (BUY / WATCHLIST / HOLD / REDUCE / REJECT / NEUTRAL)", "source": "Rulebook + Scores", "role": "خروجی اصلی سامانه" },
+        { "id": 110, "key": "verdict_summary", "name": "خلاصه تصمیم", "description": "خلاصه دلیل تصمیم = ترکیب reason_codes و توضیحات", "source": "متن‌سازی", "role": "گزارش نهایی انسانی" }
+      ]
+    }
+  ]
+}

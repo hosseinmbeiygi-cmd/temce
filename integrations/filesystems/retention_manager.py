@@ -9,6 +9,13 @@ logger = get_logger(__name__)
 
 
 class RetentionManager:
+    """
+    Deletes storage objects older than a per-pattern retention period.
+
+    Works with any storage exposing ``iter_files`` + ``stat`` (returns a
+    Result containing ``{"modified": mtime, "size": bytes}``) + ``delete``.
+    """
+
     def __init__(self, storage: Any):
         self._storage = storage
         self._rules: dict[str, int] = {}
@@ -34,7 +41,14 @@ class RetentionManager:
         async for filepath in self._storage.iter_files(pattern=pattern):
             try:
                 stat = await self._storage.stat(filepath)
-                if stat.modified < cutoff_ts:
+                if not stat.success:
+                    logger.debug("Cannot stat %s: %s", filepath, stat.error)
+                    continue
+                modified = (stat.value or {}).get("modified")
+                if modified is None:
+                    logger.debug("No mtime for %s — skipping", filepath)
+                    continue
+                if modified < cutoff_ts:
                     result = await self._storage.delete(filepath)
                     if result.success:
                         deleted += 1

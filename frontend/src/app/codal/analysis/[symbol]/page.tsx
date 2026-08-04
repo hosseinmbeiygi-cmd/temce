@@ -12,6 +12,7 @@ import { RealLegalCard } from "@/components/RealLegalCard";
 import { AuditBadge } from "@/components/AuditBadge";
 import { apiGet } from "@/lib/api";
 import { formatDateShamsi } from "@/lib/dates";
+import { seededRandom } from "@/lib/seeded-random";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -168,10 +169,11 @@ export default function CodalAnalysisPage() {
   const sparkData = useMemo(() => {
     if (!analysis?.price?.last) return [];
     const base = analysis.price.last;
+    const rnd = seededRandom(0x9e3779b9); // deterministic seed — stable fallback sparkline
     const data: number[] = [];
     let v = base * 0.85;
     for (let i = 0; i < 40; i++) {
-      v += (Math.random() - 0.48) * 0.03 * v;
+      v += (rnd() - 0.48) * 0.03 * v;
       data.push(v);
     }
     return data;
@@ -260,7 +262,7 @@ export default function CodalAnalysisPage() {
           </div>
         ) : (
           <div className="glass-card p-5 text-center text-accent-rose">
-            داده‌ای برای نماد "{decodedSymbol}" یافت نشد
+            داده‌ای برای نماد «{decodedSymbol}» یافت نشد
           </div>
         )}
 

@@ -10,6 +10,14 @@ import { apiGet, apiPost } from "@/lib/api";
 
 import MLBacktestTab from "@/components/charts/MLBacktestTab";
 
+interface PredictionResult {
+  prediction?: number;
+  confidence?: number;
+  direction?: string;
+  model_type?: string;
+  feature_importance?: Record<string, number>;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ══════════════════════════════════════════════════════════════════════════════
@@ -382,7 +390,10 @@ function DataMiningTab() {
   });
 
   // Auto-load preview for default symbol on mount
-  React.useEffect(() => { loadPreview(previewSymbol); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    const frame = window.requestAnimationFrame(() => loadPreview(previewSymbol));
+    return () => window.cancelAnimationFrame(frame);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-5">
@@ -532,8 +543,9 @@ function TrainingTab() {
   const trainSingle = useMutation({
     mutationFn: (data: Record<string, unknown>) => apiPost("/ml/train", data),
     retry: false,
-    onSuccess: (res: any) => {
-      toast.success(res?.data?.message || "✅ آموزش موفق");
+    onSuccess: (res: unknown) => {
+      const msg = (res as { data?: { message?: string } } | undefined)?.data?.message;
+      toast.success(msg || "✅ آموزش موفق");
       queryClient.invalidateQueries({ queryKey: ["ml-runs"] });
       queryClient.invalidateQueries({ queryKey: ["ml-runs-limited"] });
     },
@@ -1024,7 +1036,7 @@ function ComparisonTab() {
 function PredictionsTab() {
   const [selectedModel, setSelectedModel] = useState("xgboost");
   const [predictSymbol, setPredictSymbol] = useState("فولاد");
-  const [predictionResult, setPredictionResult] = useState<any>(null);
+  const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null);
   const [predicting, setPredicting] = useState(false);
 
   const { data: allSymbols = [] } = useAllSymbols();
@@ -1049,12 +1061,12 @@ function PredictionsTab() {
     [modelsData]
   );
 
-  // Sync selectedModel with available models
-  React.useEffect(() => {
-    if (derivedModels.length > 0 && !derivedModels.includes(selectedModel)) {
-      setSelectedModel(derivedModels[0]);
-    }
-  }, [derivedModels, selectedModel]);
+  // Sync selectedModel with available models (adjust state during render)
+  const [prevModels, setPrevModels] = React.useState(derivedModels);
+  if (derivedModels.length > 0 && !derivedModels.includes(selectedModel) && derivedModels !== prevModels) {
+    setPrevModels(derivedModels);
+    setSelectedModel(derivedModels[0]);
+  }
 
   // Fetch predictions list
   const { data: predictions = [], isLoading: predLoading } = useQuery({
@@ -1074,13 +1086,13 @@ function PredictionsTab() {
   const handlePredict = async () => {
     setPredicting(true);
     try {
-      const res = await apiPost<{ success: boolean; data: any }>("/ml/predict-real", {
+      const res = await apiPost<{ success: boolean; data: PredictionResult }>("/ml/predict-real", {
         model_id: selectedModel,
         symbol: predictSymbol,
       });
       setPredictionResult(res?.data ?? null);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "خطا در پیش‌بینی");
       setPredictionResult(null);
     }
     setPredicting(false);
@@ -1166,9 +1178,9 @@ function PredictionsTab() {
               <p className="text-xs text-surface-400 font-bold mb-2">🔥 اهمیت ویژگی‌ها</p>
               <div className="space-y-1">
                 {Object.entries(predictionResult.feature_importance)
-                  .sort(([, a]: any, [, b]: any) => b - a)
+                  .sort(([, a], [, b]) => b - a)
                   .slice(0, 10)
-                  .map(([feat, val]: [string, any]) => (
+                  .map(([feat, val]) => (
                     <div key={feat} className="flex items-center gap-2">
                       <span className="text-[9px] text-surface-400 w-32 truncate text-right font-mono">{feat}</span>
                       <div className="flex-1 h-2 bg-surface-800 rounded-full overflow-hidden" dir="ltr">

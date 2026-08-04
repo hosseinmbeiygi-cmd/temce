@@ -1,0 +1,244 @@
+{
+  "system": {
+    "name": "سامانه تصمیم‌یار بورس تهران",
+    "name_en": "Tehran Stock Exchange Decision Support System",
+    "version": "Enterprise-Final-1.0",
+    "type": "Multi-Layer Decision Support System",
+    "description": "سامانه تحلیلی چندلایه، مقیاس‌پذیر، توضیح‌پذیر و بازتولیدپذیر برای تحلیل جامع نمادهای بازار و ارائه خروجی‌های تصمیم‌پذیر برای خرید، واچ‌لیست، نگهداری، کاهش یا رد",
+    "principles": [
+      { "code": "SCL", "name": "مقیاس‌پذیری", "name_en": "Scalability", "description": "توان پردازش کل بازار و افزایش حجم داده بدون افت ساختاری" },
+      { "code": "EXP", "name": "توضیح‌پذیری", "name_en": "Explainability", "description": "قابلیت ارائه علت روشن برای هر تصمیم" },
+      { "code": "RPR", "name": "بازتولیدپذیری", "name_en": "Reproducibility", "description": "امکان بازسازی کامل هر تصمیم در آینده با همان داده و همان نسخه قواعد" },
+      { "code": "VRB", "name": "نسخه‌پذیری", "name_en": "Versionability", "description": "کنترل نسخه برای مدل، ویژگی‌ها، وزن‌ها و قواعد تصمیم" },
+      { "code": "AUD", "name": "ممیزی‌پذیری", "name_en": "Auditability", "description": "ثبت کلیه داده‌ها، محاسبات میانی و تصمیمات" },
+      { "code": "RES", "name": "تاب‌آوری عملیاتی", "name_en": "Operational Resilience", "description": "تحمل خطا، افت منبع داده و اشکال در پردازش" },
+      { "code": "SRD", "name": "تفکیک تحلیل از ریسک", "name_en": "Risk Separation", "description": "سنجش ریسک به‌عنوان یک مؤلفه مستقل از امتیاز مثبت" }
+    ],
+    "objectives": [
+      "غربالگری کل بازار با داده‌های سبک",
+      "تحلیل چندمرحله‌ای نمادها (سبک ← سنگین ← تصمیم)",
+      "ارائه تصمیم نهایی قابل توضیح و قابل دفاع",
+      "کنترل ریسک مستقل از امتیاز مثبت",
+      "پشتیبانی از بک‌تست، ممیزی و بازپخش کامل"
+    ],
+    "data_sources": [
+      { "code": "quotes", "name": "تابلو", "description": "قیمت، حجم، ارزش، سفارشات، رفتار حقیقی/حقوقی", "service": "collector-quotes-service" },
+      { "code": "candles", "name": "کندل", "description": "OHLCV تاریخی برای تحلیل تکنیکال", "service": "collector-candles-service" },
+      { "code": "microtrades", "name": "ریزمعاملات", "description": "تیک دیتا، VWAP، بلوک، کدبه‌کد، توزیع معاملات", "service": "collector-microtrades-service" },
+      { "code": "codal", "name": "کدال", "description": "EPS، سود، زیان انباشته، سرمایه، رویدادها", "service": "collector-codal-service" },
+      { "code": "macro", "name": "کلان", "description": "دلار، طلا، تورم، نرخ بهره و متغیرهای اقتصادی", "service": "collector-macro-service" }
+    ],
+    "decision_outputs": [
+      { "code": "BUY", "name": "خرید", "color": "#10b981", "description": "نماد تأییدشده برای خرید با اطمینان بالا" },
+      { "code": "WATCHLIST", "name": "واچ‌لیست", "color": "#06b6d4", "description": "نماد با پتانسیل خوب، نیازمند پایش" },
+      { "code": "HOLD", "name": "نگهداری", "color": "#f59e0b", "description": "نماد در سبد، بدون نیاز به اقدام فوری" },
+      { "code": "REDUCE", "name": "کاهش", "color": "#f97316", "description": "توصیه به کاهش بخشی از موقعیت" },
+      { "code": "REJECT", "name": "رد", "color": "#ef4444", "description": "نماد تأیید نشده به دلیل ریسک بالا یا عدم شرایط" },
+      { "code": "NEUTRAL", "name": "خنثی", "color": "#64748b", "description": "تصمیم مشخصی وجود ندارد، نیاز به بررسی بیشتر" }
+    ],
+    "non_functional_requirements": [
+      "High Availability — دسترس‌پذیری بالا",
+      "Horizontal Scalability — قابلیت مقیاس افقی",
+      "Full Auditability — ثبت کامل رخدادها",
+      "Reproducibility — پردازش پایدار و قابل تکرار",
+      "Data Quality Control — کنترل کیفیت داده در لایه ورودی",
+      "Operational Monitoring — پایش عملیاتی همه سرویس‌ها",
+      "Role-Based Access Control — کنترل دسترسی مبتنی بر نقش",
+      "Disaster Recovery Readiness — پشتیبانی از بازیابی در بحران"
+    ]
+  },
+  "layers": [
+    {
+      "order": 1,
+      "name": "Ingestion",
+      "title_fa": "دریافت داده",
+      "description": "دریافت از منابع تابلو، کندل، ریزمعاملات، کدال و کلان با ثبت زمان دریافت، Retry/Timeout، Fallback Source",
+      "color": "#6366f1",
+      "responsibilities": [
+        "دریافت از منابع مختلف (Quotes, Candles, Microtrades, Codal, Macro)",
+        "ثبت زمان دریافت و منبع هر داده",
+        "ذخیره خام در Data Lake",
+        "Retry و Timeout خودکار",
+        "Fallback Source در صورت قطع منبع اصلی"
+      ],
+      "services": ["collector-quotes-service", "collector-candles-service", "collector-microtrades-service", "collector-codal-service", "collector-macro-service"],
+      "api_endpoints": ["POST /internal/ingestion/quotes/run", "POST /internal/ingestion/candles/run", "POST /internal/ingestion/microtrades/run", "POST /internal/ingestion/codal/run", "POST /internal/ingestion/macro/run"]
+    },
+    {
+      "order": 2,
+      "name": "StandardizationAndQuality",
+      "title_fa": "استانداردسازی و کنترل کیفیت",
+      "description": "نرمال‌سازی نمادها، یکسان‌سازی تقویم، تشخیص داده ناقص، Outlier و سازگاری بین منابع، محاسبه امتیاز کیفیت داده",
+      "color": "#8b5cf6",
+      "responsibilities": [
+        "نرمال‌سازی نمادها (حذف فاصله، یکسان‌سازی حروف)",
+        "یکسان‌سازی تقویم و تبدیل زمان‌ها",
+        "تشخیص داده ناقص و Outlier",
+        "سازگاری بین منابع مختلف داده",
+        "محاسبه امتیاز کیفیت داده (completeness, freshness, accuracy, consistency, uniqueness)"
+      ],
+      "services": ["normalization-service", "data-quality-service"],
+      "api_endpoints": ["POST /internal/quality/validate"]
+    },
+    {
+      "order": 3,
+      "name": "Storage",
+      "title_fa": "ذخیره‌سازی خام و عملیاتی",
+      "description": "OLTP برای داده‌های جاری و تصمیم‌ها، Data Lake برای داده‌های خام، Feature Store برای ویژگی‌های نسخه‌دار، Audit Store برای بازتولید کامل تصمیم، Cold Storage برای داده‌های قدیمی",
+      "color": "#06b6d4",
+      "responsibilities": [
+        "نگهداری داده خام (Raw Data Lake)",
+        "ذخیره داده عملیاتی (OLTP)",
+        "Feature Store با نسخه‌بندی",
+        "آرشیو ممیزی (Audit Store)",
+        "نگهداری داده سرد (Cold Storage) برای ریزمعاملات قدیمی"
+      ],
+      "services": [],
+      "api_endpoints": []
+    },
+    {
+      "order": 4,
+      "name": "FeatureEngineering",
+      "title_fa": "مهندسی ویژگی",
+      "description": "تولید ۱۱۰ ویژگی استاندارد در ۸ بلوک با متادیتای کامل (نام، فرمول، واحد، بازه معتبر، منبع، نسخه، وابستگی‌ها)",
+      "color": "#3b82f6",
+      "responsibilities": [
+        "تولید ۱۱۰ ویژگی در ۸ بلوک تخصصی",
+        "نسخه‌گذاری هر ویژگی با متادیتا",
+        "ثبت وابستگی‌های بین ویژگی‌ها",
+        "کنترل دامنه معتبر و سیاست داده مفقود",
+        "اطمینان از Idempotent و Reproducible بودن ویژگی‌ها"
+      ],
+      "services": ["feature-engine-service"],
+      "api_endpoints": ["POST /internal/features/calculate"]
+    },
+    {
+      "order": 5,
+      "name": "BaseScoring",
+      "title_fa": "امتیازدهی پایه",
+      "description": "محاسبه ۸ سوبرسکور (S_F تا S_E) و BaseScore برای کل بازار، تعیین واجدین شرایط ورود به صف کاندیدا",
+      "color": "#10b981",
+      "responsibilities": [
+        "محاسبه ۸ زیرامتیاز (Fundamental, Valuation, Technical, Liquidity, OrderFlow, MicroStructure, Macro, Event)",
+        "محاسبه BaseScore وزنی برای کل بازار",
+        "تعیین واجدین شرایط ورود به صف کاندیدا",
+        "تولید دلایل واجد شرایط بودن یا نبودن"
+      ],
+      "services": ["base-scoring-service"],
+      "api_endpoints": ["POST /internal/scoring/base"]
+    },
+    {
+      "order": 6,
+      "name": "CandidateQueue",
+      "title_fa": "صف کاندیداها",
+      "description": "Priority Work Queue با وضعیت‌های مختلف، اولویت‌بندی بر اساس نقدشوندگی، تغییر امتیاز، نزدیکی به آستانه تصمیم و اهمیت صنعت",
+      "color": "#f59e0b",
+      "responsibilities": [
+        "مدیریت صف تحلیل سنگین با وضعیت‌های (new, validated, queued, processing_micro, micro_completed, risk_pending, finalized, rejected, failed, retry, dead_letter)",
+        "اولویت‌بندی بر اساس حجم نقدشوندگی، تغییر ناگهانی امتیاز، نزدیکی به آستانه تصمیم، اهمیت صنعت و سطح ریسک داده",
+        "Retry و Dead Letter Queue برای خطاهای پردازش"
+      ],
+      "services": ["candidate-queue-service"],
+      "api_endpoints": ["POST /internal/candidates/enqueue"]
+    },
+    {
+      "order": 7,
+      "name": "MicrotradeAnalysis",
+      "title_fa": "تحلیل ریزمعاملات",
+      "description": "موتور الگوی ریزساختار با تشخیص جذب فروش، فشار خرید غیرپایدار، تحلیل VWAP، تشخیص بلوک حمایتی/خروجی، شناسایی رفتار الگوریتمی",
+      "color": "#f97316",
+      "responsibilities": [
+        "تشخیص جذب فروش (Sell Absorption)",
+        "تحلیل پایداری VWAP",
+        "تشخیص بلوک حمایتی/خروجی",
+        "شناسایی رفتار الگوریتمی",
+        "تشخیص Spoofing احتمالی",
+        "سنجش کیفیت شکست مقاومت",
+        "تشخیص انباشت چندبازه‌ای",
+        "تولید S_M و MicroAdjustment"
+      ],
+      "services": ["microtrade-analysis-service"],
+      "api_endpoints": ["POST /internal/scoring/micro"]
+    },
+    {
+      "order": 8,
+      "name": "RiskEngine",
+      "title_fa": "موتور ریسک",
+      "description": "موتور ریسک مستقل با انواع: ریسک رویدادی، نقدشوندگی، نوسان، شکاف قیمتی، صنعت، کلان، کیفیت داده، دستکاری بازار، تمرکز پرتفویی",
+      "color": "#ef4444",
+      "responsibilities": [
+        "ارزیابی ریسک نوسان و شکاف قیمتی",
+        "ارزیابی ریسک رویدادی و کلان",
+        "ارزیابی ریسک نقدشوندگی و دستکاری بازار",
+        "اعمال جریمه (Penalty) و Hard Stop",
+        "تولید risk_level, penalty, risk_reasons"
+      ],
+      "services": ["risk-engine-service"],
+      "api_endpoints": ["POST /internal/risk/evaluate"]
+    },
+    {
+      "order": 9,
+      "name": "DecisionEngine",
+      "title_fa": "موتور تصمیم",
+      "description": "تصمیم مبتنی بر قانون + امتیاز + اطمینان با Rulebook Versioning، Scenario Mode، Human Override با ثبت ممیزی",
+      "color": "#6366f1",
+      "responsibilities": [
+        "ترکیب BaseScore + MicroAdjustment + Penalty",
+        "اعمال Rulebook با نسخه‌بندی",
+        "تولید FinalScore و FinalDecision",
+        "پشتیبانی از Human Override با ثبت ممیزی",
+        "خروجی: BUY, WATCHLIST, HOLD, REDUCE, REJECT, NEUTRAL"
+      ],
+      "services": ["decision-engine-service"],
+      "api_endpoints": ["POST /internal/decision/finalize"]
+    },
+    {
+      "order": 10,
+      "name": "ExplainabilityAndReporting",
+      "title_fa": "توضیح‌پذیری و گزارش",
+      "description": "دو سطح گزارش (Executive و Analyst) شامل خلاصه مدیریتی، امتیازها، دلایل، ریسک‌ها، کیفیت داده و تحلیل تغییرات",
+      "color": "#14b8a6",
+      "responsibilities": [
+        "تولید گزارش مدیریتی (Executive Report)",
+        "تولید گزارش تحلیلی (Analyst Report)",
+        "ارائه دلایل موافق و مخالف هر تصمیم",
+        "تحلیل تغییر نسبت به روز قبل",
+        "هشدارهای نظارتی و نمودارهای تفسیری"
+      ],
+      "services": ["report-builder-service"],
+      "api_endpoints": ["POST /internal/report/build"]
+    },
+    {
+      "order": 11,
+      "name": "AuditBacktestReplay",
+      "title_fa": "ممیزی، بک‌تست و بازپخش",
+      "description": "بازتولید کامل تصمیم هر روز، ثبت نسخه مدل، قانون، هش ویژگی‌ها، مقایسه نسخه‌ها و بک‌تست با walk-forward",
+      "color": "#a855f7",
+      "responsibilities": [
+        "بازتولید کامل تصمیم هر روز با داده‌های یکسان",
+        "ثبت model_version, rulebook_version, feature_hash",
+        "مقایسه نسخه‌های مختلف مدل",
+        "بک‌تست با walk-forward روی داده‌های تاریخی"
+      ],
+      "services": ["audit-replay-service", "backtest-engine-service"],
+      "api_endpoints": ["POST /internal/replay/run", "POST /internal/backtest/run"]
+    },
+    {
+      "order": 12,
+      "name": "OperationsGovernance",
+      "title_fa": "عملیات، پایش و راهبری",
+      "description": "Health Checks, Metrics, Tracing, Centralized Logging, Alerting, SLA/SLO, RBAC, Data Lineage, Approval Workflow, Incident Management",
+      "color": "#475569",
+      "responsibilities": [
+        "مانیتورینگ و Health Checks همه سرویس‌ها",
+        "Metrics و Tracing توزیع‌شده",
+        "Centralized Logging و Alerting",
+        "SLA/SLO و RBAC",
+        "Data Lineage و Approval Workflow",
+        "Incident Management"
+      ],
+      "services": ["api-gateway", "auth-service", "admin-panel", "dashboard-service", "scheduler-service", "alerting-service"],
+      "api_endpoints": ["GET /api/v1/jobs/status", "GET /api/v1/alerts"]
+    }
+  ]
+}

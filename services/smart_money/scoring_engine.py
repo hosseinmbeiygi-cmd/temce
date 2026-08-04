@@ -57,9 +57,15 @@ class ScoringEngine:
         return self._config
 
     def reload_config(self, path: str | None = None) -> None:
-        """Hot-reload configuration from YAML."""
+        """Hot-reload configuration from YAML.
+
+        Clears all caches to ensure new weights are applied.
+        """
         self._config = load_config(path)
         self._data_quality_gate = DataQualityGate(self._config.data_quality)
+        # Clear all caches so old weights are not used
+        from services.screener_service import ScreenerPipeline
+        ScreenerPipeline._score_cache.clear()
 
     def analyze(
         self,

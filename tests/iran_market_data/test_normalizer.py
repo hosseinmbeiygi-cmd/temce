@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from iran_market_data.app.utils.normalizer import normalize_persian_text, persian_digits_to_english
+from iran_market_data.app.utils.normalizer import (
+    normalize_persian_text,
+    persian_digits_to_english,
+)
 
 
 class TestNormalizePersianText:
@@ -93,4 +96,3 @@ class TestPersianDigitsToEnglish:
         """All 10 Arabic digits should be converted correctly."""
         result = persian_digits_to_english("٠١٢٣٤٥٦٧٨٩")
         assert result == "0123456789"
-

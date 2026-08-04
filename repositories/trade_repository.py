@@ -124,11 +124,19 @@ class _TradeDbRepo(DbRepository[Trade, TradeModel]):
     model_class = TradeModel
 
     async def get_by_instrument(self, instrument_id: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Trade]]:
-        base = select(TradeModel).where(TradeModel.instrument_id == instrument_id)
-        total_result = await self.session.execute(base)
-        total = len(total_result.scalars().all())
+        from sqlalchemy import func as sa_func
 
-        stmt = base.order_by(desc(TradeModel.date)).offset((page - 1) * page_size).limit(page_size)
+        count_stmt = select(sa_func.count()).select_from(TradeModel).where(TradeModel.instrument_id == instrument_id)
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        stmt = (
+            select(TradeModel)
+            .where(TradeModel.instrument_id == instrument_id)
+            .order_by(desc(TradeModel.date))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(
@@ -142,11 +150,21 @@ class _TradeDbRepo(DbRepository[Trade, TradeModel]):
         )
 
     async def get_by_date_range(self, start_date: str, end_date: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Trade]]:
-        base = select(TradeModel).where(TradeModel.date >= start_date, TradeModel.date <= end_date)
-        total_result = await self.session.execute(base)
-        total = len(total_result.scalars().all())
+        from sqlalchemy import func as sa_func
 
-        stmt = base.order_by(desc(TradeModel.date)).offset((page - 1) * page_size).limit(page_size)
+        count_stmt = (
+            select(sa_func.count()).select_from(TradeModel).where(TradeModel.date >= start_date, TradeModel.date <= end_date)
+        )
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        stmt = (
+            select(TradeModel)
+            .where(TradeModel.date >= start_date, TradeModel.date <= end_date)
+            .order_by(desc(TradeModel.date))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(
@@ -160,11 +178,19 @@ class _TradeDbRepo(DbRepository[Trade, TradeModel]):
         )
 
     async def get_by_symbol(self, symbol: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Trade]]:
-        base = select(TradeModel).where(TradeModel.symbol == symbol)
-        total_result = await self.session.execute(base)
-        total = len(total_result.scalars().all())
+        from sqlalchemy import func as sa_func
 
-        stmt = base.order_by(desc(TradeModel.date)).offset((page - 1) * page_size).limit(page_size)
+        count_stmt = select(sa_func.count()).select_from(TradeModel).where(TradeModel.symbol == symbol)
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        stmt = (
+            select(TradeModel)
+            .where(TradeModel.symbol == symbol)
+            .order_by(desc(TradeModel.date))
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(

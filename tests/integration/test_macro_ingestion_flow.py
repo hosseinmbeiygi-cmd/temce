@@ -18,4 +18,3 @@ async def test_macro_list():
     service = MacroService()
     result = await service.list_indicators()
     assert result.success
-

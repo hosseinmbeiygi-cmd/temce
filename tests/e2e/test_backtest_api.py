@@ -4,7 +4,10 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from apps.api.app import app
-from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
+from backtesting.strategies.registry import (
+    get_strategy_registry,
+    register_all_strategies,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -12,7 +15,9 @@ def _ensure_strategies_registered():
     """Ensure all strategies are registered before tests run."""
     register_all_strategies()
     registry = get_strategy_registry()
-    assert len(registry.list_names()) >= 4, f"Strategy registration failed! Only {len(registry.list_names())} strategies"
+    assert (
+        len(registry.list_names()) >= 4
+    ), f"Strategy registration failed! Only {len(registry.list_names())} strategies"
     yield
 
 
@@ -84,7 +89,10 @@ async def test_backtest_run_success(client: AsyncClient):
         "initial_capital": 1_000_000_000,
     }
     response = await client.post("/api/v1/backtests/run", json=payload)
-    assert response.status_code in (200, 422), f"Expected 200 or 422, got {response.status_code}"
+    assert response.status_code in (
+        200,
+        422,
+    ), f"Expected 200 or 422, got {response.status_code}"
 
     if response.status_code == 200:
         body = response.json()
@@ -191,7 +199,9 @@ async def test_backtest_run_result(client: AsyncClient):
         body = response.json()
         result_data = body.get("data", {})
         if result_data:
-            assert "total_return_pct" in result_data or "sharpe_ratio" in result_data, f"Result missing metrics: {result_data}"
+            assert (
+                "total_return_pct" in result_data or "sharpe_ratio" in result_data
+            ), f"Result missing metrics: {result_data}"
 
 
 # ── POST /api/v1/backtests/run-all ──────────────────────────────────────────
@@ -245,8 +255,9 @@ async def test_backtest_compare_strategies(client: AsyncClient):
     assert data["best"] is not None, "Expected a best strategy"
 
     results = data.get("results", [])
-    assert len(results) == data["total_strategies"], f"Results count mismatch: {len(results)} != {data['total_strategies']}"
+    assert (
+        len(results) == data["total_strategies"]
+    ), f"Results count mismatch: {len(results)} != {data['total_strategies']}"
     for r in results:
         assert "strategy" in r, f"Result missing 'strategy': {r}"
         assert "status" in r, f"Result missing 'status': {r}"
-

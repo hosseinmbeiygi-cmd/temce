@@ -42,4 +42,3 @@ async def test_training_get_metrics():
     service = TrainingService()
     result = await service.get_metrics("run_001")
     assert result.success or not result.success
-

@@ -112,8 +112,8 @@ export default function CandleChartCard({
   }, [data, range]);
 
   const prices = filteredData.flatMap((d) => [d.high, d.low]);
-  const yMin = Math.min(...prices);
-  const yMax = Math.max(...prices);
+  const yMin = prices.length > 0 ? Math.min(...prices) : 0;
+  const yMax = prices.length > 0 ? Math.max(...prices) : 1;
   const range_px = yMax - yMin || 1;
   const padding = range_px * 0.05;
 

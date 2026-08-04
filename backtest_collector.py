@@ -8,9 +8,12 @@ from datetime import timedelta
 from threading import Lock
 
 import jdatetime
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ========== تنظیمات ==========
-API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"
+API_KEY = os.environ.get("BRSAPI_API_KEY", "")
 BASE_URL = "https://Api.BrsApi.ir/Tsetmc/History.php"
 SYMBOLS_FILE = "all_symbols_data.json"   # لیست کامل همه نمادها
 OUTPUT_DIR = "backtest_data_all"         # پوشه خروجی جداگانه
@@ -71,7 +74,7 @@ def fetch_history(symbol):
 
     curl_path = "C:\\Windows\\System32\\curl.exe"
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    cmd = [curl_path, "-k", "--ssl-no-revoke", "-s", "-H", f"User-Agent: {user_agent}", "--max-time", "15", url]
+    cmd = [curl_path, "-s", "-H", f"User-Agent: {user_agent}", "--max-time", "15", url]
 
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=20, text=False)
@@ -80,7 +83,7 @@ def fetch_history(symbol):
             return None
         data = json.loads(stdout)
         return data
-    except:
+    except Exception:
         return None
 
 def process_symbol(symbol):
@@ -116,7 +119,7 @@ def save_symbol_data(symbol, data):
         try:
             with open(filename, encoding='utf-8') as f:
                 existing = json.load(f)
-        except:
+        except Exception:
             pass
 
     all_data = existing + data

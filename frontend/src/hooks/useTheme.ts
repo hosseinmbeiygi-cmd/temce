@@ -12,15 +12,19 @@ function applyTheme(theme: 'light' | 'dark') {
   body.classList.toggle('light-theme', theme === 'light');
 }
 
+function getInitialTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'dark';
+  const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+  if (savedTheme) return savedTheme;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 export function useTheme() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-    const initial = savedTheme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-    setTheme(initial);
-    applyTheme(initial);
-  }, []);
+    applyTheme(theme);
+  }, [theme]);
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';

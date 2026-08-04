@@ -15,8 +15,6 @@ logger = get_logger(__name__)
 engine: Any = None
 async_session_factory: async_sessionmaker[AsyncSession] | None = None
 
-SQLITE_FALLBACK_URL = "sqlite+aiosqlite:///data/market.db"
-
 
 def _get_pool_config(url: str | None = None) -> dict[str, Any]:
     use_url = url or settings.database_url
@@ -103,8 +101,12 @@ async def init_database() -> None:
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
 
-    # Auto-create tables when using SQLite so endpoints don't 500
-    await _create_all_tables()
+    # Auto-create tables only when explicitly enabled (SQLite dev mode).
+    # Production uses Alembic migrations — running ``create_all`` on
+    # PostgreSQL would race with (and bypass) the migration history.
+    if settings.database_auto_create_tables:
+        await _create_all_tables()
+        logger.info("Auto-created tables (database_auto_create_tables=True)")
 
     logger.info("Database connected: %s", url.split("@")[-1] if "@" in url else url)
 

@@ -146,7 +146,7 @@ async def _run(
                     "skipped": 0,
                     "errors": errors,
                     "per_file": per_file,
-                    "success_rate": property(lambda self: 100.0 if not errors else 50.0),
+                    "success_rate": property(lambda self, errors=errors: 100.0 if not errors else 50.0),
                 })(),
                 elapsed, dry_run=True,
             )

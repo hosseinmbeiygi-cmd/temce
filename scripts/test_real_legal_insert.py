@@ -24,7 +24,7 @@ from core.database import close_database, get_session, init_database
 async def main():
     base = r"C:\Users\Iran\Desktop\temce\real_legal_history_json"
     files = sorted([f for f in os.listdir(base) if f.endswith(".json")])
-    print("FILES: %d" % len(files))
+    print(f"FILES: {len(files)}")
 
     if not files:
         return
@@ -33,13 +33,13 @@ async def main():
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
 
-    print("RECORDS: %d" % len(data))
+    print(f"RECORDS: {len(data)}")
 
     if len(data) == 0:
         return
 
     rec = data[0]
-    print("KEYS: %s" % list(rec.keys()))
+    print(f"KEYS: {list(rec.keys())}")
 
     mapped = {
         "symbol": "test_sym",
@@ -69,10 +69,10 @@ async def main():
             await session.commit()
             print("INSERT: OK")
         except Exception as e:
-            print("ERROR: %s: %s" % (type(e).__name__, str(e)[:200]))
+            print(f"ERROR: {type(e).__name__}: {str(e)[:200]}")
 
         r = await session.execute(text("SELECT COUNT(*) FROM brsapi_historical_real_legal"))
-        print("COUNT: %d" % r.scalar())
+        print(f"COUNT: {r.scalar()}")
         break
 
     await close_database()

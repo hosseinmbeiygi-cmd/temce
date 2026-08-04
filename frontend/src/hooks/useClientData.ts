@@ -23,8 +23,9 @@ export function useClientData<T>(
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [data, setData] = useState<T>(initialValue);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount only
   useEffect(() => {
+    // Intentional mount-only client-side initialization to avoid hydration mismatches.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setData(generator());
   }, []);
 

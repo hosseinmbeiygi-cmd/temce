@@ -47,4 +47,3 @@ async def test_admin_schedulers(client: AsyncClient):
 async def test_admin_storage(client: AsyncClient):
     response = await client.get("/admin/audit/")
     assert response.status_code in (200, 401, 403)
-

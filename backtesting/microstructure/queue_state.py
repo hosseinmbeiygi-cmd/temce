@@ -37,9 +37,7 @@ class SimulatedOrder:
     def update_queue_position(self, trade_volume: int, cancel_volume: int) -> bool:
         reduction = trade_volume + cancel_volume
         self.queue_ahead = max(0, self.queue_ahead - reduction)
-        if self.queue_ahead <= 0 and self.remaining > 0:
-            return True
-        return False
+        return bool(self.queue_ahead <= 0 and self.remaining > 0)
 
 
 @dataclass

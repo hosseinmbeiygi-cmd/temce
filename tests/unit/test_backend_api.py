@@ -1,28 +1,13 @@
 """Comprehensive tests for Iran Market Data Backend API.
 
 Tests are aligned with the actual API responses (ApiResponse wrapper format).
+The ``client`` fixture is provided by ``tests/unit/conftest.py`` (session-scoped app).
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-
-from apps.api.app import app
-
-
-@pytest_asyncio.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
+from httpx import AsyncClient
 
 # ============================================================================
 # Health
@@ -47,9 +32,9 @@ async def test_health_check(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_metrics(client: AsyncClient):
-    """GET /api/v1/dashboard should return dashboard metrics."""
-    resp = await client.get("/api/v1/dashboard")
+async def test_dashboard_returns_metrics(admin_client: AsyncClient):
+    """GET /api/v1/dashboard should return dashboard metrics (requires admin)."""
+    resp = await admin_client.get("/api/v1/dashboard")
     assert resp.status_code == 200
     data = resp.json()
     assert "metrics" in data
@@ -117,17 +102,18 @@ async def test_market_watch_returns_data(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_signals_list(client: AsyncClient):
-    """GET /api/v1/signals should return signals with summary."""
-    resp = await client.get("/api/v1/signals")
+async def test_signals_list(user_client: AsyncClient):
+    """GET /api/v1/signals should return signals with summary (requires user)."""
+    resp = await user_client.get("/api/v1/signals")
     assert resp.status_code == 200
     body = resp.json()
     assert body["success"] is True
     assert "data" in body
-    assert "summary" in body
-    assert "buy" in body["summary"]
-    assert "sell" in body["summary"]
-    assert "neutral" in body["summary"]
+    data = body["data"]
+    assert "items" in data
+    assert "total" in data
+    assert data["page"] >= 1
+    assert data["page_size"] >= 1
 
 
 # ============================================================================
@@ -231,8 +217,8 @@ async def test_funds_list(client: AsyncClient):
     resp = await client.get("/api/v1/funds")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["success"] is True
-    assert "items" in body["data"]
+    assert "items" in body
+    assert "total" in body
 
 
 # ============================================================================

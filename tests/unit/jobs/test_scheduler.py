@@ -9,13 +9,16 @@ import pytest
 
 # ── Helpers ─────────────────────────────────────────────────
 
+
 @pytest.fixture
 def scheduler():
     from jobs.scheduler import JobScheduler
+
     return JobScheduler()
 
 
 # ─── Schedule / Unschedule ──────────────────────────────────
+
 
 def test_schedule_job(scheduler):
     job = scheduler.schedule_job("test_job", "*/5 * * * *")
@@ -42,6 +45,7 @@ def test_unschedule_nonexistent_returns_false(scheduler):
 
 # ── Listing / Retrieval ─────────────────────────────────────
 
+
 def test_list_scheduled_jobs_empty(scheduler):
     assert scheduler.list_scheduled_jobs() == []
 
@@ -60,6 +64,7 @@ def test_get_scheduled_job_by_id(scheduler):
 
 
 # ── Enable / Disable ────────────────────────────────────────
+
 
 def test_enable_job(scheduler):
     job = scheduler.schedule_job("j1", "* * * * *")
@@ -84,6 +89,7 @@ def test_disable_nonexistent_returns_false(scheduler):
 
 
 # ── Job Function Registration & Execution ───────────────────
+
 
 @pytest.mark.asyncio
 async def test_register_and_run_job(scheduler):
@@ -142,6 +148,7 @@ async def test_run_job_updates_last_run(scheduler):
 
 # ── Start / Stop ────────────────────────────────────────────
 
+
 def test_start_scheduler(scheduler):
     scheduler.start()
     assert scheduler.is_running is True
@@ -158,6 +165,7 @@ def test_is_running_defaults_to_false(scheduler):
 
 
 # ── Stats ───────────────────────────────────────────────────
+
 
 def test_get_stats(scheduler):
     scheduler.schedule_job("j1", "* * * * *")

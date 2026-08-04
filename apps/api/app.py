@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
+from collections import deque
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 
 from apps.api.error_handlers import register_error_handlers
-from apps.api.middleware import LoggingMiddleware, RateLimitMiddleware, TimingMiddleware
+from apps.api.metrics import MetricsMiddleware, get_prometheus_exporter
+from apps.api.middleware import (
+    CSRFMiddleware,
+    LoggingMiddleware,
+    RateLimitMiddleware,
+    SecurityMiddleware,
+    TimingMiddleware,
+)
 from apps.api.router import Router
 from core.cache import get_cache
 from core.config import settings
@@ -35,96 +44,492 @@ async def _rate_limit_notify(message: str) -> None:
         pass
 
 
+# ── Orchestrator hourly cron state ──
+# In-memory working copy (fast path + fallback when Redis is unavailable).
+# When Redis is connected the state is mirrored there via set_persistent so
+# multiple API workers observe the same state (multi-worker safe).
+
+_cron_state: dict = {
+    "last_run": None,
+    "last_signal_count": 0,
+    "last_accuracy": {},
+    "last_retrain_count": 0,
+    "last_error": None,
+    "run_count": 0,
+    "enabled": True,
+    "history": deque(maxlen=100),
+}
+
+# Alert dedup: stores timestamp (time.time()) of last alert sent per type.
+# Re-alert blocked if less than 6 hours since the last alert.
+ALERT_COOLDOWN_S = 6 * 3600
+_alert_state: dict[str, float] = {
+    "consecutive_failures": 0.0,
+    "accuracy_drop": 0.0,
+    "was_in_failure_streak": 0.0,  # timestamp when streak started; 0 = not in streak
+    "was_accuracy_below_50": 0.0,  # timestamp when accuracy first dropped; 0 = healthy
+}
+
+_CRON_STATE_KEY = "orchestrator:cron_state"
+_ALERT_STATE_KEY = "orchestrator:alert_state"
+
+
+async def _load_cron_state_from_store() -> None:
+    """Hydrate ``_cron_state``/``_alert_state`` from Redis when connected.
+
+    Multi-worker sync: every worker picks up the latest persisted state
+    (e.g. a toggle made on another worker, or history appended by the cron
+    process). Mutates the module dicts in place so callers keep their
+    references. No-op when Redis is unavailable (in-memory fallback).
+    """
+    cache = get_cache()
+    if not cache.is_connected:
+        return
+    try:
+        raw = await cache.get(_CRON_STATE_KEY)
+        if isinstance(raw, dict):
+            raw["history"] = deque(raw.get("history", []), maxlen=100)
+            _cron_state.clear()
+            _cron_state.update(raw)
+        raw_alert = await cache.get(_ALERT_STATE_KEY)
+        if isinstance(raw_alert, dict):
+            _alert_state.clear()
+            _alert_state.update(raw_alert)
+    except Exception:
+        logger.debug("Cron state load from Redis failed", exc_info=True)
+
+
+async def _save_cron_state_to_store() -> None:
+    """Persist ``_cron_state``/``_alert_state`` to Redis when connected.
+
+    ``history`` is a ``deque`` — converted to a list so it round-trips
+    through JSON. No-op when Redis is unavailable.
+    """
+    cache = get_cache()
+    if not cache.is_connected:
+        return
+    try:
+        payload = dict(_cron_state)
+        payload["history"] = list(_cron_state["history"])
+        await cache.set_persistent(_CRON_STATE_KEY, payload)
+        await cache.set_persistent(_ALERT_STATE_KEY, dict(_alert_state))
+    except Exception:
+        logger.debug("Cron state save to Redis failed", exc_info=True)
+
+
+async def _send_cron_alert(title: str, message: str, icon: str = "🔴") -> None:
+    """Send a cron alert via Telegram (if configured) and always log."""
+    logger.warning("CRON ALERT [%s]: %s", title, message)
+    try:
+        from integrations.notifications.telegram_sender import TelegramSender
+        sender = TelegramSender()
+        result = await sender.send(f"{icon} <b>Cron Alert: {title}</b>\n\n{message}")
+        if not result.success:
+            logger.debug("Telegram alert not sent (not configured?): %s", result.error)
+    except Exception:
+        pass
+
+
+async def _check_cron_alerts() -> None:
+    """Check cron history for alert conditions: 3 consecutive failures or accuracy < 50%.
+
+    Uses _alert_state timestamps for cooldown and recovery tracking.
+    """
+    history = list(_cron_state["history"])
+    if len(history) < 3:
+        return
+
+    import time
+    now_ts = time.time()
+
+    latest = history[-1]
+    latest_ok = latest.get("success", False)
+
+    # ═══ 1. Three consecutive failures ═══
+    last_three = history[-3:]
+    all_failed = all(not h.get("success", True) for h in last_three)
+
+    if all_failed:
+        # Mark that we entered a failure streak
+        if _alert_state["was_in_failure_streak"] == 0.0:
+            _alert_state["was_in_failure_streak"] = now_ts
+
+        if (now_ts - _alert_state["consecutive_failures"]) >= ALERT_COOLDOWN_S:
+            errors = [h.get("error", "Unknown")[:100] for h in last_three]
+            await _send_cron_alert(
+                "3 شکست متوالی کرون",
+                f"کرون orchestrator در ۳ اجرای متوالی شکست خورده است.\n"
+                f"آخرین خطا: {errors[-1]}\n"
+                f"اجراهای: {last_three[0]['run']}، {last_three[1]['run']}، {last_three[2]['run']}\n"
+                f"زمان آخرین شکست: {last_three[-1].get('timestamp', '?')}",
+            )
+            _alert_state["consecutive_failures"] = now_ts
+        return  # Don't send multiple alert types in the same check
+
+    # ── Recovery: cron succeeded after a failure streak ──
+    if latest_ok and _alert_state["was_in_failure_streak"] > 0.0:
+        streak_duration = now_ts - _alert_state["was_in_failure_streak"]
+        await _send_cron_alert(
+            "بازیابی کرون",
+            f"کرون orchestrator پس از شکست‌های متوالی با موفقیت اجرا شد.\n"
+            f"مدت زمان اختلال: {streak_duration / 60:.0f} دقیقه\n"
+            f"شماره اجرای موفق: {latest.get('run', '?')}\n"
+            f"سیگنال‌های تولیدشده: {latest.get('signals', 0)}\n"
+            f"زمان بازیابی: {latest.get('timestamp', '?')}",
+            icon="🟢",
+        )
+        _alert_state["was_in_failure_streak"] = 0.0
+        _alert_state["consecutive_failures"] = 0.0
+
+    # ═══ 2. Overall accuracy dropped below 50% ═══
+    if latest_ok:
+        acc = latest.get("accuracy", 100)
+
+        if acc < 50:
+            # Mark that accuracy is in trouble
+            if _alert_state["was_accuracy_below_50"] == 0.0:
+                _alert_state["was_accuracy_below_50"] = now_ts
+
+            if (now_ts - _alert_state["accuracy_drop"]) >= ALERT_COOLDOWN_S:
+                await _send_cron_alert(
+                    "کاهش دقت کل به زیر ۵۰٪",
+                    f"دقت کل سیگنال‌ها به {acc:.1f}٪ کاهش یافته است (زیر آستانه ۵۰٪).\n"
+                    f"سیگنال‌های آخرین اجرا: {latest.get('signals', 0)}\n"
+                    f"زمان اجرا: {latest.get('timestamp', '?')}\n"
+                    f"بازآموزی خودکار در اجرای بعدی فعال خواهد شد.",
+                )
+                _alert_state["accuracy_drop"] = now_ts
+
+        # ── Recovery: accuracy climbed back above 50% ──
+        elif acc >= 50 and _alert_state["was_accuracy_below_50"] > 0.0:
+            await _send_cron_alert(
+                "بازگشت دقت به بالای ۵۰٪",
+                f"دقت کل سیگنال‌ها به {acc:.1f}٪ بازگشته است (بالای آستانه ۵۰٪).\n"
+                f"شماره اجرا: {latest.get('run', '?')}\n"
+                f"سیگنال‌های تولیدشده: {latest.get('signals', 0)}\n"
+                f"زمان بازیابی: {latest.get('timestamp', '?')}",
+                icon="🟢",
+            )
+            _alert_state["was_accuracy_below_50"] = 0.0
+            _alert_state["accuracy_drop"] = 0.0
+
+
+async def _orchestrator_hourly_cron() -> None:
+    """Background task: run the quant signal orchestrator every hour.
+
+    This closes the feedback loop:
+      generate signals -> persist -> evaluate outcomes -> retrain if needed
+
+    Each run produces signals, records outcomes for past signals, and
+    auto-retrains models when accuracy drops below threshold.
+    Over time, this drives the system toward >70% accuracy.
+    """
+    from datetime import UTC, datetime
+
+    from services.quant_signal_orchestrator import QuantSignalOrchestrator
+
+    loop = asyncio.get_running_loop()
+
+    while True:
+        try:
+            # Multi-worker sync: pick up toggles/history written by other
+            # workers (or by the manual run-now endpoint) before this tick.
+            await _load_cron_state_from_store()
+
+            if not _cron_state["enabled"]:
+                await asyncio.sleep(60)
+                continue
+
+            tick_start = loop.time()
+
+            logger.info("=" * 50)
+            logger.info("HOURLY ORCHESTRATOR CRON — run #%d", _cron_state["run_count"] + 1)
+            logger.info("=" * 50)
+
+            orchestrator = QuantSignalOrchestrator()
+            report = await orchestrator.generate(
+                market_filter="all",
+                timeframe_filter="all",
+                min_confidence=0.35,
+                limit=100,
+                use_ml=True,
+                use_voting=True,
+                use_confidence_calibration=True,
+            )
+
+            d = report.to_dict()
+            signals = d.get("signals", [])
+            accuracy = d.get("accuracy", {})
+            retrain = d.get("retrain", [])
+
+            _cron_state["last_run"] = datetime.now(UTC).isoformat()
+            _cron_state["last_signal_count"] = len(signals)
+            _cron_state["last_accuracy"] = accuracy or {}
+            _cron_state["last_retrain_count"] = len(retrain)
+            _cron_state["last_error"] = None
+            _cron_state["run_count"] += 1
+            _cron_state["history"].append({
+                "run": _cron_state["run_count"],
+                "timestamp": _cron_state["last_run"],
+                "signals": len(signals),
+                "accuracy": accuracy.get("overall", 0),
+                "retrain_count": len(retrain),
+                "success": True,
+            })
+
+            logger.info(
+                "Cron run #%d complete: %d signals, %.0f%% overall accuracy, %d markets retrained",
+                _cron_state["run_count"],
+                len(signals),
+                accuracy.get("overall", 0),
+                len(retrain),
+            )
+
+            if retrain:
+                for rr in retrain:
+                    logger.info(
+                        "  [RETRAIN] %s: %s | %.1f%% -> %.1f%%",
+                        rr.get("market", "?"),
+                        rr.get("trigger", "?"),
+                        rr.get("old_accuracy_pct", 0),
+                        rr.get("new_accuracy_pct", 0),
+                    )
+
+            # Check alerts after successful run
+            await _check_cron_alerts()
+            await _save_cron_state_to_store()
+
+        except Exception:
+            logger.exception("Hourly orchestrator cron failed")
+            _cron_state["last_error"] = str(traceback.format_exc())[:500]
+            _cron_state["last_run"] = datetime.now(UTC).isoformat()
+            _cron_state["run_count"] += 1
+            _cron_state["history"].append({
+                "run": _cron_state["run_count"],
+                "timestamp": _cron_state["last_run"],
+                "signals": 0,
+                "accuracy": 0,
+                "retrain_count": 0,
+                "success": False,
+                "error": _cron_state["last_error"][:200],
+            })
+
+            # Check alerts after failed run
+            await _check_cron_alerts()
+            await _save_cron_state_to_store()
+
+        # Wait 1 hour before next run (drift-corrected)
+        elapsed = loop.time() - tick_start
+        sleep_seconds = max(0, 3600 - elapsed)
+        logger.debug("Cron run took %.1fs — sleeping %.1fs until next tick", elapsed, sleep_seconds)
+        await asyncio.sleep(sleep_seconds)
+
+
 # ── Startup background tasks ──
 
-async def _fetch_news_on_startup() -> None:
-    """Background task: fetch news from RSS feeds on API startup."""
-    try:
-        from services.news_ingestion import NewsIngestionService
 
-        logger.info("Auto-fetching news on startup...")
+async def _decision_engine_startup_seed() -> None:
+    """Background task: auto-seed Decision Engine architecture data on API startup.
+
+    Merges all 5 JSON files (architecture, features, services, database, api)
+    into the decision_architectures table if it's empty. Non-blocking.
+    """
+    try:
+        from apps.api.endpoints.decision_engine import _auto_seed
+
+        logger.info("Decision Engine — auto-seeding architecture data on startup...")
         session_obtained = False
         async for session in get_session():
             session_obtained = True
-            service = NewsIngestionService(session=session)
-            stats = await service.ingest(
-                sources=None,
-                limit_per_source=30,
-                save=True,
-                verbose=False,
-                skip_sentiment=False,
-            )
-            logger.info(
-                "Startup news fetch complete: fetched=%d saved=%d",
-                stats.get("fetched", 0),
-                stats.get("saved", 0),
-            )
+            await _auto_seed(session)
+            logger.info("Decision Engine — startup auto-seed complete")
+            break
         if not session_obtained:
-            logger.warning("Could not obtain DB session for startup news fetch")
+            logger.warning("Decision Engine — could not obtain DB session for auto-seed")
     except Exception:
-        logger.exception("Startup news fetch failed")
+        logger.exception("Decision Engine — startup auto-seed failed")
+
+
+async def _fund_sync_cron() -> None:
+    """
+    Background task: sync fund data from BrsApi every 15 minutes during market hours.
+
+    Runs at market-open pace (every 15 min) while the market is open,
+    and falls back to once per day (02:00 Tehran) outside market hours
+    for end-of-day NAV updates.
+
+    The sync respects BrsApi rate limits via a per-symbol delay. Execution
+    is sequential because FundService/BrsApiQueryService share one
+    AsyncSession (not concurrency-safe).
+    """
+    from services.fund_sync_service import FundSyncService, _is_market_open, _next_market_open_delay
+
+    while True:
+        try:
+            # Lazy imports to avoid circular imports at module level
+            from brsapi.services.query_service import BrsApiQueryService
+            from core.database import async_session_factory
+            from services.fund_service import FundService
+
+            if async_session_factory is None:
+                logger.warning("Fund sync: DB not available, retrying in 60s")
+                await asyncio.sleep(60)
+                continue
+
+            async with async_session_factory() as session:
+                fund_service = FundService(session=session)
+                brsapi = BrsApiQueryService(session=session)
+                sync_service = FundSyncService(
+                    fund_service=fund_service,
+                    brsapi=brsapi,
+                )
+
+                report = await sync_service.sync_all_funds()
+                logger.info(
+                    "Fund sync cycle: %s — next sync in %s",
+                    report.summary,
+                    "15 min (market open)" if _is_market_open() else "~24h (market closed)",
+                )
+
+                # Log failed symbols for monitoring
+                if report.errors:
+                    for err in report.errors[:5]:  # First 5 only
+                        logger.warning("  Fund sync error: %s — %s", err["symbol"], err["error"])
+
+        except Exception:
+            logger.exception("Fund sync cron failed — retrying in 60s")
+            await asyncio.sleep(60)
+            continue
+
+        # ── Next interval ──
+        if _is_market_open():
+            await asyncio.sleep(15 * 60)  # Every 15 min during market hours
+        else:
+            # Outside market hours: wait until next market open
+            delay = _next_market_open_delay()
+            logger.info("Market closed — next fund sync at market open (in %.0f min)", delay / 60)
+            await asyncio.sleep(min(delay, 3600))  # Check at least every hour
+
+
+async def _fetch_news_on_startup() -> None:
+    """Background task: fetch news from RSS feeds on API startup.
+
+    Retries up to 3 times with exponential backoff (15s, 30s, 60s) on failure.
+    """
+    MAX_RETRIES = 3
+    BASE_DELAY = 15  # seconds
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            from services.news_ingestion import NewsIngestionService
+            logger.info("Auto-fetching news on startup (attempt %d/%d)...", attempt, MAX_RETRIES)
+            session_obtained = False
+            async for session in get_session():
+                session_obtained = True
+                service = NewsIngestionService(session=session)
+                stats = await service.ingest(
+                    sources=None,
+                    limit_per_source=30,
+                    save=True,
+                    verbose=False,
+                    skip_sentiment=False,
+                )
+                logger.info(
+                    "Startup news fetch complete: fetched=%d saved=%d",
+                    stats.get("fetched", 0), stats.get("saved", 0),
+                )
+            if not session_obtained:
+                raise RuntimeError("Could not obtain DB session for startup news fetch")
+
+            return  # Success — exit retry loop
+
+        except Exception:
+            if attempt < MAX_RETRIES:
+                delay = BASE_DELAY * (2 ** (attempt - 1))  # 15s, 30s, 60s
+                logger.warning(
+                    "Startup news fetch failed (attempt %d/%d) — retrying in %ds",
+                    attempt, MAX_RETRIES, delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.exception("Startup news fetch failed after %d attempts — giving up", MAX_RETRIES)
 
 
 async def _brsapi_startup_sync() -> None:
     """
     Startup sync: fetch ALL BrsApi endpoints in order.
     Respects rate limits automatically (the rate limiter enforces 10K/day, 500/5min).
+
+    Retries up to 3 times with exponential backoff (30s, 60s, 120s) on failure.
     """
-    try:
-        from brsapi.client import get_client
-        from brsapi.services.sync_service import BrsApiSyncService
+    MAX_RETRIES = 3
+    BASE_DELAY = 30  # seconds
 
-        logger.info("=" * 60)
-        logger.info("BrsApi STARTUP SYNC — fetching ALL endpoints in order")
-        logger.info("=" * 60)
-
-        client = await get_client()
-        session_obtained = False
-
-        async for session in get_session():
-            session_obtained = True
-            service = BrsApiSyncService(client=client, session=session)
-
-            # sync_all runs every endpoint in sequence, respecting rate limits
-            reports = await service.sync_all(session)
-
-            # Log summary
-            ok = sum(1 for r in reports if r.success)
-            fail = sum(1 for r in reports if not r.success)
-            skipped = sum(1 for r in reports if r.skipped)
-            total_items = sum(r.items_count for r in reports)
-            total_ms = sum(r.duration_ms for r in reports)
-
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            from brsapi.client import get_client
+            from brsapi.services.sync_service import BrsApiSyncService
             logger.info("=" * 60)
-            logger.info("STARTUP SYNC COMPLETE: %d ok, %d failed, %d skipped", ok, fail, skipped)
-            logger.info("Total items synced: %d | Total time: %.1fs", total_items, total_ms / 1000)
+            logger.info("BrsApi STARTUP SYNC — attempt %d/%d — fetching ALL endpoints in order", attempt, MAX_RETRIES)
             logger.info("=" * 60)
 
-            for r in reports:
-                status = "OK" if r.success else ("SKIP" if r.skipped else "FAIL")
+            client = await get_client()
+            session_obtained = False
+
+            async for session in get_session():
+                session_obtained = True
+                service = BrsApiSyncService(client=client, session=session)
+
+                # sync_all runs every endpoint in sequence, respecting rate limits
+                reports = await service.sync_all(session)
+
+                # Log summary
+                ok = sum(1 for r in reports if r.success)
+                fail = sum(1 for r in reports if not r.success)
+                skipped = sum(1 for r in reports if r.skipped)
+                total_items = sum(r.items_count for r in reports)
+                total_ms = sum(r.duration_ms for r in reports)
+
+                logger.info("=" * 60)
+                logger.info("STARTUP SYNC COMPLETE: %d ok, %d failed, %d skipped", ok, fail, skipped)
+                logger.info("Total items synced: %d | Total time: %.1fs", total_items, total_ms / 1000)
+                logger.info("=" * 60)
+
+                for r in reports:
+                    status = "OK" if r.success else ("SKIP" if r.skipped else "FAIL")
+                    logger.info(
+                        "  [%s] %s — %d items, %.0fms%s",
+                        status, r.endpoint, r.items_count, r.duration_ms,
+                        f" — {r.error}" if r.error else "",
+                    )
+
+                # Log rate limiter status
+                from brsapi.rate_limiter import get_rate_limiter
+                rl_status = get_rate_limiter().status()
+                g = rl_status["global"]
                 logger.info(
-                    "  [%s] %s — %d items, %.0fms%s",
-                    status, r.endpoint, r.items_count, r.duration_ms,
-                    f" — {r.error}" if r.error else "",
+                    "Rate limits: daily %d/%d (%.0f%%) | 5min %d/%d (%.0f%%)",
+                    g["daily_count"], g["daily_limit"], g["daily_used_pct"],
+                    g["5min_count"], g["5min_limit"], g["5min_used_pct"],
                 )
 
-            # Log rate limiter status
-            from brsapi.rate_limiter import get_rate_limiter
-            rl_status = get_rate_limiter().status()
-            g = rl_status["global"]
-            logger.info(
-                "Rate limits: daily %d/%d (%.0f%%) | 5min %d/%d (%.0f%%)",
-                g["daily_count"], g["daily_limit"], g["daily_used_pct"],
-                g["5min_count"], g["5min_limit"], g["5min_used_pct"],
-            )
+                break
 
-            break
+            if not session_obtained:
+                raise RuntimeError("Could not obtain DB session for BrsApi startup sync")
 
-        if not session_obtained:
-            logger.warning("Could not obtain DB session for BrsApi startup sync")
+            return  # Success — exit retry loop
 
-    except Exception:
-        logger.exception("BrsApi startup sync failed")
+        except Exception:
+            if attempt < MAX_RETRIES:
+                delay = BASE_DELAY * (2 ** (attempt - 1))  # 30s, 60s, 120s
+                logger.warning(
+                    "BrsApi startup sync failed (attempt %d/%d) — retrying in %ds",
+                    attempt, MAX_RETRIES, delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.exception("BrsApi startup sync failed after %d attempts — giving up", MAX_RETRIES)
 
 
 # ── Lifespan ──
@@ -156,6 +561,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.warning("Cache init failed, using null cache")
 
+    # Hydrate orchestrator cron/alert state from Redis (multi-worker sync)
+    await _load_cron_state_from_store()
+
     # ── Register rate limit notification callback ──
     try:
         from brsapi.rate_limiter import get_rate_limiter
@@ -184,16 +592,41 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # Auto-fetch news in background
     asyncio.create_task(_fetch_news_on_startup())
 
+    # Auto-seed Decision Engine architecture data in background
+    asyncio.create_task(_decision_engine_startup_seed())
+
+    # ── Start RealtimeService (WebSocket broadcasting) ──
+    try:
+        from services.realtime_service import get_realtime_service
+        rt_service = get_realtime_service()
+        await rt_service.start()
+    except Exception:
+        logger.exception("RealtimeService startup failed — WebSocket broadcasting disabled")
+
+    # ── Hourly orchestrator cron (signal generation + outcome tracking + auto-retrain) ──
+    asyncio.create_task(_orchestrator_hourly_cron())
+    logger.info("Orchestrator hourly cron started — generating signals every 3600s")
+
+    # ── Fund sync cron (every 15 min during market hours, daily at 2 AM) ──
+    asyncio.create_task(_fund_sync_cron())
+    logger.info("Fund sync cron started — updating fund data every 15 min")
+
     logger.info("Starting %s", settings.app_name)
     yield
-    try:
+    with suppress(Exception):
+        try:
+            from services.realtime_service import get_realtime_service
+            rt_service = get_realtime_service()
+            await rt_service.stop()
+        except Exception:
+            pass
+    with suppress(Exception):
         await cache.close()
-    except Exception:
-        pass
-    try:
+    with suppress(Exception):
+        from brsapi.client import close_client
+        await close_client()
+    with suppress(Exception):
         await close_database()
-    except Exception:
-        pass
     logger.info("Shutting down %s", settings.app_name)
 
 
@@ -213,7 +646,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(SecurityMiddleware)
+    app.add_middleware(CSRFMiddleware)
     app.add_middleware(TimingMiddleware)
+    app.add_middleware(MetricsMiddleware)
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RateLimitMiddleware)
 
@@ -223,6 +659,98 @@ def create_app() -> FastAPI:
     async def root():
         return RedirectResponse(url="/docs")
 
+    # ── Prometheus metrics ──
+    @app.get(settings.metrics_path, include_in_schema=False)
+    async def metrics():
+        """Prometheus text exposition of in-process metrics."""
+        return PlainTextResponse(
+            get_prometheus_exporter().export_text(),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
+    # ── Orchestrator cron status endpoint ──
+    @app.get("/api/v1/orchestrator-cron-status")
+    async def orchestrator_cron_status():
+        """Get the status of the hourly orchestrator cron."""
+        from schemas.common.responses import ApiResponse
+        await _load_cron_state_from_store()
+        data = dict(_cron_state)
+        data["history"] = list(data["history"])
+        data["alerts"] = dict(_alert_state)
+        # Derived health status for frontend display
+        in_crisis = _alert_state["was_in_failure_streak"] > 0.0 or _alert_state["was_accuracy_below_50"] > 0.0
+        data["health"] = {
+            "status": "in_crisis" if in_crisis else "healthy",
+            "failure_streak_active": _alert_state["was_in_failure_streak"] > 0.0,
+            "accuracy_below_50_active": _alert_state["was_accuracy_below_50"] > 0.0,
+            "last_critical_alert_sent": max(_alert_state["consecutive_failures"], _alert_state["accuracy_drop"]),
+        }
+        return ApiResponse(success=True, data=data)
+
+    @app.get("/api/v1/orchestrator-cron-history")
+    async def orchestrator_cron_history():
+        """Get the rotating history of the last 100 cron runs.
+
+        Each entry: {run, timestamp, signals, accuracy, retrain_count, success, error?, source?}
+        Useful for frontend timeline charts showing signal counts and accuracy trends.
+        """
+        from schemas.common.responses import ApiResponse
+        await _load_cron_state_from_store()
+        return ApiResponse(success=True, data=list(_cron_state["history"]))
+
+    @app.post("/api/v1/orchestrator-cron/toggle")
+    async def orchestrator_cron_toggle():
+        """Enable or disable the hourly orchestrator cron."""
+        await _load_cron_state_from_store()
+        _cron_state["enabled"] = not _cron_state["enabled"]
+        await _save_cron_state_to_store()
+        from schemas.common.responses import ApiResponse
+        return ApiResponse(success=True, data={"enabled": _cron_state["enabled"]})
+
+    @app.post("/api/v1/orchestrator-cron/run-now")
+    async def orchestrator_cron_run_now():
+        """Trigger an immediate orchestrator run (does not wait for the hourly tick).
+
+        Returns the full orchestrator report including signals, accuracy, and retrain status.
+        """
+        from datetime import UTC, datetime
+
+        from schemas.common.responses import ApiResponse
+        from services.quant_signal_orchestrator import QuantSignalOrchestrator
+
+        await _load_cron_state_from_store()
+        orchestrator = QuantSignalOrchestrator()
+        report = await orchestrator.generate(
+            market_filter="all",
+            timeframe_filter="all",
+            min_confidence=0.35,
+            limit=100,
+            use_ml=True,
+            use_voting=True,
+            use_confidence_calibration=True,
+        )
+        d = report.to_dict()
+
+        # Update cron state too
+        _cron_state["last_run"] = datetime.now(UTC).isoformat()
+        _cron_state["last_signal_count"] = len(d.get("signals", []))
+        _cron_state["last_accuracy"] = d.get("accuracy", {})
+        _cron_state["last_retrain_count"] = len(d.get("retrain", []))
+        _cron_state["last_error"] = None
+        _cron_state["run_count"] += 1
+        _cron_state["history"].append({
+            "run": _cron_state["run_count"],
+            "timestamp": _cron_state["last_run"],
+            "signals": len(d.get("signals", [])),
+            "accuracy": d.get("accuracy", {}).get("overall", 0),
+            "retrain_count": len(d.get("retrain", [])),
+            "success": True,
+            "source": "manual",
+        })
+        await _save_cron_state_to_store()
+
+        return ApiResponse(success=True, data=d)
+
     # ── Rate limit status endpoint ──
     @app.get("/api/v1/rate-limits")
     async def rate_limit_status():
@@ -230,6 +758,23 @@ def create_app() -> FastAPI:
         from brsapi.rate_limiter import get_rate_limiter
         from schemas.common.responses import ApiResponse
         return ApiResponse(success=True, data=get_rate_limiter().status())
+
+    # ── Cache health / stats endpoint ──
+    @app.get("/api/v1/cache-stats")
+    async def cache_stats():
+        """Expose screener cache health metrics for the admin dashboard.
+
+        Returns hit rate, eviction count, size, and TTL for both caches:
+          - score_cache: ScoringEngine results cache (ScreenerPipeline)
+          - prebuilt_cache: quote+history prebuilt data cache (ScreenerService)
+        """
+        from schemas.common.responses import ApiResponse
+        from services.screener_service import ScreenerPipeline, ScreenerService
+
+        return ApiResponse(success=True, data={
+            "score_cache": ScreenerPipeline._score_cache.stats,
+            "prebuilt_cache": ScreenerService._prebuilt_cache.stats,
+        })
 
     router = Router()
     app.include_router(router.setup(), prefix=settings.api_prefix)

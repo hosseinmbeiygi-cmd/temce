@@ -9,6 +9,7 @@ from apps.api.app import app
 @pytest.fixture
 async def client():
     from core.database import close_database, init_database
+
     await close_database()
     await init_database()
     transport = ASGITransport(app=app)
@@ -38,4 +39,3 @@ async def test_instruments_list(client: AsyncClient):
 async def test_instruments_search(client: AsyncClient):
     response = await client.get("/api/v1/instruments/search?q=فولاد")
     assert response.status_code in (200, 401)
-

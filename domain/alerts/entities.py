@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from datetime import datetime
 from typing import Any
 
@@ -21,7 +22,7 @@ class Alert(BaseEntity):
     is_read: bool = False
     is_triggered: bool = False
     triggered_at: datetime | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = dc_field(default_factory=dict)
 
     def __init__(
         self,
@@ -80,7 +81,7 @@ class AlertRule(BaseEntity):
     is_active: bool = True
     cooldown_minutes: int = 0
     last_triggered_at: datetime | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = dc_field(default_factory=dict)
 
     def __init__(
         self,

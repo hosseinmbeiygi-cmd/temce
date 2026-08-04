@@ -2,28 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
-import { apiGet, safeExtractArray } from "@/lib/api";
-import { useDebugLogs } from "@/hooks/useDebugLogs";
-import SSRSafe from "@/components/SSRSafe";
-import MiniSparkline from "@/components/MiniSparkline";
-
-// ── Dynamic imports ──────────────────────────────────────────────────────────────────────────────────────────────────
-const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl h-[280px]" />,
-});
-const BarChartCard = dynamic(() => import("@/components/charts/BarChartCard"), {
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl h-[200px]" />,
-});
-const PieChartCard = dynamic(() => import("@/components/charts/PieChartCard"), {
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl h-[200px]" />,
-});
+import { DonutChart } from "@/components/DonutChart";
+import { apiGet } from "@/lib/api";
+import { useSectorCounts } from "@/hooks/useSectorCounts";
+import { SECTOR_HEX_COLORS } from "@/lib/sectors";
 
 // ── Types ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 interface MarketOverview {
@@ -73,9 +58,19 @@ interface MarketDashboardData {
   screener: ScreenerItem[];
   commodities: CommodityItem[];
   crypto: CryptoItem[];
-  gainers: any[];
-  losers: any[];
-  active: any[];
+  gainers: Record<string, unknown>[];
+  losers: Record<string, unknown>[];
+  active: Array<{ symbol: string; price_last?: number; price_change_pct?: number; volume?: number; value?: number }>;
+}
+
+interface NewsDisplayItem {
+  symbol: string;
+  title: string;
+  date: string;
+  source: string;
+  sentiment: string;
+  url: string;
+  id?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -105,22 +100,6 @@ function fmtPrice(n: number): string {
   if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
   return n.toLocaleString("fa-IR");
 }
-
-const PHASE_COLORS: Record<string, string> = {
-  accumulation: "bg-accent-emerald/15 text-accent-emerald",
-  distribution: "bg-accent-rose/15 text-accent-rose",
-  markup: "bg-primary-600/20 text-primary-300",
-  markdown: "bg-accent-rose/20 text-accent-rose",
-  neutral: "bg-surface-600/30 text-surface-400",
-};
-
-const PHASE_LABELS: Record<string, string> = {
-  accumulation: "تجمع",
-  distribution: "توزیع",
-  markup: "مارکاپ",
-  markdown: "مارک‌داون",
-  neutral: "خنثی",
-};
 
 // ── Mock data generators (for fallback) ────────────────────────────────────────────────────────────────────────────────
 function generateMockIndices() {
@@ -245,7 +224,6 @@ function generateMockTopTraded() {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { logs, addLog } = useDebugLogs();
   const [tab, setTab] = useState<"all" | "gainers" | "losers">("all");
 
   // ── Fetch dashboard data ──
@@ -367,6 +345,19 @@ export default function DashboardPage() {
     return generateMockCurrencies();
   }, [currencyData]);
 
+  // ── Sector distribution (from GET /symbols/sectors) ──
+  const { sectors: sectorSummary } = useSectorCounts();
+
+  const sectorSlices = useMemo(() => {
+    const total = sectorSummary.reduce((s, r) => s + r.count, 0);
+    if (!total) return [];
+    return sectorSummary.map((r) => ({
+      label: r.sector,
+      value: r.count,
+      color: SECTOR_HEX_COLORS[r.sector] || "#64748b",
+    }));
+  }, [sectorSummary]);
+
   // ── Fetch real gold/coins from BrsApi ──
   const { data: goldCoinData } = useQuery({
     queryKey: ["home-gold-coin"],
@@ -474,15 +465,30 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
   const mockNews = useMemo(() => generateMockNews(), []);
-  const news = (realNews && realNews.length > 0)
-    ? realNews.map((item: any) => ({ symbol: (item.symbols && item.symbols.length > 0 ? item.symbols[0] : (item.source || "خبر")), title: item.title || "", date: (item.published_at || "").split("T")[0] || "", source: item.source || "", sentiment: item.sentiment || "neutral", url: item.url || "" }))
+  const news: NewsDisplayItem[] = (realNews && realNews.length > 0)
+    ? realNews.map((item) => {
+        const symbols = item.symbols as string[] | undefined;
+        const title = String(item.title ?? "");
+        const publishedAt = String(item.published_at ?? "");
+        const source = String(item.source ?? "");
+        const sentiment = String(item.sentiment ?? "neutral");
+        const url = String(item.url ?? "");
+        const id = item.id != null ? String(item.id) : undefined;
+        return {
+          symbol: (symbols && symbols.length > 0) ? symbols[0] : (source || "خبر"),
+          title,
+          date: publishedAt.split("T")[0] || "",
+          source,
+          sentiment,
+          url,
+          id,
+        };
+      })
     : mockNews;
   const topTraded = useMemo(() => generateMockTopTraded(), []);
 
   const overview = dashboardData?.overview;
   const screener = dashboardData?.screener ?? [];
-  const gainers = dashboardData?.gainers ?? [];
-  const losers = dashboardData?.losers ?? [];
   const active = dashboardData?.active ?? [];
 
   const gainersCount = overview?.gainers ?? 0;
@@ -579,6 +585,29 @@ export default function DashboardPage() {
             <span className="text-[10px] text-surface-400 group-hover:text-surface-200 transition-colors text-center">{link.label}</span>
           </Link>
         ))}
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════
+          ROW 3.5: Sector Distribution
+          ════════════════════════════════════════════════════════════════════════════════════════════════════════════ */}
+      <div className="mb-4">
+        <Card
+          title="🏷️ توزیع نمادها در بازارها"
+          subtitle="تعداد نمادهای ثبت‌شده در هر بخش بازار"
+          actions={
+            <Link href="/instruments" className="text-xs text-primary-400 hover:text-primary-300">
+              مشاهده نمادها ←
+            </Link>
+          }
+        >
+          {sectorSlices.length > 0 ? (
+            <DonutChart slices={sectorSlices} size={140} centerLabel="نماد" />
+          ) : (
+            <div className="text-sm text-surface-500 py-2">
+              اطلاعات توزیع بخش‌ها در دسترس نیست
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -756,7 +785,7 @@ export default function DashboardPage() {
         <Card title={realNews && realNews.length > 0 ? "📰 آخرین اخبار بازار" : "اطلاعیه‌ها و مجامع"}>
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {news.map((item, i) => {
-              const itemKey = (item as any).id || `${item.symbol || i}-${i}`;
+              const itemKey = (item as { id?: string }).id || `${item.symbol || i}-${i}`;
               return (
                 <a
                   key={itemKey}
@@ -805,7 +834,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {active.slice(0, 10).map((item: any, i: number) => (
+                  {active.slice(0, 10).map((item, i: number) => (
                     <tr key={item.symbol} className="border-b border-surface-800/50 hover:bg-white/[0.02]">
                       <td className="py-1.5 text-surface-500">{i + 1}</td>
                       <td className="py-1.5">

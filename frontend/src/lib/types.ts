@@ -20,6 +20,8 @@ export interface ChartDataPoint {
   positive?: number;
   neutral?: number;
   negative?: number;
+  /** Allow ad-hoc series (e.g. dynamic dataKey access) while staying typed. */
+  [key: string]: number | string | undefined;
 }
 
 export interface NewsItem {
@@ -61,6 +63,40 @@ export interface Signal {
   instrument_id?: string;
   strategy?: string;
   created_at?: string;
+}
+
+export interface EnrichedSignal {
+  symbol: string;
+  name: string;
+  market: string;
+  direction: 'buy' | 'sell' | 'hold' | 'wait';
+  timeframe: string;
+  entry_zone: string;
+  stop_loss: string;
+  targets: string;
+  risk_reward: string;
+  position_sizing: string;
+  confirmation_condition: string;
+  reason: string;
+  invalidation: string;
+  trailing_stop: string;
+  price: number;
+  change_pct: number;
+  rule_score: number;
+  ml_score: number;
+  boosted_score: number;
+  ml_influence_pct: number;
+  confidence: number;
+  calibration_level: string;
+  confidence_factors: Record<string, number>;
+  confidence_notes: string[];
+  vote_strategy: string;
+  vote_direction_scores: Record<string, number>;
+  source: string;
+  created_at: string;
+  decision_verdict?: string;
+  decision_grade?: string;
+  gate_results?: Array<{ gate: string; verdict: string; reason: string }>;
 }
 
 export interface OrderBookEntry {

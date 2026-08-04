@@ -18,4 +18,3 @@ async def test_multiple_indicators():
     for indicator in ["sma", "ema", "rsi", "macd"]:
         result = await service.calculate_indicator("فولاد", indicator, {"period": 14})
         assert result.success or not result.success
-

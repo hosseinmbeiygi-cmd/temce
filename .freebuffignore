@@ -1,0 +1,10 @@
+﻿**/venv/**
+**/frontend/**
+**/codal_env/**
+**/Redis/**
+**/timescaledb_temp/**
+**/claw-code/**
+**/.mimocode/**
+**/node_modules/**
+**/__pycache__/**
+**/.git/**

@@ -60,6 +60,7 @@ Dockerfile*
 !Dockerfile.admin
 !Dockerfile.worker
 !Dockerfile
+!Dockerfile.decision-engine
 frontend/Dockerfile.dev
 
 # ── Documentation ────────────────────────

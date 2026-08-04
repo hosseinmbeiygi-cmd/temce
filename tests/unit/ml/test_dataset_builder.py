@@ -47,4 +47,3 @@ def test_dataset_builder_validate():
     assert valid is True
     invalid = builder.validate({"close": [1, 2, 3], "volume": [4, 5]})
     assert invalid is False
-

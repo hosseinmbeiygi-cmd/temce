@@ -74,12 +74,12 @@ class RSSNewsProvider(NewsProvider):
 
         tasks = [
             _fetch_with_timeout(name, url)
-            for name, url in zip(feed_names, feed_urls)
+            for name, url in zip(feed_names, feed_urls, strict=False)
         ]
         results = await asyncio.gather(*tasks)
 
         all_articles: list[dict[str, Any]] = []
-        for feed_name, feed_url, result in results:
+        for feed_name, _feed_url, result in results:
             if result.success and result.value:
                 # Tag each article with its feed source key
                 for article in result.value:

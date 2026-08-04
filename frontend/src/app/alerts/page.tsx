@@ -51,26 +51,91 @@ export default function AlertsPage() {
   const [historyAlertId, setHistoryAlertId] = useState<string | null>(null);
   const [historyData, setHistoryData] = useState<Array<{id: string; triggered_at: string; trigger_value: number; message: string}>>([]);
 
-  // Fetch all symbols from API
+  // Fetch all symbols from API with fallbacks
   const { data: symbolsData } = useQuery({
     queryKey: ["alerts-symbols"],
-    queryFn: async () => {
+    queryFn: async (): Promise<SymbolOption[]> => {
+      // Try 1: enriched heatmap (best: has price + sector)
       try {
-        const res = await apiGet<{ success: boolean; data: SymbolOption[] }>("/market/enriched-heatmap");
-        return extractArray<SymbolOption>(res);
-      } catch {
-        return [];
-      }
+        const res = await apiGet<unknown>("/market/enriched-heatmap");
+        const arr = extractArray<SymbolOption>(res);
+        if (arr.length > 0) return arr;
+      } catch { /* fall through */ }
+
+      // Try 2: instruments list
+      try {
+        const res = await apiGet<{ success: boolean; data: { items: Array<{ symbol: string; name: string; sector?: string }> } | Array<{ symbol: string; name: string }> }>("/instruments?limit=500");
+        const items = extractArray<{ symbol: string; name: string; sector?: string }>(res);
+        if (items.length > 0) {
+          return items.map((i) => ({
+            symbol: i.symbol,
+            name: i.name || "",
+            price: 0,
+            change: 0,
+            sector: i.sector || "",
+          }));
+        }
+      } catch { /* fall through */ }
+
+      // Try 3: market-info/funds for fund symbols
+      try {
+        const res = await apiGet<unknown>("/market-info/funds");
+        const arr = extractArray<{ symbol: string; name: string }>(res);
+        if (arr.length > 0) {
+          return arr.map((i) => ({
+            symbol: i.symbol,
+            name: i.name || "",
+            price: 0,
+            change: 0,
+            sector: "",
+          }));
+        }
+      } catch { /* fall through */ }
+
+      // Try 4: brsapi snapshots
+      try {
+        const res = await apiGet<unknown>("/brsapi/snapshots?limit=300");
+        const arr = extractArray<{ symbol: string; name: string }>(res);
+        if (arr.length > 0) {
+          return arr.map((i) => ({
+            symbol: i.symbol,
+            name: i.name || "",
+            price: 0,
+            change: 0,
+            sector: "",
+          }));
+        }
+      } catch { /* fall through */ }
+
+      // Try 5: static symbol catalog (DB-free — works even without PostgreSQL)
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; name: string; sector?: string }> }>("/symbols?limit=1000");
+        const arr = extractArray<{ symbol: string; name: string; sector?: string }>(res);
+        if (arr.length > 0) {
+          return arr.map((i) => ({
+            symbol: i.symbol,
+            name: i.name || "",
+            price: 0,
+            change: 0,
+            sector: i.sector || "",
+          }));
+        }
+      } catch { /* fall through */ }
+
+      return [];
     },
-    staleTime: 60_000,
+    staleTime: 120_000,
+    retry: 2,
   });
 
   const symbols = symbolsData ?? [];
-  const symbolOptions = symbols.map((s) => ({
-    value: s.symbol,
-    label: `${s.symbol} — ${s.name || ""}`,
-    sector: s.sector || "",
-  }));
+  const symbolOptions = symbols.length > 0
+    ? symbols.map((s) => ({
+        value: s.symbol,
+        label: `${s.symbol} — ${s.name || ""}`,
+        sector: s.sector || "",
+      }))
+    : [];
 
   useEffect(() => {
     fetchAlerts();
@@ -94,16 +159,26 @@ export default function AlertsPage() {
       const condition: Record<string, unknown> = { threshold: parseFloat(threshold), operator: "gte", field: "price" };
       if (alertType.includes("rsi")) condition.field = "rsi";
       if (alertType.includes("volume")) condition.field = "volume";
-      if (alertType.includes("below")) condition.operator = "lte";
       if (alertType.includes("oversold")) { condition.field = "rsi"; condition.operator = "lte"; condition.threshold = 30; }
       if (alertType.includes("overbought")) { condition.field = "rsi"; condition.operator = "gte"; condition.threshold = 70; }
+      // SMA cross alerts: the scheduler computes a boolean cross signal
+      // (1.0 if crossed above/below SMA20 today, else 0.0).
+      // NOTE: cross checks must run BEFORE the generic "below" → lte mapping.
+      if (alertType === "cross_above_sma") { condition.field = "sma_cross_above"; condition.operator = "eq"; condition.threshold = 1; }
+      if (alertType === "cross_below_sma") { condition.field = "sma_cross_below"; condition.operator = "eq"; condition.threshold = 1; }
+      // Generic price_below → lte (after cross handling, since "cross_below_sma" also contains "below").
+      if (alertType.includes("below") && !alertType.startsWith("cross_")) condition.operator = "lte";
+      // Anti-spam: don't re-trigger the same alert within 30 minutes.
+      condition.cooldown_minutes = 30;
 
       await apiPost("/alerts", {
-        instrument_id: symbol,
+        // instrument_id is a UUID (resolved server-side when available) —
+        // never send the ticker symbol there. Leave it empty so the schema
+        // default ("") applies and alerts are matched by symbol.
         symbol,
         alert_type: alertType,
         condition,
-        channels: ["email", "console"],
+        channels: ["telegram", "console"],
         description,
       });
       setMessage("هشدار با موفقیت ایجاد شد");
@@ -155,12 +230,27 @@ export default function AlertsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">نماد</label>
-                  <select value={symbol} onChange={(e) => setSymbol(e.target.value)} className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white">
-                    <option value="">انتخاب نماد...</option>
-                    {symbolOptions.map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                  </select>
+                  {/* جستجو و انتخاب نماد: هم dropdown از API و هم تایپ دستی */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={symbol}
+                      onChange={(e) => setSymbol(e.target.value)}
+                      placeholder="تایپ یا انتخاب نماد..."
+                      list="symbol-options"
+                      className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
+                    />
+                    <datalist id="symbol-options">
+                      {symbolOptions.map((s) => (
+                        <option key={s.value} value={s.value} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {symbol && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      نماد انتخاب‌شده: {symbol}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">نوع هشدار</label>
@@ -192,7 +282,7 @@ export default function AlertsPage() {
          ) : alerts.length === 0 ? (
           <div className="glass-card p-12 text-center">
             <p className="text-gray-500 text-lg mb-2">هیچ هشداری تعریف نشده</p>
-            <p className="text-gray-600 text-sm">روی دکمه "هشدار جدید" کلیک کنید تا اولین هشدار خود را ایجاد کنید</p>
+            <p className="text-gray-600 text-sm">روی دکمه &quot;هشدار جدید&quot; کلیک کنید تا اولین هشدار خود را ایجاد کنید</p>
             <p className="text-gray-600 text-xs mt-2">هشدارها بر اساس قیمت لحظه‌ای، حجم، RSI و عبور از میانگین بررسی می‌شوند</p>
           </div>
         ) : (

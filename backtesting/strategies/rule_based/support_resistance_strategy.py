@@ -30,17 +30,17 @@ class SupportResistanceStrategy(BaseStrategy):
         self._position = 0
 
     def on_bar(self, bar: dict[str, Any]) -> list[OrderEvent]:
-        h = bar.get("high", 0)
-        l = bar.get("low", 0)
-        c = bar.get("close", 0)
-        v = bar.get("volume", 0)
-        if c <= 0:
+        high = bar.get("high", 0)
+        low = bar.get("low", 0)
+        close = bar.get("close", 0)
+        volume = bar.get("volume", 0)
+        if close <= 0:
             return []
 
-        self._highs.append(h)
-        self._lows.append(l)
-        self._closes.append(c)
-        self._volumes.append(v)
+        self._highs.append(high)
+        self._lows.append(low)
+        self._closes.append(close)
+        self._volumes.append(volume)
 
         if len(self._closes) < self.lookback + 1:
             return []
@@ -60,26 +60,26 @@ class SupportResistanceStrategy(BaseStrategy):
         orders: list[OrderEvent] = []
 
         if (is_break_up or is_pullback) and self._position <= 0:
-            qty = self._compute_quantity(c)
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.BUY,
                     quantity=qty,
-                    price=c,
+                    price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )
             )
             self._position = 1
         elif is_break_down and self._position > 0:
-            qty = self._compute_quantity(c)
+            qty = self._compute_quantity(close)
             orders.append(
                 OrderEvent(
                     instrument_id=self.instrument_id,
                     side=OrderSide.SELL,
                     quantity=qty,
-                    price=c,
+                    price=close,
                     order_type=OrderType.MARKET,
                     order_id=new_id("ord"),
                 )

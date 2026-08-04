@@ -39,4 +39,3 @@ def test_news_no_symbol_match():
     text = "متن بدون نماد بورسی"
     symbols = linker.extract_symbols(text)
     assert len(symbols) == 0
-

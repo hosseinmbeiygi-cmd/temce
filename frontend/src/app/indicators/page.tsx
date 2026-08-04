@@ -85,7 +85,10 @@ export default function IndicatorsPage() {
 
   // Reset params when indicator changes
   useEffect(() => {
+    // Sync derived form state to the new indicator's defaults.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setParams({ ...currentDef.defaults });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicatorKey]);
 
   const isMultiLine = MULTI_LINE_INDICATORS.has(indicatorKey);

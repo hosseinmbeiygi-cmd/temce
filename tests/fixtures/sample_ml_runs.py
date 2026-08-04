@@ -19,7 +19,10 @@ def sample_ml_run(
         "dataset_snapshot": "ds_20240101",
         "metrics": {"accuracy": 0.85, "f1_score": 0.82, "auc_roc": 0.91},
         "params": {"learning_rate": 0.1, "max_depth": 6, "n_estimators": 100},
-        "artifacts": {"model": "/data/models/xgboost_v1.pkl", "features": "/data/features/v1.json"},
+        "artifacts": {
+            "model": "/data/models/xgboost_v1.pkl",
+            "features": "/data/features/v1.json",
+        },
         "started_at": datetime.now(UTC).isoformat(),
         "finished_at": datetime.now(UTC).isoformat(),
         "duration_seconds": 120.5,
@@ -49,4 +52,3 @@ def sample_ml_model(
         ],
         "tags": ["test", "classification"],
     }
-

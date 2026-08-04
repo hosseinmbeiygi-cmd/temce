@@ -20,10 +20,7 @@ class Container:
         logger.debug("Registered instance: %s", key)
 
     def register_factory(self, key: str, factory: Callable[[], Any], singleton: bool = True) -> None:
-        if singleton:
-            self._factories[key] = factory
-        else:
-            self._factories[key] = factory
+        self._factories[key] = (factory, singleton)
         logger.debug("Registered factory: %s (singleton=%s)", key, singleton)
 
     def resolve(self, key: str) -> Any:
@@ -32,8 +29,10 @@ class Container:
         if key in self._singletons:
             return self._singletons[key]
         if key in self._factories:
-            instance = self._factories[key]()
-            self._singletons[key] = instance
+            factory, is_singleton = self._factories[key]
+            instance = factory()
+            if is_singleton:
+                self._singletons[key] = instance
             return instance
         logger.debug("Dependency not found: %s", key)
         raise KeyError("No dependency registered")

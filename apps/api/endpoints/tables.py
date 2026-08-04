@@ -53,6 +53,7 @@ async def list_tables(
             count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{t}"'))
             count = count_result.scalar() or 0
         except Exception:
+            logger.debug("Failed to count rows in %s", t)
             count = -1
         tables.append({"name": t, "row_count": count})
 

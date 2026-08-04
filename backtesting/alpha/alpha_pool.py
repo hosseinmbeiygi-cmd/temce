@@ -5,6 +5,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class AlphaSignal:

@@ -15,7 +15,7 @@ class NewsArticleModel(TimestampMixin, Base):
     url: Mapped[str | None] = mapped_column(Text)
     category: Mapped[str | None] = mapped_column(String(50), index=True)
     symbols: Mapped[str | None] = mapped_column(Text)
-    published_at: Mapped[str | None] = mapped_column(String(30), index=True)
+    published_at: Mapped[str | None] = mapped_column(String(40), index=True)
     sentiment: Mapped[str | None] = mapped_column(String(20), server_default="neutral")
     sentiment_score: Mapped[float | None] = mapped_column(Float, server_default="0")
     data_source: Mapped[str | None] = mapped_column(String(20), server_default="rss")

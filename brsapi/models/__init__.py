@@ -33,7 +33,7 @@ Table                           Purpose
 """
 
 from brsapi.models.base import BrsApiBase, RawPayloadModel, SyncLogModel
-from brsapi.models.codal import CodalAnnouncementModel
+from brsapi.models.codal import CodalAnnouncementModel, CodalAttachmentModel
 from brsapi.models.commodity import (
     CommodityPriceModel,
     Currency24hModel,
@@ -102,4 +102,5 @@ __all__ = [
     "GoldCurrencyProDailyHistoryModel",
     # Codal
     "CodalAnnouncementModel",
+    "CodalAttachmentModel",
 ]

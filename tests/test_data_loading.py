@@ -12,7 +12,7 @@ async def test_data_loading():
             "end_date": "2023-01-10",
             "data_source": "tsetmc",
             "timeout": 30,  # افزایش زمان انتظار
-            "horizon": 5
+            "horizon": 5,
         }
         features, targets = await builder.load(config)
         print("Data loaded successfully!")
@@ -21,8 +21,10 @@ async def test_data_loading():
     except Exception as e:
         print(f"Error loading data: {e}")
 
+
 if __name__ == "__main__":
     import io
     import sys
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
     asyncio.run(test_data_loading())

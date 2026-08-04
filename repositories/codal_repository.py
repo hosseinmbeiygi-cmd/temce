@@ -6,6 +6,8 @@ ORM model.  Falls back to in-memory storage when no SQLAlchemy session is given.
 
 from __future__ import annotations
 
+import contextlib
+
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -164,11 +166,8 @@ class _CodalDbRepo(DbRepository[Disclosure, CodalReportModel]):
         pub_date = None
         if orm.publish_date:
             # Try ISO format first
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 pub_date = date.fromisoformat(orm.publish_date)
-            except (ValueError, TypeError):
-                # Persian/Shamsi date like "۱۴۰۵/۰۴/۰۲" — store as string
-                pass
 
         return Disclosure(
             id=orm.id,

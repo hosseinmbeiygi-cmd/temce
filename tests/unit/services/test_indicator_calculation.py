@@ -20,14 +20,35 @@ from services.market_service import MarketService
 SIMPLE = [10.0, 20.0, 30.0, 40.0, 50.0]
 
 # Moderate series: 20 points increasing by 2
-INCREASING_20 = [10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0,
-                 30.0, 32.0, 34.0, 36.0, 38.0, 40.0, 42.0, 44.0, 46.0, 48.0]
+INCREASING_20 = [
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    22.0,
+    24.0,
+    26.0,
+    28.0,
+    30.0,
+    32.0,
+    34.0,
+    36.0,
+    38.0,
+    40.0,
+    42.0,
+    44.0,
+    46.0,
+    48.0,
+]
 
 # 40-point series for MACD (needs mins low + signal periods)
 INCREASING_40 = [float(i) for i in range(10, 50)]  # [10, 11, ..., 49]
 
 
 # ── SMA ────────────────────────────────────────────────────
+
 
 def test_sma_period_3_simple():
     """SMA(3) on [10,20,30,40,50] → [20,30,40]"""
@@ -39,8 +60,24 @@ def test_sma_period_5_on_20_points():
     """SMA(5) on 20 linearly increasing points (step +2)."""
     result = MarketService._sma(INCREASING_20, 5)
     # Each 5-element window average = middle element (linear)
-    expected = [14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0,
-                30.0, 32.0, 34.0, 36.0, 38.0, 40.0, 42.0, 44.0]
+    expected = [
+        14.0,
+        16.0,
+        18.0,
+        20.0,
+        22.0,
+        24.0,
+        26.0,
+        28.0,
+        30.0,
+        32.0,
+        34.0,
+        36.0,
+        38.0,
+        40.0,
+        42.0,
+        44.0,
+    ]
     assert len(result) == 16  # 20 - 5 + 1
     assert result == expected
 
@@ -64,6 +101,7 @@ def test_sma_period_equals_length():
 
 # ── EMA ────────────────────────────────────────────────────
 
+
 def test_ema_period_3_simple():
     """EMA(3) on [10,20,30,40,50]."""
     result = MarketService._ema(SIMPLE, 3)
@@ -80,8 +118,24 @@ def test_ema_period_5_on_20_points():
     # Initial SMA of first 5: (10+12+14+16+18)/5 = 14
     # multiplier = 2/6 ≈ 0.33333...
     # For linear data stepping by +2, each ema step = +2 exactly
-    expected = [14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0,
-                30.0, 32.0, 34.0, 36.0, 38.0, 40.0, 42.0, 44.0]
+    expected = [
+        14.0,
+        16.0,
+        18.0,
+        20.0,
+        22.0,
+        24.0,
+        26.0,
+        28.0,
+        30.0,
+        32.0,
+        34.0,
+        36.0,
+        38.0,
+        40.0,
+        42.0,
+        44.0,
+    ]
     assert len(result) == 16  # 20 - 5 + 1
     assert result == pytest.approx(expected)
 
@@ -101,6 +155,7 @@ def test_ema_approaches_last_price_over_time():
 
 
 # ── RSI ────────────────────────────────────────────────────
+
 
 def test_rsi_period_3_up_trend():
     """RSI(3) on steadily increasing prices → all 100 (no losses)."""
@@ -186,6 +241,7 @@ def test_macd_3_5_2_exact_values():
 
 # ── MACD: multiple parameter combos ────────────────────────
 
+
 def test_macd_12_26_9_lengths():
     """MACD(12,26,9) standard on 40 points."""
     macd_line, signal_line, hist = MarketService._macd(INCREASING_40, 12, 26, 9)
@@ -241,6 +297,7 @@ def test_macd_3_10_5_short_data():
 
 # ── MACD: behavioral tests ────────────────────────────────
 
+
 def test_macd_uptrend_positive():
     """In an uptrend, MACD line should be positive."""
     data = list(range(10, 50))  # 40 points of pure uptrend
@@ -266,8 +323,8 @@ def test_macd_crosses_zero():
     macd_line, signal_line, hist = MarketService._macd(data, 5, 10, 5)
     assert len(macd_line) > 0
     # Should have positive values early and negative late
-    assert any(m > 0 for m in macd_line[:len(macd_line) // 2])
-    assert any(m < 0 for m in macd_line[len(macd_line) // 2:])
+    assert any(m > 0 for m in macd_line[: len(macd_line) // 2])
+    assert any(m < 0 for m in macd_line[len(macd_line) // 2 :])
 
 
 def test_macd_constant_prices():
@@ -291,6 +348,7 @@ def test_macd_signal_lags_macd():
 
 # ── MACD: edge cases ──────────────────────────────────────
 
+
 def test_macd_minimal_fast():
     """MACD(2,5,2) — minimal fast period."""
     macd_line, signal_line, hist = MarketService._macd(_MACD_SMALL, 2, 5, 2)
@@ -309,15 +367,13 @@ def test_macd_exact_length_at_slow_period():
 
 # ── MACD pipeline test ────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_calculate_indicator_pipeline_macd_exact():
     """Full pipeline with MACD(12,26,9) and exact value checks."""
     from unittest.mock import AsyncMock
 
-    mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i)}
-        for i in range(40)
-    ]
+    mock_data = [{"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i)} for i in range(40)]
     mock_query = AsyncMock()
     mock_query.get_historical_daily.return_value = mock_data
 
@@ -337,6 +393,7 @@ async def test_calculate_indicator_pipeline_macd_exact():
 
 
 # ── Bollinger Bands ────────────────────────────────────────
+
 
 def test_bollinger_default_params():
     """Bollinger(20, 2) on 20 linearly increasing points."""
@@ -379,6 +436,7 @@ def test_bollinger_constant_prices():
 
 
 # ── Bollinger exact values ─────────────────────────────────
+
 
 def test_bollinger_exact_values():
     """Bollinger(3, 1) on [1,2,3,4,5] — can compute exactly."""
@@ -428,8 +486,8 @@ def test_bollinger_period_2_stddev_2():
     upper, middle, lower = MarketService._bollinger(BOLL_DATA, 2, 2)
     # Same middles, bands 2x wider
     assert middle[0] == pytest.approx(3.0)
-    assert upper[0] == pytest.approx(5.0)   # 3 + 2*1
-    assert lower[0] == pytest.approx(1.0)   # 3 - 2*1
+    assert upper[0] == pytest.approx(5.0)  # 3 + 2*1
+    assert lower[0] == pytest.approx(1.0)  # 3 - 2*1
 
 
 def test_bollinger_period_3_stddev_1():
@@ -500,6 +558,7 @@ def test_bollinger_period_5_stddev_half():
 
 # ── Bollinger: wider stddev = wider bands ──────────────────
 
+
 def test_bollinger_wider_stddev_gives_wider_bands():
     """For the same period, stddev=3 bands > stddev=1 bands."""
     data = [10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0]
@@ -507,13 +566,14 @@ def test_bollinger_wider_stddev_gives_wider_bands():
     u3, m3, l3 = MarketService._bollinger(data, 5, 3)
     assert len(m1) == len(m3) == 6
     for i in range(len(m1)):
-        assert m1[i] == pytest.approx(m3[i])          # same middle
-        assert u3[i] > u1[i]                          # wider upper
-        assert l3[i] < l1[i]                          # wider lower
+        assert m1[i] == pytest.approx(m3[i])  # same middle
+        assert u3[i] > u1[i]  # wider upper
+        assert l3[i] < l1[i]  # wider lower
         assert (u3[i] - l3[i]) == pytest.approx(3 * (u1[i] - l1[i]))  # 3x band width
 
 
 # ── Bollinger: shorter period = more reactive ──────────────
+
 
 def test_bollinger_shorter_period_bounces_more():
     """Shorter period tracks price more closely (smaller lag)."""
@@ -527,6 +587,7 @@ def test_bollinger_shorter_period_bounces_more():
 
 
 # ── Bollinger: edge cases ─────────────────────────────────
+
 
 def test_bollinger_period_1():
     """Bollinger(1, any) — middle = price, bands = middle (zero variance)."""
@@ -566,15 +627,13 @@ def test_bollinger_large_dataset():
 
 # ── Bollinger pipeline test ──────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_calculate_indicator_pipeline_bollinger():
     """Full pipeline with Bollinger returns dict with correct keys."""
     from unittest.mock import AsyncMock
 
-    mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i * 2)}
-        for i in range(20)
-    ]
+    mock_data = [{"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i * 2)} for i in range(20)]
     mock_query = AsyncMock()
     mock_query.get_historical_daily.return_value = mock_data
 
@@ -588,11 +647,12 @@ async def test_calculate_indicator_pipeline_bollinger():
     assert set(data["values"].keys()) == {"upper", "middle", "lower"}
     assert len(data["values"]["middle"]) == 16  # 20 - 5 + 1
     # Symmetry check
-    for u, m, l in zip(data["values"]["upper"], data["values"]["middle"], data["values"]["lower"]):
-        assert u == pytest.approx(2 * m - l, rel=1e-9)
+    for u, m, lower in zip(data["values"]["upper"], data["values"]["middle"], data["values"]["lower"], strict=False):
+        assert u == pytest.approx(2 * m - lower, rel=1e-9)
 
 
 # ── _compute_indicator routing ─────────────────────────────
+
 
 def test_compute_indicator_routes_sma():
     result = MarketService._compute_indicator("sma", SIMPLE, {"period": 3})
@@ -624,16 +684,14 @@ def test_compute_indicator_unknown_raises():
 
 # ── calculate_indicator full pipeline (with mock DB) ──────
 
+
 @pytest.mark.asyncio
 async def test_calculate_indicator_pipeline_sma():
     """Full calculate_indicator pipeline with mocked BrsApiQueryService."""
     from unittest.mock import AsyncMock
 
     # Mock historical data: 20 days
-    mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i * 2)}
-        for i in range(20)
-    ]
+    mock_data = [{"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i * 2)} for i in range(20)]
     mock_query = AsyncMock()
     mock_query.get_historical_daily.return_value = mock_data
 
@@ -644,8 +702,24 @@ async def test_calculate_indicator_pipeline_sma():
     data = result.value
     assert data["symbol"] == "TEST"
     assert data["indicator"] == "sma"
-    assert data["values"] == [14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0,
-                              30.0, 32.0, 34.0, 36.0, 38.0, 40.0, 42.0, 44.0]
+    assert data["values"] == [
+        14.0,
+        16.0,
+        18.0,
+        20.0,
+        22.0,
+        24.0,
+        26.0,
+        28.0,
+        30.0,
+        32.0,
+        34.0,
+        36.0,
+        38.0,
+        40.0,
+        42.0,
+        44.0,
+    ]
     assert len(data["dates"]) == 16  # aligned with values
 
 
@@ -654,10 +728,7 @@ async def test_calculate_indicator_pipeline_macd():
     """Full pipeline with MACD returns dict values."""
     from unittest.mock import AsyncMock
 
-    mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i)}
-        for i in range(40)
-    ]
+    mock_data = [{"date": f"2024-01-{i+1:02d}", "price_last": float(10 + i)} for i in range(40)]
     mock_query = AsyncMock()
     mock_query.get_historical_daily.return_value = mock_data
 
@@ -707,18 +778,83 @@ async def test_calculate_indicator_unknown_indicator():
 # ═══════════════════════════════════════════════════════════
 
 # OHLCV test data — 15 bars, each with high/low/close/volume
-OHLC_BARS_HIGH = [52.0, 53.0, 54.0, 53.5, 54.5, 55.0, 56.0, 55.5, 54.0, 53.0, 52.5, 53.5, 55.0, 56.0, 57.0]
-OHLC_BARS_LOW = [48.0, 49.0, 50.0, 49.5, 50.5, 51.0, 52.0, 51.5, 50.0, 49.0, 48.5, 49.5, 51.0, 52.0, 53.0]
-OHLC_BARS_CLOSE = [50.0, 51.0, 52.0, 51.0, 52.5, 54.0, 55.0, 53.0, 51.0, 50.0, 49.0, 51.0, 53.0, 54.5, 56.0]
-OHLC_VOLUMES = [1000, 1200, 900, 1100, 800, 1500, 2000, 1600, 900, 700, 600, 1000, 1300, 1800, 2200]
+OHLC_BARS_HIGH = [
+    52.0,
+    53.0,
+    54.0,
+    53.5,
+    54.5,
+    55.0,
+    56.0,
+    55.5,
+    54.0,
+    53.0,
+    52.5,
+    53.5,
+    55.0,
+    56.0,
+    57.0,
+]
+OHLC_BARS_LOW = [
+    48.0,
+    49.0,
+    50.0,
+    49.5,
+    50.5,
+    51.0,
+    52.0,
+    51.5,
+    50.0,
+    49.0,
+    48.5,
+    49.5,
+    51.0,
+    52.0,
+    53.0,
+]
+OHLC_BARS_CLOSE = [
+    50.0,
+    51.0,
+    52.0,
+    51.0,
+    52.5,
+    54.0,
+    55.0,
+    53.0,
+    51.0,
+    50.0,
+    49.0,
+    51.0,
+    53.0,
+    54.5,
+    56.0,
+]
+OHLC_VOLUMES = [
+    1000,
+    1200,
+    900,
+    1100,
+    800,
+    1500,
+    2000,
+    1600,
+    900,
+    700,
+    600,
+    1000,
+    1300,
+    1800,
+    2200,
+]
 
 # 25-bar series for Ichimoku (needs min 52)
 _H = [float(10 + i + abs(i % 5 - 2)) for i in range(60)]  # highs with some noise
-_L = [float(9 + i - abs(i % 5 - 2)) for i in range(60)]   # lows
-_C = [float(10 + i) for i in range(60)]                     # closes (linear)
+_L = [float(9 + i - abs(i % 5 - 2)) for i in range(60)]  # lows
+_C = [float(10 + i) for i in range(60)]  # closes (linear)
 
 
 # ── Stochastic ─────────────────────────────────────────────
+
 
 def test_stochastic_lengths():
     """Stochastic(5,3,3) on 15 bars → proper output lengths."""
@@ -772,6 +908,7 @@ def test_stochastic_too_short():
 
 # ── ATR ───────────────────────────────────────────────────
 
+
 def test_atr_length():
     """ATR(5) on 15 bars → 15 - 1 - 5 + 1 = 10 values."""
     result = MarketService._atr(OHLC_BARS_HIGH, OHLC_BARS_LOW, OHLC_BARS_CLOSE, 5)
@@ -803,6 +940,7 @@ def test_atr_too_short():
 
 
 # ── OBV ───────────────────────────────────────────────────
+
 
 def test_obv_cumulative():
     """OBV starts with first volume, accumulates/decreases based on price direction."""
@@ -837,6 +975,7 @@ def test_obv_mismatched_lengths():
 
 
 # ── Williams %R ───────────────────────────────────────────
+
 
 def test_williams_r_length():
     """Williams %R(5) on 15 bars → 15 - 5 + 1 = 11 values."""
@@ -877,6 +1016,7 @@ def test_williams_r_too_short():
 
 # ── Ichimoku ──────────────────────────────────────────────
 
+
 def test_ichimoku_lengths():
     """Ichimoku(9,26,52) on 60 bars."""
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(_H, _L, _C, 9, 26, 52)
@@ -895,9 +1035,9 @@ def test_ichimoku_tenkan_vs_kijun():
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(_H, _L, _C, 9, 26, 52)
     # In an uptrend, tenkan (shorter) should generally be above kijun (longer)
     offset = 26 - 9  # 17
-    tenkan_aligned = tenkan[offset:offset + len(kijun)]
+    tenkan_aligned = tenkan[offset : offset + len(kijun)]
     # Most values: tenkan > kijun
-    above_count = sum(1 for t, k in zip(tenkan_aligned, kijun) if t > k)
+    above_count = sum(1 for t, k in zip(tenkan_aligned, kijun, strict=False) if t > k)
     assert above_count > len(kijun) * 0.6  # at least 60% of the time
 
 
@@ -932,14 +1072,19 @@ _ICH_52_C = [float(150 + i) for i in range(_ICH_52_N)]
 def test_ichimoku_9_26_52_exact_values():
     """Ichimoku(9,26,52) on 52 bars — exact values computed by hand."""
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
-        _ICH_52_H, _ICH_52_L, _ICH_52_C, 9, 26, 52,
+        _ICH_52_H,
+        _ICH_52_L,
+        _ICH_52_C,
+        9,
+        26,
+        52,
     )
     # ── Lengths ──
-    assert len(tenkan) == 44    # 52 - 9 + 1
-    assert len(kijun) == 27     # 52 - 26 + 1
+    assert len(tenkan) == 44  # 52 - 9 + 1
+    assert len(kijun) == 27  # 52 - 26 + 1
     assert len(senkou_a) == 27  # same as kijun
-    assert len(senkou_b) == 1   # 52 - 52 + 1
-    assert len(chikou) == 26    # 52 - 26
+    assert len(senkou_b) == 1  # 52 - 52 + 1
+    assert len(chikou) == 26  # 52 - 26
 
     # ── Tenkan (9): hh = 208+a, ll = 100+a → (308+2a)/2 = 154+a ──
     for a in range(44):
@@ -985,14 +1130,19 @@ _ICH_44_C = [float(150 + i) for i in range(_ICH_44_N)]
 def test_ichimoku_7_22_44_exact_values():
     """Ichimoku(7,22,44) on 44 bars — exact values computed by hand."""
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
-        _ICH_44_H, _ICH_44_L, _ICH_44_C, 7, 22, 44,
+        _ICH_44_H,
+        _ICH_44_L,
+        _ICH_44_C,
+        7,
+        22,
+        44,
     )
     # ── Lengths ──
-    assert len(tenkan) == 38    # 44 - 7 + 1
-    assert len(kijun) == 23     # 44 - 22 + 1
+    assert len(tenkan) == 38  # 44 - 7 + 1
+    assert len(kijun) == 23  # 44 - 22 + 1
     assert len(senkou_a) == 23  # same as kijun
-    assert len(senkou_b) == 1   # 44 - 44 + 1
-    assert len(chikou) == 22    # 44 - 22
+    assert len(senkou_b) == 1  # 44 - 44 + 1
+    assert len(chikou) == 22  # 44 - 22
 
     # ── Tenkan (7): hh = 206+a, ll = 100+a → (306+2a)/2 = 153+a ──
     for a in range(38):
@@ -1032,14 +1182,19 @@ _ICH_120_C = [float(150 + i) for i in range(_ICH_120_N)]
 def test_ichimoku_20_60_120_exact_values():
     """Ichimoku(20,60,120) on 120 bars — exact values computed by hand."""
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
-        _ICH_120_H, _ICH_120_L, _ICH_120_C, 20, 60, 120,
+        _ICH_120_H,
+        _ICH_120_L,
+        _ICH_120_C,
+        20,
+        60,
+        120,
     )
     # ── Lengths ──
-    assert len(tenkan) == 101   # 120 - 20 + 1
-    assert len(kijun) == 61     # 120 - 60 + 1
+    assert len(tenkan) == 101  # 120 - 20 + 1
+    assert len(kijun) == 61  # 120 - 60 + 1
     assert len(senkou_a) == 61  # same as kijun
-    assert len(senkou_b) == 1   # 120 - 120 + 1
-    assert len(chikou) == 60    # 120 - 60
+    assert len(senkou_b) == 1  # 120 - 120 + 1
+    assert len(chikou) == 60  # 120 - 60
 
     # ── Tenkan (20): hh = 219+a, ll = 100+a → (319+2a)/2 = 159.5+a ──
     for a in range(0, 101, 10):  # sample every 10th
@@ -1071,6 +1226,7 @@ def test_ichimoku_20_60_120_exact_values():
 
 # ── Ichimoku: constant data for all three combos ──────────
 
+
 def test_ichimoku_9_26_52_constant():
     """All constant → all lines = that constant."""
     n = 52
@@ -1090,7 +1246,12 @@ def test_ichimoku_7_22_44_constant():
     n = 44
     flats = [100.0] * n
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
-        flats, flats, flats, 7, 22, 44,
+        flats,
+        flats,
+        flats,
+        7,
+        22,
+        44,
     )
     assert len(tenkan) == 38
     assert len(kijun) == 23
@@ -1106,7 +1267,12 @@ def test_ichimoku_20_60_120_constant():
     n = 120
     flats = [100.0] * n
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
-        flats, flats, flats, 20, 60, 120,
+        flats,
+        flats,
+        flats,
+        20,
+        60,
+        120,
     )
     assert len(tenkan) == 101
     assert len(kijun) == 61
@@ -1118,6 +1284,7 @@ def test_ichimoku_20_60_120_constant():
 
 
 # ── Ichimoku: behavioural tests ───────────────────────────
+
 
 def test_ichimoku_tenkan_more_reactive_than_kijun():
     """On varying data, tenkan (shorter) should have larger range than kijun."""
@@ -1153,9 +1320,7 @@ def test_ichimoku_9_26_52_downtrend():
     tenkan, kijun, _, _, _ = MarketService._ichimoku(highs, lows, closes, 9, 26, 52)
     offset = 26 - 9  # 17
     # In a downtrend, shorter MA (tenkan) should be below longer MA (kijun)
-    below_count = sum(
-        1 for i in range(len(kijun)) if tenkan[i + offset] < kijun[i]
-    )
+    below_count = sum(1 for i in range(len(kijun)) if tenkan[i + offset] < kijun[i])
     assert below_count > len(kijun) * 0.6
 
 
@@ -1175,6 +1340,7 @@ def test_ichimoku_senkou_a_between_tenkan_and_kijun():
 
 
 # ── Ichimoku: edge cases ──────────────────────────────────
+
 
 def test_ichimoku_7_22_44_exact_min_data():
     """Exactly 44 bars (equals max_period) → senkou_b has 1 value, others work."""
@@ -1207,29 +1373,30 @@ def test_ichimoku_9_26_52_just_above_min():
     lows = [float(100 + i) for i in range(n)]
     closes = [float(150 + i) for i in range(n)]
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(highs, lows, closes, 9, 26, 52)
-    assert len(tenkan) == 45   # 53 - 9 + 1
-    assert len(kijun) == 28    # 53 - 26 + 1
+    assert len(tenkan) == 45  # 53 - 9 + 1
+    assert len(kijun) == 28  # 53 - 26 + 1
     assert len(senkou_a) == 28
     assert len(senkou_b) == 2  # 53 - 52 + 1 = 2
-    assert len(chikou) == 27   # 53 - 26
+    assert len(chikou) == 27  # 53 - 26
 
 
 def test_ichimoku_7_22_44_mismatched_array_lengths():
     """Different length arrays → uses min(len)."""
     n = 50
     highs = [float(200 + i) for i in range(n)]
-    lows = [float(100 + i) for i in range(n - 1)]   # one shorter
+    lows = [float(100 + i) for i in range(n - 1)]  # one shorter
     closes = [float(150 + i) for i in range(n - 2)]  # two shorter
     # min = 48
     tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(highs, lows, closes, 7, 22, 44)
-    assert len(tenkan) == 42   # 48 - 7 + 1
-    assert len(kijun) == 27    # 48 - 22 + 1
+    assert len(tenkan) == 42  # 48 - 7 + 1
+    assert len(kijun) == 27  # 48 - 22 + 1
     assert len(senkou_a) == 27
     assert len(senkou_b) == 5  # 48 - 44 + 1
-    assert len(chikou) == 26   # 48 - 22
+    assert len(chikou) == 26  # 48 - 22
 
 
 # ── Ichimoku: pipeline tests with custom combos ────────────
+
 
 @pytest.mark.asyncio
 async def test_calculate_indicator_pipeline_ichimoku_7_22_44():
@@ -1238,8 +1405,12 @@ async def test_calculate_indicator_pipeline_ichimoku_7_22_44():
 
     n = 50
     mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": float(150 + i),
-         "price_max": float(200 + i), "price_min": float(100 + i)}
+        {
+            "date": f"2024-01-{i+1:02d}",
+            "price_last": float(150 + i),
+            "price_max": float(200 + i),
+            "price_min": float(100 + i),
+        }
         for i in range(n)
     ]
     mock_query = AsyncMock()
@@ -1247,19 +1418,27 @@ async def test_calculate_indicator_pipeline_ichimoku_7_22_44():
 
     service = MarketService(brsapi_query_service=mock_query)
     result = await service.calculate_indicator(
-        "TEST", "ichimoku", {"tenkan": 7, "kijun": 22, "senkou_b": 44},
+        "TEST",
+        "ichimoku",
+        {"tenkan": 7, "kijun": 22, "senkou_b": 44},
     )
 
     assert result.success
     data = result.value
     assert data["indicator"] == "ichimoku"
     assert isinstance(data["values"], dict)
-    assert set(data["values"].keys()) == {"tenkan", "kijun", "senkou_a", "senkou_b", "chikou"}
-    assert len(data["values"]["tenkan"]) == 44   # 50 - 7 + 1
-    assert len(data["values"]["kijun"]) == 29    # 50 - 22 + 1
+    assert set(data["values"].keys()) == {
+        "tenkan",
+        "kijun",
+        "senkou_a",
+        "senkou_b",
+        "chikou",
+    }
+    assert len(data["values"]["tenkan"]) == 44  # 50 - 7 + 1
+    assert len(data["values"]["kijun"]) == 29  # 50 - 22 + 1
     assert len(data["values"]["senkou_a"]) == 29
     assert len(data["values"]["senkou_b"]) == 7  # 50 - 44 + 1
-    assert len(data["values"]["chikou"]) == 28   # 50 - 22
+    assert len(data["values"]["chikou"]) == 28  # 50 - 22
     # Dates aligned to first non-empty series length (tenkan = 44)
     assert len(data["dates"]) == 44
 
@@ -1271,8 +1450,12 @@ async def test_calculate_indicator_pipeline_ichimoku_20_60_120():
 
     n = 130
     mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": float(150 + i),
-         "price_max": float(200 + i), "price_min": float(100 + i)}
+        {
+            "date": f"2024-01-{i+1:02d}",
+            "price_last": float(150 + i),
+            "price_max": float(200 + i),
+            "price_min": float(100 + i),
+        }
         for i in range(n)
     ]
     mock_query = AsyncMock()
@@ -1280,26 +1463,38 @@ async def test_calculate_indicator_pipeline_ichimoku_20_60_120():
 
     service = MarketService(brsapi_query_service=mock_query)
     result = await service.calculate_indicator(
-        "TEST", "ichimoku", {"tenkan": 20, "kijun": 60, "senkou_b": 120},
+        "TEST",
+        "ichimoku",
+        {"tenkan": 20, "kijun": 60, "senkou_b": 120},
     )
 
     assert result.success
     data = result.value
-    assert set(data["values"].keys()) == {"tenkan", "kijun", "senkou_a", "senkou_b", "chikou"}
-    assert len(data["values"]["tenkan"]) == 111   # 130 - 20 + 1
-    assert len(data["values"]["kijun"]) == 71     # 130 - 60 + 1
+    assert set(data["values"].keys()) == {
+        "tenkan",
+        "kijun",
+        "senkou_a",
+        "senkou_b",
+        "chikou",
+    }
+    assert len(data["values"]["tenkan"]) == 111  # 130 - 20 + 1
+    assert len(data["values"]["kijun"]) == 71  # 130 - 60 + 1
     assert len(data["values"]["senkou_b"]) == 11  # 130 - 120 + 1
-    assert len(data["values"]["chikou"]) == 70    # 130 - 60
+    assert len(data["values"]["chikou"]) == 70  # 130 - 60
     # Dates aligned to tenkan = 111
     assert len(data["dates"]) == 111
 
 
 # ── _compute_indicator routing (new indicators) ───────────
 
+
 def test_compute_indicator_routes_stochastic():
     result = MarketService._compute_indicator(
-        "stochastic", OHLC_BARS_CLOSE, {"period": 5, "k_smooth": 3, "d_smooth": 3},
-        highs=OHLC_BARS_HIGH, lows=OHLC_BARS_LOW,
+        "stochastic",
+        OHLC_BARS_CLOSE,
+        {"period": 5, "k_smooth": 3, "d_smooth": 3},
+        highs=OHLC_BARS_HIGH,
+        lows=OHLC_BARS_LOW,
     )
     assert isinstance(result, dict)
     assert "k" in result
@@ -1310,8 +1505,11 @@ def test_compute_indicator_routes_stochastic():
 
 def test_compute_indicator_routes_atr():
     result = MarketService._compute_indicator(
-        "atr", OHLC_BARS_CLOSE, {"period": 5},
-        highs=OHLC_BARS_HIGH, lows=OHLC_BARS_LOW,
+        "atr",
+        OHLC_BARS_CLOSE,
+        {"period": 5},
+        highs=OHLC_BARS_HIGH,
+        lows=OHLC_BARS_LOW,
     )
     assert isinstance(result, list)
     assert len(result) == 10
@@ -1320,7 +1518,9 @@ def test_compute_indicator_routes_atr():
 
 def test_compute_indicator_routes_obv():
     result = MarketService._compute_indicator(
-        "obv", [10.0, 12.0, 10.0, 10.0, 14.0], {},
+        "obv",
+        [10.0, 12.0, 10.0, 10.0, 14.0],
+        {},
         volumes=[100.0, 200.0, 150.0, 300.0, 250.0],
     )
     assert isinstance(result, list)
@@ -1329,8 +1529,11 @@ def test_compute_indicator_routes_obv():
 
 def test_compute_indicator_routes_williams_r():
     result = MarketService._compute_indicator(
-        "williams_r", OHLC_BARS_CLOSE, {"period": 5},
-        highs=OHLC_BARS_HIGH, lows=OHLC_BARS_LOW,
+        "williams_r",
+        OHLC_BARS_CLOSE,
+        {"period": 5},
+        highs=OHLC_BARS_HIGH,
+        lows=OHLC_BARS_LOW,
     )
     assert isinstance(result, list)
     assert len(result) == 11
@@ -1338,8 +1541,11 @@ def test_compute_indicator_routes_williams_r():
 
 def test_compute_indicator_routes_ichimoku():
     result = MarketService._compute_indicator(
-        "ichimoku", _C, {"tenkan": 9, "kijun": 26, "senkou_b": 52},
-        highs=_H, lows=_L,
+        "ichimoku",
+        _C,
+        {"tenkan": 9, "kijun": 26, "senkou_b": 52},
+        highs=_H,
+        lows=_L,
     )
     assert isinstance(result, dict)
     assert set(result.keys()) == {"tenkan", "kijun", "senkou_a", "senkou_b", "chikou"}
@@ -1348,13 +1554,18 @@ def test_compute_indicator_routes_ichimoku():
 
 # ── Pipeline tests (new indicators with mock DB) ────────
 
+
 @pytest.mark.asyncio
 async def test_calculate_indicator_pipeline_stochastic():
     from unittest.mock import AsyncMock
 
     mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": OHLC_BARS_CLOSE[i],
-         "price_max": OHLC_BARS_HIGH[i], "price_min": OHLC_BARS_LOW[i]}
+        {
+            "date": f"2024-01-{i+1:02d}",
+            "price_last": OHLC_BARS_CLOSE[i],
+            "price_max": OHLC_BARS_HIGH[i],
+            "price_min": OHLC_BARS_LOW[i],
+        }
         for i in range(len(OHLC_BARS_CLOSE))
     ]
     mock_query = AsyncMock()
@@ -1376,8 +1587,12 @@ async def test_calculate_indicator_pipeline_atr():
     from unittest.mock import AsyncMock
 
     mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": OHLC_BARS_CLOSE[i],
-         "price_max": OHLC_BARS_HIGH[i], "price_min": OHLC_BARS_LOW[i]}
+        {
+            "date": f"2024-01-{i+1:02d}",
+            "price_last": OHLC_BARS_CLOSE[i],
+            "price_max": OHLC_BARS_HIGH[i],
+            "price_min": OHLC_BARS_LOW[i],
+        }
         for i in range(len(OHLC_BARS_CLOSE))
     ]
     mock_query = AsyncMock()
@@ -1398,8 +1613,12 @@ async def test_calculate_indicator_pipeline_ichimoku():
     from unittest.mock import AsyncMock
 
     mock_data = [
-        {"date": f"2024-01-{i+1:02d}", "price_last": _C[i],
-         "price_max": _H[i], "price_min": _L[i]}
+        {
+            "date": f"2024-01-{i+1:02d}",
+            "price_last": _C[i],
+            "price_max": _H[i],
+            "price_min": _L[i],
+        }
         for i in range(len(_C))
     ]
     mock_query = AsyncMock()
@@ -1412,4 +1631,10 @@ async def test_calculate_indicator_pipeline_ichimoku():
     data = result.value
     assert data["indicator"] == "ichimoku"
     assert isinstance(data["values"], dict)
-    assert set(data["values"].keys()) == {"tenkan", "kijun", "senkou_a", "senkou_b", "chikou"}
+    assert set(data["values"].keys()) == {
+        "tenkan",
+        "kijun",
+        "senkou_a",
+        "senkou_b",
+        "chikou",
+    }

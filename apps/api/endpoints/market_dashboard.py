@@ -80,7 +80,8 @@ async def _fetch_screener_data(brsapi) -> list[dict[str, Any]]:
                 result = engine.analyze(quote, [])
                 smc = result.get("smart_money_score", 0.0)
                 phase = result.get("phase", "neutral")
-            except Exception:
+            except Exception as exc:
+                logger.debug("Scoring failed for %s: %s", sym, exc)
                 smc = 0.0
                 phase = "neutral"
             results.append({

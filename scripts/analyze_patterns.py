@@ -1,14 +1,15 @@
 import asyncio
+import contextlib
 import sys
 
 sys.path.insert(0, ".")
 
-try:
+with contextlib.suppress(AttributeError):
     sys.stdout.reconfigure(encoding="utf-8")
-except AttributeError:
-    pass
 
 dash = "-"
+
+from core.db_utils import safe_row_str
 
 
 async def analyze():
@@ -39,10 +40,10 @@ async def analyze():
         print(hdr)
         print("  " + dash * 60)
         for row in r.fetchall():
-            sym = str(row[0])
+            sym = safe_row_str(row, idx=0)
             cnt = row[1]
-            fd = str(row[2] or "N/A")
-            ld = str(row[3] or "N/A")
+            fd = safe_row_str(row, idx=2, default="N/A")
+            ld = safe_row_str(row, idx=3, default="N/A")
             days = row[4]
             print(f"  {sym:<12} {cnt:<12,} {days:<8,} {fd} to {ld}")
 
@@ -68,11 +69,11 @@ async def analyze():
         )
         print("  " + dash * 60)
         for row in r.fetchall():
-            sym = str(row[0])
+            sym = safe_row_str(row, idx=0)
             days = row[1]
-            avgp = str(row[2] or "N/A")
-            maxp = str(row[3] or "N/A")
-            minp = str(row[4] or "N/A")
+            avgp = safe_row_str(row, idx=2, default="N/A")
+            maxp = safe_row_str(row, idx=3, default="N/A")
+            minp = safe_row_str(row, idx=4, default="N/A")
             print(f"  {sym:<12} {days:<12,} {avgp:<12} {maxp:<12} {minp:<12}")
 
         # ── 3) CODAL - MONTHLY REPORT PATTERNS ──
@@ -117,7 +118,7 @@ async def analyze():
         total = r.fetchall()
         grand = sum(row[1] for row in total)
         for row in total:
-            rt = str(row[0]) if row[0] else "(empty)"
+            rt = safe_row_str(row, idx=0, default="(empty)")
             cnt = row[1]
             pct = round(cnt / grand * 100, 1)
             print(f"  {rt:<15} {cnt:<10,} {pct:<8}%")
@@ -140,7 +141,7 @@ async def analyze():
         print(f"  {'Symbol':<12} {'Total':<12} {'Days':<8} {'Avg/Day':<12}")
         print("  " + dash * 45)
         for row in r.fetchall():
-            sym = str(row[0])
+            sym = safe_row_str(row, idx=0)
             tot = row[1]
             days = row[2]
             avg = row[3]
@@ -168,11 +169,11 @@ async def analyze():
         )
         print("  " + dash * 60)
         for row in r.fetchall():
-            sym = str(row[0])
+            sym = safe_row_str(row, idx=0)
             cnt = row[1]
             types = row[2]
-            first = str(row[3] or "N/A")
-            last = str(row[4] or "N/A")
+            first = safe_row_str(row, idx=3, default="N/A")
+            last = safe_row_str(row, idx=4, default="N/A")
             print(f"  {sym:<12} {cnt:<10,} {types:<8} {first} to {last}")
 
         # ── 7) REAL LEGAL - BUY/SELL PATTERNS ──
@@ -197,12 +198,12 @@ async def analyze():
         )
         print("  " + dash * 65)
         for row in r.fetchall():
-            sym = str(row[0])
+            sym = safe_row_str(row, idx=0)
             days = row[1]
-            abl = str(row[2] or "0")
-            abr = str(row[3] or "0")
-            asl = str(row[4] or "0")
-            asr = str(row[5] or "0")
+            abl = safe_row_str(row, idx=2, default="0")
+            abr = safe_row_str(row, idx=3, default="0")
+            asl = safe_row_str(row, idx=4, default="0")
+            asr = safe_row_str(row, idx=5, default="0")
             print(f"  {sym:<10} {days:<6,} {abl:<14} {abr:<14} {asl:<14} {asr:<14}")
 
         await close_database()

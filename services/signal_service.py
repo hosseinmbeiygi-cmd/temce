@@ -19,6 +19,7 @@ class SignalService:
         if signal_repo is None:
             signal_repo = SignalRepository(session=session)
         self.signal_repo = signal_repo
+        self._session = session
 
     async def create(
         self, instrument_id: str, signal_type: SignalType, score: float = 0.0, confidence: float = 0.0, **kwargs: Any
@@ -34,16 +35,55 @@ class SignalService:
         return await self.signal_repo.save(signal)
 
     async def generate(self, symbol: str, **kwargs: Any) -> Result[dict[str, Any]]:
-        signal = Signal(
-            id=new_id("sig"),
-            instrument_id=symbol,
-            symbol=symbol,
-            signal_type=SignalType.BULLISH,
-            score=0.75,
-            confidence=0.8,
-            source=kwargs.get("strategy", "technical"),
-        )
-        return Result.ok({"id": signal.id, "symbol": signal.symbol, "success": True})
+        from services.multi_market_signal_engine import MultiMarketSignalEngine
+
+        try:
+            engine = MultiMarketSignalEngine(session=self._session)
+            signals, reports = await engine.generate_all(
+                market_filter=kwargs.get("market", "all"),
+                timeframe_filter=kwargs.get("timeframe", "all"),
+                signal_filter=kwargs.get("direction", "all"),
+                limit=10,
+            )
+
+            symbol_signals = [s for s in signals if s.symbol == symbol]
+            if symbol_signals:
+                s = symbol_signals[0]
+                return Result.ok({
+                    "id": new_id("sig"),
+                    "symbol": s.symbol,
+                    "direction": s.direction,
+                    "score": s.score,
+                    "strength": s.strength,
+                    "confidence": s.confidence,
+                    "reason": s.reason,
+                    "market": s.market,
+                    "price": s.price,
+                    "change_pct": s.change_pct,
+                    "success": True,
+                })
+
+            return Result.ok({
+                "id": new_id("sig"),
+                "symbol": symbol,
+                "direction": "hold",
+                "score": 50.0,
+                "strength": 0.0,
+                "confidence": 0.0,
+                "reason": "سیگنالی شناسایی نشد",
+                "success": True,
+            })
+        except Exception as e:
+            logger.warning("Signal generation failed for %s: %s", symbol, e)
+            return Result.ok({
+                "id": new_id("sig"),
+                "symbol": symbol,
+                "direction": "hold",
+                "score": 0.0,
+                "confidence": 0.0,
+                "reason": f"خطا در تولید سیگنال: {e}",
+                "success": False,
+            })
 
     async def get_latest(self, instrument_id: str) -> Result[Signal]:
         return await self.signal_repo.get_latest(instrument_id)
@@ -72,16 +112,30 @@ class SignalService:
         )
 
     async def list_signals(self, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[dict[str, Any]]]:
-        return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
+        return await self.list(page=page, page_size=page_size)
 
     async def get_by_symbol(self, symbol: str) -> Result[list[Signal]]:
+        result = await self.signal_repo.get_by_instrument(symbol, 1, 100)
+        if result.success and result.value:
+            return Result.ok(result.value.items)
         return Result.ok([])
 
     async def get(self, signal_id: str) -> Result[Signal | None]:
-        return Result.ok(None)
+        return await self.signal_repo.get(signal_id)
 
     async def get_signal(self, signal_id: str) -> Result[dict[str, Any] | None]:
+        result = await self.signal_repo.get(signal_id)
+        if result.success and result.value:
+            return Result.ok(vars(result.value))
         return Result.ok(None)
 
     async def bulk_generate(self, symbols: list[str], strategy: str = "technical") -> Result[list[Signal]]:
-        return Result.ok([])
+        from services.multi_market_signal_engine import MultiMarketSignalEngine
+
+        try:
+            engine = MultiMarketSignalEngine(session=self._session)
+            signals, _ = await engine.generate_all(limit=len(symbols))
+            return Result.ok(signals)
+        except Exception as e:
+            logger.warning("Bulk signal generation failed: %s", e)
+            return Result.ok([])

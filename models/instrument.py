@@ -18,7 +18,8 @@ class UnicodeJSON(JSON):
 
     def bind_processor(self, dialect):
         string_process = self._str_impl.bind_processor(dialect)
-        json_serializer = lambda obj: json.dumps(obj, ensure_ascii=False)
+        def json_serializer(obj):
+            return json.dumps(obj, ensure_ascii=False)
         return self._make_bind_processor(string_process, json_serializer)
 
     def process_result_value(self, value: Any, dialect: Any) -> Any:  # type: ignore[override]

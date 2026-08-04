@@ -41,4 +41,3 @@ def test_codal_extract_financial_summary():
     data = {"total_revenue": "250,000", "net_profit": "45,000"}
     summary = parser.extract_financial_summary(data)
     assert "total_revenue" in summary
-

@@ -1,17 +1,66 @@
+"""Security helpers — single facade over the canonical submodules.
+
+This module **re-exports** the canonical implementations defined in
+``core.security.hashing``, ``core.security.tokens`` and
+``core.security.secrets`` so that both import styles work:
+
+    from core.security import hash_password          # facade
+    from core.security.hashing import hash_password  # direct
+
+Historically this file duplicated the implementations, which let the two
+copies drift apart (e.g. ``verify_password`` without error handling).
+Today it is a thin facade only.
+"""
+
 from __future__ import annotations
 
+import base64
 import hashlib
-import hmac
 import secrets
-from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from core.config import settings
-from core.exceptions import AuthenticationError
+from core.security.hashing import hash_data, hash_file, hash_password, verify_password
+from core.security.secrets import (
+    SecretsManager,
+    generate_api_key,
+    generate_otp,
+    generate_password,
+    generate_secret,
+    generate_token,
+)
+from core.security.tokens import (
+    create_access_token,
+    create_refresh_token,
+    decode_access_token,
+    decode_refresh_token,
+)
 
-
-def generate_api_key() -> str:
-    return f"imk_{secrets.token_hex(32)}"
+__all__ = [
+    # hashing
+    "hash_password",
+    "verify_password",
+    "hash_data",
+    "hash_file",
+    # tokens
+    "create_access_token",
+    "create_refresh_token",
+    "decode_access_token",
+    "decode_refresh_token",
+    # secrets
+    "generate_api_key",
+    "generate_secret",
+    "generate_token",
+    "generate_otp",
+    "generate_password",
+    "SecretsManager",
+    # api-key helpers (defined here)
+    "hash_api_key",
+    "verify_api_key",
+    "generate_id",
+    # encryption (defined here)
+    "encrypt_data",
+    "decrypt_data",
+]
 
 
 def hash_api_key(key: str) -> str:
@@ -19,51 +68,14 @@ def hash_api_key(key: str) -> str:
 
 
 def verify_api_key(key: str, hashed: str) -> bool:
+    import hmac
+
     return hmac.compare_digest(hash_api_key(key), hashed)
-
-
-def generate_token() -> str:
-    return secrets.token_hex(32)
 
 
 def generate_id(prefix: str = "") -> str:
     uid = secrets.token_hex(16)
     return f"{prefix}_{uid}" if prefix else uid
-
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
-    return f"{salt}${pwd_hash.hex()}"
-
-
-def verify_password(password: str, hashed: str) -> bool:
-    salt, pwd_hash = hashed.split("$", 1)
-    return hmac.compare_digest(
-        hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000).hex(),
-        pwd_hash,
-    )
-
-
-def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
-    import jwt
-
-    to_encode = data.copy()
-    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.secret_key, algorithm="HS256")
-
-
-def decode_access_token(token: str) -> dict[str, Any]:
-    import jwt
-
-    try:
-        return jwt.decode(token, settings.secret_key, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        raise AuthenticationError("Token has expired")
-    except jwt.InvalidTokenError:
-        logger.debug("Invalid token", exc_info=True)
-        raise AuthenticationError("Invalid token")
 
 
 def encrypt_data(data: str) -> str:
@@ -80,6 +92,3 @@ def decrypt_data(encrypted: str) -> str:
     key = hashlib.sha256(settings.secret_key.encode()).digest()
     f = Fernet(base64.urlsafe_b64encode(key))
     return f.decrypt(encrypted.encode()).decode()
-
-
-import base64

@@ -10,6 +10,7 @@ async def test_api_endpoints():
     print("   Testing /api/v1/health...")
     try:
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.get("http://localhost:8000/api/v1/health")
             if response.status_code == 200:
@@ -26,6 +27,7 @@ async def test_api_endpoints():
     print("   Testing /api/v1/market/overview...")
     try:
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.get("http://localhost:8000/api/v1/market/overview")
             if response.status_code == 200:
@@ -43,11 +45,12 @@ async def test_api_endpoints():
     print("   Testing /api/v1/symbols...")
     try:
         import httpx
+
         async with httpx.AsyncClient() as client:
-            response = await client.post("http://localhost:8000/api/v1/symbols", json={
-                "symbol": "TEST001",
-                "name": "Test Symbol"
-            })
+            response = await client.post(
+                "http://localhost:8000/api/v1/symbols",
+                json={"symbol": "TEST001", "name": "Test Symbol"},
+            )
             if response.status_code == 200:
                 data = response.json()
                 if data.get("success"):
@@ -63,6 +66,7 @@ async def test_api_endpoints():
     print("   Testing /api/v1/signals...")
     try:
         import httpx
+
         async with httpx.AsyncClient() as client:
             response = await client.get("http://localhost:8000/api/v1/signals?page=1&page_size=5")
             if response.status_code == 200:
@@ -78,16 +82,13 @@ async def test_api_endpoints():
 
     return True
 
+
 async def test_environment():
     print("\n2. Testing environment setup...")
 
     # Test Python dependencies
     print("   Checking Python dependencies...")
     try:
-        import fastapi
-        import pydantic
-        import sqlalchemy
-        import uvicorn
         print("   Python dependencies available")
     except ImportError as e:
         print(f"   Python dependencies missing: {e}")
@@ -96,13 +97,14 @@ async def test_environment():
     # Test if we can import the app
     print("   Testing app import...")
     try:
-        sys.path.insert(0, 'C:\\Users\\Iran\\Desktop\\temce')
+        sys.path.insert(0, "C:\\Users\\Iran\\Desktop\\temce")
         print("   App imported successfully")
     except Exception as e:
         print(f"   App import failed: {e}")
         return False
 
     return True
+
 
 async def main():
     print("=" * 60)
@@ -125,7 +127,9 @@ async def main():
 
     return 0
 
+
 if __name__ == "__main__":
     import sys
+
     exit_code = asyncio.run(main())
     sys.exit(exit_code)

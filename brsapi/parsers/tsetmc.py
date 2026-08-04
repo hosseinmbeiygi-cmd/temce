@@ -14,6 +14,13 @@ from typing import Any
 
 logger = getLogger(__name__)
 
+# Bounded ISO-ish string so fetched_at fits the varchar(30) columns used by most
+# brsapi tables and stays identical across jobs running within the same second.
+# The timestamptz columns (symbol_snapshots / index_values / symbol_details)
+# instead get a second-truncated real datetime, which preserves the same
+# deterministic dedup on the (symbol, fetched_at) unique constraint.
+_FETCHED_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 
 class TsetmcParser:
     """
@@ -38,7 +45,10 @@ class TsetmcParser:
             return []
 
         records: list[dict[str, Any]] = []
-        now = datetime.now(UTC)
+        # SymbolSnapshotModel.fetched_at is timestamptz in the live DB (migration
+        # 001) — emit a real datetime truncated to seconds so the (symbol,
+        # fetched_at) upsert keeps its same-second dedup semantics.
+        now = datetime.now(UTC).replace(microsecond=0, tzinfo=None)
 
         for item in data:
             if not isinstance(item, dict):
@@ -110,7 +120,7 @@ class TsetmcParser:
             logger.warning("SymbolDetail: expected dict, got %s", type(data).__name__)
             return None
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC).replace(tzinfo=None)
         rec = {
             "ins_id": str(data.get("id") or ""),
             "symbol": data.get("l18") or "",
@@ -169,7 +179,7 @@ class TsetmcParser:
             "date": data.get("date", ""),
             "date_update": data.get("date_update", ""),
             "time": data.get("time", ""),
-            "fetched_at": now.isoformat(),
+            "fetched_at": now,
             "raw_json": json.dumps(data, ensure_ascii=False),
         }
 
@@ -198,7 +208,10 @@ class TsetmcParser:
             return []
 
         records: list[dict[str, Any]] = []
-        now = datetime.now(UTC)
+        # brsapi_index_values.fetched_at is a DateTime column (migration 001) —
+        # bind a real datetime (like parse_symbol_detail) or asyncpg rejects the
+        # value with ``expected a datetime instance, got 'str'``.
+        now = datetime.now(UTC).replace(tzinfo=None)
 
         for item in data:
             if not isinstance(item, dict):
@@ -240,7 +253,9 @@ class TsetmcParser:
             logger.warning("NAV: expected dict, got %s", type(data).__name__)
             return None
 
-        now = datetime.now(UTC)
+        # Bounded ISO-ish string (matches the snapshots parser format) so it
+        # fits String(30) and stays consistent across the codebase.
+        now = datetime.now(UTC).strftime(_FETCHED_AT_FORMAT)
         return {
             "nav_issue": cls._float(data.get("psubtran", 0)),
             "nav_redemption": cls._float(data.get("predtran", 0)),
@@ -264,7 +279,7 @@ class TsetmcParser:
             return []
 
         records: list[dict[str, Any]] = []
-        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
+        now = datetime.now(UTC).strftime(_FETCHED_AT_FORMAT)
 
         for item in data:
             if not isinstance(item, dict):

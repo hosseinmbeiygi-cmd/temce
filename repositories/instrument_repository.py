@@ -55,8 +55,17 @@ class InstrumentRepository:
     async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Instrument]]:
         if self._db:
             return await self._db.search(query, page, page_size)
+        # In-memory fallback (no session): plain substring + Finglish match.
+        from services.symbol_catalog import finglish_symbol_candidates
+
         q = query.lower()
         matches = [inst for inst in self._mem._store.values() if q in inst.symbol.lower() or q in inst.name.lower()]  # type: ignore
+        extra = finglish_symbol_candidates(query)
+        if extra:
+            known = {m.symbol for m in matches}
+            for inst in self._mem._store.values():  # type: ignore
+                if inst.symbol in extra and inst.symbol not in known:
+                    matches.append(inst)
         total = len(matches)
         start = (page - 1) * page_size
         return Result.ok(
@@ -101,12 +110,22 @@ class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
         return Result.ok(self._to_domain(row))
 
     async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Instrument]]:
-        q = f"%{query.lower()}%"
-        count_stmt = select(InstrumentModel).where(or_(InstrumentModel.symbol.ilike(q), InstrumentModel.name.ilike(q)))
-        total_result = await self.session.execute(count_stmt)
-        total = len(total_result.scalars().all())
+        from services.symbol_catalog import finglish_symbol_candidates
 
-        stmt = count_stmt.offset((page - 1) * page_size).limit(page_size)
+        q = f"%{query.lower()}%"
+        # Plain substring match on symbol/name + Finglish: a Latin query like
+        # ``folad`` must also find the Persian symbol ``فولاد`` in PostgreSQL.
+        predicate = or_(InstrumentModel.symbol.ilike(q), InstrumentModel.name.ilike(q))
+        extra = finglish_symbol_candidates(query)
+        if extra:
+            predicate = or_(predicate, InstrumentModel.symbol.in_(extra))
+        from sqlalchemy import func as sa_func
+
+        count_stmt = select(sa_func.count()).select_from(InstrumentModel).where(predicate)
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        stmt = select(InstrumentModel).where(predicate).offset((page - 1) * page_size).limit(page_size)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(
