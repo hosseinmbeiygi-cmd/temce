@@ -1,5 +1,21 @@
 /** Generates a standalone HTML report comparing backtested strategies. */
 
+/**
+ * Escape a value for safe interpolation into generated HTML.
+ *
+ * Strategy names, symbols, and error strings come from the backtest API and
+ * could contain HTML metacharacters — escaping prevents markup injection
+ * (XSS) when the report is opened in a browser.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export interface CompareResult {
   strategy: string;
   run_id: string;
@@ -35,8 +51,8 @@ export function generateCompareReportHtml({
   best: compareBest,
   worst: compareWorst,
 }: ReportParams): string {
-  const reportSymbol = snapshotSymbol;
-  const compareSymbol = displaySymbol;
+  const reportSymbol = escapeHtml(snapshotSymbol);
+  const compareSymbol = escapeHtml(displaySymbol);
   const completed = results.filter(r => r.status !== "failed" && r.metrics?.total_return_pct != null);
   const failed = results.filter(r => r.status === "failed");
   const sortedByReturn = [...completed].sort((a, b) => (b.metrics?.total_return_pct ?? 0) - (a.metrics?.total_return_pct ?? 0));
@@ -53,7 +69,7 @@ export function generateCompareReportHtml({
     return `
         <tr style="background:${bg}">
           <td style="padding:8px 12px;font-weight:${isBest||isWorst?'700':'400'};color:${isBest?'#22c55e':isWorst?'#ef4444':'#e2e8f0'}">
-            ${isBest ? '🏆 ' : isWorst ? '🫤 ' : ''}${r.strategy}
+            ${isBest ? '🏆 ' : isWorst ? '🫤 ' : ''}${escapeHtml(r.strategy)}
           </td>
           <td style="padding:8px 12px;text-align:right;direction:ltr">
             <div style="display:flex;align-items:center;gap:8px">
@@ -80,8 +96,8 @@ export function generateCompareReportHtml({
 
   const failedRows = failed.map(r => `
       <tr style="opacity:0.5">
-        <td style="padding:8px 12px;color:#94a3b8">${r.strategy}</td>
-        <td colspan="5" style="padding:8px 12px;color:#ef4444;text-align:center">❌ ${r.error || "ناموفق"}</td>
+        <td style="padding:8px 12px;color:#94a3b8">${escapeHtml(r.strategy)}</td>
+        <td colspan="5" style="padding:8px 12px;color:#ef4444;text-align:center">❌ ${escapeHtml(r.error || "ناموفق")}</td>
       </tr>`
   ).join("\n");
 
@@ -125,8 +141,8 @@ export function generateCompareReportHtml({
       <p class="subtitle">نماد: ${compareSymbol} • تاریخ: ${dateStr} • ${completed.length} استراتژی</p>
     </div>
     <div style="display:flex;gap:8px">
-      ${compareBest ? "<span class=\"best-badge\">🏆 بهترین: " + compareBest + "</span>" : ''}
-      ${compareWorst ? "<span class=\"worst-badge\">🫤 بدترین: " + compareWorst + "</span>" : ''}
+      ${compareBest ? "<span class=\"best-badge\">🏆 بهترین: " + escapeHtml(compareBest) + "</span>" : ''}
+      ${compareWorst ? "<span class=\"worst-badge\">🫤 بدترین: " + escapeHtml(compareWorst) + "</span>" : ''}
     </div>
   </div>
 
@@ -204,7 +220,7 @@ export function generateCompareReportHtml({
             <g>
               ${isBest ? `<rect x="${zeroX - maxBarWidth - 10}" y="${y - 4}" width="${maxBarWidth + 140}" height="${barHeight + 8}" rx="6" fill="rgba(34,197,94,0.06)"/>` : ''}
               ${isWorst ? `<rect x="${zeroX - maxBarWidth - 10}" y="${y - 4}" width="${maxBarWidth + 140}" height="${barHeight + 8}" rx="6" fill="rgba(239,68,68,0.06)"/>` : ''}
-              <text x="${Math.min(zeroX - 4, zeroX - 8)}" y="${y + barHeight / 2 + 4}" text-anchor="end" fill="#94a3b8" font-size="11" font-family="Vazirmatn">${r.strategy}</text>
+              <text x="${Math.min(zeroX - 4, zeroX - 8)}" y="${y + barHeight / 2 + 4}" text-anchor="end" fill="#94a3b8" font-size="11" font-family="Vazirmatn">${escapeHtml(r.strategy)}</text>
               ${val >= 0
                 ? `<rect x="${zeroX}" y="${y}" width="${barWidth}" height="${barHeight}" rx="4" fill="${barColor}" opacity="0.85"/>
                    <text x="${zeroX + barWidth + 6}" y="${y + barHeight / 2 + 4}" fill="${barColor}" font-size="11" font-family="monospace" font-weight="700">+${val.toFixed(1)}%</text>`

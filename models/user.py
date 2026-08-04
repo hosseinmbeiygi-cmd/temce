@@ -32,5 +32,9 @@ class UserModel(TimestampMixin, Base):
     # Which MFA delivery method is active: "totp" | "email" | "telegram" | None
     # (None → falls back to "totp" for backward compatibility).
     mfa_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Per-user Telegram chat ID for MFA code delivery — enables multi-user
+    # Telegram MFA (falls back to the global ``settings.telegram_chat_id``
+    # when unset).
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)

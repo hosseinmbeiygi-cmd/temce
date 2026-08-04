@@ -58,11 +58,20 @@ class MFASetupRequest(BaseModel):
     ``method`` selects how one-time codes are produced:
     - ``totp`` (default): secret + otpauth URI for an authenticator app
     - ``email``: a 6-digit code generated with ``generate_otp`` is emailed
-    - ``telegram``: the code is sent to the configured Telegram chat
+    - ``telegram``: the code is sent to the user's Telegram chat
+
+    ``telegram_chat_id`` (optional) is stored per-user when present and used
+    for Telegram delivery; when empty, ``settings.telegram_chat_id`` is used.
     """
 
     password: str = Field(..., min_length=1, description="Current password (re-auth before MFA setup)")
     method: str = Field(default="totp", pattern=r"^(totp|email|telegram)$")
+    telegram_chat_id: str = Field(
+        default="",
+        max_length=64,
+        pattern=r"^\d*$",
+        description="Per-user Telegram chat ID (used when method=telegram)",
+    )
 
 
 class MFAVerifyRequest(BaseModel):
@@ -96,3 +105,4 @@ class MFAStatusResponse(BaseModel):
     method: str | None = None
     secret: str | None = None
     uri: str | None = None
+    telegram_chat_id: str | None = None

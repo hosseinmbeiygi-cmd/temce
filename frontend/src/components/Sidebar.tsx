@@ -174,6 +174,28 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
           })
         ) : auth ? (
           <>
+            <Link
+              href="/profile"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                pathname.startsWith("/profile")
+                  ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
+                  : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
+              }`}
+            >
+              <span className="text-lg shrink-0">👤</span>
+              {!collapsed && <span className="truncate">پروفایل</span>}
+            </Link>
+            <Link
+              href="/settings/security"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+                pathname.startsWith("/settings")
+                  ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
+                  : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
+              }`}
+            >
+              <span className="text-lg shrink-0">🔐</span>
+              {!collapsed && <span className="truncate">امنیت حساب</span>}
+            </Link>
             <button
               onClick={() => { clearAuth(); window.location.href = "/auth/login"; }}
               className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-rose-400 hover:bg-rose-500/10 transition-all"

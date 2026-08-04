@@ -461,10 +461,9 @@ function SmartScreenerPageInner() {
   const exportExcel = useCallback(async () => {
     if (items.length === 0) return;
     try {
-      // Dynamically load SheetJS from CDN
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const XLSX: any = await (eval('import("https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js")') as any);
-
+      // SheetJS is bundled locally (package.json: xlsx) — dynamic import keeps
+      // it code-split (no eval, no eager ~1MB bundle on page load).
+      const XLSX = await import("xlsx");
       const headers = [["نماد", "نام", "صنعت", "قیمت", "تغییرات%", "حجم", "SMC", "فاز", "P/E", "EPS", "محصول"]];
       const data = items.slice(0, 200).map((item) => [
         item.symbol,

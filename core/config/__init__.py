@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     session_timeout_minutes: int = 30
     enable_csrf: bool = True
+    # Defense-in-depth: strip markup/control characters from JSON request
+    # bodies before handlers see them (see InputSanitizationMiddleware).
+    enable_input_sanitization: bool = True
     api_key_header: str = "X-API-Key"
 
     # Only auto-create tables when explicitly enabled (dev mode without running

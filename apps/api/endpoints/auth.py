@@ -308,7 +308,9 @@ async def mfa_setup(
       delivered to the channel; ``/mfa/confirm`` verifies it.
     """
     svc = UserService(session)
-    result = await svc.setup_mfa(current_user["sub"], req.password, method=req.method)
+    result = await svc.setup_mfa(
+        current_user["sub"], req.password, method=req.method, telegram_chat_id=req.telegram_chat_id
+    )
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     return ApiResponse(success=True, data=result.value)

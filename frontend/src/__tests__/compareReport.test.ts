@@ -268,4 +268,43 @@ describe("generateCompareReportHtml", () => {
       expect(html).toContain("zero_return");
     });
   });
+
+  // ── XSS hardening: user/API-controlled strings are HTML-escaped ──
+  describe("XSS escaping", () => {
+    it("escapes strategy names from the API", () => {
+      const malicious = "<img src=x onerror=alert(1)>";
+      const results: CompareResult[] = [successResult({ strategy: malicious })];
+      const html = generateCompareReportHtml({ ...defaultParams, results });
+
+      // Raw script/markup must not appear verbatim
+      expect(html).not.toContain(malicious);
+      expect(html).not.toContain("<img src=x");
+      // Escaped form is present
+      expect(html).toContain("&lt;img");
+    });
+
+    it("escapes error messages from failed runs", () => {
+      const malicious = "</td><script>alert('xss')</script>";
+      const results: CompareResult[] = [failedResult({ error: malicious })];
+      const html = generateCompareReportHtml({ ...defaultParams, results });
+
+      expect(html).not.toContain("<script>alert");
+      expect(html).toContain("&lt;/td&gt;");
+    });
+
+    it("escapes symbols and best/worst labels", () => {
+      const malicious = "\"><script>alert(2)</script>";
+      const html = generateCompareReportHtml({
+        ...defaultParams,
+        snapshotSymbol: malicious,
+        displaySymbol: malicious,
+        best: malicious,
+        worst: malicious,
+        results: [successResult()],
+      });
+
+      expect(html).not.toContain("<script>alert(2)");
+      expect(html).toContain("&lt;script&gt;");
+    });
+  });
 });

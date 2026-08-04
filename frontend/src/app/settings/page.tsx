@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import { toast } from "sonner";
@@ -23,6 +24,20 @@ export default function SettingsPage() {
   return (
     <AppLayout title="تنظیمات" subtitle="تنظیمات سامانه">
       <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800 }}>
+        <Card title="امنیت حساب" subtitle="احراز هویت دومرحله‌ای و تنظیمات امنیتی">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-surface-400 leading-relaxed">
+              با فعال‌سازی MFA، ورود به حساب شما با یک کد یک‌بارمصرف اضافی محافظت می‌شود.
+            </p>
+            <Link
+              href="/settings/security"
+              className="shrink-0 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-500 transition-colors"
+            >
+              مدیریت MFA
+            </Link>
+          </div>
+        </Card>
+
         <Card title="عمومی">
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable
 
@@ -10,9 +11,28 @@ from starlette.responses import JSONResponse
 from core.config import settings as app_settings
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
+from core.security.sanitizers import strip_html
 from core.security.tokens import decode_access_token, is_token_revoked
 
 logger = get_logger(__name__)
+
+# Fields whose value is intentionally opaque / hashed server-side (passwords,
+# one-time codes, secrets, tokens). Skipping them keeps e.g. ``password``
+# with whitespace/symbols intact so the exact-match verification still works.
+_SANITIZE_RAW_FIELDS = {
+    "password",
+    "current_password",
+    "new_password",
+    "code",
+    "secret",
+    "token",
+    "refresh_token",
+    "access_token",
+    "mfa_token",
+    "telegram_chat_id",
+    "api_key",
+    "private_key",
+}
 
 
 # Paths that are exempt from security header enforcement
@@ -176,6 +196,122 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             if origin_base == allowed_base:
                 return True
         return False
+
+
+class InputSanitizationMiddleware(BaseHTTPMiddleware):
+    """Sanitize user-controlled input before it reaches endpoint handlers.
+
+    Applies to request bodies with a JSON content type:
+      - Every string field is scanned and cleaned of markup tags and control
+        characters (``strip_html`` + stripping of CR/LF/NUL), so ``<script>``
+        payloads never reach the database, logs or future render paths.
+      - Fields whose value is deliberately opaque — passwords, one-time
+        codes, tokens, secrets, chat IDs — are passed through untouched
+        (they are hashed/compared byte-for-byte server-side).
+      - Non-string values inside string fields are rejected with a 400 so
+        type confusion cannot sneak garbage past validation.
+
+    Query/path parameters are sanitized by route-level validation (FastAPI
+    types + regex) and are out of scope for a body-level middleware.
+
+    Enabled via ``settings.enable_input_sanitization`` (default True).
+    """
+
+    _JSON_CONTENT = ("application/json", "text/json")
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        if not app_settings.enable_input_sanitization:
+            return await call_next(request)
+
+        content_type = (request.headers.get("content-type") or "").lower()
+        if not content_type.startswith(self._JSON_CONTENT):
+            return await call_next(request)
+
+        try:
+            raw = await request.body()
+            if not raw:
+                return await call_next(request)
+            payload = json.loads(raw)
+        except Exception:
+            # Not valid JSON or unreadable — let the normal pipeline handle it.
+            return await call_next(request)
+
+        try:
+            sanitized = _sanitize_value(payload)
+        except _SanitizeTypeError as e:
+            logger.warning("Input sanitization rejected %s %s: %s", request.method, request.url.path, e)
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": str(e),
+                    "code": "INVALID_INPUT_TYPE",
+                },
+            )
+
+        # Replace the body the downstream handlers will read.
+        body = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
+        request._body = body
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request._receive = receive
+        return await call_next(request)
+
+
+class _SanitizeTypeError(ValueError):
+    """Raised when a dict field expected to be a string holds another type."""
+
+
+_MAX_STRING_LEN = 100_000
+
+
+def _sanitize_value(value, depth: int = 0):
+    """Recursively sanitize a parsed JSON body in place (returns new objects)."""
+    if depth > 20:
+        # Depth guard: strings are still cleaned so a deeply-nested payload
+        # cannot smuggle raw markup past the sanitizer.
+        if isinstance(value, str):
+            return _clean_text(value)[:_MAX_STRING_LEN]
+        return value
+    if isinstance(value, dict):
+        return {k: _sanitize_field(k, v, depth + 1) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_value(v, depth + 1) for v in value]
+    if isinstance(value, str):
+        # Truncate absurdly long strings before they reach storage.
+        if len(value) > _MAX_STRING_LEN:
+            value = value[:_MAX_STRING_LEN]
+        return _clean_text(value)
+    if isinstance(value, (bool, int, float)):
+        return value  # non-field scalars (e.g. raw list items) pass through
+    return value  # null
+
+
+def _clean_text(value: str) -> str:
+    """Strip markup + control characters (CR/LF/NUL) from a text string."""
+    return strip_html(value).replace("\x00", "").replace("\r", "").replace("\n", " ").strip()
+
+
+def _sanitize_field(key: str, value, depth: int):
+    """Sanitize one dict field, honoring the raw (opaque) field allow-list."""
+    if isinstance(value, (dict, list)):
+        return _sanitize_value(value, depth)
+    if isinstance(value, str):
+        if key in _SANITIZE_RAW_FIELDS:
+            # Opaque field: cap length, drop NUL bytes, but keep everything else.
+            return value[:_MAX_STRING_LEN].replace("\x00", "")
+        if len(value) > _MAX_STRING_LEN:
+            value = value[:_MAX_STRING_LEN]
+        return _clean_text(value)
+    if value is None:
+        return None
+    if isinstance(value, (bool, int, float)):
+        return value  # numbers/booleans are legitimate JSON payloads
+    # Any other type in a scalar field — reject so type confusion surfaces
+    # as a clear 400 instead of silently coercing.
+    raise _SanitizeTypeError(f"Field '{key}' must be a string")
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

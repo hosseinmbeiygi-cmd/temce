@@ -99,7 +99,10 @@ class TestTOTPUri:
 
 
 class _FakeUser:
-    def __init__(self, uid, username="testuser", totp_enabled=False, totp_secret=None, mfa_method=None):
+    def __init__(
+        self, uid, username="testuser", totp_enabled=False, totp_secret=None,
+        mfa_method=None, telegram_chat_id=None,
+    ):
         from core.security import hash_password
 
         self.id = uid
@@ -111,6 +114,7 @@ class _FakeUser:
         self.totp_enabled = totp_enabled
         self.totp_secret = totp_secret
         self.mfa_method = mfa_method
+        self.telegram_chat_id = telegram_chat_id
         self.hashed_password = hash_password("testpass")
         self.last_login = None
         self.refresh_token = None
@@ -482,6 +486,94 @@ class TestOTPDeliveryMFA:
         bad = await svc.confirm_mfa("usr-1", "000000")
         assert not bad.success
         assert user.totp_enabled is False
+
+    @pytest.mark.asyncio
+    async def test_setup_telegram_stores_per_user_chat_id(self, monkeypatch):
+        """setup_mfa(method="telegram") persists the per-user chat ID."""
+        from services.user_service import UserService
+
+        user = _FakeUser("usr-1", mfa_method="telegram")
+
+        class FakeSession:
+            async def execute(self, *a, **k):
+                class R:
+                    def scalar_one_or_none(self):
+                        return user
+
+                return R()
+
+            async def flush(self, *a, **k):
+                pass
+
+        monkeypatch.setattr("core.cache.get_cache", lambda: _FakeCache())
+        monkeypatch.setattr("services.user_service.UserService._deliver_otp", _delivery_ok)
+
+        svc = UserService(FakeSession())
+        result = await svc.setup_mfa(
+            "usr-1", "testpass", method="telegram", telegram_chat_id="  987654321  "
+        )
+        assert result.success
+        assert user.telegram_chat_id == "987654321"  # trimmed
+
+    @pytest.mark.asyncio
+    async def test_deliver_otp_telegram_uses_per_user_chat_id(self, monkeypatch):
+        """Telegram OTP delivery passes the user's chat ID to the sender.
+
+        Per-user chat ID wins over the global ``settings.telegram_chat_id`` so
+        codes reach the right chat in multi-user deployments.
+        """
+        from services.user_service import UserService
+
+        user = _FakeUser("usr-1", totp_enabled=True, mfa_method="telegram", telegram_chat_id="42")
+        captured = {}
+
+        class _FakeSender:
+            def __init__(self, chat_id=""):
+                captured["chat_id"] = chat_id
+
+            async def send(self, message, parse_mode="HTML"):
+                captured["message"] = message
+                return ResultOk()
+
+        class ResultOk:
+            success = True
+
+        monkeypatch.setattr(
+            "integrations.notifications.telegram_sender.TelegramSender", _FakeSender
+        )
+
+        svc = UserService.__new__(UserService)
+        ok = await svc._deliver_otp(user, "123456")
+        assert ok is True
+        assert captured["chat_id"] == "42"
+        assert "123456" in captured["message"]
+
+    @pytest.mark.asyncio
+    async def test_deliver_otp_telegram_falls_back_to_global_chat_id(self, monkeypatch):
+        """Without a per-user chat ID the global settings value is used."""
+        from services.user_service import UserService
+
+        user = _FakeUser("usr-1", totp_enabled=True, mfa_method="telegram", telegram_chat_id=None)
+        captured = {}
+
+        class _FakeSender:
+            def __init__(self, chat_id=""):
+                captured["chat_id"] = chat_id
+
+            async def send(self, message, parse_mode="HTML"):
+                return ResultOk()
+
+        class ResultOk:
+            success = True
+
+        monkeypatch.setattr(
+            "integrations.notifications.telegram_sender.TelegramSender", _FakeSender
+        )
+
+        svc = UserService.__new__(UserService)
+        ok = await svc._deliver_otp(user, "123456")
+        assert ok is True
+        assert captured["chat_id"] == ""  # empty → TelegramSender falls back to settings
 
     @pytest.mark.asyncio
     async def test_login_otp_flow(self, monkeypatch):

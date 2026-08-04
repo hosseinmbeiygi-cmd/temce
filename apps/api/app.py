@@ -14,6 +14,7 @@ from apps.api.error_handlers import register_error_handlers
 from apps.api.metrics import MetricsMiddleware, get_prometheus_exporter
 from apps.api.middleware import (
     CSRFMiddleware,
+    InputSanitizationMiddleware,
     LoggingMiddleware,
     RateLimitMiddleware,
     SecurityMiddleware,
@@ -327,13 +328,77 @@ async def _orchestrator_hourly_cron() -> None:
 
 # ── Startup background tasks ──
 
+# Distributed-lock ownership registry for startup tasks (key → owner token).
+_startup_lock_owners: dict[str, str] = {}
+
+# Shared lock instance: the in-memory fallback keeps per-instance state, so a
+# single instance must be reused across acquire/release calls.
+_startup_locker = None  # lazy JobLocking singleton
+
+
+def _get_startup_locker():
+    global _startup_locker
+    if _startup_locker is None:
+        try:
+            from jobs.locking import JobLocking
+            _startup_locker = JobLocking(default_ttl=600)
+        except Exception:
+            _startup_locker = None
+    return _startup_locker
+
+
+async def _with_startup_lock(key: str, task: str) -> bool:
+    """Acquire a distributed lock for a startup DB task.
+
+    With multiple API workers (or an API + scheduler running side by side),
+    startup tasks such as the full BrsApi sync or the Decision Engine seed
+    could otherwise run concurrently and race on the same tables. The lock is
+    Redis-backed (auto-expiring, owner-checked via ``JobLocking``) with an
+    in-memory fallback — returns ``False`` when another process already owns
+    it, so the caller skips its work instead of duplicating writes.
+
+    Returns True when the lock was acquired (caller must ``release``).
+    """
+    import os
+    import socket
+    import uuid
+
+    locker = _get_startup_locker()
+    if locker is None:
+        logger.warning("Startup lock unavailable for %s — running without lock", task)
+        return True
+
+    owner = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+    lock_key = f"startup:{key}"
+    acquired = await locker.acquire(lock_key, owner, ttl=600)
+    if not acquired:
+        logger.info("Startup task %s skipped — another process is already running it", task)
+        return False
+
+    # Stash the owner so the caller can release this exact lock.
+    _startup_lock_owners[lock_key] = owner
+    return True
+
+
+async def _release_startup_lock(key: str) -> None:
+    locker = _get_startup_locker()
+    if locker is None:
+        return
+    lock_key = f"startup:{key}"
+    owner = _startup_lock_owners.pop(lock_key, None)
+    if owner:
+        await locker.release(lock_key, owner)
+
 
 async def _decision_engine_startup_seed() -> None:
     """Background task: auto-seed Decision Engine architecture data on API startup.
 
     Merges all 5 JSON files (architecture, features, services, database, api)
     into the decision_architectures table if it's empty. Non-blocking.
+    Guarded by a distributed lock so multiple workers don't seed in parallel.
     """
+    if not await _with_startup_lock("decision_seed", "decision-seed"):
+        return
     try:
         from apps.api.endpoints.decision_engine import _auto_seed
 
@@ -348,6 +413,8 @@ async def _decision_engine_startup_seed() -> None:
             logger.warning("Decision Engine — could not obtain DB session for auto-seed")
     except Exception:
         logger.exception("Decision Engine — startup auto-seed failed")
+    finally:
+        await _release_startup_lock("decision_seed")
 
 
 async def _fund_sync_cron() -> None:
@@ -415,44 +482,50 @@ async def _fetch_news_on_startup() -> None:
     """Background task: fetch news from RSS feeds on API startup.
 
     Retries up to 3 times with exponential backoff (15s, 30s, 60s) on failure.
+    Guarded by a distributed lock so only one worker ingests news at boot.
     """
+    if not await _with_startup_lock("news_ingest", "news-ingest"):
+        return
     MAX_RETRIES = 3
     BASE_DELAY = 15  # seconds
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            from services.news_ingestion import NewsIngestionService
-            logger.info("Auto-fetching news on startup (attempt %d/%d)...", attempt, MAX_RETRIES)
-            session_obtained = False
-            async for session in get_session():
-                session_obtained = True
-                service = NewsIngestionService(session=session)
-                stats = await service.ingest(
-                    sources=None,
-                    limit_per_source=30,
-                    save=True,
-                    verbose=False,
-                    skip_sentiment=False,
-                )
-                logger.info(
-                    "Startup news fetch complete: fetched=%d saved=%d",
-                    stats.get("fetched", 0), stats.get("saved", 0),
-                )
-            if not session_obtained:
-                raise RuntimeError("Could not obtain DB session for startup news fetch")
+    try:
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                from services.news_ingestion import NewsIngestionService
+                logger.info("Auto-fetching news on startup (attempt %d/%d)...", attempt, MAX_RETRIES)
+                session_obtained = False
+                async for session in get_session():
+                    session_obtained = True
+                    service = NewsIngestionService(session=session)
+                    stats = await service.ingest(
+                        sources=None,
+                        limit_per_source=30,
+                        save=True,
+                        verbose=False,
+                        skip_sentiment=False,
+                    )
+                    logger.info(
+                        "Startup news fetch complete: fetched=%d saved=%d",
+                        stats.get("fetched", 0), stats.get("saved", 0),
+                    )
+                if not session_obtained:
+                    raise RuntimeError("Could not obtain DB session for startup news fetch")
 
-            return  # Success — exit retry loop
+                return  # Success — exit retry loop
 
-        except Exception:
-            if attempt < MAX_RETRIES:
-                delay = BASE_DELAY * (2 ** (attempt - 1))  # 15s, 30s, 60s
-                logger.warning(
-                    "Startup news fetch failed (attempt %d/%d) — retrying in %ds",
-                    attempt, MAX_RETRIES, delay,
-                )
-                await asyncio.sleep(delay)
-            else:
-                logger.exception("Startup news fetch failed after %d attempts — giving up", MAX_RETRIES)
+            except Exception:
+                if attempt < MAX_RETRIES:
+                    delay = BASE_DELAY * (2 ** (attempt - 1))  # 15s, 30s, 60s
+                    logger.warning(
+                        "Startup news fetch failed (attempt %d/%d) — retrying in %ds",
+                        attempt, MAX_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.exception("Startup news fetch failed after %d attempts — giving up", MAX_RETRIES)
+    finally:
+        await _release_startup_lock("news_ingest")
 
 
 async def _brsapi_startup_sync() -> None:
@@ -461,75 +534,83 @@ async def _brsapi_startup_sync() -> None:
     Respects rate limits automatically (the rate limiter enforces 10K/day, 500/5min).
 
     Retries up to 3 times with exponential backoff (30s, 60s, 120s) on failure.
+    Guarded by a distributed lock (``startup:brsapi_sync``) so concurrent
+    workers — or the API alongside the SchedulerApp — never run the full
+    sync at the same time and race on the same tables.
     """
+    if not await _with_startup_lock("brsapi_sync", "brsapi-sync"):
+        return
     MAX_RETRIES = 3
     BASE_DELAY = 30  # seconds
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            from brsapi.client import get_client
-            from brsapi.services.sync_service import BrsApiSyncService
-            logger.info("=" * 60)
-            logger.info("BrsApi STARTUP SYNC — attempt %d/%d — fetching ALL endpoints in order", attempt, MAX_RETRIES)
-            logger.info("=" * 60)
-
-            client = await get_client()
-            session_obtained = False
-
-            async for session in get_session():
-                session_obtained = True
-                service = BrsApiSyncService(client=client, session=session)
-
-                # sync_all runs every endpoint in sequence, respecting rate limits
-                reports = await service.sync_all(session)
-
-                # Log summary
-                ok = sum(1 for r in reports if r.success)
-                fail = sum(1 for r in reports if not r.success)
-                skipped = sum(1 for r in reports if r.skipped)
-                total_items = sum(r.items_count for r in reports)
-                total_ms = sum(r.duration_ms for r in reports)
-
+    try:
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                from brsapi.client import get_client
+                from brsapi.services.sync_service import BrsApiSyncService
                 logger.info("=" * 60)
-                logger.info("STARTUP SYNC COMPLETE: %d ok, %d failed, %d skipped", ok, fail, skipped)
-                logger.info("Total items synced: %d | Total time: %.1fs", total_items, total_ms / 1000)
+                logger.info("BrsApi STARTUP SYNC — attempt %d/%d — fetching ALL endpoints in order", attempt, MAX_RETRIES)
                 logger.info("=" * 60)
 
-                for r in reports:
-                    status = "OK" if r.success else ("SKIP" if r.skipped else "FAIL")
+                client = await get_client()
+                session_obtained = False
+
+                async for session in get_session():
+                    session_obtained = True
+                    service = BrsApiSyncService(client=client, session=session)
+
+                    # sync_all runs every endpoint in sequence, respecting rate limits
+                    reports = await service.sync_all(session)
+
+                    # Log summary
+                    ok = sum(1 for r in reports if r.success)
+                    fail = sum(1 for r in reports if not r.success)
+                    skipped = sum(1 for r in reports if r.skipped)
+                    total_items = sum(r.items_count for r in reports)
+                    total_ms = sum(r.duration_ms for r in reports)
+
+                    logger.info("=" * 60)
+                    logger.info("STARTUP SYNC COMPLETE: %d ok, %d failed, %d skipped", ok, fail, skipped)
+                    logger.info("Total items synced: %d | Total time: %.1fs", total_items, total_ms / 1000)
+                    logger.info("=" * 60)
+
+                    for r in reports:
+                        status = "OK" if r.success else ("SKIP" if r.skipped else "FAIL")
+                        logger.info(
+                            "  [%s] %s — %d items, %.0fms%s",
+                            status, r.endpoint, r.items_count, r.duration_ms,
+                            f" — {r.error}" if r.error else "",
+                        )
+
+                    # Log rate limiter status
+                    from brsapi.rate_limiter import get_rate_limiter
+                    rl_status = get_rate_limiter().status()
+                    g = rl_status["global"]
                     logger.info(
-                        "  [%s] %s — %d items, %.0fms%s",
-                        status, r.endpoint, r.items_count, r.duration_ms,
-                        f" — {r.error}" if r.error else "",
+                        "Rate limits: daily %d/%d (%.0f%%) | 5min %d/%d (%.0f%%)",
+                        g["daily_count"], g["daily_limit"], g["daily_used_pct"],
+                        g["5min_count"], g["5min_limit"], g["5min_used_pct"],
                     )
 
-                # Log rate limiter status
-                from brsapi.rate_limiter import get_rate_limiter
-                rl_status = get_rate_limiter().status()
-                g = rl_status["global"]
-                logger.info(
-                    "Rate limits: daily %d/%d (%.0f%%) | 5min %d/%d (%.0f%%)",
-                    g["daily_count"], g["daily_limit"], g["daily_used_pct"],
-                    g["5min_count"], g["5min_limit"], g["5min_used_pct"],
-                )
+                    break
 
-                break
+                if not session_obtained:
+                    raise RuntimeError("Could not obtain DB session for BrsApi startup sync")
 
-            if not session_obtained:
-                raise RuntimeError("Could not obtain DB session for BrsApi startup sync")
+                return  # Success — exit retry loop
 
-            return  # Success — exit retry loop
-
-        except Exception:
-            if attempt < MAX_RETRIES:
-                delay = BASE_DELAY * (2 ** (attempt - 1))  # 30s, 60s, 120s
-                logger.warning(
-                    "BrsApi startup sync failed (attempt %d/%d) — retrying in %ds",
-                    attempt, MAX_RETRIES, delay,
-                )
-                await asyncio.sleep(delay)
-            else:
-                logger.exception("BrsApi startup sync failed after %d attempts — giving up", MAX_RETRIES)
+            except Exception:
+                if attempt < MAX_RETRIES:
+                    delay = BASE_DELAY * (2 ** (attempt - 1))  # 30s, 60s, 120s
+                    logger.warning(
+                        "BrsApi startup sync failed (attempt %d/%d) — retrying in %ds",
+                        attempt, MAX_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.exception("BrsApi startup sync failed after %d attempts — giving up", MAX_RETRIES)
+    finally:
+        await _release_startup_lock("brsapi_sync")
 
 
 # ── Lifespan ──
@@ -648,6 +729,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(SecurityMiddleware)
     app.add_middleware(CSRFMiddleware)
+    app.add_middleware(InputSanitizationMiddleware)
     app.add_middleware(TimingMiddleware)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(LoggingMiddleware)

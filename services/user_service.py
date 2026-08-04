@@ -257,7 +257,10 @@ class UserService:
             if method == "telegram":
                 from integrations.notifications.telegram_sender import TelegramSender
 
-                res = await TelegramSender().send(
+                # Per-user chat ID wins; fall back to the global setting so
+                # single-user deployments keep working without a new column.
+                sender = TelegramSender(chat_id=user.telegram_chat_id or "")
+                res = await sender.send(
                     f"🔐 Your verification code is <b>{code}</b>\nIt expires in 5 minutes."
                 )
                 return res.success
@@ -307,7 +310,9 @@ class UserService:
             },
         })
 
-    async def setup_mfa(self, user_id: str, password: str, method: str = "totp") -> Result[dict[str, Any]]:
+    async def setup_mfa(
+        self, user_id: str, password: str, method: str = "totp", telegram_chat_id: str = ""
+    ) -> Result[dict[str, Any]]:
         """Start MFA enrollment for the current user.
 
         - ``method="totp"`` (default): persist a fresh TOTP secret and return
@@ -315,6 +320,10 @@ class UserService:
         - ``method="email"`` / ``method="telegram"``: generate a one-time
           code with ``generate_otp``, persist it and deliver it to the chosen
           channel. ``confirm_mfa`` then verifies the code the user received.
+
+        ``telegram_chat_id`` (required when ``method="telegram"`` in a
+        multi-user deployment) is stored per-user so codes reach the right
+        chat; it falls back to ``settings.telegram_chat_id`` when empty.
         """
         try:
             result = await self.session.execute(select(UserModel).where(UserModel.id == user_id))
@@ -327,6 +336,8 @@ class UserService:
             if method in _OTP_DELIVERY_METHODS:
                 # Delivered-code enrollment: no secret to scan — just prove
                 # the channel works by delivering a code.
+                if method == "telegram" and telegram_chat_id.strip():
+                    user.telegram_chat_id = telegram_chat_id.strip()
                 user.mfa_method = method
                 user.totp_secret = None
                 user.totp_enabled = False
@@ -443,6 +454,7 @@ class UserService:
                     user.mfa_method in _OTP_DELIVERY_METHODS and not user.totp_enabled
                 ),
                 "method": user.mfa_method or "totp",
+                "telegram_chat_id": user.telegram_chat_id,
             })
         except Exception as e:
             logger.error("MFA status failed: %s", e)
