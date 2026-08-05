@@ -21,11 +21,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import io
 import sys
 from datetime import timedelta
 from logging import getLogger
 
 sys.path.insert(0, ".")
+
+# Force UTF-8 stdout/stderr on Windows so emoji (✅❌⚠️) and Persian text
+# don't crash the script with UnicodeEncodeError (cp1252 default).
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from core.logging import setup_logging  # noqa: E402
 
@@ -42,7 +49,12 @@ async def _quota_allows(client) -> bool:
     return res.success
 
 
-async def run(phase: int | None = None, days_back: int = 3) -> None:
+async def run(
+    phase: int | None = None,
+    days_back: int = 3,
+    num_symbols: int = 30,
+    skip_symbols: int = 0,
+) -> None:
     import core.database as db
     from brsapi.client import get_client
     from brsapi.services.sync_service import BrsApiSyncService
@@ -102,7 +114,7 @@ async def run(phase: int | None = None, days_back: int = 3) -> None:
         # ── Phase 3: Intraday transactions (ریز معاملات) for top symbols ──
         if phase is None or phase == 3:
             print("\n═══ PHASE 3: Intraday Transactions (ریز معاملات) ═══")
-            from sqlalchemy import func, select
+            from sqlalchemy import func, select, text
 
             from brsapi.models import SymbolSnapshotModel
 
@@ -111,19 +123,34 @@ async def run(phase: int | None = None, days_back: int = 3) -> None:
                 select(SymbolSnapshotModel.symbol)
                 .where(SymbolSnapshotModel.fetched_at == latest)
                 .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
-                .limit(30)
+                .limit(num_symbols)
             )
             result = await session.execute(stmt)
             symbols = list(dict.fromkeys(r[0] for r in result if r[0]))
-            print(f"  Top {len(symbols)} symbols (by trade value)")
+            if skip_symbols:
+                symbols = symbols[skip_symbols:]
+                print(f"  Skipping first {skip_symbols}; continuing with {len(symbols)} symbols")
+            else:
+                print(f"  Top {len(symbols)} symbols (by trade value)")
 
-            import jdatetime
+            # Use REAL trading days instead of naive calendar-day subtraction:
+            # the Tehran market is closed Thu/Fri, so naive timedelta would send
+            # useless requests for holidays (and burn daily quota). Trading dates
+            # are taken from the historical table, which only holds trading days.
+            rows = (await session.execute(text(
+                "SELECT DISTINCT date FROM brsapi_historical_daily "
+                "ORDER BY date DESC LIMIT :n"
+            ), {"n": days_back})).fetchall()
+            dates = [row[0] for row in rows]
+            if not dates:
+                # Fallback: naive last N days if history table is empty
+                import jdatetime
 
-            dates = [
-                (jdatetime.date.today() - timedelta(days=d)).strftime("%Y-%m-%d")
-                for d in range(days_back)
-            ]
-            print(f"  Dates (Jalali): {dates}")
+                dates = [
+                    (jdatetime.date.today() - timedelta(days=d)).strftime("%Y-%m-%d")
+                    for d in range(days_back)
+                ]
+            print(f"  Dates (Jalali trading days): {dates}")
 
             ok = fail = total = 0
             for sym in symbols:
@@ -163,11 +190,20 @@ def main() -> int:
     setup_logging()
     parser = argparse.ArgumentParser(description="Sync all BrsApi tables (auto quota-aware)")
     parser.add_argument("--phase", type=int, default=None, help="Run only this phase (0-5)")
-    parser.add_argument("--days", type=int, default=3, help="Transactions: days back (default 3)")
+    parser.add_argument("--days", type=int, default=3, help="Transactions: trading days back (default 3)")
+    parser.add_argument("--symbols", type=int, default=30,
+                        help="Intraday transactions: number of top symbols (default 30)")
+    parser.add_argument("--skip", type=int, default=0,
+                        help="Intraday transactions: skip first N top symbols (resume support)")
     args = parser.parse_args()
 
     try:
-        asyncio.run(run(phase=args.phase, days_back=args.days))
+        asyncio.run(run(
+            phase=args.phase,
+            days_back=args.days,
+            num_symbols=args.symbols,
+            skip_symbols=args.skip,
+        ))
     except KeyboardInterrupt:
         print("\nInterrupted.")
         return 130

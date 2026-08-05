@@ -9,11 +9,10 @@ const LONG_TIMEOUT_MS = 600_000; // 10 minutes for heavy sync operations
 
 interface InMemoryAuth {
   access_token: string | null;
-  refresh_token?: string;
   user?: Record<string, unknown> | null;
 }
 
-let _memoryAuth: InMemoryAuth = { access_token: null, refresh_token: undefined, user: null };
+let _memoryAuth: InMemoryAuth = { access_token: null, user: null };
 
 function getStoredAccessToken(): string | null {
   return _memoryAuth.access_token;
@@ -28,12 +27,11 @@ function setAuthUser(user: Record<string, unknown> | null) {
 }
 
 function clearStoredAuth() {
-  _memoryAuth = { access_token: null, refresh_token: undefined, user: null };
+  _memoryAuth = { access_token: null, user: null };
 }
 
-function writeStoredAuth(data: { access_token: string; refresh_token?: string }) {
+function writeStoredAuth(data: { access_token: string }) {
   _memoryAuth.access_token = data.access_token;
-  if (data.refresh_token) _memoryAuth.refresh_token = data.refresh_token;
 }
 
 // Session restore after a page reload: the access token is gone from memory
@@ -43,7 +41,8 @@ export async function hydrateSession(): Promise<InMemoryAuth> {
     const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: "" }), // token read from httpOnly cookie
+      // The refresh token is read server-side from the httpOnly cookie.
+      body: JSON.stringify({}),
       credentials: "include",
     });
     if (!res.ok) {
@@ -54,7 +53,6 @@ export async function hydrateSession(): Promise<InMemoryAuth> {
     const data = json.data ?? json;
     if (data?.access_token) {
       _memoryAuth.access_token = data.access_token;
-      if (data.refresh_token) _memoryAuth.refresh_token = data.refresh_token;
       if (data.user) _memoryAuth.user = data.user as Record<string, unknown>;
     } else {
       clearStoredAuth();
@@ -79,7 +77,7 @@ async function _silentRefresh(): Promise<string | null> {
       const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: "" }),
+        body: JSON.stringify({}),
         credentials: "include",
       });
 
@@ -88,10 +86,9 @@ async function _silentRefresh(): Promise<string | null> {
       const json = await res.json();
       const data = json.data ?? json;
       const newAccessToken = data.access_token;
-      const newRefreshToken = data.refresh_token;
 
       if (newAccessToken) {
-        writeStoredAuth({ access_token: newAccessToken, refresh_token: newRefreshToken });
+        writeStoredAuth({ access_token: newAccessToken });
         return newAccessToken;
       }
       return null;
@@ -278,7 +275,6 @@ export function getStoredAuth() {
   if (!_memoryAuth.access_token) return null;
   return {
     access_token: _memoryAuth.access_token,
-    refresh_token: _memoryAuth.refresh_token,
     user: _memoryAuth.user,
   };
 }
@@ -287,9 +283,8 @@ export function clearAuth() {
   clearStoredAuth();
 }
 
-export function storeAuth(data: { user: Record<string, unknown>; access_token: string; refresh_token?: string }) {
+export function storeAuth(data: { user: Record<string, unknown>; access_token: string }) {
   _memoryAuth.access_token = data.access_token;
-  if (data.refresh_token) _memoryAuth.refresh_token = data.refresh_token;
   _memoryAuth.user = data.user ?? _memoryAuth.user;
   setAccessToken(data.access_token);
   setAuthUser(data.user ?? _memoryAuth.user);

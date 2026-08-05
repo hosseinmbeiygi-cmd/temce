@@ -14,6 +14,7 @@ import requests
 import urllib3
 
 from brsapi.config import get_brsapi_settings
+from brsapi.rate_limiter import get_rate_limiter
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -138,11 +139,18 @@ class HistoryFetchService:
 
     async def fetch_symbol_list(self, section: str = "gold,currency") -> list[str]:
         import asyncio
+
+        # Acquire a token on the CALLING event loop (the RateLimiter singleton
+        # uses asyncio.Lock — must not be used from a worker thread's own loop).
+        # The worker thread then only performs the plain sync requests call.
+        await get_rate_limiter().acquire("commodity", endpoint="Gold_Currency_Pro.php")
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(_executor, _fetch_symbol_list_sync, section)
 
     async def fetch_crypto_symbols(self) -> list[str]:
         import asyncio
+
+        await get_rate_limiter().acquire("commodity", endpoint="Gold_Currency_Pro.php")
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(_executor, _fetch_crypto_symbols_sync)
 
@@ -152,6 +160,8 @@ class HistoryFetchService:
         date_end: str = "1405-05-01",
     ) -> list[dict[str, Any]] | None:
         import asyncio
+
+        await get_rate_limiter().acquire("commodity", endpoint="Gold_Currency_Pro.php")
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             _executor, _fetch_history_sync, symbol, date_start, date_end,
@@ -161,6 +171,7 @@ class HistoryFetchService:
         self,
         symbols: list[str] | None = None,
         limit: int = 0,
+        date_end: str = "1405-05-01",
     ) -> list[FetchReport]:
         from sqlalchemy import text as sql_text
 
@@ -173,7 +184,7 @@ class HistoryFetchService:
         for i, sym in enumerate(symbols):
             t0 = time.monotonic()
             try:
-                records = await self.fetch_history(sym, "1390-01-01", "1405-05-01")
+                records = await self.fetch_history(sym, "1390-01-01", date_end)
                 dur = (time.monotonic() - t0) * 1000
 
                 if not records:
@@ -231,6 +242,7 @@ class HistoryFetchService:
         self,
         symbols: list[str] | None = None,
         limit: int = 0,
+        date_end: str = "1405-05-01",
     ) -> list[FetchReport]:
         from sqlalchemy import text as sql_text
 
@@ -243,7 +255,7 @@ class HistoryFetchService:
         for i, sym in enumerate(symbols):
             t0 = time.monotonic()
             try:
-                records = await self.fetch_history(sym, "1300-01-01", "1405-05-01")
+                records = await self.fetch_history(sym, "1300-01-01", date_end)
                 dur = (time.monotonic() - t0) * 1000
 
                 if not records:

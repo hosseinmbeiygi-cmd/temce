@@ -25,7 +25,13 @@ class TokenResponse(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    """Request body for /auth/refresh.
+
+    The refresh token is carried by the httpOnly cookie — the JSON body is
+    kept only for API-contract compatibility and ignored by the endpoint.
+    """
+
+    refresh_token: str = Field(default="", description="Deprecated: token is read from the httpOnly cookie")
 
 
 class UserResponse(BaseModel):

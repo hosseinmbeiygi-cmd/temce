@@ -246,8 +246,10 @@ class BrsApiClient:
                     )
                     return Result.ok(brs_resp)
 
-                if resp.status_code in (429, 503):
-                    # Rate limit / service unavailable → retry after delay
+                if resp.status_code in (429, 502, 503, 504):
+                    # Rate limit / gateway hiccup / service unavailable → retry.
+                    # BrsApi's nginx intermittently returns 502 Bad Gateway for a
+                    # few seconds; without this the whole backfill aborts.
                     retry_after = self._parse_retry_after(resp)
                     last_error = f"HTTP {resp.status_code} – retry after {retry_after}s"
                     logger.warning("%s (attempt %d/%d)", last_error, attempt + 1, self._max_retries)

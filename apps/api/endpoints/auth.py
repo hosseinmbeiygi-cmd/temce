@@ -16,9 +16,7 @@ from schemas.api.auth import (
     MFASetupRequest,
     MFAStatusResponse,
     MFAVerifyRequest,
-    RefreshRequest,
     RegisterRequest,
-    TokenResponse,
     UpdateProfileRequest,
     UserResponse,
 )
@@ -85,13 +83,6 @@ def change_password_rate_limit(request: Request) -> None:
     _rate_limit_auth(request, "change_password")
 
 
-def _build_token_response(data: dict) -> TokenResponse:
-    return TokenResponse(
-        access_token=data["access_token"],
-        refresh_token=data["refresh_token"],
-    )
-
-
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
     """Persist the refresh token in an httpOnly cookie (XSS-safe).
 
@@ -100,6 +91,11 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
     (SameSite=Lax) so CSRF against /auth/refresh is not possible from other
     sites. Insecure in dev (http://localhost) by default — flip
     ``AUTH_COOKIE_SECURE=true`` behind TLS.
+
+    Deployment note: because refresh is cookie-only and the cookie is
+    SameSite=Lax, the frontend and API must be served from the same site
+    (same registrable domain) in production. If they are ever split across
+    sites, switch this cookie to ``SameSite=None; Secure`` instead.
     """
     response.set_cookie(
         key=settings.auth_cookie_name,
@@ -122,14 +118,13 @@ def _clear_refresh_cookie(response: Response) -> None:
     )
 
 
-def _refresh_token_from_request(request: Request, req_body_token: str) -> str:
-    """Resolve the refresh token: JSON body first, then the httpOnly cookie.
+def _refresh_token_from_cookie(request: Request) -> str:
+    """Read the refresh token from the httpOnly cookie (XSS-safe).
 
-    Keeps the JSON-body contract for non-browser clients (scripts/curl) while
-    letting browsers rely purely on the cookie.
+    The token is never exposed to JavaScript (not returned in JSON bodies), so
+    the cookie is the only transport. Clients that cannot manage cookies must
+    use their own credential storage — the JSON body is intentionally ignored.
     """
-    if req_body_token:
-        return req_body_token
     return request.cookies.get(settings.auth_cookie_name, "")
 
 
@@ -165,7 +160,6 @@ async def register(
         data={
             "user": _build_user_response(result.value["user"]),
             "access_token": result.value["access_token"],
-            "refresh_token": result.value["refresh_token"],
         },
     )
 
@@ -198,7 +192,6 @@ async def login(
         data={
             "user": _build_user_response(data["user"]),
             "access_token": data["access_token"],
-            "refresh_token": data["refresh_token"],
         },
     )
 
@@ -222,29 +215,28 @@ async def mfa_login(
         data={
             "user": _build_user_response(data["user"]),
             "access_token": data["access_token"],
-            "refresh_token": data["refresh_token"],
         },
     )
 
 
 @router.post("/refresh")
 async def refresh(
-    req: RefreshRequest,
     request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse:
     svc = UserService(session)
-    token = _refresh_token_from_request(request, req.refresh_token)
+    token = _refresh_token_from_cookie(request)
     if not token:
         return ApiResponse(success=False, error={"message": "No refresh token provided"})
     result = await svc.refresh_token(token)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     _set_refresh_cookie(response, result.value["refresh_token"])
-    # Include the user profile alongside the fresh tokens so the frontend can
-    # restore the full session (access token + user) from the httpOnly cookie.
-    data = _build_token_response(result.value).model_dump()
+    # Rotate the access token and return the user profile so the frontend can
+    # restore the full session from the httpOnly refresh cookie. The refresh
+    # token itself stays cookie-only — it is never included in JSON bodies.
+    data = {"access_token": result.value["access_token"]}
     if result.value.get("user"):
         data["user"] = _build_user_response(result.value["user"]).model_dump()
     return ApiResponse(success=True, data=data)

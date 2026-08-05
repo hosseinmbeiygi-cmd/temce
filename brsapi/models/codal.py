@@ -24,7 +24,10 @@ class CodalAnnouncementModel(InstrumentRefMixin, BrsApiBase):
     __tablename__ = "brsapi_codal_announcements"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    symbol: Mapped[str | None] = mapped_column(String(50), index=True)
+    # ``symbol`` (l18 from Codal API) can be a long fund/institution name
+    # (e.g. "انجمن خیریه حمایت از بیماران مبتلا به سرطان مهرانه استان زنجان"),
+    # so it must be wider than the 50-char market symbols.
+    symbol: Mapped[str | None] = mapped_column(String(200), index=True)
     company_name: Mapped[str | None] = mapped_column(String(200))
     title: Mapped[str | None] = mapped_column(String(500))
     code: Mapped[str | None] = mapped_column(String(50))
@@ -66,7 +69,8 @@ class CodalAttachmentModel(BrsApiBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     announcement_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    symbol: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    # Same wide symbol as CodalAnnouncementModel (long fund/institution names)
+    symbol: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     attachment_type: Mapped[str] = mapped_column(
         String(20),

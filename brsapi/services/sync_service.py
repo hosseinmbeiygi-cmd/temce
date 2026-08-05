@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any
@@ -105,6 +105,25 @@ def _to_jalali_date(value: str | None) -> str | None:
     except Exception:
         logger.warning("Could not convert date %r to Jalali; passing through", value)
         return value
+
+
+# Cover BOTH digit sets Codal occasionally returns: Persian (۰-۹, U+06F0-06F9)
+# and Arabic-Indic (٠-٩, U+0660-0669).
+_DIGIT_TRANS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def _normalize_codal_date(value: str | None) -> str:
+    """Normalize a Codal date string to ``YYYY-MM-DD`` for comparison.
+
+    The Codal API returns dates with Persian digits and slashes
+    (e.g. ``۱۴۰۵/۰۵/۰۳``). This converts them to plain ``1405-05-03`` so
+    string comparison works. Unparseable values become "".
+    """
+    if not value:
+        return ""
+    v = str(value).strip().translate(_DIGIT_TRANS)
+    v = v.replace("/", "-")
+    return v
 
 
 def _dedupe_symbols(symbols: list[str]) -> list[str]:
@@ -1222,6 +1241,8 @@ class BrsApiSyncService:
         backfill: bool = False,
         start_page: int = 1,
         max_pages: int | None = None,
+        on_page_processed: Callable[[int, int], Awaitable[None]] | None = None,
+        stop_date: str | None = None,
     ) -> SyncReport:
         """Sync Codal announcements with pagination.
 
@@ -1232,6 +1253,13 @@ class BrsApiSyncService:
                 which makes incremental syncs fast and resumable.
             start_page: First page to fetch (1-indexed).
             max_pages: Optional cap on pages to process (useful for tests).
+            on_page_processed: Optional async callback invoked after each page
+                with (page_number, cumulative_inserted) — used for resumable
+                checkpointing of long archive backfills.
+            stop_date: Optional Jalali cutoff ``YYYY-MM-DD`` (e.g. ``1405-04-14``).
+                The API returns pages newest-first, so once a page is entirely
+                older than this date the sync stops — used to backfill "last
+                month" without walking the whole archive.
         """
         start_time = time.monotonic()
         client = await self._ensure_client()
@@ -1240,7 +1268,10 @@ class BrsApiSyncService:
 
         current_page = start_page
         total_inserted = 0
-        total_pages_api = 1
+        # When resuming from a non-first page we must fetch once to learn the
+        # real page count; init to start_page so the loop body always runs at
+        # least once (it gets overwritten by the API's count_page after fetch).
+        total_pages_api = max(1, start_page)
         pages_processed = 0
 
         while current_page <= total_pages_api:
@@ -1283,6 +1314,19 @@ class BrsApiSyncService:
             if records:
                 records = await self._attach_codal_instrument_refs(session, records)
 
+            # Stop early when the newest announcement on this page is already
+            # older than the requested cutoff (pages are newest-first).
+            if stop_date and records:
+                page_dates = [_normalize_codal_date(r.get("date_publish", "")) for r in records]
+                valid_dates = [d for d in page_dates if len(d) == 10]
+                if valid_dates and max(valid_dates) < stop_date:
+                    logger.info(
+                        "Codal reached stop_date %s at page %d — stopping",
+                        stop_date,
+                        current_page,
+                    )
+                    break
+
             inserted = 0
             if records:
                 try:
@@ -1310,6 +1354,14 @@ class BrsApiSyncService:
 
             total_inserted += inserted
             pages_processed += 1
+
+            # Let the caller persist a checkpoint after every page (resumable
+            # long backfills). Best-effort: failures are logged, not fatal.
+            if on_page_processed is not None:
+                try:
+                    await on_page_processed(current_page, total_inserted)
+                except Exception:
+                    logger.warning("Codal on_page_processed callback failed", exc_info=True)
 
             logger.info(
                 "Codal page %d/%d processed (inserted %d/%d)",

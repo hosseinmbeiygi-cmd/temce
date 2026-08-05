@@ -10,7 +10,6 @@ import { type ReactNode } from "react";
 
 type MemAuth = {
   access_token: string | null;
-  refresh_token?: string;
   user?: Record<string, unknown> | null;
 } | null;
 
@@ -25,11 +24,9 @@ const { hydrateSessionMock, authStoreMock } = vi.hoisted(() => {
       set: (data: {
         user: Record<string, unknown>;
         access_token: string;
-        refresh_token?: string;
       }) => {
         mem = {
           access_token: data.access_token,
-          refresh_token: data.refresh_token,
           user: data.user,
         };
       },
@@ -68,7 +65,6 @@ function wrapperFor(Provider: (p: { children: ReactNode }) => ReactNode) {
 
 const AUTHED_SESSION = {
   access_token: "access-token-1",
-  refresh_token: "refresh-token-1",
   user: { id: "u1", username: "testuser", roles: ["user"] },
 };
 
@@ -99,7 +95,6 @@ describe("AuthProvider", () => {
       expect(result.current.isAuthenticated).toBe(true);
       expect(result.current.user?.username).toBe("testuser");
       expect(result.current.accessToken).toBe("access-token-1");
-      expect(result.current.refreshToken).toBe("refresh-token-1");
     });
 
     it("starts unauthenticated when hydration finds no valid cookie", async () => {
@@ -135,7 +130,6 @@ describe("AuthProvider", () => {
           data: {
             user: { id: "u9", username: "ali", roles: ["analyst"] },
             access_token: "new-access",
-            refresh_token: "new-refresh",
           },
         }),
       });
@@ -253,13 +247,22 @@ describe("AuthProvider", () => {
   });
 
   describe("refreshAccessToken", () => {
-    it("returns null when no refresh token is stored in memory", async () => {
+    it("returns null and logs out when the refresh endpoint rejects", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+      }) as unknown as typeof fetch;
+
       const { AuthProvider, useAuth } = await loadAuth();
       const { result } = renderHook(() => useAuth(), { wrapper: wrapperFor(AuthProvider) });
       await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-      const token = await result.current.refreshAccessToken();
+      let token: string | null = null;
+      await act(async () => {
+        token = await result.current.refreshAccessToken();
+      });
       expect(token).toBeNull();
+      expect(result.current.isAuthenticated).toBe(false);
     });
 
     it("calls /auth/refresh with credentials include and updates the access token", async () => {
@@ -269,7 +272,7 @@ describe("AuthProvider", () => {
         ok: true,
         status: 200,
         json: async () => ({
-          data: { access_token: "rotated-access", refresh_token: "rotated-refresh", user: AUTHED_SESSION.user },
+          data: { access_token: "rotated-access", user: AUTHED_SESSION.user },
         }),
       });
       globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -288,6 +291,8 @@ describe("AuthProvider", () => {
       const refreshCall = fetchMock.mock.calls[0];
       expect(refreshCall[0]).toContain("/auth/refresh");
       expect(refreshCall[1].credentials).toBe("include");
+      // Cookie-only contract: the body must not carry the refresh token.
+      expect(JSON.stringify(refreshCall[1].body)).not.toContain("refresh_token");
     });
   });
 });

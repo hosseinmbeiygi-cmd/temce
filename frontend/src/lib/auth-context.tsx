@@ -25,7 +25,6 @@ export interface AuthUser {
 export interface AuthState {
   user: AuthUser | null;
   accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -66,9 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
     accessToken: null,
-    refreshToken: null,
     isAuthenticated: false,
-    isLoading: true, // starts true until we check localStorage
+    isLoading: true,
   });
 
   // Hydrate the session on mount: the access token is in-memory only, so
@@ -82,7 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState({
           user: (stored.user as AuthUser | undefined) ?? null,
           accessToken: stored.access_token,
-          refreshToken: stored.refresh_token ?? null,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -95,12 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           storeAuth({
             user: (restored.user as AuthUser) ?? {},
             access_token: restored.access_token,
-            refresh_token: restored.refresh_token,
           });
           setState({
             user: (restored.user as AuthUser) ?? {},
             accessToken: restored.access_token,
-            refreshToken: restored.refresh_token ?? null,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -139,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const newState: AuthState = {
       user: data.user ?? data,
       accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? null,
       isAuthenticated: true,
       isLoading: false,
     };
@@ -147,7 +141,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeAuth({
       user: newState.user!,
       access_token: newState.accessToken!,
-      refresh_token: newState.refreshToken ?? undefined,
     });
 
     setState(newState);
@@ -180,7 +173,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newState: AuthState = {
         user: payload.user ?? payload,
         accessToken: payload.access_token,
-        refreshToken: payload.refresh_token ?? null,
         isAuthenticated: true,
         isLoading: false,
       };
@@ -188,7 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storeAuth({
         user: newState.user!,
         access_token: newState.accessToken!,
-        refresh_token: newState.refreshToken ?? undefined,
       });
 
       setState(newState);
@@ -203,7 +194,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({
       user: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
     });
@@ -212,14 +202,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── refresh token ───────────────────────────────────────────
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
-    const stored = getStoredAuth();
-    if (!stored?.refresh_token) return null;
-
+    // The refresh token is an httpOnly cookie — the server reads it, so there
+    // is nothing to send in the body and nothing to check in memory.
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: stored.refresh_token ?? "" }),
+        body: JSON.stringify({}),
         credentials: "include",
       });
 
@@ -231,22 +220,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const json = await res.json();
       const data = json.data ?? json;
-
       const newAccessToken = data.access_token;
-      const newRefreshToken = data.refresh_token ?? stored.refresh_token;
+      if (!newAccessToken) {
+        logout();
+        return null;
+      }
 
+      const stored = getStoredAuth();
       storeAuth({
-        user: (stored.user as AuthUser) ?? {},
+        user: (stored?.user as AuthUser | undefined) ?? {},
         access_token: newAccessToken,
-        refresh_token: newRefreshToken,
       });
 
-      setState((prev) => ({
-        ...prev,
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      }));
-
+      setState((prev) => ({ ...prev, accessToken: newAccessToken }));
       return newAccessToken;
     } catch {
       logout();

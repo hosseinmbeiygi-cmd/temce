@@ -23,8 +23,6 @@ function mockFetchResponse(overrides: Partial<Response> = {}): Response {
   } as Response;
 }
 
-// ── Auth is stored in-memory now (XSS-safe). We seed it via storeAuth() ──
-
 // ── Tests ──────────────────────────────────────────────────────
 describe("Silent Token Refresh", () => {
   const originalWindow = globalThis.window;
@@ -52,9 +50,10 @@ describe("Silent Token Refresh", () => {
 
   // ── Helper: import api functions with fresh module ────────────
   // storeAuth/getStoredAuth are seeded into module scope so the tests can
-  // call them directly (they wrap the in-memory auth store).
-  let storeAuth: (data: { user: Record<string, unknown>; access_token: string; refresh_token?: string }) => void;
-  let getStoredAuth: () => { access_token: string; refresh_token?: string; user?: Record<string, unknown> | null } | null;
+  // call them directly (they wrap the in-memory auth store). The refresh
+  // token lives in an httpOnly cookie — it is never stored in JS memory.
+  let storeAuth: (data: { user: Record<string, unknown>; access_token: string }) => void;
+  let getStoredAuth: () => { access_token: string; user?: Record<string, unknown> | null } | null;
 
   async function importApi() {
     const mod = await import("@/lib/api");
@@ -78,25 +77,21 @@ describe("Silent Token Refresh", () => {
     it("retries the original request with new token after successful refresh", async () => {
       const { apiGet } = await importApi();
 
-      // Store auth with expired access token (in-memory)
+      // Store auth with expired access token (in-memory only)
       storeAuth({
         user: { username: "t" },
         access_token: "expired-access-token",
-        refresh_token: "valid-refresh-token",
       });
 
       const fetchMock = vi.fn()
         // First call: original request → 401
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
-        // Second call: refresh → 200 with new tokens
+        // Second call: refresh → 200 with new access token
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
           status: 200,
           json: () => Promise.resolve({
-            data: {
-              access_token: "new-access-token",
-              refresh_token: "new-refresh-token",
-            },
+            data: { access_token: "new-access-token", user: { username: "t" } },
           }),
         }))
         // Third call: retry original request → 200
@@ -123,22 +118,22 @@ describe("Silent Token Refresh", () => {
       expect(getStoredAuth()?.access_token).toBe("new-access-token");
     });
 
-    it("keeps old refresh_token when server doesn't return a new one", async () => {
+    it("does not persist any refresh token in memory", async () => {
       const { apiGet } = await importApi();
 
       storeAuth({
         user: { username: "t" },
         access_token: "expired-token",
-        refresh_token: "old-refresh-token",
       });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
+        // Server (hypothetically) echoes a refresh token — it must be ignored.
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
           status: 200,
           json: () => Promise.resolve({
-            data: { access_token: "new-token" }, // no refresh_token
+            data: { access_token: "new-token", refresh_token: "leaked-refresh" },
           }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
@@ -152,6 +147,7 @@ describe("Silent Token Refresh", () => {
       await apiGet("/test");
 
       expect(getStoredAuth()?.access_token).toBe("new-token");
+      expect(Object.prototype.hasOwnProperty.call(getStoredAuth(), "refresh_token")).toBe(false);
     });
   });
 
@@ -165,7 +161,6 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired-token",
-        refresh_token: "invalid-refresh-token",
       });
 
       const fetchMock = vi.fn()
@@ -191,7 +186,6 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired-token",
-        refresh_token: "some-refresh-token",
       });
 
       const fetchMock = vi.fn()
@@ -234,7 +228,6 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired-token",
-        refresh_token: "valid-refresh-token",
       });
 
       // Build fetch mock: multiple 401s then one refresh, then success for retries
@@ -247,9 +240,7 @@ describe("Silent Token Refresh", () => {
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({
-            data: { access_token: "refreshed-token", refresh_token: "new-refresh" },
-          }),
+          json: () => Promise.resolve({ data: { access_token: "refreshed-token" } }),
         }))
         // Retries succeed
         .mockResolvedValue(mockFetchResponse({
@@ -285,7 +276,6 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired-token",
-        refresh_token: "valid-refresh-token",
       });
 
       const fetchMock = vi.fn()
@@ -294,9 +284,7 @@ describe("Silent Token Refresh", () => {
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({
-            data: { access_token: "token-1", refresh_token: "refresh-1" },
-          }),
+          json: () => Promise.resolve({ data: { access_token: "token-1" } }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
@@ -308,9 +296,7 @@ describe("Silent Token Refresh", () => {
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({
-            data: { access_token: "token-2", refresh_token: "refresh-2" },
-          }),
+          json: () => Promise.resolve({ data: { access_token: "token-2" } }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true,
@@ -384,14 +370,13 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired",
-        refresh_token: "valid",
       });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
-          json: () => Promise.resolve({ data: { access_token: "new", refresh_token: "new" } }),
+          json: () => Promise.resolve({ data: { access_token: "new" } }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
@@ -415,14 +400,13 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired",
-        refresh_token: "valid",
       });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
-          json: () => Promise.resolve({ data: { access_token: "new", refresh_token: "new" } }),
+          json: () => Promise.resolve({ data: { access_token: "new" } }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
@@ -447,14 +431,13 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired",
-        refresh_token: "valid",
       });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
-          json: () => Promise.resolve({ data: { access_token: "new", refresh_token: "new" } }),
+          json: () => Promise.resolve({ data: { access_token: "new" } }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
@@ -487,7 +470,6 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired",
-        refresh_token: "invalid",
       });
 
       const fetchMock = vi.fn()
@@ -532,14 +514,13 @@ describe("Silent Token Refresh", () => {
       storeAuth({
         user: { username: "t" },
         access_token: "expired",
-        refresh_token: "valid-refresh",
       });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
-          json: () => Promise.resolve({ data: { access_token: "new", refresh_token: "new" } }),
+          json: () => Promise.resolve({ data: { access_token: "new" } }),
         }))
         .mockResolvedValueOnce(mockFetchResponse({
           ok: true, status: 200,
@@ -556,13 +537,14 @@ describe("Silent Token Refresh", () => {
       expect(refreshCall[1].headers).toMatchObject({
         "Content-Type": "application/json",
       });
-      // The refresh token is read server-side from the httpOnly cookie.
+      // The refresh token is read server-side from the httpOnly cookie and is
+      // never sent from JS — the body must not contain it.
       expect(refreshCall[1].credentials).toBe("include");
-      expect(refreshCall[1].body).toContain("refresh_token");
+      expect(JSON.stringify(refreshCall[1].body)).not.toContain("refresh_token");
     });
 
     it("works when window is undefined (SSR)", async () => {
-      // In SSR, localStorage and window are undefined
+      // In SSR, window is undefined
       Object.defineProperty(globalThis, "window", { value: undefined, writable: true, configurable: true });
 
       // Mock fetch to return a successful response (no 401)
