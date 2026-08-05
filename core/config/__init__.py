@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     lockout_minutes: int = 15
     session_timeout_minutes: int = 30
     enable_csrf: bool = True
+
+    # httpOnly refresh-token cookie (auth): keeps the long-lived token out of
+    # localStorage/JS so XSS cannot exfiltrate it.
+    auth_cookie_name: str = Field(default="im_refresh", alias="AUTH_COOKIE_NAME")
+    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_domain: str = Field(default="", alias="AUTH_COOKIE_DOMAIN")
+    auth_cookie_samesite: str = Field(default="lax", alias="AUTH_COOKIE_SAMESITE")
     # Defense-in-depth: strip markup/control characters from JSON request
     # bodies before handlers see them (see InputSanitizationMiddleware).
     enable_input_sanitization: bool = True

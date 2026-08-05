@@ -2,38 +2,67 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 const LONG_TIMEOUT_MS = 600_000; // 10 minutes for heavy sync operations
 
-// ── Auth token helpers ──────────────────────────────────────────
+// ── Auth token helpers (in-memory, XSS-safe) ────────────────────────
+// The refresh token lives in an httpOnly cookie (set by the backend); the
+// access token + user are kept in module memory only — never localStorage,
+// so an XSS payload cannot exfiltrate them.
 
-const AUTH_STORAGE_KEY = "auth";
+interface InMemoryAuth {
+  access_token: string | null;
+  refresh_token?: string;
+  user?: Record<string, unknown> | null;
+}
+
+let _memoryAuth: InMemoryAuth = { access_token: null, refresh_token: undefined, user: null };
 
 function getStoredAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.access_token ?? null;
-  } catch {
-    return null;
-  }
+  return _memoryAuth.access_token;
+}
+
+function setAccessToken(token: string) {
+  _memoryAuth.access_token = token;
+}
+
+function setAuthUser(user: Record<string, unknown> | null) {
+  _memoryAuth.user = user;
 }
 
 function clearStoredAuth() {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  _memoryAuth = { access_token: null, refresh_token: undefined, user: null };
 }
 
 function writeStoredAuth(data: { access_token: string; refresh_token?: string }) {
-  if (typeof window === "undefined") return;
+  _memoryAuth.access_token = data.access_token;
+  if (data.refresh_token) _memoryAuth.refresh_token = data.refresh_token;
+}
+
+// Session restore after a page reload: the access token is gone from memory
+// but the refresh cookie survives — exchange it for a fresh access token.
+export async function hydrateSession(): Promise<InMemoryAuth> {
   try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
-      ...parsed,
-      access_token: data.access_token,
-      refresh_token: data.refresh_token ?? parsed.refresh_token,
-    }));
-  } catch { /* ignore */ }
+    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: "" }), // token read from httpOnly cookie
+      credentials: "include",
+    });
+    if (!res.ok) {
+      clearStoredAuth();
+      return _memoryAuth;
+    }
+    const json = await res.json();
+    const data = json.data ?? json;
+    if (data?.access_token) {
+      _memoryAuth.access_token = data.access_token;
+      if (data.refresh_token) _memoryAuth.refresh_token = data.refresh_token;
+      if (data.user) _memoryAuth.user = data.user as Record<string, unknown>;
+    } else {
+      clearStoredAuth();
+    }
+  } catch {
+    clearStoredAuth();
+  }
+  return _memoryAuth;
 }
 
 // ── Silent Token Refresh ────────────────────────────────────────
@@ -46,15 +75,12 @@ async function _silentRefresh(): Promise<string | null> {
 
   _refreshPromise = (async () => {
     try {
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!raw) return null;
-      const stored = JSON.parse(raw);
-      if (!stored?.refresh_token) return null;
-
+      // The refresh token lives in an httpOnly cookie — the server reads it.
       const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: stored.refresh_token }),
+        body: JSON.stringify({ refresh_token: "" }),
+        credentials: "include",
       });
 
       if (!res.ok) return null;
@@ -62,11 +88,13 @@ async function _silentRefresh(): Promise<string | null> {
       const json = await res.json();
       const data = json.data ?? json;
       const newAccessToken = data.access_token;
-      const newRefreshToken = data.refresh_token ?? stored.refresh_token;
+      const newRefreshToken = data.refresh_token;
 
-      writeStoredAuth({ access_token: newAccessToken, refresh_token: newRefreshToken });
-
-      return newAccessToken;
+      if (newAccessToken) {
+        writeStoredAuth({ access_token: newAccessToken, refresh_token: newRefreshToken });
+        return newAccessToken;
+      }
+      return null;
     } catch {
       return null;
     } finally {
@@ -96,7 +124,11 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, {
+    ...options,
+    signal: controller.signal,
+    credentials: "include",
+  });
     return response;
   } finally {
     clearTimeout(timer);
@@ -241,24 +273,26 @@ export async function apiDelete<T>(
 // ── Auth Helpers (legacy, kept for backward compatibility) ───────
 // New code should use useAuth() hook from auth-context.tsx instead.
 
+// Backward-compatible wrappers over the in-memory store (no localStorage).
 export function getStoredAuth() {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  if (!_memoryAuth.access_token) return null;
+  return {
+    access_token: _memoryAuth.access_token,
+    refresh_token: _memoryAuth.refresh_token,
+    user: _memoryAuth.user,
+  };
 }
 
 export function clearAuth() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
+  clearStoredAuth();
 }
 
 export function storeAuth(data: { user: Record<string, unknown>; access_token: string; refresh_token?: string }) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
+  _memoryAuth.access_token = data.access_token;
+  if (data.refresh_token) _memoryAuth.refresh_token = data.refresh_token;
+  _memoryAuth.user = data.user ?? _memoryAuth.user;
+  setAccessToken(data.access_token);
+  setAuthUser(data.user ?? _memoryAuth.user);
 }
 
 // ------ Array Extraction (اصلاح‌شده) ------------------------------------------------------------------------------------------------------

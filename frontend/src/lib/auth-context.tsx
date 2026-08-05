@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { clearAuth, getStoredAuth, hydrateSession, storeAuth } from "@/lib/api";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -43,38 +44,17 @@ export interface AuthContextValue extends AuthState {
   hasAnyRole: (...roles: string[]) => boolean;
 }
 
-// ── Storage helpers ─────────────────────────────────────────────
-
-const AUTH_STORAGE_KEY = "auth";
-
-interface StoredAuth {
-  user: AuthUser;
-  access_token: string;
-  refresh_token?: string;
-}
-
-function readStoredAuth(): StoredAuth | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredAuth;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredAuth(data: StoredAuth): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
-}
-
-function clearStoredAuth(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
-}
+// ── Auth storage: in-memory only (XSS-safe) ─────────────────────
+// Single source of truth lives in @/lib/api (module memory) so every
+// component reading getStoredAuth() sees the same session as the context.
+// The refresh token is an httpOnly cookie set by the backend; the access
+// token + user are restored after a reload via hydrateSession(), which
+// exchanges the cookie for a fresh session. Nothing sensitive is ever
+// written to localStorage.
 
 // ── Context ─────────────────────────────────────────────────────
+
+const ROLE_HIERARCHY: string[] = ["admin", "analyst", "user", "viewer"];
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -91,24 +71,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true, // starts true until we check localStorage
   });
 
-  // Hydrate from localStorage on mount.
-  // Client-only, one-time sync from an external store (localStorage) — this is the
-  // documented pattern for localStorage hydration; it cannot be derived during render.
+  // Hydrate the session on mount: the access token is in-memory only, so
+  // after a page reload we must exchange the httpOnly refresh cookie for a
+  // fresh access token (and user profile) before considering the user logged in.
   useEffect(() => {
-    const stored = readStoredAuth();
-    if (stored) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setState({
-        user: stored.user,
-        accessToken: stored.access_token,
-        refreshToken: stored.refresh_token ?? null,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setState((prev) => ({ ...prev, isLoading: false }));
-    }
+    let cancelled = false;
+    (async () => {
+      const stored = getStoredAuth();
+      if (stored?.access_token) {
+        setState({
+          user: (stored.user as AuthUser | undefined) ?? null,
+          accessToken: stored.access_token,
+          refreshToken: stored.refresh_token ?? null,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        return;
+      }
+      try {
+        const restored = await hydrateSession();
+        if (cancelled) return;
+        if (restored?.access_token) {
+          storeAuth({
+            user: (restored.user as AuthUser) ?? {},
+            access_token: restored.access_token,
+            refresh_token: restored.refresh_token,
+          });
+          setState({
+            user: (restored.user as AuthUser) ?? {},
+            accessToken: restored.access_token,
+            refreshToken: restored.refresh_token ?? null,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } else {
+          setState((prev) => ({ ...prev, isLoading: false }));
+        }
+      } catch {
+        if (!cancelled) {
+          setState((prev) => ({ ...prev, isLoading: false }));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── login ───────────────────────────────────────────────────
@@ -118,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
+      credentials: "include",
     });
 
     if (!res.ok) {
@@ -136,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading: false,
     };
 
-    writeStoredAuth({
+    storeAuth({
       user: newState.user!,
       access_token: newState.accessToken!,
       refresh_token: newState.refreshToken ?? undefined,
@@ -158,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
 
       if (!res.ok) {
@@ -176,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       };
 
-      writeStoredAuth({
+      storeAuth({
         user: newState.user!,
         access_token: newState.accessToken!,
         refresh_token: newState.refreshToken ?? undefined,
@@ -190,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── logout ──────────────────────────────────────────────────
 
   const logout = useCallback(() => {
-    clearStoredAuth();
+    clearAuth();
     setState({
       user: null,
       accessToken: null,
@@ -203,14 +212,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── refresh token ───────────────────────────────────────────
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
-    const stored = readStoredAuth();
+    const stored = getStoredAuth();
     if (!stored?.refresh_token) return null;
 
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: stored.refresh_token }),
+        body: JSON.stringify({ refresh_token: stored.refresh_token ?? "" }),
+        credentials: "include",
       });
 
       if (!res.ok) {
@@ -225,8 +235,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newAccessToken = data.access_token;
       const newRefreshToken = data.refresh_token ?? stored.refresh_token;
 
-      writeStoredAuth({
-        user: stored.user,
+      storeAuth({
+        user: (stored.user as AuthUser) ?? {},
         access_token: newAccessToken,
         refresh_token: newRefreshToken,
       });
@@ -245,8 +255,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logout]);
 
   // ── role helpers ───────────────────────────────────────────
-
-  const ROLE_HIERARCHY = ["admin", "analyst", "user", "viewer"];
 
   const hasRole = useCallback((role: string): boolean => {
     const roles = state.user?.roles ?? [];

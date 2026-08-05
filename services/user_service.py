@@ -480,7 +480,24 @@ class UserService:
             user.refresh_token = new_refresh
             await self.session.flush()
 
-            return Result.ok({"access_token": new_access, "refresh_token": new_refresh})
+            # Include the user profile so browser clients can restore their
+            # session (access token + user) from the httpOnly refresh cookie
+            # without a second round-trip.
+            return Result.ok({
+                "access_token": new_access,
+                "refresh_token": new_refresh,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "full_name": user.full_name or "",
+                    "phone": user.phone or "",
+                    "roles": roles_list,
+                    "is_active": user.is_active,
+                    "is_verified": user.is_verified,
+                    "last_login": user.last_login,
+                },
+            })
         except Exception as e:
             logger.error("Token refresh failed: %s", e)
             return Result.fail(str(e))

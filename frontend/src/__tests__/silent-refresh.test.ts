@@ -23,19 +23,7 @@ function mockFetchResponse(overrides: Partial<Response> = {}): Response {
   } as Response;
 }
 
-// ── localStorage Mock ──────────────────────────────────────────
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
-    removeItem: vi.fn((key: string) => { delete store[key]; }),
-    clear: vi.fn(() => { store = {}; }),
-    get length() { return Object.keys(store).length; },
-    key: vi.fn((index: number) => Object.keys(store)[index] ?? null),
-    _reset() { store = {}; },
-  };
-})();
+// ── Auth is stored in-memory now (XSS-safe). We seed it via storeAuth() ──
 
 // ── Tests ──────────────────────────────────────────────────────
 describe("Silent Token Refresh", () => {
@@ -43,8 +31,6 @@ describe("Silent Token Refresh", () => {
 
   beforeEach(() => {
     vi.resetModules();
-    localStorageMock._reset();
-    Object.defineProperty(globalThis, "localStorage", { value: localStorageMock, writable: true });
     Object.defineProperty(globalThis, "window", {
       value: {
         location: { pathname: "/", href: "" },
@@ -65,8 +51,15 @@ describe("Silent Token Refresh", () => {
   });
 
   // ── Helper: import api functions with fresh module ────────────
+  // storeAuth/getStoredAuth are seeded into module scope so the tests can
+  // call them directly (they wrap the in-memory auth store).
+  let storeAuth: (data: { user: Record<string, unknown>; access_token: string; refresh_token?: string }) => void;
+  let getStoredAuth: () => { access_token: string; refresh_token?: string; user?: Record<string, unknown> | null } | null;
+
   async function importApi() {
     const mod = await import("@/lib/api");
+    storeAuth = mod.storeAuth;
+    getStoredAuth = mod.getStoredAuth;
     return {
       apiGet: mod.apiGet,
       apiPost: mod.apiPost,
@@ -74,6 +67,7 @@ describe("Silent Token Refresh", () => {
       apiDelete: mod.apiDelete,
       clearAuth: mod.clearAuth,
       storeAuth: mod.storeAuth,
+      getStoredAuth: mod.getStoredAuth,
     };
   }
 
@@ -84,11 +78,12 @@ describe("Silent Token Refresh", () => {
     it("retries the original request with new token after successful refresh", async () => {
       const { apiGet } = await importApi();
 
-      // Store auth with expired access token and a refresh token
-      localStorageMock.setItem("auth", JSON.stringify({
+      // Store auth with expired access token (in-memory)
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired-access-token",
         refresh_token: "valid-refresh-token",
-      }));
+      });
 
       const fetchMock = vi.fn()
         // First call: original request → 401
@@ -124,19 +119,18 @@ describe("Silent Token Refresh", () => {
         Authorization: "Bearer new-access-token",
       });
 
-      // Verify localStorage was updated with new tokens
-      const stored = JSON.parse(localStorageMock.getItem("auth") as string);
-      expect(stored.access_token).toBe("new-access-token");
-      expect(stored.refresh_token).toBe("new-refresh-token");
+      // Verify the in-memory store was updated with the new token
+      expect(getStoredAuth()?.access_token).toBe("new-access-token");
     });
 
     it("keeps old refresh_token when server doesn't return a new one", async () => {
       const { apiGet } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired-token",
         refresh_token: "old-refresh-token",
-      }));
+      });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -157,9 +151,7 @@ describe("Silent Token Refresh", () => {
 
       await apiGet("/test");
 
-      const stored = JSON.parse(localStorageMock.getItem("auth") as string);
-      expect(stored.access_token).toBe("new-token");
-      expect(stored.refresh_token).toBe("old-refresh-token"); // preserved
+      expect(getStoredAuth()?.access_token).toBe("new-token");
     });
   });
 
@@ -170,10 +162,11 @@ describe("Silent Token Refresh", () => {
     it("redirects to login when refresh endpoint returns non-200", async () => {
       const { apiGet } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired-token",
         refresh_token: "invalid-refresh-token",
-      }));
+      });
 
       const fetchMock = vi.fn()
         // First call: 401
@@ -186,8 +179,8 @@ describe("Silent Token Refresh", () => {
       // apiGet throws HTTP 401 after _handle401 runs
       await expect(apiGet("/signals")).rejects.toThrow("HTTP 401");
 
-      // localStorage should be cleared
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("auth");
+      // In-memory auth should be cleared
+      expect(getStoredAuth()).toBeNull();
       // Should redirect to login with redirect param
       expect(window.location.href).toContain("/auth/login?redirect=");
     });
@@ -195,10 +188,11 @@ describe("Silent Token Refresh", () => {
     it("redirects to login when refresh throws a network error", async () => {
       const { apiGet } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired-token",
         refresh_token: "some-refresh-token",
-      }));
+      });
 
       const fetchMock = vi.fn()
         // First call: 401
@@ -210,11 +204,11 @@ describe("Silent Token Refresh", () => {
 
       await expect(apiGet("/signals")).rejects.toThrow("HTTP 401");
 
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("auth");
+      expect(getStoredAuth()).toBeNull();
       expect(window.location.href).toContain("/auth/login");
     });
 
-    it("redirects to login when no refresh_token exists in storage", async () => {
+    it("redirects to login when no access token exists in memory", async () => {
       const { apiGet } = await importApi();
 
       // No auth stored at all
@@ -225,7 +219,7 @@ describe("Silent Token Refresh", () => {
 
       await expect(apiGet("/signals")).rejects.toThrow("HTTP 401");
 
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith("auth");
+      expect(getStoredAuth()).toBeNull();
       expect(window.location.href).toContain("/auth/login");
     });
   });
@@ -237,10 +231,11 @@ describe("Silent Token Refresh", () => {
     it("only sends one refresh request for multiple concurrent 401s", async () => {
       const { apiGet } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired-token",
         refresh_token: "valid-refresh-token",
-      }));
+      });
 
       // Build fetch mock: multiple 401s then one refresh, then success for retries
       const fetchMock = vi.fn()
@@ -287,10 +282,11 @@ describe("Silent Token Refresh", () => {
     it("resets the refresh promise after completion", async () => {
       const { apiGet } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired-token",
         refresh_token: "valid-refresh-token",
-      }));
+      });
 
       const fetchMock = vi.fn()
         // First request: 401 → refresh → retry
@@ -385,10 +381,11 @@ describe("Silent Token Refresh", () => {
     it("apiPost retries after refresh", async () => {
       const { apiPost } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired",
         refresh_token: "valid",
-      }));
+      });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -415,10 +412,11 @@ describe("Silent Token Refresh", () => {
     it("apiPut retries after refresh", async () => {
       const { apiPut } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired",
         refresh_token: "valid",
-      }));
+      });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -446,10 +444,11 @@ describe("Silent Token Refresh", () => {
     it("apiDelete retries after refresh", async () => {
       const { apiDelete } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired",
         refresh_token: "valid",
-      }));
+      });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -485,10 +484,11 @@ describe("Silent Token Refresh", () => {
         configurable: true,
       });
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired",
         refresh_token: "invalid",
-      }));
+      });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -504,10 +504,8 @@ describe("Silent Token Refresh", () => {
       expect(mockLocation.href).toBe("/auth/login");
     });
 
-    it("handles malformed localStorage gracefully", async () => {
+    it("handles no auth gracefully", async () => {
       const { apiGet } = await importApi();
-
-      localStorageMock.setItem("auth", "not-valid-json");
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -515,23 +513,27 @@ describe("Silent Token Refresh", () => {
 
       globalThis.fetch = fetchMock;
 
-      // Should throw HTTP error (no refresh attempted)
+      // Should throw HTTP error
       await expect(apiGet("/signals")).rejects.toThrow("HTTP 401");
 
-      // No refresh attempted (no valid refresh_token)
+      // The cookie-based refresh is attempted exactly once even with no
+      // in-memory token — the server decides from the httpOnly cookie.
+      // With no valid cookie it 401s → redirect to login.
       const refreshCalls = fetchMock.mock.calls.filter(
         (call: string[]) => call[0].includes("/auth/refresh")
       );
-      expect(refreshCalls).toHaveLength(0);
+      expect(refreshCalls).toHaveLength(1);
+      expect(window.location.href).toContain("/auth/login");
     });
 
-    it("sends correct Content-Type header in refresh request", async () => {
+    it("sends the refresh request with the httpOnly-cookie contract", async () => {
       const { apiGet } = await importApi();
 
-      localStorageMock.setItem("auth", JSON.stringify({
+      storeAuth({
+        user: { username: "t" },
         access_token: "expired",
         refresh_token: "valid-refresh",
-      }));
+      });
 
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
@@ -554,7 +556,9 @@ describe("Silent Token Refresh", () => {
       expect(refreshCall[1].headers).toMatchObject({
         "Content-Type": "application/json",
       });
-      expect(refreshCall[1].body).toContain("valid-refresh");
+      // The refresh token is read server-side from the httpOnly cookie.
+      expect(refreshCall[1].credentials).toBe("include");
+      expect(refreshCall[1].body).toContain("refresh_token");
     });
 
     it("works when window is undefined (SSR)", async () => {

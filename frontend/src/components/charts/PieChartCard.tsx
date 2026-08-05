@@ -62,8 +62,7 @@ export default function PieChartCard({
                 fontSize: "12px",
                 backdropFilter: "blur(10px)",
               }}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(value: any, name: any) => [
+              formatter={(value, name) => [
                 valueFormatter(Number(value) || 0),
                 String(name),
               ]}

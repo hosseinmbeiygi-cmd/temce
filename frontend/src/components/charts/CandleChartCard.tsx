@@ -24,9 +24,19 @@ interface CandleChartCardProps {
 }
 
 // ------ Custom Candlestick Shape ------------------------------------------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CandlestickShape(props: any) {
-  const { x, y, width, payload } = props;
+interface CandlestickShapeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: CandleDataPoint;
+  chartHeight?: number;
+  yMin?: number;
+  yMax?: number;
+}
+
+function CandlestickShape(props: CandlestickShapeProps) {
+  const { x = 0, y = 0, width = 0, payload } = props;
   if (!payload || !width) return null;
 
   const { open, close, high, low } = payload;
@@ -34,9 +44,9 @@ function CandlestickShape(props: any) {
   const color = isUp ? "var(--positive)" : "var(--negative)";
 
   // Scale prices to chart coordinates
-  const chartHeight = props.chartHeight || 200;
-  const yMin = props.yMin || 0;
-  const yMax = props.yMax || 1;
+  const chartHeight = props.chartHeight ?? 200;
+  const yMin = props.yMin ?? 0;
+  const yMax = props.yMax ?? 1;
   const range = yMax - yMin || 1;
 
   const scaleY = (price: number) =>
@@ -73,9 +83,16 @@ function CandlestickShape(props: any) {
 }
 
 // ------ Custom Volume Bar Shape ---------------------------------------------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function VolumeShape(props: any) {
-  const { x, width, height, payload } = props;
+interface VolumeShapeProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: CandleDataPoint;
+}
+
+function VolumeShape(props: VolumeShapeProps) {
+  const { x = 0, width = 0, height = 0, payload } = props;
   if (!payload || !width) return null;
 
   const isUp = payload.close >= payload.open;
@@ -208,8 +225,7 @@ export default function CandleChartCard({
                 fontSize: "11px",
                 backdropFilter: "blur(10px)",
               }}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              formatter={(value: any, name: any) => {
+              formatter={(value, name) => {
                 const labels: Record<string, string> = {
                   open: "بازگشایش",
                   high: "بیشترین",
@@ -217,10 +233,9 @@ export default function CandleChartCard({
                   close: "بسته شدن",
                   volume: "حجم",
                 };
-                return [priceFormat(Number(value) || 0), String(labels[name] || name)];
+                return [priceFormat(Number(value) || 0), String(labels[String(name)] || name)];
               }}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              labelFormatter={(label: any) => `📅 ${String(label)}`}
+              labelFormatter={(label) => `📅 ${String(label)}`}
             />
             <Bar
               dataKey="high"

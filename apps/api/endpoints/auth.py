@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_current_user, require_roles
+from core.config import settings
 from core.database import get_session
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
@@ -91,6 +92,47 @@ def _build_token_response(data: dict) -> TokenResponse:
     )
 
 
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    """Persist the refresh token in an httpOnly cookie (XSS-safe).
+
+    The token stays out of JavaScript (HttpOnly), travels only over HTTPS
+    in production (Secure), and is scoped to the API's own origin
+    (SameSite=Lax) so CSRF against /auth/refresh is not possible from other
+    sites. Insecure in dev (http://localhost) by default — flip
+    ``AUTH_COOKIE_SECURE=true`` behind TLS.
+    """
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=refresh_token,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
+        domain=settings.auth_cookie_domain or None,
+        max_age=settings.refresh_token_expire_days * 24 * 3600,
+        path="/",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    """Expire the refresh cookie immediately (used on logout)."""
+    response.delete_cookie(
+        key=settings.auth_cookie_name,
+        path="/",
+        domain=settings.auth_cookie_domain or None,
+    )
+
+
+def _refresh_token_from_request(request: Request, req_body_token: str) -> str:
+    """Resolve the refresh token: JSON body first, then the httpOnly cookie.
+
+    Keeps the JSON-body contract for non-browser clients (scripts/curl) while
+    letting browsers rely purely on the cookie.
+    """
+    if req_body_token:
+        return req_body_token
+    return request.cookies.get(settings.auth_cookie_name, "")
+
+
 def _build_user_response(data: dict) -> UserResponse:
     return UserResponse(
         id=data["id"],
@@ -109,6 +151,7 @@ def _build_user_response(data: dict) -> UserResponse:
 @router.post("/register")
 async def register(
     req: RegisterRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(register_rate_limit),
 ) -> ApiResponse:
@@ -116,6 +159,7 @@ async def register(
     result = await svc.register(req.username, req.email, req.password, req.full_name, req.phone)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
+    _set_refresh_cookie(response, result.value["refresh_token"])
     return ApiResponse(
         success=True,
         data={
@@ -129,6 +173,7 @@ async def register(
 @router.post("/login")
 async def login(
     req: LoginRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(login_rate_limit),
 ) -> ApiResponse:
@@ -147,6 +192,7 @@ async def login(
                 "user": data["user"],
             },
         )
+    _set_refresh_cookie(response, data["refresh_token"])
     return ApiResponse(
         success=True,
         data={
@@ -160,6 +206,7 @@ async def login(
 @router.post("/mfa/login")
 async def mfa_login(
     req: MFALoginRequest,
+    response: Response,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(mfa_login_rate_limit),
 ) -> ApiResponse:
@@ -169,6 +216,7 @@ async def mfa_login(
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     data = result.value
+    _set_refresh_cookie(response, data["refresh_token"])
     return ApiResponse(
         success=True,
         data={
@@ -180,12 +228,26 @@ async def mfa_login(
 
 
 @router.post("/refresh")
-async def refresh(req: RefreshRequest, session: AsyncSession = Depends(get_session)) -> ApiResponse:
+async def refresh(
+    req: RefreshRequest,
+    request: Request,
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+) -> ApiResponse:
     svc = UserService(session)
-    result = await svc.refresh_token(req.refresh_token)
+    token = _refresh_token_from_request(request, req.refresh_token)
+    if not token:
+        return ApiResponse(success=False, error={"message": "No refresh token provided"})
+    result = await svc.refresh_token(token)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
-    return ApiResponse(success=True, data=_build_token_response(result.value))
+    _set_refresh_cookie(response, result.value["refresh_token"])
+    # Include the user profile alongside the fresh tokens so the frontend can
+    # restore the full session (access token + user) from the httpOnly cookie.
+    data = _build_token_response(result.value).model_dump()
+    if result.value.get("user"):
+        data["user"] = _build_user_response(result.value["user"]).model_dump()
+    return ApiResponse(success=True, data=data)
 
 
 @router.get("/me")
@@ -246,14 +308,16 @@ async def change_password(
 
 @router.post("/logout")
 async def logout(
+    response: Response,
     current_user: dict = Depends(get_current_user),
     authorization: str = Header(""),
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse:
     """Log out the current user.
 
-    Revokes the access token (jti blacklist in Redis) and clears the
-    server-side refresh token so it can no longer be used to mint new tokens.
+    Revokes the access token (jti blacklist in Redis), clears the refresh
+    cookie, and clears the server-side refresh token so it can no longer be
+    used to mint new tokens.
     """
     from sqlalchemy import select
 
@@ -273,6 +337,7 @@ async def logout(
     if user:
         user.refresh_token = None
         await session.flush()
+    _clear_refresh_cookie(response)
     return ApiResponse(success=True, message="Logged out successfully")
 
 

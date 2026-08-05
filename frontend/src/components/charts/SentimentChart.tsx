@@ -26,10 +26,9 @@ export default function SentimentChart({ data }: SentimentChartProps) {
           <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 9 }} tickLine={false} axisLine={false} width={25} />
           <Tooltip
             contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--glass-border)", borderRadius: "8px", fontSize: "11px" }}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            formatter={(value: any, name: any) => {
+            formatter={(value, name) => {
               const labels: Record<string, string> = { positive: "مثبت", negative: "منفی", neutral: "خنثی" };
-              return [`${Number(value) || 0}%`, String(labels[name] || name)];
+              return [`${Number(value) || 0}%`, String(labels[String(name)] || name)];
             }}
           />
           <Bar dataKey="positive" stackId="a" fill="var(--positive)" radius={[0, 0, 0, 0]} />
