@@ -95,6 +95,11 @@ go.ps1
 start
 stop
 
+# Dual-date backfill progress
+scripts/.dual_dates_progress.json
+scripts/.db_deep_issues.md
+scripts/.codal_checkpoint.json
+
 # Local install archives
 timescaledb.zip
 tree.txt
