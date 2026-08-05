@@ -138,9 +138,12 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
 
+# Tokens: the refresh token is httpOnly-cookie only — it is NEVER included
+# in JSON responses. Auth endpoints return { user, access_token } and set the
+# refresh token as an httpOnly, SameSite=Lax cookie. /auth/refresh reads the
+# cookie and rotates the access token; its request body is ignored.
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
 ```
 
