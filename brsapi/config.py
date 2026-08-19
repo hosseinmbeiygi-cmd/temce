@@ -373,6 +373,14 @@ class BrsApiSettings(BaseSettings):
 
     api_key: str = Field(default="", description="BrsApi.ir API key")
     base_url: str = Field(default="https://api.brsapi.ir", description="BrsApi base URL")
+
+    # Master switch — when False, the client performs NO live HTTP request
+    # (returns a clear error instead). Use this while the API key is blocked
+    # or over quota: the platform keeps working from the database only.
+    enabled: bool = Field(
+        default=True,
+        description="Master switch — False = DB-only mode, no live BrsApi HTTP calls",
+    )
     request_timeout: float = Field(default=30.0, ge=1.0)
     max_retries: int = Field(default=3, ge=0)
     retry_backoff_base: float = Field(default=1.5, ge=1.0)
@@ -387,7 +395,10 @@ class BrsApiSettings(BaseSettings):
     market_close: str = Field(default="15:30")
     only_during_market_hours: bool = Field(default=True)
 
-    rate_limit_tsetmc: int = Field(default=30, ge=0)
+    # Per-category buckets. tsetmc was raised to 60/min to match the
+    # upgraded plan (1,000 req/5min) so the candlestick backfill and the
+    # other TSETMC jobs are not throttled by the category bucket.
+    rate_limit_tsetmc: int = Field(default=60, ge=0)
     rate_limit_codal: int = Field(default=12, ge=0)
     rate_limit_ime: int = Field(default=12, ge=0)
     rate_limit_commodity: int = Field(default=1, ge=0)
@@ -403,8 +414,78 @@ class BrsApiSettings(BaseSettings):
 
     # Global rate limits (must not be exceeded)
     # AIO (All In One) package: 500 requests per 5 minutes
-    global_daily_limit: int = Field(default=10000, ge=1, description="Max requests per day across all endpoints")
-    global_5min_limit: int = Field(default=500, ge=1, description="Max requests per 5-minute window across all endpoints (AIO package limit)")
+    # IMPORTANT: the free/basic plan blocks the key above ~5,000 requests/day.
+    # The default 4,000/day keeps a safety margin below that real-world cap so
+    # the rate limiter never lets the plan get itself blocked. Set
+    # BRSAPI_GLOBAL_DAILY_LIMIT in .env to your exact plan quota.
+    global_daily_limit: int = Field(default=4000, ge=1, description="Max requests per day across all endpoints (hard cap — the rate limiter blocks until midnight Tehran when reached)")
+    global_5min_limit: int = Field(default=1000, ge=1, description="Max requests per 5-minute window across all endpoints (upgraded plan limit)")
+    # When True and the daily budget is exhausted, ``acquire()`` rejects the
+    # request immediately instead of sleeping until midnight. Prevents a
+    # blocked-key cascade when multiple jobs pile up past the quota.
+    fail_fast_on_daily_exhausted: bool = Field(default=True)
+
+    # Candlestick full-market backfill (brsapi_candlesticks_all job)
+    # The global rate limiter (1000 req/5min, 4000/day default) is the only
+    # real gate — the artificial per-request delay is kept near zero (0.2s
+    # politeness) so a full-market run completes as fast as the plan allows.
+    candle_daily_max_symbols: int = Field(
+        default=1000, ge=0,
+        description="Max symbols processed per candlestick backfill run (0 = all)",
+    )
+    candle_req_delay: float = Field(
+        default=0.2, ge=0,
+        description="Seconds between Candlestick API requests — total rate is still bounded by the global 5-min (1000) and daily (4000) caps",
+    )
+
+    # Shareholder full-market backfill (brsapi_shareholders_all job)
+    # The Shareholder endpoint allows 2 req/10s (12 req/min), so the daily
+    # run is bounded to a chunk of symbols per day; the backfill resumes with
+    # the still-missing symbols on subsequent days.
+    shareholder_daily_max_symbols: int = Field(
+        default=1000, ge=0,
+        description="Max symbols processed per shareholder backfill run (0 = all)",
+    )
+    shareholder_req_delay: float = Field(
+        default=5.0, ge=0,
+        description="Seconds between Shareholder API requests — total rate is still bounded by the global 5-min (1000) and daily (4000) caps",
+    )
+
+    # History price full-market backfill (brsapi_history_price_all job)
+    # One request per symbol against the TSETMC_History endpoint (4 req/10s),
+    # bounded to a chunk per day like the shareholder backfill.
+    history_price_daily_max_symbols: int = Field(
+        default=500, ge=0,
+        description="Max symbols processed per history-price backfill run (0 = all)",
+    )
+    history_price_req_delay: float = Field(
+        default=5.0, ge=0,
+        description="Seconds between History-Price API requests — total rate is still bounded by the global 5-min (1000) and daily (4000) caps",
+    )
+
+    # History real/legal full-market backfill (brsapi_history_real_legal_all job)
+    history_real_legal_daily_max_symbols: int = Field(
+        default=500, ge=0,
+        description="Max symbols processed per history-real-legal backfill run (0 = all)",
+    )
+    history_real_legal_req_delay: float = Field(
+        default=5.0, ge=0,
+        description="Seconds between History-RealLegal API requests — total rate is still bounded by the global 5-min (1000) and daily (4000) caps",
+    )
+
+    # Symbol detail full-market refresh (brsapi_symbol_details_all job)
+    # Symbol.php allows 3 req/10s (18 req/min), so the nightly refresh of the
+    # whole market is chunked per day exactly like the shareholder/history
+    # backfills. Runs every night at 21:00 — after all the after-close jobs
+    # have finished, so the quota is not hammered at the same instant.
+    symbol_detail_daily_max_symbols: int = Field(
+        default=1000, ge=0,
+        description="Max symbols processed per symbol-detail refresh run (0 = all)",
+    )
+    symbol_detail_req_delay: float = Field(
+        default=4.0, ge=0,
+        description="Seconds between Symbol.php API requests — total rate is still bounded by the global 5-min (1000) and daily (4000) caps",
+    )
 
 
 _brsapi_settings: BrsApiSettings | None = None

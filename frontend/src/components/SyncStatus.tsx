@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
-import { applyCustomThresholds, loadSyncSettings } from "@/lib/sync-settings";
+import { applyCustomThresholds } from "@/lib/sync-settings";
+import { useSyncSettings } from "@/hooks/useSyncSettings";
 
 // ── Types ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -192,13 +193,9 @@ function StatusLabel({ status }: { status: string }) {
 // ── SyncStatus ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export default function SyncStatus() {
-  // ── Load custom freshness thresholds ──
-  const [customSettings, setCustomSettings] = useState(() => loadSyncSettings());
-  useEffect(() => {
-    const handler = () => setCustomSettings(loadSyncSettings());
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
+  // ── Load custom freshness thresholds (SSR-safe — deterministic on server,
+  //    stored values adopted after mount) ──
+  const [customSettings, setCustomSettings] = useSyncSettings();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [syncingKeys, setSyncingKeys] = useState<Record<string, boolean>>({});

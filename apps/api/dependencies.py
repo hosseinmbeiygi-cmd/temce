@@ -93,6 +93,18 @@ def get_codal_service(session: AsyncSession = Depends(get_db_session)):
     return CodalService(session=session)
 
 
+def get_codal_financial_service(session: AsyncSession = Depends(get_db_session)):
+    from services.codal_financial_service import CodalFinancialService
+
+    return CodalFinancialService(session=session)
+
+
+def get_codal_financial_import_service(session: AsyncSession = Depends(get_db_session)):
+    from services.codal_financial_import_service import CodalFinancialImportService
+
+    return CodalFinancialImportService(session=session)
+
+
 def get_news_service(session: AsyncSession = Depends(get_db_session)):
     from services.news_service import NewsService
 
@@ -226,11 +238,12 @@ def get_portfolio_service(session: AsyncSession = Depends(get_db_session)):
 
 
 def get_watchlist_service(
+    session: AsyncSession = Depends(get_db_session),
     brsapi=Depends(get_brsapi_query_service),
 ):
     from services.watchlist_service import WatchlistService
 
-    return WatchlistService(brsapi=brsapi)
+    return WatchlistService(session=session, brsapi=brsapi)
 
 
 def get_multi_market_signal_service(session: AsyncSession = Depends(get_db_session)):

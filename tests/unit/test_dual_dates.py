@@ -111,3 +111,41 @@ async def test_trigger_fills_dual_dates(engine) -> None:
     assert rows[0][1] == datetime.date(2026, 8, 1) and rows[0][2] == "1405-05-10"
     assert rows[1][1] == datetime.date(2026, 7, 27) and rows[1][2] == "1405-05-05"
     assert rows[2][1] is None and rows[2][2] is None
+
+
+@pytest.mark.needs_db
+async def test_trigger_resolves_hypertable_chunk(engine) -> None:
+    """On TimescaleDB the trigger fires on the chunk (TG_TABLE_NAME = chunk
+    name), so sync_dual_dates_fn must resolve the parent hypertable via
+    _timescaledb_catalog. Skipped when TimescaleDB is not installed."""
+    async with engine.connect() as c:
+        has_ts = (
+            await c.execute(text("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')"))
+        ).scalar()
+    if not has_ts:
+        pytest.skip("TimescaleDB not installed")
+
+    async with engine.begin() as c:
+        await c.execute(text("DROP TABLE IF EXISTS _dual_ht CASCADE"))
+        await c.execute(text("CREATE TABLE _dual_ht (ts timestamptz NOT NULL, v int, gregorian_date date, shamsi_date varchar(10))"))
+        await c.execute(text("SELECT create_hypertable('_dual_ht', 'ts', if_not_exists => TRUE)"))
+        await c.execute(
+            text(
+                "INSERT INTO dual_date_columns (table_name, source_column) VALUES ('_dual_ht', 'ts') "
+                "ON CONFLICT (table_name) DO UPDATE SET source_column = EXCLUDED.source_column"
+            )
+        )
+        await c.execute(
+            text("CREATE TRIGGER trg_dual_dates BEFORE INSERT OR UPDATE ON _dual_ht FOR EACH ROW EXECUTE FUNCTION sync_dual_dates_fn()")
+        )
+        try:
+            await c.execute(
+                text("INSERT INTO _dual_ht (ts, v) VALUES ('2026-08-05 10:00:00+03:30', 1)")
+            )
+            row = (
+                await c.execute(text("SELECT gregorian_date, shamsi_date FROM _dual_ht LIMIT 1"))
+            ).first()
+        finally:
+            await c.execute(text("DROP TABLE IF EXISTS _dual_ht CASCADE"))
+            await c.execute(text("DELETE FROM dual_date_columns WHERE table_name = '_dual_ht'"))
+    assert row[0] == datetime.date(2026, 8, 5) and row[1] == "1405-05-14"

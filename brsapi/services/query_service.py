@@ -465,7 +465,13 @@ class BrsApiQueryService:
     async def get_candlesticks(
         self, symbol: str, ins_id: str | None = None, candle_type: str = "3", limit: int = 200
     ) -> list[dict[str, Any]]:
-        """Adjusted candlestick data for charting."""
+        """Candlestick data for charting, newest first.
+
+        ``candle_type`` selects the series: ``1`` realtime (2-min bars),
+        ``2`` unadjusted daily, ``3`` adjusted daily (default). Rows are
+        ordered by ``gregorian_date`` (falling back to the raw Jalali
+        ``date``) so sorting is chronologically correct.
+        """
         from sqlalchemy import or_
 
         stmt = select(CandlestickModel).where(CandlestickModel.candle_type == candle_type)
@@ -478,7 +484,10 @@ class BrsApiQueryService:
             )
         else:
             stmt = stmt.where(CandlestickModel.symbol == symbol)
-        stmt = stmt.order_by(CandlestickModel.date.desc()).limit(limit)
+        stmt = stmt.order_by(
+            CandlestickModel.gregorian_date.desc().nullslast(),
+            CandlestickModel.date.desc().nullslast(),
+        ).limit(limit)
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]
 

@@ -39,6 +39,13 @@ _INTENT_PATTERNS: dict[str, list[str]] = {
         r"top\s*(losers|negative)",
     ],
 
+    # Reports — checked BEFORE compare so «گزارش بازار» doesn't match the
+    # compare pattern's standalone «با» inside «بازار».
+    "report": [
+        r"(گزارش|report)\s*(بازار|روزانه|daily)",
+        r"(daily|روزانه)\s*(report|گزارش)",
+    ],
+
     # Symbol analysis
     "analyze_symbol": [
         r"(تحلیل|بررسی|وضعیت|چطوره|حالش)\s*(\S+)",
@@ -187,12 +194,6 @@ _INTENT_PATTERNS: dict[str, list[str]] = {
     "risk": [
         r"(ریسک|risk|var|شاخص ریسک)",
         r"(مدیریت ریسک|risk management)",
-    ],
-
-    # Reports
-    "report": [
-        r"(گزارش|report)\s*(بازار|روزانه|daily)",
-        r"(daily|روزانه)\s*(report|گزارش)",
     ],
 
     # Anomalies
@@ -882,7 +883,39 @@ class UnifiedAssistantService:
             symbol = await self._try_extract_symbol(text)
 
         if symbol:
-            # Use the stock assistant for detailed analysis
+            # ── Priority 1: Full AI report from the 110-column model ──
+            # The report service opens its own DB session when none is injected.
+            try:
+                from services.screener_ai_report_service import ScreenerAIReportService
+
+                report = await ScreenerAIReportService(self._session).generate_symbol_report(symbol)
+                report_text = report.get("text", "")
+                if report_text and (report.get("model") or report.get("signal") or report.get("profile")):
+                    return {
+                        "text": report_text,
+                        "type": "analysis",
+                        "data": {
+                            "symbol": symbol,
+                            "model": report.get("model"),
+                            "signal": report.get("signal"),
+                            "profile": report.get("profile"),
+                            "signals_history": report.get("signals_history", [])[:10],
+                        },
+                        "actions": [
+                            {"type": "link", "label": f"📈 صفحه {symbol}", "url": f"/symbol/{symbol}"},
+                            {"type": "link", "label": "📊 تحلیل بازار", "url": "/analysis"},
+                        ],
+                        "suggestions": [
+                            f"مقایسه {symbol} و فولاد",
+                            f"پیش‌بینی {symbol}",
+                            f"اضافه {symbol} به دیده‌بان",
+                            "خلاصه بازار",
+                        ],
+                    }
+            except Exception as exc:
+                logger.warning("AI report unavailable for %s, falling back: %s", symbol, exc)
+
+            # ── Priority 2: Stock assistant text analysis ──
             assistant = await self._get_stock_assistant()
             result = await assistant.process_message(f"تحلیل {symbol}")
 
@@ -1379,6 +1412,27 @@ class UnifiedAssistantService:
         }
 
     async def _handle_report(self) -> dict[str, Any]:
+        # Priority 1: AI market report from the 110-column model
+        try:
+            from services.screener_ai_report_service import ScreenerAIReportService
+
+            report = await ScreenerAIReportService(self._session).generate_market_report(limit=15)
+            if report.get("text"):
+                return {
+                    "text": report["text"],
+                    "type": "report",
+                    "data": {
+                        "stats": report.get("stats"),
+                        "buy_signals": report.get("buy_signals", [])[:15],
+                    },
+                    "actions": [
+                        {"type": "link", "label": "📊 گزارش کامل بازار", "url": "/reports"},
+                    ],
+                    "suggestions": ["بهترین سهم‌ها", "تحلیل فولاد", "سیگنال‌ها"],
+                }
+        except Exception as exc:
+            logger.warning("AI market report unavailable: %s", exc)
+
         assistant = await self._get_stock_assistant()
         result = await assistant.process_message("گزارش بازار")
         return {
@@ -1396,6 +1450,28 @@ class UnifiedAssistantService:
         }
 
     async def _handle_signals(self) -> dict[str, Any]:
+        # Priority 1: latest AI buy signals from the 110-column model
+        try:
+            from services.screener_ai_report_service import ScreenerAIReportService
+
+            report = await ScreenerAIReportService(self._session).generate_market_report(limit=20)
+            if report.get("text"):
+                return {
+                    "text": report["text"],
+                    "type": "signals",
+                    "data": {
+                        "stats": report.get("stats"),
+                        "buy_signals": report.get("buy_signals", [])[:20],
+                    },
+                    "actions": [
+                        {"type": "link", "label": "📡 صفحه سیگنال‌ها", "url": "/signals"},
+                        {"type": "link", "label": "🔍 غربال‌گر هوشمند", "url": "/smart-screener"},
+                    ],
+                    "suggestions": ["سیگنال‌های خرید", "بهترین سهم‌ها", "خلاصه بازار"],
+                }
+        except Exception as exc:
+            logger.warning("AI signals unavailable: %s", exc)
+
         return {
             "text": "📡 **سیگنال‌های معاملاتی**\n\nبرای مشاهده سیگنال‌ها به صفحه مربوطه بروید.",
             "type": "signals",

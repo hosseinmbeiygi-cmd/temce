@@ -34,6 +34,7 @@ from enum import Enum
 from typing import Any
 
 from core.logging import get_logger
+from services.decision_gate import GateOverride, SmartDecisionGate, get_decision_gate
 
 # ── Cross-market regime cache ───────────────────────────────────────────────
 # Populated lazily by _detect_regime() when real data is available
@@ -407,9 +408,15 @@ class SignalDecisionEngine:
     automatically.
     """
 
-    def __init__(self, policy: SignalPolicy | None = None, session: Any = None) -> None:
+    def __init__(
+        self,
+        policy: SignalPolicy | None = None,
+        session: Any = None,
+        decision_gate: SmartDecisionGate | None = None,
+    ) -> None:
         self._policy = policy or SignalPolicy()
         self._session = session
+        self._decision_gate = decision_gate or SmartDecisionGate(session=session)
 
     @property
     def policy(self) -> SignalPolicy:
@@ -432,14 +439,17 @@ class SignalDecisionEngine:
         # ── Gate 1: Data Quality ────────────────────────────────────────────
         gate_results.append(await self._gate_data_quality(candidate, market))
 
-        # ── Gate 2: Model ───────────────────────────────────────────────────
-        gate_results.append(await self._gate_model(candidate, market))
+        # ── Smart override (market-condition aware) ───────────────────────
+        override = await self._resolve_gate_override(candidate, market)
+
+        # ── Gate 2: Model (with SmartOverride) ──────────────────────────────
+        gate_results.append(await self._gate_model(candidate, market, override))
 
         # ── Gate 3: Probability ─────────────────────────────────────────────
         gate_results.append(await self._gate_probability(candidate, effective_threshold, market))
 
-        # ── Gate 4: Regime ──────────────────────────────────────────────────
-        gate_results.append(await self._gate_regime(candidate, market))
+        # ── Gate 4: Regime (with SmartOverride) ─────────────────────────────
+        gate_results.append(await self._gate_regime(candidate, market, override))
 
         # ── Gate 5: Consensus ───────────────────────────────────────────────
         gate_results.append(await self._gate_consensus(candidate, market))
@@ -525,11 +535,41 @@ class SignalDecisionEngine:
             details={"score": score, "missing_fields": missing},
         )
 
-    async def _gate_model(self, candidate: SignalCandidate, market: str) -> GateResult:
-        """Gate 2: Model — are ML models healthy and predictions available?"""
+    async def _gate_model(
+        self,
+        candidate: SignalCandidate,
+        market: str,
+        override: GateOverride | None = None,
+    ) -> GateResult:
+        """Gate 2: Model — are ML models healthy and predictions available?
+
+        Market-condition override (via SmartDecisionGate):
+        - Stagnant market (vol < 2%): ignore ML, force rule-only.
+        - Volume surge (3× avg): boost ML weight by 50%.
+        """
         cfg = self._policy.get_gate_config("model", market)
         min_models = cfg.get("min_models_available", 1)
         max_disagreement = cfg.get("max_disagreement", 0.60)
+
+        # ── Apply SmartDecisionGate override ───────────────────────────────
+        use_override = override is not None
+
+        if use_override and override.ignore_ml:
+            # Stagnant market: force rule-only — mean reversion takes over
+            return GateResult(
+                gate_name="model",
+                verdict=GateVerdict.PASS,
+                score=1.0,
+                reason=(
+                    f"SmartOverride: {override.reason} "
+                    "ML نادیده گرفته شد — سیگنال Mean-Reversion جایگزین شد"
+                ),
+                details={
+                    "signal_type": "rule_override",
+                    "override_reason": override.reason,
+                    "smart_override": True,
+                },
+            )
 
         if candidate.signal_type == "rule":
             return GateResult(
@@ -562,15 +602,25 @@ class SignalDecisionEngine:
                 },
             )
 
+        # Volume surge boost (from SmartDecisionGate)
+        ml_score = candidate.ml_score
+        if use_override and override.ml_boost_multiplier > 1.0:
+            ml_score = min(1.0, ml_score * override.ml_boost_multiplier)
+
         return GateResult(
             gate_name="model",
             verdict=GateVerdict.PASS,
-            score=candidate.ml_score,
-            reason=f"{candidate.active_models} مدل فعال — پیش‌بینی در دسترس",
+            score=ml_score,
+            reason=(
+                f"{candidate.active_models} مدل فعال — پیش‌بینی در دسترس"
+                + (f" (ضریب ML: {override.ml_boost_multiplier:.1f}×)" if use_override and override.ml_boost_multiplier > 1.0 else "")
+            ),
             details={
                 "active_models": candidate.active_models,
                 "agreeing": candidate.agreeing_models,
                 "models": candidate.models_used,
+                "ml_boost": override.ml_boost_multiplier if use_override and override.ml_boost_multiplier > 1.0 else 1.0,
+                "smart_override": use_override,
             },
         )
 
@@ -623,13 +673,28 @@ class SignalDecisionEngine:
             },
         )
 
-    async def _gate_regime(self, candidate: SignalCandidate, market: str) -> GateResult:
-        """Gate 4: Regime — does the current regime support this signal?"""
+    async def _gate_regime(
+        self,
+        candidate: SignalCandidate,
+        market: str,
+        override: GateOverride | None = None,
+    ) -> GateResult:
+        """Gate 4: Regime — does the current regime support this signal?
+
+        Market-condition override (via SmartDecisionGate):
+        Uses the real index data from ``brsapi_index_values`` (fetched
+        by SmartDecisionGate) rather than the single-snapshot heuristic.
+        """
         cfg = self._policy.get_gate_config("regime", market)
         blocked = cfg.get("blocked_regimes", ["CRISIS"])
         warned = cfg.get("warn_regimes", ["HIGH_VOLATILITY", "UNKNOWN"])
 
-        regime = await self._detect_regime(candidate)
+        # Use SmartDecisionGate's regime if available (more accurate).
+        if override is not None and override.regime_label != "UNKNOWN":
+            regime = override.regime_label
+            candidate.volatility_regime = override.volatility_regime
+        else:
+            regime = await self._detect_regime(candidate)
 
         if regime in blocked:
             return GateResult(
@@ -654,7 +719,12 @@ class SignalDecisionEngine:
             verdict=GateVerdict.PASS,
             score=1.0,
             reason=f"رژیم {regime} — شرایط مناسب",
-            details={"regime": regime},
+            details={
+                "regime": regime,
+                "volatility_regime": candidate.volatility_regime,
+                "smart_override": override is not None and override.regime_label != "UNKNOWN",
+                "override_reason": override.reason if override else "",
+            },
         )
 
     async def _gate_consensus(self, candidate: SignalCandidate, market: str) -> GateResult:
@@ -887,6 +957,29 @@ class SignalDecisionEngine:
             },
         )
 
+    # ── Smart Override Resolution ───────────────────────────────────────────
+
+    async def _resolve_gate_override(
+        self,
+        candidate: SignalCandidate,
+        market: str,
+    ) -> GateOverride:
+        """Evaluate market conditions and return a GateOverride.
+
+        Delegates to ``SmartDecisionGate`` which reads:
+          - ``brsapi_index_values`` for 3-day volatility.
+          - ``brsapi_symbol_snapshots`` / ``brsapi_historical_daily`` for
+            volume surge detection.
+        """
+        try:
+            return await self._decision_gate.evaluate(
+                symbol=candidate.symbol,
+                market=market,
+            )
+        except Exception as e:
+            logger.debug("SmartDecisionGate failed for %s: %s — no override", candidate.symbol, e)
+            return GateOverride()
+
     # ── Helpers ─────────────────────────────────────────────────────────────
 
     async def _detect_regime(self, candidate: SignalCandidate) -> str:
@@ -1024,9 +1117,17 @@ def get_decision_engine(
     with different policy_path/session return the cached instance.
     For tests or different policies, create a fresh instance directly:
         engine = SignalDecisionEngine(policy=my_policy, session=my_session)
+
+    The embedded SmartDecisionGate shares the *session* argument so
+    market data queries use the same connection pool.
     """
     global _decision_engine
     if _decision_engine is None:
         policy = SignalPolicy(json_path=policy_path) if policy_path else SignalPolicy()
-        _decision_engine = SignalDecisionEngine(policy=policy, session=session)
+        decision_gate = SmartDecisionGate(session=session)
+        _decision_engine = SignalDecisionEngine(
+            policy=policy,
+            session=session,
+            decision_gate=decision_gate,
+        )
     return _decision_engine

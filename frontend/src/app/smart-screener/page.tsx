@@ -66,6 +66,16 @@ interface Message {
   count?: number;
 }
 
+interface AIReport {
+  symbol: string;
+  name?: string | null;
+  industry?: string | null;
+  text: string;
+  model?: Record<string, unknown> | null;
+  signal?: Record<string, unknown> | null;
+  profile?: Record<string, unknown> | null;
+}
+
 // ── Filter field definitions ──────────────────────────────────────────────────
 
 const FILTER_FIELDS = [
@@ -401,6 +411,32 @@ function SmartScreenerPageInner() {
       }]);
     },
   });
+
+  // ── AI report modal state ──
+  const [aiReportSymbol, setAiReportSymbol] = useState<string | null>(null);
+  const [aiReport, setAiReport] = useState<AIReport | null>(null);
+  const [aiReportLoading, setAiReportLoading] = useState(false);
+  const [aiReportError, setAiReportError] = useState<string | null>(null);
+
+  const openAiReport = useCallback(async (symbol: string) => {
+    setAiReportSymbol(symbol);
+    setAiReport(null);
+    setAiReportError(null);
+    setAiReportLoading(true);
+    try {
+      const res = await apiGet<{ success: boolean; data: AIReport; error?: { message: string } }>(
+        `/screener110/report/${encodeURIComponent(symbol)}`
+      );
+      if (!res?.success) {
+        throw new Error(res?.error?.message || "خطا در دریافت گزارش");
+      }
+      setAiReport(res.data ?? null);
+    } catch (err) {
+      setAiReportError(err instanceof Error ? err.message : "خطا در دریافت گزارش");
+    } finally {
+      setAiReportLoading(false);
+    }
+  }, []);
 
   // ── Filter management ──
   const addFilter = useCallback(() => {
@@ -1029,6 +1065,7 @@ function SmartScreenerPageInner() {
                           <th className="px-3 py-2 text-right text-[10px] font-medium text-surface-400">SMC</th>
                           <th className="px-3 py-2 text-right text-[10px] font-medium text-surface-400 hidden sm:table-cell">فاز</th>
                           <th className="px-3 py-2 text-right text-[10px] font-medium text-surface-400 hidden xl:table-cell">P/E</th>
+                          <th className="px-3 py-2 text-right text-[10px] font-medium text-surface-400"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1054,6 +1091,16 @@ function SmartScreenerPageInner() {
                             <td className="px-3 py-2"><ScoreBadge score={item.smc_score ?? 0} /></td>
                             <td className="px-3 py-2 hidden sm:table-cell"><PhaseBadge phase={item.phase ?? ""} /></td>
                             <td className="px-3 py-2 font-mono text-surface-400 text-[10px] hidden xl:table-cell">{item.pe_ratio?.toFixed(1) ?? "—"}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openAiReport(item.symbol); }}
+                                title="گزارش هوشمند AI"
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-primary-600/10 hover:bg-primary-600/25 text-primary-300 hover:text-primary-200 border border-primary-600/20 transition-all"
+                              >
+                                <span className="material-icons text-xs">psychology_alt</span>
+                                <span className="hidden xl:inline">گزارش AI</span>
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1132,6 +1179,79 @@ function SmartScreenerPageInner() {
           </div>
         </div>
       </main>
+      {/* ── AI Report Modal ── */}
+      {aiReportSymbol && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setAiReportSymbol(null)}
+        >
+          <div
+            className="glass-card w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-surface-700/50 bg-surface-900/60">
+              <span className="material-icons text-primary-400">psychology_alt</span>
+              <span className="font-bold text-sm text-surface-100">گزارش هوشمند {aiReportSymbol}</span>
+              <button
+                onClick={() => setAiReportSymbol(null)}
+                className="mr-auto p-1.5 rounded-lg hover:bg-white/5 text-surface-400 hover:text-surface-200 transition-all"
+              >
+                <span className="material-icons text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {aiReportLoading && (
+                <div className="flex flex-col items-center gap-3 py-12">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <p className="text-xs text-surface-400">در حال تحلیل {aiReportSymbol} با مدل ۱۱۰ ستونی...</p>
+                </div>
+              )}
+
+              {aiReportError && !aiReportLoading && (
+                <div className="glass-card p-4 border border-accent-rose/30 bg-accent-rose/5">
+                  <p className="text-xs font-bold text-accent-rose mb-1">خطا در دریافت گزارش</p>
+                  <p className="text-[10px] text-surface-400">{aiReportError}</p>
+                </div>
+              )}
+
+              {aiReport && !aiReportLoading && (
+                <div className="text-xs text-surface-200 leading-relaxed whitespace-pre-wrap font-[inherit]" dir="rtl">
+                  {aiReport.text}
+                </div>
+              )}
+
+              {!aiReport && !aiReportLoading && !aiReportError && (
+                <p className="text-xs text-surface-500 py-8 text-center">داده‌ای موجود نیست.</p>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex items-center gap-2 px-5 py-3 border-t border-surface-700/50 bg-surface-900/60">
+              <a
+                href={`/symbol/${encodeURIComponent(aiReportSymbol)}`}
+                className="flex items-center gap-1.5 px-3 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-xs font-medium transition-all"
+              >
+                <span className="material-icons text-sm">show_chart</span>
+                صفحه نماد
+              </a>
+              <button
+                onClick={() => setAiReportSymbol(null)}
+                className="px-3 py-2 bg-surface-800 hover:bg-surface-700 text-surface-300 rounded-xl text-xs transition-all"
+              >
+                بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating Assistant */}
       <FloatingAssistant />
     </div>

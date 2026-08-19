@@ -2,6 +2,9 @@
 
 Trains ML models on historical signal data, then uses them to predict
 direction and confidence for new signals alongside rule-based analysis.
+
+Model loading is delegated to ``ModelLoader`` (``ml/model_loader.py``) which
+provides bounded LRU caching so at most 20 hot models stay in memory.
 """
 
 from __future__ import annotations
@@ -10,6 +13,7 @@ from typing import Any
 
 from core.logging import get_logger
 from core.result import Result
+from ml.model_loader import ModelLoader, get_model_loader
 from ml.models.registry import model_registry
 from services.signal_feature_pipeline import MarketFeatures, SignalFeaturePipeline
 
@@ -120,8 +124,9 @@ class MLSignalConnector:
         ],
     }
 
-    def __init__(self) -> None:
+    def __init__(self, model_loader: ModelLoader | None = None) -> None:
         self._pipeline = SignalFeaturePipeline()
+        self._model_loader = model_loader or get_model_loader()
         self._trained_models: dict[str, dict[str, Any]] = {}  # market -> {model_name: model_instance}
 
     async def predict(
@@ -145,25 +150,46 @@ class MLSignalConnector:
         trained = self._trained_models.get(market, {})
 
         if not trained:
-            # Fallback: use heuristic trend-following + mean reversion
-            if not closes:
-                try:
-                    closes = getattr(features, 'closes', [])
-                except Exception:
-                    closes = []
+            # Lazy-load from ModelLoader — try each configured algorithm.
+            model_name = None
+            model_obj = None
+            for cfg in models_config:
+                mn = cfg["model_name"]
+                # Try to guess the symbol from features (or fall back to market name).
+                sym = getattr(features, "symbol", market)
+                obj = await self._model_loader.get_model(symbol=sym, algorithm=mn)
+                if obj is not None:
+                    model_name = mn
+                    model_obj = obj
+                    trained[mn] = obj
+                    break
 
-            if closes and len(closes) >= 10:
-                logger.info("No trained models for '%s'. Using heuristic fallback.", market)
-                return Result.ok(_heuristic_trend_predict(closes))
+            if model_obj is not None:
+                self._trained_models.setdefault(market, {})[model_name] = model_obj
+                logger.info(
+                    "Lazy-loaded model %s for '%s' from ModelLoader cache",
+                    model_name, market,
+                )
+            else:
+                # Fallback: use heuristic trend-following + mean reversion
+                if not closes:
+                    try:
+                        closes = getattr(features, 'closes', [])
+                    except Exception:
+                        closes = []
 
-            logger.info("No trained models for '%s' and insufficient price data. Returning neutral.", market)
-            return Result.ok({
-                "direction_scores": {"buy": 0.5, "sell": 0.5, "hold": 0.5},
-                "confidence": 0.0,
-                "ml_score": 0.5,
-                "models_used": [],
-                "note": "no_trained_models_no_data",
-            })
+                if closes and len(closes) >= 10:
+                    logger.info("No trained models for '%s'. Using heuristic fallback.", market)
+                    return Result.ok(_heuristic_trend_predict(closes))
+
+                logger.info("No trained models for '%s' and insufficient price data. Returning neutral.", market)
+                return Result.ok({
+                    "direction_scores": {"buy": 0.5, "sell": 0.5, "hold": 0.5},
+                    "confidence": 0.0,
+                    "ml_score": 0.5,
+                    "models_used": [],
+                    "note": "no_trained_models_no_data",
+                })
 
         fm = features.to_feature_matrix()
 

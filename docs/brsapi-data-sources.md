@@ -75,7 +75,50 @@
 
 ---
 
-## ۲. جدول فرکانس Synchronization
+## ۲. جدول فرکانس
+
+**دیاگرام جریان داده (BrsApi → جاب‌ها → دیتابیس → API):**
+
+```mermaid
+flowchart LR
+    SRC["BrsApi.ir / TSETMC<br/>AllSymbols · Symbol · History · Codal · ..."]
+
+    subgraph JOBS["جاب‌های همگام‌سازی"]
+        J1["brsapi_all_symbols<br/>هر ۲ دقیقه"]
+        J2["brsapi_options / ime / commodities<br/>هر ۵ دقیقه"]
+        J3["brsapi_codal<br/>هر ۱۵ دقیقه"]
+        J4["brsapi_history_price<br/>On-demand"]
+    end
+
+    subgraph DB["دیتابیس"]
+        T1[("brsapi_symbol_snapshots<br/>۱.۲M ردیف")]
+        T2[("brsapi_symbol_details<br/>ساعتی")]
+        T3[("brsapi_historical_daily<br/>۱۲.۱M ردیف")]
+        T4[("سایر brsapi_*")]
+    end
+
+    subgraph API["API مصرف‌کننده"]
+        E1["/market-watch · /screener · /analysis"]
+        E2["/comprehensive-analysis · /codal"]
+        E3["/trades/daily · /orderbooks/history"]
+    end
+
+    SRC --> J1 & J2 & J3 & J4
+    J1 --> T1 --> E1
+    J1 -.-> T2 --> E2
+    J2 --> T4
+    J3 --> T4
+    J4 --> T3 --> E3
+
+    style J1 fill:#e3f2fd,stroke:#1565c0
+    style T1 fill:#fff3e0,stroke:#e65100
+    style T3 fill:#fff3e0,stroke:#e65100
+    style E1 fill:#e8f5e9,stroke:#2e7d32
+```
+
+
+
+ Synchronization
 
 | Job BrsApi | فرکانس | جدول مقصد | وضعیت |
 |------------|--------|-----------|--------|

@@ -1,0 +1,82 @@
+{
+  "captured_at": "2026-08-12T06:18:17.323627+00:00",
+  "tables": {
+    "brsapi_symbol_snapshots": {
+      "rows": 1103817,
+      "symbols": 1103817,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_symbol_details": {
+      "rows": 3968,
+      "symbols": 3968,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_candlesticks": {
+      "rows": 2263004,
+      "symbols": 2263004,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_historical_daily": {
+      "rows": 11510763,
+      "symbols": 11510763,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_historical_real_legal": {
+      "rows": 0,
+      "symbols": 0,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_shareholder_records": {
+      "rows": 769454,
+      "symbols": 769454,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_index_values": {
+      "rows": 247,
+      "symbols": 247,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_intraday_trades": {
+      "rows": 1,
+      "symbols": 1,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "brsapi_option_snapshots": {
+      "rows": 499922,
+      "symbols": 499922,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "screener_daily_scores": {
+      "rows": 1515,
+      "symbols": 1515,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    },
+    "ml_engineered_features": {
+      "rows": 3,
+      "symbols": 3,
+      "max_ts": null,
+      "max_date": null,
+      "fast_estimate": true
+    }
+  }
+}

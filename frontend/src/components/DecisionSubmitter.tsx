@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiPost } from "@/lib/api";
 import { toast } from "sonner";
@@ -51,8 +51,15 @@ export default function DecisionSubmitter({ onSuccess }: { onSuccess?: () => voi
   const queryClient = useQueryClient();
   const [form, setForm] = useState<DecisionFormData>({ ...EMPTY_FORM });
   const [showAdvanced, setShowAdvanced] = useState(false);
-  // Generate a one-off placeholder on the client so it stays stable per mount.
-  const [runIdPlaceholder] = useState(() => `manual-${Date.now()}`);
+  // SSR-safe placeholder: `Date.now()` differs between the server render and
+  // the client's first render, so initializing state from it here would make
+  // the placeholder attribute mismatch → hydration error → tree regenerated.
+  // Start with the deterministic prefix and append the timestamp after mount.
+  const [runIdPlaceholder, setRunIdPlaceholder] = useState("manual-");
+  useEffect(() => {
+    setRunIdPlaceholder(`manual-${Date.now()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async (data: DecisionFormData) => {

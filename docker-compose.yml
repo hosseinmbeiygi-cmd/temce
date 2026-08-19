@@ -42,11 +42,37 @@ services:
     environment:
       - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
       - REDIS_URL=redis://:redissecure456@redis:6379/0
+      # Scheduler inside the API: in multi-replica deployments enable queue
+      # mode so jobs are pushed to Redis instead of running in every replica.
+      - JOB_QUEUE_ENABLED=true
+      - JOB_QUEUE_TOKEN=dev-shared-queue-token
     ports:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
     restart: always
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: tse_worker
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:redissecure456@redis:6379/0
+      - JOB_QUEUE_ENABLED=true
+      - JOB_QUEUE_TOKEN=dev-shared-queue-token
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+    # Scale to N replicas with:  docker compose up --scale worker=N
+    deploy:
+      replicas: 1
 
   frontend:
     build:

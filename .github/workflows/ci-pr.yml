@@ -25,6 +25,9 @@ on:
       - "frontend/next.config.*"
       - "frontend/eslint.config.mjs"
       - "Dockerfile*"
+      - "docs/**"
+      - "scripts/check_mermaid_blocks.py"
+      - "scripts/check_mermaid_syntax.cjs"
       - ".github/workflows/ci-pr.yml"
 
 env:
@@ -202,7 +205,27 @@ jobs:
         run: cd frontend && npm run lint
         continue-on-error: true
 
-  # ── JOB 6: Dockerfile Lint (hadolint) ────────────────────────
+  # ── JOB 6: Mermaid docs syntax check ─────────────────────────
+  # Validates every ```mermaid block in docs/ with the real Mermaid
+  # parser (mermaid.parse via jsdom — no headless browser needed).
+  docs:
+    name: Mermaid Syntax (docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install jsdom (for mermaid.parse sandbox)
+        run: npm i -D jsdom@29.1.1 --no-save --no-package-lock --no-audit --no-fund
+
+      - name: Check Mermaid diagram syntax
+        run: python scripts/check_mermaid_blocks.py
+
+  # ── JOB 7: Dockerfile Lint (hadolint) ────────────────────────
   # Lints all Dockerfiles using hadolint.
   # Uses a matrix to lint each Dockerfile in parallel.
   dockerfile:

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, type FormEvent } from "react";
-import { getStoredAuth, clearAuth } from "@/lib/api";
+import { useState, type FormEvent } from "react";
+import { Bell, Bot, CandlestickChart, Search } from "lucide-react";
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: "/markets", label: "بازارها", icon: "📈" },
   { href: "/instruments", label: "نمادها", icon: "💹" },
   { href: "/options", label: "آپشن", icon: "🎯" },
+  { href: "/funds", label: "صندوق‌ها", icon: "🏦" },
   { href: "/quotes", label: "قیمت‌ها", icon: "💵" },
   { href: "/codal", label: "کدال", icon: "🏢" },
   { href: "/news", label: "اخبار", icon: "📰" },
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
   ]},
   { href: "/signals", label: "سیگنال‌ها", icon: "📡" },
   { href: "/signals/dashboard", label: "🎯 سیگنال‌یاب چندبازاره", icon: "🌐" },
+  { href: "/paper-trading", label: "📒 معاملات آزمایشی", icon: "📒" },
   { href: "/risk", label: "ریسک", icon: "🛡️" },
   { href: "/ml", label: "یادگیری ماشین", icon: "🧠" },
   { href: "/admin", label: "پنل مدیریت", icon: "🛡️" },
@@ -45,31 +47,10 @@ const NAV_ITEMS = [
   { href: "/tabdeal-api", label: "API تبدیل", icon: "🔑" },
 ];
 
-const AUTH_ITEMS = [
-  { href: "/auth/login", label: "ورود", icon: "🔑" },
-  { href: "/auth/register", label: "ثبت‌نام", icon: "📝" },
-];
-
 export default function Sidebar({ collapsed = false, onToggle = () => {} }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [auth, setAuth] = useState<ReturnType<typeof getStoredAuth>>(null);
   const [symbolQuery, setSymbolQuery] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    // Defer so the state updates don't run synchronously during commit
-    const frame = window.requestAnimationFrame(() => {
-      if (cancelled) return;
-      setMounted(true);
-      setAuth(getStoredAuth());
-    });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-    };
-  }, []);
 
   function handleSymbolSearch(e: FormEvent) {
     e.preventDefault();
@@ -84,18 +65,21 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
         collapsed ? "w-16" : "w-56"
       } transition-all duration-300 bg-surface-900/80 border-l border-surface-800 flex flex-col shrink-0`}
     >
-      <div className="h-14 flex items-center justify-center border-b border-surface-800 px-3">
+      <div className="h-14 flex items-center justify-center gap-2 border-b border-surface-800 px-3">
         {collapsed ? (
-          <span className="text-xl">📊</span>
+          <CandlestickChart className="size-5 text-primary-300" aria-hidden />
         ) : (
-          <span className="font-bold text-sm gradient-text">Iran Market</span>
+          <>
+            <CandlestickChart className="size-5 text-primary-300" aria-hidden />
+            <span className="font-bold text-sm text-white">بازار سرمایه</span>
+          </>
         )}
       </div>
 
       {!collapsed && (
         <form onSubmit={handleSymbolSearch} className="px-2 py-2 border-b border-surface-800">
-          <div className="flex items-center gap-1 bg-surface-800 rounded-lg px-2 py-1.5">
-            <span className="text-xs">🔍</span>
+          <div className="flex items-center gap-2 bg-surface-800 rounded-lg px-2.5 py-2">
+            <Search className="size-3.5 text-surface-500 shrink-0" aria-hidden />
             <input
               type="text"
               value={symbolQuery}
@@ -154,80 +138,26 @@ export default function Sidebar({ collapsed = false, onToggle = () => {} }: Side
       </nav>
 
       <div className="border-t border-surface-800 py-2 px-2 space-y-1">
-        {!mounted ? (
-          AUTH_ITEMS.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  active
-                    ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
-                    : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
-                }`}
-              >
-                <span className="text-lg shrink-0">{item.icon}</span>
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })
-        ) : auth ? (
-          <>
-            <Link
-              href="/profile"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                pathname.startsWith("/profile")
-                  ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
-                  : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
-              }`}
-            >
-              <span className="text-lg shrink-0">👤</span>
-              {!collapsed && <span className="truncate">پروفایل</span>}
-            </Link>
-            <Link
-              href="/settings/security"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                pathname.startsWith("/settings")
-                  ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
-                  : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
-              }`}
-            >
-              <span className="text-lg shrink-0">🔐</span>
-              {!collapsed && <span className="truncate">امنیت حساب</span>}
-            </Link>
-            <button
-              onClick={() => { clearAuth(); window.location.href = "/auth/login"; }}
-              className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-rose-400 hover:bg-rose-500/10 transition-all"
-            >
-              <span className="text-lg shrink-0">🚪</span>
-              {!collapsed && <span className="truncate">خروج</span>}
-            </button>
-          </>
-        ) : (
-          AUTH_ITEMS.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-                  active
-                    ? "bg-primary-600/20 text-primary-300 border border-primary-600/20"
-                    : "text-surface-400 hover:text-surface-200 hover:bg-white/5"
-                }`}
-              >
-                <span className="text-lg shrink-0">{item.icon}</span>
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </Link>
-            );
-          })
-        )}
+        <Link
+          href="/signals"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-surface-400 hover:text-surface-200 hover:bg-white/5 transition-all"
+        >
+          <Bot className="size-4 shrink-0" aria-hidden />
+          {!collapsed && <span className="truncate">دستیار هوشمند</span>}
+        </Link>
+        <Link
+          href="/alerts"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-surface-400 hover:text-surface-200 hover:bg-white/5 transition-all"
+        >
+          <Bell className="size-4 shrink-0" aria-hidden />
+          {!collapsed && <span className="truncate">هشدارها</span>}
+        </Link>
       </div>
 
       <button
         onClick={onToggle}
         className="h-10 flex items-center justify-center border-t border-surface-800 text-surface-500 hover:text-surface-300 transition-colors"
+        aria-label={collapsed ? "باز کردن منو" : "جمع کردن منو"}
       >
         {collapsed ? "←" : "→"}
       </button>

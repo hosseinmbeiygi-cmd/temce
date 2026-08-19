@@ -163,6 +163,25 @@ async def market_indicator(
 
 
 @router.get(
+    "/candles/{symbol}",
+    summary="Candlestick OHLCV",
+    description="Candlestick data from BrsApi (type=1 realtime 2-min, type=2 unadjusted daily, type=3 adjusted daily) for charting",
+)
+async def market_candles(
+    symbol: str = Path(..., description="Symbol name"),
+    candle_type: int = Query(3, ge=1, le=3, alias="type", description="1=realtime, 2=unadjusted, 3=adjusted"),
+    limit: int = Query(300, ge=1, le=500, description="Number of bars to return"),
+    service: MarketService = Depends(get_market_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await service.get_candles(symbol, candle_type=str(candle_type), limit=limit)
+    return ApiResponse[list[dict[str, Any]]](
+        success=result.success,
+        data=result.value if result.success else [],
+        error={"message": result.error} if result.error else None,
+    )
+
+
+@router.get(
     "/history/{symbol}",
     summary="Historical OHLCV",
     description="Get historical OHLCV data for candlestick charts",

@@ -117,43 +117,6 @@ async def list_disclosures(
         )
 
 
-@router.post("/{instrument_id}")
-async def create_disclosure(
-    instrument_id: str,
-    body: CodalCreateRequest = Body(...),
-    service: CodalService = Depends(get_codal_service),
-) -> ApiResponse[CodalReportResponse]:
-    rest = body.model_dump(exclude={"title"})
-    result = await service.create(instrument_id=instrument_id, title=body.title, **rest)
-    item = _to_report_response(result.value) if result.value else None
-    return ApiResponse[CodalReportResponse](
-        success=result.success,
-        data=item,
-        error={"message": result.error} if not result.success and result.error else None,
-    )
-
-
-@router.get("/{instrument_id}")
-async def get_disclosures(
-    instrument_id: str,
-    search: CodalSearchRequest = Depends(),
-    service: CodalService = Depends(get_codal_service),
-) -> ApiResponse[CodalListResponse]:
-    result = await service.get_by_instrument(instrument_id, search.page, search.page_size)
-    items = [_to_report_response(d) for d in result.value.items] if result.value else []
-    data = CodalListResponse(
-        items=items,
-        total=result.value.total if result.value else 0,
-        page=result.value.page if result.value else search.page,
-        page_size=result.value.page_size if result.value else search.page_size,
-    )
-    return ApiResponse[CodalListResponse](
-        success=result.success,
-        data=data,
-        error={"message": result.error} if not result.success and result.error else None,
-    )
-
-
 @router.get("/brsapi-search")
 async def brsapi_search_announcements(
     symbol: str | None = Query(None, description="Symbol (l18)"),
@@ -329,132 +292,98 @@ async def company_profile(
     except Exception:
         logger.exception("Failed to fetch enriched detail for %s", code)
         pass
-    profiles: dict[str, dict[str, Any]] = {
-        "فولاد": {
-            "symbol": "فولاد",
-            "name": "فولاد مبارکه اصفهان",
-            "industry": "فلزات اساسی",
-            "eps": 8520,
-            "pe": 4.5,
-            "market_cap": 450_000_000_000_000,
-            "shares_count": 12_000_000_000,
-            "established": 1372,
-            "ceo": "محمد یاسر طیب‌نیا",
-            "board_chairman": "حمیدرضا سلطانی",
-        },
-        "شپنا": {
-            "symbol": "شپنا",
-            "name": "پالایش نفت اصفهان",
-            "industry": "فرآورده‌های نفتی",
-            "eps": 14500,
-            "pe": 3.2,
-            "market_cap": 320_000_000_000_000,
-            "shares_count": 8_500_000_000,
-            "established": 1355,
-            "ceo": "رضا رادفر",
-            "board_chairman": "جلیل سالاری",
-        },
-        "وبملت": {
-            "symbol": "وبملت",
-            "name": "بانک ملت",
-            "industry": "بانکداری",
-            "eps": 2100,
-            "pe": 6.8,
-            "market_cap": 180_000_000_000_000,
-            "shares_count": 15_000_000_000,
-            "established": 1358,
-            "ceo": "جواد رضایی",
-            "board_chairman": "محمدرضا حسین‌زاده",
-        },
-    }
-    if code not in profiles:
-        raise NotFoundError(entity="Company", identifier=code)
-    return ApiResponse[dict[str, Any]](success=True, data=profiles[code])
+    # No real snapshot data — do not return fabricated company profiles.
+    raise NotFoundError(entity="Company", identifier=code)
 
 
 @router.get("/{code}/financials")
-async def financial_reports(code: str) -> ApiResponse[dict[str, Any]]:
-    today = date.today()
-    data: dict[str, Any] = {
-        "symbol": code,
-        "quarters": [
-            {
-                "period": f"{today.year}-Q1",
-                "revenue": 45_000_000_000_000,
-                "cost": 32_000_000_000_000,
-                "gross_profit": 13_000_000_000_000,
-                "operating_profit": 9_500_000_000_000,
-                "net_profit": 7_200_000_000_000,
-                "eps": 2150,
-            },
-            {
-                "period": f"{today.year - 1}-Q4",
-                "revenue": 52_000_000_000_000,
-                "cost": 38_000_000_000_000,
-                "gross_profit": 14_000_000_000_000,
-                "operating_profit": 10_200_000_000_000,
-                "net_profit": 7_800_000_000_000,
-                "eps": 2320,
-            },
-            {
-                "period": f"{today.year - 1}-Q3",
-                "revenue": 41_000_000_000_000,
-                "cost": 29_000_000_000_000,
-                "gross_profit": 12_000_000_000_000,
-                "operating_profit": 8_800_000_000_000,
-                "net_profit": 6_500_000_000_000,
-                "eps": 1980,
-            },
-            {
-                "period": f"{today.year - 1}-Q2",
-                "revenue": 38_000_000_000_000,
-                "cost": 27_000_000_000_000,
-                "gross_profit": 11_000_000_000_000,
-                "operating_profit": 7_900_000_000_000,
-                "net_profit": 5_900_000_000_000,
-                "eps": 1810,
-            },
-        ],
-    }
-    return ApiResponse[dict[str, Any]](success=True, data=data)
+async def financial_reports(
+    code: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """سود و زیان فصلی واقعی از جدول codal_financial_statements (در صورت موجود بودن)."""
+    try:
+        from sqlalchemy import select
+
+        from models.codal_financial import CodalFinancialStatementModel
+
+        rows = (
+            await session.execute(
+                select(CodalFinancialStatementModel)
+                .where(CodalFinancialStatementModel.symbol == code)
+                .order_by(CodalFinancialStatementModel.report_date.desc())
+                .limit(8)
+            )
+        ).scalars().all()
+
+        quarters: list[dict[str, Any]] = []
+        for r in rows:
+            pd = r.parsed_data or {}
+            # extract key P&L items from parsed Excel data (Persian labels)
+            def _get(*labels: str) -> float:
+                for lbl in labels:
+                    if lbl in pd and pd[lbl] is not None:
+                        try:
+                            return float(pd[lbl])
+                        except (TypeError, ValueError):
+                            continue
+                return 0.0
+
+            quarters.append({
+                "period": str(r.report_date or r.report_type or ""),
+                "report_type": r.report_type or "",
+                "revenue": _get("فروش", "درآمد فروش", "درآمد عملیاتی"),
+                "cost": _get("بهای تمام شده", "بهای تمام شده کالای فروش رفته"),
+                "gross_profit": _get("سود ناخالص", "سود (زیان) ناخالص"),
+                "operating_profit": _get("سود عملیاتی", "سود (زیان) عملیاتی"),
+                "net_profit": _get("سود خالص", "سود (زیان) خالص", "سود (زیان) ویژه"),
+                "eps": _get("سود هر سهم", "سود (زیان) هر سهم"),
+            })
+
+        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": quarters})
+    except Exception:
+        logger.exception("Failed to load real financials for %s", code)
+        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": []})
 
 
 @router.get("/{code}/dividends")
-async def dividend_history(code: str) -> ApiResponse[dict[str, Any]]:
-    data: dict[str, Any] = {
-        "symbol": code,
-        "dividends": [
-            {
-                "date": "1403-04-15",
-                "cash_per_share": 1200,
-                "total_payout": 14_400_000_000_000,
+async def dividend_history(
+    code: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """سود تقسیمی واقعی از جدول corporate_actions (در صورت موجود بودن)."""
+    try:
+        from sqlalchemy import select
+
+        from models.option import CorporateActionModel
+
+        rows = (
+            await session.execute(
+                select(CorporateActionModel)
+                .where(
+                    CorporateActionModel.symbol == code,
+                    CorporateActionModel.action_type == "dividend",
+                )
+                .order_by(CorporateActionModel.ex_date.desc())
+                .limit(20)
+            )
+        ).scalars().all()
+
+        dividends = []
+        for r in rows:
+            params = r.params or {}
+            cps = params.get("dividend") if isinstance(params, dict) else None
+            dividends.append({
+                "date": str(r.ex_date) if r.ex_date else "",
+                "cash_per_share": float(cps or 0),
+                "total_payout": float(cps or 0) * 0,  # shares unknown here — left 0
                 "type": "نقدی",
-                "meeting": "مجمع عمومی عادی سالیانه",
-            },
-            {
-                "date": "1402-04-20",
-                "cash_per_share": 950,
-                "total_payout": 11_400_000_000_000,
-                "type": "نقدی",
-                "meeting": "مجمع عمومی عادی سالیانه",
-            },
-            {
-                "date": "1401-04-18",
-                "cash_per_share": 800,
-                "total_payout": 9_600_000_000_000,
-                "type": "نقدی",
-                "meeting": "مجمع عمومی عادی سالیانه",
-            },
-            {
-                "date": "1400-04-22",
-                "cash_per_share": 650,
-                "total_payout": 7_800_000_000_000,
-                "type": "نقدی",
-                "meeting": "مجمع عمومی عادی سالیانه",
-            },
-        ],
-    }
-    return ApiResponse[dict[str, Any]](success=True, data=data)
+                "meeting": str(r.raw_text or "")[:80],
+            })
+        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "dividends": dividends})
+    except Exception:
+        logger.exception("Failed to load dividends for %s", code)
+        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "dividends": []})
 
 
 @router.get("/{code}/holders")
@@ -478,36 +407,169 @@ async def major_holders(
     except Exception:
         logger.exception("Failed to fetch holders for %s from BrsApi", code)
         pass
-    data: dict[str, Any] = {
-        "symbol": code,
-        "holders": [
-            {
-                "name": "شرکت سرمایه‌گذاری تأمین اجتماعی (شستا)",
-                "shares": 2_400_000_000,
-                "percentage": 20.0,
-                "type": "حقوقی",
+    # No real shareholder data — return empty (was previously fake data).
+    return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "holders": []})
+
+
+@router.get("/{code}/analysis", summary="تحلیل بنیادی نماد (داده واقعی)")
+async def codal_analysis(
+    code: str,
+    brsapi=Depends(get_brsapi_query_service),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """تحلیل بنیادی کامل برای صفحه تحلیل کدال — داده واقعی از اسنپ‌شات،
+    سهامداران، اطلاعیه‌ها و خلاصه حسابرسی کدال."""
+    snap = await brsapi.get_enriched_symbol_detail(code)
+    if not snap:
+        snap = await brsapi.get_symbol_snapshot(code)
+
+    holders = await brsapi.get_shareholders(code) or []
+    announcements = await brsapi.get_recent_announcements(symbol=code, limit=8) or []
+
+    # Real fundamental ratios from codal_audit_summary
+    audit: dict[str, Any] = {}
+    try:
+        from sqlalchemy import select
+
+        from models.codal import CodalAuditSummaryModel
+
+        row = (
+            await session.execute(
+                select(CodalAuditSummaryModel).where(CodalAuditSummaryModel.symbol == code)
+            )
+        ).scalars().first()
+        if row:
+            audit = {
+                "roe_pct": (row.roe or 0) * 100 if row.roe else 0,
+                "roa_pct": (row.roa or 0) * 100 if row.roa else 0,
+                "net_margin_pct": (row.net_margin or 0) * 100 if row.net_margin else 0,
+                "debt_to_equity": row.debt_to_equity or 0,
+                "current_ratio": row.current_ratio or 0,
+                "health_score": row.health_score or 0,
+                "revenue": row.revenue or 0,
+                "net_profit": row.net_profit or 0,
+            }
+    except Exception:
+        logger.debug("Codal audit summary unavailable for %s", code)
+
+    price_last = snap.get("price_last") or snap.get("price_close") or 0
+    price_close = snap.get("price_close") or price_last
+    price_yesterday = snap.get("price_yesterday") or 0
+    change = (price_last or 0) - price_yesterday
+    change_pct = (change / price_yesterday * 100) if price_yesterday else 0
+
+    eps = snap.get("eps") or 0
+    shares_count = snap.get("shares_count") or 0
+    market_cap = snap.get("market_value") or 0
+    pe_ratio = snap.get("pe_ratio") or 0
+    group_pe = snap.get("group_pe_ratio") or 0
+    ps_ratio = snap.get("ps_ratio") or 0
+    revenue_est = snap.get("estimated_revenue") or audit.get("revenue") or 0
+    net_profit_est = snap.get("estimated_net_profit") or (eps * shares_count if shares_count else 0)
+
+    buy_real = snap.get("buy_real_volume") or 0
+    sell_real = snap.get("sell_real_volume") or 0
+    buy_legal = snap.get("buy_legal_volume") or 0
+    sell_legal = snap.get("sell_legal_volume") or 0
+    real_net = buy_real - sell_real
+    legal_net = buy_legal - sell_legal
+    total_rl = buy_real + sell_real + buy_legal + sell_legal
+    real_buy_pct = (buy_real / total_rl * 100) if total_rl else 0
+    real_net_pct = (real_net / total_rl * 100) if total_rl else 0
+
+    legal_count = sum(1 for h in holders if (h.get("percent") or 0) > 1)
+    real_count = max(0, len(holders) - legal_count)
+    top_pct = max((h.get("percent") or 0) for h in holders) if holders else 0
+
+    price_vs_low_pct = (
+        ((price_last - (snap.get("price_min") or 0)) / max((snap.get("price_max") or price_last) - (snap.get("price_min") or 0), 1) * 100)
+        if price_last else 0
+    )
+    volume_vs_base = (snap.get("trade_volume") or 0) / max(snap.get("base_volume") or 1, 1)
+
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "symbol": code,
+            "company_name": snap.get("name") or f"شرکت {code}",
+            "industry": snap.get("sector") or "سایر",
+            "sub_sector": snap.get("sub_sector") or "",
+            "market": snap.get("market") or "",
+            "board": snap.get("board") or "",
+            "state": snap.get("state") or "",
+            "price": {
+                "last": price_last,
+                "yesterday": price_yesterday,
+                "close": price_close,
+                "min": snap.get("price_min") or 0,
+                "max": snap.get("price_max") or price_last,
+                "lowest_allowed": snap.get("price_lowest_allowed") or 0,
+                "highest_allowed": snap.get("price_highest_allowed") or 0,
+                "change": change,
+                "change_pct": round(change_pct, 2),
             },
-            {
-                "name": "صندوق بازنشستگی کشوری",
-                "shares": 1_800_000_000,
-                "percentage": 15.0,
-                "type": "حقوقی",
+            "fundamental": {
+                "eps": eps,
+                "pe_ratio": pe_ratio,
+                "group_pe": group_pe,
+                "ps_ratio": ps_ratio,
+                "market_cap": market_cap,
+                "shares_count": shares_count,
+                "free_float_pct": snap.get("free_float_pct") or 0,
+                "base_volume": snap.get("base_volume") or 0,
+                "estimated_revenue": revenue_est,
+                "estimated_net_profit": net_profit_est,
+                "pb_ratio": snap.get("pb_ratio") or 0,
+                "roe_pct": audit.get("roe_pct") or 0,
+                "roa_pct": audit.get("roa_pct") or 0,
+                "dividend_yield_pct": snap.get("dividend_yield_pct") or 0,
             },
-            {
-                "name": "شرکت سرمایه‌گذاری نفت و گاز",
-                "shares": 1_200_000_000,
-                "percentage": 10.0,
-                "type": "حقوقی",
+            "trade": {
+                "volume": snap.get("trade_volume") or 0,
+                "value": snap.get("trade_value") or 0,
+                "count": snap.get("trade_count") or 0,
             },
-            {
-                "name": "سهامداران خرد (حقیقی)",
-                "shares": 6_600_000_000,
-                "percentage": 55.0,
-                "type": "حقیقی",
+            "real_legal": {
+                "buy_real_volume": buy_real,
+                "sell_real_volume": sell_real,
+                "buy_legal_volume": buy_legal,
+                "sell_legal_volume": sell_legal,
+                "real_net": real_net,
+                "legal_net": legal_net,
+                "real_net_pct_of_total": round(real_net_pct, 2),
+                "real_buy_pct": round(real_buy_pct, 2),
             },
-        ],
-    }
-    return ApiResponse[dict[str, Any]](success=True, data=data)
+            "holders": {
+                "total_count": len(holders),
+                "top_holder_pct": top_pct,
+                "legal_holder_count": legal_count,
+                "real_holder_count": real_count,
+                "top_holders": [
+                    {
+                        "name": h.get("shareholder_name") or "نامشخص",
+                        "shares": h.get("volume") or 0,
+                        "percentage": h.get("percent") or 0,
+                        "type": "حقوقی" if (h.get("percent") or 0) > 1 else "حقیقی",
+                    }
+                    for h in holders[:10]
+                ],
+            },
+            "announcements": [
+                {
+                    "title": a.get("title") or "",
+                    "date_publish": a.get("date_publish") or "",
+                    "link_pdf": a.get("link_pdf") or "",
+                    "audit_status": a.get("audit_status") or "",
+                }
+                for a in announcements
+            ],
+            "performance": {
+                "price_change_pct": round(change_pct, 2),
+                "price_vs_low_pct": round(price_vs_low_pct, 2),
+                "volume_vs_base": round(volume_vs_base, 2),
+            },
+        },
+    )
 
 
 @router.post(
@@ -594,48 +656,11 @@ async def bulk_import_codal(
 
 @router.get("/{code}/insider")
 async def insider_trades(code: str) -> ApiResponse[dict[str, Any]]:
-    data: dict[str, Any] = {
-        "symbol": code,
-        "trades": [
-            {
-                "date": "1403-06-12",
-                "person": "حمیدرضا سلطانی",
-                "position": "رئیس هیئت مدیره",
-                "type": "buy",
-                "volume": 500_000,
-                "price": 38500,
-                "value": 19_250_000_000,
-            },
-            {
-                "date": "1403-05-28",
-                "person": "محمد یاسر طیب‌نیا",
-                "position": "مدیرعامل",
-                "type": "buy",
-                "volume": 200_000,
-                "price": 37200,
-                "value": 7_440_000_000,
-            },
-            {
-                "date": "1403-04-15",
-                "person": "شرکت سرمایه‌گذاری تأمین اجتماعی",
-                "position": "سهامدار عمده",
-                "type": "sell",
-                "volume": 1_000_000,
-                "price": 41000,
-                "value": 41_000_000_000,
-            },
-            {
-                "date": "1403-03-02",
-                "person": "علی رضایی",
-                "position": "عضو هیئت مدیره",
-                "type": "buy",
-                "volume": 100_000,
-                "price": 35600,
-                "value": 3_560_000_000,
-            },
-        ],
-    }
-    return ApiResponse[dict[str, Any]](success=True, data=data)
+    """معاملات داخلی — داده واقعی هنوز جمع‌آوری نشده؛ لیست خالی برمی‌گردد.
+
+    (قبلاً داده ساختگی برمی‌گرداند که گمراه‌کننده بود.)
+    """
+    return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "trades": []})
 
 
 @router.get("/announcements/{announcement_id}/attachments")
@@ -730,4 +755,45 @@ async def download_announcement_attachment(
         content_iterator,
         media_type=row.mime_type or "application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+# ── Dynamic single-segment routes (kept LAST so they never shadow the static
+#    routes above: /brsapi-search, /announcements, /import-bulk, ...) ─────────
+
+
+@router.post("/{instrument_id}")
+async def create_disclosure(
+    instrument_id: str,
+    body: CodalCreateRequest = Body(...),
+    service: CodalService = Depends(get_codal_service),
+) -> ApiResponse[CodalReportResponse]:
+    rest = body.model_dump(exclude={"title"})
+    result = await service.create(instrument_id=instrument_id, title=body.title, **rest)
+    item = _to_report_response(result.value) if result.value else None
+    return ApiResponse[CodalReportResponse](
+        success=result.success,
+        data=item,
+        error={"message": result.error} if not result.success and result.error else None,
+    )
+
+
+@router.get("/{instrument_id}")
+async def get_disclosures(
+    instrument_id: str,
+    search: CodalSearchRequest = Depends(),
+    service: CodalService = Depends(get_codal_service),
+) -> ApiResponse[CodalListResponse]:
+    result = await service.get_by_instrument(instrument_id, search.page, search.page_size)
+    items = [_to_report_response(d) for d in result.value.items] if result.value else []
+    data = CodalListResponse(
+        items=items,
+        total=result.value.total if result.value else 0,
+        page=result.value.page if result.value else search.page,
+        page_size=result.value.page_size if result.value else search.page_size,
+    )
+    return ApiResponse[CodalListResponse](
+        success=result.success,
+        data=data,
+        error={"message": result.error} if not result.success and result.error else None,
     )

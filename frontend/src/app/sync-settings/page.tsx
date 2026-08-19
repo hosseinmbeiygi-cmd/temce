@@ -3,13 +3,13 @@
 import { useState, useCallback } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import {
-  loadSyncSettings,
   saveSyncSettings,
   resetSyncSettings,
   DEFAULT_SYNC_SETTINGS,
   ALL_SECTION_KEYS,
   type SyncSettingsMap,
 } from "@/lib/sync-settings";
+import { useSyncSettings } from "@/hooks/useSyncSettings";
 
 // ── Slider helpers ────────────────────────────────────────────────────────────
 
@@ -112,7 +112,9 @@ function SectionRow({ sectionKey, setting, onChange, previewStatus }: SectionRow
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SyncSettingsPage() {
-  const [settings, setSettings] = useState<SyncSettingsMap>(() => loadSyncSettings());
+  // SSR-safe: deterministic defaults on the server, stored values adopted
+  // after mount (prevents a hydration mismatch on the sliders/labels).
+  const [settings, setSettings] = useSyncSettings();
   const [saved, setSaved] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
 

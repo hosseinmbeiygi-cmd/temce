@@ -185,12 +185,32 @@ class BrsApiClient:
         Returns:
             A ``Result`` wrapping ``BrsApiResponse``.
         """
+        if not brsapi_settings.enabled:
+            return Result.fail(
+                "BrsApi disabled via BRSAPI_ENABLED=false — DB-only mode "
+                "(no live API calls while the key is blocked/quota exhausted)"
+            )
         if self._client is None:
             return Result.fail("BrsApiClient not started – call .start() first")
 
         url = f"{self._base_url}{endpoint.path}"
         request_params = self._build_params(endpoint, params)
         category = category_override or endpoint.category.value
+
+        # Fail fast when the daily budget is exhausted (avoid sleeping until
+        # midnight or hammering a blocked key).
+        if brsapi_settings.fail_fast_on_daily_exhausted:
+            status = self._rate_limiter.status()
+            if status["global"]["daily_remaining"] <= 0:
+                logger.warning(
+                    "BrsApi daily budget exhausted (%d/%d) — request rejected fast",
+                    status["global"]["daily_count"],
+                    status["global"]["daily_limit"],
+                )
+                return Result.fail(
+                    f"BrsApi daily budget exhausted ({status['global']['daily_count']}/"
+                    f"{status['global']['daily_limit']}) — request rejected to protect the key"
+                )
 
         # Circuit breaker for this endpoint path
         cb = self._circuit_breaker(endpoint.path)
@@ -220,8 +240,15 @@ class BrsApiClient:
 
         start = asyncio.get_event_loop().time()
 
-        # Rate limit (passes endpoint path for per-endpoint tracking)
-        await self._rate_limiter.acquire(category, endpoint=endpoint.path)
+        # Rate limit (passes endpoint path for per-endpoint tracking).
+        # ``fail_fast`` is forwarded from settings so even a custom limiter
+        # (e.g. in tests) rejects immediately when the daily quota is gone
+        # instead of sleeping until Tehran midnight.
+        await self._rate_limiter.acquire(
+            category,
+            endpoint=endpoint.path,
+            fail_fast=brsapi_settings.fail_fast_on_daily_exhausted,
+        )
 
         # HTTP request with retry
         last_error: str | None = None
@@ -245,6 +272,25 @@ class BrsApiClient:
                         success=True,
                     )
                     return Result.ok(brs_resp)
+
+                if resp.status_code == 302:
+                    # BrsApi anti-abuse: when the account's request count is
+                    # above the plan threshold, EVERY live call is redirected
+                    # to a massive file (e.g. a Windows ISO). Never follow the
+                    # redirect, never retry — just fail fast with a clear
+                    # message so jobs don't hammer a still-exhausted account.
+                    location = resp.headers.get("Location", "?")
+                    logger.warning(
+                        "BrsApi quota exceeded — HTTP 302 redirect to %r "
+                        "(server-side usage above plan threshold)",
+                        location,
+                    )
+                    return Result.fail(
+                        "BrsApi quota exceeded (HTTP 302 → heavy-file redirect). "
+                        "Server-side usage is above the plan threshold — keep "
+                        "DB-only mode (BRSAPI_ENABLED=false) until the counter "
+                        "resets or the plan is upgraded."
+                    )
 
                 if resp.status_code in (429, 502, 503, 504):
                     # Rate limit / gateway hiccup / service unavailable → retry.
@@ -338,10 +384,88 @@ class BrsApiClient:
             if rpm > 0:
                 self._rate_limiter.configure(category, rpm)
 
+    # ── Readiness probe ──────────────────────────
+
+    async def probe_ready(self) -> dict[str, Any]:
+        """
+        Single-request readiness probe for the BrsApi key.
+
+        While the key is blocked the platform runs in DB-only mode
+        (``BRSAPI_ENABLED=false``), but the whole point of this probe is to
+        detect when the server-side usage counter has reset — so it
+        deliberately BYPASSES the ``enabled`` gate. It still respects the
+        global rate limiter (fail-fast, never sleeps) so it can never burn
+        budget or pile up behind other jobs.
+
+        Returns:
+            ``{"ready": bool, "status_code": int, "detail": str}`` where
+            ``ready`` is True only when the endpoint answers HTTP 200
+            (i.e. the counter has reset). HTTP 302 to a heavy file means the
+            account is still over quota — reported as ``ready=False``.
+        """
+        if self._client is None:
+            await self.start()
+
+        endpoint = BrsApiEndpoints.ALL_SYMBOLS
+        url = f"{self._base_url}{endpoint.path}"
+        params = self._build_params(endpoint, None)
+
+        # Fail fast (never sleep) — this probe runs hourly and must never
+        # block behind an exhausted daily budget.
+        try:
+            await self._rate_limiter.acquire(
+                endpoint.category.value,
+                endpoint=endpoint.path,
+                fail_fast=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ready": False,
+                "status_code": 0,
+                "detail": f"rate-limited: {exc}",
+            }
+
+        try:
+            resp = await self._client.get(url, params=params)
+        except httpx.RequestError as exc:
+            return {
+                "ready": False,
+                "status_code": 0,
+                "detail": f"request error: {exc}",
+            }
+
+        if resp.status_code == 200:
+            return {"ready": True, "status_code": 200, "detail": "AllSymbols OK"}
+        if resp.status_code == 302:
+            return {
+                "ready": False,
+                "status_code": 302,
+                "detail": "still redirecting to a heavy file (HTTP 302) — "
+                "server-side usage counter has not reset",
+            }
+        return {
+            "ready": False,
+            "status_code": resp.status_code,
+            "detail": f"unexpected HTTP {resp.status_code}",
+        }
+
     # ── Health check ─────────────────────────────
 
     async def health(self) -> dict[str, Any]:
         """Check connectivity by hitting a lightweight endpoint."""
+        status = self._rate_limiter.status()
+        if not brsapi_settings.enabled:
+            return {
+                "service": "brsapi",
+                "ready": self.is_ready,
+                "reachable": False,
+                "error": "BrsApi disabled via BRSAPI_ENABLED=false — DB-only mode",
+                "enabled": False,
+                "circuit_breakers": {
+                    path: cb.state for path, cb in self._circuit_breakers.items()
+                },
+                "rate_limit_buckets": status,
+            }
         test_endpoint = BrsApiEndpoints.ALL_SYMBOLS
         result = await self.fetch(test_endpoint)
         return {
@@ -349,10 +473,11 @@ class BrsApiClient:
             "ready": self.is_ready,
             "reachable": result.success,
             "error": result.error if not result.success else None,
+            "enabled": True,
             "circuit_breakers": {
                 path: cb.state for path, cb in self._circuit_breakers.items()
             },
-            "rate_limit_buckets": self._rate_limiter.all_bucket_status(),
+            "rate_limit_buckets": status,
         }
 
 

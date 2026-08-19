@@ -220,7 +220,10 @@ class SignalAccuracyTracker:
             async with async_session_factory() as session:
                 cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days)
 
-                where_clause = "WHERE outcome_set_at >= :cutoff"
+                # Only buy/sell signals have a tradable outcome; hold/wait rows
+                # are recorded as "always correct" and would otherwise inflate
+                # accuracy (e.g. IME showing 100% from holds).
+                where_clause = "WHERE outcome_set_at >= :cutoff AND direction IN ('buy', 'sell')"
                 params: dict[str, Any] = {"cutoff": cutoff}
                 if market:
                     where_clause += " AND market = :market"
@@ -291,6 +294,7 @@ class SignalAccuracyTracker:
                            AVG(actual_return_pct) as avg_return
                     FROM signal_accuracy
                     WHERE symbol = :symbol AND outcome_set_at >= :cutoff
+                      AND direction IN ('buy', 'sell')
                     GROUP BY source, direction
                     ORDER BY total DESC
                 """), {"symbol": symbol, "cutoff": cutoff})

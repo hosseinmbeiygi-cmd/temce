@@ -175,24 +175,32 @@ const TIMEFRAME_DAYS: Record<Timeframe, number> = {
 function filterByTimeframe(data: CandleDataPoint[], tf: Timeframe): CandleDataPoint[] {
   const days = TIMEFRAME_DAYS[tf];
   if (days >= 9999) return data;
+  // Intraday series (bars carry a ``time`` component) are already limited by
+  // the API to the current session — slicing by day count would cut the whole
+  // realtime chart down to a single bar.
+  const isIntraday = data.some((d) => Boolean(d.time));
+  if (isIntraday) return data;
   return data.slice(-days);
 }
 
-function toUnix(dateStr: string): number {
+function toUnix(dateStr: string, timeStr?: string): number {
   if (!dateStr) return 0;
   const parts = dateStr.replace(/\//g, "-").split("-").map(Number);
-  if (parts.length >= 3) {
-    if (parts[0] > 1500) {
-      return Math.floor(new Date(parts[0], parts[1] - 1, parts[2]).getTime() / 1000);
-    }
-    const gy = parts[0] + 621;
-    return Math.floor(new Date(gy, parts[1] - 1, parts[2]).getTime() / 1000);
+  if (parts.length < 3) return 0;
+  const hm = (timeStr || "").split(":").map(Number);
+  const h = hm.length >= 1 && Number.isFinite(hm[0]) ? hm[0] : 0;
+  const m = hm.length >= 2 && Number.isFinite(hm[1]) ? hm[1] : 0;
+  if (parts[0] > 1500) {
+    // Gregorian date
+    return Math.floor(new Date(parts[0], parts[1] - 1, parts[2], h, m).getTime() / 1000);
   }
-  return 0;
+  // Jalali date → approximate Gregorian year
+  const gy = parts[0] + 621;
+  return Math.floor(new Date(gy, parts[1] - 1, parts[2], h, m).getTime() / 1000);
 }
 
-function toTime(dateStr: string): Time {
-  return toUnix(dateStr) as unknown as Time;
+function toTime(dateStr: string, timeStr?: string): Time {
+  return toUnix(dateStr, timeStr) as unknown as Time;
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -221,18 +229,26 @@ export default function TradingViewChart({
 
   const filteredData = useMemo(() => filterByTimeframe(data, timeframe), [data, timeframe]);
 
+  // True when the series is an intraday (2-min) realtime chart
+  const isIntraday = useMemo(() => filteredData.some((d) => Boolean(d.time)), [filteredData]);
+
+  // ``toTime`` already returns a numeric UTCTimestamp — compare the numbers
+  // directly (re-parsing them through ``toUnix`` would zero them out and
+  // drop every bar).
+  const asUnix = (t: Time): number => (typeof t === "number" ? t : 0);
+
   const candles: CandlestickData[] = useMemo(
     () =>
       filteredData
         .map((d) => ({
-          time: toTime(d.time || d.date || ""),
+          time: toTime(d.date || "", d.time),
           open: d.open,
           high: d.high,
           low: d.low,
           close: d.close,
         }))
-        .filter((c) => toUnix(String(c.time)) > 0)
-        .sort((a, b) => toUnix(String(a.time)) - toUnix(String(b.time))),
+        .filter((c) => asUnix(c.time) > 0)
+        .sort((a, b) => asUnix(a.time) - asUnix(b.time)),
     [filteredData]
   );
 
@@ -240,12 +256,12 @@ export default function TradingViewChart({
     () =>
       filteredData
         .map((d) => ({
-          time: toTime(d.time || d.date || ""),
+          time: toTime(d.date || "", d.time),
           value: d.volume,
           color: d.close >= d.open ? "rgba(0,209,175,0.35)" : "rgba(247,37,133,0.35)",
         }))
-        .filter((v) => toUnix(String(v.time)) > 0)
-        .sort((a, b) => toUnix(String(a.time)) - toUnix(String(b.time))),
+        .filter((v) => asUnix(v.time) > 0)
+        .sort((a, b) => asUnix(a.time) - asUnix(b.time)),
     [filteredData]
   );
 
@@ -316,9 +332,10 @@ export default function TradingViewChart({
       },
       timeScale: {
         borderColor: "rgba(128,128,128,0.1)",
-        timeVisible: false,
+        timeVisible: isIntraday,
+        secondsVisible: false,
         rightOffset: 5,
-        barSpacing: 8,
+        barSpacing: isIntraday ? 6 : 8,
         minBarSpacing: 3,
       },
       handleScroll: { vertTouchDrag: false },
@@ -359,7 +376,7 @@ export default function TradingViewChart({
       const cd = param.seriesData.get(candleSeries) as CandlestickData | undefined;
       if (cd) {
         const original = filteredData.find(
-          (d) => toUnix(d.time || d.date || "") === toUnix(String(cd.time))
+          (d) => toUnix(d.date || "", d.time) === asUnix(cd.time as Time)
         );
         setHoverData(original || null);
       }
@@ -376,7 +393,7 @@ export default function TradingViewChart({
     resizeObserverRef.current = ro;
 
     chart.timeScale().fitContent();
-  }, [candles, volumes, height, showVolume, filteredData, subIndicator, cleanupSubChart]);
+  }, [candles, volumes, height, showVolume, filteredData, subIndicator, isIntraday, cleanupSubChart]);
 
   useEffect(() => {
     buildChart();

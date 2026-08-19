@@ -7,6 +7,9 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer,
   Area, AreaChart, CartesianGrid, ReferenceLine,
 } from "recharts";
+import {
+  FlaskConical, Dices, FlaskRound, Cpu, Rocket, TrendingUp,
+} from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import { apiPost, apiGet } from "@/lib/api";
@@ -407,12 +410,22 @@ export default function BacktestPage() {
     } catch {}
     return defaultMetrics;
   };
+  // SSR-safe initial state: `localStorage` doesn't exist during the server
+  // render, so seeding state from getSavedMetrics() would produce different
+  // HTML than the client → hydration mismatch. Start from deterministic
+  // defaults and adopt the saved selection after mount.
   const [enabledRadarMetrics, setEnabledRadarMetrics] = useState<string[]>(
-    getSavedMetrics
+    defaultMetrics
   );
+  useEffect(() => {
+    setEnabledRadarMetrics(getSavedMetrics());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Persist metric selection to localStorage
   useEffect(() => {
-    localStorage.setItem("bt-radar-metrics", JSON.stringify(enabledRadarMetrics));
+    try {
+      localStorage.setItem("bt-radar-metrics", JSON.stringify(enabledRadarMetrics));
+    } catch {}
   }, [enabledRadarMetrics]);
 
   const toggleCompareSort = (key: string) => {
@@ -806,20 +819,30 @@ export default function BacktestPage() {
   };
 
   return (
-    <AppLayout title="بک‌تست استراتژی" subtitle="تست استراتژی روی داده‌های واقعی تاریخی">
+    <AppLayout
+      title={
+        <span className="flex items-center gap-2.5">
+          <span className="grid size-10 place-items-center rounded-xl bg-primary-600/12 text-primary-700 dark:text-brand-300">
+            <FlaskConical className="size-5" aria-hidden />
+          </span>
+          بک‌تست استراتژی
+        </span>
+      }
+      subtitle="تست استراتژی روی تمام نمادها با داده‌های واقعی تاریخی"
+    >
       {/* Quick Links to Advanced Tools */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <a href="/backtest/engine" className="px-3 py-1.5 text-xs rounded-lg bg-primary-600/20 text-primary-200 hover:bg-primary-600/30 transition-colors font-bold">
-          🧬 موتور کشف استراتژی
+      <div className="mb-5 flex flex-wrap gap-2">
+        <a href="/backtest/engine" className="flex items-center gap-1.5 rounded-xl bg-primary-600/12 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:bg-primary-600/20 dark:text-brand-300">
+          <Cpu className="size-3.5" aria-hidden /> موتور کشف استراتژی
         </a>
-        <a href="/backtest/generate" className="px-3 py-1.5 text-xs rounded-lg bg-primary-600/10 text-primary-300 hover:bg-primary-600/20 transition-colors">
-          🚀 تولید خودکار استراتژی
+        <a href="/backtest/generate" className="flex items-center gap-1.5 rounded-xl bg-soft px-3 py-1.5 text-xs font-bold text-ink-2 transition-colors hover:bg-soft/80 hover:text-ink">
+          <Rocket className="size-3.5" aria-hidden /> تولید خودکار استراتژی
         </a>
-        <a href="/backtest/walk-forward" className="px-3 py-1.5 text-xs rounded-lg bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/20 transition-colors">
-          📊 Walk-Forward
+        <a href="/backtest/walk-forward" className="flex items-center gap-1.5 rounded-xl bg-warn/12 px-3 py-1.5 text-xs font-bold text-warn transition-colors hover:bg-warn/20">
+          <TrendingUp className="size-3.5" aria-hidden /> Walk-Forward
         </a>
-        <a href="/backtest/monte-carlo" className="px-3 py-1.5 text-xs rounded-lg bg-accent-emerald/10 text-accent-emerald hover:bg-accent-emerald/20 transition-colors">
-          🎲 Monte Carlo
+        <a href="/backtest/monte-carlo" className="flex items-center gap-1.5 rounded-xl bg-up/12 px-3 py-1.5 text-xs font-bold text-up transition-colors hover:bg-up/20">
+          <Dices className="size-3.5" aria-hidden /> Monte Carlo
         </a>
       </div>
 
@@ -1025,10 +1048,12 @@ export default function BacktestPage() {
               end_date: jalaliToGregorian(endDateJalali) || undefined,
               initial_capital: formData.capital,
             })} disabled={runAllMutation.isPending}
-              className="px-4 py-2.5 bg-accent-amber/20 hover:bg-accent-amber/30 border border-accent-amber/30 text-accent-amber rounded-lg font-bold transition-all flex items-center gap-1.5">
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2.5 font-bold text-white shadow-[var(--shadow-card)] transition-all hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40">
               {runAllMutation.isPending ? (
-                <><span className="animate-spin text-sm">⚡</span> در حال اجرا...</>
-              ) : "🧪 تست همه نمادها"}
+                <><FlaskConical className="size-4 animate-spin" aria-hidden /> در حال اجرا...</>
+              ) : (
+                <><FlaskConical className="size-4" aria-hidden /> تست همه نمادها</>
+              )}
             </button>
           </div>
 

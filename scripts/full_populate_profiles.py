@@ -9,33 +9,34 @@ Data Source Priority:
   1. brsapi_symbol_snapshots  — EPS, PE, sector, shares, prices
   2. brsapi_symbol_details    — free_float_pct, sub_sector, group_pe_ratio
   3. brsapi_currency_prices   — USD rate (→ free_market_rate)
-  4. daily_history            — trade_value / volume averages (→ estimates)
+  4. daily_history            — trade_value averages + avg_50d_volume (last 50 days)
   5. daily_real_legal         — legal buy/sell 30d aggregates
 
-Fillable columns (22 + 19 binary filters):
+Fillable columns (23 + 19 binary filters):
   ✅ = accurate source,  ⚠️ = estimate,  ❌ = needs external data
   1  symbol               ✅ brsapi_symbol_snapshots
   2  industry             ✅ brsapi_symbol_snapshots.sector
   3  sub_industry         ✅ brsapi_symbol_details.sub_sector
   4  free_float_shares    ✅ shares_count × free_float_pct ÷ 100
   5  eps_current          ✅ brsapi_symbol_snapshots.eps
-  6  eps_prev_year        ⚠️  eps × 0.85 (15% growth assumption)
-  7  exchange_rate_base   ⚠️  28500 Rial/USD (fixed base)
-  8  inflation_rate       ⚠️  35% (CBI avg 1403)
-  9  net_operating_profit ⚠️  estimate from avg_daily_value × 0.003
-  10 accumulated_loss     ❌  needs codal balance sheet
-  11 registered_capital   ✅  shares_count × 1000 ÷ 1e9
-  12 legal_reserve        ❌  needs codal
-  13 gross_margin         ⚠️  20% default
-  14 feedstock_price      ❌  industry-specific
-  15 feedstock_change_pct ❌  news-based
-  16 capital_increase_type ❌ codal
-  17 capital_increase_pct  ❌ codal
-  18 industry_pe          ✅ brsapi_symbol_details.group_pe_ratio
-  19 bank_interest_rate   ⚠️  30%
-  20 bond_rate            ❌  bond market data
-  21 nima_rate            ⚠️  28500 (from NIMA system)
-  22 free_market_rate     ⚠️  from brsapi_currency_prices.USD or 62000
+  6  avg_50d_volume       ✅ daily_history (AVG last 50 trading days)
+  7  eps_prev_year        ⚠️  eps × 0.85 (15% growth assumption)
+  8  exchange_rate_base   ⚠️  28500 Rial/USD (fixed base)
+  9  inflation_rate       ⚠️  35% (CBI avg 1403)
+  10 net_operating_profit ⚠️  estimate from avg_daily_value × 0.003
+  11 accumulated_loss     ❌  needs codal balance sheet
+  12 registered_capital   ✅  shares_count × 1000 ÷ 1e9
+  13 legal_reserve        ❌  needs codal
+  14 gross_margin         ⚠️  20% default
+  15 feedstock_price      ❌  industry-specific
+  16 feedstock_change_pct ❌  news-based
+  17 capital_increase_type ❌ codal
+  18 capital_increase_pct  ❌ codal
+  19 industry_pe          ✅ brsapi_symbol_details.group_pe_ratio
+  20 bank_interest_rate   ⚠️  30%
+  21 bond_rate            ❌  bond market data
+  22 nima_rate            ⚠️  28500 (from NIMA system)
+  23 free_market_rate     ⚠️  from brsapi_currency_prices.USD or 62000
 
   19 binary filters       ❌  all need manual / news / codal input
 
@@ -258,6 +259,40 @@ async def run() -> None:
         _p(f"  Profit estimates updated: {r.rowcount} rows")
 
         # ──────────────────────────────────────────────────────────
+        # STEP 5.5: avg_50d_volume from daily_history (last 50 trading days)
+        # ──────────────────────────────────────────────────────────
+        _p("=" * 70)
+        _p("STEP 5.5/7 — avg_50d_volume from daily_history (50-day avg)")
+        _p("=" * 70)
+
+        r = await session.execute(text("""
+            WITH ranked AS (
+                SELECT
+                    s.symbol AS symbol,
+                    dh.trade_volume,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY s.symbol
+                        ORDER BY dh.trade_date DESC
+                    ) AS rn
+                FROM daily_history dh
+                JOIN symbols s ON s.id = dh.symbol_id
+                WHERE dh.trade_volume IS NOT NULL AND dh.trade_volume > 0
+            )
+            UPDATE screener_profiles sp
+            SET
+                avg_50d_volume = sub.avg_vol,
+                updated_at     = NOW()
+            FROM (
+                SELECT symbol, CAST(AVG(trade_volume) AS BIGINT) AS avg_vol
+                FROM ranked
+                WHERE rn <= 50
+                GROUP BY symbol
+            ) sub
+            WHERE sp.symbol = sub.symbol
+        """))
+        _p(f"  avg_50d_volume updated: {r.rowcount} rows")
+
+        # ──────────────────────────────────────────────────────────
         # STEP 6: Fill eps_prev_year (estimate: eps * 0.85)
         # ──────────────────────────────────────────────────────────
         _p("=" * 70)
@@ -338,8 +373,13 @@ async def run() -> None:
                 END,
 
                 -- فیلتر ۸۲: جهش حجمی > ۳ برابر میانگین
-                -- حجم امروز > ۳ × (ارزش日均 / قیمت)  ← تقریب میانگین حجم روزانه
+                -- حجم امروز > ۳ × avg_50d_volume (میانگین واقعی ۵۰ روزه از daily_history)
+                -- fallback: اگر avg_50d_volume موجود نبود، از تقریب ارزش日均/قیمت استفاده کن
                 f82_volume_spike = CASE
+                    WHEN today_volume IS NOT NULL AND today_volume > 0
+                         AND avg_50d_volume IS NOT NULL AND avg_50d_volume > 0
+                         AND today_volume::NUMERIC > 3 * avg_50d_volume::NUMERIC
+                    THEN 1
                     WHEN today_volume IS NOT NULL AND today_volume > 0
                          AND avg_daily_value IS NOT NULL AND avg_daily_value > 0
                          AND current_price IS NOT NULL AND current_price > 0
@@ -401,6 +441,7 @@ async def run() -> None:
             ("current_price",         "قیمت روز",         True),
             ("price_change_pct",      "تغییر قیمت",       True),
             ("today_volume",          "حجم امروز",        True),
+            ("avg_50d_volume",        "میانگین حجم ۵۰ روزه", True),
             ("avg_daily_value",       "ارزش معاملات",     True),
             ("institutional_buy",     "خرید حقوقی",       True),
             ("institutional_sell",    "فروش حقوقی",       True),

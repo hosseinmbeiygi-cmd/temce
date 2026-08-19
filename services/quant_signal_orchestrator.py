@@ -642,6 +642,8 @@ class QuantSignalOrchestrator:
         engine = MultiMarketSignalEngine(session=self._session)
 
         # ── Stage 1: Generate rule-based signals ──
+        import time as _stage_time
+        _t0 = _stage_time.monotonic()
         raw_signals, gen_reports = await engine.generate_all(
             market_filter=market_filter,
             timeframe_filter=timeframe_filter,
@@ -649,6 +651,7 @@ class QuantSignalOrchestrator:
             min_strength=min_strength,
             limit=limit * 10,  # Generate plenty; diversity filter will select per-market
         )
+        logger.info("[pipeline] stage1 generate_all: %.2fs, %d raw signals", _stage_time.monotonic() - _t0, len(raw_signals))
 
         if not raw_signals:
             return OrchestratorReport(
@@ -673,31 +676,54 @@ class QuantSignalOrchestrator:
 
         # ── Stage 2: ML predictions ──
         ml_predictions: dict[str, dict[str, Any]] = {}
+        _t1 = _stage_time.monotonic()
         if use_ml:
             ml_predictions = await self._get_ml_predictions(raw_signals)
+        logger.info("[pipeline] stage2 ml: %.2fs, %d preds", _stage_time.monotonic() - _t1, len(ml_predictions))
 
         # ── Stage 3: Voting ──
         enriched: list[EnrichedSignal] = []
+        _t2 = _stage_time.monotonic()
         if use_voting and use_ml:
             enriched = await self._apply_voting(raw_signals, ml_predictions)
         else:
             enriched = self._basic_enrich(raw_signals)
+        logger.info("[pipeline] stage3 voting: %.2fs, %d enriched", _stage_time.monotonic() - _t2, len(enriched))
 
         # ── Stage 3.5: Probability calibration (calibrated win probabilities) ──
+        _t3 = _stage_time.monotonic()
         if use_probability_calibration:
             enriched = await self._apply_probability_calibration(enriched)
+        logger.info("[pipeline] stage3.5 prob-calib: %.2fs", _stage_time.monotonic() - _t3)
+
+        # ── Stage 3.6: Candidate cap ──
+        # The remaining stages (confidence calibration + 10-gate decision engine)
+        # open a DB session per signal — running them on every raw candidate
+        # (500+ for the dashboard) turns a request into a multi-minute job.
+        # The final output only keeps `limit` signals anyway, so keep only the
+        # strongest candidates here (diversity is re-applied downstream).
+        if len(enriched) > 120:
+            enriched.sort(key=lambda s: s.boosted_score, reverse=True)
+            enriched = enriched[:120]
+            logger.info("[pipeline] stage3.6 capped candidates to %d", len(enriched))
 
         # ── Stage 4: Confidence calibration (multi-factor confidence scoring) ──
+        _t4 = _stage_time.monotonic()
         if use_confidence_calibration:
             enriched = await self._apply_confidence_calibration(enriched)
+        logger.info("[pipeline] stage4 conf-calib: %.2fs", _stage_time.monotonic() - _t4)
 
         # ── Stage 4.5: Signal decision engine (10-gate pipeline) ──
         rejected: list[EnrichedSignal] = []
+        _t5 = _stage_time.monotonic()
         if use_decision_engine:
             enriched, rejected = await self._apply_signal_decision(enriched)
+        logger.info("[pipeline] stage4.5 decision: %.2fs, released=%d rejected=%d", _stage_time.monotonic() - _t5, len(enriched), len(rejected))
 
         # ── Stage 5: Cross-market correlation (only on released signals) ──
+        _t6 = _stage_time.monotonic()
         cross_market = await CrossMarketCorrelator.analyze(enriched)
+        logger.info("[pipeline] stage5 cross-market: %.2fs", _stage_time.monotonic() - _t6)
 
         # ── Stage 6: Filter by confidence ──
         enriched = [s for s in enriched if s.confidence >= min_confidence]
@@ -718,7 +744,9 @@ class QuantSignalOrchestrator:
         enriched = enriched[:limit]
 
         # ── Stage 6.5: Persist to DB for future outcome evaluation ──
+        _t7 = _stage_time.monotonic()
         await self._persist_pending_signals(enriched)
+        logger.info("[pipeline] stage6.5 persist: %.2fs", _stage_time.monotonic() - _t7)
 
         # ── Summary ──
         buy_count = sum(1 for s in enriched if s.direction == "buy")
@@ -1276,36 +1304,40 @@ class QuantSignalOrchestrator:
                 logger.warning("No DB session available for Smart Money analysis")
                 return result
 
-            async with async_session_factory() as session:
-                # Create service with session (will query DB directly)
-                smc_service = SmartMoneyService(session=session)
+            import asyncio
 
-                # Limit concurrency to avoid DB connection pool exhaustion
-                import asyncio
+            # IMPORTANT: each concurrent task gets its OWN AsyncSession.
+            # A single AsyncSession must not be shared across concurrent
+            # coroutines — SQLAlchemy raises IllegalStateChangeError
+            # ("Method 'close()' can't be called here") and the request hangs.
+            sem = asyncio.Semaphore(5)
 
-                sem = asyncio.Semaphore(10)
+            async def _analyze_one(sym: str, key: str) -> tuple[str, str, dict[str, Any]] | None:
+                async with sem:
+                    try:
+                        async with async_session_factory() as session:
+                            smc_service = SmartMoneyService(session=session)
+                            res = await smc_service.analyze(sym)
+                            if res.success and res.value:
+                                return sym, key, res.value
+                    except Exception as e:
+                        logger.debug("Smart Money analysis error for %s: %s", sym, e)
+                    return None
 
-                async def _analyze_one(sym: str, key: str) -> tuple[str, str, dict[str, Any]] | None:
-                    async with sem:
-                        res = await smc_service.analyze(sym)
-                        if res.success and res.value:
-                            return sym, key, res.value
-                        return None
+            analyze_tasks = [_analyze_one(sym, key) for sym, key in unique_keys.items()]
+            analyze_results = await asyncio.gather(*analyze_tasks, return_exceptions=True)
 
-                analyze_tasks = [_analyze_one(sym, key) for sym, key in unique_keys.items()]
-                analyze_results = await asyncio.gather(*analyze_tasks, return_exceptions=True)
-
-                for ar in analyze_results:
-                    if isinstance(ar, BaseException):
-                        logger.debug("Smart Money analysis failed: %s", ar)
+            for ar in analyze_results:
+                if isinstance(ar, BaseException):
+                    logger.debug("Smart Money analysis failed: %s", ar)
+                    continue
+                if ar is not None:
+                    _sym, _key, smc_data = ar
+                    # Skip if data was rejected (quality too low)
+                    if smc_data.get("meta", {}).get("analysis_mode") == "rejected":
                         continue
-                    if ar is not None:
-                        _sym, _key, smc_data = ar
-                        # Skip if data was rejected (quality too low)
-                        if smc_data.get("meta", {}).get("analysis_mode") == "rejected":
-                            continue
-                        if smc_data.get("smart_money_score", 0.0) > 0.0:
-                            result[_key] = smc_data
+                    if smc_data.get("smart_money_score", 0.0) > 0.0:
+                        result[_key] = smc_data
 
             logger.info("Fetched Smart Money analysis for %d/%d symbols", len(result), len(unique_keys))
         except Exception as e:
@@ -1458,6 +1490,24 @@ class QuantSignalOrchestrator:
                 except Exception as e:
                     logger.debug("Could not create signal_accuracy: %s", e)
 
+                # 1b. Partial unique index on pending signals: at most one
+                # unevaluated signal per (symbol, market, direction, timeframe).
+                # Combined with the check-then-insert dedupe in
+                # _persist_pending_signals, this makes concurrent pipeline
+                # runs (e.g. startup CacheWarmupJob + warm_signal_cache)
+                # safely drop duplicates instead of inserting them.
+                try:
+                    await session.execute(text("""
+                        CREATE UNIQUE INDEX IF NOT EXISTS
+                            uq_signal_accuracy_pending_key
+                        ON signal_accuracy (symbol, market, direction, timeframe)
+                        WHERE outcome_set_at IS NULL
+                    """))
+                    await session.commit()
+                    logger.debug("Ensured pending-signal unique index exists")
+                except Exception as e:
+                    logger.debug("Could not create pending-signal unique index: %s", e)
+
                 # 2. calibration_models table
                 try:
                     await session.execute(text("""
@@ -1488,6 +1538,11 @@ class QuantSignalOrchestrator:
 
     # In-memory tracker for scheduled retrains (avoids querying non-existent table)
     _last_scheduled_retrain: float | None = None
+    # Initialize the outcome-recording throttle to NOW so a freshly-started
+    # process does not run the heavy evaluation/retrain feedback loop on its
+    # very first API request (the loop only runs again 6h later).
+    _last_outcome_record: float = 0.0
+    _outcome_throttle_started: bool = False
 
     async def _record_outcomes_and_retrain(
         self, accuracy_snapshot: dict[str, float],
@@ -1502,6 +1557,22 @@ class QuantSignalOrchestrator:
         retrain_reports: list[dict[str, Any]] = []
 
         try:
+            # 0. Throttle the whole feedback loop — evaluating + retraining is
+            #    heavy and would otherwise run on every single request. Run at
+            #    most once per 6 hours (this is fine: signals need >= 5 days
+            #    before their outcome can even be evaluated). The very first
+            #    call of a freshly-started process also skips the loop so the
+            #    first API request is never blocked by evaluation + retraining.
+            import time as _time
+            now = _time.time()
+            if not QuantSignalOrchestrator._outcome_throttle_started:
+                QuantSignalOrchestrator._outcome_throttle_started = True
+                QuantSignalOrchestrator._last_outcome_record = now
+                return retrain_reports, accuracy_snapshot
+            if (now - QuantSignalOrchestrator._last_outcome_record) < 6 * 3600:
+                return retrain_reports, accuracy_snapshot
+            QuantSignalOrchestrator._last_outcome_record = now
+
             # 1. Evaluate and record outcomes for past signals
             outcomes_recorded = await self._evaluate_past_signals()
             logger.info("Recorded %d past signal outcomes", outcomes_recorded)
@@ -1574,11 +1645,17 @@ class QuantSignalOrchestrator:
         return retrain_reports, accuracy_snapshot
 
     def _should_scheduled_retrain(self) -> bool:
-        """Check if >= 7 days since last scheduled retrain (in-memory tracking)."""
+        """Check if >= 7 days since last scheduled retrain (in-memory tracking).
+
+        Returns False when never retrained: on a fresh process we don't want
+        the first API request to trigger a multi-minute retrain of every
+        market. The periodic retrain is also available as the explicit
+        ``/multi-market-signals/retrain`` endpoint and scheduler job.
+        """
         import time
 
         if QuantSignalOrchestrator._last_scheduled_retrain is None:
-            return True  # never retrained
+            return False  # never retrained — don't block first request
         seconds_since = time.time() - QuantSignalOrchestrator._last_scheduled_retrain
         return seconds_since >= 7 * 24 * 3600
 
@@ -1600,8 +1677,34 @@ class QuantSignalOrchestrator:
                 return 0
 
             async with async_session_factory() as session:
+                # Dedupe guard: the pipeline runs repeatedly (every cache TTL /
+                # background rebuild), so the same signal would otherwise be
+                # inserted thousands of times under new ids — flooding the
+                # table and skewing accuracy stats with copies of one signal.
+                # Only one PENDING (unevaluated) row is kept per
+                # (symbol, market, direction, timeframe); once it is evaluated
+                # (outcome_set_at IS NOT NULL) a fresh signal can be inserted.
+                r = await session.execute(text("""
+                    SELECT DISTINCT symbol, market, direction, timeframe
+                    FROM signal_accuracy
+                    WHERE outcome_set_at IS NULL
+                """))
+                pending_keys = {
+                    (row[0], row[1], row[2], row[3]) for row in r.fetchall()
+                }
+
                 for sig in signals:
                     try:
+                        # Skip hold/wait — they have no tradable outcome and
+                        # only pollute the accuracy table (e.g. IME 100% acc
+                        # from 875 holds).
+                        if sig.direction in ("hold", "wait"):
+                            continue
+                        key = (sig.symbol, sig.market, sig.direction, sig.timeframe)
+                        if key in pending_keys:
+                            continue
+                        pending_keys.add(key)
+
                         record_id = new_id("sacc")
                         sig_id = new_id("sig")
                         stmt = text("""
@@ -1642,7 +1745,7 @@ class QuantSignalOrchestrator:
                 if inserted > 0:
                     await session.commit()
                 if inserted < len(signals):
-                    logger.warning("Persisted %d/%d signals (%d failed)", inserted, len(signals), len(signals) - inserted)
+                    logger.info("Persisted %d new pending signals (%d already pending / hold skipped)", inserted, len(signals) - inserted)
                 else:
                     logger.info("Persisted %d signals as pending for future evaluation", inserted)
 

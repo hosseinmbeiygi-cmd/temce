@@ -44,7 +44,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f46e5",
+  themeColor: "#0b1220",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -54,13 +54,22 @@ export const viewport: Viewport = {
 const THEME_SCRIPT = `
 (function(){
   try {
+    // Single source of truth, identical to the useTheme hook:
+    // 'theme' in localStorage is 'light' | 'dark' | 'system' (default system).
     var t = localStorage.getItem('theme');
-    var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var mode = (t === 'light' || t === 'dark' || t === 'system') ? t : 'system';
+    var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     var root = document.documentElement;
-    var body = document.body;
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
-    if (dark) { root.classList.add('dark'); body.classList.add('dark-theme'); }
-    else { root.classList.remove('dark'); body.classList.add('light-theme'); }
+    root.classList.toggle('dark', dark);
+    function paintBody() {
+      if (!document.body) return;
+      document.body.classList.toggle('dark-theme', dark);
+      document.body.classList.toggle('light-theme', !dark);
+    }
+    // This script runs from <head> before <body> exists; defer body classes.
+    if (document.body) paintBody();
+    else document.addEventListener('DOMContentLoaded', paintBody);
   } catch(e) {}
 })()
 `;

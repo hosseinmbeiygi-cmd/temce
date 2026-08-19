@@ -7,11 +7,12 @@ All tables use the ``brsapi_`` prefix.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Float,
     Index,
@@ -478,7 +479,13 @@ class HistoricalRealLegalModel(InstrumentRefMixin, BrsApiBase):
 
 
 class CandlestickModel(InstrumentRefMixin, BrsApiBase):
-    """OHLCV candlestick data from ``Candlestick.php``."""
+    """OHLCV candlestick data from ``Candlestick.php``.
+
+    ``date`` keeps the raw Jalali string returned by the API (e.g. ``1404/02/23``)
+    while ``gregorian_date`` / ``shamsi_date`` hold the dual-date columns filled
+    by the parser (and the ``sync_dual_dates_fn`` trigger) so time-based sorting
+    and charting work correctly.
+    """
 
     __tablename__ = "brsapi_candlesticks"
 
@@ -495,10 +502,19 @@ class CandlestickModel(InstrumentRefMixin, BrsApiBase):
     candle_type: Mapped[str | None] = mapped_column(
         String(10), default="1", comment="1=realtime, 2=unadjusted, 3=adjusted"
     )
+    gregorian_date: Mapped[date | None] = mapped_column(Date, comment="Gregorian date derived from Jalali date")
+    shamsi_date: Mapped[str | None] = mapped_column(String(10), comment="Normalized Jalali YYYY-MM-DD")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (
         Index("idx_candle_symbol_date", "symbol", "date", "candle_type"),
+        Index("idx_candle_symbol_gregorian", "symbol", "gregorian_date", "candle_type"),
+        # Keeps the generic ``ON CONFLICT DO NOTHING`` bulk insert idempotent
+        # (without it every sync appends duplicate bars).
+        UniqueConstraint(
+            "symbol", "date", "time", "candle_type",
+            name="uq_candle_symbol_date_time_type",
+        ),
     )
 
 
@@ -513,6 +529,9 @@ class ShareholderRecordModel(InstrumentRefMixin, BrsApiBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    # TSETMC's internal shareholder id from the API (``id`` field) — distinct
+    # from this table's row ``id``. Useful for joins / dedup by shareholder.
+    shareholder_id: Mapped[int | None] = mapped_column(BigInteger, index=True)
     shareholder_name: Mapped[str] = mapped_column(String(200), nullable=False)
     volume: Mapped[int | None] = mapped_column(BigInteger)
     percent: Mapped[float | None] = mapped_column(Float)

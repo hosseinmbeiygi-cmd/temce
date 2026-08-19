@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -16,6 +18,24 @@ from reports.exporters.json_exporter import JsonExporter
 logger = get_logger(__name__)
 
 
+def _build_market_builder(session: AsyncSession | None = None) -> MarketReportBuilder:
+    from services.market_service import MarketService
+
+    return MarketReportBuilder(market_service=MarketService(session=session))
+
+
+def _build_symbol_builder(session: AsyncSession | None = None) -> SymbolReportBuilder:
+    from services.analytics_service import AnalyticsService
+    from services.quote_service import QuoteService
+    from services.symbol_service import SymbolService
+
+    return SymbolReportBuilder(
+        symbol_service=SymbolService(session=session),
+        quote_service=QuoteService(session=session),
+        analytics_service=AnalyticsService(session=session),
+    )
+
+
 class ReportService:
     def __init__(
         self,
@@ -26,9 +46,11 @@ class ReportService:
         csv_exporter: CsvExporter | None = None,
         json_exporter: JsonExporter | None = None,
         html_exporter: HtmlExporter | None = None,
+        session: AsyncSession | None = None,
     ) -> None:
-        self._market_builder = market_builder or MarketReportBuilder()
-        self._symbol_builder = symbol_builder or SymbolReportBuilder()
+        self._session = session
+        self._market_builder = market_builder or _build_market_builder(session)
+        self._symbol_builder = symbol_builder or _build_symbol_builder(session)
         self._portfolio_builder = portfolio_builder or PortfolioReportBuilder()
         self._backtest_builder = backtest_builder or BacktestReportBuilder()
         self._csv_exporter = csv_exporter or CsvExporter()

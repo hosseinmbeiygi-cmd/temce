@@ -292,6 +292,32 @@ async def main() -> None:
         for name, est, ncols in r.fetchall():
             tables[name] = {"est": est, "ncols": ncols, "rels": set(), "src": None}
 
+        # hypertables: the parent's reltuples stays 0 (rows live in chunks), so
+        # sum reltuples over the chunks for an accurate estimate. Gracefully
+        # degrades when TimescaleDB is not installed.
+        try:
+            ht_rows = (await c.execute(text("SELECT hypertable_name FROM timescaledb_information.hypertables"))).fetchall()
+            for (name,) in ht_rows:
+                if name not in tables:
+                    continue
+                chunk_est = (
+                    await c.execute(
+                        text(
+                            "SELECT COALESCE(SUM(ch.reltuples), 0)::bigint FROM pg_class ch "
+                            "JOIN pg_namespace pn ON pn.oid = ch.relnamespace "
+                            "JOIN _timescaledb_catalog.chunk ck "
+                            "  ON ck.schema_name = pn.nspname AND ck.table_name = ch.relname "
+                            "JOIN _timescaledb_catalog.hypertable h ON h.id = ck.hypertable_id "
+                            "WHERE h.table_name = :t"
+                        ),
+                        {"t": name},
+                    )
+                ).scalar()
+                if chunk_est:
+                    tables[name]["est"] = int(chunk_est)
+        except Exception:
+            pass
+
         # FK relations (unique, public only)
         r = await c.execute(
             text(

@@ -4,9 +4,15 @@ import { useTheme } from "@/hooks/useTheme";
 
 // ------ Tests ---------------------------------------------------------------------------------------------------------------------------------------------
 describe("useTheme", () => {
+  function resetDom() {
+    document.documentElement.removeAttribute("data-theme");
+    document.documentElement.classList.remove("dark");
+    document.body.classList.remove("dark-theme", "light-theme");
+  }
+
   beforeEach(() => {
     localStorage.clear();
-    document.documentElement.classList.remove("dark");
+    resetDom();
     // jsdom doesn't provide window.matchMedia; mock it for useEffect
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -26,6 +32,7 @@ describe("useTheme", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
+    resetDom();
   });
 
   // ------ Initial State ---------------------------------------------------------------------------------------------------------------
@@ -123,5 +130,61 @@ describe("useTheme", () => {
     // toggleTheme is a plain function inside the hook (no useCallback),
     // so it gets a new reference on every render
     expect(result.current.toggleTheme).not.toBe(firstRef);
+  });
+
+  // ------ no flash on load: respect the theme the <head> script painted ------
+  it("adopts the theme already painted on <html> (no flip on load)", () => {
+    document.documentElement.setAttribute("data-theme", "light");
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.theme).toBe("light");
+  });
+
+  // ------ setThemeMode / 'system' mode ---------------------------------------------------------
+  it("setThemeMode persists the choice to localStorage", () => {
+    const { result } = renderHook(() => useTheme());
+    act(() => {
+      result.current.setThemeMode("light");
+    });
+    expect(localStorage.getItem("theme")).toBe("light");
+    expect(result.current.theme).toBe("light");
+  });
+
+  it("setThemeMode('system') resolves from the system preference", () => {
+    const { result } = renderHook(() => useTheme());
+    act(() => {
+      result.current.setThemeMode("system");
+    });
+    // matchMedia is mocked to prefer dark
+    expect(localStorage.getItem("theme")).toBe("system");
+    expect(result.current.theme).toBe("dark");
+  });
+
+  // ------ multiple mounted instances stay in sync -----------------------------------------------
+  it("keeps multiple mounted instances in sync", () => {
+    const a = renderHook(() => useTheme());
+    const b = renderHook(() => useTheme());
+    expect(a.result.current.theme).toBe("dark");
+    expect(b.result.current.theme).toBe("dark");
+
+    act(() => {
+      a.result.current.toggleTheme();
+    });
+
+    expect(a.result.current.theme).toBe("light");
+    expect(b.result.current.theme).toBe("light");
+  });
+
+  // ------ cross-tab sync via the storage event --------------------------------------------------
+  it("updates when the theme changes in another tab (storage event)", () => {
+    const { result } = renderHook(() => useTheme());
+    expect(result.current.theme).toBe("dark");
+
+    act(() => {
+      // Simulate another tab writing 'theme' to localStorage.
+      localStorage.setItem("theme", "light");
+      window.dispatchEvent(new StorageEvent("storage", { key: "theme", newValue: "light" }));
+    });
+
+    expect(result.current.theme).toBe("light");
   });
 });

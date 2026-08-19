@@ -1,201 +1,459 @@
 """
-📊 Funds API — داده‌های صندوق‌های سرمایه‌گذاری بازار ایران
+📊 Funds API — داده‌های واقعی صندوق‌های سرمایه‌گذاری بازار ایران
 
 Endpoints:
-  GET /funds                  — لیست همه صندوق‌ها (با فیلتر و مرتب‌سازی)
-  GET /funds/{symbol}         — جزئیات یک صندوق
-  GET /funds/types            — لیست انواع صندوق‌ها
+  GET  /funds                    — لیست همه صندوق‌ها (ترکیب بورس تهران + بورس کالا)
+  GET  /funds/types              — لیست انواع صندوق‌ها
+  GET  /funds/{symbol}           — جزئیات کامل یک صندوق
+  GET  /funds/{symbol}/nav       — تاریخچه NAV (صدور/ابطال + اسنپ‌شات‌های روزانه)
+  GET  /funds/{symbol}/analysis  — تحلیل هوشمند ۶‌بعدی
+  POST /funds/{symbol}/update    — به‌روزرسانی یک صندوق از اسنپ‌شات‌های BrsApi
+  POST /funds/sync-all           — همگام‌سازی انبوه صندوق‌ها
+
+منابع داده (همگی واقعی و از دیتابیس):
+  - جدول ``funds``                 → صندوق‌های بورس تهران (قیمت/NAV غنی)
+  - جدول ``brsapi_ime_funds``      → صندوق‌های کالایی بورس کالا (dedupe شده)
+  - جدول ``brsapi_nav_records``    → تاریخچه NAV صدور/ابطال ETFها
 """
 
 from __future__ import annotations
 
-import random
+import asyncio
+import statistics
+import time
 from datetime import datetime
 from typing import Any
 
+import jdatetime
+
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_db_session
+from brsapi.constants import BRSAPI_ETF_SYMBOLS
+from brsapi.models.ime import ImeFundModel
+from brsapi.models.tsetmc import NavRecordModel, SymbolSnapshotModel
 from brsapi.services.query_service import BrsApiQueryService
 from core.logging import get_logger
+from models.fund import FundModel
+from schemas.common.responses import ApiResponse
 from services.fund_service import FundService
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# ── In-memory cache for the merged fund list ────────────────────────────────
+# brsapi_symbol_snapshots has ~836K rows; the latest-per-symbol query takes
+# several seconds, so we cache the merged map with a TTL and refresh it in the
+# background (stale-while-revalidate) so the endpoint never blocks on a slow
+# rebuild. Snapshots are refreshed every few minutes, so a 120s cache keeps
+# data fresh while keeping the endpoint snappy.
+_CACHE_TTL_SECONDS = 120.0
+_cache_lock = asyncio.Lock()
+_cache: dict[str, Any] | None = None
+_cache_at: float = 0.0
+
+
+async def _get_cached_funds(session: AsyncSession) -> dict[str, dict[str, Any]]:
+    """Return the merged fund map, rebuilding it in the background on expiry.
+
+    When the cached value is stale we kick off a background rebuild (only one
+    at a time via the lock) and serve the previous snapshot immediately, so a
+    cold-cache rebuild never stalls the API response.
+    """
+    global _cache, _cache_at
+    now = time.monotonic()
+    if _cache is not None and (now - _cache_at) < _CACHE_TTL_SECONDS:
+        return _cache
+    # Stale or empty — rebuild in background, serve stale while it runs.
+    if _cache is not None and _cache_lock.locked():
+        return _cache
+    async with _cache_lock:
+        now = time.monotonic()
+        if _cache is not None and (now - _cache_at) < _CACHE_TTL_SECONDS:
+            return _cache
+        if _cache is not None:
+            # Stale value: trigger background refresh, return current data.
+            # IMPORTANT: the background task opens its OWN DB session — the
+            # request's session must never be shared with a background task,
+            # because FastAPI closes it when the request ends, raising
+            # IllegalStateChangeError ("close() can't be called here").
+            _cache_at = time.monotonic()  # avoid re-triggering on every request
+            asyncio.create_task(_rebuild_cache())
+            return _cache
+        merged = await _load_merged_funds(session)
+        _cache = merged
+        _cache_at = time.monotonic()
+        logger.info("Fund cache built (first time): %d funds", len(merged))
+        return merged
+
+
+async def _rebuild_cache() -> None:
+    """Background task: rebuild the merged fund map with its own DB session.
+
+    Never pass a request-scoped session into this task — the request
+    dependency closes it as soon as the request returns, which races with the
+    in-flight query and raises ``IllegalStateChangeError``.
+    """
+    try:
+        from core.database import async_session_factory
+
+        if async_session_factory is None:
+            return
+        async with async_session_factory() as session:
+            merged = await _load_merged_funds(session)
+            async with _cache_lock:
+                _cache = merged
+                _cache_at = time.monotonic()
+                logger.info("Fund cache refreshed in background: %d funds", len(merged))
+    except Exception:
+        logger.exception("Background fund cache refresh failed")
+
+
+async def _invalidate_fund_cache() -> None:
+    """Clear the in-memory fund cache (call after a fund update/sync)."""
+    global _cache, _cache_at
+    _cache = None
+    _cache_at = 0.0
 
 
 def get_fund_service(db_session: AsyncSession = Depends(get_db_session)) -> FundService:
     """Factory dependency for FundService with proper DB session."""
     return FundService(session=db_session)
 
-# ── Sample fund generator ──
 
-_FUND_NAMES = [
-    ("آگاس", "آتیه‌اندیشان اقتصاد پایدار", "اختصاصی"),
-    ("آسامید", "آسمان توسعه ایرانیان", "اختصاصی"),
-    ("آکاریز", "آگاه سرمایه ریز", "اهرمی"),
-    ("آکشاورز", "آگاه کشاورز", "بخشی"),
-    ("اسپید", "اسپیدار پارت", "اهرمی"),
-    ("اشتیاق", "اشتیاق صبا", "درآمد ثابت"),
-    ("اصنافی", "اعتبار صنعت و معدن", "اختصاصی"),
-    ("اطلس", "اطلس سرمایه کیان", "اهرمی"),
-    ("افتم", "افتخار همیشه سهام ایرانیان", "اهرمی"),
-    ("اقبال", "اقبال یکم", "درآمد ثابت"),
-    ("الماس", "الماس سرمد", "اختصاصی"),
-    ("امید", "امید ایرانیان", "سهامی"),
-    ("امین", "امین سرمایه پارس", "درآمد ثابت"),
-    ("انرژی", "انرژی امید", "اختصاصی"),
-    ("ایثار", "ایثار کارکنان بانک ملت", "اختصاصی"),
-    ("ایرانیان", "صندوق سرمایه‌گذاری ایرانیان", "سهامی"),
-    ("باپویا", "بانک پویا", "درآمد ثابت"),
-    ("بدرخش", "بانک درخشش فردا", "اختصاصی"),
-    ("باهنر", "بهمن اهتمام نوین رادین", "اختصاصی"),
-    ("باور", "باور سرمایه", "اهرمی"),
-    ("بدرخشان", "بانک درخشان", "اهرمی"),
-    ("برکت", "برکت سهام", "سهامی"),
-    ("بسامان", "بانک سامان", "درآمد ثابت"),
-    ("بهینه", "بهینه پرداز", "اختصاصی"),
-    ("پارسیان", "پارسیان سهام", "سهامی"),
-    ("پدیده", "پدیده شفاف", "اهرمی"),
-    ("پیشگامان", "پیشگامان سهام", "سهامی"),
-    ("پویا", "پویا سرمایه", "اهرمی"),
-    ("تابان", "تابان سهام", "بخشی"),
-    ("تاپ", "تاپ سهام", "سهامی"),
-    ("تدبیر", "تدبیرگران فردا", "اهرمی"),
-    ("توسعه", "توسعه سهام", "سهامی"),
-    ("ثابت", "ثابت سرمایه", "درآمد ثابت"),
-    ("جامان", "جامان سهام", "سهامی"),
-    ("جاوید", "جاوید سهم", "سهامی"),
-    ("حافظ", "حافظ سهام", "سهامی"),
-    ("خبرگان", "خبرگان سهام", "سهامی"),
-    ("خرد", "خرد سهام", "سهامی"),
-    ("دانش", "دانش بنیان", "اختصاصی"),
-    ("دلیران", "دلیران سهام", "سهامی"),
-    ("رادین", "رادین سهام", "سهامی"),
-    ("رازی", "رازی سهام", "سهامی"),
-    ("رفاه", "رفاه سهام", "اختصاصی"),
-    ("سپهر", "سپهر سرمایه", "اهرمی"),
-    ("ستاره", "ستاره سهام", "سهامی"),
-    ("سدید", "سدید سهام", "سهامی"),
-    ("سرآمد", "سرآمد سرمایه", "اهرمی"),
-    ("سرمد", "سرمد سهام", "سهامی"),
-    ("سپند", "سپند سرمایه", "اهرمی"),
-    ("شفا", "شفا سهام", "بخشی"),
-    ("صبا", "صبا سهام", "سهامی"),
-    ("صنعت", "صنعت و معدن", "اختصاصی"),
-    ("طلوع", "طلوع سهام", "سهامی"),
-    ("عقیق", "عقیق سرمایه", "اهرمی"),
-    ("فردا", "فردا سهام", "سهامی"),
-    ("فیروزه", "فیروزه سهام", "اختصاصی"),
-    ("ققنوس", "ققنوس سهام", "اهرمی"),
-    ("کارآفرین", "کارآفرین سهام", "سهامی"),
-    ("کامران", "کامران سهام", "سهامی"),
-    ("کیوان", "کیوان سرمایه", "اهرمی"),
-    ("گنجینه", "گنجینه سهام", "سهامی"),
-    ("مبین", "مبین سرمایه", "اهرمی"),
-    ("مثقال", "مثقال طلا", "بخشی"),
-    ("محصول", "محصول کشاورزی", "بخشی"),
-    ("مهر", "مهر سهام", "سهامی"),
-    ("نادر", "نادر سهام", "سهامی"),
-    ("ناهید", "ناهید سرمایه", "اهرمی"),
-    ("نخل", "نخل طلا", "بخشی"),
-    ("نیک", "نیک سهام", "سهامی"),
-    ("وفاق", "وفاق سهام", "سهامی"),
-    ("همراه", "همراه اول", "سهامی"),
-    ("یسنا", "یسنا سهام", "سهامی"),
-    ("گهر", "گهر انرژی", "سهامی"),
-    ("زرفام", "زرین فام سرمایه", "اختصاصی"),
-    ("نیرو", "نیرو سرمایه", "اهرمی"),
-    ("دماوند", "دماوند سهام", "سهامی"),
-    ("البرز", "البرز سهام", "سهامی"),
-    ("آذین", "آذین سرمایه", "اهرمی"),
-    ("بامداد", "بامداد سهام", "سهامی"),
-    ("بهار", "بهار سهام", "سهامی"),
-    ("پارمیدا", "پارمیدا سهام", "اختصاصی"),
-]
-
-_FUND_TYPES_PERSIAN: dict[str, str] = {
-    "سهامی": "equity",
-    "درآمد ثابت": "fixed_income",
-    "اهرمی": "leveraged",
-    "مختلط": "mixed",
-    "بخشی": "sector",
-    "اختصاصی": "special",
-}
+# ── Fund type inference (Persian names) ─────────────────────────────────────
 
 
-def _generate_fund(symbol: str, name: str, ftype: str) -> dict[str, Any]:
-    """Generate realistic fund data."""
-    base_nav = random.uniform(500, 50_000)
-    change_pct = random.uniform(-4.0, 4.0)
-    nav = round(base_nav, 0)
-    nav_change = round(nav * change_pct / 100, 0)
-    premium_discount = random.uniform(-0.03, 0.05)
-    price_last = round(nav * (1 + premium_discount), 0)
+def _infer_fund_type(name: str | None, symbol: str | None = None) -> str:
+    """Infer fund type from its Persian name (rich taxonomy for the overview)."""
+    n = (name or "") + " " + (symbol or "")
+    # Order matters — most-specific keywords first.
+    if "نقره" in n:
+        return "نقره"
+    if any(k in n for k in ("طلا", "زر")):
+        return "طلا"
+    if "اهرم" in n:
+        return "اهرمی"
+    if "تضمین" in n:
+        return "تضمین سرمایه"
+    if any(k in n for k in ("درآمد", "ثابت", "بازده", "بانک", "اوراق")):
+        return "درآمد ثابت"
+    if any(k in n for k in ("املاک", "ملک")):
+        return "املاک"
+    if any(k in n for k in ("کالایی", "کالا")):
+        return "کالایی"
+    if any(k in n for k in ("فراصندوق", "فرا صندوق", "صندوق‌درصندوق")):
+        return "فراصندوق"
+    if "خصوصی" in n:
+        return "خصوصی"
+    if any(k in n for k in ("جسورانه", "خلاق", "خلق")):
+        return "جسورانه"
+    if any(k in n for k in ("شاخص", "هم‌وزن")):
+        return "سهامی شاخصی"
+    if any(k in n for k in ("سهام", "سهامی")):
+        return "سهامی عادی"
+    if any(k in n for k in ("مختلط", "متنوع")):
+        return "مختلط"
+    if "اختصاصی" in n:
+        return "اختصاصی"
+    if "بخشی" in n:
+        return "بخشی"
+    return "سهامی عادی"
 
-    price_yesterday = round(price_last / (1 + change_pct / 100), 0)
-    price_close = round(price_last * random.uniform(0.99, 1.01), 0)
-    price_max = round(max(price_last, price_yesterday) * random.uniform(1.01, 1.04), 0)
-    price_min = round(min(price_last, price_yesterday) * random.uniform(0.96, 0.99), 0)
 
-    shares = random.randint(1_000_000, 200_000_000)
-    volume = random.randint(10_000, 5_000_000)
-    trade_value = round(volume * price_last, 0)
-    trade_count = random.randint(10, 2000)
-    market_value = round(shares * price_last, 0)
+# ── Row → unified Fund dict ─────────────────────────────────────────────────
 
-    buy_real = random.randint(0, int(volume * 0.7))
-    sell_real = random.randint(0, int(volume * 0.7))
-    buy_legal = random.randint(0, int(volume * 0.4))
-    sell_legal = random.randint(0, int(volume * 0.4))
 
-    isin = f"I{RANDOM_ISIN_SYMBOL}{str(random.randint(1000000, 9999999))}"
-
+def _ime_fund_to_dict(r: ImeFundModel) -> dict[str, Any]:
+    """Convert a brsapi_ime_funds row to the unified Fund shape."""
+    nav = r.price_close or r.price_last or 0
+    prev = r.price_yesterday or 0
+    change_pct = r.price_close_change_pct if r.price_close_change_pct is not None else r.price_last_change_pct
+    change = r.price_close_change if r.price_close_change is not None else r.price_last_change
+    if change_pct is None and prev and nav:
+        change_pct = (nav - prev) / prev * 100
+    if change is None and prev and nav:
+        change = nav - prev
     return {
-        "symbol": symbol,
-        "name": name,
-        "isin": isin,
-        "fund_type": ftype,
-        "nav": int(nav),
-        "nav_change": int(nav_change),
-        "nav_change_pct": round(change_pct, 2),
-        "price_last": int(price_last),
-        "price_close": int(price_close),
-        "price_yesterday": int(price_yesterday),
-        "price_max": int(price_max),
-        "price_min": int(price_min),
-        "trade_volume": volume,
-        "trade_value": int(trade_value),
-        "trade_count": trade_count,
-        "shares_count": shares,
-        "base_volume": int(shares * 0.01),
-        "market_value": int(market_value),
-        "buy_real_volume": buy_real,
-        "buy_legal_volume": buy_legal,
-        "sell_real_volume": sell_real,
-        "sell_legal_volume": sell_legal,
-        "time": datetime.now().strftime("%H:%M:%S"),
+        "symbol": r.symbol,
+        "name": r.name or r.symbol,
+        "isin": r.isin or "",
+        "fund_type": _infer_fund_type(r.name, r.symbol),
+        "market": "ime",
+        "nav": float(nav or 0),
+        "nav_change": float(change or 0),
+        "nav_change_pct": round(float(change_pct or 0), 2),
+        "price_last": float(r.price_last or 0),
+        "price_close": float(r.price_close or 0),
+        "price_yesterday": float(r.price_yesterday or 0),
+        "price_max": float(r.price_max or 0),
+        "price_min": float(r.price_min or 0),
+        "trade_volume": int(r.trade_volume or 0),
+        "trade_value": float(r.trade_value or 0),
+        "trade_count": int(r.trade_count or 0),
+        "shares_count": int(r.shares_count or 0),
+        "base_volume": int(r.base_volume or 0),
+        "market_value": float(r.market_value or 0),
+        "buy_real_volume": int(r.buy_real_volume or 0),
+        "buy_legal_volume": int(r.buy_legal_volume or 0),
+        "sell_real_volume": int(r.sell_real_volume or 0),
+        "sell_legal_volume": int(r.sell_legal_volume or 0),
+        "time": str(r.fetched_at or ""),
+        "data_source": "ime",
+        "updated_at": str(getattr(r, "fetched_at", "") or ""),
     }
 
 
-RANDOM_ISIN_SYMBOL = "IR"
+def _snapshot_to_dict(r: SymbolSnapshotModel) -> dict[str, Any]:
+    """Convert a ``brsapi_symbol_snapshots`` row (latest TSE ETF snapshot) to the unified Fund shape."""
+    nav = r.price_close or r.price_last or 0
+    prev = r.price_yesterday or 0
+    change_pct = r.price_close_change_pct if r.price_close_change_pct is not None else r.price_last_change_pct
+    change = r.price_close_change if r.price_close_change is not None else r.price_last_change
+    if change_pct is None and prev and nav:
+        change_pct = (nav - prev) / prev * 100
+    if change is None and prev and nav:
+        change = nav - prev
+    return {
+        "symbol": r.symbol,
+        "name": r.name or r.symbol,
+        "isin": r.isin or "",
+        "fund_type": _infer_fund_type(r.name, r.symbol),
+        "market": "tse",
+        "nav": float(nav or 0),
+        "nav_change": float(change or 0),
+        "nav_change_pct": round(float(change_pct or 0), 2),
+        "price_last": float(r.price_last or 0),
+        "price_close": float(r.price_close or 0),
+        "price_yesterday": float(r.price_yesterday or 0),
+        "price_max": float(r.price_max or 0),
+        "price_min": float(r.price_min or 0),
+        "trade_volume": int(r.trade_volume or 0),
+        "trade_value": float(r.trade_value or 0),
+        "trade_count": int(r.trade_count or 0),
+        "shares_count": int(r.shares_count or 0),
+        "base_volume": int(r.base_volume or 0),
+        "market_value": float(r.market_value or 0),
+        "buy_real_volume": int(r.buy_real_volume or 0),
+        "buy_legal_volume": int(r.buy_legal_volume or 0),
+        "sell_real_volume": int(r.sell_real_volume or 0),
+        "sell_legal_volume": int(r.sell_legal_volume or 0),
+        "time": str(r.fetched_at or ""),
+        "data_source": "tsetmc",
+        "snapshot_date": str(r.fetched_at)[:10] if r.fetched_at else "",
+        "updated_at": str(r.fetched_at or ""),
+    }
 
 
-def _generate_all_funds() -> list[dict[str, Any]]:
-    """Generate the full fund list."""
-    random.seed(42)
-    return [_generate_fund(sym, name, ftype) for sym, name, ftype in _FUND_NAMES]
+def _fund_model_to_dict(r: FundModel) -> dict[str, Any]:
+    """Convert a ``funds`` table row (TSE funds) to the unified Fund shape."""
+    return {
+        "symbol": r.symbol,
+        "name": r.name or r.symbol,
+        "isin": r.isin or "",
+        "fund_type": r.fund_type or _infer_fund_type(r.name, r.symbol),
+        "market": "tse",
+        "nav": float(r.nav or 0),
+        "nav_change": float(r.nav_change or 0),
+        "nav_change_pct": round(float(r.nav_change_pct or 0), 2),
+        "price_last": float(r.price_last or 0),
+        "price_close": float(r.price_close or 0),
+        "price_yesterday": float(r.price_yesterday or 0),
+        "price_max": float(r.price_max or 0),
+        "price_min": float(r.price_min or 0),
+        "trade_volume": int(r.trade_volume or 0),
+        "trade_value": float(r.trade_value or 0),
+        "trade_count": int(r.trade_count or 0),
+        "shares_count": int(r.shares_count or 0),
+        "base_volume": int(r.base_volume or 0),
+        "market_value": float(r.market_value or 0),
+        "buy_real_volume": int(r.buy_real_volume or 0),
+        "buy_legal_volume": int(r.buy_legal_volume or 0),
+        "sell_real_volume": int(r.sell_real_volume or 0),
+        "sell_legal_volume": int(r.sell_legal_volume or 0),
+        "time": r.time or "",
+        "data_source": r.data_source or "tsetmc",
+        "snapshot_date": r.snapshot_date or "",
+        "updated_at": str(r.updated_at or r.created_at or ""),
+    }
 
 
-_FUNDS_CACHE: list[dict[str, Any]] = []
+async def _load_merged_funds(session: AsyncSession) -> dict[str, dict[str, Any]]:
+    """Merge all real fund sources into one map.
+
+    Sources (priority order, TSE-first):
+      1) ``funds`` table                 → صندوق‌های بورس تهران با داده غنی (NAV)
+      2) ``brsapi_symbol_snapshots``     → آخرین اسنپ‌شات هر ETF بورس تهران (~۴۷۰ صندوق)
+      3) ``brsapi_ime_funds``            → صندوق‌های کالایی بورس کالا (آخرین اسنپ‌شات هر نماد)
+
+    ``funds`` wins on symbol collision because it carries richer NAV fields.
+    """
+    merged: dict[str, dict[str, Any]] = {}
+
+    # 1) TSE funds table — richest NAV data; wins on collision
+    try:
+        result = await session.execute(select(FundModel).order_by(FundModel.symbol))
+        for row in result.scalars().all():
+            merged[row.symbol] = _fund_model_to_dict(row)
+    except Exception as e:
+        logger.warning("Funds table unavailable: %s", e)
+
+    # 2) IME commodity funds — latest snapshot per symbol. Loaded BEFORE the
+    #    ETF snapshots so commodity funds keep their ``ime`` market label even
+    #    though they also appear in the TSETMC symbol snapshots.
+    try:
+        subq = (
+            select(ImeFundModel.symbol, func.max(ImeFundModel.id).label("max_id"))
+            .group_by(ImeFundModel.symbol)
+            .subquery()
+        )
+        stmt = select(ImeFundModel).join(subq, ImeFundModel.id == subq.c.max_id)
+        result = await session.execute(stmt)
+        for row in result.scalars().all():
+            merged.setdefault(row.symbol, _ime_fund_to_dict(row))
+    except Exception as e:
+        logger.warning("IME funds table unavailable: %s", e)
+
+    # 3) TSE ETF snapshots — latest snapshot per symbol whose sector is a fund
+    #    (صندوق سرمایه‌گذاری قابل معامله) or is a known ETF symbol. This is the
+    #    biggest source (~۴۷۰ صندوق بورس تهران) previously ignored by the API.
+    try:
+        etf_list = list(BRSAPI_ETF_SYMBOLS)
+        # Also pull any symbol that has a real NAV record — some fund symbols carry
+        # a different sector label and would otherwise never surface their NAV.
+        try:
+            nav_syms = (await session.execute(select(NavRecordModel.symbol).distinct())).scalars().all()
+            etf_list = list(dict.fromkeys([*etf_list, *[s for s in nav_syms if s]]))
+        except Exception:
+            pass  # nav_records unavailable — the plain ETF filter still applies
+        fund_sector = "صندوق سرمایه‌گذاری قابل معامله"
+        subq = (
+            select(SymbolSnapshotModel.symbol, func.max(SymbolSnapshotModel.fetched_at).label("latest"))
+            .where(
+                (SymbolSnapshotModel.sector == fund_sector)
+                | (SymbolSnapshotModel.symbol.in_(etf_list))
+            )
+            .group_by(SymbolSnapshotModel.symbol)
+            .subquery()
+        )
+        stmt = (
+            select(SymbolSnapshotModel)
+            .join(subq, (SymbolSnapshotModel.symbol == subq.c.symbol) & (SymbolSnapshotModel.fetched_at == subq.c.latest))
+        )
+        result = await session.execute(stmt)
+        for row in result.scalars().all():
+            merged.setdefault(row.symbol, _snapshot_to_dict(row))
+    except Exception as e:
+        logger.warning("ETF snapshots unavailable: %s", e)
+
+    # 4) Real NAV enrichment — override the price-proxy ``nav`` with the
+    #    authoritative NAV from ``brsapi_nav_records`` (NAV صدور/ابطال) whenever a
+    #    record exists. Also recompute ``nav_change``/``nav_change_pct`` from the
+    #    two most recent NAV points so the change reflects the real NAV move.
+    try:
+        syms = list(merged.keys())
+        if syms:
+            rows = (
+                await session.execute(
+                    select(
+                        NavRecordModel.symbol,
+                        NavRecordModel.date,
+                        NavRecordModel.nav_issue,
+                        NavRecordModel.nav_redemption,
+                    ).where(NavRecordModel.symbol.in_(syms))
+                )
+            ).all()
+            per_sym: dict[str, list[tuple[str, float]]] = {}
+            for sym, d, nav_issue, nav_redemption in rows:
+                if not d:
+                    continue
+                nav = nav_issue or nav_redemption or 0
+                if not nav:
+                    continue
+                per_sym.setdefault(sym, []).append((str(d), float(nav)))
+            for sym, raw_points in per_sym.items():
+                f = merged.get(sym)
+                if f is None:
+                    continue
+                # Deduplicate by date (keep the last value per day) so intraday
+                # NAV updates never make the day-over-day change look intraday.
+                by_date: dict[str, float] = {}
+                for d, nav in raw_points:
+                    by_date[d] = nav
+                points = sorted(by_date.items())
+                latest_date, latest_nav = points[-1]
+                f["nav"] = latest_nav
+                f["nav_source"] = "nav_record"
+                f["nav_date"] = latest_date
+                if len(points) >= 2:
+                    prev_date, prev_nav = points[-2]
+                    if prev_nav:
+                        f["nav_change"] = round(latest_nav - prev_nav, 2)
+                        f["nav_change_pct"] = round((latest_nav - prev_nav) / prev_nav * 100, 2)
+                        f["nav_prev_date"] = prev_date
+            if per_sym:
+                logger.info("Real NAV applied to %d funds from nav_records", len(per_sym))
+    except Exception as e:
+        logger.warning("NAV record enrichment unavailable: %s", e)
+
+    return merged
 
 
-def _get_funds() -> list[dict[str, Any]]:
-    global _FUNDS_CACHE
-    if not _FUNDS_CACHE:
-        _FUNDS_CACHE = _generate_all_funds()
-    return _FUNDS_CACHE
+async def _load_nav_history(session: AsyncSession, symbol: str) -> list[dict[str, Any]]:
+    """NAV history for a fund.
+
+    Sources (merged by date):
+      - ``brsapi_nav_records``   → NAV صدور/ابطال برای ETFها
+      - ``brsapi_ime_funds``     → اسنپ‌شات‌های روزانه قیمت صندوق‌های کالایی
+    """
+    by_date: dict[str, dict[str, Any]] = {}
+
+    try:
+        result = await session.execute(
+            select(NavRecordModel)
+            .where(NavRecordModel.symbol == symbol)
+            .order_by(NavRecordModel.date.asc())
+        )
+        for r in result.scalars().all():
+            d = r.date or ""
+            if not d:
+                continue
+            nav = r.nav_issue or r.nav_redemption or 0
+            if not nav:
+                continue
+            by_date[d] = {"date": d, "nav": float(nav), "source": "nav_record"}
+    except Exception as e:
+        logger.debug("NAV records unavailable for %s: %s", symbol, e)
+
+    try:
+        # IME fund daily snapshots → one price_close per day
+        result = await session.execute(
+            select(
+                ImeFundModel.fetched_at,
+                func.max(ImeFundModel.price_close),
+            )
+            .where(
+                ImeFundModel.symbol == symbol,
+                ImeFundModel.price_close.is_not(None),
+                ImeFundModel.price_close > 0,
+            )
+            .group_by(ImeFundModel.fetched_at)
+            .order_by(ImeFundModel.fetched_at.asc())
+        )
+        for fetched_at, nav in result.all():
+            d = str(fetched_at)[:10] if fetched_at else ""
+            if not d or not nav:
+                continue
+            if d not in by_date:
+                by_date[d] = {"date": d, "nav": float(nav), "source": "ime_snapshot"}
+    except Exception as e:
+        logger.debug("IME fund NAV history unavailable for %s: %s", symbol, e)
+
+    history = sorted(by_date.values(), key=lambda x: x["date"])
+    # Cap at last 365 entries
+    return history[-365:]
 
 
 # ── Endpoints ──
@@ -204,35 +462,29 @@ def _get_funds() -> list[dict[str, Any]]:
 @router.get("", summary="لیست همه صندوق‌ها")
 async def list_funds(
     search: str | None = Query(None, description="جستجو در نام و نماد"),
-    fund_type: str | None = Query(None, description="نوع صندوق (equity, fixed_income, leveraged, mixed, sector, special)"),
+    fund_type: str | None = Query(None, description="نوع صندوق (سهامی، درآمد ثابت، اهرمی، مختلط، بخشی، اختصاصی)"),
+    market: str | None = Query(None, description="بازار (tse / ime)"),
     min_nav_change: float | None = Query(None, description="حداقل درصد تغییر NAV"),
-    sort_by: str = Query("nav", description="مرتب‌سازی بر اساس (nav, nav_change_pct, trade_volume, market_value, symbol)"),
+    sort_by: str = Query("nav", description="مرتب‌سازی: nav / nav_change_pct / trade_volume / market_value / symbol / name"),
     sort_desc: bool = Query(True, description="نزولی؟"),
-    limit: int = Query(100, ge=1, le=500, description="تعداد نتایج"),
+    limit: int = Query(200, ge=1, le=500, description="تعداد نتایج"),
     offset: int = Query(0, ge=0, description="شروع از"),
-    fund_service: FundService = Depends(get_fund_service),
+    session: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
-    """
-    دریافت لیست همه صندوق‌های سرمایه‌گذاری با امکان فیلتر و مرتب‌سازی.
-
-    - **search**: عبارت جستجو در نماد یا نام صندوق
-    - **fund_type**: فیلتر بر اساس نوع صندوق (equity, fixed_income, leveraged, mixed, sector, special)
-    - **min_nav_change**: حداقل درصد تغییر NAV
-    - **sort_by**: مرتب‌سازی (nav, nav_change_pct, trade_volume, market_value, symbol)
-    - **sort_desc**: نزولی؟
-    - **limit**: حداکثر تعداد نتایج
-    - **offset**: شروع از
-    """
-    funds = _get_funds()
+    """لیست واقعی صندوق‌های بورس تهران و بورس کالا با فیلتر و مرتب‌سازی."""
+    funds = list((await _get_cached_funds(session)).values())
 
     # ── Filter ──
     if search:
         s = search.strip().lower()
-        funds = [f for f in funds if s in f["symbol"].lower() or s in f["name"].lower()]
-
+        funds = [
+            f for f in funds
+            if s in f["symbol"].lower() or s in (f["name"] or "").lower() or s in (f["isin"] or "").lower()
+        ]
     if fund_type:
-        funds = [f for f in funds if _FUND_TYPES_PERSIAN.get(f.get("fund_type", "")) == fund_type]
-
+        funds = [f for f in funds if f.get("fund_type") == fund_type]
+    if market:
+        funds = [f for f in funds if f.get("market") == market]
     if min_nav_change is not None:
         funds = [f for f in funds if (f.get("nav_change_pct") or 0) >= min_nav_change]
 
@@ -243,211 +495,650 @@ async def list_funds(
         "trade_volume": "trade_volume",
         "market_value": "market_value",
         "symbol": "symbol",
+        "name": "name",
     }
     field = sort_field_map.get(sort_by, "nav")
-    funds.sort(key=lambda f: f.get(field, 0) or 0, reverse=sort_desc)
+    if field == "symbol":
+        funds.sort(key=lambda f: f.get(field) or "", reverse=sort_desc)
+    else:
+        funds.sort(key=lambda f: f.get(field) or 0, reverse=sort_desc)
 
     total = len(funds)
-    funds = funds[offset: offset + limit]
+    page_items = funds[offset: offset + limit]
 
-    # ── Types breakdown ──
+    # ── Type / market breakdown ──
     type_counts: dict[str, int] = {}
-    for f in _get_funds():
-        ft = f.get("fund_type", "ساير")
+    market_counts: dict[str, int] = {}
+    for f in funds:
+        ft = f.get("fund_type") or _infer_fund_type(f["name"], f["symbol"])
         type_counts[ft] = type_counts.get(ft, 0) + 1
+        mk = f.get("market", "other")
+        market_counts[mk] = market_counts.get(mk, 0) + 1
 
     return {
         "total": total,
         "limit": limit,
         "offset": offset,
-        "items": funds,
+        "items": page_items,
         "type_counts": type_counts,
+        "market_counts": market_counts,
     }
 
 
 @router.get("/types", summary="لیست انواع صندوق‌ها")
 async def list_fund_types() -> list[dict[str, str]]:
-    """
-    دریافت لیست انواع صندوق‌های سرمایه‌گذاری با کلید انگلیسی و نام فارسی.
-    """
+    """انواع صندوق‌های سرمایه‌گذاری با کلید انگلیسی و نام فارسی."""
     return [
-        {"key": "equity", "label": "سهامی"},
-        {"key": "fixed_income", "label": "درآمد ثابت"},
-        {"key": "leveraged", "label": "اهرمی"},
-        {"key": "mixed", "label": "مختلط"},
-        {"key": "sector", "label": "بخشی"},
-        {"key": "special", "label": "اختصاصی"},
+        {"key": "سهامی", "label": "سهامی"},
+        {"key": "درآمد ثابت", "label": "درآمد ثابت"},
+        {"key": "اهرمی", "label": "اهرمی"},
+        {"key": "مختلط", "label": "مختلط"},
+        {"key": "بخشی", "label": "بخشی"},
+        {"key": "اختصاصی", "label": "اختصاصی"},
     ]
 
 
-@router.get("/{symbol}", summary="جزئیات یک صندوق")
-async def get_fund(symbol: str) -> dict[str, Any]:
-    """
-    دریافت اطلاعات کامل یک صندوق سرمایه‌گذاری.
+# ── Fund market overview (FundBase-style homepage) ──────────────────────────
 
-    - **symbol**: نماد صندوق (مثلاً \"فولاد\")
-    """
-    funds = _get_funds()
-    for f in funds:
-        if f["symbol"] == symbol:
-            # Add analysis prediction without mutating cache
-            score = _compute_fund_score(f)
-            return {**f, "analysis": score}
+_OVERVIEW_CACHE_TTL = 120.0
+_overview_cache_lock = asyncio.Lock()
+_overview_cache: dict[str, Any] | None = None
+_overview_cache_at: float = 0.0
+
+# Shamsi periods used for cash-flow / return comparisons
+_CASHFLOW_PERIODS: dict[str, int] = {
+    "today": 0,
+    "1w": 7,
+    "1m": 31,
+    "3m": 92,
+    "6m": 183,
+    "1y": 365,
+}
+_RETURN_PERIODS: dict[str, int] = {
+    key: _CASHFLOW_PERIODS[d] for key, d in (("m1", "1m"), ("m3", "3m"), ("m6", "6m"), ("y1", "1y"))
+}
+
+
+def _shamsi_days_ago(days: int) -> str:
+    """Return a Shamsi date string (YYYY-MM-DD) ``days`` before today."""
+    today = jdatetime.date.today()
+    target = today - jdatetime.timedelta(days=days)
+    return f"{target.year:04d}-{target.month:02d}-{target.day:02d}"
+
+
+async def _latest_price_per_symbol(session: AsyncSession, symbols: list[str]) -> dict[str, float]:
+    """Latest ``price_close`` per symbol from the historical daily table."""
+    if not symbols:
+        return {}
+    out: dict[str, float] = {}
+    try:
+        stmt = text(
+            "SELECT DISTINCT ON (symbol) symbol, price_close "
+            "FROM brsapi_historical_daily "
+            "WHERE symbol = ANY(:syms) AND price_close > 0 "
+            "ORDER BY symbol, date DESC"
+        )
+        for sym, price in (await session.execute(stmt, {"syms": symbols})).all():
+            if price:
+                out[sym] = float(price)
+    except Exception:
+        logger.exception("Latest prices query failed")
+    return out
+
+
+async def _price_at_or_after(session: AsyncSession, symbols: list[str], boundary: str) -> dict[str, float]:
+    """First available ``price_close`` per symbol with ``date >= boundary``."""
+    if not symbols:
+        return {}
+    out: dict[str, float] = {}
+    try:
+        stmt = text(
+            "SELECT DISTINCT ON (symbol) symbol, price_close "
+            "FROM brsapi_historical_daily "
+            "WHERE symbol = ANY(:syms) AND date >= :boundary AND price_close > 0 "
+            "ORDER BY symbol, date ASC"
+        )
+        for sym, price in (await session.execute(stmt, {"syms": symbols, "boundary": boundary})).all():
+            if price:
+                out[sym] = float(price)
+    except Exception:
+        logger.exception("Period price query failed")
+    return out
+
+
+async def _net_real_inflow_per_symbol(session: AsyncSession, symbols: list[str], boundary: str) -> dict[str, float]:
+    """Net real-person cash inflow (ریال) per symbol over ``date >= boundary``."""
+    if not symbols:
+        return {}
+    out: dict[str, float] = {}
+    try:
+        stmt = text(
+            "SELECT symbol, SUM(COALESCE(buy_real_value, 0) - COALESCE(sell_real_value, 0)) AS net "
+            "FROM brsapi_historical_real_legal "
+            "WHERE symbol = ANY(:syms) AND date >= :boundary "
+            "GROUP BY symbol"
+        )
+        for sym, net in (await session.execute(stmt, {"syms": symbols, "boundary": boundary})).all():
+            if net:
+                out[sym] = float(net)
+    except Exception:
+        logger.exception("Real inflow query failed")
+    return out
+
+
+async def _build_fund_overview(session: AsyncSession) -> dict[str, Any]:
+    """Compute the FundBase-style market overview from real data."""
+    funds = list((await _get_cached_funds(session)).values())
+    if not funds:
+        return {}
+
+    # Only funds that actually traded today (valid price) count as "tradeable".
+    tradeable = [f for f in funds if (f.get("nav") or f.get("price_last") or 0) > 0]
+    symbols = [f["symbol"] for f in tradeable]
+
+    # Normalize legacy fund_type labels into the rich taxonomy so a fund never
+    # lands in two buckets (e.g. "سهامی" vs "سهامی عادی").
+    _TYPE_FIXES = {
+        "سهامی": "سهامی عادی",
+        "اختصاصی": "خصوصی",
+        "صندوق سهامی": "سهامی عادی",
+        "درامد ثابت": "درآمد ثابت",
+    }
+
+    def _norm_type(t: str) -> str:
+        return _TYPE_FIXES.get(t, t)
+
+    symbol_to_type = {
+        f["symbol"]: _norm_type(f.get("fund_type") or _infer_fund_type(f.get("name"), f.get("symbol")))
+        for f in tradeable
+    }
+    type_to_symbols: dict[str, list[str]] = {}
+    for f in tradeable:
+        type_to_symbols.setdefault(symbol_to_type[f["symbol"]], []).append(f["symbol"])
+
+    # ── Today stats per fund ──
+    today_change: dict[str, float] = {}
+    today_value: dict[str, float] = {}
+    today_inflow: dict[str, float] = {}
+    for f in tradeable:
+        sym = f["symbol"]
+        today_change[sym] = float(f.get("nav_change_pct") or 0)
+        today_value[sym] = float(f.get("trade_value") or 0)
+        buy_v = float(f.get("buy_real_volume") or 0)
+        sell_v = float(f.get("sell_real_volume") or 0)
+        price = float(f.get("nav") or f.get("price_last") or 0)
+        today_inflow[sym] = (buy_v - sell_v) * price
+
+    # ── Category aggregation (today) ──
+    def _trimmed_mean(values: list[float]) -> float:
+        sane = [v for v in values if -30.0 <= v <= 30.0]
+        if len(sane) >= max(3, len(values) // 2):
+            return sum(sane) / len(sane)
+        return sum(values) / len(values) if values else 0.0
+
+    categories: list[dict[str, Any]] = []
+    for ftype, syms in type_to_symbols.items():
+        changes = [today_change[s] for s in syms]
+        vals = [today_value[s] for s in syms]
+        inflows = [today_inflow[s] for s in syms]
+        categories.append({
+            "name": ftype,
+            "count": len(syms),
+            "avg_change_pct": round(_trimmed_mean(changes), 2),
+            "trade_value": round(sum(vals), 0),
+            "real_inflow": round(sum(inflows), 0),
+        })
+    categories.sort(key=lambda c: -c["trade_value"])
+    total_value = sum(c["trade_value"] for c in categories) or 1
+    for c in categories:
+        c["share_pct"] = round(c["trade_value"] / total_value * 100, 1)
+
+    meaningful = [c for c in categories if c["count"] >= 3]
+    top_category = max(meaningful or categories, key=lambda c: c["avg_change_pct"]) if categories else None
+
+    # Robust average: trim extreme outliers (±30%) that come from bad snapshots,
+    # then fall back to the plain mean if nothing survives the trim.
+    changes_all = [today_change[s] for s in symbols]
+    sane = [c for c in changes_all if -30.0 <= c <= 30.0]
+    if len(sane) >= max(3, len(changes_all) // 2):
+        avg_change = round(sum(sane) / len(sane), 2)
+    else:
+        avg_change = round(sum(changes_all) / len(changes_all), 2) if changes_all else 0.0
+
+    # ── Top funds (top 10 each) ──
+    _rank_keys: dict[str, Any] = {
+        "growth": lambda f: float(f.get("nav_change_pct") or 0),
+        "value": lambda f: float(f.get("trade_value") or 0),
+        "inflow": lambda f: today_inflow.get(f["symbol"], 0.0),
+    }
+
+    def _ranked(key: str) -> list[dict[str, Any]]:
+        ranked = sorted(tradeable, key=_rank_keys[key], reverse=True)[:10]
+        return [
+            {
+                "symbol": f["symbol"],
+                "name": f.get("name") or f["symbol"],
+                "change_pct": round(float(f.get("nav_change_pct") or 0), 2),
+                "trade_value": round(float(f.get("trade_value") or 0), 0),
+                "real_inflow": round(today_inflow.get(f["symbol"], 0.0), 0),
+            }
+            for f in ranked
+        ]
+
+    top_funds = {
+        "growth": _ranked("growth"),
+        "value": _ranked("value"),
+        "inflow": _ranked("inflow"),
+    }
+
+    # ── Trade value breakdown (donut) ──
+    trade_breakdown = [
+        {"name": c["name"], "value": c["trade_value"], "pct": c["share_pct"]}
+        for c in categories
+    ]
+
+    # ── Historical returns per category (m1/m3/m6/y1) ──
+    # Returns are per-fund ``(latest / period_start - 1)`` and then aggregated per
+    # category with a robust median (bad rows / unit changes are trimmed).
+    def _robust_return(values: list[float]) -> float | None:
+        sane = [v for v in values if abs(v) <= 400.0]  # drop impossible moves (>4x)
+        if not sane:
+            return None
+        return round(statistics.median(sane), 2) if len(sane) >= 3 else round(sum(sane) / len(sane), 2)
+
+    latest = await _latest_price_per_symbol(session, symbols)
+    returns: list[dict[str, Any]] = []
+    if latest:
+        for ftype, syms in type_to_symbols.items():
+            row: dict[str, Any] = {"name": ftype}
+            for key, days in _RETURN_PERIODS.items():
+                boundary = _shamsi_days_ago(days)
+                start = await _price_at_or_after(session, syms, boundary)
+                vals: list[float] = []
+                for s in syms:
+                    cur = latest.get(s)
+                    st = start.get(s)
+                    if cur and st and st > 0:
+                        vals.append((cur / st - 1) * 100)
+                row[key] = _robust_return(vals)
+            if any(v is not None for v in row.values() if isinstance(v, (int, float))):
+                returns.append(row)
+        returns.sort(key=lambda r: -(r.get("y1") or 0))
+
+    # ── Cash flow per category per period (میلیارد تومان) ──
+    # The historical real/legal table may lag calendar today (weekends/holidays),
+    # so "today" uses the latest available date in the table.
+    cashflow: dict[str, dict[str, float]] = {}
+    real_latest_date: str | None = None
+    try:
+        r = await session.execute(
+            text("SELECT MAX(date) FROM brsapi_historical_real_legal WHERE symbol = ANY(:syms)"),
+            {"syms": symbols},
+        )
+        real_latest_date = r.scalar_one_or_none()
+    except Exception:
+        logger.exception("Latest real/legal date query failed")
+
+    for period, days in _CASHFLOW_PERIODS.items():
+        boundary = _shamsi_days_ago(days)
+        if period == "today" and real_latest_date and boundary > real_latest_date:
+            boundary = real_latest_date
+        inflow = await _net_real_inflow_per_symbol(session, symbols, boundary)
+        per_type: dict[str, float] = {}
+        for sym, net in inflow.items():
+            t = symbol_to_type.get(sym)
+            if not t:
+                continue
+            per_type[t] = per_type.get(t, 0.0) + net
+        # Convert ریال → میلیارد تومان (1 میلیارد تومان = 1e9 تومان = 1e10 ریال)
+        cashflow[period] = {t: round(v / 1e10, 2) for t, v in per_type.items()}
 
     return {
-        "symbol": symbol,
-        "error": f"صندوق با نماد {symbol} یافت نشد",
+        "updated_at": datetime.now().isoformat(),
+        "summary": {
+            "fund_count": len(tradeable),
+            "category_count": len(categories),
+            "avg_change_pct": avg_change,
+            "top_category": top_category,
+            "total_trade_value": round(total_value, 0),
+        },
+        "categories": categories,
+        "top_funds": top_funds,
+        "trade_breakdown": trade_breakdown,
+        "returns": returns,
+        "cashflow": cashflow,
+        "cashflow_periods": list(_CASHFLOW_PERIODS.keys()),
     }
 
 
-@router.post("/{symbol}/update", summary="به‌روزرسانی داده‌های صندوق از BrsApi")
+async def _rebuild_overview_cache() -> None:
+    """Background task: rebuild the overview cache with its own DB session."""
+    try:
+        from core.database import async_session_factory
+
+        if async_session_factory is None:
+            return
+        async with async_session_factory() as session:
+            data = await _build_fund_overview(session)
+            async with _overview_cache_lock:
+                global _overview_cache, _overview_cache_at
+                _overview_cache = data
+                _overview_cache_at = time.monotonic()
+                logger.info("Fund overview refreshed in background: %d categories", len(data.get("categories", [])))
+    except Exception:
+        logger.exception("Background fund overview refresh failed")
+
+
+@router.get("/overview", summary="نمای کلی بازار صندوق‌ها (سبک فاندبیس)")
+async def fund_overview(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """داده‌های داشبورد صندوق‌های بورس تهران: خلاصه، دسته‌بندی‌ها، برترین‌ها، بازده دوره‌ای، جریان نقدینگی.
+
+    Stale-while-revalidate: on expiry we trigger a background rebuild (own session)
+    and serve the previous snapshot, so a cold-cache rebuild never blocks the
+    homepage request.
+    """
+    global _overview_cache, _overview_cache_at
+    now = time.monotonic()
+    if _overview_cache is not None and (now - _overview_cache_at) < _OVERVIEW_CACHE_TTL:
+        return ApiResponse(success=True, data=_overview_cache)
+    if _overview_cache is not None and _overview_cache_lock.locked():
+        return ApiResponse(success=True, data=_overview_cache)
+    async with _overview_cache_lock:
+        now = time.monotonic()
+        if _overview_cache is not None and (now - _overview_cache_at) < _OVERVIEW_CACHE_TTL:
+            return ApiResponse(success=True, data=_overview_cache)
+        if _overview_cache is not None:
+            _overview_cache_at = time.monotonic()  # avoid re-triggering on every request
+            asyncio.create_task(_rebuild_overview_cache())
+            return ApiResponse(success=True, data=_overview_cache)
+        try:
+            data = await _build_fund_overview(session)
+            _overview_cache = data
+            _overview_cache_at = time.monotonic()
+            logger.info("Fund overview built (first time): %d categories", len(data.get("categories", [])))
+            return ApiResponse(success=True, data=data)
+        except Exception as exc:
+            logger.exception("Fund overview failed")
+            return ApiResponse(success=False, data={}, error={"message": str(exc)})
+
+
+@router.get("/nav-history", summary="تاریخچه NAV گروهی چند صندوق (برای اسپارکلاین‌ها)")
+async def get_funds_nav_history(
+    symbols: str = Query(..., description="نمادها با کاما جدا شده (حداکثر ۲۰۰)"),
+    limit: int = Query(60, ge=5, le=365, description="حداکثر نقطه به‌ازای هر نماد"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """سری زمانی NAV برای چند نماد در یک درخواست.
+
+    منبع اصلی: ``brsapi_nav_records`` (NAV صدور/ابطال). برای صندوق‌های کالایی
+    که رکورد NAV ندارند، از اسنپ‌شات‌های روزانه ``brsapi_ime_funds`` استفاده
+    می‌شود. خروجی: ``{"symbols": {نماد: [{date, nav, source}, ...]}}``
+    """
+    sym_list = [s.strip() for s in symbols.split(",") if s.strip()][:200]
+    result: dict[str, list[dict[str, Any]]] = {}
+    if not sym_list:
+        return {"symbols": result}
+
+    try:
+        rows = (
+            await session.execute(
+                select(
+                    NavRecordModel.symbol,
+                    NavRecordModel.date,
+                    NavRecordModel.nav_issue,
+                    NavRecordModel.nav_redemption,
+                )
+                .where(NavRecordModel.symbol.in_(sym_list))
+                .order_by(NavRecordModel.symbol, NavRecordModel.date.asc())
+            )
+        ).all()
+        per_sym: dict[str, list[dict[str, Any]]] = {}
+        for sym, d, nav_issue, nav_redemption in rows:
+            if not d:
+                continue
+            nav = nav_issue or nav_redemption or 0
+            if not nav:
+                continue
+            per_sym.setdefault(sym, []).append({"date": str(d), "nav": float(nav), "source": "nav_record"})
+    except Exception as e:
+        logger.debug("Bulk NAV records unavailable: %s", e)
+
+    # IME commodity-fund fallback: one price_close per fetched day.
+    try:
+        ime_rows = (
+            await session.execute(
+                select(
+                    ImeFundModel.symbol,
+                    ImeFundModel.fetched_at,
+                    func.max(ImeFundModel.price_close),
+                )
+                .where(
+                    ImeFundModel.symbol.in_(sym_list),
+                    ImeFundModel.price_close.is_not(None),
+                    ImeFundModel.price_close > 0,
+                )
+                .group_by(ImeFundModel.symbol, ImeFundModel.fetched_at)
+            )
+        ).all()
+        for sym, fetched_at, nav in ime_rows:
+            d = str(fetched_at)[:10] if fetched_at else ""
+            if not d or not nav:
+                continue
+            series = per_sym.setdefault(sym, [])
+            if all(p["date"] != d for p in series):
+                series.append({"date": d, "nav": float(nav), "source": "ime_snapshot"})
+    except Exception as e:
+        logger.debug("IME NAV history unavailable: %s", e)
+
+    for sym, series in per_sym.items():
+        # Deduplicate by date (keep one value per day) so intraday NAV updates
+        # never produce a jumpy/flat sparkline. When both a nav_record and an
+        # IME snapshot share a date, the authoritative nav_record wins.
+        by_date: dict[str, dict[str, Any]] = {}
+        for p in series:
+            cur = by_date.get(p["date"])
+            if cur is None or (
+                p.get("source") == "nav_record" and cur.get("source") != "nav_record"
+            ):
+                by_date[p["date"]] = p
+        ordered = sorted(by_date.values(), key=lambda p: p["date"])
+        result[sym] = ordered[-limit:]
+    return {"symbols": result}
+
+
+@router.get("/{symbol}/nav", summary="تاریخچه NAV یک صندوق")
+async def get_fund_nav(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """تاریخچه NAV صندوق (صدور/ابطال + اسنپ‌شات‌های روزانه)."""
+    history = await _load_nav_history(session, symbol)
+    return {
+        "symbol": symbol,
+        "history": history,
+        "points": len(history),
+        "latest": history[-1] if history else None,
+        "oldest": history[0] if history else None,
+    }
+
+
+@router.get("/{symbol}", summary="جزئیات یک صندوق")
+async def get_fund(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """اطلاعات کامل یک صندوق از داده‌های واقعی دیتابیس."""
+    funds = await _get_cached_funds(session)
+    fund = funds.get(symbol)
+    if not fund:
+        # try case-insensitive
+        low = symbol.lower()
+        for sym, f in funds.items():
+            if sym.lower() == low:
+                fund = f
+                break
+    if not fund:
+        return {"symbol": symbol, "error": f"صندوق با نماد {symbol} یافت نشد", "found": False}
+
+    # Shallow-copy so request-scoped fields never mutate the shared cache.
+    fund = dict(fund)
+    nav_history = await _load_nav_history(session, fund["symbol"])
+    fund["nav_history"] = nav_history
+    fund["nav_history_points"] = len(nav_history)
+    fund["analysis"] = _compute_full_analysis(fund)
+    fund["found"] = True
+    return fund
+
+
+@router.post("/sync-all", summary="همگام‌سازی انبوه صندوق‌ها از اسنپ‌شات‌های BrsApi")
+async def sync_all_funds(
+    limit: int = Query(20, ge=1, le=80, description="حداکثر تعداد صندوق برای همگام‌سازی"),
+    session: AsyncSession = Depends(get_db_session),
+    brsapi: BrsApiQueryService = Depends(get_brsapi_query_service),
+) -> dict[str, Any]:
+    """پر کردن جدول ``funds`` از اسنپ‌شات‌های موجود (نیازی به API زنده ندارد).
+
+    هر صندوق از ``get_enriched_symbol_detail`` (جدول brsapi_symbol_snapshots)
+    خوانده و در جدول ``funds`` ذخیره می‌شود.
+    """
+    from services.fund_sync_service import KNOWN_FUND_SYMBOLS, FundSyncService
+
+    symbols = KNOWN_FUND_SYMBOLS[:limit]
+    sync = FundSyncService(
+        fund_service=FundService(session=session),
+        brsapi=brsapi,
+    )
+    report = await sync.sync_all_funds(symbols=symbols)
+    await _invalidate_fund_cache()
+    global _overview_cache, _overview_cache_at
+    _overview_cache = None
+    _overview_cache_at = 0.0
+    return {
+        "success": report.failed == 0 and report.success > 0,
+        "total": report.total,
+        "success_count": report.success,
+        "failed_count": report.failed,
+        "errors": report.errors[:20],
+        "duration_ms": report.duration_ms,
+        "message": report.summary,
+    }
+
+
+@router.post("/{symbol}/update", summary="به‌روزرسانی داده‌های یک صندوق از اسنپ‌شات‌های BrsApi")
 async def update_fund_from_brsapi(
     symbol: str,
     fund_service: FundService = Depends(get_fund_service),
     brsapi: BrsApiQueryService = Depends(get_brsapi_query_service),
 ) -> dict[str, Any]:
-    """
-    دریافت داده‌های لحظه‌ای یک صندوق از BrsApi و ذخیره در دیتابیس.
-
-    - **symbol**: نماد صندوق (مثلاً \"آگاس\")
-
-    اگر صندوق قبلاً در دیتابیس وجود داشته باشد، داده‌های آن به‌روز می‌شود.
-    در غیر این صورت، صندوق جدیدی ایجاد می‌شود.
-
-    داده‌های دریافتی:
-      - قیمت‌ها (last, close, yesterday, max, min)
-      - حجم و ارزش معاملات
-      - تعداد معاملات
-      - خرید/فروش حقیقی و حقوقی
-      - NAV محاسبه‌شده
-    """
-    return await fund_service.update_from_brsapi(
-        symbol=symbol,
-        brsapi=brsapi,
-    )
+    """دریافت داده‌های لحظه‌ای یک صندوق از اسنپ‌شات‌های BrsApi و ذخیره در جدول ``funds``."""
+    result = await fund_service.update_from_brsapi(symbol=symbol, brsapi=brsapi)
+    await _invalidate_fund_cache()
+    global _overview_cache, _overview_cache_at
+    _overview_cache = None
+    _overview_cache_at = 0.0
+    return result
 
 
-@router.get("/{symbol}/analysis", summary="تحلیل هوشمند یک صندوق")
-async def get_fund_analysis(symbol: str) -> dict[str, Any]:
-    """
-    تحلیل کامل یک صندوق بر اساس ۶ بعد:
-    مالی، نقدشوندگی، مدیریت، ریسک، هزینه، شفافیت
-
-    - **symbol**: نماد صندوق (مثلاً \"آگاس\")
-    """
-    funds = _get_funds()
-    fund = None
-    for f in funds:
-        if f["symbol"] == symbol:
-            fund = f
-            break
-
+@router.get("/{symbol}/analysis", summary="تحلیل هوشمند یک صندوق (۶ بعد)")
+async def get_fund_analysis(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """تحلیل کامل یک صندوق بر اساس ۶ بعد: مالی، نقدشوندگی، مدیریت، ریسک، هزینه، شفافیت."""
+    funds = await _get_cached_funds(session)
+    fund = funds.get(symbol)
     if not fund:
-        return {"symbol": symbol, "error": f"صندوق با نماد {symbol} یافت نشد"}
-
-    return _compute_full_analysis(fund)
-
-
-# ── Internal helpers ──
+        return {"symbol": symbol, "error": f"صندوق با نماد {symbol} یافت نشد", "found": False}
+    return _compute_full_analysis(dict(fund))
 
 
-def _compute_fund_score(f: dict[str, Any]) -> dict[str, Any]:
-    """Quick score recomputation for a fund (mimicking frontend logic)."""
-    score = 60  # base
-
-    if f.get("nav_change_pct", 0) > 1:
-        score += 20
-    elif f.get("nav_change_pct", 0) > 0:
-        score += 5
-    elif f.get("nav_change_pct", 0) < -1:
-        score -= 10
-
-    if f.get("trade_volume", 0) > 1_000_000:
-        score += 15
-    elif f.get("trade_volume", 0) > 100_000:
-        score += 5
-    else:
-        score -= 10
-
-    if f.get("market_value", 0) > 1_000_000_000_000:
-        score += 10
-    elif f.get("market_value", 0) < 50_000_000_000:
-        score -= 5
-
-    return {
-        "score": max(0, min(100, score)),
-        "recommendation": "BUY" if score >= 70 else "WATCHLIST" if score >= 55 else "HOLD" if score >= 40 else "AVOID",
-    }
+# ── Internal helpers (۶بعدی) ────────────────────────────────────────────────
 
 
 def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
-    """Full 6-dimension fund analysis matching the frontend engine."""
+    """تحلیل ۶‌بعدی روی داده واقعی (ساختار خروجی هماهنگ با موتور فرانت)."""
+    nav_change = f.get("nav_change_pct") or 0
+    trade_volume = f.get("trade_volume") or 0
+    trade_value = f.get("trade_value") or 0
+    trade_count = f.get("trade_count") or 0
+    shares_count = f.get("shares_count") or 0
+    market_value = f.get("market_value") or 0
+    price_last = f.get("price_last") or 0
+    price_max = f.get("price_max") or 0
+    price_min = f.get("price_min") or 0
+    price_yesterday = f.get("price_yesterday") or 0
+    nav = f.get("nav") or 0
+    isin = f.get("isin") or ""
+    name = f.get("name") or ""
+    buy_real = f.get("buy_real_volume") or 0
+    buy_legal = f.get("buy_legal_volume") or 0
+    sell_legal = f.get("sell_legal_volume") or 0
 
-    # Financial
+    # ── مالی ──
     financial = 60
-    if f.get("nav_change_pct", 0) > 1:
+    if nav_change > 1:
         financial += 20
-    elif f.get("nav_change_pct", 0) > 0.5:
+    elif nav_change > 0.5:
         financial += 10
-    elif f.get("nav_change_pct", 0) > 0:
+    elif nav_change > 0:
         financial += 5
-    elif f.get("nav_change_pct", 0) < -0.5:
+    elif nav_change < -0.5:
         financial -= 15
-    if f.get("nav", 0) > 10000:
+    if nav > 10000:
         financial += 5
-    if f.get("trade_count", 0) > 100:
+    if trade_count > 100:
         financial += 5
     financial = max(0, min(100, financial))
 
-    # Liquidity
+    # ── نقدشوندگی ──
     liquidity = 50
-    if f.get("trade_volume", 0) > 1_000_000:
+    if trade_volume > 1_000_000:
         liquidity += 30
-    elif f.get("trade_volume", 0) > 500_000:
+    elif trade_volume > 500_000:
         liquidity += 20
-    elif f.get("trade_volume", 0) > 100_000:
+    elif trade_volume > 100_000:
         liquidity += 10
     else:
         liquidity -= 15
-    if f.get("trade_value", 0) > 1_000_000_000:
+    if trade_value > 1_000_000_000:
         liquidity += 10
-    elif f.get("trade_value", 0) > 100_000_000:
+    elif trade_value > 100_000_000:
         liquidity += 5
     else:
         liquidity -= 5
-    if f.get("trade_count", 0) > 500:
+    if trade_count > 500:
         liquidity += 10
-    elif f.get("trade_count", 0) > 100:
+    elif trade_count > 100:
         liquidity += 5
-    elif f.get("trade_count", 0) < 10:
+    elif trade_count < 10:
         liquidity -= 10
     liquidity = max(0, min(100, liquidity))
 
-    # Management
+    # ── مدیریت ──
     management = 65
-    if f.get("shares_count", 0) > 50_000_000:
+    if shares_count > 50_000_000:
         management += 20
-    elif f.get("shares_count", 0) > 10_000_000:
+    elif shares_count > 10_000_000:
         management += 10
-    elif f.get("shares_count", 0) < 1_000_000:
+    elif shares_count < 1_000_000:
         management -= 15
-    if f.get("market_value", 0) > 1_000_000_000_000:
+    if market_value > 1_000_000_000_000:
         management += 10
-    elif f.get("market_value", 0) > 100_000_000_000:
+    elif market_value > 100_000_000_000:
         management += 5
     else:
         management -= 5
-    net_legal = (f.get("buy_legal_volume", 0) or 0) - (f.get("sell_legal_volume", 0) or 0)
-    if net_legal > 0:
+    if (buy_legal - sell_legal) > 0:
         management += 5
     management = max(0, min(100, management))
 
-    # Risk
+    # ── ریسک ──
     risk = 60
-    price_range = (f.get("price_max", 0) or 0) - (f.get("price_min", 0) or 0)
-    avg_price = ((f.get("price_max", 0) or 0) + (f.get("price_min", 0) or 0)) / 2
+    avg_price = (price_max + price_min) / 2
     if avg_price > 0:
-        range_pct = price_range / avg_price
+        range_pct = (price_max - price_min) / avg_price
         if range_pct < 0.01:
             risk += 15
         elif range_pct < 0.03:
@@ -456,48 +1147,47 @@ def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
             risk += 5
         elif range_pct > 0.10:
             risk -= 10
-    if f.get("nav_change_pct", 0) < -2:
+    if nav_change < -2:
         risk -= 15
-    elif f.get("nav_change_pct", 0) < -1:
+    elif nav_change < -1:
         risk -= 10
-    elif f.get("nav_change_pct", 0) < -0.5:
+    elif nav_change < -0.5:
         risk -= 5
-    if f.get("trade_volume", 0) > 500_000:
+    if trade_volume > 500_000:
         risk += 5
     risk = max(0, min(100, risk))
 
-    # Cost
+    # ── هزینه ──
     cost = 70
-    if (f.get("price_last", 0) or 0) > 0 and (f.get("nav", 0) or 0) > 0:
-        premium = ((f["price_last"] - f["nav"]) / f["nav"]) * 100
+    if price_last > 0 and nav > 0:
+        premium = ((price_last - nav) / nav) * 100
         if premium > 5:
             cost -= 15
         elif premium > 2:
             cost -= 5
         elif premium > 0:
             cost -= 2
-    if f.get("trade_count", 0) > 1000:
+    if trade_count > 1000:
         cost -= 5
-    elif f.get("trade_count", 0) < 10:
+    elif trade_count < 10:
         cost += 5
     cost = max(0, min(100, cost))
 
-    # Transparency
+    # ── شفافیت ──
     transparency = 65
-    if f.get("isin", "") and len(f.get("isin", "")) > 5:
+    if len(isin) > 5:
         transparency += 15
-    if f.get("price_yesterday", 0) > 0:
+    if price_yesterday > 0:
         transparency += 5
-    if (f.get("price_max", 0) or 0) > 0 and (f.get("price_min", 0) or 0) > 0:
+    if price_max > 0 and price_min > 0:
         transparency += 5
-    if len(f.get("name", "")) > 3:
+    if len(name) > 3:
         transparency += 5
-    if (f.get("buy_real_volume", 0) or 0) > 0 or (f.get("buy_legal_volume", 0) or 0) > 0:
+    if buy_real > 0 or buy_legal > 0:
         transparency += 5
     transparency = max(0, min(100, transparency))
 
-    # Total
-    total = (
+    total = round(
         financial * 0.25
         + liquidity * 0.20
         + management * 0.18
@@ -505,9 +1195,18 @@ def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
         + cost * 0.12
         + transparency * 0.10
     )
-    total = max(0, min(100, round(total)))
 
-    # Recommendation
+    issues_count = 0
+    for check in (
+        nav_change < -2,
+        trade_volume < 100_000,
+        market_value < 50_000_000_000,
+        financial < 50,
+        liquidity < 40,
+    ):
+        if check:
+            issues_count += 1
+
     if total >= 80 and risk >= 50:
         rec = "STRONG_BUY"
     elif total >= 70:
@@ -516,22 +1215,10 @@ def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
         rec = "WATCHLIST"
     elif total >= 50:
         rec = "HOLD"
-    elif total >= 35:
+    elif total >= 40:
         rec = "REDUCE"
     else:
         rec = "AVOID"
-
-    # Risk level
-    issues_count = 0
-    for check, inc in [
-        (f.get("nav_change_pct", 0) < -2, 1),
-        (f.get("trade_volume", 0) < 100_000, 1),
-        (f.get("market_value", 0) < 50_000_000_000, 1),
-        (financial < 50, 1),
-        (liquidity < 40, 1),
-    ]:
-        if check:
-            issues_count += inc
 
     if total < 35 or issues_count >= 3:
         risk_level = "CRITICAL"
@@ -542,9 +1229,11 @@ def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
     else:
         risk_level = "LOW"
 
+    status = "عالی" if total >= 75 else "قابل قبول" if total >= 60 else "نیازمند بهبود" if total >= 40 else "ضعیف"
+
     return {
         "symbol": f["symbol"],
-        "name": f["name"],
+        "name": name,
         "scores": {
             "financial": financial,
             "liquidity": liquidity,
@@ -557,5 +1246,5 @@ def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
         "recommendation": rec,
         "risk_level": risk_level,
         "issues_count": issues_count,
-        "summary": f"امتیاز کلی: {total}% - {'مناسب خرید' if rec in ('STRONG_BUY', 'BUY') else 'قابل توجه' if rec == 'WATCHLIST' else 'نیازمند بررسی'} ({issues_count} مشکل شناسایی شده)",
+        "summary": f"امتیاز کلی: {total}% - وضعیت: {status} - {issues_count} مشکل شناسایی شده",
     }

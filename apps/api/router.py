@@ -180,6 +180,9 @@ class Router:
         from apps.api.endpoints.brsapi import router as brsapi_router
         from apps.api.endpoints.chat import router as chat_router
         from apps.api.endpoints.codal import router as codal_router
+        from apps.api.endpoints.codal_accounting import router as codal_accounting_router
+        from apps.api.endpoints.codal_audit import router as codal_audit_router
+        from apps.api.endpoints.codal_professional import router as codal_professional_router
         from apps.api.endpoints.compose import router as compose_router
         from apps.api.endpoints.data_import import router as data_import_router
         from apps.api.endpoints.decision_engine import router as decision_engine_router
@@ -199,6 +202,7 @@ class Router:
         from apps.api.endpoints.multi_market_signals import router as multi_market_signals_router
         from apps.api.endpoints.news import router as news_router
         from apps.api.endpoints.orderbooks import router as orderbooks_router
+        from apps.api.endpoints.paper_trading import router as paper_trading_router
         from apps.api.endpoints.portfolios import router as portfolios_router
         from apps.api.endpoints.queue_analysis import router as queue_analysis_router
         from apps.api.endpoints.quotes import router as quotes_router
@@ -226,7 +230,7 @@ class Router:
         router.include_router(health_router, prefix="/health", tags=["Health"])
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # All data routers have optional auth — token is checked if provided, but not required
-        router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"], dependencies=_require_user)
+        router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"], dependencies=_optional_auth)
         router.include_router(
             market_router,
             prefix="/market",
@@ -299,6 +303,24 @@ class Router:
         router.include_router(
             codal_router, prefix="/codal", tags=["Codal"], dependencies=_optional_auth
         )
+        router.include_router(
+            codal_accounting_router,
+            prefix="/codal-accounting",
+            tags=["Codal Accounting"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            codal_audit_router,
+            prefix="/codal-audit",
+            tags=["Codal Audit"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            codal_professional_router,
+            prefix="/codal-professional",
+            tags=["Codal Professional"],
+            dependencies=_optional_auth,
+        )
         router.include_router(data_import_router,
             prefix="/data-import",
             tags=["Data Import"],
@@ -328,9 +350,9 @@ class Router:
         router.include_router(backtests_router,
             prefix="/backtests",
             tags=["Backtests"],
-            dependencies=_require_analyst,
+            dependencies=_optional_auth,
         )
-        router.include_router(ml_router, prefix="/ml", tags=["ML"], dependencies=_require_analyst)
+        router.include_router(ml_router, prefix="/ml", tags=["ML"], dependencies=_optional_auth)
         router.include_router(
             multi_market_signals_router,
             prefix="/multi-market-signals",
@@ -416,6 +438,12 @@ class Router:
             prefix="/portfolios",
             tags=["Portfolios"],
             dependencies=_require_user,
+        )
+        router.include_router(
+            paper_trading_router,
+            prefix="/paper-trading",
+            tags=["Paper Trading"],
+            dependencies=_optional_auth,
         )
         router.include_router(
             watchlist_router,

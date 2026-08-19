@@ -10,8 +10,12 @@ The registry makes it easy to bulk-register all jobs with APScheduler.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
+
+import pytz
 
 from brsapi.client import BrsApiClient, get_client
 from brsapi.config import BrsApiEndpoints, EndpointConfig
@@ -76,6 +80,37 @@ _EVERY_15_MIN = 900
 _EVERY_1_HOUR = 3600
 _EVERY_DAY_AT_9AM = "0 9 * * *"
 _EVERY_DAY_AT_6PM = "0 18 * * *"
+# After Tehran market close (12:30) — candlestick backfill window.
+_EVERY_DAY_AT_1PM = "0 13 * * *"
+# Shareholder backfill runs 30min later so the two quota-hungry full-market
+# jobs don't hammer the API in the same instant.
+_EVERY_DAY_AT_1_30PM = "30 13 * * *"
+# History backfills follow at 30-min offsets: price at 14:00, real/legal at
+# 14:30 — each 30min after the previous quota-hungry full-market job.
+_EVERY_DAY_AT_2PM = "0 14 * * *"
+_EVERY_DAY_AT_2_30PM = "30 14 * * *"
+# Symbol-detail full-market refresh at night (21:00) — well after all the
+# after-close backfills have finished so the shared API quota is fully
+# available for the nightly symbol-detail refresh.
+_EVERY_NIGHT_AT_9PM = "0 21 * * *"
+
+# Tehran weekend: Thursday + Friday (Python weekday 3/4).
+_TEHRAN_WEEKEND_DAYS = (3, 4)
+
+
+def _is_tehran_weekend(now: datetime | None = None) -> bool:
+    """True when ``now`` (Tehran wall-clock) is a Thursday or Friday.
+
+    Used to skip the quota-hungry candlestick backfill on days the Tehran
+    market is closed. Fails open (returns False) on tz errors so a broken
+    timezone never blocks a backfill.
+    """
+    try:
+        current = now or datetime.now(pytz.timezone(brsapi_settings.market_timezone))
+        return current.weekday() in _TEHRAN_WEEKEND_DAYS
+    except Exception:  # noqa: BLE001
+        logger.warning("Tehran weekend check failed; allowing backfill", exc_info=True)
+        return False
 
 
 BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
@@ -239,6 +274,60 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         cron=_EVERY_DAY_AT_6PM,
         description="Sync IME physical trades (daily after market close)",
     ),
+    # ── Candlestick full-market backfill (daily after close) ──────────
+    # Runs AFTER the Tehran market closes (13:00). Fetches the fresh
+    # AllSymbols list, then for every symbol syncs all three candlestick
+    # types: adjusted (3), unadjusted (2) and realtime intraday (1).
+    # The API allows 2 req/10s on Candlestick, so symbols are processed in
+    # daily chunks (``max_symbols``) and the run resumes with the symbols
+    # that still lack candlestick data on subsequent days.
+    BrsApiSyncJob(
+        name="brsapi_candlesticks_all",
+        endpoint_config=BrsApiEndpoints.CANDLESTICK,
+        cron=_EVERY_DAY_AT_1PM,
+        description="Daily 13:00 — AllSymbols + adjusted/unadjusted/realtime candlesticks for all symbols (chunked)",
+    ),
+    # ── Shareholder full-market backfill (daily after close) ──────────
+    # Runs at 13:30 — 30 minutes AFTER the candlestick job so both
+    # full-market backfills don't start at the same instant. Refreshes
+    # AllSymbols and syncs the latest shareholder composition for every
+    # symbol, chunked per day like the candlestick job.
+    BrsApiSyncJob(
+        name="brsapi_shareholders_all",
+        endpoint_config=BrsApiEndpoints.SHAREHOLDER,
+        cron=_EVERY_DAY_AT_1_30PM,
+        description="Daily 13:30 — AllSymbols + latest shareholders for all symbols (chunked)",
+    ),
+    # ── History full-market backfills (daily after close) ──────────
+    # Daily historical prices (14:00) and real/legal breakdown (14:30) for
+    # every symbol — one request per symbol, chunked per day exactly like the
+    # shareholder backfill, and 30min apart from each other and from the
+    # shareholder job so the shared API quota is not hammered at once.
+    BrsApiSyncJob(
+        name="brsapi_history_price_all",
+        endpoint_config=BrsApiEndpoints.HISTORY_PRICE,
+        cron=_EVERY_DAY_AT_2PM,
+        description="Daily 14:00 — AllSymbols + daily historical prices for all symbols (chunked)",
+    ),
+    BrsApiSyncJob(
+        name="brsapi_history_real_legal_all",
+        endpoint_config=BrsApiEndpoints.HISTORY_REALLEGAL,
+        cron=_EVERY_DAY_AT_2_30PM,
+        description="Daily 14:30 — AllSymbols + real/legal history for all symbols (chunked)",
+    ),
+    # ── Symbol-detail full-market refresh (nightly) ──────────
+    # Runs every night at 21:00 — after all the after-close backfills have
+    # finished so the shared API quota is fully available. Refreshes
+    # AllSymbols and syncs the enriched Symbol.php detail for every symbol
+    # (prices, order book, real/legal counts, assembly info, …), chunked per
+    # day like the shareholder/history backfills. Feeds the /symbol-details
+    # frontend page.
+    BrsApiSyncJob(
+        name="brsapi_symbol_details_all",
+        endpoint_config=BrsApiEndpoints.SYMBOL_DETAIL,
+        cron=_EVERY_NIGHT_AT_9PM,
+        description="Every night 21:00 — AllSymbols + enriched symbol details for all symbols (chunked)",
+    ),
 ]
 
 
@@ -257,6 +346,21 @@ class BrsApiJobRegistry:
         self._jobs: dict[str, BrsApiSyncJob] = {}
         self._client: BrsApiClient | None = None
         self._scheduler: Any = None
+        # Optional runner override: when set, APScheduler-triggered jobs call
+        # this instead of ``run_job`` directly. Used by the queue-based
+        # architecture (scheduler pushes to Redis; workers execute). When
+        # None (default) jobs run in-process — single-worker dev mode.
+        self._run_handler: Any | None = None
+
+    @property
+    def run_handler(self) -> Any | None:
+        """Async callable(job_name) used to run/queue jobs."""
+        return self._run_handler
+
+    @run_handler.setter
+    def run_handler(self, handler: Any | None) -> None:
+        """Set an async runner (e.g. ``lambda name: publisher.publish(name)``)."""
+        self._run_handler = handler
 
     def register(self, job: BrsApiSyncJob) -> None:
         self._jobs[job.name] = job
@@ -383,7 +487,11 @@ class BrsApiJobRegistry:
         tz = pytz.timezone(brsapi_settings.market_timezone)
 
         async def _run(job_name: str = job.name) -> None:
-            await self.run_job(job_name)
+            if self._run_handler is not None:
+                # Queue mode: push the job, let a worker execute it.
+                await self._run_handler(job_name)
+            else:
+                await self.run_job(job_name)
 
         if isinstance(job.cron, int):
             self._scheduler.add_job(
@@ -561,6 +669,24 @@ class BrsApiJobRegistry:
                 await session.commit()
                 return all_reports[0] if all_reports else None
 
+            # ── Special handler: candlestick full-market backfill ──
+            if job_name == "brsapi_candlesticks_all":
+                return await self._run_candlesticks_all(session, service)
+
+            # ── Special handler: shareholder full-market backfill ──
+            if job_name == "brsapi_shareholders_all":
+                return await self._run_shareholders_all(session, service)
+
+            # ── Special handler: history full-market backfills ──
+            if job_name == "brsapi_history_price_all":
+                return await self._run_history_price_all(session, service)
+            if job_name == "brsapi_history_real_legal_all":
+                return await self._run_history_real_legal_all(session, service)
+
+            # ── Special handler: symbol-detail full-market refresh ──
+            if job_name == "brsapi_symbol_details_all":
+                return await self._run_symbol_details_all(session, service)
+
             # ── Standard single-endpoint sync ──
             report = await service.sync(
                 endpoint=job.endpoint_config,
@@ -581,7 +707,955 @@ class BrsApiJobRegistry:
 
         return None
 
-    # ── Parser / model lookup ───────────────────
+    # ── Candlestick full-market backfill (daily after close) ──
+
+    async def _run_candlesticks_all(
+        self,
+        session: Any,
+        service: BrsApiSyncService,
+        *,
+        max_symbols: int | None = None,
+        sleep_s: float | None = None,
+        allow_weekend: bool = False,
+        progress: dict[str, Any] | None = None,
+    ) -> SyncReport | None:
+        """Daily-after-close candlestick backfill for the whole market.
+
+        Steps:
+          1. Refresh the AllSymbols list (brsapi_symbol_snapshots) so the
+             symbol set matches the live market. If the fresh list is
+             EMPTY the market is very likely closed (holiday) — the whole
+             backfill is skipped instead of re-syncing from stale symbols.
+          2. Load all distinct symbols from the snapshots table.
+          3. Sort so symbols WITHOUT any candlestick rows are processed
+             first (fresh backfill); previously-synced symbols are caught
+             up later.
+          4. For each symbol (up to ``max_symbols`` per run) sync all three
+             candlestick types: adjusted (3), unadjusted (2), realtime (1).
+
+        The global rate limiter (1000 req/5min, 10000/day) is the real gate;
+        ``brsapi_settings.candle_req_delay`` (default 0.2s) is only a small
+        politeness spacing and the daily chunk is bounded by
+        (``brsapi_settings.candle_daily_max_symbols``, default 1000).
+        Re-running the job on later days automatically resumes with the
+        still-missing symbols.
+
+        Overridable parameters:
+        - ``max_symbols``: cap the number of symbols processed in this run
+          (0 or None = settings default; pass a value to override).
+        - ``sleep_s``: seconds between API requests (default from settings).
+        - ``allow_weekend``: skip the Tehran weekend guard (manual runs).
+        - ``progress``: optional mutable dict updated with live progress
+          (status, processed, ok, fail, items, current_symbol, message).
+          Setting ``progress["cancel_requested"] = True`` stops the run
+          after the current symbol.
+
+        Tehran weekend (Thu/Fri) is skipped to conserve the free API quota
+        — no new trades exist then, and type=1 returns ``no_data`` anyway.
+        """
+        from sqlalchemy import select
+
+        from brsapi.models import CandlestickModel, SymbolSnapshotModel
+
+        # Tehran weekend guard — skip on Thursday/Friday (Python weekday 3/4)
+        # unless the caller explicitly allows weekend runs.
+        if not allow_weekend and _is_tehran_weekend():
+            logger.info("Candlestick daily: Tehran weekend — skipped to save quota")
+            return SyncReport(
+                endpoint=BrsApiEndpoints.CANDLESTICK.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        if max_symbols is None:
+            max_symbols = brsapi_settings.candle_daily_max_symbols
+        if sleep_s is None:
+            sleep_s = brsapi_settings.candle_req_delay
+
+        # 1. Refresh the live symbol list
+        symbols_report = await service.sync_all_symbols(session)
+        logger.info(
+            "Candlestick daily: AllSymbols refresh %s (%d items)",
+            "OK" if symbols_report.success else "FAIL",
+            symbols_report.items_count,
+        )
+        await session.commit()
+
+        # If the fresh AllSymbols fetch succeeded but returned ZERO symbols
+        # the market is almost certainly closed/holiday — there are no new
+        # candles to fetch, so skip instead of re-syncing from the stale
+        # symbol list still held in the snapshots table.
+        if symbols_report.success and symbols_report.items_count == 0:
+            logger.info(
+                "Candlestick daily: AllSymbols returned 0 symbols — "
+                "market closed/holiday, skipping candle backfill",
+            )
+            return SyncReport(
+                endpoint=BrsApiEndpoints.CANDLESTICK.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        # 2. All distinct symbols from the snapshots table
+        stmt = select(SymbolSnapshotModel.symbol).distinct()
+        result = await session.execute(stmt)
+        symbols = [row[0] for row in result if row[0]]
+        if not symbols:
+            logger.warning("Candlestick daily: no symbols found — aborting")
+            return None
+
+        # 3. Symbols already holding candlestick rows
+        have = await session.execute(
+            select(CandlestickModel.symbol).distinct()
+        )
+        have_set = {row[0] for row in have if row[0]}
+        # Missing symbols first (fresh backfill), then already-synced ones.
+        missing = [s for s in symbols if s not in have_set]
+        done = [s for s in symbols if s in have_set]
+        ordered = missing + done
+        # max_symbols <= 0 means "no limit" (whole market).
+        if max_symbols <= 0:
+            max_symbols = len(ordered)
+        chunk = ordered[:max_symbols]
+        logger.info(
+            "Candlestick daily: %d symbols total (%d missing) — processing %d today",
+            len(ordered),
+            len(missing),
+            len(chunk),
+        )
+
+        if progress is not None:
+            progress.update({
+                "status": "running",
+                "total_symbols": len(chunk),
+                "processed": 0,
+                "ok": 0,
+                "fail": 0,
+                "items": 0,
+                "current_symbol": None,
+                "message": f"آماده‌سازی: {len(chunk)} نماد برای پردازش",
+            })
+
+        # 4. Sync all three types for each symbol in the chunk
+        total_items = 0
+        ok = fail = 0
+        failed: list[str] = []
+        cancelled = False
+        start = time.monotonic()
+        for i, sym in enumerate(chunk):
+            # Honour a user-requested cancellation between symbols.
+            if progress is not None and progress.get("cancel_requested"):
+                cancelled = True
+                logger.info("Candlestick daily: cancel requested — stopping at %s", sym)
+                break
+            is_last = i == len(chunk) - 1
+            for candle_type in ("3", "2", "1"):
+                try:
+                    report = await service.sync_candlesticks(
+                        session, sym, candle_type=candle_type
+                    )
+                    if report.success:
+                        ok += 1
+                        total_items += report.items_count
+                    else:
+                        fail += 1
+                        failed.append(f"{sym}/type{candle_type}")
+                        logger.warning(
+                            "Candlestick daily %s type=%s: FAIL %s",
+                            sym, candle_type, report.error,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    fail += 1
+                    failed.append(f"{sym}/type{candle_type}")
+                    logger.exception(
+                        "Candlestick daily %s type=%s: EXC %s",
+                        sym, candle_type, exc,
+                    )
+                # Rate-limit spacing — skip the sleep after the very last
+                # request of the run.
+                if sleep_s > 0 and not (is_last and candle_type == "1"):
+                    await asyncio.sleep(sleep_s)
+            if progress is not None:
+                progress.update({
+                    "processed": i + 1,
+                    "ok": ok,
+                    "fail": fail,
+                    "items": total_items,
+                    "current_symbol": sym,
+                    "message": f"{i + 1}/{len(chunk)} — {sym} (✅ {ok} | ❌ {fail})",
+                })
+            if (i + 1) % 25 == 0:
+                logger.info(
+                    "Candlestick daily progress: %d/%d symbols (%d ok, %d fail)",
+                    i + 1, len(chunk), ok, fail,
+                )
+
+        await session.commit()
+        duration_ms = (time.monotonic() - start) * 1000
+
+        if cancelled:
+            logger.info(
+                "Candlestick daily cancelled: %d items in %.1fmin",
+                total_items, duration_ms / 60000,
+            )
+            if progress is not None:
+                progress.update({
+                    "status": "cancelled",
+                    "message": "بکفیل توسط کاربر متوقف شد",
+                })
+            return SyncReport(
+                endpoint=BrsApiEndpoints.CANDLESTICK.path,
+                success=True,
+                items_count=total_items,
+                duration_ms=duration_ms,
+                skipped=True,
+                error="Cancelled by user",
+                failed_symbols=failed,
+            )
+
+        logger.info(
+            "Candlestick daily done: %d symbols, %d items, %d ok / %d fail in %.1fmin",
+            len(chunk),
+            total_items,
+            ok,
+            fail,
+            duration_ms / 60000,
+        )
+        error: str | None = None
+        if fail:
+            shown = failed[:10]
+            suffix = f" and {len(failed) - 10} more" if len(failed) > 10 else ""
+            error = f"{fail} requests failed: {', '.join(shown)}{suffix}"
+        if progress is not None:
+            progress.update({
+                "status": "done",
+                "processed": len(chunk),
+                "ok": ok,
+                "fail": fail,
+                "items": total_items,
+                "current_symbol": None,
+                "message": f"کامل شد: {total_items} آیتم، {ok} موفق / {fail} خطا",
+                "error": error,
+            })
+        return SyncReport(
+            endpoint=BrsApiEndpoints.CANDLESTICK.path,
+            success=fail == 0,
+            items_count=total_items,
+            duration_ms=duration_ms,
+            error=error,
+            failed_symbols=failed,
+        )
+
+    # ── Shareholder full-market backfill (daily after close) ──
+
+    async def _run_shareholders_all(
+        self,
+        session: Any,
+        service: BrsApiSyncService,
+        *,
+        max_symbols: int | None = None,
+        sleep_s: float | None = None,
+        allow_weekend: bool = False,
+        progress: dict[str, Any] | None = None,
+    ) -> SyncReport | None:
+        """Daily-after-close shareholder backfill for the whole market.
+
+        Mirrors ``_run_candlesticks_all``:
+          1. Refresh the AllSymbols list. If the fresh list is EMPTY the
+             market is very likely closed (holiday) — the whole backfill is
+             skipped instead of re-syncing from stale symbols.
+          2. Load all distinct symbols from the snapshots table.
+          3. Sort so symbols WITHOUT any shareholder records are processed
+             first (fresh backfill); already-synced symbols are caught up
+             later.
+          4. For each symbol (up to ``max_symbols`` per run) sync the latest
+             shareholder composition.
+
+        The Shareholder endpoint allows 2 req/10s (12 req/min), so every
+        request is followed by a ``sleep``
+        (``brsapi_settings.shareholder_req_delay``, default 5s) and the daily
+        chunk is bounded (``brsapi_settings.shareholder_daily_max_symbols``,
+        default 1000). Re-running the job on later days automatically resumes
+        with the still-missing symbols.
+
+        Overridable parameters:
+        - ``max_symbols``: cap the number of symbols processed in this run
+          (0 or None = settings default; pass a value to override).
+        - ``sleep_s``: seconds between API requests (default from settings).
+        - ``allow_weekend``: skip the Tehran weekend guard (manual runs).
+        - ``progress``: optional mutable dict updated with live progress
+          (status, processed, ok, fail, items, current_symbol, message).
+          Setting ``progress["cancel_requested"] = True`` stops the run
+          after the current symbol.
+        """
+        from sqlalchemy import select
+
+        from brsapi.models import ShareholderRecordModel, SymbolSnapshotModel
+
+        # Tehran weekend guard — skip on Thursday/Friday (Python weekday 3/4)
+        # unless the caller explicitly allows weekend runs.
+        if not allow_weekend and _is_tehran_weekend():
+            logger.info("Shareholder daily: Tehran weekend — skipped to save quota")
+            if progress is not None:
+                progress["message"] = "بکفیل اجرا نشد — روز آخر هفته تهران"
+            return SyncReport(
+                endpoint=BrsApiEndpoints.SHAREHOLDER.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        if max_symbols is None:
+            max_symbols = brsapi_settings.shareholder_daily_max_symbols
+        if sleep_s is None:
+            sleep_s = brsapi_settings.shareholder_req_delay
+
+        # 1. Refresh the live symbol list
+        symbols_report = await service.sync_all_symbols(session)
+        logger.info(
+            "Shareholder daily: AllSymbols refresh %s (%d items)",
+            "OK" if symbols_report.success else "FAIL",
+            symbols_report.items_count,
+        )
+        await session.commit()
+
+        # If the fresh AllSymbols fetch succeeded but returned ZERO symbols
+        # the market is almost certainly closed/holiday — skip instead of
+        # re-syncing from the stale symbol list still held in snapshots.
+        if symbols_report.success and symbols_report.items_count == 0:
+            logger.info(
+                "Shareholder daily: AllSymbols returned 0 symbols — "
+                "market closed/holiday, skipping shareholder backfill",
+            )
+            if progress is not None:
+                progress["message"] = "بکفیل اجرا نشد — بازار بسته/تعطیل است (AllSymbols خالی)"
+            return SyncReport(
+                endpoint=BrsApiEndpoints.SHAREHOLDER.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        # 2. All distinct symbols from the snapshots table
+        stmt = select(SymbolSnapshotModel.symbol).distinct()
+        result = await session.execute(stmt)
+        symbols = [row[0] for row in result if row[0]]
+        if not symbols:
+            logger.warning("Shareholder daily: no symbols found — aborting")
+            return None
+
+        # 3. Symbols already holding shareholder records
+        have = await session.execute(
+            select(ShareholderRecordModel.symbol).distinct()
+        )
+        have_set = {row[0] for row in have if row[0]}
+        # Missing symbols first (fresh backfill), then already-synced ones.
+        missing = [s for s in symbols if s not in have_set]
+        done = [s for s in symbols if s in have_set]
+        ordered = missing + done
+        # max_symbols <= 0 means "no limit" (whole market).
+        if max_symbols <= 0:
+            max_symbols = len(ordered)
+        chunk = ordered[:max_symbols]
+        logger.info(
+            "Shareholder daily: %d symbols total (%d missing) — processing %d today",
+            len(ordered),
+            len(missing),
+            len(chunk),
+        )
+
+        if progress is not None:
+            progress.update({
+                "status": "running",
+                "total_symbols": len(chunk),
+                "processed": 0,
+                "ok": 0,
+                "fail": 0,
+                "items": 0,
+                "current_symbol": None,
+                "message": f"آماده‌سازی: {len(chunk)} نماد برای پردازش",
+            })
+
+        # 4. Sync the latest shareholder composition for each symbol
+        total_items = 0
+        ok = fail = 0
+        failed: list[str] = []
+        cancelled = False
+        start = time.monotonic()
+        for i, sym in enumerate(chunk):
+            # Honour a user-requested cancellation between symbols.
+            if progress is not None and progress.get("cancel_requested"):
+                cancelled = True
+                logger.info("Shareholder daily: cancel requested — stopping at %s", sym)
+                break
+            is_last = i == len(chunk) - 1
+            try:
+                report = await service.sync_shareholders(session, sym)
+                if report.success:
+                    ok += 1
+                    total_items += report.items_count
+                else:
+                    fail += 1
+                    failed.append(sym)
+                    logger.warning(
+                        "Shareholder daily %s: FAIL %s", sym, report.error,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                fail += 1
+                failed.append(sym)
+                logger.exception(
+                    "Shareholder daily %s: EXC %s", sym, exc,
+                )
+            # Rate-limit spacing — skip the sleep after the very last request.
+            if sleep_s > 0 and not is_last:
+                await asyncio.sleep(sleep_s)
+            if progress is not None:
+                progress.update({
+                    "processed": i + 1,
+                    "ok": ok,
+                    "fail": fail,
+                    "items": total_items,
+                    "current_symbol": sym,
+                    "message": f"{i + 1}/{len(chunk)} — {sym} (✅ {ok} | ❌ {fail})",
+                })
+            if (i + 1) % 25 == 0:
+                logger.info(
+                    "Shareholder daily progress: %d/%d symbols (%d ok, %d fail)",
+                    i + 1, len(chunk), ok, fail,
+                )
+
+        await session.commit()
+        duration_ms = (time.monotonic() - start) * 1000
+
+        if cancelled:
+            logger.info(
+                "Shareholder daily cancelled: %d items in %.1fmin",
+                total_items, duration_ms / 60000,
+            )
+            if progress is not None:
+                progress.update({
+                    "status": "cancelled",
+                    "message": "بکفیل توسط کاربر متوقف شد",
+                })
+            return SyncReport(
+                endpoint=BrsApiEndpoints.SHAREHOLDER.path,
+                success=True,
+                items_count=total_items,
+                duration_ms=duration_ms,
+                skipped=True,
+                error="Cancelled by user",
+                failed_symbols=failed,
+            )
+
+        logger.info(
+            "Shareholder daily done: %d symbols, %d items, %d ok / %d fail in %.1fmin",
+            len(chunk),
+            total_items,
+            ok,
+            fail,
+            duration_ms / 60000,
+        )
+        error: str | None = None
+        if fail:
+            shown = failed[:10]
+            suffix = f" and {len(failed) - 10} more" if len(failed) > 10 else ""
+            error = f"{fail} requests failed: {', '.join(shown)}{suffix}"
+        if progress is not None:
+            progress.update({
+                "status": "done",
+                "processed": len(chunk),
+                "ok": ok,
+                "fail": fail,
+                "items": total_items,
+                "current_symbol": None,
+                "message": f"کامل شد: {total_items} آیتم، {ok} موفق / {fail} خطا",
+                "error": error,
+            })
+        return SyncReport(
+            endpoint=BrsApiEndpoints.SHAREHOLDER.path,
+            success=fail == 0,
+            items_count=total_items,
+            duration_ms=duration_ms,
+            error=error,
+            failed_symbols=failed,
+        )
+
+    # ── History full-market backfills (daily after close) ──
+
+    async def _run_history_price_all(
+        self,
+        session: Any,
+        service: BrsApiSyncService,
+        **kwargs: Any,
+    ) -> SyncReport | None:
+        """Daily-after-close backfill of daily historical prices."""
+        return await self._run_history_backfill(
+            session, service, kind="price", **kwargs,
+        )
+
+    async def _run_history_real_legal_all(
+        self,
+        session: Any,
+        service: BrsApiSyncService,
+        **kwargs: Any,
+    ) -> SyncReport | None:
+        """Daily-after-close backfill of the real/legal buy-sell breakdown."""
+        return await self._run_history_backfill(
+            session, service, kind="real_legal", **kwargs,
+        )
+
+    async def _run_history_backfill(
+        self,
+        session: Any,
+        service: BrsApiSyncService,
+        *,
+        kind: str = "price",  # "price" | "real_legal"
+        max_symbols: int | None = None,
+        sleep_s: float | None = None,
+        allow_weekend: bool = False,
+        progress: dict[str, Any] | None = None,
+    ) -> SyncReport | None:
+        """Daily-after-close history backfill for the whole market.
+
+        Mirrors ``_run_shareholders_all`` (one request per symbol):
+          1. Refresh the AllSymbols list — an EMPTY fresh list means the
+             market is closed/holiday and the backfill is skipped.
+          2. Load all distinct symbols from the snapshots table.
+          3. Sort so symbols WITHOUT any history rows are processed first.
+          4. For each symbol (up to ``max_symbols`` per run) sync the history
+             via ``sync_history_price`` / ``sync_history_real_legal``.
+
+        One request per symbol at ``history_*_req_delay`` spacing (default
+        5s), chunked per day (``history_*_daily_max_symbols``, default 500).
+        Re-running on later days resumes with the still-missing symbols.
+
+        Overridable parameters mirror the shareholder backfill:
+        ``max_symbols``, ``sleep_s``, ``allow_weekend`` and ``progress``
+        (setting ``progress["cancel_requested"] = True`` stops the run).
+        """
+        from sqlalchemy import select
+
+        from brsapi.models import (
+            HistoricalDailyModel,
+            HistoricalRealLegalModel,
+            SymbolSnapshotModel,
+        )
+
+        if kind == "real_legal":
+            endpoint = BrsApiEndpoints.HISTORY_REALLEGAL
+            model_cls = HistoricalRealLegalModel
+            sync_fn = service.sync_history_real_legal
+            default_max = brsapi_settings.history_real_legal_daily_max_symbols
+            default_delay = brsapi_settings.history_real_legal_req_delay
+            label = "HistoryRealLegal"
+        else:
+            endpoint = BrsApiEndpoints.HISTORY_PRICE
+            model_cls = HistoricalDailyModel
+            sync_fn = service.sync_history_price
+            default_max = brsapi_settings.history_price_daily_max_symbols
+            default_delay = brsapi_settings.history_price_req_delay
+            label = "HistoryPrice"
+
+        # Tehran weekend guard — skip on Thursday/Friday unless the caller
+        # explicitly allows weekend runs.
+        if not allow_weekend and _is_tehran_weekend():
+            logger.info("%s daily: Tehran weekend — skipped to save quota", label)
+            if progress is not None:
+                progress["message"] = "بکفیل اجرا نشد — روز آخر هفته تهران"
+            return SyncReport(
+                endpoint=endpoint.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        if max_symbols is None:
+            max_symbols = default_max
+        if sleep_s is None:
+            sleep_s = default_delay
+
+        # 1. Refresh the live symbol list
+        symbols_report = await service.sync_all_symbols(session)
+        logger.info(
+            "%s daily: AllSymbols refresh %s (%d items)",
+            label,
+            "OK" if symbols_report.success else "FAIL",
+            symbols_report.items_count,
+        )
+        await session.commit()
+
+        # If the fresh AllSymbols fetch succeeded but returned ZERO symbols
+        # the market is almost certainly closed/holiday — skip instead of
+        # re-syncing from the stale symbol list still held in snapshots.
+        if symbols_report.success and symbols_report.items_count == 0:
+            logger.info(
+                "%s daily: AllSymbols returned 0 symbols — "
+                "market closed/holiday, skipping backfill",
+                label,
+            )
+            if progress is not None:
+                progress["message"] = "بکفیل اجرا نشد — بازار بسته/تعطیل است (AllSymbols خالی)"
+            return SyncReport(
+                endpoint=endpoint.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        # 2. All distinct symbols from the snapshots table
+        stmt = select(SymbolSnapshotModel.symbol).distinct()
+        result = await session.execute(stmt)
+        symbols = [row[0] for row in result if row[0]]
+        if not symbols:
+            logger.warning("%s daily: no symbols found — aborting", label)
+            return None
+
+        # 3. Symbols already holding history rows
+        have = await session.execute(
+            select(model_cls.symbol).distinct()
+        )
+        have_set = {row[0] for row in have if row[0]}
+        # Missing symbols first (fresh backfill), then already-synced ones.
+        missing = [s for s in symbols if s not in have_set]
+        done = [s for s in symbols if s in have_set]
+        ordered = missing + done
+        # max_symbols <= 0 means "no limit" (whole market).
+        if max_symbols <= 0:
+            max_symbols = len(ordered)
+        chunk = ordered[:max_symbols]
+        logger.info(
+            "%s daily: %d symbols total (%d missing) — processing %d today",
+            label,
+            len(ordered),
+            len(missing),
+            len(chunk),
+        )
+
+        if progress is not None:
+            progress.update({
+                "status": "running",
+                "total_symbols": len(chunk),
+                "processed": 0,
+                "ok": 0,
+                "fail": 0,
+                "items": 0,
+                "current_symbol": None,
+                "message": f"آماده‌سازی: {len(chunk)} نماد برای پردازش",
+            })
+
+        # 4. Sync history for each symbol in the chunk
+        total_items = 0
+        ok = fail = 0
+        failed: list[str] = []
+        cancelled = False
+        start = time.monotonic()
+        for i, sym in enumerate(chunk):
+            # Honour a user-requested cancellation between symbols.
+            if progress is not None and progress.get("cancel_requested"):
+                cancelled = True
+                logger.info("%s daily: cancel requested — stopping at %s", label, sym)
+                break
+            is_last = i == len(chunk) - 1
+            try:
+                report = await sync_fn(session, sym)
+                if report.success:
+                    ok += 1
+                    total_items += report.items_count
+                else:
+                    fail += 1
+                    failed.append(sym)
+                    logger.warning("%s daily %s: FAIL %s", label, sym, report.error)
+            except Exception as exc:  # noqa: BLE001
+                fail += 1
+                failed.append(sym)
+                logger.exception("%s daily %s: EXC %s", label, sym, exc)
+            # Rate-limit spacing — skip the sleep after the very last request.
+            if sleep_s > 0 and not is_last:
+                await asyncio.sleep(sleep_s)
+            if progress is not None:
+                progress.update({
+                    "processed": i + 1,
+                    "ok": ok,
+                    "fail": fail,
+                    "items": total_items,
+                    "current_symbol": sym,
+                    "message": f"{i + 1}/{len(chunk)} — {sym} (✅ {ok} | ❌ {fail})",
+                })
+            if (i + 1) % 25 == 0:
+                logger.info(
+                    "%s daily progress: %d/%d symbols (%d ok, %d fail)",
+                    label, i + 1, len(chunk), ok, fail,
+                )
+
+        await session.commit()
+        duration_ms = (time.monotonic() - start) * 1000
+
+        if cancelled:
+            logger.info(
+                "%s daily cancelled: %d items in %.1fmin",
+                label, total_items, duration_ms / 60000,
+            )
+            if progress is not None:
+                progress.update({
+                    "status": "cancelled",
+                    "message": "بکفیل توسط کاربر متوقف شد",
+                })
+            return SyncReport(
+                endpoint=endpoint.path,
+                success=True,
+                items_count=total_items,
+                duration_ms=duration_ms,
+                skipped=True,
+                error="Cancelled by user",
+                failed_symbols=failed,
+            )
+
+        logger.info(
+            "%s daily done: %d symbols, %d items, %d ok / %d fail in %.1fmin",
+            label, len(chunk), total_items, ok, fail, duration_ms / 60000,
+        )
+        error: str | None = None
+        if fail:
+            shown = failed[:10]
+            suffix = f" and {len(failed) - 10} more" if len(failed) > 10 else ""
+            error = f"{fail} requests failed: {', '.join(shown)}{suffix}"
+        if progress is not None:
+            progress.update({
+                "status": "done",
+                "processed": len(chunk),
+                "ok": ok,
+                "fail": fail,
+                "items": total_items,
+                "current_symbol": None,
+                "message": f"کامل شد: {total_items} آیتم، {ok} موفق / {fail} خطا",
+                "error": error,
+            })
+        return SyncReport(
+            endpoint=endpoint.path,
+            success=fail == 0,
+            items_count=total_items,
+            duration_ms=duration_ms,
+            error=error,
+            failed_symbols=failed,
+        )
+
+    # ── Symbol-detail full-market refresh (daily after close) ──
+
+    async def _run_symbol_details_all(
+        self,
+        session: Any,
+        service: BrsApiSyncService,
+        *,
+        max_symbols: int | None = None,
+        sleep_s: float | None = None,
+        allow_weekend: bool = False,
+        progress: dict[str, Any] | None = None,
+    ) -> SyncReport | None:
+        """Daily-after-close refresh of enriched symbol details for the whole market.
+
+        Mirrors the shareholder/history backfills:
+          1. Refresh the AllSymbols list — an EMPTY fresh list means the
+             market is closed/holiday and the refresh is skipped.
+          2. Load all distinct symbols from the snapshots table.
+          3. Sort so symbols WITHOUT any detail rows are processed first
+             (fresh backfill); already-synced symbols are caught up later.
+          4. For each symbol (up to ``max_symbols`` per run) sync the
+             enriched detail via ``sync_symbol_detail``.
+
+        One request per symbol at ``symbol_detail_req_delay`` spacing
+        (default 4s — Symbol.php allows 3 req/10s), chunked per day
+        (``symbol_detail_daily_max_symbols``, default 1000). Re-running on
+        later days resumes with the still-missing symbols.
+
+        Overridable parameters mirror the other backfills:
+        ``max_symbols``, ``sleep_s``, ``allow_weekend`` and ``progress``
+        (setting ``progress["cancel_requested"] = True`` stops the run).
+        """
+        from sqlalchemy import select
+
+        from brsapi.models import SymbolDetailModel, SymbolSnapshotModel
+
+        # Tehran weekend guard — skip on Thursday/Friday unless the caller
+        # explicitly allows weekend runs.
+        if not allow_weekend and _is_tehran_weekend():
+            logger.info("SymbolDetail daily: Tehran weekend — skipped to save quota")
+            if progress is not None:
+                progress["message"] = "بکفیل اجرا نشد — روز آخر هفته تهران"
+            return SyncReport(
+                endpoint=BrsApiEndpoints.SYMBOL_DETAIL.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        if max_symbols is None:
+            max_symbols = brsapi_settings.symbol_detail_daily_max_symbols
+        if sleep_s is None:
+            sleep_s = brsapi_settings.symbol_detail_req_delay
+
+        # 1. Refresh the live symbol list
+        symbols_report = await service.sync_all_symbols(session)
+        logger.info(
+            "SymbolDetail daily: AllSymbols refresh %s (%d items)",
+            "OK" if symbols_report.success else "FAIL",
+            symbols_report.items_count,
+        )
+        await session.commit()
+
+        # If the fresh AllSymbols fetch succeeded but returned ZERO symbols
+        # the market is almost certainly closed/holiday — skip instead of
+        # re-syncing from the stale symbol list still held in snapshots.
+        if symbols_report.success and symbols_report.items_count == 0:
+            logger.info(
+                "SymbolDetail daily: AllSymbols returned 0 symbols — "
+                "market closed/holiday, skipping symbol-detail refresh",
+            )
+            if progress is not None:
+                progress["message"] = "بکفیل اجرا نشد — بازار بسته/تعطیل است (AllSymbols خالی)"
+            return SyncReport(
+                endpoint=BrsApiEndpoints.SYMBOL_DETAIL.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
+        # 2. All distinct symbols from the snapshots table
+        stmt = select(SymbolSnapshotModel.symbol).distinct()
+        result = await session.execute(stmt)
+        symbols = [row[0] for row in result if row[0]]
+        if not symbols:
+            logger.warning("SymbolDetail daily: no symbols found — aborting")
+            return None
+
+        # 3. Symbols already holding detail rows
+        have = await session.execute(
+            select(SymbolDetailModel.symbol).distinct()
+        )
+        have_set = {row[0] for row in have if row[0]}
+        # Missing symbols first (fresh backfill), then already-synced ones.
+        missing = [s for s in symbols if s not in have_set]
+        done = [s for s in symbols if s in have_set]
+        ordered = missing + done
+        # max_symbols <= 0 means "no limit" (whole market).
+        if max_symbols <= 0:
+            max_symbols = len(ordered)
+        chunk = ordered[:max_symbols]
+        logger.info(
+            "SymbolDetail daily: %d symbols total (%d missing) — processing %d today",
+            len(ordered),
+            len(missing),
+            len(chunk),
+        )
+
+        if progress is not None:
+            progress.update({
+                "status": "running",
+                "total_symbols": len(chunk),
+                "processed": 0,
+                "ok": 0,
+                "fail": 0,
+                "items": 0,
+                "current_symbol": None,
+                "message": f"آماده‌سازی: {len(chunk)} نماد برای پردازش",
+            })
+
+        # 4. Sync enriched detail for each symbol in the chunk
+        total_items = 0
+        ok = fail = 0
+        failed: list[str] = []
+        cancelled = False
+        start = time.monotonic()
+        for i, sym in enumerate(chunk):
+            # Honour a user-requested cancellation between symbols.
+            if progress is not None and progress.get("cancel_requested"):
+                cancelled = True
+                logger.info("SymbolDetail daily: cancel requested — stopping at %s", sym)
+                break
+            is_last = i == len(chunk) - 1
+            try:
+                report = await service.sync_symbol_detail(session, sym)
+                if report.success:
+                    ok += 1
+                    total_items += report.items_count
+                else:
+                    fail += 1
+                    failed.append(sym)
+                    logger.warning("SymbolDetail daily %s: FAIL %s", sym, report.error)
+            except Exception as exc:  # noqa: BLE001
+                fail += 1
+                failed.append(sym)
+                logger.exception("SymbolDetail daily %s: EXC %s", sym, exc)
+            # Rate-limit spacing — skip the sleep after the very last request.
+            if sleep_s > 0 and not is_last:
+                await asyncio.sleep(sleep_s)
+            if progress is not None:
+                progress.update({
+                    "processed": i + 1,
+                    "ok": ok,
+                    "fail": fail,
+                    "items": total_items,
+                    "current_symbol": sym,
+                    "message": f"{i + 1}/{len(chunk)} — {sym} (✅ {ok} | ❌ {fail})",
+                })
+            if (i + 1) % 25 == 0:
+                logger.info(
+                    "SymbolDetail daily progress: %d/%d symbols (%d ok, %d fail)",
+                    i + 1, len(chunk), ok, fail,
+                )
+
+        await session.commit()
+        duration_ms = (time.monotonic() - start) * 1000
+
+        if cancelled:
+            logger.info(
+                "SymbolDetail daily cancelled: %d items in %.1fmin",
+                total_items, duration_ms / 60000,
+            )
+            if progress is not None:
+                progress.update({
+                    "status": "cancelled",
+                    "message": "بکفیل توسط کاربر متوقف شد",
+                })
+            return SyncReport(
+                endpoint=BrsApiEndpoints.SYMBOL_DETAIL.path,
+                success=True,
+                items_count=total_items,
+                duration_ms=duration_ms,
+                skipped=True,
+                error="Cancelled by user",
+                failed_symbols=failed,
+            )
+
+        logger.info(
+            "SymbolDetail daily done: %d symbols, %d items, %d ok / %d fail in %.1fmin",
+            len(chunk), total_items, ok, fail, duration_ms / 60000,
+        )
+        error: str | None = None
+        if fail:
+            shown = failed[:10]
+            suffix = f" and {len(failed) - 10} more" if len(failed) > 10 else ""
+            error = f"{fail} requests failed: {', '.join(shown)}{suffix}"
+        if progress is not None:
+            progress.update({
+                "status": "done",
+                "processed": len(chunk),
+                "ok": ok,
+                "fail": fail,
+                "items": total_items,
+                "current_symbol": None,
+                "message": f"کامل شد: {total_items} آیتم، {ok} موفق / {fail} خطا",
+                "error": error,
+            })
+        return SyncReport(
+            endpoint=BrsApiEndpoints.SYMBOL_DETAIL.path,
+            success=fail == 0,
+            items_count=total_items,
+            duration_ms=duration_ms,
+            error=error,
+            failed_symbols=failed,
+        )
 
     def _get_parser(self, ep: EndpointConfig) -> Any:
         """Return the appropriate parser function for an endpoint."""

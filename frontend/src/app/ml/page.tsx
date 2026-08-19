@@ -186,7 +186,6 @@ function DashboardTab() {
   // Computed stats
   const totalRuns = runs?.length ?? 0;
   const completedRuns = runs?.filter(r => r.status === "completed").length ?? 0;
-  const failedRuns = runs?.filter(r => r.status === "failed").length ?? 0;
   const totalPredictions = predictions?.length ?? 0;
   const totalComparisons = comparisons?.length ?? 0;
 
@@ -743,15 +742,23 @@ function TrainingTab() {
               {allSymbols.slice(0, 100).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <button onClick={handleTrainSingle} disabled={isTraining}
-              className="w-full py-2 rounded-xl text-[11px] font-bold bg-primary-600/20 text-primary-400 border border-primary-600/30 hover:bg-primary-600/30 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5">
-              {trainSingle.isPending ? <span className="material-icons animate-spin text-sm">refresh</span> : "🚀"}
-              آموزش روی {singleSymbol}
+              className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-primary-600/30 bg-primary-600/15 py-2 text-[11px] font-bold text-primary-700 transition-all hover:bg-primary-600/25 disabled:cursor-not-allowed disabled:opacity-40 dark:text-brand-300">
+              <BrainCircuit className="size-3.5" aria-hidden />
+              {trainSingle.isPending ? "در حال آموزش..." : `آموزش روی ${singleSymbol}`}
             </button>
             <button onClick={handleTrainAll} disabled={isTraining}
-              className="w-full py-2.5 rounded-xl text-xs font-bold bg-accent-amber/15 text-accent-amber border border-accent-amber/30 hover:bg-accent-amber/25 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5">
-              {trainAllMutation.isPending
-                ? <><span className="material-icons animate-spin text-sm">refresh</span> در حال آموزش...</>
-                : "🔥 آموزش روی همه نمادها"}
+              className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-primary-600 py-2.5 text-xs font-bold text-white shadow-[var(--shadow-card)] transition-all hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40">
+              {trainAllMutation.isPending ? (
+                <>
+                  <Wand2 className="size-3.5 animate-spin" aria-hidden />
+                  در حال آموزش همه نمادها...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="size-3.5" aria-hidden />
+                  آموزش روی همه نمادها
+                </>
+              )}
             </button>
             <p className="text-[8px] text-surface-600 text-center">
               {allSymbols.length} نماد • {selectedModels.length} مدل • {nSplits}‑fold CV
@@ -1265,32 +1272,62 @@ function BacktestTab() {
 // MAIN PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 
+import {
+  BarChart3,
+  BrainCircuit,
+  Database,
+  GitCompareArrows,
+  Sparkles,
+  Wand2,
+  LayoutDashboard,
+} from "lucide-react";
+
 const TABS = [
-  { key: "dashboard" as const, label: "🏠 داشبورد",     desc: "نمای کلی و آمار" },
-  { key: "data" as const,      label: "📊 داده‌کاوی",    desc: "کیفیت و دسترسی داده" },
-  { key: "training" as const,  label: "🧠 آموزش",        desc: "آموزش مدل‌های پیش‌بینی" },
-  { key: "compare" as const,   label: "📊 مقایسه",       desc: "مقایسه مدل‌ها" },
-  { key: "predict" as const,   label: "🎯 پیش‌بینی",     desc: "اجرای پیش‌بینی" },
-  { key: "backtest" as const,  label: "📈 بک‌تست",       desc: "ارزیابی عملکرد" },
+  { key: "dashboard" as const, label: "داشبورد",  icon: LayoutDashboard, desc: "نمای کلی و آمار" },
+  { key: "data" as const,      label: "داده‌کاوی", icon: Database,       desc: "کیفیت و دسترسی داده" },
+  { key: "training" as const,  label: "آموزش",    icon: BrainCircuit,    desc: "آموزش مدل‌های پیش‌بینی" },
+  { key: "compare" as const,   label: "مقایسه",   icon: GitCompareArrows, desc: "مقایسه مدل‌ها" },
+  { key: "predict" as const,   label: "پیش‌بینی", icon: Sparkles,        desc: "اجرای پیش‌بینی" },
+  { key: "backtest" as const,  label: "بک‌تست",   icon: BarChart3,       desc: "ارزیابی عملکرد" },
 ];
 
 export default function MLPage() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "data" | "training" | "compare" | "predict" | "backtest">("dashboard");
 
   return (
-    <AppLayout title="🧠 یادگیری ماشین" subtitle="پلتفرم پیش‌بینی هوشمند بازار سرمایه — آموزش، ارزیابی و پیش‌بینی مدل‌ها">
+    <AppLayout
+      title={
+        <span className="flex items-center gap-2.5">
+          <span className="grid size-10 place-items-center rounded-xl bg-primary-600/12 text-primary-700 dark:text-brand-300">
+            <BrainCircuit className="size-5" aria-hidden />
+          </span>
+          یادگیری ماشین
+        </span>
+      }
+      subtitle="پلتفرم پیش‌بینی هوشمند بازار سرمایه — آموزش روی تمام نمادها، ارزیابی و پیش‌بینی مدل‌ها"
+    >
       {/* Tab bar */}
-      <div className="flex items-center gap-1 mb-5 bg-surface-800/50 rounded-2xl p-1 border border-surface-700/50 w-fit overflow-x-auto" dir="rtl">
-        {TABS.map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === tab.key
-                ? "bg-primary-600/30 text-primary-300 shadow-sm shadow-primary-600/10"
-                : "text-surface-400 hover:text-surface-200"
-            }`}>
-            <span>{tab.label}</span>
-          </button>
-        ))}
+      <div className="mb-6 flex w-fit items-center gap-1 overflow-x-auto rounded-2xl border border-line bg-card p-1.5 shadow-[var(--shadow-card)]" dir="rtl">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              title={tab.desc}
+              className={`flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-150 sm:px-4 ${
+                active
+                  ? "bg-primary-600 text-white shadow-[var(--shadow-card)]"
+                  : "text-ink-3 hover:bg-soft hover:text-ink"
+              }`}
+            >
+              <Icon className="size-3.5" aria-hidden />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab content */}

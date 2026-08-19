@@ -182,3 +182,114 @@ async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -
     except Exception as exc:
         logger.exception("Monitor endpoint failed: %s", exc)
         return ApiResponse[dict[str, Any]](success=False, data={}, error={"message": str(exc)})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AI Report endpoints — intelligent natural-language symbol & market reports
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@router.get(
+    "/report/market",
+    summary="AI market report",
+    description="Generates an AI-style Persian report of the whole market from the latest run-cycle signals",
+)
+async def screener110_ai_market_report(
+    limit: int = 25,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """گزارش کامل هوش مصنوعی از وضعیت بازار."""
+    try:
+        from services.screener_ai_report_service import ScreenerAIReportService
+
+        svc = ScreenerAIReportService(session)
+        report = await svc.generate_market_report(limit=limit)
+        return ApiResponse[dict[str, Any]](success=True, data=report)
+    except Exception as exc:
+        logger.exception("AI market report failed: %s", exc)
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={},
+            error={"message": str(exc)},
+        )
+
+
+@router.get(
+    "/report/{symbol}",
+    summary="AI report for a symbol",
+    description=(
+        "Generates a complete AI-style Persian analyst report for a symbol using "
+        "the 110-column model + all available DB data (profile, signals history, "
+        "daily history, institutional flow)."
+    ),
+)
+async def screener110_ai_report(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """گزارش کامل هوش مصنوعی برای یک نماد."""
+    try:
+        from services.screener_ai_report_service import ScreenerAIReportService
+
+        svc = ScreenerAIReportService(session)
+        report = await svc.generate_symbol_report(symbol)
+
+        if not report.get("model") and not report.get("profile") and not report.get("signal"):
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data=report,
+                error={"message": f"داده‌ای برای نماد {symbol} یافت نشد"},
+            )
+
+        return ApiResponse[dict[str, Any]](success=True, data=report)
+    except Exception as exc:
+        logger.exception("AI report failed for %s: %s", symbol, exc)
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={},
+            error={"message": str(exc)},
+        )
+
+
+@router.get(
+    "/top-buys",
+    summary="Top buy signals from latest cycle",
+    description="Returns the strongest buy signals from the most recent run-cycle, with a short AI explanation",
+)
+async def screener110_top_buys(
+    limit: int = 10,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """برترین سیگنال‌های خرید از آخرین اجرای مدل."""
+    try:
+        from sqlalchemy import text
+
+        r = await session.execute(
+            text(
+                """
+                SELECT s1.symbol, s1.final_score, s1.adjusted_score, s1.live_pe,
+                       s1.current_price, s1.stop_loss_price, s1.institutional_ratio,
+                       s1.volume_spike, s1.risk_ok, s1.negative_filters_count,
+                       s1.generated_at, s1.score_fundamental, s1.score_valuation,
+                       s1.score_institutional, s1.score_technical
+                FROM screener_signals s1
+                JOIN (
+                    SELECT symbol, MAX(generated_at) AS g
+                    FROM screener_signals GROUP BY symbol
+                ) s2 ON s1.symbol = s2.symbol AND s1.generated_at = s2.g
+                WHERE s1.decision = 'خرید'
+                ORDER BY s1.final_score DESC
+                LIMIT :lim
+                """
+            ),
+            {"lim": limit},
+        )
+        buys = [dict(row._mapping) for row in r.fetchall()]
+        return ApiResponse[dict[str, Any]](success=True, data={"count": len(buys), "items": buys})
+    except Exception as exc:
+        logger.exception("Top buys failed: %s", exc)
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={"count": 0, "items": []},
+            error={"message": str(exc)},
+        )

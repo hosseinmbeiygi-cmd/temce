@@ -6,8 +6,13 @@ import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
+import JobControlRow from "@/components/sync/JobControlRow";
+import { formatCron, formatTime, type SchedulerJobInfo } from "@/lib/job-format";
 import { apiGet, apiPost } from "@/lib/api";
-import { applyCustomThresholds, loadSyncSettings } from "@/lib/sync-settings";
+import { applyCustomThresholds } from "@/lib/sync-settings";
+import { useSyncSettings } from "@/hooks/useSyncSettings";
+import { useBackgroundBackfill } from "@/hooks/useBackgroundBackfill";
+import type { BackfillState } from "@/hooks/useBackgroundBackfill";
 
 // ── Dynamic chart ──
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
@@ -38,21 +43,21 @@ interface SyncLogEntry {
   completed_at: string | null;
 }
 
-interface SchedulerJob {
-  name: string;
-  enabled: boolean;
-  cron: string;
-  description: string;
-  endpoint: string;
-  category: string;
-  next_run_time: string | null;
-}
-
 interface SchedulerResponse {
-  jobs: SchedulerJob[];
+  jobs: SchedulerJobInfo[];
   total: number;
   enabled: number;
   disabled: number;
+}
+
+interface ConnTestResult {
+  reachable: boolean;
+  configured: boolean;
+  key: string;
+  message: string;
+  http_status?: number | null;
+  elapsed_ms?: number;
+  symbols_count?: number;
 }
 
 // ── Config ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -101,6 +106,24 @@ const SECTION_ID_MAP: Record<string, string> = {
   codal:       "codal",
 };
 
+// The four quota-hungry full-market backfill jobs get special treatment in
+// the Jobs tab: pinned to the top of the table, highlighted rows and a
+// "⭐ ویژه" badge (their runs route through the background backfill APIs).
+const SPECIAL_BACKFILL_JOBS: readonly string[] = [
+  "brsapi_candlesticks_all",
+  "brsapi_shareholders_all",
+  "brsapi_history_price_all",
+  "brsapi_history_real_legal_all",
+];
+
+const BACKFILL_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  running:   { label: "در حال اجرا", color: "text-primary-300",      bg: "bg-primary-600/20" },
+  done:      { label: "کامل شد",     color: "text-accent-emerald",   bg: "bg-accent-emerald/15" },
+  cancelled: { label: "لغو شد",      color: "text-accent-amber",     bg: "bg-accent-amber/15" },
+  error:     { label: "خطا",         color: "text-accent-rose",      bg: "bg-accent-rose/15" },
+  idle:      { label: "آماده",       color: "text-surface-400",      bg: "bg-surface-800" },
+};
+
 // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 function formatRelativeTime(isoStr: string | null): string {
@@ -119,14 +142,6 @@ function formatRelativeTime(isoStr: string | null): string {
   } catch { return "—"; }
 }
 
-function formatTime(isoStr: string | null): string {
-  if (!isoStr) return "—";
-  try {
-    const d = new Date(isoStr);
-    return d.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
-  } catch { return "—"; }
-}
-
 function formatNumber(n: number): string {
   return n.toLocaleString("fa-IR");
 }
@@ -135,22 +150,6 @@ function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60000).toFixed(1)}min`;
-}
-
-function formatCron(cron: string): string {
-  const n = Number(cron);
-  if (Number.isInteger(n)) {
-    if (n < 60) return `هر ${n} ثانیه`;
-    if (n < 3600) return `هر ${n / 60} دقیقه`;
-    return `هر ${n / 3600} ساعت`;
-  }
-  const parts = cron.split(" ");
-  if (parts.length === 5) {
-    if (cron === "0 9 * * *") return "روزانه ۹:۰۰";
-    if (cron === "0 18 * * *") return "روزانه ۱۸:۰۰";
-    return cron;
-  }
-  return cron;
 }
 
 // ── Toast ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -190,6 +189,84 @@ function StatusDot({ status, size = "md" }: { status: string; size?: "sm" | "md"
   return <span className={`${sz} rounded-full shrink-0 ${cs?.bg || "bg-surface-600"}`} />;
 }
 
+// ── Backfill Progress Card ────────────────────────────────────────────────────────────────────────────────────────────
+
+function BackfillProgressCard({ title, icon, unitLabel, backfill, onCancel }: {
+  title: string;
+  icon: string;
+  unitLabel: string;
+  backfill: BackfillState;
+  onCancel: () => void;
+}) {
+  const pct = backfill.total_symbols > 0
+    ? Math.min(100, Math.round((backfill.processed / backfill.total_symbols) * 100))
+    : backfill.status === "running" ? 5 : 100;
+
+  return (
+    <Card title={`${icon} ${title} — ${BACKFILL_STATUS_META[backfill.status]?.label || backfill.status}`} actions={
+      backfill.status === "running" ? (
+        <button onClick={onCancel}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold bg-accent-rose/10 text-accent-rose border border-accent-rose/25 hover:bg-accent-rose/20 transition-all">
+          <span className="material-icons text-sm">stop_circle</span>
+          توقف
+        </button>
+      ) : (
+        <span className="text-[10px] text-surface-600">
+          {backfill.finished_at ? `پایان: ${formatRelativeTime(backfill.finished_at)}` : ""}
+        </span>
+      )
+    }>
+      <div className="mb-3">
+        <div className="flex items-center justify-between text-[10px] text-surface-500 mb-1.5 gap-2">
+          <span className="truncate">
+            {backfill.current_symbol
+              ? <span>نماد فعلی: <span className="font-mono text-indigo-300">{backfill.current_symbol}</span></span>
+              : backfill.message || "..."}
+          </span>
+          <span className="font-mono shrink-0">{backfill.processed}/{backfill.total_symbols || "—"} نماد ({pct}%)</span>
+        </div>
+        <div className="h-2 rounded-full bg-surface-800 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${pct}%`,
+              background: backfill.status === "running"
+                ? "linear-gradient(90deg,#4f46e5,#818cf8)"
+                : backfill.status === "done" ? "#10b981" : backfill.status === "error" ? "#f43f5e" : "#f59e0b",
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+        <div className="bg-surface-800/50 rounded-xl p-2.5">
+          <p className="text-lg font-black text-indigo-300 font-mono">{formatNumber(backfill.items)}</p>
+          <p className="text-[9px] text-surface-500 mt-0.5">{unitLabel}</p>
+        </div>
+        <div className="bg-surface-800/50 rounded-xl p-2.5">
+          <p className="text-lg font-black text-accent-emerald font-mono">{formatNumber(backfill.ok)}</p>
+          <p className="text-[9px] text-surface-500 mt-0.5">درخواست موفق</p>
+        </div>
+        <div className="bg-surface-800/50 rounded-xl p-2.5">
+          <p className={`text-lg font-black font-mono ${backfill.fail > 0 ? "text-accent-rose" : "text-surface-600"}`}>{formatNumber(backfill.fail)}</p>
+          <p className="text-[9px] text-surface-500 mt-0.5">خطا</p>
+        </div>
+        <div className="bg-surface-800/50 rounded-xl p-2.5">
+          <p className="text-lg font-black text-surface-200 font-mono">{backfill.total_symbols ? formatNumber(backfill.total_symbols) : "—"}</p>
+          <p className="text-[9px] text-surface-500 mt-0.5">نماد برنامه‌ریزی‌شده</p>
+        </div>
+      </div>
+
+      {backfill.message && backfill.status === "running" && (
+        <p className="mt-3 text-[10px] text-surface-400 text-center">{backfill.message}</p>
+      )}
+      {backfill.error && (
+        <p className="mt-3 text-[10px] text-accent-rose bg-accent-rose/10 border border-accent-rose/20 rounded-lg p-2">⚠️ {backfill.error}</p>
+      )}
+    </Card>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export default function SyncManagerPage() {
@@ -199,13 +276,8 @@ export default function SyncManagerPage() {
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [timeRange, setTimeRange] = useState<string>("48h");
 
-  // ── Load custom freshness thresholds ──
-  const [customSettings, setCustomSettings] = useState(() => loadSyncSettings());
-  useEffect(() => {
-    const handler = () => setCustomSettings(loadSyncSettings());
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
+  // ── Load custom freshness thresholds (SSR-safe) ──
+  const [customSettings, setCustomSettings] = useSyncSettings();
 
   // ── Fetch sync status ──
   const { data: syncStatus, isLoading: statusLoading } = useQuery({
@@ -264,6 +336,10 @@ export default function SyncManagerPage() {
   const schedulerJobs = schedulerData?.jobs ?? [];
   const enabledJobs = schedulerData?.enabled ?? 0;
   const disabledJobs = schedulerData?.disabled ?? 0;
+  const candleJob = schedulerJobs.find(j => j.name === "brsapi_candlesticks_all");
+  const shareholderJob = schedulerJobs.find(j => j.name === "brsapi_shareholders_all");
+  const historyPriceJob = schedulerJobs.find(j => j.name === "brsapi_history_price_all");
+  const historyRealLegalJob = schedulerJobs.find(j => j.name === "brsapi_history_real_legal_all");
 
   // ── Build chart data ──
   const chartData = syncHistory
@@ -348,7 +424,155 @@ export default function SyncManagerPage() {
     }
   }, [queryClient]);
 
+  // ── Manual full-market backfills (admin) — candles + shareholders + history ──
+  const candleBackfill = useBackgroundBackfill(
+    "/brsapi/manage/sync-all-candlesticks",
+    "/brsapi/manage/sync-all-candlesticks/status",
+    "/brsapi/manage/sync-all-candlesticks/cancel",
+  );
+  const shareholderBackfill = useBackgroundBackfill(
+    "/brsapi/manage/sync-all-shareholders",
+    "/brsapi/manage/sync-all-shareholders/status",
+    "/brsapi/manage/sync-all-shareholders/cancel",
+  );
+  const historyPriceBackfill = useBackgroundBackfill(
+    "/brsapi/manage/sync-all-history-price",
+    "/brsapi/manage/sync-all-history-price/status",
+    "/brsapi/manage/sync-all-history-price/cancel",
+  );
+  const historyRealLegalBackfill = useBackgroundBackfill(
+    "/brsapi/manage/sync-all-history-real-legal",
+    "/brsapi/manage/sync-all-history-real-legal/status",
+    "/brsapi/manage/sync-all-history-real-legal/cancel",
+  );
+  const [isTestingConn, setIsTestingConn] = useState(false);
+  const [connTest, setConnTest] = useState<ConnTestResult | null>(null);
+
+  // Destructure stable hook functions so exhaustive-deps stays clean.
+  const startCandleBackfill = candleBackfill.startBackfill;
+  const cancelCandleBackfill = candleBackfill.cancelBackfill;
+  const startShareholderBackfill = shareholderBackfill.startBackfill;
+  const cancelShareholderBackfill = shareholderBackfill.cancelBackfill;
+  const startHistoryPriceBackfill = historyPriceBackfill.startBackfill;
+  const cancelHistoryPriceBackfill = historyPriceBackfill.cancelBackfill;
+  const startHistoryRealLegalBackfill = historyRealLegalBackfill.startBackfill;
+  const cancelHistoryRealLegalBackfill = historyRealLegalBackfill.cancelBackfill;
+
+  const handleStartCandleBackfill = useCallback(async () => {
+    setToast({ message: "🕯️ در حال شروع بکفیل کندل همه نمادها...", type: "warning" });
+    const res = await startCandleBackfill();
+    if (res === undefined) {
+      setToast({ message: "❌ شروع بکفیل: خطا در برقراری ارتباط با سرور", type: "error" });
+    } else if (res.started) {
+      setToast({ message: res.message || "بکفیل شروع شد", type: "success" });
+      // Jump to the dashboard so the live progress card is immediately visible
+      // (the job can be started from the Jobs tab banner / table row too).
+      setActiveTab("dashboard");
+    } else {
+      setToast({ message: res.message || "شروع بکفیل ناموفق بود", type: "warning" });
+    }
+  }, [startCandleBackfill]);
+
+  const handleCancelCandleBackfill = useCallback(async () => {
+    const msg = await cancelCandleBackfill();
+    setToast({ message: msg || "درخواست لغو ارسال شد", type: "warning" });
+  }, [cancelCandleBackfill]);
+
+  const handleStartShareholderBackfill = useCallback(async () => {
+    setToast({ message: "🏛️ در حال شروع بکفیل سهامداران همه نمادها...", type: "warning" });
+    const res = await startShareholderBackfill();
+    if (res === undefined) {
+      setToast({ message: "❌ شروع بکفیل: خطا در برقراری ارتباط با سرور", type: "error" });
+    } else if (res.started) {
+      setToast({ message: res.message || "بکفیل شروع شد", type: "success" });
+    } else {
+      setToast({ message: res.message || "شروع بکفیل ناموفق بود", type: "warning" });
+    }
+  }, [startShareholderBackfill]);
+
+  const handleCancelShareholderBackfill = useCallback(async () => {
+    const msg = await cancelShareholderBackfill();
+    setToast({ message: msg || "درخواست لغو ارسال شد", type: "warning" });
+  }, [cancelShareholderBackfill]);
+
+  const handleStartHistoryPriceBackfill = useCallback(async () => {
+    setToast({ message: "📜 در حال شروع بکفیل تاریخچه قیمت همه نمادها...", type: "warning" });
+    const res = await startHistoryPriceBackfill();
+    if (res === undefined) {
+      setToast({ message: "❌ شروع بکفیل: خطا در برقراری ارتباط با سرور", type: "error" });
+    } else if (res.started) {
+      setToast({ message: res.message || "بکفیل شروع شد", type: "success" });
+    } else {
+      setToast({ message: res.message || "شروع بکفیل ناموفق بود", type: "warning" });
+    }
+  }, [startHistoryPriceBackfill]);
+
+  const handleCancelHistoryPriceBackfill = useCallback(async () => {
+    const msg = await cancelHistoryPriceBackfill();
+    setToast({ message: msg || "درخواست لغو ارسال شد", type: "warning" });
+  }, [cancelHistoryPriceBackfill]);
+
+  const handleStartHistoryRealLegalBackfill = useCallback(async () => {
+    setToast({ message: "👥 در حال شروع بکفیل حقیقی/حقوقی همه نمادها...", type: "warning" });
+    const res = await startHistoryRealLegalBackfill();
+    if (res === undefined) {
+      setToast({ message: "❌ شروع بکفیل: خطا در برقراری ارتباط با سرور", type: "error" });
+    } else if (res.started) {
+      setToast({ message: res.message || "بکفیل شروع شد", type: "success" });
+    } else {
+      setToast({ message: res.message || "شروع بکفیل ناموفق بود", type: "warning" });
+    }
+  }, [startHistoryRealLegalBackfill]);
+
+  const handleCancelHistoryRealLegalBackfill = useCallback(async () => {
+    const msg = await cancelHistoryRealLegalBackfill();
+    setToast({ message: msg || "درخواست لغو ارسال شد", type: "warning" });
+  }, [cancelHistoryRealLegalBackfill]);
+
+  const handleTestConnection = useCallback(async () => {
+    setIsTestingConn(true);
+    setConnTest(null);
+    try {
+      const res = await apiPost<{ success: boolean; data: ConnTestResult }>("/brsapi/manage/test-connection");
+      const data = res?.data;
+      if (data) {
+        setConnTest(data);
+        setToast({
+          message: data.message || (data.reachable ? "اتصال برقرار است" : "اتصال برقرار نیست"),
+          type: data.reachable ? "success" : "error",
+        });
+      } else {
+        setConnTest({ reachable: false, configured: false, key: "", message: "پاسخی از سرور دریافت نشد" });
+        setToast({ message: "پاسخی از سرور دریافت نشد", type: "error" });
+      }
+    } catch (err) {
+      setConnTest({ reachable: false, configured: false, key: "", message: String(err) });
+      setToast({ message: `❌ تست اتصال: ${String(err)}`, type: "error" });
+    } finally {
+      setIsTestingConn(false);
+    }
+  }, []);
+
   const handleRunJob = useCallback(async (jobName: string) => {
+    // The full-market candlestick job takes hours (rate-limited to 2 req/10s),
+    // so its run is routed through the background backfill endpoint with live
+    // progress — never block the HTTP request for the whole chunk.
+    if (jobName === "brsapi_candlesticks_all") {
+      await handleStartCandleBackfill();
+      return;
+    }
+    if (jobName === "brsapi_shareholders_all") {
+      await handleStartShareholderBackfill();
+      return;
+    }
+    if (jobName === "brsapi_history_price_all") {
+      await handleStartHistoryPriceBackfill();
+      return;
+    }
+    if (jobName === "brsapi_history_real_legal_all") {
+      await handleStartHistoryRealLegalBackfill();
+      return;
+    }
     setToast({ message: `🔄 در حال اجرا: ${jobName}...`, type: "warning" });
     try {
       const res = await apiPost<{ success: boolean; data: { success: boolean; items_count?: number; duration_ms?: number; message?: string } }>(`/jobs/scheduler/${jobName}/run`);
@@ -361,7 +585,7 @@ export default function SyncManagerPage() {
     } catch (err) {
       setToast({ message: `❌ ${jobName}: ${String(err)}`, type: "error" });
     }
-  }, [queryClient]);
+  }, [queryClient, handleStartCandleBackfill, handleStartShareholderBackfill, handleStartHistoryPriceBackfill, handleStartHistoryRealLegalBackfill]);
 
   // Recent events
   const recentEvents = (syncHistory ?? []).slice(0, 15);
@@ -409,8 +633,54 @@ export default function SyncManagerPage() {
             }`}>
             {tab.label}
           </button>
-        ))}
+        )        )}
       </div>
+
+      {/* Backfill progress cards — visible on ALL tabs */}
+      {candleBackfill.backfill.status !== "idle" && (
+        <div className="mb-5">
+          <BackfillProgressCard
+            title="بکفیل کندل بازار"
+            icon="🕯️"
+            unitLabel="کندل دریافت‌شده"
+            backfill={candleBackfill.backfill}
+            onCancel={handleCancelCandleBackfill}
+          />
+        </div>
+      )}
+      {shareholderBackfill.backfill.status !== "idle" && (
+        <div className="mb-5">
+          <BackfillProgressCard
+            title="بکفیل سهامداران بازار"
+            icon="🏛️"
+            unitLabel="رکورد سهامدار"
+            backfill={shareholderBackfill.backfill}
+            onCancel={handleCancelShareholderBackfill}
+          />
+        </div>
+      )}
+      {historyPriceBackfill.backfill.status !== "idle" && (
+        <div className="mb-5">
+          <BackfillProgressCard
+            title="بکفیل تاریخچه قیمت بازار"
+            icon="📜"
+            unitLabel="رکورد قیمت تاریخی"
+            backfill={historyPriceBackfill.backfill}
+            onCancel={handleCancelHistoryPriceBackfill}
+          />
+        </div>
+      )}
+      {historyRealLegalBackfill.backfill.status !== "idle" && (
+        <div className="mb-5">
+          <BackfillProgressCard
+            title="بکفیل حقیقی/حقوقی بازار"
+            icon="👥"
+            unitLabel="رکورد حقیقی/حقوقی"
+            backfill={historyRealLegalBackfill.backfill}
+            onCancel={handleCancelHistoryRealLegalBackfill}
+          />
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════ */}
       {/* TAB 1: DASHBOARD                                */}
@@ -497,6 +767,139 @@ export default function SyncManagerPage() {
                 className="px-4 py-2 bg-surface-800 border border-surface-700 rounded-xl text-xs font-bold text-surface-400 hover:text-surface-200 transition-all">
                 🏢 Sync کدال
               </button>
+            </div>
+
+            {/* Manual full-market backfills + API key test */}
+            <div className="w-full border-t border-surface-800/60 pt-3 mt-3">
+              <p className="text-[10px] font-bold text-surface-500 mb-2">⬇️ دانلود کامل بازار — کندل، سهامداران و تاریخچه</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleStartCandleBackfill}
+                  disabled={candleBackfill.backfill.status === "running"}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    candleBackfill.backfill.status === "running"
+                      ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 animate-pulse"
+                      : "bg-indigo-600/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/25 hover:border-indigo-500/50"
+                  }`}>
+                  <span className="material-icons text-sm align-middle ml-1">{candleBackfill.backfill.status === "running" ? "hourglass_top" : "download"}</span>
+                  {candleBackfill.backfill.status === "running" ? "در حال دانلود..." : "دانلود کندل همه نمادها (هر ۳ نوع)"}
+                </button>
+                <button
+                  onClick={handleStartShareholderBackfill}
+                  disabled={shareholderBackfill.backfill.status === "running"}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    shareholderBackfill.backfill.status === "running"
+                      ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 animate-pulse"
+                      : "bg-emerald-600/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/25 hover:border-emerald-500/50"
+                  }`}>
+                  <span className="material-icons text-sm align-middle ml-1">{shareholderBackfill.backfill.status === "running" ? "hourglass_top" : "download"}</span>
+                  {shareholderBackfill.backfill.status === "running" ? "در حال دانلود..." : "دانلود سهامداران همه نمادها"}
+                </button>
+                <button
+                  onClick={handleStartHistoryPriceBackfill}
+                  disabled={historyPriceBackfill.backfill.status === "running"}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    historyPriceBackfill.backfill.status === "running"
+                      ? "bg-cyan-600/20 text-cyan-300 border border-cyan-500/40 animate-pulse"
+                      : "bg-cyan-600/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/25 hover:border-cyan-500/50"
+                  }`}>
+                  <span className="material-icons text-sm align-middle ml-1">{historyPriceBackfill.backfill.status === "running" ? "hourglass_top" : "download"}</span>
+                  {historyPriceBackfill.backfill.status === "running" ? "در حال دانلود..." : "دانلود تاریخچه قیمت همه نمادها"}
+                </button>
+                <button
+                  onClick={handleStartHistoryRealLegalBackfill}
+                  disabled={historyRealLegalBackfill.backfill.status === "running"}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    historyRealLegalBackfill.backfill.status === "running"
+                      ? "bg-amber-600/20 text-amber-300 border border-amber-500/40 animate-pulse"
+                      : "bg-amber-600/15 text-amber-300 border border-amber-500/30 hover:bg-amber-600/25 hover:border-amber-500/50"
+                  }`}>
+                  <span className="material-icons text-sm align-middle ml-1">{historyRealLegalBackfill.backfill.status === "running" ? "hourglass_top" : "download"}</span>
+                  {historyRealLegalBackfill.backfill.status === "running" ? "در حال دانلود..." : "دانلود حقیقی/حقوقی همه نمادها"}
+                </button>
+                <button
+                  onClick={handleTestConnection}
+                  disabled={isTestingConn}
+                  className="px-4 py-2 bg-accent-emerald/10 border border-accent-emerald/25 rounded-xl text-xs font-bold text-accent-emerald hover:bg-accent-emerald/20 disabled:opacity-50 transition-all">
+                  {isTestingConn ? "⏳ در حال تست..." : "🔑 تست کلید و اتصال API"}
+                </button>
+              </div>
+              <p className="text-[9px] text-surface-600 mt-2 leading-relaxed">
+                دانلود کامل با محدودیت رسمی API (۲ درخواست/۱۰ ثانیه) برای کل بازار چند ساعت طول می‌کشد — پیشرفت هر دانلود در همین صفحه نمایش داده می‌شود و می‌توانید آن را متوقف کنید.
+              </p>
+
+              {/* Daily full-market job controls — shared JobControlRow */}
+              <JobControlRow
+                icon="⏱️"
+                label="جاب روزانه کندل"
+                jobName="brsapi_candlesticks_all"
+                job={candleJob}
+                running={candleBackfill.backfill.status === "running"}
+                onRun={handleRunJob}
+                onToggle={handleToggleJob}
+                scheduleLabel="اجرای روزانه ۱۳:۰۰"
+                className="mt-3"
+              />
+              <JobControlRow
+                icon="🏛️"
+                label="جاب روزانه سهامداران"
+                jobName="brsapi_shareholders_all"
+                job={shareholderJob}
+                running={shareholderBackfill.backfill.status === "running"}
+                onRun={handleRunJob}
+                onToggle={handleToggleJob}
+                scheduleLabel="اجرای روزانه ۱۳:۳۰"
+                className="mt-2"
+              />
+              <JobControlRow
+                icon="📜"
+                label="جاب روزانه تاریخچه قیمت"
+                jobName="brsapi_history_price_all"
+                job={historyPriceJob}
+                running={historyPriceBackfill.backfill.status === "running"}
+                onRun={handleRunJob}
+                onToggle={handleToggleJob}
+                scheduleLabel="اجرای روزانه ۱۴:۰۰"
+                className="mt-2"
+              />
+              <JobControlRow
+                icon="👥"
+                label="جاب روزانه حقیقی/حقوقی"
+                jobName="brsapi_history_real_legal_all"
+                job={historyRealLegalJob}
+                running={historyRealLegalBackfill.backfill.status === "running"}
+                onRun={handleRunJob}
+                onToggle={handleToggleJob}
+                scheduleLabel="اجرای روزانه ۱۴:۳۰"
+                className="mt-2"
+              />
+
+              {/* Connection test result */}
+              {connTest && (
+                <div className={`mt-3 rounded-xl border p-3 text-[11px] ${connTest.reachable ? "bg-accent-emerald/10 border-accent-emerald/25" : "bg-accent-rose/10 border-accent-rose/25"}`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    <span className={`w-2 h-2 rounded-full ${connTest.reachable ? "bg-accent-emerald" : "bg-accent-rose"}`} />
+                    {connTest.reachable ? "اتصال برقرار است" : "اتصال برقرار نیست"}
+                  </div>
+                  <div className="mt-1.5 space-y-1 text-surface-400">
+                    <p>🔑 کلید: <span className="font-mono text-surface-200" dir="ltr">{connTest.key || "—"}</span>
+                      <span className={`mr-1 ${connTest.configured ? "text-accent-emerald" : "text-accent-rose"}`}>
+                        {connTest.configured ? "(پیکربندی شده)" : "(تنظیم نشده)"}
+                      </span>
+                    </p>
+                    {connTest.http_status != null && (
+                      <p>کد وضعیت: <span className="font-mono text-surface-200">{connTest.http_status}</span></p>
+                    )}
+                    {connTest.elapsed_ms != null && (
+                      <p>زمان پاسخ: <span className="font-mono text-surface-200">{connTest.elapsed_ms.toFixed(0)}ms</span></p>
+                    )}
+                    {connTest.symbols_count != null && (
+                      <p>نمادهای دریافتی: <span className="font-mono text-surface-200">{formatNumber(connTest.symbols_count)}</span></p>
+                    )}
+                    <p className="text-surface-300">{connTest.message}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -632,6 +1035,52 @@ export default function SyncManagerPage() {
       {/* TAB 3: JOBS (Scheduler)                        */}
       {/* ════════════════════════════════════════════════ */}
       {activeTab === "jobs" && (
+        <>
+          {/* ⭐ Quick access — highlighted daily candlestick job control */}
+          <JobControlRow
+            icon="🕯️"
+            label="جاب روزانه کندل"
+            jobName="brsapi_candlesticks_all"
+            job={candleJob}
+            running={candleBackfill.backfill.status === "running"}
+            onRun={handleRunJob}
+            onToggle={handleToggleJob}
+            scheduleLabel="اجرای روزانه ۱۳:۰۰"
+            description="اجرای روزانه بعد از بستن بازار — همه نمادها، هر ۳ نوع کندل"
+            highlight
+          >
+            {/* Live progress when the background backfill is running */}
+            {candleBackfill.backfill.status === "running" && (
+              <div className="w-full mt-3">
+                <div className="flex items-center justify-between text-[9px] text-surface-500 mb-1">
+                  <span className="font-mono text-indigo-300/90">{candleBackfill.backfill.current_symbol || "در حال آماده‌سازی..."}</span>
+                  <span>
+                    {candleBackfill.backfill.processed}/{candleBackfill.backfill.total_symbols || "?"} نماد ·
+                    موفق {candleBackfill.backfill.ok} · خطا {candleBackfill.backfill.fail} · {(candleBackfill.backfill.items ?? 0).toLocaleString("fa-IR")} کندل
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-surface-700/60 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-l from-indigo-400 to-primary-500 transition-all duration-500"
+                    style={{
+                      width: `${
+                        candleBackfill.backfill.total_symbols > 0
+                          ? Math.min(100, Math.round((candleBackfill.backfill.processed / candleBackfill.backfill.total_symbols) * 100))
+                          : 4
+                      }%`,
+                    }}
+                  />
+                </div>
+                {candleBackfill.backfill.message && (
+                  <p className="text-[9px] text-surface-500 mt-1.5 leading-relaxed">{candleBackfill.backfill.message}</p>
+                )}
+              </div>
+            )}
+            {candleBackfill.backfill.status !== "idle" && candleBackfill.backfill.status !== "running" && candleBackfill.backfill.message && (
+              <p className="text-[9px] text-surface-500 mt-2">{candleBackfill.backfill.message}</p>
+            )}
+          </JobControlRow>
+
         <Card title="⏱️ Jobهای زمان‌بندی" actions={
           <span className="text-[10px] text-surface-600">{enabledJobs} فعال / {disabledJobs} غیرفعال</span>
         }>
@@ -654,17 +1103,34 @@ export default function SyncManagerPage() {
                 </thead>
                 <tbody>
                   {schedulerJobs
-                    .sort((a, b) => a.enabled === b.enabled ? a.name.localeCompare(b.name) : a.enabled ? -1 : 1)
+                    .sort((a, b) => {
+                      // Pin the special full-market backfill jobs to the top so
+                      // they stay visible without scrolling.
+                      const sa = SPECIAL_BACKFILL_JOBS.includes(a.name) ? 1 : 0;
+                      const sb = SPECIAL_BACKFILL_JOBS.includes(b.name) ? 1 : 0;
+                      if (sa !== sb) return sb - sa;
+                      if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+                      return a.name.localeCompare(b.name);
+                    })
                     .map(job => {
                       const ci = CATEGORY_CONFIG[job.category] || { label: job.category, icon: "📦" };
                       return (
-                        <tr key={job.name} className={`border-b border-surface-800/30 hover:bg-surface-800/20 transition-colors ${job.enabled ? "" : "opacity-60"}`}>
+                        <tr key={job.name} className={`border-b transition-colors ${
+                          SPECIAL_BACKFILL_JOBS.includes(job.name)
+                            ? "border-indigo-500/25 bg-indigo-600/[0.06] hover:bg-indigo-600/[0.12]"
+                            : "border-surface-800/30 hover:bg-surface-800/20"
+                        } ${job.enabled ? "" : "opacity-60"}`}>
                           <td className="py-3 px-3">
                             <span className={`w-2.5 h-2.5 rounded-full inline-block shrink-0 ${job.enabled ? "bg-accent-emerald shadow-[0_0_6px_rgba(52,211,153,0.4)]" : "bg-surface-600"}`} />
                           </td>
                           <td className="py-3 px-3 max-w-[220px]">
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold text-surface-200 font-mono text-[11px]">{job.name}</span>
+                              <span className="flex items-center gap-1.5">
+                                <span className="font-semibold text-surface-200 font-mono text-[11px]">{job.name}</span>
+                                {SPECIAL_BACKFILL_JOBS.includes(job.name) && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 text-[8px] font-bold leading-none">⭐ ویژه</span>
+                                )}
+                              </span>
                               <span className="text-[9px] text-surface-500 leading-tight line-clamp-1">{job.description}</span>
                             </div>
                           </td>
@@ -707,6 +1173,7 @@ export default function SyncManagerPage() {
             </div>
           )}
         </Card>
+        </>
       )}
     </AppLayout>
   );

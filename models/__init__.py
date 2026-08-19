@@ -30,6 +30,11 @@ from models.market_data import (
 from models.ml import MlModelModel, MlModelVersionModel, MlTrainingRunModel
 from models.news import NewsArticleModel
 from models.orderbook import OrderbookModel
+from models.paper_trading import (
+    PaperEquityModel,
+    PaperSignalSnapshotModel,
+    PaperTradeModel,
+)
 from models.portfolio import PortfolioModel, PortfolioPositionModel
 from models.provider_health import ProviderHealthHistoryModel, ProviderHealthModel
 from models.quote import QuoteModel

@@ -19,6 +19,13 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Market condition is a market-wide aggregate (full-table scan on the snapshot
+# table) that changes slowly. Share it across ALL scorer instances with a TTL
+# so the whole signal pipeline (and every background rebuild) doesn't re-scan
+# the table per run.
+_MARKET_CONDITION_TTL_SECONDS = 300.0
+_market_condition_ttl_cache: dict[str, tuple[float, float]] = {}  # market -> (value, at)
+
 
 @dataclass
 class ConfidenceFactors:
@@ -75,6 +82,14 @@ class ConfidenceScorer:
 
     def __init__(self, session: Any = None) -> None:
         self._session = session
+        # Memoization: historical accuracy / recent performance are per
+        # (market, source) and market condition is per market — NOT per
+        # symbol. Without this cache the pipeline runs N full-table scans
+        # (e.g. AVG over brsapi_symbol_snapshots) per signal, turning a
+        # 120-signal run into 120+ expensive DB scans (minutes of latency).
+        self._hist_accuracy_cache: dict[tuple[str, str], float] = {}
+        self._recent_performance_cache: dict[tuple[str, str], float] = {}
+        self._market_condition_cache: dict[str, float] = {}
 
     async def compute_confidence(
         self,
@@ -190,6 +205,10 @@ class ConfidenceScorer:
         self, market: str, source: str, symbol: str = ""
     ) -> float:
         """Get historical accuracy for this market/source from DB."""
+        key = (market, source)
+        cached = self._hist_accuracy_cache.get(key)
+        if cached is not None:
+            return cached
         try:
             from sqlalchemy import text
 
@@ -216,7 +235,9 @@ class ConfidenceScorer:
                     # Bayesian blend: bootstrap prior + real data
                     prior_weight = 100  # equivalent sample size for prior
                     blended = (bootstrap_prior * prior_weight + real_accuracy * total) / (prior_weight + total)
-                    return round(blended, 4)
+                    self._hist_accuracy_cache[key] = round(blended, 4)
+                    return self._hist_accuracy_cache[key]
+                self._hist_accuracy_cache[key] = bootstrap_prior
                 return bootstrap_prior
         except Exception as e:
             logger.debug("Could not get historical accuracy: %s", e)
@@ -226,6 +247,10 @@ class ConfidenceScorer:
         self, market: str, source: str, symbol: str, days: int = 30
     ) -> float:
         """Get accuracy in the most recent N signals."""
+        key = (market, source)
+        cached = self._recent_performance_cache.get(key)
+        if cached is not None:
+            return cached
         try:
             from sqlalchemy import text
 
@@ -253,7 +278,9 @@ class ConfidenceScorer:
                     real_accuracy = float(row[0])
                     total = row[1] or 0
                     blended = (bootstrap_prior * BOOTSTRAP_PRIOR_WEIGHT + real_accuracy * total) / (BOOTSTRAP_PRIOR_WEIGHT + total)
-                    return round(blended, 4)
+                    self._recent_performance_cache[key] = round(blended, 4)
+                    return self._recent_performance_cache[key]
+                self._recent_performance_cache[key] = bootstrap_prior
                 return bootstrap_prior
         except Exception as e:
             logger.debug("Could not get recent performance: %s", e)
@@ -319,7 +346,21 @@ class ConfidenceScorer:
         return float(normalized)
 
     async def _get_market_condition(self, market: str) -> float:
-        """Get overall market condition score (0-1)."""
+        """Get overall market condition score (0-1).
+
+        This is a market-wide aggregate (a full-table scan on the snapshot
+        table), so it is computed once per market and memoized — running it
+        once per signal is what made the pipeline take minutes.
+        """
+        cached = self._market_condition_cache.get(market)
+        if cached is not None:
+            return cached
+        import time as _t
+        now = _t.monotonic()
+        global_entry = _market_condition_ttl_cache.get(market)
+        if global_entry and (now - global_entry[1]) < _MARKET_CONDITION_TTL_SECONDS:
+            self._market_condition_cache[market] = global_entry[0]
+            return global_entry[0]
         try:
             from sqlalchemy import text
 
@@ -349,8 +390,13 @@ class ConfidenceScorer:
                 if row:
                     positive_ratio = safe_row_float(row, idx=0, default=0.5)
                     # Market condition: 0.5 base + adjustment for bullish/bearish
-                    return 0.5 + (positive_ratio - 0.5) * 0.4
+                    value = 0.5 + (positive_ratio - 0.5) * 0.4
+                    self._market_condition_cache[market] = value
+                    _market_condition_ttl_cache[market] = (value, now)
+                    return value
         except Exception as e:
             logger.debug("Could not get market condition: %s", e)
 
+        self._market_condition_cache[market] = 0.5
+        _market_condition_ttl_cache[market] = (0.5, now)
         return 0.5

@@ -49,9 +49,70 @@
            ──>  تصمیم نهایی: BUY / WATCHLIST / HOLD / REDUCE / REJECT / NEUTRAL
 ```
 
+**مقایسه وضعیت قبلی ← جدید:**
+
+```mermaid
+flowchart LR
+    subgraph OLD["❌ قبلی — معماری استاتیک"]
+        J1[(json/architecture.json<br/>features.json · services.json)]
+        P1["page.tsx<br/>خواندن مستقیم JSON"]
+        D1["بدون ذخیره تصمیم<br/>فقط نمایش"]
+        J1 --> P1 --> D1
+    end
+    subgraph NEW["✅ جدید — Enterprise (دیتابیس + API)"]
+        S["JSON (منبع seed)"] -->|"auto-seed در startup<br/>اگر جدول خالی بود"| DB[("decision_architectures<br/>+ decision_results")]
+        API["۱۴ اندپوینت REST<br/>/architecture · /overview · /decisions"] --> DB
+        DB --> F["Frontend ۵ تب<br/>Overview · Features · Services · DB · API"]
+        CACHE["کش ۵ دقیقه‌ای + Fallback به JSON"] -.-> API
+        API -->|"BUY/WATCHLIST/…"| R["تصمیمات ذخیره می‌شوند"]
+    end
+    OLD -.->|"مهاجرت"| NEW
+    style OLD fill:#fce4ec,stroke:#c62828
+    style NEW fill:#e8f5e9,stroke:#2e7d32
+    style DB fill:#e3f2fd,stroke:#1565c0
+    style API fill:#fff3e0,stroke:#e65100
+```
+
+> **قبلی**: داده‌های معماری صرفاً فایل‌های JSON استاتیک بودند و تصمیمات ذخیره نمی‌شد.
+> **جدید**: سامانه ۱۲ لایه روی دیتابیس (auto-seed)، ۱۴ اندپوینت REST، ۱۱۰ ویژگی در
+> ۸ بلوک و ذخیرهٔ تصمیمات در `decision_results` — با کش و Fallback برای تاب‌آوری.
+
+
 ---
 
-## Frontend Route (/decision-engine)
+## Frontend Route
+
+**دیاگرام خط لوله ۳ گامه تصمیم:**
+
+```mermaid
+flowchart TB
+    subgraph G1["گام اول · غربالگری سریع"]
+        A1["تمام نمادها<br/>تابلو · کندل · کدال · جریان پول · کلان"]
+    end
+    subgraph G2["گام دوم · تحلیل عمیق"]
+        A2["کاندیداهای منتخب<br/>ریزمعاملات و میکروساختار"]
+    end
+    subgraph G3["گام سوم · تصمیم نهایی"]
+        A3["BaseScore + MicroAdjustment + Penalty<br/>طبق Rulebook"]
+    end
+
+    A1 --> A2 --> A3 --> FIN{"تصمیم نهایی"}
+    FIN -->|"BUY"| B1["🟢 خرید"]
+    FIN -->|"WATCHLIST"| B2["🔵 نظارت"]
+    FIN -->|"HOLD"| B3["🟡 نگهداری"]
+    FIN -->|"REDUCE"| B4["🟠 کاهش"]
+    FIN -->|"REJECT"| B5["🔴 رد"]
+    FIN -->|"NEUTRAL"| B6["🟣 خنثی"]
+
+    style A1 fill:#e3f2fd,stroke:#1565c0
+    style A2 fill:#e8f5e9,stroke:#2e7d32
+    style A3 fill:#fff3e0,stroke:#e65100
+    style B5 fill:#ffebee,stroke:#b71c1c
+```
+
+
+
+ (/decision-engine)
 
 مسیر `/decision-engine` یک داشبورد کامل با ۵ تب اصلی است.
 

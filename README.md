@@ -14,8 +14,26 @@
 
 ---
 
+## 📚 مستندات کامل
+
+> 📖 **راهنمای جامع پروژه:** [**`docs/PROJECT_GUIDE.md`**](docs/PROJECT_GUIDE.md) — مستند ۷۰۵ خطی با جزئیات کامل معماری، استک، ساختار پروژه، ۶۳ ماژول API، ۱۹ job زمان‌بندی‌شده، موتور سیگنال، ML Pipeline، بک‌تست، فرانت‌اند، Docker و عیب‌یابی.
+
+مستندات تخصصی دیگر:
+
+| مستند | موضوع |
+|-------|-------|
+| [مستندات BrsApi.ir](docs/brsapi-data-sources.md) | کاتالوگ کامل endpoint ها، نرخ مجاز و راهنمای دریافت داده |
+| [گزارش وضعیت Sync](docs/brsapi-sync-status-report.md) | تازگی جداول و وضعیت هماهنگ‌سازی داده‌ها |
+| [ارزیابی موتور سیگنال کوانت](docs/quant-signal-goal-assessment.md) | فاصله پروژه تا هدف «بهترین سیگنال» با اعداد واقعی |
+| [معماری Job Queue](docs/job-queue.md) | قفل توزیع‌شده Redis، Publisher/Consumer و dead-letter || [Model Loader](docs/ml-model-loader.md) | بارگذاری Lazy + LRU کش مدل‌های ML |
+  | [API موتور تصمیم‌گیری](docs/decision-engine-api.md) | مستندات API موتور تصمیم |
+  | [متغیرهای محیطی (.env)](docs/env-vars.md) | مرجع کامل همه متغیرها، پیش‌فرض‌ها و نکات امنیتی |
+
+---
+
 ## 📑 فهرست مطالب
 
+- [📚 مستندات کامل](#-مستندات-کامل)
 - [ویژگی‌ها](#ویژگی‌ها)
 - [معماری](#معماری)
 - [بازارهای پشتیبانی‌شده](#بازارهای-پشتیبانی‌شده)
@@ -971,7 +989,7 @@ make clean             # پاکسازی
 ## 🗄️ ساختار دیتابیس
 
 سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **122 جدول** دارد
-(تخمین کل ردیف‌ها: **~32,896,752**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
+(تخمین کل ردیف‌ها: **~42,785,178**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
 
 ### نمودار ارتباط جدول‌ها
 
@@ -1206,20 +1224,20 @@ erDiagram
 | `brsapi_gold_currency_pro_daily_history` | 20 | ~160,567 | created_at | symbol→symbols |
 | `brsapi_gold_currency_pro_history_24h` | 14 | ~0 | fetched_at | symbol→symbols |
 | `brsapi_gold_currency_pro_prices` | 23 | ~19 | fetched_at | symbol→symbols |
-| `brsapi_historical_daily` | 23 | ~8,465,821 | created_at | symbol→symbols |
-| `brsapi_historical_real_legal` | 21 | ~906,647 | created_at | symbol→symbols |
+| `brsapi_historical_daily` | 23 | ~8,628,570 | created_at | symbol→symbols |
+| `brsapi_historical_real_legal` | 21 | ~909,896 | created_at | symbol→symbols |
 | `brsapi_ime_certificates` | 48 | ~3,819 | fetched_at | symbol→symbols |
 | `brsapi_ime_funds` | 67 | ~21,019 | fetched_at | symbol→symbols |
-| `brsapi_ime_futures` | 59 | ~38 | date_end | symbol→symbols |
+| `brsapi_ime_futures` | 59 | ~7,562 | date_end | symbol→symbols |
 | `brsapi_ime_options` | 101 | ~48,213 | fetched_at | symbol→symbols |
-| `brsapi_ime_physical_trades` | 37 | ~687 | date_price_settlement | symbol→symbols |
+| `brsapi_ime_physical_trades` | 37 | ~687 | date_trade | symbol→symbols |
 | `brsapi_index_values` | 26 | ~3,437 | fetched_at | symbol→symbols |
-| `brsapi_intraday_trades` | 14 | ~1,628,554 | trade_date | symbol→symbols |
-| `brsapi_option_snapshots` | 81 | ~374,433 | date_end | symbol→symbols |
+| `brsapi_intraday_trades` | 14 | ~1,643,525 | trade_date | symbol→symbols |
+| `brsapi_option_snapshots` | 81 | ~374,997 | date_end | symbol→symbols |
 | `brsapi_raw_payloads` | 11 | ~0 | fetched_at | — |
-| `brsapi_shareholder_records` | 13 | ~772,645 | created_at | symbol→symbols |
+| `brsapi_shareholder_records` | 13 | ~771,203 | created_at | symbol→symbols |
 | `brsapi_symbol_details` | 65 | ~1,280 | fetched_at | symbol→symbols |
-| `brsapi_symbol_snapshots` | 71 | ~826,838 | fetched_at | symbol→symbols |
+| `brsapi_symbol_snapshots` | 71 | ~835,018 | fetched_at | symbol→symbols |
 | `brsapi_sync_log` | 13 | ~25,997 | created_at | — |
 | `ml_model_versions` | 13 | ~638 | created_at | — |
 | `ml_models` | 11 | ~359 | created_at | — |
@@ -1239,22 +1257,22 @@ erDiagram
 | `options` | 13 | ~3,225 | expiry_date | symbol→symbols |
 | `volatility_surface` | 11 | ~0 | date | — |
 | `brsapi_nav_records` | 14 | ~114 | fetched_at | symbol→symbols |
-| `candlesticks` | 10 | ~0 | — | FK→symbols |
-| `daily_history` | 17 | ~>0 | trade_date | FK→symbols |
-| `daily_real_legal` | 16 | ~>0 | trade_date | FK→symbols |
-| `etf_nav` | 7 | ~>0 | — | FK→symbols |
+| `candlesticks` | 10 | ~0 | time | FK→symbols |
+| `daily_history` | 17 | ~88,961 | trade_date | FK→symbols |
+| `daily_real_legal` | 16 | ~387,701 | trade_date | FK→symbols |
+| `etf_nav` | 7 | ~12 | time | FK→symbols |
 | `funds` | 31 | ~26 | snapshot_date | symbol→symbols |
 | `indicators` | 13 | ~0 | created_at | symbol→symbols |
-| `intraday_trades` | 9 | ~>0 | trade_date | FK→symbols |
-| `orderbook_snapshots` | 34 | ~0 | — | FK→symbols |
+| `intraday_trades` | 9 | ~9,135,020 | trade_date | FK→symbols |
+| `orderbook_snapshots` | 34 | ~0 | time | FK→symbols |
 | `orderbooks` | 12 | ~0 | created_at | symbol→symbols |
-| `quotes` | 29 | ~3,374,031 | created_at | symbol→symbols |
-| `shareholders` | 8 | ~>0 | record_date | FK→symbols |
-| `symbol_snapshots` | 28 | ~0 | — | FK→symbols |
-| `trades` | 14 | ~14,851,701 | created_at | symbol→symbols |
+| `quotes` | 29 | ~3,343,338 | created_at | symbol→symbols |
+| `shareholders` | 8 | ~2,390 | record_date | FK→symbols |
+| `symbol_snapshots` | 28 | ~0 | time | FK→symbols |
+| `trades` | 14 | ~14,884,365 | created_at | symbol→symbols |
 | `backtest_runs` | 22 | ~1,579 | start_date | — |
 | `backtest_trades` | 18 | ~0 | created_at | symbol→symbols |
-| `calibration_models` | 15 | ~0 | — | — |
+| `calibration_models` | 15 | ~0 | last_trained_at | — |
 | `compare_results` | 20 | ~0 | start_date | symbol→symbols |
 | `generated_strategies` | 38 | ~0 | created_at | symbol→symbols |
 | `generation_batches` | 14 | ~0 | created_at | — |
@@ -1263,25 +1281,25 @@ erDiagram
 | `screener_signals` | 37 | ~0 | created_at | symbol→symbols |
 | `screener_snapshots` | 20 | ~0 | created_at | symbol→symbols |
 | `signal_accuracy` | 28 | ~20,550 | created_at | symbol→symbols |
-| `signals` | 17 | ~>0 | created_at | symbol→symbols |
-| `audit_logs` | 12 | ~0 | — | — |
-| `audit_trail` | 10 | ~0 | — | — |
-| `decision_architectures` | 9 | ~>0 | created_at | — |
+| `signals` | 17 | ~4 | created_at | symbol→symbols |
+| `audit_logs` | 12 | ~0 | timestamp | — |
+| `audit_trail` | 10 | ~0 | timestamp | — |
+| `decision_architectures` | 9 | ~1 | created_at | — |
 | `decision_results` | 25 | ~0 | created_at | symbol→symbols |
 | `job_runs` | 15 | ~0 | created_at | — |
 | `provider_health` | 14 | ~0 | created_at | — |
-| `provider_health_history` | 8 | ~0 | — | — |
-| `alert_history` | 8 | ~217 | — | — |
+| `provider_health_history` | 8 | ~0 | checked_at | — |
+| `alert_history` | 8 | ~274 | triggered_at | — |
 | `alerts` | 14 | ~1 | created_at | symbol→symbols |
-| `commodity_certificates` | 8 | ~125,256 | — | symbol→symbols |
-| `commodity_funds` | 8 | ~124 | — | symbol→symbols |
+| `commodity_certificates` | 8 | ~125,256 | time | symbol→symbols |
+| `commodity_funds` | 8 | ~186 | time | symbol→symbols |
 | `commodity_futures` | 11 | ~60 | expiry_date | symbol→symbols |
 | `commodity_options` | 11 | ~476 | expiry_date | symbol→symbols |
-| `commodity_prices` | 9 | ~>0 | — | symbol→symbols |
+| `commodity_prices` | 9 | ~42 | time | symbol→symbols |
 | `commodity_trades` | 12 | ~320,005 | created_at | symbol→symbols |
-| `dual_date_columns` | 4 | ~102 | — | — |
-| `gold_currency_prices` | 12 | ~>0 | — | symbol→symbols |
-| `indices` | 8 | ~>0 | — | — |
+| `dual_date_columns` | 4 | ~117 | — | — |
+| `gold_currency_prices` | 12 | ~74,463 | time | symbol→symbols |
+| `indices` | 8 | ~4 | time | — |
 | `instruments` | 26 | ~499 | created_at | symbol→symbols |
 | `symbol_relations` | 13 | ~0 | created_at | — |
 | `markets` | 14 | ~0 | created_at | — |
@@ -1296,8 +1314,8 @@ erDiagram
 | `brsapi_codal_announcements` | 24 | ~5,053 | date_publish | symbol→symbols |
 | `brsapi_codal_attachments` | 18 | ~359 | created_at | symbol→symbols |
 | `codal_announcements` | 17 | ~0 | date_publish | symbol→symbols |
-| `codal_audit_summary` | 33 | ~451 | report_date | symbol→symbols |
-| `codal_financial_statements` | 16 | ~451 | report_date | symbol→symbols |
+| `codal_audit_summary` | 33 | ~451 | analyzed_at | symbol→symbols |
+| `codal_financial_statements` | 16 | ~451 | imported_at | symbol→symbols |
 | `codal_reports` | 17 | ~226,818 | publish_date | symbol→symbols |
 | `corporate_actions` | 11 | ~0 | ex_date | symbol→symbols |
 | `data_lineage` | 13 | ~0 | created_at | FK→dim_document، FK→fact_financials |
@@ -1311,9 +1329,9 @@ erDiagram
 | `fact_quality_signals` | 11 | ~0 | created_at | FK→dim_company، FK→dim_date |
 | `fact_ratios` | 14 | ~0 | created_at | FK→dim_company، FK→dim_date |
 | `fact_text_analytics` | 13 | ~0 | created_at | FK→dim_company، FK→dim_document |
-| `import_audit_log` | 9 | ~0 | — | FK→import_document_files |
+| `import_audit_log` | 9 | ~0 | timestamp | FK→import_document_files |
 | `import_document_files` | 18 | ~95,418 | created_at | — |
-| `import_document_tables` | 13 | ~522,636 | created_at | FK→import_document_files |
+| `import_document_tables` | 13 | ~524,564 | created_at | FK→import_document_files |
 | `macro_indicators` | 15 | ~0 | created_at | — |
 | `news_articles` | 16 | ~1,819 | created_at | — |
 
@@ -1325,10 +1343,9 @@ erDiagram
 |------|-----------:|
 | جدول خالی است | 58 |
 | مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست | 43 |
-| ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 16 |
-| آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید | 10 |
 | لایه ستاره‌ای کدال (dim/fact) هرگز پیاده‌سازی نشده — import فعال به `codal_financial_statements` می‌رود | 10 |
 | بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 6 |
+| ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 5 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` (۳۳۶K ردیف) است | 3 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` است | 2 |
 | ستون منبع تاریخ `expiry_date` در نمونه NULL دارد | 2 |
@@ -1830,7 +1847,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_historical_daily</code> — ~8,465,821 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
+<summary><code>brsapi_historical_daily</code> — ~8,628,570 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -1852,7 +1869,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_historical_real_legal</code> — ~906,647 ردیف، 21 ستون (نمایش 12 ستون از 21)</summary>
+<summary><code>brsapi_historical_real_legal</code> — ~909,896 ردیف، 21 ستون (نمایش 12 ستون از 21)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -1916,7 +1933,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_ime_futures</code> — ~38 ردیف، 59 ستون (نمایش 12 ستون از 59) ⚠️ 1 مشکل</summary>
+<summary><code>brsapi_ime_futures</code> — ~7,562 ردیف، 59 ستون (نمایش 12 ستون از 59) ⚠️ 1 مشکل</summary>
 
 **مشکلات (1):**
 - ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
@@ -1925,7 +1942,7 @@ _مشکلی شناسایی نشد._
 - مدل: `brsapi/models/ime.py` → `ImeFutureModel`
 - سرویس: `services/quant_signal_orchestrator.py` (1)
 - جاب: `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/start_scheduler.py` (1)، `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/fix_dual_date_remaining.py` (1)، `scripts/start_scheduler.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `brsapi/jobs/registry.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1960,15 +1977,14 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_ime_physical_trades</code> — ~687 ردیف، 37 ستون (نمایش 12 ستون از 37) ⚠️ 2 مشکل</summary>
+<summary><code>brsapi_ime_physical_trades</code> — ~687 ردیف، 37 ستون (نمایش 12 ستون از 37) ⚠️ 1 مشکل</summary>
 
-**مشکلات (2):**
+**مشکلات (1):**
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 
 **مراجع کد:**
 - مدل: `brsapi/models/ime.py` → `ImePhysicalTradeModel`
-- اسکریپت: `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/fix_dual_date_remaining.py` (2)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
@@ -2003,7 +2019,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_intraday_trades</code> — ~1,628,554 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
+<summary><code>brsapi_intraday_trades</code> — ~1,643,525 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2024,7 +2040,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_option_snapshots</code> — ~374,433 ردیف، 81 ستون (نمایش 12 ستون از 81)</summary>
+<summary><code>brsapi_option_snapshots</code> — ~374,997 ردیف، 81 ستون (نمایش 12 ستون از 81)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2058,7 +2074,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_shareholder_records</code> — ~772,645 ردیف، 13 ستون (نمایش 12 ستون از 13)</summary>
+<summary><code>brsapi_shareholder_records</code> — ~771,203 ردیف، 13 ستون (نمایش 12 ستون از 13)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2101,7 +2117,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_symbol_snapshots</code> — ~826,838 ردیف، 71 ستون (نمایش 12 ستون از 71)</summary>
+<summary><code>brsapi_symbol_snapshots</code> — ~835,018 ردیف، 71 ستون (نمایش 12 ستون از 71)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2118,8 +2134,8 @@ _مشکلی شناسایی نشد._
 
 | id | ins_id | symbol | name | isin | sector | sector_id | shares_count | base_volume | market_value | eps | pe_ratio | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 6108740 | 34721884030854211 | سفاسی | شرکت فارسیت اهواز | IRO7SFSP0001 | سایر محصولات کانی غیرفلزی | 54 | 660000000 | 1 | 2382600000000.0 | 339.0 | 10.6 | … |
-| 6108741 | 39635413409683200 | کانسار3 | معدنکاران نسوز | IRO3MKNZ0003 | استخراج سایر معادن | 14 | 5600000000 | 1 | 76608000000000.0 | 1506.0 | 9.1 | … |
+| 6448596 | 31879190587976736 | خوساز | محورسازان‌ایران‌خودرو | IRO1MESI0001 | خودرو و ساخت قطعات | 34 | 1119876222 | 1 | 16630161896700.0 | -286.0 | -51.9 | … |
+| 6488028 | 35757908588761589 | گوهر2 | صندوق س.کالای کیان | IRTKKIAN0002 | صندوق سرمایه‌گذاری قابل معامله | 68 | 300000000 | 1 | 300000000.0 | 0.0 | 0.0 | … |
 
 </details>
 
@@ -2452,10 +2468,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>daily_history</code> — ~>0 ردیف، 17 ستون (نمایش 12 ستون از 17) ⚠️ 1 مشکل</summary>
+<summary><code>daily_history</code> — ~88,961 ردیف، 17 ستون (نمایش 12 ستون از 17)</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `DailyHistoryModel`
@@ -2473,10 +2488,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>daily_real_legal</code> — ~>0 ردیف، 16 ستون (نمایش 12 ستون از 16) ⚠️ 1 مشکل</summary>
+<summary><code>daily_real_legal</code> — ~387,701 ردیف، 16 ستون (نمایش 12 ستون از 16)</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `DailyRealLegalModel`
@@ -2494,12 +2508,10 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>etf_nav</code> — ~>0 ردیف، 7 ستون ⚠️ 4 مشکل</summary>
+<summary><code>etf_nav</code> — ~12 ردیف، 7 ستون ⚠️ 2 مشکل</summary>
 
-**مشکلات (4):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+**مشکلات (2):**
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 - ۱۲ ردیف یتیم بدون مصرف‌کننده — نسخه‌های زنده `brsapi_nav_records` و `funds` جایگزین‌اند
 
 **مراجع کد:**
@@ -2510,8 +2522,8 @@ _مشکلی شناسایی نشد._
 
 | symbol_id | time | nav | price | discount_premium | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|
-| 57534567890123457 | 2026-07-07 12:28:05+00:00 | 28362.5 | NULL | NULL | NULL | NULL |
-| 57534567890123458 | 2026-07-07 11:33:48+00:00 | 50452.0 | NULL | NULL | NULL | NULL |
+| 57534567890123457 | 2026-07-07 12:28:05+00:00 | 28362.5 | NULL | NULL | 2026-07-07 | 1405-04-16 |
+| 57534567890123458 | 2026-07-07 11:33:48+00:00 | 50452.0 | NULL | NULL | 2026-07-07 | 1405-04-16 |
 
 </details>
 
@@ -2559,10 +2571,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>intraday_trades</code> — ~>0 ردیف، 9 ستون ⚠️ 2 مشکل</summary>
+<summary><code>intraday_trades</code> — ~9,135,020 ردیف، 9 ستون ⚠️ 1 مشکل</summary>
 
-**مشکلات (2):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+**مشکلات (1):**
 - نسخه قدیمی است — جدول زنده `brsapi_intraday_trades` جایگزین آن است
 
 **مراجع کد:**
@@ -2610,7 +2621,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>quotes</code> — ~3,374,031 ردیف، 29 ستون (نمایش 12 ستون از 29)</summary>
+<summary><code>quotes</code> — ~3,343,338 ردیف، 29 ستون (نمایش 12 ستون از 29)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2634,10 +2645,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>shareholders</code> — ~>0 ردیف، 8 ستون ⚠️ 1 مشکل</summary>
+<summary><code>shareholders</code> — ~2,390 ردیف، 8 ستون</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `ShareholderModel`
@@ -2672,10 +2682,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>trades</code> — ~14,851,701 ردیف، 14 ستون (نمایش 12 ستون از 14) ⚠️ 1 مشکل</summary>
+<summary><code>trades</code> — ~14,884,365 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
-**مشکلات (1):**
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/trade.py` → `TradeModel`
@@ -2691,8 +2700,8 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | price | volume | value | side | time | date | data_source | created_at | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 7209d04dd7c46de2423972c74d6bae… | رپويا | رپويا | 46750.0 | 3823 | 178725250.0 | NULL | 09:51:52 | 1405-03-24 | tsetmc | 2026-07-12 09:53:16.158994 | NULL | … |
-| a71197126ab365324da813fdea8fb6… | رپويا | رپويا | 46750.0 | 10000 | 467500000.0 | NULL | 09:51:52 | 1405-03-24 | tsetmc | 2026-07-12 09:53:16.158994 | NULL | … |
+| 904263ef69a539cb37dae689fa7ec0… | بنو | بنو | 1617.0 | 3120 | 5045040.0 | NULL | 11:16:53 | 1405-03-24 | tsetmc | 2026-07-12 09:15:31.959212 | NULL | … |
+| fc3e84ee18c5f02b3924ceef52c7eb… | بنو | بنو | 1617.0 | 3120 | 5045040.0 | NULL | 11:18:51 | 1405-03-24 | tsetmc | 2026-07-12 09:15:31.959212 | NULL | … |
 
 </details>
 
@@ -2865,10 +2874,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>signals</code> — ~>0 ردیف، 17 ستون (نمایش 12 ستون از 17) ⚠️ 1 مشکل</summary>
+<summary><code>signals</code> — ~4 ردیف، 17 ستون (نمایش 12 ستون از 17)</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/signal.py` → `SignalModel`
@@ -2915,10 +2923,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>decision_architectures</code> — ~>0 ردیف، 9 ستون ⚠️ 1 مشکل</summary>
+<summary><code>decision_architectures</code> — ~1 ردیف، 9 ستون</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/decision_engine.py` → `DecisionArchitecture`
@@ -2986,10 +2993,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>alert_history</code> — ~217 ردیف، 8 ستون ⚠️ 1 مشکل</summary>
+<summary><code>alert_history</code> — ~274 ردیف، 8 ستون</summary>
 
-**مشکلات (1):**
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/alert.py` → `AlertHistoryModel`
@@ -3000,8 +3006,8 @@ _مشکلی شناسایی نشد._
 
 | id | alert_id | triggered_at | trigger_value | message | delivered | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|
-| alh_5e4bd15fa07744fd8945aad7 | alr_035b5d82ba7143759a9a776c | 2026-08-03 12:03:05.128201 | 28192.0 | کاج price reached 28192.0 (thr… | True | NULL | NULL |
-| alh_ddcefd4b5dd247b68d2e7c62 | alr_035b5d82ba7143759a9a776c | 2026-08-03 12:05:05.137585 | 28192.0 | کاج price reached 28192.0 (thr… | True | NULL | NULL |
+| alh_75ea5607e9ce4912b09941aa | alr_035b5d82ba7143759a9a776c | 2026-08-03 13:41:05.957049 | 28192.0 | کاج price reached 28192.0 (thr… | True | 2026-08-03 | 1405-05-12 |
+| alh_975921017e4246a8a59c5d60 | alr_035b5d82ba7143759a9a776c | 2026-08-03 15:21:06.072966 | 28201.0 | کاج price reached 28201.0 (thr… | True | 2026-08-03 | 1405-05-12 |
 
 </details>
 
@@ -3029,11 +3035,10 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>commodity_certificates</code> — ~125,256 ردیف، 8 ستون ⚠️ 2 مشکل</summary>
+<summary><code>commodity_certificates</code> — ~125,256 ردیف، 8 ستون ⚠️ 1 مشکل</summary>
 
-**مشکلات (2):**
+**مشکلات (1):**
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityCertificateModel`
@@ -3043,17 +3048,16 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | price | volume | time | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|
-| 4598 | PAM-LLD0209AAPP-00 | پلی اتیلن سبک خطی 0209AA | 39215.0 | 5038 | 2026-07-13 02:46:52.449560+00:… | NULL | NULL |
-| 4599 | PAM-LLD0209AAPP-00 | پلی اتیلن سبک خطی 0209AA | 39215.0 | 4730 | 2026-07-13 02:46:52.449560+00:… | NULL | NULL |
+| 4959 | PACR-BI6070B-00 | قیر 6070 | 5200.0 | 424 | 2026-07-13 02:46:52.449560+00:… | 2026-07-13 | 1405-04-22 |
+| 5690 | JRC-BI85100B-00 | قیر 85100 | 5750.0 | 320 | 2026-07-13 02:46:52.449560+00:… | 2026-07-13 | 1405-04-22 |
 
 </details>
 
 <details>
-<summary><code>commodity_funds</code> — ~124 ردیف، 8 ستون ⚠️ 2 مشکل</summary>
+<summary><code>commodity_funds</code> — ~186 ردیف، 8 ستون ⚠️ 1 مشکل</summary>
 
-**مشکلات (2):**
+**مشکلات (1):**
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityFundModel`
@@ -3063,8 +3067,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | nav | price | time | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|
-| 1 | عیار | صندوق طلای عیار مفید | NULL | 501990.0 | 2026-07-14 14:58:08.847483+00:… | NULL | NULL |
-| 2 | نقران | صندوق س.کالای کهربا1 | NULL | 10555.0 | 2026-07-14 14:58:08.851409+00:… | NULL | NULL |
+| 1 | عیار | صندوق طلای عیار مفید | NULL | 501990.0 | 2026-07-14 14:58:08.847483+00:… | 2026-07-14 | 1405-04-23 |
+| 2 | نقران | صندوق س.کالای کهربا1 | NULL | 10555.0 | 2026-07-14 14:58:08.851409+00:… | 2026-07-14 | 1405-04-23 |
 
 </details>
 
@@ -3109,13 +3113,11 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>commodity_prices</code> — ~>0 ردیف، 9 ستون ⚠️ 4 مشکل</summary>
+<summary><code>commodity_prices</code> — ~42 ردیف، 9 ستون ⚠️ 2 مشکل</summary>
 
-**مشکلات (4):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+**مشکلات (2):**
 - نسخه قدیمی است — جدول زنده `brsapi_commodity_prices` جایگزین آن است
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityGlobalPriceModel`
@@ -3126,8 +3128,8 @@ _مشکلی شناسایی نشد._
 
 | symbol | time | name | price | change_value | change_pct | unit | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|
-| XAUUSD | 2026-07-14 14:58:08.449514+00:… | انس طلا | 4083.67 | 84.27 | NULL | دلار | NULL | NULL |
-| XAGUSD | 2026-07-14 14:58:08.487040+00:… | انس نقره | 59.32 | 1.74 | NULL | دلار | NULL | NULL |
+| XAUUSD | 2026-07-14 14:58:08.449514+00:… | انس طلا | 4083.67 | 84.27 | NULL | دلار | 2026-07-14 | 1405-04-23 |
+| XAGUSD | 2026-07-14 14:58:08.487040+00:… | انس نقره | 59.32 | 1.74 | NULL | دلار | 2026-07-14 | 1405-04-23 |
 
 </details>
 
@@ -3145,13 +3147,13 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | trade_date | price | volume | value | counter_party | created_at | updated_at | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 87200 | TIOC-PDATARB-00 | PDA TAR | NULL | 72156.0 | 1794 | 129448514.0 | نفت ایرانول\|صبا تأمین | 2026-07-13 02:45:42.100240+00:… | NULL | 2026-07-13 | 1405-04-22 |
-| 88027 | CACO-ZII1-00 | شمش روی 99.98 | NULL | 671176.0 | 40 | 26847040.0 | کالسیمین\|سی ولکس | 2026-07-13 02:45:42.100240+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 128210 | CACO-ZIE1-00 | شمش روی 99.97 | NULL | 882979.0 | 75 | 66223425.0 | کالسیمین\|سی ولکس | 2026-07-13 02:45:54.408036+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 128997 | SACE-CEMENT2B-00 | سیمان تیپ2 | NULL | 7014.0 | 3580 | 25110120.0 | سیمان ساوه\|صبا تأمین | 2026-07-13 02:45:54.408036+00:… | NULL | 2026-07-13 | 1405-04-22 |
 
 </details>
 
 <details>
-<summary><code>dual_date_columns</code> — ~102 ردیف، 4 ستون ⚠️ 3 مشکل</summary>
+<summary><code>dual_date_columns</code> — ~117 ردیف، 4 ستون ⚠️ 3 مشکل</summary>
 
 **مشکلات (3):**
 - بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
@@ -3160,8 +3162,8 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: _بدون مدل ORM_
-- اسکریپت: `scripts/install_dual_dates.py` (3)، `scripts/backfill_dual_dates.py` (2)، `scripts/analyze_db_issues.py` (1)، `scripts/test_dual_dates.py` (1)
-- تست: `tests/unit/test_dual_dates.py` (2)
+- اسکریپت: `scripts/install_dual_dates.py` (5)، `scripts/fix_dual_date_gaps.py` (4)، `scripts/backfill_dual_dates.py` (2)، `scripts/analyze_db_issues.py` (1)
+- تست: `tests/unit/test_dual_dates.py` (4)
 
 **نمونه داده:**
 
@@ -3173,47 +3175,43 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>gold_currency_prices</code> — ~>0 ردیف، 12 ستون ⚠️ 3 مشکل</summary>
+<summary><code>gold_currency_prices</code> — ~74,463 ردیف، 12 ستون ⚠️ 1 مشکل</summary>
 
-**مشکلات (3):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+**مشکلات (1):**
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `GoldCurrencyPriceModel`
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/populate_profiles.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/backfill_dual_dates_direct.py` (1)، `scripts/fix_dual_date_remaining.py` (1)، `scripts/populate_profiles.py` (1)
 
 **نمونه داده:**
 
 | symbol | time | name | name_en | sign | price | change_value | change_pct | unit | section | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| AED | 2018-04-16 19:30:00+00:00 | AED | NULL | NULL | 14770.0 | -330.0 | -2.185430463576159 | unit | currency | NULL | NULL |
-| AMD | 2018-04-16 19:30:00+00:00 | AMD | NULL | NULL | 140.0 | -950.0 | -87.1559633027523 | unit | currency | NULL | NULL |
+| AED | 2018-04-16 19:30:00+00:00 | AED | NULL | NULL | 14770.0 | -330.0 | -2.185430463576159 | unit | currency | 2018-04-17 | 1397-01-28 |
+| AMD | 2018-04-16 19:30:00+00:00 | AMD | NULL | NULL | 140.0 | -950.0 | -87.1559633027523 | unit | currency | 2018-04-17 | 1397-01-28 |
 
 </details>
 
 <details>
-<summary><code>indices</code> — ~>0 ردیف، 8 ستون ⚠️ 2 مشکل</summary>
+<summary><code>indices</code> — ~4 ردیف، 8 ستون</summary>
 
-**مشکلات (2):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `IndexModel`
 - سرویس: `services/market_service.py` (8)
 - API: `apps/api/endpoints/market_watch.py` (5)، `apps/api/endpoints/market.py` (3)، `apps/api/endpoints/market_dashboard.py` (3)، `apps/api/router.py` (1)
 - جاب: `jobs/definitions/sync_jobs.py` (2)، `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/audit_data_access.py` (1)
+- اسکریپت: `scripts/audit_data_access.py` (1)، `scripts/fix_dual_date_remaining.py` (1)
 - سایر: `domain/indices/__init__.py` (3)، `ml/datasets/sampling.py` (3)، `ml/evaluation/stability.py` (3)، `ml/models/ensemble/blending.py` (3)
 
 **نمونه داده:**
 
 | id | name | value | change_value | change_pct | time | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|
-| 1 | شاخص کل | 4924683.63 | -42077.13 | NULL | 2026-07-14 14:41:36.860251+00:… | NULL | NULL |
-| 2 | شاخص کل | 4924683.63 | -42077.13 | NULL | 2026-07-14 14:58:05.546302+00:… | NULL | NULL |
+| 1 | شاخص کل | 4924683.63 | -42077.13 | NULL | 2026-07-14 14:41:36.860251+00:… | 2026-07-14 | 1405-04-23 |
+| 2 | شاخص کل | 4924683.63 | -42077.13 | NULL | 2026-07-14 14:58:05.546302+00:… | 2026-07-14 | 1405-04-23 |
 
 </details>
 
@@ -3450,10 +3448,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>codal_audit_summary</code> — ~451 ردیف، 33 ستون (نمایش 12 ستون از 33) ⚠️ 1 مشکل</summary>
+<summary><code>codal_audit_summary</code> — ~451 ردیف، 33 ستون (نمایش 12 ستون از 33)</summary>
 
-**مشکلات (1):**
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/codal.py` → `CodalAuditSummaryModel`
@@ -3464,16 +3461,15 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | company_name | report_type | report_date | revenue | net_profit | total_assets | total_equity | eps | roe | roa | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 11 | وبملت | NULL | ن-۱۰ | ۱۴۰۵ | 2906669266.0 | NULL | NULL | 3132036.0 | NULL | 0.0 | 0.2353 | … |
-| 13 | وبانک | NULL | ن-۱۰ | ۱۴۰۵ | 14030930.0 | NULL | NULL | 749998.0 | NULL | 0.0799 | 11982.0 | … |
+| 6 | رمپنا | NULL | ن-۱۰ | ۱۴۰۵ | 15099257000.0 | NULL | NULL | 8561.0 | NULL | 0.0 | NULL | … |
+| 7 | خساپا | NULL | ن-۱۰ | ۱۴۰۵ | 4893360.0 | NULL | NULL | 110.0 | NULL | 0.0 | NULL | … |
 
 </details>
 
 <details>
-<summary><code>codal_financial_statements</code> — ~451 ردیف، 16 ستون (نمایش 12 ستون از 16) ⚠️ 1 مشکل</summary>
+<summary><code>codal_financial_statements</code> — ~451 ردیف، 16 ستون (نمایش 12 ستون از 16)</summary>
 
-**مشکلات (1):**
-- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/codal_financial.py` → `CodalFinancialStatementModel`
@@ -3485,8 +3481,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | report_type | report_date | filename | file_path | title | parsed_data | table_count | row_count | import_batch | imported_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| cfs_2e86682e45c54ac8 | خودرو | ن-۱۰ | ۱۴۰۵ | NULL | NULL | Batch audit - خودرو | {'dupont': {'roe': 0.0, 'roe_d… | 6 | 0 | batch_1784534071 | 2026-07-20 11:24:29.903036 | … |
-| cfs_021ba961c71525cb | وغدیر | ن-۱۰ | ۱۴۰۵ | NULL | NULL | Batch audit - وغدیر | {'dupont': {'roe': 1.7503, 'ro… | 11 | 0 | batch_1784534134 | 2026-07-20 11:25:33.221269 | … |
+| cfs_c820bbccb8d81814 | وبملت | ن-۱۰ | ۱۴۰۵ | NULL | NULL | Batch audit - وبملت | {'dupont': {'roe': 0.0, 'roe_d… | 14 | 0 | batch_1784534137 | 2026-07-20 11:25:37.132687 | … |
+| cfs_28d023770e385f6a | وبانک | ن-۱۰ | ۱۴۰۵ | NULL | NULL | Batch audit - وبانک | {'dupont': {'roe': 0.0799, 'ro… | 11 | 0 | batch_1784534138 | 2026-07-20 11:25:38.021954 | … |
 
 </details>
 
@@ -3693,13 +3689,13 @@ _مشکلی شناسایی نشد._
 
 | id | issuer_symbol | report_type | report_date_jalali | file_name | file_path | file_size_bytes | sha256 | detected_format | file_status | error_message | parsed_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 75869 | وصندوق | n31 | 1397-05-07 | وصندوق_ن-۳۱_۱۳۹۷_۰۵_۰۷.xlsx | C:\Users\Iran\Desktop\temce\da… | 97280 | fast:C:\Users\Iran\Desktop\tem… | xls_biff | saved | NULL | 2026-07-20 03:30:37.925852 | … |
-| 45400 | شراز | n10 | 1403-07-30 | شراز_ن-۱۰_۱۴۰۳_۰۷_۳۰.xlsx | C:\Users\Iran\Desktop\temce\da… | 496611 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:22:45.639838 | … |
+| 90827 | کساپا | NULL | NULL | کساپا__۱۳۹۰_۰۵_۰۲.xlsx | C:\Users\Iran\Desktop\temce\da… | 122368 | fast:C:\Users\Iran\Desktop\tem… | xls_biff | saved | NULL | 2026-07-20 03:32:30.342578 | … |
+| 92424 | کنور | n10 | 1403-09-10 | کنور_ن-۱۰_۱۴۰۳_۰۹_۱۰.xlsx | C:\Users\Iran\Desktop\temce\da… | 695902 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:32:39.924660 | … |
 
 </details>
 
 <details>
-<summary><code>import_document_tables</code> — ~522,636 ردیف، 13 ستون (نمایش 12 ستون از 13) ⚠️ 1 مشکل</summary>
+<summary><code>import_document_tables</code> — ~524,564 ردیف، 13 ستون (نمایش 12 ستون از 13) ⚠️ 1 مشکل</summary>
 
 **مشکلات (1):**
 - مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
@@ -4283,7 +4279,7 @@ _مشکلی شناسایی نشد._
 
 ### جمع‌بندی جامع و نقشه راه اصلاحات
 
-سکوی داده شامل **122 جدول** و حدود **~32,896,752 ردیف** است. از این میان **58 جدول خالی**، **6 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **6 جدول بدون مدل ORM** و **1 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **10 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
+سکوی داده شامل **122 جدول** و حدود **~42,785,178 ردیف** است. از این میان **58 جدول خالی**، **6 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **6 جدول بدون مدل ORM** و **1 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **0 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
 
 **نقشه راه اصلاحات (اولویت‌بندی‌شده):**
 

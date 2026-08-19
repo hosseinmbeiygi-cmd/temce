@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
-import { apiGet, apiPost, apiPut, apiDelete, extractItems, extractArray } from "@/lib/api";
+import SymbolSelector from "@/components/SymbolSelector";
+import { apiGet, apiPost, apiPut, apiDelete, extractItems } from "@/lib/api";
 
 interface Alert {
   id: string;
@@ -18,14 +18,6 @@ interface Alert {
   last_triggered: string | null;
   description: string;
   created_at: string;
-}
-
-interface SymbolOption {
-  symbol: string;
-  name: string;
-  price: number;
-  change: number;
-  sector: string;
 }
 
 const ALERT_TYPES = [
@@ -50,92 +42,7 @@ export default function AlertsPage() {
   const [message, setMessage] = useState("");
   const [historyAlertId, setHistoryAlertId] = useState<string | null>(null);
   const [historyData, setHistoryData] = useState<Array<{id: string; triggered_at: string; trigger_value: number; message: string}>>([]);
-
-  // Fetch all symbols from API with fallbacks
-  const { data: symbolsData } = useQuery({
-    queryKey: ["alerts-symbols"],
-    queryFn: async (): Promise<SymbolOption[]> => {
-      // Try 1: enriched heatmap (best: has price + sector)
-      try {
-        const res = await apiGet<unknown>("/market/enriched-heatmap");
-        const arr = extractArray<SymbolOption>(res);
-        if (arr.length > 0) return arr;
-      } catch { /* fall through */ }
-
-      // Try 2: instruments list
-      try {
-        const res = await apiGet<{ success: boolean; data: { items: Array<{ symbol: string; name: string; sector?: string }> } | Array<{ symbol: string; name: string }> }>("/instruments?limit=500");
-        const items = extractArray<{ symbol: string; name: string; sector?: string }>(res);
-        if (items.length > 0) {
-          return items.map((i) => ({
-            symbol: i.symbol,
-            name: i.name || "",
-            price: 0,
-            change: 0,
-            sector: i.sector || "",
-          }));
-        }
-      } catch { /* fall through */ }
-
-      // Try 3: market-info/funds for fund symbols
-      try {
-        const res = await apiGet<unknown>("/market-info/funds");
-        const arr = extractArray<{ symbol: string; name: string }>(res);
-        if (arr.length > 0) {
-          return arr.map((i) => ({
-            symbol: i.symbol,
-            name: i.name || "",
-            price: 0,
-            change: 0,
-            sector: "",
-          }));
-        }
-      } catch { /* fall through */ }
-
-      // Try 4: brsapi snapshots
-      try {
-        const res = await apiGet<unknown>("/brsapi/snapshots?limit=300");
-        const arr = extractArray<{ symbol: string; name: string }>(res);
-        if (arr.length > 0) {
-          return arr.map((i) => ({
-            symbol: i.symbol,
-            name: i.name || "",
-            price: 0,
-            change: 0,
-            sector: "",
-          }));
-        }
-      } catch { /* fall through */ }
-
-      // Try 5: static symbol catalog (DB-free — works even without PostgreSQL)
-      try {
-        const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; name: string; sector?: string }> }>("/symbols?limit=1000");
-        const arr = extractArray<{ symbol: string; name: string; sector?: string }>(res);
-        if (arr.length > 0) {
-          return arr.map((i) => ({
-            symbol: i.symbol,
-            name: i.name || "",
-            price: 0,
-            change: 0,
-            sector: i.sector || "",
-          }));
-        }
-      } catch { /* fall through */ }
-
-      return [];
-    },
-    staleTime: 120_000,
-    retry: 2,
-  });
-
-  const symbols = symbolsData ?? [];
-  const symbolOptions = symbols.length > 0
-    ? symbols.map((s) => ({
-        value: s.symbol,
-        label: `${s.symbol} — ${s.name || ""}`,
-        sector: s.sector || "",
-      }))
-    : [];
+  const [manualEntry, setManualEntry] = useState(false);
 
   useEffect(() => {
     fetchAlerts();
@@ -230,21 +137,30 @@ export default function AlertsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">نماد</label>
-                  {/* جستجو و انتخاب نماد: هم dropdown از API و هم تایپ دستی */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={symbol}
-                      onChange={(e) => setSymbol(e.target.value)}
-                      placeholder="تایپ یا انتخاب نماد..."
-                      list="symbol-options"
-                      className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
-                    />
-                    <datalist id="symbol-options">
-                      {symbolOptions.map((s) => (
-                        <option key={s.value} value={s.value} />
-                      ))}
-                    </datalist>
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1">
+                      {manualEntry ? (
+                        /* ورود دستی: هر نمادی (حتی نمادهای جدید خارج از کاتالوگ) */
+                        <input
+                          type="text"
+                          value={symbol}
+                          onChange={(e) => setSymbol(e.target.value)}
+                          placeholder="تایپ دستی نماد..."
+                          className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2 text-white font-mono placeholder-gray-500"
+                        />
+                      ) : (
+                        /* جستجو روی کل کاتالوگ (سهام/صندوق/طلا/ارز/رمزارز/کامودیتی) */
+                        <SymbolSelector value={symbol} onChange={setSymbol} placeholder="انتخاب نماد..." />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setManualEntry((v) => !v)}
+                      className="text-xs px-2 py-2 rounded-lg bg-surface-800 border border-surface-700 text-gray-400 hover:text-white whitespace-nowrap transition-colors"
+                      title={manualEntry ? "جستجو از کاتالوگ نمادها" : "تایپ دستی هر نمادی"}
+                    >
+                      {manualEntry ? "🔍 جستجو" : "⌨️ ورود دستی"}
+                    </button>
                   </div>
                   {symbol && (
                     <p className="text-xs text-gray-500 mt-1">

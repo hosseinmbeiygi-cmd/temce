@@ -18,10 +18,22 @@ class WorkerApp:
     async def start(self) -> None:
         self._running = True
         logger.info("Worker started")
+
+        # Connect Redis in the background so JobQueueConsumer + JobLocking
+        # use the distributed backend. Non-blocking: until the connection is
+        # ready the consumer idles and the scheduler falls back to in-process.
+        try:
+            from core.cache import get_cache
+
+            await get_cache().initialize()
+        except Exception:
+            logger.warning("Redis cache init failed; worker falls back to idle mode")
+
         await self.consumer.start()
         while self._running:
             await asyncio.sleep(1)
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         self._running = False
+        await self.consumer.stop()
         logger.info("Worker stopped")

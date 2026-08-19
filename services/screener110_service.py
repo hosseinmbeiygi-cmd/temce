@@ -55,8 +55,9 @@ DEFAULT_CAPITAL = 1_000_000_000  # 1B IRR
 class BatchLoader:
     """Five parallel queries → indexed dicts for O(1) lookup per symbol."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, brsapi: Any | None = None) -> None:
         self._session = session
+        self._brsapi = brsapi
 
     # ── Individual queries ────────────────────────────────────────────────
 
@@ -72,14 +73,27 @@ class BatchLoader:
         return [dict(r._mapping) for r in rows.fetchall()]
 
     async def _load_daily(self) -> list[dict[str, Any]]:
+        # Per-symbol LATERAL window (uses idx_hist_symbol_gregorian) instead of
+        # scanning the whole brsapi_historical_daily table (12M+ rows). The
+        # ``daily_history`` view wraps that table too, so it is equally slow.
         q = text("""
-            SELECT s.symbol, dh.trade_date,
-                   dh.price_close, dh.price_max, dh.price_min, dh.price_last,
-                   dh.trade_volume, dh.trade_value, dh.price_last_change_pct
-            FROM daily_history dh
-            JOIN symbols s ON s.id = dh.symbol_id
-            WHERE dh.trade_date >= NOW() - INTERVAL '61 days'
-            ORDER BY s.symbol, dh.trade_date DESC
+            SELECT s.symbol,
+                   d.gregorian_date   AS trade_date,
+                   d.price_close, d.price_max, d.price_min, d.price_last,
+                   d.trade_volume, d.trade_value, d.price_last_change_pct
+            FROM symbols s
+            CROSS JOIN LATERAL (
+                SELECT b.gregorian_date, b.price_close, b.price_max,
+                       b.price_min, b.price_last, b.trade_volume,
+                       b.trade_value, b.price_last_change_pct
+                FROM brsapi_historical_daily b
+                WHERE b.symbol = s.symbol
+                  AND b.gregorian_date IS NOT NULL
+                ORDER BY b.gregorian_date DESC
+                LIMIT 61
+            ) d
+            WHERE s.is_active = TRUE OR s.is_active IS NULL
+            ORDER BY s.symbol, d.gregorian_date DESC
         """)
         rows = await self._session.execute(q)
         return [dict(r._mapping) for r in rows.fetchall()]
@@ -119,17 +133,20 @@ class BatchLoader:
     # ── Parallel load → indexed maps ─────────────────────────────────────
 
     async def load_all(self) -> dict[str, Any]:
-        """Run all 5 queries in parallel, index results by symbol."""
-        from asyncio import gather
+        """Run all 5 queries and index results by symbol.
 
+        NOTE: Queries run sequentially (not via asyncio.gather) because
+        SQLAlchemy AsyncSession does NOT support concurrent operations on a
+        single session — gather() raised InvalidRequestError:
+        "This session is provisioning a new connection; concurrent operations
+        are not permitted". Sequential execution is still fast (~2-4s).
+        """
         t0 = time.perf_counter()
-        syms, daily_raw, legal_raw, profiles_raw, snaps_raw = await gather(
-            self._load_symbols(),
-            self._load_daily(),
-            self._load_legal(),
-            self._load_profiles(),
-            self._load_snapshots(),
-        )
+        syms = await self._load_symbols()
+        daily_raw = await self._load_daily()
+        legal_raw = await self._load_legal()
+        profiles_raw = await self._load_profiles()
+        snaps_raw = await self._load_snapshots()
         elapsed = time.perf_counter() - t0
 
         # Index daily history by symbol
@@ -526,8 +543,9 @@ class BulkWriter:
             stmt = stmt.on_conflict_do_nothing(
                 constraint="screener_snapshots_pkey"
             )
-            async with self._session.begin():
-                await self._session.execute(stmt)
+            # NOTE: no explicit begin() — the session from get_session()/
+            # endpoint dependency already holds an open transaction.
+            await self._session.execute(stmt)
 
     async def write_signals(self, results: list[dict[str, Any]],
                             now: datetime) -> list[dict[str, Any]]:
@@ -577,8 +595,9 @@ class BulkWriter:
             stmt = stmt.on_conflict_do_nothing(
                 constraint="screener_signals_pkey"
             )
-            async with self._session.begin():
-                await self._session.execute(stmt)
+            # NOTE: no explicit begin() — the session from get_session()/
+            # endpoint dependency already holds an open transaction.
+            await self._session.execute(stmt)
 
         return buy_signals
 
@@ -605,7 +624,8 @@ class Screener110Service:
 
         Returns buy-signal rows only.
         """
-        now = datetime.now(UTC)
+        # screener_snapshots.timestamp is TIMESTAMP WITHOUT TIME ZONE → naive.
+        now = datetime.now(UTC).replace(tzinfo=None)
         timings: dict[str, float] = {}
 
         # ── Phase 1: Load ─────────────────────────────────────────────────
@@ -717,14 +737,13 @@ class Screener110Service:
             return None
         sym_dict = dict(row._mapping)
 
-        # Daily history
+        # Daily history (direct table — the daily_history view is too slow)
         q = text("""
-            SELECT dh.price_close, dh.price_max, dh.price_min, dh.price_last,
-                   dh.trade_volume, dh.trade_value, dh.price_last_change_pct
-            FROM daily_history dh
-            JOIN symbols s ON s.id = dh.symbol_id
-            WHERE s.symbol = :sym
-            ORDER BY dh.trade_date DESC LIMIT 60
+            SELECT b.price_close, b.price_max, b.price_min, b.price_last,
+                   b.trade_volume, b.trade_value, b.price_last_change_pct
+            FROM brsapi_historical_daily b
+            WHERE b.symbol = :sym
+            ORDER BY b.gregorian_date DESC LIMIT 60
         """)
         daily = [dict(r._mapping) for r in
                  (await self._loader._session.execute(q, {"sym": symbol})).fetchall()]

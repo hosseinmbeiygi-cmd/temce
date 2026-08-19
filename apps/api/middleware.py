@@ -47,7 +47,6 @@ _SENSITIVE_WRITE_PREFIXES = (
     "/api/v1/ml/train",
     "/api/v1/ml/predict",
     "/api/v1/portfolios",
-    "/api/v1/alerts",
     "/api/v1/data-import",
     "/api/v1/signal-insights",
 )

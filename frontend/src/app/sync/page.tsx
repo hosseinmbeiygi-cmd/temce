@@ -7,7 +7,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, apiPost } from "@/lib/api";
-import { applyCustomThresholds, loadSyncSettings } from "@/lib/sync-settings";
+import { applyCustomThresholds } from "@/lib/sync-settings";
+import { useSyncSettings } from "@/hooks/useSyncSettings";
 
 // ── Dynamic chart (prevent SSR issues with Recharts) ──
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
@@ -165,13 +166,8 @@ export default function SyncStatusPage() {
   const [timeRange, setTimeRange] = useState<string>("48h");
   const [isSyncingAll, setIsSyncingAll] = useState(false);
 
-  // ── Load custom freshness thresholds ──
-  const [customSettings, setCustomSettings] = useState(() => loadSyncSettings());
-  useEffect(() => {
-    const handler = () => setCustomSettings(loadSyncSettings());
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
+  // ── Load custom freshness thresholds (SSR-safe) ──
+  const [customSettings, setCustomSettings] = useSyncSettings();
 
   // ── Fetch sync status ──
   const { data: syncStatus, isLoading: statusLoading, isError: statusError } = useQuery({

@@ -1,0 +1,63 @@
+{
+  "generated_at": "2026-08-10T15:20:26.211699+00:00",
+  "source": "ops-cycle",
+  "queue": "job:dead",
+  "window": "today",
+  "since": 1786307400.0,
+  "total": 5,
+  "malformed": 0,
+  "job_names": [
+    {
+      "name": "SyncCodalJob",
+      "count": 2
+    },
+    {
+      "name": "SyncQuotesJob",
+      "count": 2
+    },
+    {
+      "name": "NewsFetchJob",
+      "count": 1
+    }
+  ],
+  "error_categories": [
+    {
+      "category": "db_error",
+      "count": 2
+    },
+    {
+      "category": "timeout",
+      "count": 2
+    },
+    {
+      "category": "parse_error",
+      "count": 1
+    }
+  ],
+  "top_errors": [
+    {
+      "error": "TimeoutError: timed out waiting for codal.ir after 30s",
+      "count": 2
+    },
+    {
+      "error": "DBError: SQLAlchemy OperationalError: connection refused to postgres at localhost:5432",
+      "count": 1
+    },
+    {
+      "error": "DBError: psycopg2.OperationalError: server closed the connection unexpectedly",
+      "count": 1
+    },
+    {
+      "error": "JSONDecodeError: Expecting value: json decode failed at line 1 column 1",
+      "count": 1
+    }
+  ],
+  "repeated": [
+    {
+      "job_name": "SyncCodalJob",
+      "job_id": "sync-c-20260810-003",
+      "count": 2
+    }
+  ],
+  "repeated_messages": 1
+}

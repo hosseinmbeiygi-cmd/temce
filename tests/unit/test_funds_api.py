@@ -79,7 +79,7 @@ class TestListFunds:
         assert "limit" in data
         assert "offset" in data
         assert "type_counts" in data
-        assert data["limit"] == 100
+        assert data["limit"] == 200
         assert data["offset"] == 0
         assert data["total"] > 0
 
@@ -136,13 +136,14 @@ class TestListFunds:
         app = make_app()
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/funds?search=آگاس")
+            # "کالا" matches nearly all commodity-exchange fund names
+            resp = await client.get("/funds?search=کالا")
 
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] >= 1
         for item in data["items"]:
-            assert "آگاس" in item["symbol"] or "آگاس" in item["name"]
+            assert "کالا" in item["symbol"] or "کالا" in item["name"]
 
     @pytest.mark.asyncio
     async def test_list_search_no_results(self):
@@ -163,7 +164,7 @@ class TestListFunds:
         app = make_app()
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/funds?fund_type=equity")
+            resp = await client.get("/funds?fund_type=" + "سهامی")
 
         assert resp.status_code == 200
         data = resp.json()
@@ -238,7 +239,7 @@ class TestFundTypes:
         assert len(types) == 6
 
         keys = {t["key"] for t in types}
-        expected_keys = {"equity", "fixed_income", "leveraged", "mixed", "sector", "special"}
+        expected_keys = {"سهامی", "درآمد ثابت", "اهرمی", "مختلط", "بخشی", "اختصاصی"}
         assert keys == expected_keys
 
     @pytest.mark.asyncio
@@ -279,7 +280,8 @@ class TestGetFund:
         data = resp.json()
         assert data["symbol"] == symbol
         assert "analysis" in data
-        assert "score" in data["analysis"]
+        assert "scores" in data["analysis"]
+        assert "total" in data["analysis"]["scores"]
         assert "recommendation" in data["analysis"]
 
     @pytest.mark.asyncio
@@ -308,8 +310,8 @@ class TestGetFund:
 
         assert resp.status_code == 200
         analysis = resp.json()["analysis"]
-        assert 0 <= analysis["score"] <= 100
-        assert analysis["recommendation"] in ("BUY", "WATCHLIST", "HOLD", "AVOID")
+        assert 0 <= analysis["scores"]["total"] <= 100
+        assert analysis["recommendation"] in ("STRONG_BUY", "BUY", "WATCHLIST", "HOLD", "REDUCE", "AVOID")
 
 
 # ═══════════════════════════════════════════════════════════════════

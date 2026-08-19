@@ -288,6 +288,58 @@ class MarketService:
             "volume": d.get("trade_volume"),
         }
 
+    async def get_candles(
+        self,
+        symbol: str,
+        candle_type: str = "3",
+        limit: int = 300,
+    ) -> Result[list[dict[str, Any]]]:
+        """Candlestick OHLCV from ``brsapi_candlesticks`` for charting.
+
+        Args:
+            symbol: Symbol name (e.g. ``فولاد``).
+            candle_type: ``1`` realtime 2-min bars, ``2`` unadjusted daily,
+                ``3`` adjusted daily (default).
+            limit: Maximum number of bars (newest kept).
+
+        Returns bars oldest-first with a **Gregorian** ``date`` (ISO) plus the
+        optional intraday ``time`` so the front-end chart can plot both daily
+        and realtime series. Falls back to :meth:`get_ohlcv` (daily history)
+        when the candlestick table has no rows for the symbol.
+        """
+        if self._brsapi:
+            try:
+                raw = await self._brsapi.get_candlesticks(
+                    symbol, candle_type=candle_type, limit=limit
+                )
+                if raw:
+                    bars = [self._candle_to_ohlcv(c) for c in raw]
+                    # newest-first from the query → chronological for charts
+                    bars.reverse()
+                    return Result.ok(bars)
+            except Exception:
+                logger.exception("Failed to fetch candlesticks for %s", symbol)
+        # Fallback: daily OHLCV history (existing behavior)
+        from datetime import date, timedelta
+
+        end = date.today().isoformat()
+        start = (date.today() - timedelta(days=limit * 3)).isoformat()
+        return await self.get_ohlcv(symbol, start, end)
+
+    @staticmethod
+    def _candle_to_ohlcv(c: dict[str, Any]) -> dict[str, Any]:
+        """Map a brsapi_candlesticks row to a chart-friendly OHLCV bar."""
+        return {
+            "date": c.get("gregorian_date") or c.get("date"),
+            "time": c.get("time"),
+            "shamsi_date": c.get("shamsi_date"),
+            "open": c.get("open"),
+            "high": c.get("high"),
+            "low": c.get("low"),
+            "close": c.get("close"),
+            "volume": c.get("volume"),
+        }
+
     async def calculate_indicator(
         self,
         symbol: str,

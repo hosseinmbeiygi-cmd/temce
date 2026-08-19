@@ -175,6 +175,24 @@ class Settings(BaseSettings):
     jobs_default_timeout_minutes: int = 30
     scheduler_timezone: str = "Asia/Tehran"
 
+    # ── Distributed job queue (Redis) ────────────────────────────────────
+    # When enabled, the scheduler only *pushes* jobs to a Redis queue and
+    # dedicated worker replicas consume + execute them (required for
+    # multi-replica Docker Swarm deployments so a job never runs twice).
+    # In development (single process) keep this OFF so the scheduler runs
+    # jobs in-process — see docs/job-queue.md.
+    job_queue_enabled: bool = Field(default=False, alias="JOB_QUEUE_ENABLED")
+    job_queue_name: str = Field(default="job:queue", alias="JOB_QUEUE_NAME")
+    # Shared secret workers use to authenticate queue messages. When empty a
+    # per-process random token is used (dev fallback only — set it in prod).
+    job_queue_token: str = Field(default="", alias="JOB_QUEUE_TOKEN")
+    # TTL (seconds) for the distributed per-job lock taken by the consumer.
+    job_queue_lock_ttl: int = Field(default=300, alias="JOB_QUEUE_LOCK_TTL")
+    # Failed jobs are re-pushed to the *main* queue (attempt counter incremented)
+    # until max_retries, then moved to the dead-letter list for manual review.
+    job_queue_dead_letter: str = Field(default="job:dead", alias="JOB_QUEUE_DEAD_LETTER")
+    job_queue_consumer_timeout: int = Field(default=1, alias="JOB_QUEUE_CONSUMER_TIMEOUT")
+
     # Telegram notifications (optional)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

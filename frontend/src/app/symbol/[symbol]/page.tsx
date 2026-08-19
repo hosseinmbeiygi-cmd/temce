@@ -14,12 +14,13 @@ import { MetricBox } from "@/components/MetricBox";
 import { RealLegalCard } from "@/components/RealLegalCard";
 import { StatRow } from "@/components/StatRow";
 import AppLayout from "@/components/layout/AppLayout";
+import TradingViewChart from "@/components/charts/TradingViewChart";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
-import { apiGet, apiPost, extractArray, extractItems } from "@/lib/api";
+import { apiGet, apiPost, extractItems } from "@/lib/api";
 import { formatDateShamsi, formatTime } from "@/lib/dates";
-import { seededRandom, stringSeed } from "@/lib/seeded-random";
+import type { CandleDataPoint } from "@/lib/types";
 
 // ------ ML / prediction types (backend responses) ----------------------------------------------------------------------------------
 interface MlModelBrief {
@@ -842,19 +843,31 @@ function useLastIndicator(symbol: string, indicator: string, params: Record<stri
   });
 }
 
+const CANDLE_TYPES = [
+  { value: "1", label: "لحظه‌ای", icon: "⚡" },
+  { value: "2", label: "تعدیل‌نشده", icon: "📊" },
+  { value: "3", label: "تعدیل‌شده", icon: "🔁" },
+] as const;
+type CandleTypeValue = (typeof CANDLE_TYPES)[number]["value"];
+
 function PriceTab({ symbol, quote }: { symbol: string; quote: QuoteData }) {
-  const { data: ohlcv } = useQuery({
-    queryKey: ["ohlcv", symbol],
+  const [candleType, setCandleType] = useState<CandleTypeValue>("3");
+
+  // Candlestick series from brsapi_candlesticks — realtime (type=1, 2-min bars)
+  // polls every 60s so the intraday chart stays live during market hours.
+  const { data: candles } = useQuery({
+    queryKey: ["candles", symbol, candleType],
     queryFn: async () => {
       try {
-        const res = await apiGet<{ success: boolean; data: { date: string; open: number; high: number; low: number; close: number; volume: number }[] }>(
-          `/market/history/${encodeURIComponent(symbol)}?limit=200`
+        const res = await apiGet<{ success: boolean; data: CandleDataPoint[] }>(
+          `/market/candles/${encodeURIComponent(symbol)}?type=${candleType}&limit=300`
         );
         if (res?.success && Array.isArray(res.data)) return res.data;
       } catch {}
       return [];
     },
     enabled: !!symbol,
+    refetchInterval: candleType === "1" ? 60_000 : 5 * 60_000,
   });
 
   // ------ Fetch technical indicators ------------------------------------------------------------------
@@ -886,58 +899,49 @@ function PriceTab({ symbol, quote }: { symbol: string; quote: QuoteData }) {
     return null;
   }, [macdResult.data]);
 
-  const candleData = useMemo(() => {
-    if (ohlcv && ohlcv.length > 0) {
-      return ohlcv.map((bar) => ({
-        t: bar.date,
-        o: bar.open || bar.close,
-        h: bar.high || bar.close,
-        l: bar.low || bar.close,
-        c: bar.close || 0,
-        v: bar.volume || 0,
-      }));
-    }
-    // Fallback: deterministic pseudo-random candles (stable per symbol)
-    const rnd = seededRandom(stringSeed(symbol));
-    const base = quote.price_close;
-    const bars: { t: string; o: number; h: number; l: number; c: number; v: number }[] = [];
-    let price = base * 0.85;
-    for (let i = 60; i >= 0; i--) {
-      const change = (rnd() - 0.48) * 0.04;
-      const open = price;
-      const close = price * (1 + change);
-      const high = Math.max(open, close) * (1 + rnd() * 0.02);
-      const low = Math.min(open, close) * (1 - rnd() * 0.02);
-      bars.push({ t: "۱۴۰۳-" + String((i % 12) + 1).padStart(2, "0") + "-" + String((i % 30) + 1).padStart(2, "0"), o: Math.round(open), h: Math.round(high), l: Math.round(low), c: Math.round(close), v: Math.round(1000000 + rnd() * 10000000) });
-      price = close;
-    }
-    return bars;
-  }, [ohlcv, quote.price_close, symbol]);
-
-  const minC = Math.min(...candleData.map(b => b.l));
-  const maxC = Math.max(...candleData.map(b => b.h));
-  const range = maxC - minC || 1;
-  const w = 700, h = 300, pad = 20;
+  const candleData = useMemo<CandleDataPoint[]>(() => {
+    if (!candles || candles.length === 0) return [];
+    return candles.map((bar) => ({
+      date: bar.date,
+      time: bar.time,
+      open: Number(bar.open) || 0,
+      high: Number(bar.high) || 0,
+      low: Number(bar.low) || 0,
+      close: Number(bar.close) || 0,
+      volume: Number(bar.volume) || 0,
+    }));
+  }, [candles]);
 
   return (
     <div className="space-y-5">
-      <Card title="📈 نمودار قیمت (شمعی)">
-        <div className="overflow-x-auto">
-          <svg width={w} height={h} className="mx-auto">
-            {candleData.map((bar, i) => {
-              const x = pad + (i / candleData.length) * (w - pad * 2);
-              const bodyH = Math.max(1, Math.abs(bar.c - bar.o) / range * (h - pad * 2));
-              const y = h - pad - ((Math.max(bar.c, bar.o) - minC) / range * (h - pad * 2));
-              const color = bar.c >= bar.o ? "#22c55e" : "#ef4444";
-              return (
-                <g key={i}>
-                  <line x1={x} x2={x} y1={h - pad - ((bar.h - minC) / range * (h - pad * 2))} y2={h - pad - ((bar.l - minC) / range * (h - pad * 2))} stroke={color} strokeWidth="1" />
-                  <rect x={x - 3} y={y - bodyH} width={6} height={Math.max(1, bodyH)} fill={color} opacity="0.9" rx="1" />
-                </g>
-              );
-            })}
-          </svg>
-        </div>
+      <Card
+        title="📈 نمودار قیمت (شمعی)"
+        actions={
+          <div className="flex items-center gap-1">
+            {CANDLE_TYPES.map(({ value, label, icon }) => (
+              <button
+                key={value}
+                onClick={() => setCandleType(value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  candleType === value
+                    ? "bg-primary-600 text-white shadow-md"
+                    : "bg-surface-800 text-surface-400 hover:text-surface-200 hover:bg-surface-700"
+                }`}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {candleData.length > 0 ? (
+          <TradingViewChart data={candleData} symbol={symbol} height={480} />
+        ) : (
+          <div className="text-center py-14 text-surface-500">
+            <p className="text-3xl mb-2">🕯️</p>
+            <p className="text-sm">داده کندلی برای {symbol} در دسترس نیست — ابتدا سینک کندل را اجرا کنید</p>
+          </div>
+        )}
       </Card>
 
       <Card title="📊 اندیکاتورهای تکنیکال">

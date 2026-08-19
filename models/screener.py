@@ -61,6 +61,7 @@ class ScreenerProfile(TimestampMixin, Base):
     # ── بخش چهارم: داده‌های رفتاری و معاملاتی (ستون‌های ۳۶-۵۵) ──
     price_change_pct: Mapped[float | None] = mapped_column(Float, comment="تغییر قیمت امروز (درصد) — ستون ۴۱")
     today_volume: Mapped[int | None] = mapped_column(BigInteger, comment="حجم معاملات امروز — ستون ۳۶")
+    avg_50d_volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True, comment="میانگین حجم ۵۰ روزه — ستون ۳۷")
     avg_daily_value: Mapped[float | None] = mapped_column(Float, comment="میانگین ارزش معاملات روزانه (تومان) — ستون ۳۹")
     institutional_buy: Mapped[int | None] = mapped_column(BigInteger, comment="خرید حقوقی ۳۰ روز — ستون ۴۷")
     institutional_sell: Mapped[int | None] = mapped_column(BigInteger, comment="فروش حقوقی ۳۰ روز — ستون ۴۸")

@@ -23,10 +23,15 @@ export function useNotificationSound(options: UseNotificationSoundOptions = {}) 
   const { storageKey = "notification-sound-muted" } = options;
 
   // ── Mute state (persisted across sessions) ──
-  const [muted, setMuted] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(storageKey) === "true";
-  });
+  // SSR-safe: deterministic `false` on the server & first client render so
+  // the 🔊/🔕 icon can't mismatch during hydration; adopt the stored value
+  // after mount (same pattern as useTheme / useSyncSettings).
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setMuted(localStorage.getItem(storageKey) === "true");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
 
   const toggleMute = useCallback(() => {
     setMuted((prev) => {

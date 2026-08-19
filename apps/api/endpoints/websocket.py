@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.websocket("/ws/market")
+@router.websocket("/market")
 async def market_websocket(websocket: WebSocket) -> None:
     await websocket.accept()
     connection_id = str(uuid.uuid4())[:8]

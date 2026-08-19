@@ -9,9 +9,11 @@ import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, apiPost } from "@/lib/api";
 import {
-  loadSyncSettings, saveSyncSettings, resetSyncSettings,
+  saveSyncSettings, resetSyncSettings,
   DEFAULT_SYNC_SETTINGS, ALL_SECTION_KEYS, type SyncSettingsMap,
 } from "@/lib/sync-settings";
+import { useSyncSettings } from "@/hooks/useSyncSettings";
+import DeadLetterWidget from "@/components/admin/DeadLetterWidget";
 
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
   ssr: false, loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl h-[200px]" />,
@@ -44,7 +46,7 @@ interface DashboardResponse {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-type TabKey = "overview"|"sync"|"freshness"|"scheduler"|"import"|"tables";
+type TabKey = "overview"|"sync"|"freshness"|"scheduler"|"import"|"tables"|"deadletter";
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: "overview", label: "نمای کلی", icon: "📊" },
   { key: "sync", label: "همگام‌سازی", icon: "🔄" },
@@ -52,6 +54,7 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: "scheduler", label: "زمان‌بندی", icon: "⏱️" },
   { key: "import", label: "ورود داده", icon: "📥" },
   { key: "tables", label: "مرور جداول", icon: "🗃️" },
+  { key: "deadletter", label: "Dead-Letter", icon: "💀" },
 ];
 
 const TABLE_CONFIG: Record<string, { label: string; icon: string; order: number }> = {
@@ -131,8 +134,7 @@ export default function AdminUnifiedPage() {
   const { data: schedulerData } = useQuery({ queryKey: ["admin-scheduler"], queryFn: async (): Promise<SchedulerResponse> => { const r = await apiGet<{ success: boolean; data: SchedulerResponse }>("/jobs/scheduler"); return r?.data ?? { jobs: [], total: 0, enabled: 0, disabled: 0 }; }, refetchInterval: 30_000, staleTime: 15_000 });
 
   // Freshness settings
-  const [freshnessSettings, setFreshnessSettings] = useState<SyncSettingsMap>(() => loadSyncSettings());
-  useEffect(() => { const h = () => setFreshnessSettings(loadSyncSettings()); window.addEventListener("storage", h); return () => window.removeEventListener("storage", h); }, []);
+  const [freshnessSettings, setFreshnessSettings] = useSyncSettings();
 
   const effectiveStatus = useMemo(() => {
     if (!syncStatus) return undefined;
@@ -295,6 +297,18 @@ export default function AdminUnifiedPage() {
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       <Tabs tab={tab} setTab={setTab} />
       <SchedulerTab jobs={schedJobs} enabled={schedulerData?.enabled ?? 0} disabled={schedulerData?.disabled ?? 0} />
+    </AppLayout>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // TAB: DEAD-LETTER — from GET /jobs/queue/summary
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  if (tab === "deadletter") return (
+    <AppLayout title="🛡️ پنل مدیریت" subtitle="مدیریت یکپارچه سیستم، داده‌ها و زمان‌بندی">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      <Tabs tab={tab} setTab={setTab} />
+      <DeadLetterWidget />
     </AppLayout>
   );
 

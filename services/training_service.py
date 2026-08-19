@@ -215,6 +215,10 @@ class TrainingService:
             logger.warning("Could not save model artifact: %s", e)
             artifact_path = ""
 
+        # 6b. Auto-refresh the ModelLoader cache so the freshly-trained
+        #     artifact is picked up without a restart.
+        self._invalidate_model_cache(symbol, model_type)
+
         # 7. Store run (use 'symbols' list for consistency with global service)
         run = {
             "id": run_id,
@@ -235,6 +239,23 @@ class TrainingService:
         self._runs[run_id] = run
 
         return Result.ok(run)
+
+    @staticmethod
+    def _invalidate_model_cache(symbol: str, algorithm: str) -> None:
+        """Evict the freshly-retrained model from the ModelLoader LRU cache.
+
+        Called after every successful retrain so the next
+        ``get_model(symbol, algorithm)`` call loads the new artifact from disk
+        instead of returning the stale in-memory copy.  Failure to invalidate
+        is non-fatal — it only means one more stale read until the next call.
+        """
+        try:
+            from ml.model_loader import get_model_loader
+
+            get_model_loader().invalidate(symbol=symbol, algorithm=algorithm)
+            logger.info("ModelLoader cache invalidated for %s/%s (auto-refresh)", symbol, algorithm)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("Could not invalidate ModelLoader cache for %s/%s: %s", symbol, algorithm, e)
 
     async def train(self, model, dataset_config, **kwargs):
         """Original method: delegate to real Trainer (kept for compatibility)."""

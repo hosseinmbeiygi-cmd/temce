@@ -33,7 +33,13 @@ if _ROOT not in sys.path:
 # The conversion SQL lives in scripts/install_dual_dates.py (single source of
 # truth, also used by scripts/backfill_dual_dates.py). Migrations are normally
 # frozen snapshots; this deliberate shared import keeps the 10 conversion
-# functions in one place — do not change that module after this migration ships.
+# functions in one place.
+#
+# NOTE: this module was changed after shipping — sync_dual_dates_fn gained
+# TimescaleDB chunk→hypertable resolution (trigger fires on chunks, where
+# TG_TABLE_NAME is the chunk name) with a per-session GUC cache of the
+# resolved source column (dual_date.src_<relid>). Install the updated
+# function on existing DBs with: python scripts/install_dual_dates.py
 from scripts.install_dual_dates import FUNCS  # noqa: E402
 
 revision = "0025_add_dual_date_columns"
@@ -118,6 +124,20 @@ def _pick_source(conn, table: str, cols: dict[str, str]) -> str | None:
     # 4) any *_date / date column, regardless of data
     for name in sorted(usable):
         if name == "date" or name.endswith("_date"):
+            return name
+    # 5) any *_at column (triggered_at, checked_at, last_trained_at, ...)
+    for name in sorted(usable):
+        if name.endswith("_at") and _has_data(conn, table, name):
+            return name
+    for name in sorted(usable):
+        if name.endswith("_at"):
+            return name
+    # 6) generic time/timestamp columns
+    for name in sorted(usable):
+        if name in ("time", "timestamp") and _has_data(conn, table, name):
+            return name
+    for name in sorted(usable):
+        if name in ("time", "timestamp"):
             return name
     return None
 

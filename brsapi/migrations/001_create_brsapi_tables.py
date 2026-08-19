@@ -112,6 +112,14 @@ def _create_symbol_snapshots() -> None:
     )
     op.create_index("idx_snap_ins_fetched", "brsapi_symbol_snapshots", ["ins_id", "fetched_at"])
     op.create_index("idx_snap_symbol_fetched", "brsapi_symbol_snapshots", ["symbol", "fetched_at"])
+    # Composite (symbol, trade_value DESC, id DESC) makes the GROUP BY symbol +
+    # ORDER BY MAX(trade_value) subquery in get_latest_snapshots an index scan
+    # instead of a parallel seq scan on the 800K+ row table (was ~14s, now <1s).
+    op.create_index(
+        "idx_snap_sym_tv_id",
+        "brsapi_symbol_snapshots",
+        ["symbol", sa.text("trade_value DESC NULLS LAST"), sa.text("id DESC")],
+    )
 
 
 def _create_symbol_details() -> None:
@@ -368,10 +376,23 @@ def _create_candlesticks() -> None:
         sa.Column("count", sa.Integer(), nullable=True),
         sa.Column("candle_type", sa.String(10), nullable=True, default="1",
                   comment="1=realtime, 2=unadjusted, 3=adjusted"),
+        sa.Column("gregorian_date", sa.Date(), nullable=True,
+                  comment="Gregorian date derived from Jalali date"),
+        sa.Column("shamsi_date", sa.String(10), nullable=True,
+                  comment="Normalized Jalali YYYY-MM-DD"),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("idx_candle_symbol_date", "brsapi_candlesticks", ["symbol", "date", "candle_type"])
+    op.create_index("idx_candle_symbol_gregorian", "brsapi_candlesticks", ["symbol", "gregorian_date", "candle_type"])
+    # Keeps the generic ON CONFLICT DO NOTHING bulk insert idempotent —
+    # without it every sync appends duplicate bars.
+    op.create_index(
+        "uq_candle_symbol_date_time_type",
+        "brsapi_candlesticks",
+        ["symbol", "date", "time", "candle_type"],
+        unique=True,
+    )
 
 
 def _create_shareholder_records() -> None:

@@ -2,9 +2,11 @@
 Centralized rate limiter for ALL BrsApi.ir API calls.
 
 Three layers enforced for EVERY request:
-  1. Global daily limit   — max 10,000 requests/calendar day (Tehran time)
-  2. Global 5-min window  — max 500 requests in any sliding 5-minute window
-                            (AIO - All In One package limit)
+  1. Global daily limit   — max 4,000 requests/calendar day (Tehran time).
+                            Default is kept BELOW the real plan cap (~5,000/day)
+                            so the limiter never lets the key get blocked.
+  2. Global 5-min window  — max 1,000 requests in any sliding 5-minute window
+                            (upgraded plan limit)
   3. Per-category bucket  — token-bucket per endpoint category
 
 Notification: fires a callback when daily usage hits 80%, 90%, 95%, 100%.
@@ -25,9 +27,21 @@ logger = getLogger(__name__)
 
 TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
+
+class RateLimitExhaustedError(Exception):
+    """Raised by ``acquire(fail_fast=True)`` when a global quota is exhausted.
+
+    Lets callers reject the request immediately instead of sleeping until the
+    window/Tehran-midnight resets (the pre-fail-fast behaviour that caused
+    blocked-key cascades when multiple jobs piled up past the quota).
+    """
+
 # ── Default global limits (overridable via BrsApiSettings) ──
-DEFAULT_GLOBAL_DAILY_LIMIT = 10_000
-DEFAULT_GLOBAL_5MIN_LIMIT = 500
+# 4,000/day default keeps a safety margin below the real-world plan cap
+# (~5,000/day, above which the key gets blocked). Override in .env with
+# BRSAPI_GLOBAL_DAILY_LIMIT to match the exact purchased quota.
+DEFAULT_GLOBAL_DAILY_LIMIT = 4_000
+DEFAULT_GLOBAL_5MIN_LIMIT = 1_000
 FIVE_MINUTES_SECONDS = 300
 
 # Notification thresholds (percentage of daily limit)
@@ -65,8 +79,8 @@ class RateLimiter:
     Centralized async rate limiter for all BrsApi.ir requests.
 
     Every call to ``acquire()`` goes through:
-      1. Daily counter   (10,000/day default)
-      2. 5-min window    (500/5min default)
+      1. Daily counter   (4,000/day default — safety margin below the ~5,000/day plan cap)
+      2. 5-min window    (1,000/5min default)
       3. Per-category bucket
 
     Usage::
@@ -79,7 +93,9 @@ class RateLimiter:
         self,
         daily_limit: int = DEFAULT_GLOBAL_DAILY_LIMIT,
         five_min_limit: int = DEFAULT_GLOBAL_5MIN_LIMIT,
+        fail_fast: bool = False,
     ) -> None:
+        self._fail_fast = fail_fast
         self._buckets: dict[str, Bucket] = {}
         self._lock = asyncio.Lock()
         self._default_max_tokens = 30.0
@@ -150,9 +166,15 @@ class RateLimiter:
                 )
 
     def _prune_5min_window(self, now: float) -> None:
-        """Remove timestamps older than 5 minutes from the sliding window."""
+        """Remove timestamps older than 5 minutes from the sliding window.
+
+        Uses ``<=`` (not ``<``): a request recorded exactly 300s ago has
+        aged out of the window and must be pruned, otherwise the window can
+        briefly hold limit+1 entries at the exact boundary (found by
+        scripts/simulate_brsapi_usage.py).
+        """
         cutoff = now - FIVE_MINUTES_SECONDS
-        while self._5min_window and self._5min_window[0] < cutoff:
+        while self._5min_window and self._5min_window[0] <= cutoff:
             self._5min_window.popleft()
 
     def _wait_time_for_global_limits(self) -> float:
@@ -215,7 +237,7 @@ class RateLimiter:
                 refill_rate=requests_per_minute / 60.0,
             )
 
-    async def acquire(self, key: str, tokens: int = 1, endpoint: str = "") -> None:
+    async def acquire(self, key: str, tokens: int = 1, endpoint: str = "", fail_fast: bool | None = None) -> None:
         """
         Acquire tokens, enforcing ALL three layers of rate limits.
 
@@ -223,11 +245,25 @@ class RateLimiter:
             key: Category name (e.g. "tsetmc", "codal").
             tokens: Number of tokens to consume.
             endpoint: Endpoint path for per-endpoint tracking.
+            fail_fast: When True, raise ``RateLimitExhaustedError`` as soon as
+                the daily budget is used up instead of sleeping until Tehran
+                midnight. Defaults to the limiter's ``fail_fast`` setting
+                (seeded from ``BRSAPI_FAIL_FAST_ON_DAILY_EXHAUSTED``), so every
+                caller — including direct ``acquire()`` users like
+                ``HistoryFetchService`` — is protected, not just the client.
         """
+        if fail_fast is None:
+            fail_fast = self._fail_fast
+
         # ── Layer 1 & 2: Global limits ──────────
         while True:
             async with self._lock:
                 self._reset_daily_if_needed()
+                if fail_fast and self._daily_count >= self._daily_limit:
+                    raise RateLimitExhaustedError(
+                        f"BrsApi daily budget exhausted ({self._daily_count}/"
+                        f"{self._daily_limit}) — request rejected to protect the key"
+                    )
                 wait = self._wait_time_for_global_limits()
                 if wait <= 0:
                     break
@@ -258,6 +294,26 @@ class RateLimiter:
             logger.debug("Rate limited %s: waiting %.2fs", key, wait_seconds)
 
         await asyncio.sleep(wait_seconds)
+
+        # Re-check the global limits before consuming — another task may have
+        # taken the last daily/5-min slot while we were waiting for the bucket
+        # to refill. Without this re-check, concurrent callers (e.g. the
+        # realtime jobs racing the nightly backfills) could slip a few
+        # requests past the daily cap — exactly what the usage simulator
+        # (scripts/simulate_brsapi_usage.py, fuzz scenario) found. Loop (no
+        # recursion) so the lock is always released before sleeping.
+        while True:
+            async with self._lock:
+                self._reset_daily_if_needed()
+                if fail_fast and self._daily_count >= self._daily_limit:
+                    raise RateLimitExhaustedError(
+                        f"BrsApi daily budget exhausted ({self._daily_count}/"
+                        f"{self._daily_limit}) — request rejected to protect the key"
+                    )
+                wait2 = self._wait_time_for_global_limits()
+                if wait2 <= 0:
+                    break
+            await asyncio.sleep(min(wait2, 10.0))
 
         async with self._lock:
             bucket = self._buckets.get(key)
@@ -352,8 +408,12 @@ def get_rate_limiter() -> RateLimiter:
             from brsapi.config import settings as brsapi_settings
             daily = brsapi_settings.global_daily_limit
             five_min = brsapi_settings.global_5min_limit
+            fail_fast = brsapi_settings.fail_fast_on_daily_exhausted
         except Exception:
             daily = DEFAULT_GLOBAL_DAILY_LIMIT
             five_min = DEFAULT_GLOBAL_5MIN_LIMIT
-        _rate_limiter = RateLimiter(daily_limit=daily, five_min_limit=five_min)
+            fail_fast = False
+        _rate_limiter = RateLimiter(
+            daily_limit=daily, five_min_limit=five_min, fail_fast=fail_fast
+        )
     return _rate_limiter

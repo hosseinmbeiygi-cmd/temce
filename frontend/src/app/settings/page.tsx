@@ -5,9 +5,11 @@ import Link from "next/link";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import { toast } from "sonner";
+import { useTheme } from "@/hooks/useTheme";
+import type { ThemeMode } from "@/hooks/useTheme";
 
 export default function SettingsPage() {
-  const [theme, setTheme] = useState("dark");
+  const { mode, setThemeMode } = useTheme();
   const [lang, setLang] = useState("fa");
   const [refreshInterval, setRefreshInterval] = useState("30");
   const [apiEndpoint, setApiEndpoint] = useState("http://localhost:8000/api/v1");
@@ -42,7 +44,11 @@ export default function SettingsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div>
               <label className="setting-label" style={{ display: "block", marginBottom: 6, fontSize: 13, color: "var(--text-secondary)" }}>پوسته</label>
-              <select value={theme} onChange={e => setTheme(e.target.value)} className="select">
+              <select
+                value={mode}
+                onChange={(e) => setThemeMode(e.target.value as ThemeMode)}
+                className="select"
+              >
                 <option value="dark">تیره</option>
                 <option value="light">روشن</option>
                 <option value="system">هماهنگ با سیستم</option>

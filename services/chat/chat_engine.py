@@ -446,6 +446,36 @@ class ChatEngine:
 
         symbol = symbols[0]
 
+        # ── Priority 1: Full AI report from the 110-column model ──
+        # The report service opens its own DB session, so no DI needed here.
+        try:
+            from services.screener_ai_report_service import ScreenerAIReportService
+
+            report = await ScreenerAIReportService().generate_symbol_report(symbol)
+            report_text = report.get("text", "")
+            if report_text and (report.get("model") or report.get("signal") or report.get("profile")):
+                return {
+                    "text": report_text,
+                    "type": "analysis",
+                    "data": {
+                        "symbol": symbol,
+                        "model": report.get("model"),
+                        "signal": report.get("signal"),
+                        "profile": report.get("profile"),
+                    },
+                    "actions": [
+                        {"type": "link", "label": f"📈 {symbol}", "url": f"/symbol/{symbol}"},
+                        {"type": "link", "label": "📊 تحلیل", "url": "/analysis"},
+                    ],
+                    "suggestions": [
+                        f"مقایسه {symbol} و فولاد",
+                        f"اخبار {symbol}",
+                        f"پیش‌بینی {symbol}",
+                    ],
+                }
+        except Exception as e:
+            logger.warning("AI report unavailable for %s, falling back: %s", symbol, e)
+
         # Use stock assistant if available
         if self._stock_assistant:
             try:

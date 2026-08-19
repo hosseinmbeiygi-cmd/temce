@@ -43,10 +43,19 @@ async def list_funds(
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
     try:
         funds = await brsapi.get_ime_funds()
+        # Deduplicate by symbol — keep the LATEST snapshot per fund.
+        # brsapi_ime_funds stores one row per fetch cycle, so each symbol
+        # appears dozens/hundreds of times. Rows come back in insertion
+        # order, therefore the last occurrence is the most recent.
+        latest_by_symbol: dict[str, dict[str, Any]] = {}
+        for f in funds:
+            sym = f.get("symbol", "")
+            if sym:
+                latest_by_symbol[sym] = f
         items = [
             {"symbol": f.get("symbol", ""), "name": f.get("name", ""), "nav": f.get("price_last") or f.get("price_close") or 0, "date": f.get("date", "")}
-            for f in funds
-        ] if funds else []
+            for f in latest_by_symbol.values()
+        ]
         items.sort(key=lambda x: x["nav"], reverse=True)
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=True,

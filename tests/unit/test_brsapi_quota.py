@@ -1,8 +1,9 @@
-"""Unit tests for the BrsApi global quota (500 req / 5 min, 10,000 req / day).
+"""Unit tests for the BrsApi global quota (1,000 req / 5 min, 4,000 req / day).
 
-The user's BrsApi AIO package allows at most:
-  - 500 requests per sliding 5-minute window
-  - 10,000 requests per calendar day (Tehran time)
+The user's BrsApi package allows at most:
+  - 1,000 requests per sliding 5-minute window
+  - ~5,000 requests per calendar day (Tehran time) — above that the key is
+    blocked. The limiter default of 4,000/day keeps a safety margin.
 
 ``RateLimiter`` must enforce both for every request, including the ones made
 through ``HistoryFetchService`` (direct ``requests`` calls).
@@ -16,8 +17,10 @@ from brsapi.rate_limiter import DEFAULT_GLOBAL_5MIN_LIMIT, DEFAULT_GLOBAL_DAILY_
 
 
 def test_default_limits_match_quota() -> None:
-    assert DEFAULT_GLOBAL_DAILY_LIMIT == 10_000
-    assert DEFAULT_GLOBAL_5MIN_LIMIT == 500
+    # Daily default is deliberately BELOW the real plan cap (~5,000/day) so
+    # the limiter never lets the key get itself blocked.
+    assert DEFAULT_GLOBAL_DAILY_LIMIT == 4_000
+    assert DEFAULT_GLOBAL_5MIN_LIMIT == 1_000
 
 
 async def test_five_minute_window_enforced() -> None:
@@ -49,11 +52,15 @@ async def test_daily_counter_resets_new_day() -> None:
 
 
 async def test_singleton_defaults_match_config() -> None:
+    """The global RateLimiter singleton must be seeded from the *actual*
+    BrsApiSettings (env-overridable), not the hardcoded defaults — the
+    AIO package limits can be raised in .env (e.g. BRSAPI_GLOBAL_5MIN_LIMIT)."""
+    from brsapi.config import settings as brsapi_settings
     from brsapi.rate_limiter import get_rate_limiter
 
     limiter = get_rate_limiter()
-    assert limiter._daily_limit == DEFAULT_GLOBAL_DAILY_LIMIT
-    assert limiter._five_min_limit == DEFAULT_GLOBAL_5MIN_LIMIT
+    assert limiter._daily_limit == brsapi_settings.global_daily_limit
+    assert limiter._five_min_limit == brsapi_settings.global_5min_limit
 
 
 def test_history_fetch_service_uses_rate_limiter() -> None:

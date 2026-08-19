@@ -59,10 +59,19 @@ export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn 
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
-        wsRef.current = null;
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (!ws) return;
+      // Detach message/error/close handlers so a stale socket can never touch
+      // state. `onopen` stays attached so a socket that was closed while still
+      // CONNECTING (e.g. React StrictMode dev remount) is detected in onopen
+      // and shut down there — calling close() on a CONNECTING socket makes the
+      // browser log "WebSocket is closed before the connection is established".
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSING) {
+        ws.close();
       }
     }
 
@@ -84,6 +93,13 @@ export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn 
         wsRef.current = ws;
 
         ws.onopen = () => {
+          // Stale socket from a previous effect run (React StrictMode in dev):
+          // the handshake completed after it was abandoned, so shut it down
+          // silently without touching state.
+          if (wsRef.current !== ws) {
+            ws.close();
+            return;
+          }
           setConnected(true);
           setError(null);
           reconnectDelayRef.current = BASE_RECONNECT_DELAY;

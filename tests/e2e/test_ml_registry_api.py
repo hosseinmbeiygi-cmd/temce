@@ -242,6 +242,39 @@ async def test_ml_predict_all(client: AsyncClient):
         assert 0 <= r["accuracy"] <= 1, f"accuracy out of range: {r['accuracy']}"
 
 
+# ── GET /api/v1/ml/model-loader/cache-info ───────────────────────────────────
+@pytest.mark.asyncio
+async def test_ml_model_loader_cache_info(client: AsyncClient):
+    """GET /ml/model-loader/cache-info returns live LRU cache diagnostics."""
+    response = await client.get("/api/v1/ml/model-loader/cache-info")
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    body = response.json()
+    assert body.get("success") is True, f"Expected success=True, got {body}"
+
+    data = body.get("data", {})
+    cache_info = data.get("cache_info", {})
+    assert isinstance(cache_info, dict), f"cache_info should be a dict: {cache_info}"
+
+    # LRU statistics must be present with the right types
+    for field in ("maxsize", "currsize", "hits", "misses"):
+        assert field in cache_info, f"cache_info missing '{field}': {cache_info}"
+        assert isinstance(cache_info[field], int), f"{field} should be int: {cache_info[field]}"
+
+    assert cache_info["maxsize"] > 0, "maxsize should be > 0"
+    assert 0 <= cache_info["currsize"] <= cache_info["maxsize"], "currsize out of range"
+
+    # cached_symbols must be a list (may be empty if nothing is hot yet)
+    cached_symbols = data.get("cached_symbols", [])
+    assert isinstance(cached_symbols, list), f"cached_symbols should be a list: {cached_symbols}"
+    for sym in cached_symbols:
+        assert isinstance(sym, str) and sym, f"Invalid cached symbol: {sym}"
+
+    # Top-level cached_symbols should mirror the one inside cache_info
+    assert set(cached_symbols) == set(cache_info.get("cached_symbols", [])), (
+        "cached_symbols mismatch between data and cache_info"
+    )
+
+
 # ── GET /api/v1/ml/predictions ──────────────────────────────────────────────
 @pytest.mark.asyncio
 async def test_ml_predictions_list(client: AsyncClient):

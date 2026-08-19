@@ -14,6 +14,21 @@ import pytest
 from brsapi.client import BrsApiClient
 
 
+@pytest.fixture(autouse=True)
+def _force_live_mode() -> None:
+    """These tests exercise retry behaviour and assume the API is enabled.
+
+    The real ``.env`` currently sets ``BRSAPI_ENABLED=false`` (DB-only mode
+    while the key is blocked), which would short-circuit every ``fetch()``
+    before the retry logic runs. Force ``enabled=True`` so the tests are
+    deterministic regardless of the local environment file.
+    """
+    import brsapi.client as client_mod
+
+    with patch.object(client_mod.brsapi_settings, "enabled", True):
+        yield
+
+
 class _FakeResp:
     def __init__(self, status_code: int, content: bytes = b"{}"):
         self.status_code = status_code

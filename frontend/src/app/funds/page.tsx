@@ -1,18 +1,23 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
-import MiniSparkline from "@/components/MiniSparkline";
-import { apiGet, extractArray } from "@/lib/api";
+import FundNavMiniChart, { type FundNavPoint } from "@/components/FundNavMiniChart";
+import FundCompareModal from "@/components/FundCompareModal";
+import { apiGet } from "@/lib/api";
 
-// ── Types ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// ── Types (هماهنگ با API واقعی /funds) ─────────────────────────────────────
 
-interface Fund {
+export interface Fund {
   symbol: string;
   name: string;
   isin: string;
+  fund_type: string;
+  market: "tse" | "ime" | string;
   nav: number;
   nav_change: number;
   nav_change_pct: number;
@@ -32,9 +37,22 @@ interface Fund {
   sell_real_volume: number;
   sell_legal_volume: number;
   time: string;
+  data_source?: string;
+  snapshot_date?: string;
+  nav_source?: string;
+  nav_date?: string;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+interface FundsResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: Fund[];
+  type_counts?: Record<string, number>;
+  market_counts?: Record<string, number>;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatNum(v: number): string {
   if (!v) return "—";
@@ -45,130 +63,75 @@ function formatNum(v: number): string {
   return v.toLocaleString("fa-IR");
 }
 
-function extractFunds(resp: unknown): Fund[] {
-  const raw = extractArray<Record<string, unknown>>(resp);
-  return raw.map((f) => ({
-    symbol: String(f.symbol ?? f.ins_id ?? ""),
-    name: String(f.name ?? ""),
-    isin: String(f.isin ?? ""),
-    nav: Number(f.price_close ?? f.price_last ?? 0),
-    nav_change: Number(f.price_close_change ?? f.price_last_change ?? 0),
-    nav_change_pct: Number(f.price_close_change_pct ?? f.price_last_change_pct ?? 0),
-    price_last: Number(f.price_last ?? 0),
-    price_close: Number(f.price_close ?? 0),
-    price_yesterday: Number(f.price_yesterday ?? 0),
-    price_max: Number(f.price_max ?? 0),
-    price_min: Number(f.price_min ?? 0),
-    trade_volume: Number(f.trade_volume ?? 0),
-    trade_value: Number(f.trade_value ?? 0),
-    trade_count: Number(f.trade_count ?? 0),
-    shares_count: Number(f.shares_count ?? 0),
-    base_volume: Number(f.base_volume ?? 0),
-    market_value: Number(f.market_value ?? 0),
-    buy_real_volume: Number(f.buy_real_volume ?? 0),
-    buy_legal_volume: Number(f.buy_legal_volume ?? 0),
-    sell_real_volume: Number(f.sell_real_volume ?? 0),
-    sell_legal_volume: Number(f.sell_legal_volume ?? 0),
-    time: String(f.time ?? ""),
-  }));
-}
-
-function fundType(name: string): "کالایی" | "سهامی" | "درآمد ثابت" | "مختلط" | "سایر" {
+function fundType(name: string, fund_type?: string): string {
+  const ft = fund_type || "";
+  if (ft) return ft;
   const n = name || "";
-  if (n.includes("کالا") || n.includes("کالایی") || n.includes("طلا")) return "کالایی";
-  if (n.includes("سهام") || n.includes("سهامی") || n.includes("شاخصی")) return "سهامی";
-  if (n.includes("درآمد") || n.includes("ثابت") || n.includes("بازده") || n.includes("بانک")) return "درآمد ثابت";
-  if (n.includes("مختلط") || n.includes("متنوع")) return "مختلط";
-  return "سایر";
+  if (n.includes("کالا") || n.includes("طلا") || n.includes("نقره")) return "بخشی";
+  if (n.includes("درآمد") || n.includes("ثابت") || n.includes("بانک")) return "درآمد ثابت";
+  if (n.includes("اهرم")) return "اهرمی";
+  if (n.includes("اختصاصی")) return "اختصاصی";
+  if (n.includes("سهام") || n.includes("شاخص")) return "سهامی";
+  if (n.includes("مختلط")) return "مختلط";
+  return "سهامی";
 }
 
 function typeColor(type: string): string {
   const colors: Record<string, string> = {
-    "کالایی": "bg-accent-amber/15 text-accent-amber",
     "سهامی": "bg-accent-emerald/15 text-accent-emerald",
     "درآمد ثابت": "bg-accent-cyan/15 text-accent-cyan",
-    "مختلط": "bg-accent-purple/15 text-accent-purple",
-    "سایر": "bg-surface-600/30 text-surface-400",
+    "اهرمی": "bg-accent-purple/15 text-accent-purple",
+    "مختلط": "bg-accent-amber/15 text-accent-amber",
+    "بخشی": "bg-accent-gold/15 text-accent-gold",
+    "اختصاصی": "bg-surface-600/30 text-surface-400",
   };
-  return colors[type] || colors["سایر"];
+  return colors[type] || colors["اختصاصی"];
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// ── Main Page ──────────────────────────────────────────────────────────────
 
 export default function FundsPage() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("nav");
   const [typeFilter, setTypeFilter] = useState("همه");
+  const [marketFilter, setMarketFilter] = useState("همه");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [compareOpen, setCompareOpen] = useState(false);
 
-  // ── Data ──
-  const { data: funds, isLoading } = useQuery({
+  // ── Deep link from homepage map tiles (?type=…) ──
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const t = searchParams?.get("type");
+    if (t) setTypeFilter(t);
+  }, [searchParams]);
+
+  // ── Data: real API ──
+  const { data: fundsData, isLoading } = useQuery({
     queryKey: ["funds"],
-    queryFn: async () => {
-      try {
-        const res = await apiGet<Record<string, unknown>>("/tables/brsapi_ime_funds?page=1&page_size=500");
-        const extracted = extractFunds(res);
-        if (extracted.length > 0) return extracted;
-      } catch {
-        // ignore, will try fallback
-      }
-      // Fallback: try market-info/funds or BrsApi direct
-      try {
-        const fallback = await apiGet<{ success: boolean; data: { items: { symbol: string; name: string; nav: number; date: string }[] } }>("/market-info/funds");
-        const items = fallback?.data?.items ?? [];
-        if (items.length > 0) {
-          return items.map((f) => ({
-            symbol: f.symbol,
-            name: f.name,
-            isin: "",
-            nav: f.nav,
-            nav_change: 0,
-            nav_change_pct: 0,
-            price_last: f.nav,
-            price_close: f.nav,
-            price_yesterday: 0,
-            price_max: 0,
-            price_min: 0,
-            trade_volume: 0,
-            trade_value: 0,
-            trade_count: 0,
-            shares_count: 0,
-            base_volume: 0,
-            market_value: 0,
-            buy_real_volume: 0,
-            buy_legal_volume: 0,
-            sell_real_volume: 0,
-            sell_legal_volume: 0,
-            time: "",
-          }));
-        }
-      } catch {
-        // ignore
-      }
-      // Final fallback: BrsApi IME funds endpoint directly
-      try {
-        const brsRes = await apiGet<{ success: boolean; data: { items: Record<string, unknown>[] } }>("/brsapi/manage/sections");
-        // If sections exist, the user needs to sync IME Funds first
-        return [];
-      } catch {
-        return [];
-      }
+    queryFn: async (): Promise<FundsResponse> => {
+      const params = new URLSearchParams();
+      params.set("limit", "500");
+      if (marketFilter !== "همه") params.set("market", marketFilter === "بورس تهران" ? "tse" : "ime");
+      const res = await apiGet<FundsResponse>(`/funds?${params.toString()}`);
+      return res ?? { total: 0, limit: 500, offset: 0, items: [] };
     },
     refetchInterval: 120_000,
+    staleTime: 30_000,
   });
+
+  const funds = fundsData?.items ?? [];
 
   // ── Types for filtering ──
   const types = useMemo(() => {
-    const set = new Set<string>();
-    set.add("همه");
-    (funds ?? []).forEach((f) => set.add(fundType(f.name)));
+    const set = new Set<string>(["همه"]);
+    funds.forEach((f) => set.add(fundType(f.name, f.fund_type)));
     return Array.from(set);
   }, [funds]);
 
   // ── Filter + Sort ──
   const filtered = useMemo(() => {
-    let list = funds ?? [];
+    let list = funds;
 
-    // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -179,96 +142,109 @@ export default function FundsPage() {
       );
     }
 
-    // Type filter
     if (typeFilter !== "همه") {
-      list = list.filter((f) => fundType(f.name) === typeFilter);
+      list = list.filter((f) => fundType(f.name, f.fund_type) === typeFilter);
     }
 
-    // Sort
     list = [...list].sort((a, b) => {
-      let cmp = 0;
       switch (sortBy) {
-        case "nav":
-          cmp = b.nav - a.nav;
-          break;
         case "change":
-          cmp = b.nav_change_pct - a.nav_change_pct;
-          break;
+          return b.nav_change_pct - a.nav_change_pct;
         case "volume":
-          cmp = b.trade_volume - a.trade_volume;
-          break;
+          return b.trade_volume - a.trade_volume;
         case "value":
-          cmp = b.trade_value - a.trade_value;
-          break;
+          return b.trade_value - a.trade_value;
         case "market_value":
-          cmp = b.market_value - a.market_value;
-          break;
+          return b.market_value - a.market_value;
         case "shares":
-          cmp = b.shares_count - a.shares_count;
-          break;
+          return b.shares_count - a.shares_count;
+        case "name":
+          return a.name.localeCompare(b.name, "fa");
         default:
-          cmp = b.nav - a.nav;
+          return b.nav - a.nav;
       }
-      return cmp;
     });
 
     return list;
   }, [funds, search, typeFilter, sortBy]);
 
-  // ── NAV sparkline data ──
+  // ── NAV sparkline data (تاریخچه NAV واقعی از API صندوق‌ها) ──
   const displaySymbols = useMemo(() => filtered.slice(0, 100), [filtered]);
-  const { data: navRecords } = useQuery({
-    queryKey: ["funds-nav-history"],
+  const navSymbols = useMemo(() => displaySymbols.map((f) => f.symbol), [displaySymbols]);
+  const { data: navHistory } = useQuery({
+    queryKey: ["funds-nav-history", navSymbols.join(",")],
     queryFn: async () => {
+      if (!navSymbols.length) return {} as Record<string, { date: string; nav: number; source?: string }[]>;
       try {
-        const res = await apiGet<{ success: boolean; data: { rows: Record<string, unknown>[] } }>(
-          "/tables/brsapi_nav_records?page=1&page_size=500"
-        );
-        return res?.data?.rows ?? [];
+        const res = await apiGet<{
+          symbols?: Record<string, { date: string; nav: number; source?: string }[]>;
+        }>(`/funds/nav-history?symbols=${encodeURIComponent(navSymbols.join(","))}&limit=60`);
+        return res?.symbols ?? {};
       } catch {
-        return [];
+        return {};
       }
     },
     staleTime: 120_000,
   });
 
-  // Build symbol → [nav_issue] map (last 30 per symbol, chronological)
   const navSparkMap = useMemo(() => {
-    const map = new Map<string, { date: string; nav: number }[]>();
-    const symSet = new Set(displaySymbols.map((f) => f.symbol));
-
-    for (const row of navRecords ?? []) {
-      const sym = String(row.symbol ?? "");
-      if (!sym || !symSet.has(sym)) continue;
-      const nav = Number(row.nav_issue ?? row.nav_redemption ?? 0);
-      const date = String(row.date ?? "");
-      if (!nav || !date) continue;
-      if (!map.has(sym)) map.set(sym, []);
-      map.get(sym)!.push({ date, nav });
-    }
-
-    // Sort by date, take last 30
-    const result: Record<string, number[]> = {};
-    for (const [sym, records] of map.entries()) {
-      records.sort((a, b) => a.date.localeCompare(b.date));
-      result[sym] = records.slice(-30).map((r) => r.nav);
+    const result: Record<string, FundNavPoint[]> = {};
+    for (const [sym, points] of Object.entries(navHistory ?? {})) {
+      const cleaned = (points ?? [])
+        .map((p) => ({ date: p.date, nav: Number(p.nav) }))
+        .filter((p) => Number.isFinite(p.nav) && p.nav > 0 && p.date);
+      if (cleaned.length > 1) result[sym] = cleaned.slice(-30);
     }
     return result;
-  }, [navRecords, displaySymbols]);
+  }, [navHistory]);
 
   // ── Stats ──
   const stats = useMemo(() => {
     if (!filtered.length) return null;
-    const totalNav = filtered.reduce((s, f) => s + f.nav, 0);
-    const avgNav = totalNav / filtered.length;
     const positive = filtered.filter((f) => f.nav_change_pct > 0).length;
     const totalAum = filtered.reduce((s, f) => s + f.market_value, 0);
     const totalVolume = filtered.reduce((s, f) => s + f.trade_volume, 0);
-    return { count: filtered.length, avgNav, positive, negative: filtered.length - positive, totalAum, totalVolume };
+    return {
+      count: filtered.length,
+      positive,
+      negative: filtered.length - positive,
+      totalAum,
+      totalVolume,
+    };
   }, [filtered]);
 
+  // ── Compare selection ──
+  const selectedFunds = useMemo(
+    () => funds.filter((f) => selected.has(f.symbol)),
+    [funds, selected]
+  );
+
+  const toggleSelect = (symbol: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  };
+
+  const removeFromCompare = (symbol: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(symbol);
+      // کمتر از ۲ صندوق باقی مانده → مودال را ببند تا با انتخاب مجدد ناگهان باز نشود
+      if (next.size < 2) setCompareOpen(false);
+      return next;
+    });
+  };
+
+  const closeCompare = () => {
+    setCompareOpen(false);
+    setSelected(new Set());
+  };
+
   return (
-    <AppLayout title="🏦 صندوق‌های سرمایه‌گذاری" subtitle="صندوق‌های کالایی، سهامی، درآمد ثابت و مختلط">
+    <AppLayout title="🏦 صندوق‌های سرمایه‌گذاری" subtitle="صندوق‌های بورس تهران و بورس کالا — داده واقعی">
       {/* ── Stats cards ── */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
@@ -278,19 +254,19 @@ export default function FundsPage() {
           </div>
           <div className="glass-card p-3 text-center">
             <p className="text-xl font-black text-accent-emerald">{stats.positive}</p>
-            <p className="text-xs text-surface-500">مثبت</p>
+            <p className="text-xs text-surface-500">مثبت امروز</p>
           </div>
           <div className="glass-card p-3 text-center">
             <p className="text-xl font-black text-accent-rose">{stats.negative}</p>
-            <p className="text-xs text-surface-500">منفی</p>
+            <p className="text-xs text-surface-500">منفی امروز</p>
           </div>
           <div className="glass-card p-3 text-center">
             <p className="text-lg font-black font-mono text-primary-300">{formatNum(stats.totalAum)}</p>
             <p className="text-xs text-surface-500">ارزش کل بازار</p>
           </div>
           <div className="glass-card p-3 text-center">
-            <p className="text-lg font-black font-mono text-surface-100">{stats.avgNav.toLocaleString("fa-IR", { maximumFractionDigits: 0 })}</p>
-            <p className="text-xs text-surface-500">میانگین NAV</p>
+            <p className="text-lg font-black font-mono text-surface-100">{formatNum(stats.totalVolume)}</p>
+            <p className="text-xs text-surface-500">حجم کل</p>
           </div>
         </div>
       )}
@@ -304,6 +280,17 @@ export default function FundsPage() {
           placeholder="جستجوی نام، نماد، ISIN..."
           className="px-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-surface-200 text-sm focus:outline-none focus:border-primary-500 w-56"
         />
+
+        {/* بازار */}
+        <select
+          value={marketFilter}
+          onChange={(e) => setMarketFilter(e.target.value)}
+          className="px-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-surface-200 text-sm focus:outline-none focus:border-primary-500"
+        >
+          <option value="همه">همه بازارها</option>
+          <option value="بورس تهران">بورس تهران</option>
+          <option value="بورس کالا">بورس کالا</option>
+        </select>
 
         <div className="flex gap-1 flex-wrap">
           {types.map((t) => (
@@ -329,10 +316,39 @@ export default function FundsPage() {
           <option value="nav">NAV</option>
           <option value="change">تغییرات</option>
           <option value="volume">حجم</option>
-          <option value="value">ارزش</option>
+          <option value="value">ارزش معاملات</option>
           <option value="market_value">ارزش بازار</option>
           <option value="shares">تعداد واحد</option>
+          <option value="name">نام</option>
         </select>
+
+        {/* Compare button */}
+        <button
+          onClick={() => setCompareOpen(true)}
+          disabled={selected.size < 2}
+          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            selected.size >= 2
+              ? "bg-primary-600 text-white hover:bg-primary-500 shadow-lg shadow-primary-600/20"
+              : "bg-surface-800 text-surface-500 cursor-not-allowed"
+          }`}
+        >
+          <span className="material-icons text-sm">compare_arrows</span>
+          مقایسه
+          {selected.size > 0 && (
+            <span className="text-[9px] bg-black/20 px-1.5 py-0.5 rounded-full">
+              {selected.size}
+            </span>
+          )}
+        </button>
+
+        {selected.size > 0 && (
+          <button
+            onClick={() => setSelected(new Set())}
+            className="text-[10px] text-surface-500 hover:text-accent-rose transition-colors"
+          >
+            پاک کردن انتخاب
+          </button>
+        )}
 
         <span className="text-xs text-surface-500">{filtered.length} صندوق</span>
       </div>
@@ -352,36 +368,56 @@ export default function FundsPage() {
           <p className="text-5xl mb-3">🏦</p>
           <p className="font-bold">صندوقی یافت نشد</p>
           <p className="text-sm mt-1">
-            {search
-              ? "صندوقی با این مشخصات وجود ندارد"
-              : "داده‌ای از صندوق‌ها موجود نیست — ابتدا بخش IME Funds را همگام‌سازی کنید"}
+            {search ? "صندوقی با این مشخصات وجود ندارد" : "داده‌ای از صندوق‌ها موجود نیست"}
           </p>
         </div>
       )}
 
-      {/* ── Fund cards ── */}
+      {/* ── Fund cards (کلیک → صفحه جزئیات) ── */}
       {!isLoading && filtered.length > 0 && (
         <div className="space-y-2">
           {filtered.map((fund) => {
-            const type = fundType(fund.name);
+            const type = fundType(fund.name, fund.fund_type);
             const isUp = fund.nav_change_pct >= 0;
+            const isSelected = selected.has(fund.symbol);
             return (
               <div
                 key={fund.symbol}
-                className="glass-card p-4 flex items-center gap-3 hover:bg-white/[0.03] transition-colors"
+                className={`glass-card p-4 flex items-center gap-3 transition-all group relative ${
+                  isSelected
+                    ? "border-primary-500/60 bg-primary-600/[0.06]"
+                    : "hover:bg-white/[0.04] hover:border-primary-500/40"
+                }`}
               >
-                {/* NAV Sparkline */}
-                <div className="shrink-0 w-[72px]">
+                {/* Compare checkbox */}
+                <button
+                  onClick={() => toggleSelect(fund.symbol)}
+                  title={isSelected ? "حذف از مقایسه" : "افزودن به مقایسه"}
+                  className={`shrink-0 w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
+                    isSelected
+                      ? "bg-primary-600 border-primary-500 text-white"
+                      : "border-surface-600 text-transparent hover:border-primary-500 hover:text-surface-600"
+                  }`}
+                >
+                  <span className="material-icons text-[14px]">check</span>
+                </button>
+
+                <Link
+                  href={`/funds/${encodeURIComponent(fund.symbol)}`}
+                  className="flex-1 flex items-center gap-3 min-w-0"
+                >
+                {/* NAV mini-chart (نمودار NAV واقعی برای صندوق‌های دارای چند نقطه) */}
+                <div className="shrink-0 w-[88px]">
                   {navSparkMap[fund.symbol]?.length > 1 ? (
-                    <MiniSparkline data={navSparkMap[fund.symbol]} width={72} height={24} />
+                    <FundNavMiniChart points={navSparkMap[fund.symbol]} width={88} height={30} />
                   ) : (
-                    <div className="h-6 flex items-center justify-center text-[9px] text-surface-600">—</div>
+                    <div className="h-[30px] flex items-center justify-center text-[9px] text-surface-600">—</div>
                   )}
                 </div>
 
                 {/* Symbol + Name */}
                 <div className="min-w-[130px] shrink-0">
-                  <p className="font-bold text-surface-100">{fund.symbol}</p>
+                  <p className="font-bold text-surface-100 group-hover:text-primary-300 transition-colors">{fund.symbol}</p>
                   <p className="text-[10px] text-surface-500 truncate max-w-[150px]">{fund.name || "—"}</p>
                 </div>
 
@@ -392,12 +428,33 @@ export default function FundsPage() {
                   </span>
                 </div>
 
-                {/* NAV */}
-                <div className="min-w-[90px] shrink-0 text-right">
+                {/* Market badge */}
+                <div className="shrink-0 hidden sm:block">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                    fund.market === "tse" ? "bg-primary-600/20 text-primary-300" : "bg-accent-gold/15 text-accent-gold"
+                  }`}>
+                    {fund.market === "tse" ? "بورس تهران" : "بورس کالا"}
+                  </span>
+                </div>
+
+                {/* NAV — ارزش خالص دارایی واقعی از API (nav_records) */}
+                <div
+                  className="min-w-[90px] shrink-0 text-right"
+                  title={
+                    fund.nav_date
+                      ? `NAV واقعی — تاریخ ${fund.nav_date}${fund.nav_source === "nav_record" ? " (صدور/ابطال)" : ""}`
+                      : "NAV بر اساس آخرین قیمت"
+                  }
+                >
                   <p className="text-xs text-surface-500">NAV</p>
                   <p className="font-mono text-sm font-bold text-surface-200">
                     {fund.nav.toLocaleString("fa-IR", { maximumFractionDigits: 0 })}
                   </p>
+                  {fund.nav_date && (
+                    <p className="text-[8px] text-surface-600" dir="ltr">
+                      {fund.nav_date}
+                    </p>
+                  )}
                 </div>
 
                 {/* Change */}
@@ -440,15 +497,23 @@ export default function FundsPage() {
                   <p className="font-mono text-xs text-primary-300">{formatNum(fund.market_value)}</p>
                 </div>
 
-                {/* Units */}
-                <div className="hidden xl:block min-w-[70px] shrink-0 text-right">
-                  <p className="text-[9px] text-surface-600">واحد</p>
-                  <p className="font-mono text-xs text-surface-400">{formatNum(fund.shares_count)}</p>
+                {/* Arrow */}
+                <div className="mr-auto text-surface-600 group-hover:text-primary-400 transition-colors text-lg">
+                  ←
                 </div>
+                </Link>
               </div>
             );
           })}
         </div>
+      )}
+      {/* ── Compare Modal ── */}
+      {compareOpen && selectedFunds.length >= 2 && (
+        <FundCompareModal
+          funds={selectedFunds}
+          onClose={closeCompare}
+          onRemove={removeFromCompare}
+        />
       )}
     </AppLayout>
   );

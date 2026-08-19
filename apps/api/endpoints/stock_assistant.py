@@ -39,6 +39,25 @@ async def stock_assistant_query(
     brsapi=Depends(get_brsapi_query_service),
 ) -> ApiResponse[AssistantResponse]:
     try:
+        # Priority 1: Unified assistant (includes the 110-column AI reports)
+        try:
+            from services.unified_assistant_service import UnifiedAssistantService
+
+            unified = UnifiedAssistantService(brsapi_service=brsapi)
+            u_result = await unified.process(body.message)
+            if u_result.get("text") and u_result.get("type") not in ("unknown",):
+                return ApiResponse[AssistantResponse](
+                    success=True,
+                    data=AssistantResponse(
+                        text=u_result.get("text", ""),
+                        type=u_result.get("type", "analysis"),
+                        data=u_result.get("data"),
+                    ),
+                )
+        except Exception as exc:
+            logger.debug("Unified assistant fallback needed: %s", exc)
+
+        # Priority 2: plain stock assistant
         from services.stock_assistant_service import StockAssistantService
 
         service = StockAssistantService(brsapi_service=brsapi)

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from core.database import get_session
 from core.db_utils import safe_row_str
 from core.logging import get_logger
@@ -233,3 +234,214 @@ async def list_jobs(
             success=True,
             data={"items": [], "total": 0, "limit": limit, "offset": offset, "stats": {}, "job_types": []},
         )
+
+
+# ──────────────────────────────────────────────
+#  Distributed Job Queue Monitoring
+#  (Redis-backed worker queue — JobQueueConsumer)
+# ──────────────────────────────────────────────
+
+
+async def _queue_len(client: Any, key: str) -> int:
+    """Live length of a Redis list; 0 when Redis is unavailable."""
+    if client is None:
+        return 0
+    try:
+        return int(await client.llen(key)) or 0
+    except Exception:
+        return 0
+
+
+@router.get(
+    "/queue/stats",
+    summary="Job queue stats",
+    description="Consumer diagnostics + live Redis queue sizes (main queue, "
+    "dead-letter) for the distributed job queue. Admin only.",
+)
+async def job_queue_stats() -> ApiResponse[dict[str, Any]]:
+    """Expose ``JobQueueConsumer.stats()`` plus live queue lengths.
+
+    The ``/jobs`` router is admin-protected, so this is a management
+    endpoint. When the queue is disabled (``JOB_QUEUE_ENABLED=false``) the
+    consumer singleton still exists but reports ``running=false``; the Redis
+    list lengths reflect the actual stored messages either way.
+    """
+    try:
+        from jobs.queue_consumer import get_job_queue_consumer
+
+        consumer = get_job_queue_consumer()
+        stats = consumer.stats()
+
+        # Live queue sizes from Redis (async LLEN)
+        client = consumer._redis()
+        queue_size = await _queue_len(client, settings.job_queue_name)
+        dead_letter_size = await _queue_len(client, settings.job_queue_dead_letter)
+
+        return ApiResponse[dict[str, Any]](success=True, data={
+            **stats,
+            "queue_size": queue_size,
+            "dead_letter_size": dead_letter_size,
+            "queue_enabled": settings.job_queue_enabled,
+            "config": {
+                "queue": settings.job_queue_name,
+                "dead_letter": settings.job_queue_dead_letter,
+                "max_retries": consumer._max_retries,
+                "poll_timeout_s": consumer._poll_timeout,
+                "auth_enabled": bool(consumer._token),
+            },
+        })
+    except Exception as exc:
+        logger.exception("Failed to read job queue stats")
+        return ApiResponse(success=False, error={"message": str(exc)}, data={})
+
+
+async def _get_queue_redis() -> Any | None:
+    """Shared Redis client for queue operations (None when unavailable)."""
+    try:
+        from core.cache import get_cache
+
+        cache = get_cache()
+        await cache.initialize()
+        return cache.client
+    except Exception:
+        logger.warning("Redis unavailable for queue replay", exc_info=True)
+        return None
+
+
+_REPLAY_MODES = {"replay", "discard", "list", "dry-run"}
+
+
+_SUMMARY_WINDOWS = ("all", "today", "week", "24h")
+
+
+@router.get(
+    "/queue/summary",
+    summary="Dead-letter queue summary",
+    description="Aggregate report of job:dead messages — job_name distribution, "
+    "error categories, top errors, and repeated job_ids. Optional time-window "
+    "filter (today | week | 24h | all) based on dead_lettered_at. Admin only. Read-only.",
+)
+async def dead_letter_summary(
+    window: str = Query("all", description="Time window: all | today | week | 24h"),
+    since: float | None = Query(None, ge=0, description="Explicit epoch-seconds threshold (overrides window)"),
+) -> ApiResponse[dict[str, Any]]:
+    """Return an aggregated troubleshooting report of the dead-letter queue.
+
+    Pure read: distribution of ``job_name``s, coarse error categories,
+    top raw error strings, and repeated ``job_id``s (the same logical
+    message dead-lettered multiple times). Helps answer "what keeps
+    failing?" without dumping every message.
+
+    ``window`` restricts the report to messages dead-lettered in the last
+    day / this week / today (Tehran) via ``dead_lettered_at``; an explicit
+    ``since`` epoch threshold overrides it. The applied window and
+    threshold are echoed back so clients can display what was filtered.
+    """
+    try:
+        from jobs.replay import summarize_dead_letter
+
+        if window not in _SUMMARY_WINDOWS:
+            return ApiResponse(
+                success=False,
+                error={"message": f"Invalid window '{window}' — must be one of {_SUMMARY_WINDOWS}"},
+                data={},
+            )
+
+        redis = await _get_queue_redis()
+        if redis is None:
+            return ApiResponse(success=False, error={"message": "Redis unavailable"}, data={})
+
+        summary = await summarize_dead_letter(
+            redis,
+            dead_queue=settings.job_queue_dead_letter,
+            window=window,
+            since=since,
+        )
+
+        return ApiResponse[dict[str, Any]](success=True, data={
+            "total": summary.total,
+            "queue": summary.queue,
+            "window": summary.window,
+            "since": summary.since,
+            "job_names": summary.job_names,
+            "error_categories": summary.error_categories,
+            "top_errors": summary.top_errors,
+            "repeated": summary.repeated,
+            "repeated_messages": summary.repeated_messages,
+            "malformed": summary.malformed,
+        })
+    except Exception as exc:
+        logger.exception("Failed to summarize dead-letter queue")
+        return ApiResponse(success=False, error={"message": str(exc)}, data={})
+
+
+@router.post(
+    "/queue/replay",
+    summary="Replay dead-letter jobs",
+    description="Replay (or discard / list / dry-run) dead-letter job messages back "
+    "to the main queue — same logic as scripts/replay_dead_letter.py, without "
+    "the CLI. Admin only.",
+)
+async def replay_job_queue(
+    job_name: str | None = Query(None, description="Only process jobs with this exact name"),
+    search: str | None = Query(None, description="Substring search across the serialised payload"),
+    limit: int = Query(0, ge=0, le=10000, description="Max messages to process (0 = all)"),
+    mode: str = Query("replay", description="replay | discard | list | dry-run"),
+) -> ApiResponse[dict[str, Any]]:
+    """Replay dead-letter jobs from the admin panel (no CLI needed).
+
+    Delegates to the shared ``jobs.replay.replay_dead_letter_messages``
+    core so the CLI script and this endpoint always behave identically:
+    fresh ``attempt`` budget, current worker token, remove from dead only
+    after a successful push (no data loss).
+    """
+    if mode not in _REPLAY_MODES:
+        return ApiResponse(
+            success=False,
+            error={"message": f"Invalid mode '{mode}' — must be one of {sorted(_REPLAY_MODES)}"},
+            data={},
+        )
+
+    try:
+        from jobs.replay import current_token, replay_dead_letter_messages
+
+        redis = await _get_queue_redis()
+        if redis is None:
+            return ApiResponse(success=False, error={"message": "Redis unavailable"}, data={})
+
+        result = await replay_dead_letter_messages(
+            redis,
+            queue_name=settings.job_queue_name,
+            dead_queue=settings.job_queue_dead_letter,
+            token=current_token(settings.job_queue_token),
+            job_name=job_name,
+            search=search,
+            limit=limit,
+            mode=mode,
+        )
+
+        return ApiResponse[dict[str, Any]](success=True, data={
+            "mode": result.mode,
+            "total": result.total,
+            "replayed": result.replayed,
+            "failed": result.failed,
+            "discarded": result.discarded,
+            "queue": result.queue,
+            "dead_queue": result.dead_queue,
+            "queue_size": result.queue_size,
+            "dead_size": result.dead_size,
+            "messages": [
+                {
+                    "job_name": m.job_name,
+                    "job_id": m.job_id,
+                    "attempt": m.attempt,
+                    "error": m.error,
+                    "status": m.status,
+                    "message": m.message,
+                }
+                for m in result.messages
+            ],
+        })
+    except Exception as exc:
+        logger.exception("Failed to replay dead-letter queue")
+        return ApiResponse(success=False, error={"message": str(exc)}, data={})

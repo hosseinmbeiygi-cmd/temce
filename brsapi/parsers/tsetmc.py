@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
+import jdatetime
+
 logger = getLogger(__name__)
 
 # Bounded ISO-ish string so fetched_at fits the varchar(30) columns used by most
@@ -452,24 +454,66 @@ class TsetmcParser:
 
     @classmethod
     def parse_candlesticks(cls, data: Any) -> list[dict[str, Any]]:
-        """``/Tsetmc/Candlestick.php`` response."""
-        if not isinstance(data, dict):
-            logger.warning("Candlestick: expected dict, got %s", type(data).__name__)
-            return []
+        """``/Tsetmc/Candlestick.php`` response.
 
-        candles = data.get("candles") or data.get("data") or data
-        if isinstance(candles, dict):
-            candles = [candles]
+        The API returns the ``date`` in Jalali format (e.g. ``1404-05-18``);
+        each record is enriched with ``gregorian_date`` (DATE object) and
+        ``shamsi_date`` (normalized ``YYYY-MM-DD``) so time-based sorting,
+        queries and charts work without string hacks.
+
+        Payload envelopes (per API ``type`` param):
+          - type=1 realtime 2-min bars  → ``candle_intraday`` (no ``date``, only ``time``)
+          - type=2 unadjusted daily     → ``candle_daily``
+          - type=3 adjusted daily       → ``candle_daily_adjusted``
+
+        Intraday bars carry no ``date`` — they are stamped with today's
+        Jalali date (Tehran) so the chart has a full timestamp.
+        """
+        if isinstance(data, list):
+            # Some payloads are a bare array of candles.
+            candles = data
+        elif isinstance(data, dict):
+            candles = None
+            for key in (
+                "candle_daily_adjusted",
+                "candle_daily",
+                "candle_intraday",
+                "candle_realtime",
+                "candles",
+                "data",
+            ):
+                val = data.get(key)
+                if isinstance(val, list):
+                    candles = val
+                    break
+            if candles is None:
+                # Only treat a bare dict as a single candle when it actually
+                # carries OHLC fields — metadata-only payloads (e.g. the
+                # ``{"status": "no_data"}`` envelope) must not produce a
+                # zero-valued row.
+                has_ohlc = any(k in data for k in ("open", "high", "low", "close", "date", "time"))
+                candles = [data] if has_ohlc else []
+        else:
+            logger.warning("Candlestick: expected dict or list, got %s", type(data).__name__)
+            return []
         if not isinstance(candles, list):
             logger.warning("Candlestick: no candle list found")
             return []
 
+        # Intraday bars have no ``date`` field — stamp them with today's
+        # Jalali date so gregorian/shamsi enrichment still works. Uses
+        # server-local time like the NAV sync (``jdatetime.date.today()``);
+        # bars only exist during market hours when UTC/Tehran dates agree.
+        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+
         records: list[dict[str, Any]] = []
         for c in candles:
-            if not isinstance(c, dict):
+            if not isinstance(c, dict) or not c:
                 continue
+            raw_date = c.get("date") or ""
+            gregorian_date, shamsi_date = cls._jalali_to_gregorian(raw_date or today_jalali)
             records.append({
-                "date": c.get("date", ""),
+                "date": raw_date or today_jalali,
                 "time": c.get("time", ""),
                 "open": cls._float(c.get("open", 0)),
                 "high": cls._float(c.get("high", 0)),
@@ -477,8 +521,35 @@ class TsetmcParser:
                 "close": cls._float(c.get("close", 0)),
                 "volume": cls._int(c.get("volume", 0)),
                 "count": cls._int(c.get("count", 0)),
+                "gregorian_date": gregorian_date,
+                "shamsi_date": shamsi_date,
             })
         return records
+
+    @staticmethod
+    def _jalali_to_gregorian(value: Any) -> tuple[Any, str | None]:
+        """Convert a Jalali date (``1404/02/23`` or ``1404-02-23``) to
+        ``(gregorian datetime.date, normalized shamsi ``YYYY-MM-DD``)``.
+
+        Returns a **real ``datetime.date`` object** (not a string) because
+        ``brsapi_candlesticks.gregorian_date`` is a DATE column and asyncpg
+        rejects plain strings for date types (the same DataError class the
+        codebase hit with ``fetched_at``). Unparseable values return
+        ``(None, None)`` so the caller can keep the raw string untouched.
+        """
+        if not value:
+            return None, None
+        try:
+            from datetime import date
+
+            import jdatetime
+
+            s = str(value).strip().replace("/", "-")
+            jy, jm, jd = (int(p) for p in s.split("-"))
+            g = jdatetime.date(jy, jm, jd).togregorian()
+            return date(g.year, g.month, g.day), f"{jy:04d}-{jm:02d}-{jd:02d}"
+        except Exception:
+            return None, None
 
     # ── Shareholder ────────────────────────────────
 
@@ -494,14 +565,34 @@ class TsetmcParser:
             if not isinstance(item, dict):
                 continue
             records.append({
+                # TSETMC's internal shareholder id — previously discarded.
+                "shareholder_id": cls._int(item.get("id", 0)),
                 "shareholder_name": item.get("name", ""),
                 "volume": cls._int(item.get("volume", 0)),
                 "percent": cls._float(item.get("percent", 0)),
-                "change": cls._int(item.get("change", 0)),
+                # ``change`` arrives with a trailing minus for negatives
+                # (e.g. ``"5000000-"``) — parse it sign-aware.
+                "change": cls._signed_int(item.get("change", 0)),
             })
         return records
 
     # ── Helpers ────────────────────────────────────
+
+    @staticmethod
+    def _signed_int(v: Any) -> int:
+        """Parse an int where a trailing ``-`` denotes a negative value.
+
+        TSETMC returns signed amounts like ``"5000000-"`` for negative
+        changes; ``float()`` (used by ``_int``) rejects that, so strip the
+        trailing minus first. Falls back to 0 like ``_int``.
+        """
+        s = str(v).replace(",", "").strip()
+        if s.endswith("-"):
+            s = "-" + s[:-1]
+        try:
+            return int(float(s))
+        except (ValueError, TypeError):
+            return 0
 
     @staticmethod
     def _int(v: Any) -> int:

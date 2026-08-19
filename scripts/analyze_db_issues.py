@@ -68,6 +68,20 @@ def main() -> None:
         LEFT JOIN pg_stat_user_tables s ON s.relname = c.relname AND s.schemaname = 'public'
         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
     """))
+    # hypertables: parent reltuples stays 0 (rows live in chunks) -> sum chunks
+    try:
+        for (name, chunk_sum) in run(cur, """
+            SELECT h.table_name, COALESCE(SUM(ch.reltuples), 0)
+            FROM pg_class ch
+            JOIN pg_namespace pn ON pn.oid = ch.relnamespace
+            JOIN _timescaledb_catalog.chunk ck ON ck.schema_name = pn.nspname AND ck.table_name = ch.relname
+            JOIN _timescaledb_catalog.hypertable h ON h.id = ck.hypertable_id
+            GROUP BY h.table_name
+        """):
+            if chunk_sum and est_rows.get(name) == 0:
+                est_rows[name] = chunk_sum
+    except Exception:
+        pass
     for t in est_rows:
         if t.startswith("alembic_") or t.startswith("_dual_t") or t == "dual_date_columns":
             continue

@@ -2,15 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AppLayout from "@/components/layout/AppLayout";
 
-// ── Mock heavy children so we can test the layout shell in isolation ─────────
-vi.mock("@/components/Sidebar", () => ({ default: () => <aside data-testid="sidebar" /> }));
+// ── Mock the heavy shell pieces so we can test the layout shell in isolation ─
+vi.mock("@/components/layout/TopNavbar", () => ({ default: () => <div data-testid="topnav" /> }));
+vi.mock("@/components/layout/TickerBar", () => ({ default: () => <div data-testid="ticker" /> }));
+vi.mock("@/components/layout/SmartScreenerFab", () => ({ default: () => <div data-testid="screener-fab" /> }));
 vi.mock("@/components/FloatingAssistant", () => ({ default: () => <div data-testid="floating" /> }));
-vi.mock("@/components/SyncStatus", () => ({ default: () => <div data-testid="sync-status" /> }));
-vi.mock("@/hooks/useTheme", () => ({ useTheme: () => ({ toggleTheme: vi.fn(), isDark: false }) }));
-
-// The layout lazily imports these; mock them so Suspense resolves immediately.
-vi.mock("@/components/layout/TickerTape", () => ({ default: () => <div data-testid="ticker" /> }));
-vi.mock("@/components/layout/MarketIndices", () => ({ default: () => <div data-testid="indices" /> }));
 
 describe("AppLayout", () => {
   it("renders children and title/subtitle", () => {
@@ -53,5 +49,17 @@ describe("AppLayout", () => {
     const title = screen.getByText("عنوان");
     // header appears before title in the DOM (rendered first)
     expect(header.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("mounts the premium shell pieces", () => {
+    render(
+      <AppLayout title="تست">
+        <p>محتوا</p>
+      </AppLayout>
+    );
+    expect(screen.getByTestId("topnav")).toBeInTheDocument();
+    expect(screen.getByTestId("ticker")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-fab")).toBeInTheDocument();
+    expect(screen.getByTestId("floating")).toBeInTheDocument();
   });
 });

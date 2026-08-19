@@ -605,3 +605,35 @@ async def get_comparison(
 ) -> ApiResponse[list[dict[str, Any]]]:
     result = await service.get_comparison()
     return ApiResponse[list[dict[str, Any]]](success=True, data=result.value if result.success else [])
+
+
+@router.get(
+    "/model-loader/cache-info",
+    summary="ModelLoader cache info",
+    description="Runtime diagnostics for the ModelLoader LRU cache: hit/miss stats, "
+    "capacity, and the symbols whose models are currently hot in memory.",
+)
+async def model_loader_cache_info() -> ApiResponse[dict[str, Any]]:
+    """Return live ModelLoader LRU cache diagnostics for runtime monitoring.
+
+    Data comes from the shared ModelLoader singleton (``get_model_loader``),
+    so it reflects what the running process actually has cached:
+      - ``cache_info``: maxsize / currsize / hits / misses (LRU stats)
+      - ``cached_symbols``: symbols whose models are hot in memory right now
+    """
+    try:
+        from ml.model_loader import get_model_loader
+
+        loader = get_model_loader()
+        info = loader.cache_info()
+        return ApiResponse[dict[str, Any]](success=True, data={
+            "cache_info": info,
+            "cached_symbols": info.get("cached_symbols", []),
+        })
+    except Exception as e:
+        logger.warning("Could not read ModelLoader cache info: %s", e)
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={},
+            error={"message": f"Could not read ModelLoader cache info: {e}"},
+        )

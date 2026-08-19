@@ -622,6 +622,7 @@ from brsapi.parsers import (
     CryptoParser,
     CurrencyParser,
     GoldCoinParser,
+    GoldCurrencyParser,
     ImeParser,
     TsetmcParser,
 )
@@ -863,9 +864,12 @@ SECTIONS: dict[str, dict[str, Any]] = {
     "gold-coin": {
         "name": "طلا و سکه",
         "name_en": "Gold & Coins",
-        "endpoint": BrsApiEndpoints.GOLD_COIN,
+        # /Market/Coin.php is dead (HTTP 404 since ~June 2026) — fetch the
+        # combined /Market/Gold_Currency.php payload and extract the gold
+        # section instead (see GoldCurrencyParser.parse_gold).
+        "endpoint": BrsApiEndpoints.GOLD_CURRENCY,
         "model": GoldCoinPriceModel,
-        "parser": GoldCoinParser.parse,
+        "parser": GoldCurrencyParser.parse_gold,
         "category": "commodity",
         "icon": "🥇",
         "has_date_range": False,
@@ -884,9 +888,12 @@ SECTIONS: dict[str, dict[str, Any]] = {
     "currency": {
         "name": "نرخ ارز",
         "name_en": "Currency",
-        "endpoint": BrsApiEndpoints.CURRENCY,
+        # /Market/Currency.php is dead (HTTP 404 since ~June 2026) — fetch the
+        # combined /Market/Gold_Currency.php payload and extract the currency
+        # section instead (see GoldCurrencyParser.parse_currency).
+        "endpoint": BrsApiEndpoints.GOLD_CURRENCY,
         "model": CurrencyPriceModel,
-        "parser": CurrencyParser.parse,
+        "parser": GoldCurrencyParser.parse_currency,
         "category": "commodity",
         "icon": "💵",
         "has_date_range": False,
@@ -1034,6 +1041,8 @@ async def sync_section(
     date_start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
     date_end: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     symbol: str | None = Query(None, description="Symbol for symbol-specific endpoints"),
+    candle_type: str = Query("3", alias="type", description="Candlestick type: 1=realtime, 2=unadjusted, 3=adjusted"),
+    count: int | None = Query(None, ge=1, le=2000, description="Number of candles to request (candlestick only)"),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Fetch data from BrsApi for a given section and store in PostgreSQL."""
@@ -1045,6 +1054,30 @@ async def sync_section(
     from brsapi.services.sync_service import BrsApiSyncService
     sync_svc = BrsApiSyncService(client=client, session=session)
 
+    # Candlestick has a dedicated convenience method that attaches
+    # symbol + candle_type to every record (the generic path would leave
+    # both empty) — use it whenever a symbol is given.
+    if section_id == "candlestick" and symbol:
+        try:
+            report = await sync_svc.sync_candlesticks(
+                session, symbol, candle_type=candle_type, count=count
+            )
+            return ApiResponse[dict[str, Any]](success=report.success, data={
+                "endpoint": report.endpoint,
+                "section_id": section_id,
+                "success": report.success,
+                "items_count": report.items_count,
+                "duration_ms": report.duration_ms,
+                "skipped": report.skipped,
+                "error": report.error,
+            })
+        except Exception as exc:
+            logger.exception("Sync failed for section %s", section_id)
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data={"section_id": section_id, "error": str(exc)},
+            )
+
     params: dict[str, str] = dict(cfg.get("default_params") or {})
     if date_start and cfg["has_date_range"]:
         params["date_start"] = date_start
@@ -1054,13 +1087,15 @@ async def sync_section(
         params["l18"] = symbol
 
     parser_fn = cfg["parser"]
-    if symbol and section_id in ("history-price", "history-real-legal"):
+    if symbol and section_id in ("history-price", "history-real-legal", "candlestick"):
         _sym = symbol
         _orig_parser = parser_fn
         def _parser_with_sym(data: Any) -> list[dict[str, Any]]:
             records = _orig_parser(data)
             for r in records:
                 r["symbol"] = _sym
+                if section_id == "candlestick":
+                    r["candle_type"] = candle_type
             return records
         parser_fn = _parser_with_sym
 
@@ -1195,6 +1230,136 @@ async def download_section(
         media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}.json"},
     )
+
+
+# ── Symbol Details (brsapi_symbol_details) ────────────────────────
+# Read-only access to the enriched per-symbol data (Symbol.php endpoint).
+# One row per symbol — the latest fetched version is kept (upserted on sync).
+
+
+def _symbol_detail_dict(row: Any) -> dict[str, Any]:
+    """Convert a SymbolDetailModel row to a plain dict (skip heavy raw_json)."""
+    d: dict[str, Any] = {}
+    for c in row.__table__.columns:
+        if c.key in ("raw_json",):
+            continue
+        val = getattr(row, c.key)
+        if isinstance(val, datetime):
+            val = val.isoformat()
+        d[c.key] = val
+    return d
+
+
+@router.get(
+    "/symbol-details",
+    summary="List symbol details (brsapi_symbol_details)",
+    description="Paginated list of enriched symbol details read from the database. "
+    "Supports search by symbol/name, market filter, and sorting.",
+)
+async def list_symbol_details(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=500, description="Items per page"),
+    q: str | None = Query(None, description="Search by symbol or company name"),
+    market: str | None = Query(None, description="Filter by market (e.g. بورس / فرابورس)"),
+    sort_by: str = Query("updated_at", description="Sort field: updated_at | symbol | price_last | market_value | trade_value"),
+    order: str = Query("desc", description="Sort order: asc | desc"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
+    """Return enriched symbol details from the ``brsapi_symbol_details`` table."""
+    try:
+        conditions = []
+        if q:
+            like = f"%{q.strip()}%"
+            from sqlalchemy import or_
+
+            conditions.append(
+                or_(
+                    SymbolDetailModel.symbol.ilike(like),
+                    SymbolDetailModel.name.ilike(like),
+                    SymbolDetailModel.name_en.ilike(like),
+                )
+            )
+        if market:
+            conditions.append(SymbolDetailModel.market == market)
+
+        count_stmt = select(sa_func.count()).select_from(SymbolDetailModel).where(*conditions)
+        total = (await session.execute(count_stmt)).scalar() or 0
+
+        sort_map = {
+            "updated_at": SymbolDetailModel.updated_at,
+            "symbol": SymbolDetailModel.symbol,
+            "price_last": SymbolDetailModel.price_last,
+            "market_value": SymbolDetailModel.market_value,
+            "trade_value": SymbolDetailModel.trade_value,
+            "pe_ratio": SymbolDetailModel.pe_ratio,
+        }
+        order_col = sort_map.get(sort_by, SymbolDetailModel.updated_at)
+        order_expr = order_col.desc() if order.lower() == "desc" else order_col.asc()
+        # Nulls last so rows with missing sort values don't hide populated ones.
+        order_expr = order_expr.nullslast()
+
+        offset = (page - 1) * page_size
+        stmt = (
+            select(SymbolDetailModel)
+            .where(*conditions)
+            .order_by(order_expr, SymbolDetailModel.symbol.asc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        rows = (await session.execute(stmt)).scalars().all()
+        items = [_symbol_detail_dict(r) for r in rows]
+
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        return ApiResponse[PaginatedResult[dict[str, Any]]](
+            success=True,
+            data=PaginatedResult[dict[str, Any]](
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            ),
+        )
+    except Exception as exc:
+        logger.exception("Failed to list symbol details")
+        return ApiResponse[PaginatedResult[dict[str, Any]]](
+            success=False,
+            data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=page_size, total_pages=1),
+            error={"message": str(exc)},
+        )
+
+
+@router.get(
+    "/symbol-details/{symbol}",
+    summary="Get symbol detail",
+    description="Full enriched detail for a single symbol from brsapi_symbol_details (by symbol or ins_id)",
+)
+async def get_symbol_detail(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Return the complete enriched detail row for one symbol."""
+    try:
+        from sqlalchemy import or_
+
+        stmt = (
+            select(SymbolDetailModel)
+            .where(
+                or_(
+                    SymbolDetailModel.symbol == symbol,
+                    SymbolDetailModel.ins_id == symbol,
+                )
+            )
+            .order_by(SymbolDetailModel.updated_at.desc())
+            .limit(1)
+        )
+        row = (await session.execute(stmt)).scalars().first()
+        if row is None:
+            return ApiResponse[dict[str, Any]](success=False, error={"message": f"Symbol detail not found: {symbol}"})
+        return ApiResponse[dict[str, Any]](success=True, data=_symbol_detail_dict(row))
+    except Exception as exc:
+        logger.exception("Failed to fetch symbol detail for %s", symbol)
+        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
 
 
 # ETF symbol list moved to brsapi/constants.py so it can be reused
@@ -1343,6 +1508,10 @@ async def sync_all_history(
     Fetch historical daily prices for ALL symbols in the database,
     ordered by symbol name. For each symbol, fetches all available
     history from the earliest date.
+
+    NOTE: this is the legacy BLOCKING variant — prefer the background
+    ``/manage/sync-all-history-price`` backfill for full-market runs so
+    the HTTP request does not stay open for hours.
     """
     import asyncio
 
@@ -1404,6 +1573,619 @@ async def sync_all_history(
         "total_duration_ms": round(total_duration_ms, 1),
         "results": results,
     })
+
+
+# ── Manual full-market candlestick backfill (admin-triggered) ────────
+# The whole market (~1,900 symbols × 3 candle types × 11s spacing) takes
+# several hours, so the run happens as a background task whose live state
+# is kept in memory and polled by the manage UI. Single-process uvicorn
+# (default) is assumed — enough for the admin panel.
+
+_CANDLE_BACKFILL_STATE: dict[str, Any] = {
+    "status": "idle",          # idle | running | done | cancelled | error
+    "started_at": None,
+    "finished_at": None,
+    "total_symbols": 0,
+    "processed": 0,
+    "ok": 0,
+    "fail": 0,
+    "items": 0,
+    "current_symbol": None,
+    "message": None,
+    "error": None,
+    "cancel_requested": False,
+}
+_candle_backfill_task: asyncio.Task | None = None
+
+
+def _mask_api_key(key: str) -> str:
+    """Show only the first/last few characters of an API key."""
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return (key[0] + "***" + key[-1]) if len(key) > 3 else "***"
+    return f"{key[:4]}…{key[-4:]}"
+
+
+def _count_payload(data: Any) -> int:
+    """Best-effort item count of a BrsApi payload (list or dict)."""
+    if data is None:
+        return 0
+    if isinstance(data, list):
+        return len(data)
+    if isinstance(data, dict):
+        for key in ("symbols", "data", "items", "result", "results"):
+            if isinstance(data.get(key), list):
+                return len(data[key])
+        return len(data)
+    return 0
+
+
+async def _run_candle_backfill(max_symbols: int, allow_weekend: bool) -> None:
+    """Background worker for the manual full-market candlestick backfill.
+
+    Reuses the job registry's ``_run_candlesticks_all`` so the daily job
+    and the manual trigger share identical logic; live progress is written
+    into ``_CANDLE_BACKFILL_STATE``.
+    """
+    from core.database import get_session
+
+    from brsapi.jobs.registry import get_brsapi_job_registry
+    from brsapi.services.sync_service import BrsApiSyncService
+
+    state = _CANDLE_BACKFILL_STATE
+    try:
+        client = await get_client()
+        registry = get_brsapi_job_registry()
+        async for session in get_session():
+            service = BrsApiSyncService(client=client, session=session)
+            report = await registry._run_candlesticks_all(
+                session,
+                service,
+                max_symbols=max_symbols,
+                allow_weekend=allow_weekend,
+                progress=state,
+            )
+            if report is None:
+                state["status"] = "error"
+                state["error"] = "هیچ نمادی برای بکفیل پیدا نشد"
+            elif state["status"] == "running" and report.skipped and report.items_count == 0:
+                # Weekend guard hit (allow_weekend=false) — clean skip,
+                # not an error. (Cancelled runs already set status themselves.)
+                state["status"] = "done"
+                state["message"] = "بکفیل اجرا نشد — روز آخر هفته تهران"
+            break
+    except Exception as exc:
+        logger.exception("Manual candlestick backfill failed")
+        state["status"] = "error"
+        state["error"] = str(exc)
+    finally:
+        state["finished_at"] = datetime.now().isoformat()
+        if state["status"] == "running":
+            state["status"] = "error"
+            state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
+
+
+@router.post(
+    "/manage/sync-all-candlesticks",
+    summary="Download candlesticks for ALL symbols (manual)",
+    description="Trigger a full-market candlestick backfill in the background: AllSymbols + adjusted/unadjusted/realtime candles for every symbol",
+)
+async def sync_all_candlesticks(
+    max_symbols: int = Query(0, ge=0, le=2000, description="Max symbols (0 = all symbols)"),
+    allow_weekend: bool = Query(True, description="Allow the run even on Tehran weekends (manual override)"),
+) -> ApiResponse[dict[str, Any]]:
+    """
+    Start a background download of all three candlestick types for the
+    whole market.
+
+    The run is rate-limited to 2 req/10s by the API, so a full market
+    (~1,900 symbols) takes several hours. Poll
+    ``/manage/sync-all-candlesticks/status`` for live progress, or use
+    ``/manage/sync-all-candlesticks/cancel`` to stop it.
+    """
+    global _candle_backfill_task
+
+    if _CANDLE_BACKFILL_STATE["status"] == "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "started": False,
+            "status": "running",
+            "message": "یک بکفیل در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+        })
+
+    _CANDLE_BACKFILL_STATE.update({
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+        "finished_at": None,
+        "total_symbols": 0,
+        "processed": 0,
+        "ok": 0,
+        "fail": 0,
+        "items": 0,
+        "current_symbol": None,
+        "cancel_requested": False,
+        "message": "در حال راه‌اندازی...",
+        "error": None,
+    })
+    _candle_backfill_task = asyncio.create_task(_run_candle_backfill(max_symbols, allow_weekend))
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "started": True,
+        "status": "running",
+        "max_symbols": max_symbols if max_symbols > 0 else "all",
+        "message": "بکفیل کندل همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+    })
+
+
+@router.get("/manage/sync-all-candlesticks/status", summary="Status of the manual candlestick backfill")
+async def sync_all_candlesticks_status() -> ApiResponse[dict[str, Any]]:
+    """Return live progress of the manual full-market candlestick backfill."""
+    return ApiResponse[dict[str, Any]](success=True, data=dict(_CANDLE_BACKFILL_STATE))
+
+
+@router.post("/manage/sync-all-candlesticks/cancel", summary="Cancel the manual candlestick backfill")
+async def cancel_sync_all_candlesticks() -> ApiResponse[dict[str, Any]]:
+    """Request cancellation of the running backfill (stops after the current symbol)."""
+    if _CANDLE_BACKFILL_STATE["status"] != "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "cancelled": False,
+            "message": "هیچ بکفیلی در حال اجرا نیست",
+        })
+    _CANDLE_BACKFILL_STATE["cancel_requested"] = True
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "cancelled": True,
+        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+    })
+
+
+# ── Manual full-market shareholder backfill (admin-triggered) ────────
+# Same background-task pattern as the candlestick backfill above.
+# ~1,900 symbols × 5s spacing takes ~2.5 hours, so the run happens as a
+# background task whose live state is polled by the manage UI.
+
+_SHAREHOLDER_BACKFILL_STATE: dict[str, Any] = {
+    "status": "idle",          # idle | running | done | cancelled | error
+    "started_at": None,
+    "finished_at": None,
+    "total_symbols": 0,
+    "processed": 0,
+    "ok": 0,
+    "fail": 0,
+    "items": 0,
+    "current_symbol": None,
+    "message": None,
+    "error": None,
+    "cancel_requested": False,
+}
+_shareholder_backfill_task: asyncio.Task | None = None
+
+
+async def _run_shareholder_backfill(max_symbols: int, allow_weekend: bool) -> None:
+    """Background worker for the manual full-market shareholder backfill.
+
+    Reuses the job registry's ``_run_shareholders_all`` so the daily job
+    and the manual trigger share identical logic; live progress is written
+    into ``_SHAREHOLDER_BACKFILL_STATE``.
+    """
+    from core.database import get_session
+
+    from brsapi.jobs.registry import get_brsapi_job_registry
+    from brsapi.services.sync_service import BrsApiSyncService
+
+    state = _SHAREHOLDER_BACKFILL_STATE
+    try:
+        client = await get_client()
+        registry = get_brsapi_job_registry()
+        async for session in get_session():
+            service = BrsApiSyncService(client=client, session=session)
+            report = await registry._run_shareholders_all(
+                session,
+                service,
+                max_symbols=max_symbols,
+                allow_weekend=allow_weekend,
+                progress=state,
+            )
+            if report is None:
+                state["status"] = "error"
+                state["error"] = "هیچ نمادی برای بکفیل پیدا نشد"
+            elif state["status"] == "running" and report.skipped and report.items_count == 0:
+                # Weekend guard (allow_weekend=false) or market closed
+                # (empty AllSymbols) — clean skip, not an error. The registry
+                # sets a specific message per case; fall back otherwise.
+                state["status"] = "done"
+                state["message"] = state.get("message") or "بکفیل اجرا نشد — روز آخر هفته تهران"
+            break
+    except Exception as exc:
+        logger.exception("Manual shareholder backfill failed")
+        state["status"] = "error"
+        state["error"] = str(exc)
+    finally:
+        state["finished_at"] = datetime.now().isoformat()
+        if state["status"] == "running":
+            state["status"] = "error"
+            state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
+
+
+@router.post(
+    "/manage/sync-all-shareholders",
+    summary="Download latest shareholders for ALL symbols (manual)",
+    description="Trigger a full-market shareholder backfill in the background: AllSymbols + latest shareholder composition for every symbol",
+)
+async def sync_all_shareholders(
+    max_symbols: int = Query(0, ge=0, le=2000, description="Max symbols (0 = all symbols)"),
+    allow_weekend: bool = Query(True, description="Allow the run even on Tehran weekends (manual override)"),
+) -> ApiResponse[dict[str, Any]]:
+    """
+    Start a background download of the latest shareholder composition for
+    the whole market.
+
+    The run is rate-limited to 2 req/10s by the API, so a full market
+    (~1,900 symbols) takes about two hours. Poll
+    ``/manage/sync-all-shareholders/status`` for live progress, or use
+    ``/manage/sync-all-shareholders/cancel`` to stop it.
+    """
+    global _shareholder_backfill_task
+
+    if _SHAREHOLDER_BACKFILL_STATE["status"] == "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "started": False,
+            "status": "running",
+            "message": "یک بکفیل سهامداران در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+        })
+
+    _SHAREHOLDER_BACKFILL_STATE.update({
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+        "finished_at": None,
+        "total_symbols": 0,
+        "processed": 0,
+        "ok": 0,
+        "fail": 0,
+        "items": 0,
+        "current_symbol": None,
+        "cancel_requested": False,
+        "message": "در حال راه‌اندازی...",
+        "error": None,
+    })
+    _shareholder_backfill_task = asyncio.create_task(
+        _run_shareholder_backfill(max_symbols, allow_weekend)
+    )
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "started": True,
+        "status": "running",
+        "max_symbols": max_symbols if max_symbols > 0 else "all",
+        "message": "بکفیل سهامداران همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+    })
+
+
+@router.get("/manage/sync-all-shareholders/status", summary="Status of the manual shareholder backfill")
+async def sync_all_shareholders_status() -> ApiResponse[dict[str, Any]]:
+    """Return live progress of the manual full-market shareholder backfill."""
+    return ApiResponse[dict[str, Any]](success=True, data=dict(_SHAREHOLDER_BACKFILL_STATE))
+
+
+@router.post("/manage/sync-all-shareholders/cancel", summary="Cancel the manual shareholder backfill")
+async def cancel_sync_all_shareholders() -> ApiResponse[dict[str, Any]]:
+    """Request cancellation of the running backfill (stops after the current symbol)."""
+    if _SHAREHOLDER_BACKFILL_STATE["status"] != "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "cancelled": False,
+            "message": "هیچ بکفیلی در حال اجرا نیست",
+        })
+    _SHAREHOLDER_BACKFILL_STATE["cancel_requested"] = True
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "cancelled": True,
+        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+    })
+
+
+# ── Manual full-market history backfills (admin-triggered) ──────────
+# Same background-task pattern as the candlestick/shareholder backfills.
+# One request per symbol (~1,900 symbols × 5s spacing ≈ 2.5 hours), so the
+# run happens as a background task whose live state is polled by the UI.
+
+
+def _make_backfill_state() -> dict[str, Any]:
+    """Fresh idle state for a manual full-market backfill."""
+    return {
+        "status": "idle",      # idle | running | done | cancelled | error
+        "started_at": None,
+        "finished_at": None,
+        "total_symbols": 0,
+        "processed": 0,
+        "ok": 0,
+        "fail": 0,
+        "items": 0,
+        "current_symbol": None,
+        "message": None,
+        "error": None,
+        "cancel_requested": False,
+    }
+
+
+_HISTORY_PRICE_BACKFILL_STATE: dict[str, Any] = _make_backfill_state()
+_history_price_backfill_task: asyncio.Task | None = None
+
+_HISTORY_REAL_LEGAL_BACKFILL_STATE: dict[str, Any] = _make_backfill_state()
+_history_real_legal_backfill_task: asyncio.Task | None = None
+
+
+async def _run_history_price_backfill(max_symbols: int, allow_weekend: bool) -> None:
+    """Background worker for the manual full-market history-price backfill."""
+    from core.database import get_session
+
+    from brsapi.jobs.registry import get_brsapi_job_registry
+    from brsapi.services.sync_service import BrsApiSyncService
+
+    state = _HISTORY_PRICE_BACKFILL_STATE
+    try:
+        client = await get_client()
+        registry = get_brsapi_job_registry()
+        async for session in get_session():
+            service = BrsApiSyncService(client=client, session=session)
+            report = await registry._run_history_price_all(
+                session,
+                service,
+                max_symbols=max_symbols,
+                allow_weekend=allow_weekend,
+                progress=state,
+            )
+            if report is None:
+                state["status"] = "error"
+                state["error"] = "هیچ نمادی برای بکفیل پیدا نشد"
+            elif state["status"] == "running" and report.skipped and report.items_count == 0:
+                # Weekend guard (allow_weekend=false) or market closed
+                # (empty AllSymbols) — clean skip, not an error. The registry
+                # sets a specific message per case; fall back otherwise.
+                state["status"] = "done"
+                state["message"] = state.get("message") or "بکفیل اجرا نشد — روز آخر هفته تهران"
+            break
+    except Exception as exc:
+        logger.exception("Manual history-price backfill failed")
+        state["status"] = "error"
+        state["error"] = str(exc)
+    finally:
+        state["finished_at"] = datetime.now().isoformat()
+        if state["status"] == "running":
+            state["status"] = "error"
+            state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
+
+
+async def _run_history_real_legal_backfill(max_symbols: int, allow_weekend: bool) -> None:
+    """Background worker for the manual full-market history real/legal backfill."""
+    from core.database import get_session
+
+    from brsapi.jobs.registry import get_brsapi_job_registry
+    from brsapi.services.sync_service import BrsApiSyncService
+
+    state = _HISTORY_REAL_LEGAL_BACKFILL_STATE
+    try:
+        client = await get_client()
+        registry = get_brsapi_job_registry()
+        async for session in get_session():
+            service = BrsApiSyncService(client=client, session=session)
+            report = await registry._run_history_real_legal_all(
+                session,
+                service,
+                max_symbols=max_symbols,
+                allow_weekend=allow_weekend,
+                progress=state,
+            )
+            if report is None:
+                state["status"] = "error"
+                state["error"] = "هیچ نمادی برای بکفیل پیدا نشد"
+            elif state["status"] == "running" and report.skipped and report.items_count == 0:
+                state["status"] = "done"
+                state["message"] = state.get("message") or "بکفیل اجرا نشد — روز آخر هفته تهران"
+            break
+    except Exception as exc:
+        logger.exception("Manual history-real-legal backfill failed")
+        state["status"] = "error"
+        state["error"] = str(exc)
+    finally:
+        state["finished_at"] = datetime.now().isoformat()
+        if state["status"] == "running":
+            state["status"] = "error"
+            state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
+
+
+@router.post(
+    "/manage/sync-all-history-price",
+    summary="Download daily historical prices for ALL symbols (manual)",
+    description="Trigger a full-market history-price backfill in the background: AllSymbols + daily historical prices for every symbol",
+)
+async def sync_all_history_price(
+    max_symbols: int = Query(0, ge=0, le=2000, description="Max symbols (0 = all symbols)"),
+    allow_weekend: bool = Query(True, description="Allow the run even on Tehran weekends (manual override)"),
+) -> ApiResponse[dict[str, Any]]:
+    """
+    Start a background download of daily historical prices for the whole market.
+
+    Poll ``/manage/sync-all-history-price/status`` for live progress, or use
+    ``/manage/sync-all-history-price/cancel`` to stop it.
+    """
+    global _history_price_backfill_task
+
+    if _HISTORY_PRICE_BACKFILL_STATE["status"] == "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "started": False,
+            "status": "running",
+            "message": "یک بکفیل تاریخچه قیمت در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+        })
+
+    _HISTORY_PRICE_BACKFILL_STATE.update({
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+        "finished_at": None,
+        "total_symbols": 0,
+        "processed": 0,
+        "ok": 0,
+        "fail": 0,
+        "items": 0,
+        "current_symbol": None,
+        "cancel_requested": False,
+        "message": "در حال راه‌اندازی...",
+        "error": None,
+    })
+    _history_price_backfill_task = asyncio.create_task(
+        _run_history_price_backfill(max_symbols, allow_weekend)
+    )
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "started": True,
+        "status": "running",
+        "max_symbols": max_symbols if max_symbols > 0 else "all",
+        "message": "بکفیل تاریخچه قیمت همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+    })
+
+
+@router.get("/manage/sync-all-history-price/status", summary="Status of the manual history-price backfill")
+async def sync_all_history_price_status() -> ApiResponse[dict[str, Any]]:
+    """Return live progress of the manual history-price backfill."""
+    return ApiResponse[dict[str, Any]](success=True, data=dict(_HISTORY_PRICE_BACKFILL_STATE))
+
+
+@router.post("/manage/sync-all-history-price/cancel", summary="Cancel the manual history-price backfill")
+async def cancel_sync_all_history_price() -> ApiResponse[dict[str, Any]]:
+    """Request cancellation of the running backfill (stops after the current symbol)."""
+    if _HISTORY_PRICE_BACKFILL_STATE["status"] != "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "cancelled": False,
+            "message": "هیچ بکفیلی در حال اجرا نیست",
+        })
+    _HISTORY_PRICE_BACKFILL_STATE["cancel_requested"] = True
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "cancelled": True,
+        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+    })
+
+
+@router.post(
+    "/manage/sync-all-history-real-legal",
+    summary="Download real/legal history for ALL symbols (manual)",
+    description="Trigger a full-market real/legal backfill in the background: AllSymbols + real/legal buy-sell history for every symbol",
+)
+async def sync_all_history_real_legal(
+    max_symbols: int = Query(0, ge=0, le=2000, description="Max symbols (0 = all symbols)"),
+    allow_weekend: bool = Query(True, description="Allow the run even on Tehran weekends (manual override)"),
+) -> ApiResponse[dict[str, Any]]:
+    """
+    Start a background download of the real/legal history for the whole market.
+
+    Poll ``/manage/sync-all-history-real-legal/status`` for live progress, or
+    use ``/manage/sync-all-history-real-legal/cancel`` to stop it.
+    """
+    global _history_real_legal_backfill_task
+
+    if _HISTORY_REAL_LEGAL_BACKFILL_STATE["status"] == "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "started": False,
+            "status": "running",
+            "message": "یک بکفیل حقیقی/حقوقی در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+        })
+
+    _HISTORY_REAL_LEGAL_BACKFILL_STATE.update({
+        "status": "running",
+        "started_at": datetime.now().isoformat(),
+        "finished_at": None,
+        "total_symbols": 0,
+        "processed": 0,
+        "ok": 0,
+        "fail": 0,
+        "items": 0,
+        "current_symbol": None,
+        "cancel_requested": False,
+        "message": "در حال راه‌اندازی...",
+        "error": None,
+    })
+    _history_real_legal_backfill_task = asyncio.create_task(
+        _run_history_real_legal_backfill(max_symbols, allow_weekend)
+    )
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "started": True,
+        "status": "running",
+        "max_symbols": max_symbols if max_symbols > 0 else "all",
+        "message": "بکفیل حقیقی/حقوقی همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+    })
+
+
+@router.get("/manage/sync-all-history-real-legal/status", summary="Status of the manual history real/legal backfill")
+async def sync_all_history_real_legal_status() -> ApiResponse[dict[str, Any]]:
+    """Return live progress of the manual history real/legal backfill."""
+    return ApiResponse[dict[str, Any]](success=True, data=dict(_HISTORY_REAL_LEGAL_BACKFILL_STATE))
+
+
+@router.post("/manage/sync-all-history-real-legal/cancel", summary="Cancel the manual history real/legal backfill")
+async def cancel_sync_all_history_real_legal() -> ApiResponse[dict[str, Any]]:
+    """Request cancellation of the running backfill (stops after the current symbol)."""
+    if _HISTORY_REAL_LEGAL_BACKFILL_STATE["status"] != "running":
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "cancelled": False,
+            "message": "هیچ بکفیلی در حال اجرا نیست",
+        })
+    _HISTORY_REAL_LEGAL_BACKFILL_STATE["cancel_requested"] = True
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "cancelled": True,
+        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+    })
+
+
+@router.post("/manage/test-connection", summary="Test BrsApi API key and connectivity")
+async def test_brsapi_connection() -> ApiResponse[dict[str, Any]]:
+    """
+    Verify the configured BrsApi API key by calling a live endpoint.
+
+    Makes a single lightweight request to AllSymbols.php and reports
+    whether the key is accepted, the HTTP status, latency, and how many
+    symbols were returned.
+    """
+    import time as _time
+
+    from brsapi.config import settings as _brsapi_settings
+
+    key = _brsapi_settings.api_key
+    masked = _mask_api_key(key)
+    if not key:
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "configured": False,
+            "key": masked,
+            "reachable": False,
+            "message": "کلید API تنظیم نشده است — BRSAPI_API_KEY را در فایل .env قرار دهید",
+        })
+
+    try:
+        client = await get_client()
+        start = _time.monotonic()
+        result = await client.fetch(BrsApiEndpoints.ALL_SYMBOLS)
+        elapsed_ms = round((_time.monotonic() - start) * 1000, 1)
+
+        if not result.success:
+            return ApiResponse[dict[str, Any]](success=False, data={
+                "configured": True,
+                "key": masked,
+                "reachable": False,
+                "http_status": None,
+                "elapsed_ms": elapsed_ms,
+                "message": f"اتصال برقرار نشد: {result.error}",
+            })
+
+        resp = result.value
+        count = _count_payload(resp.data)
+        return ApiResponse[dict[str, Any]](success=True, data={
+            "configured": True,
+            "key": masked,
+            "reachable": True,
+            "http_status": resp.status_code,
+            "elapsed_ms": elapsed_ms,
+            "symbols_count": count,
+            "message": f"اتصال موفق — {count} نماد از AllSymbols دریافت شد",
+        })
+    except Exception as exc:
+        logger.exception("BrsApi connection test failed")
+        return ApiResponse[dict[str, Any]](success=False, data={
+            "configured": True,
+            "key": masked,
+            "reachable": False,
+            "message": f"خطا در تست اتصال: {exc}",
+        })
 
 
 @router.get("/manage/sync-stats", summary="Per-endpoint sync status dashboard")
@@ -1512,6 +2294,280 @@ async def sync_stats(
             "stale_endpoints": stale_count,
             "overall_error_rate": round((total_errors / total_runs) * 100, 2) if total_runs else 0.0,
         },
+    })
+
+
+# Frontend sync-dashboard keys → (SECTIONS id, default max-age in minutes).
+# The frontend (SyncStatus widget, /admin, /sync, /sync-manager) reads this
+# endpoint to render freshness per section + the "Sync now" buttons.
+#
+# Note: gold-coin and currency both fetch the combined /Market/Gold_Currency.php
+# payload, so they share one sync-log endpoint key — their freshness values
+# will always be identical (correct: a single fetch refreshes both).
+_SYNC_STATUS_SECTIONS: dict[str, tuple[str, int]] = {
+    "symbols":     ("all-symbols", 10),
+    "commodities": ("commodity", 10),
+    "gold_coin":   ("gold-coin", 10),
+    "currency":    ("currency", 10),
+    "crypto":      ("crypto", 10),
+    "index":       ("index-tse", 10),
+    "ime_futures": ("ime-futures", 30),
+    "ime_options": ("ime-options", 30),
+    "options":     ("option", 30),
+    "codal":       ("codal", 60),
+}
+
+
+@router.get("/sync-status", summary="Sync freshness status for the frontend")
+async def sync_status(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Return per-section freshness for the frontend sync dashboard.
+
+    Each entry carries the record count, the last successful sync time, the
+    data age in minutes, and a freshness status derived from the default
+    max-age threshold for that section.
+    """
+    sync_repo = SyncLogRepository(session)
+
+    # Row estimates from pg_stat for fast approximate counts
+    pg_stat_counts: dict[str, int] = {}
+    try:
+        pg_result = await session.execute(text(
+            "SELECT relname, n_live_tup FROM pg_stat_user_tables "
+            "WHERE schemaname = 'public'"
+        ))
+        for row in pg_result:
+            pg_stat_counts[row[0]] = row[1] or 0
+    except Exception:
+        pass
+
+    result: dict[str, Any] = {}
+    for key, (section_id, max_age_minutes) in _SYNC_STATUS_SECTIONS.items():
+        entry: dict[str, Any] = {
+            "last_fetched": None,
+            "record_count": 0,
+            "age_minutes": None,
+            "status": "unknown",
+            "max_age_minutes": max_age_minutes,
+        }
+        cfg = SECTIONS.get(section_id)
+        if cfg is None:
+            result[key] = entry
+            continue
+        try:
+            model = cfg["model"]
+            table_name = model.__tablename__
+            count = pg_stat_counts.get(table_name)
+            if count is None:
+                try:
+                    cnt = await session.execute(select(sa_func.count()).select_from(model))
+                    count = cnt.scalar() or 0
+                except Exception as exc:
+                    # A missing table would otherwise surface as a silent
+                    # "missing" status — log so it is diagnosable.
+                    logger.debug("sync_status count fallback failed for %s: %s", table_name, exc)
+                    count = 0
+            entry["record_count"] = int(count or 0)
+
+            last = await sync_repo.last_sync(cfg["endpoint"].path, max_age_seconds=999999999)
+            if last and last.completed_at:
+                entry["last_fetched"] = last.completed_at.isoformat()
+                entry["age_minutes"] = round(
+                    max(0.0, (datetime.now() - last.completed_at).total_seconds() / 60), 1
+                )
+        except Exception as exc:
+            logger.warning("sync_status failed for %s: %s", section_id, exc)
+            entry["status"] = "error"
+            entry["error"] = str(exc)
+            result[key] = entry
+            continue
+
+        # Derive freshness: missing → no data; stale/outdated from age.
+        if entry["record_count"] == 0:
+            entry["status"] = "missing"
+        elif entry["last_fetched"] is None or entry["age_minutes"] is None:
+            entry["status"] = "unknown"
+        elif entry["age_minutes"] <= max_age_minutes:
+            entry["status"] = "ok"
+        elif entry["age_minutes"] <= max_age_minutes * 3:
+            entry["status"] = "stale"
+        else:
+            entry["status"] = "outdated"
+        result[key] = entry
+
+    return ApiResponse[dict[str, Any]](success=True, data=result)
+
+
+@router.get("/sync-history", summary="Recent BrsApi sync history")
+async def sync_history(
+    hours: int = Query(24, ge=1, le=24 * 30, description="Look-back window in hours"),
+    limit: int = Query(300, ge=1, le=1000, description="Max entries"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[list[dict[str, Any]]]:
+    """Return recent sync-log entries for the sync dashboard history list."""
+    from datetime import timedelta
+
+    from brsapi.models.base import SyncLogModel
+
+    cutoff = datetime.now() - timedelta(hours=hours)
+    stmt = (
+        select(SyncLogModel)
+        .where(SyncLogModel.completed_at >= cutoff)
+        .order_by(SyncLogModel.completed_at.desc())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        ts = r.started_at or r.completed_at
+        items.append({
+            "time": ts.isoformat() if ts else None,
+            "endpoint": r.endpoint,
+            "category": r.category,
+            "status": r.status,
+            "items_count": r.items_count,
+            "duration_ms": r.duration_ms,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "error_message": r.error_message,
+        })
+
+    return ApiResponse[list[dict[str, Any]]](success=True, data=items)
+
+
+@router.get("/nav-sync-status", summary="NAV sync status (latest date, success/fail, today's symbols)")
+async def nav_sync_status(
+    days: int = Query(7, ge=1, le=90, description="Look-back window (days) for sync-log counts"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Return a focused status report for the NAV sync pipeline.
+
+    Aggregates three views:
+      - **Data**: latest NAV date in ``brsapi_nav_records``, distinct symbols,
+        and the symbols that already hold today's (Jalali) NAV record.
+      - **Sync health**: success/error counts, error rate and average duration
+        from ``brsapi_sync_log`` for the NAV endpoint over the last ``days``.
+      - **Coverage**: how many fund symbols are known vs how many hold NAV.
+
+    This is the endpoint the frontend sync dashboard should read to answer
+    "is today's NAV in yet?" and "did the last run mostly succeed?".
+    """
+    import jdatetime
+
+    from brsapi.models.base import SyncLogModel
+    from brsapi.services.sync_service import BrsApiSyncService
+
+    nav_path = BrsApiEndpoints.NAV.path
+
+    # ── 1) Data view (brsapi_nav_records) ───────────────────────────
+    latest_date: str | None = None
+    distinct_symbols = 0
+    today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+    today_symbols: list[str] = []
+    total_records = 0
+    try:
+        r = await session.execute(select(sa_func.max(NavRecordModel.date)))
+        latest_date = r.scalar()
+        r = await session.execute(select(sa_func.count(sa_func.distinct(NavRecordModel.symbol))))
+        distinct_symbols = int(r.scalar() or 0)
+        r = await session.execute(select(sa_func.count()).select_from(NavRecordModel))
+        total_records = int(r.scalar() or 0)
+        r = await session.execute(
+            select(NavRecordModel.symbol)
+            .where(NavRecordModel.date == today_jalali)
+            .distinct()
+            .order_by(NavRecordModel.symbol)
+        )
+        today_symbols = [row[0] for row in r if row[0]]
+    except Exception as exc:
+        logger.warning("nav-sync-status data query failed: %s", exc)
+
+    # ── 2) Sync health (brsapi_sync_log) ────────────────────────────
+    sync_stats: dict[str, Any] = {
+        "last_run_at": None,
+        "last_success_at": None,
+        "total_runs": 0,
+        "success_count": 0,
+        "error_count": 0,
+        "error_rate": 0.0,
+        "avg_duration_ms": 0.0,
+        "recent_errors": [],
+    }
+    try:
+        from datetime import timedelta
+
+        # Reuse the repository aggregator for the window metrics.
+        from brsapi.repositories import SyncLogRepository
+
+        sync_repo = SyncLogRepository(session)
+        rows = await sync_repo.get_sync_stats(endpoint=nav_path, window_days=days)
+        if rows:
+            s = rows[0]
+            sync_stats["last_run_at"] = str(s["last_run_at"]) if s.get("last_run_at") else None
+            sync_stats["last_success_at"] = str(s["last_success_at"]) if s.get("last_success_at") else None
+            sync_stats["total_runs"] = int(s.get("total_runs") or 0)
+            sync_stats["success_count"] = int(s.get("success_count") or 0)
+            sync_stats["error_count"] = int(s.get("error_count") or 0)
+            sync_stats["error_rate"] = round(float(s.get("error_rate") or 0.0), 1)
+            sync_stats["avg_duration_ms"] = round(float(s.get("avg_duration_ms") or 0.0), 1)
+
+        # Recent error details (the aggregator doesn't return messages).
+        cutoff = datetime.now() - timedelta(days=days)
+        err_stmt = (
+            select(SyncLogModel)
+            .where(
+                SyncLogModel.endpoint == nav_path,
+                SyncLogModel.started_at >= cutoff,
+                SyncLogModel.status == "error",
+            )
+            .order_by(SyncLogModel.completed_at.desc().nullslast())
+            .limit(5)
+        )
+        err_rows = (await session.execute(err_stmt)).scalars().all()
+        sync_stats["recent_errors"] = [
+            {
+                "at": (r.completed_at or r.started_at).isoformat()
+                if (r.completed_at or r.started_at) else None,
+                "message": (r.error_message or "")[:200],
+            }
+            for r in err_rows
+        ]
+    except Exception as exc:
+        logger.warning("nav-sync-status sync-log query failed: %s", exc)
+
+    # ── 3) Coverage (known fund symbols vs with NAV) ─────────────────
+    coverage: dict[str, Any] = {
+        "total_fund_symbols": 0,
+        "with_nav": distinct_symbols,
+        "missing": 0,
+        "coverage_pct": 0.0,
+    }
+    try:
+        # DB-only query — no HTTP client needed.
+        fund_syms = await BrsApiSyncService()._get_fund_symbols(session)
+        coverage["total_fund_symbols"] = len(fund_syms)
+        coverage["missing"] = max(0, len(fund_syms) - distinct_symbols)
+        if fund_syms:
+            coverage["coverage_pct"] = round(
+                (distinct_symbols / len(fund_syms)) * 100, 1
+            )
+    except Exception as exc:
+        logger.warning("nav-sync-status coverage query failed: %s", exc)
+
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "endpoint": nav_path,
+        "data": {
+            "total_records": total_records,
+            "distinct_symbols": distinct_symbols,
+            "latest_date": latest_date,
+            "today_jalali": today_jalali,
+            "today_record_count": len(today_symbols),
+            "today_symbols": today_symbols,
+        },
+        "sync": sync_stats,
+        "coverage": coverage,
+        "window_days": days,
     })
 
 

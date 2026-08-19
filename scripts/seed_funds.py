@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 import time
 from pathlib import Path
@@ -67,6 +68,23 @@ KNOWN_FUND_SYMBOLS: list[str] = [
 # ── Core logic ──
 
 
+async def _ensure_db(db_url: str | None = None) -> None:
+    """Initialize the database connection if not already initialized.
+
+    Uses module-attribute access (``core.database.async_session_factory``)
+    instead of ``from core.database import async_session_factory`` so the
+    value is re-read *after* ``init_database()`` reassigns the module global —
+    avoiding a stale ``None`` binding that would raise ``TypeError``.
+    """
+    import core.database as database
+
+    if database.async_session_factory is None:
+        if db_url:
+            sync_url = db_url.replace("+asyncpg", "")
+            os.environ["DATABASE_URL"] = sync_url
+        await database.init_database()
+
+
 async def seed_funds(
     db_url: str | None = None,
     symbols: list[str] | None = None,
@@ -102,14 +120,10 @@ async def seed_funds(
     if dry_run:
         _p(f"\n🔍 Dry-run: بررسی داده‌های {len(symbols_to_seed)} صندوق:\n")
         # Initialize DB if needed
-        from core.database import async_session_factory, init_database
-        if async_session_factory is None:
-            if db_url:
-                import os
-                sync_url = db_url.replace("+asyncpg", "")
-                os.environ["DATABASE_URL"] = sync_url
-            await init_database()
-        async with async_session_factory() as session:
+        await _ensure_db(db_url)
+        import core.database as database
+
+        async with database.async_session_factory() as session:
             brsapi = BrsApiQueryService(session=session)
             ok = fail = 0
             for i, sym in enumerate(symbols_to_seed, 1):
@@ -117,8 +131,8 @@ async def seed_funds(
                     enriched = await brsapi.get_enriched_symbol_detail(sym)
                     if enriched:
                         name = enriched.get("name", sym)
-                        price = enriched.get("price_last", 0)
-                        vol = enriched.get("trade_volume", 0)
+                        price = int(enriched.get("price_last", 0) or 0)
+                        vol = int(enriched.get("trade_volume", 0) or 0)
                         _p(f"  [{i:3d}/{len(symbols_to_seed)}] {sym:8s} | {str(name):20s} | price={price:>8,d} | vol={vol:>8,d}")
                         ok += 1
                     else:
@@ -133,21 +147,15 @@ async def seed_funds(
         return {"total": len(symbols_to_seed), "ok": ok, "fail": fail}
 
     # ── Initialize DB if needed ──
-    from core.database import async_session_factory, init_database
-
-    if async_session_factory is None:
-        if db_url:
-            import os
-            sync_url = db_url.replace("+asyncpg", "")
-            os.environ["DATABASE_URL"] = sync_url
-        await init_database()
+    await _ensure_db(db_url)
 
     # ── Live mode: fetch and save ──
     start_time = time.monotonic()
     results = {"ok": 0, "fail": 0, "skip": 0, "errors": []}
 
-    session_maker = async_session_factory
-    async with session_maker() as session:
+    import core.database as database
+
+    async with database.async_session_factory() as session:
         fund_service = FundService(session=session)
         brsapi = BrsApiQueryService(session=session)
 
@@ -165,9 +173,9 @@ async def seed_funds(
                     results["fail"] += 1
                     results["errors"].append({"symbol": sym, "error": result["error"]})
                 else:
-                    nav = result.get("nav", 0)
-                    fund_type = result.get("fund_type", "")
-                    change = result.get("nav_change_pct", 0)
+                    nav = int(result.get("nav", 0) or 0)
+                    fund_type = result.get("fund_type", "") or ""
+                    change = float(result.get("nav_change_pct", 0) or 0)
                     arrow = "▲" if change >= 0 else "▼"
                     _p(f"  ✅ [{i:3d}/{len(symbols_to_seed)}] {sym:8s} | {fund_type:10s} | NAV={nav:>8,d} | {arrow} {change:+.2f}% | {elapsed:6.0f}ms")
                     results["ok"] += 1
@@ -203,36 +211,6 @@ async def seed_funds(
     _p(f"{'='*60}")
 
     return results
-
-
-def _get_session(db_url: str | None = None):
-    """Get an async session factory."""
-    from core.database import async_session_factory, init_database
-
-    if async_session_factory is None:
-        import os
-
-        if db_url is None:
-            try:
-                from core.config import settings
-                db_url = settings.database_url_async
-            except ImportError:
-                db_url = os.environ.get(
-                    "DATABASE_URL_ASYNC",
-                    "postgresql+asyncpg://postgres:postgres@localhost:5432/tse_quant",
-                )
-
-        # Set the env var so init_database picks it up
-        if "postgresql+asyncpg://" in db_url:
-            sync_url = db_url.replace("+asyncpg", "")
-            os.environ["DATABASE_URL"] = sync_url
-
-        # Force init
-        import asyncio
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(init_database())
-
-    return async_session_factory
 
 
 # ── CLI ──

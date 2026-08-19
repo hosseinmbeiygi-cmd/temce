@@ -126,6 +126,26 @@ def _normalize_codal_date(value: str | None) -> str:
     return v
 
 
+_PERSIAN_TRANS = str.maketrans(
+    {
+        # Arabic yeh (U+064A) → Persian yeh (U+06CC)
+        "\u064a": "\u06cc",
+        # Arabic kaf (U+0643) → Persian kaf (U+06A9)
+        "\u0643": "\u06a9",
+    }
+)
+
+
+def _normalize_persian(symbol: str) -> str:
+    """Convert Arabic yeh/kaf to Persian so ``بيدار`` == ``بیدار``.
+
+    The curated ``BRSAPI_ETF_SYMBOLS`` list was written with Arabic letters
+    (ي/ك) while the DB / BrsApi return Persian letters (ی/ک). Comparing them
+    raw would miss valid funds and waste API quota on bogus spellings.
+    """
+    return symbol.translate(_PERSIAN_TRANS)
+
+
 def _dedupe_symbols(symbols: list[str]) -> list[str]:
     """Return a deduplicated list of non-empty, stripped symbols, preserving order."""
     seen: set[str] = set()
@@ -466,15 +486,69 @@ class BrsApiSyncService:
     async def sync_nav(
         self, session: AsyncSession, symbol: str
     ) -> SyncReport:
-        """Sync NAV for a given ETF symbol."""
+        """Sync NAV for a given ETF symbol (idempotent per date).
+
+        NAV is published at most once per day, so:
+          - if we already hold today's NAV for this symbol we skip the API
+            call entirely (the second daily run costs zero quota);
+          - if the API returns a date we already stored (e.g. it still
+            reports yesterday's NAV), the record is dropped instead of
+            creating a duplicate row.
+        """
+        from sqlalchemy import select
+
+        import jdatetime
+
+        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        try:
+            has_today = (
+                await session.execute(
+                    select(NavRecordModel.id)
+                    .where(
+                        NavRecordModel.symbol == symbol,
+                        NavRecordModel.date == today_jalali,
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        except Exception:
+            has_today = None
+        if has_today is not None:
+            return SyncReport(
+                endpoint=BrsApiEndpoints.NAV.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+            )
+
         ins_id = await self._lookup_ins_id(session, symbol)
 
-        def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
+        async def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
             rec = TsetmcParser.parse_nav(data)
             if rec:
                 rec["symbol"] = symbol
                 if ins_id:
                     rec["ins_id"] = ins_id
+                # Normalize the API date (Persian digits / slashes) so the
+                # dedup comparisons always use YYYY-MM-DD.
+                if rec.get("date"):
+                    rec["date"] = _normalize_codal_date(str(rec["date"]))
+                # Drop records whose (symbol, date) we already stored so the
+                # table never accumulates same-day duplicates.
+                d = rec.get("date")
+                if d:
+                    existing = (
+                        await session.execute(
+                            select(NavRecordModel.id)
+                            .where(
+                                NavRecordModel.symbol == symbol,
+                                NavRecordModel.date == d,
+                            )
+                            .limit(1)
+                        )
+                    ).scalar_one_or_none()
+                    if existing is not None:
+                        return None
             return rec
 
         return await self.sync(
@@ -494,6 +568,10 @@ class BrsApiSyncService:
         """
         Sync NAV for a list of ETF/fund symbols sequentially.
 
+        Symbols that already hold today's NAV are skipped with a single cheap
+        DB query (no API call, no sleep), so the second daily run is nearly
+        free and interrupted runs resume naturally.
+
         Args:
             session: Database session.
             symbols: List of symbols to sync. If None, queries the DB for
@@ -501,6 +579,10 @@ class BrsApiSyncService:
             sleep_seconds: Delay between requests to respect the NAV endpoint
                 rate limit (1 req / 10s → default 11s).
         """
+        import jdatetime
+
+        from sqlalchemy import select
+
         if symbols is None:
             symbols = await self._get_fund_symbols(session)
 
@@ -515,20 +597,57 @@ class BrsApiSyncService:
                 error="No fund symbols found",
             )
 
+        symbols = _dedupe_symbols(symbols)
+
+        # Fast path: drop symbols that already hold today's NAV in one query.
+        # sync_nav would skip them anyway, but doing it here avoids the 11s
+        # sleep per skipped symbol — a second daily run then finishes in ~1s.
+        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        try:
+            done_rows = await session.execute(
+                select(NavRecordModel.symbol)
+                .where(NavRecordModel.date == today_jalali)
+                .distinct()
+            )
+            done = {row[0] for row in done_rows if row[0]}
+        except Exception:
+            logger.warning("Could not pre-filter today's NAV symbols", exc_info=True)
+            done = set()
+        todo = [s for s in symbols if s not in done]
+
         start_time = time.monotonic()
         success_count = 0
         fail_count = 0
         total_items = 0
         failed_symbols: list[str] = []
 
-        symbols = _dedupe_symbols(symbols)
+        if not todo:
+            logger.info("NAV sync: all %d symbols already have today's NAV — skipped", len(symbols))
+            return SyncReport(
+                endpoint=BrsApiEndpoints.NAV.path,
+                success=True,
+                items_count=0,
+                skipped=True,
+                duration_ms=(time.monotonic() - start_time) * 1000,
+            )
 
-        for i, symbol in enumerate(symbols):
+        logger.info(
+            "NAV sync: %d symbols to fetch (%d already done today)",
+            len(todo),
+            len(symbols) - len(todo),
+        )
+
+        for i, symbol in enumerate(todo):
             if i > 0 and sleep_seconds > 0:
                 await asyncio.sleep(sleep_seconds)
 
             try:
-                report = await self.sync_nav(session, symbol)
+                # Guard against a hung API call stalling the whole run. The
+                # client itself retries up to 4× with a 30s request timeout +
+                # backoff (~127s worst case), so the outer guard must be larger.
+                report = await asyncio.wait_for(
+                    self.sync_nav(session, symbol), timeout=150
+                )
                 if report.success:
                     success_count += 1
                     total_items += report.items_count
@@ -536,6 +655,10 @@ class BrsApiSyncService:
                     fail_count += 1
                     failed_symbols.append(symbol)
                     logger.warning("NAV sync failed for %s: %s", symbol, report.error)
+            except asyncio.TimeoutError:
+                fail_count += 1
+                failed_symbols.append(symbol)
+                logger.warning("NAV sync timed out for %s", symbol)
             except Exception:
                 fail_count += 1
                 failed_symbols.append(symbol)
@@ -545,7 +668,7 @@ class BrsApiSyncService:
                 logger.info(
                     "NAV sync progress: %d/%d symbols (%d ok, %d fail)",
                     i + 1,
-                    len(symbols),
+                    len(todo),
                     success_count,
                     fail_count,
                 )
@@ -575,6 +698,12 @@ class BrsApiSyncService:
         curated ``BRSAPI_ETF_SYMBOLS`` list so the NAV sync job is never left
         with an empty symbol list and newly-listed funds discovered by sector
         are still synced.
+
+        The curated list is filtered to symbols that actually exist in the
+        DB (snapshots or existing NAV records), normalizing Arabic yeh/kaf to
+        Persian first. This drops ~140 bogus spellings (e.g. ``بيدار`` written
+        with Arabic ي) that would otherwise burn API quota and stall the run
+        with HTTP 400/502 failures.
         """
         from sqlalchemy import func, select
 
@@ -582,14 +711,21 @@ class BrsApiSyncService:
 
         db_symbols: list[str] = []
         try:
-            # Try to identify funds by sector name containing "صندوق" or "fund"
+            # Try to identify funds by sector name containing "صندوق" or "fund".
+            # Exclude insurance/pension sectors ("بیمه و صندوق بازنشستگی") whose
+            # name contains the word "صندوق" but which are NOT tradable ETFs —
+            # otherwise ~53 insurance symbols leak into the NAV sync list, burn
+            # API quota and always fail with HTTP 502.
             sector_col = SymbolSnapshotModel.sector
             stmt = (
                 select(SymbolSnapshotModel.symbol)
                 .where(
-                    (sector_col.ilike("%صندوق%")) |
-                    (func.lower(sector_col).like("%fund%")) |
-                    (func.lower(sector_col).like("%etf%"))
+                    (
+                        (sector_col.ilike("%صندوق%")) |
+                        (func.lower(sector_col).like("%fund%")) |
+                        (func.lower(sector_col).like("%etf%"))
+                    )
+                    & (~sector_col.ilike("%بیمه%"))
                 )
                 .group_by(SymbolSnapshotModel.symbol)
             )
@@ -599,9 +735,27 @@ class BrsApiSyncService:
         except Exception:
             logger.warning("Could not query fund symbols from snapshots; using hardcoded ETF list", exc_info=True)
 
-        # Build a union of DB-discovered funds and the curated ETF list,
-        # preserving the curated order while appending any extra DB symbols.
-        return _dedupe_symbols(db_symbols + BRSAPI_ETF_SYMBOLS)
+        # Also keep refreshing any symbol that already has a NAV record — its
+        # sector label may have changed and no longer matches the fund filter.
+        nav_syms: list[str] = []
+        try:
+            nav_rows = await session.execute(select(NavRecordModel.symbol).distinct())
+            nav_syms = [row[0] for row in nav_rows if row[0]]
+        except Exception:
+            logger.warning("Could not query existing NAV symbols", exc_info=True)
+
+        # Curated list: normalize spellings and keep only symbols that are
+        # actually known to the DB (present in snapshots or already synced),
+        # so bogus entries never reach the API.
+        known = set(db_symbols) | set(nav_syms)
+        curated_known = [
+            s for s in (_normalize_persian(sym) for sym in BRSAPI_ETF_SYMBOLS)
+            if s in known
+        ]
+
+        # Build a union of DB-discovered funds, the filtered curated ETF list
+        # and previously-synced NAV symbols, preserving order while deduping.
+        return _dedupe_symbols(db_symbols + curated_known + nav_syms)
 
     # ── Transactions ─────────────────────────────────
     async def sync_transactions(
@@ -739,8 +893,20 @@ class BrsApiSyncService:
     async def sync_shareholders(
         self, session: AsyncSession, symbol: str
     ) -> SyncReport:
-        """Sync shareholder composition for a symbol."""
+        """Sync shareholder composition for a symbol.
+
+        ``Shareholder.php`` returns the LATEST composition and carries no
+        ``date`` field, so every record is stamped with the fetch date
+        (Gregorian ``YYYY-MM-DD``) — keeping the ``date`` column non-NULL
+        for the latest-status sync used by the daily 13:30 job and the
+        manual full-market backfill.
+        """
+        from datetime import datetime
+
         ins_id = await self._lookup_ins_id(session, symbol)
+        # Local server date matches the DB's ``func.now()`` for ``created_at``
+        # (the dual-date trigger derives gregorian/shamsi from it the same way).
+        fetch_date = datetime.now().strftime("%Y-%m-%d")
 
         def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
             records = TsetmcParser.parse_shareholders(data)
@@ -748,6 +914,9 @@ class BrsApiSyncService:
                 r["symbol"] = symbol
                 if ins_id:
                     r["ins_id"] = ins_id
+                # API has no date field — use the fetch date so the column
+                # is never NULL (matches the backfill semantics).
+                r["date"] = fetch_date
             return records
 
         return await self.sync(
@@ -760,24 +929,65 @@ class BrsApiSyncService:
 
     # ── Candlestick ─────────────────────────────────
     async def sync_candlesticks(
-        self, session: AsyncSession, symbol: str, candle_type: str = "3"
+        self,
+        session: AsyncSession,
+        symbol: str,
+        candle_type: str = "3",
+        count: int | None = None,
     ) -> SyncReport:
-        """Sync candlestick data for a symbol."""
+        """Sync candlestick data for a symbol.
+
+        Args:
+            session: Database session.
+            symbol: Symbol name (e.g. ``فولاد``).
+            candle_type: API type — ``1`` realtime (2-min bars),
+                ``2`` unadjusted daily, ``3`` adjusted daily (default).
+            count: Optional number of candles to request (e.g. ``120`` for
+                realtime intraday bars). ``None`` = API default (full series).
+        """
         ins_id = await self._lookup_ins_id(session, symbol)
+
+        if candle_type == "1":
+            # Realtime 2-min bars are ephemeral — refresh the symbol's intraday
+            # series each poll instead of appending duplicate bars for the same
+            # (symbol, date, time) across cycles.
+            from sqlalchemy import delete
+
+            await session.execute(
+                delete(CandlestickModel).where(
+                    CandlestickModel.symbol == symbol,
+                    CandlestickModel.candle_type == candle_type,
+                )
+            )
+            await session.flush()
 
         def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
             records = TsetmcParser.parse_candlesticks(data)
             for r in records:
                 r["symbol"] = symbol
+                # Tag every record with the requested type so the
+                # ``candle_type`` column is never NULL/mismatched — previously
+                # the column was left to its default and ``get_candlesticks``
+                # (which filters by type) could not find any rows.
+                r["candle_type"] = candle_type
                 if ins_id:
                     r["ins_id"] = ins_id
             return records
+
+        params: dict[str, str] = {"l18": symbol, "type": candle_type}
+        if count is not None and count > 0:
+            params["count"] = str(count)
+        elif candle_type == "2":
+            # The unadjusted daily endpoint (type=2) returns ``no_data``
+            # when ``count`` is omitted — unlike type=3 which defaults to the
+            # full 4200-bar series. Request the full series explicitly.
+            params["count"] = "4200"
 
         return await self.sync(
             endpoint=BrsApiEndpoints.CANDLESTICK,
             parser=_parse_with_ins_id,
             model_class=CandlestickModel,
-            params={"l18": symbol, "type": candle_type},
+            params=params,
             session=session,
         )
 

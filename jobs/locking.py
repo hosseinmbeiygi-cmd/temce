@@ -189,3 +189,58 @@ class JobLocking:
             for k in expired:
                 del self._locks[k]
             return len(expired)
+
+
+class RedisJobLock(JobLocking):
+    """Design-doc-compatible facade over :class:`JobLocking`.
+
+    The original architecture sketch (``ANALYSIS.md``) used the simpler
+    signature ``acquire(job_name, ttl)`` without an explicit owner token.
+    This class provides that API while keeping the stronger owner-safe
+    semantics of :class:`JobLocking`: a per-instance owner token is generated
+    automatically, so ``release()`` / ``extend()`` only ever affect locks this
+    instance actually holds.
+
+    Usage::
+
+        lock = RedisJobLock(ttl=300)
+        if await lock.acquire("sync_quotes"):
+            try:
+                ...  # run the job
+            finally:
+                await lock.release("sync_quotes")
+        else:
+            # another worker is already running it
+            pass
+    """
+
+    def __init__(self, ttl: int = 300) -> None:
+        super().__init__(default_ttl=float(ttl))
+        import uuid
+
+        self._owner = f"redisjoblock-{uuid.uuid4().hex[:8]}"
+
+    @staticmethod
+    def _key(job_name: str) -> str:
+        return f"job:{job_name}"
+
+    async def acquire(self, job_name: str, ttl: int | None = None) -> bool:
+        """Acquire the distributed lock for *job_name* (SET NX PX).
+
+        Returns ``True`` when this instance got the lock, ``False`` when
+        another worker holds it (or Redis is unreachable and the in-memory
+        fallback is also taken).
+        """
+        return await super().acquire(self._key(job_name), self._owner, ttl)
+
+    async def release(self, job_name: str) -> bool:
+        """Release the lock — only succeeds when this instance owns it."""
+        return await super().release(self._key(job_name), self._owner)
+
+    async def extend(self, job_name: str, ttl: int = 300) -> bool:
+        """Renew the TTL — only succeeds when this instance owns the lock."""
+        return await super().extend(self._key(job_name), self._owner, float(ttl))
+
+    async def is_locked(self, job_name: str) -> bool:
+        """Return whether *job_name* is currently locked by any worker."""
+        return await super().is_locked(self._key(job_name))

@@ -478,6 +478,79 @@ async def _fund_sync_cron() -> None:
             await asyncio.sleep(min(delay, 3600))  # Check at least every hour
 
 
+async def _ml_model_preload() -> None:
+    """Background task: warm the ModelLoader LRU cache for active symbols.
+
+    Loads ML models for the union of the active Watchlist and Smart Screener
+    symbols into the LRU cache so the first signal-generation run after
+    startup doesn't pay a cold disk-load penalty. Symbols without a trained
+    artifact are skipped silently by ``ModelLoader.preload()``.
+
+    Non-blocking and defensive: a missing DB table, a failed query, or any
+    other error is logged but never crashes startup. No distributed lock is
+    needed — ``preload`` is read-only and idempotent (each worker warms its
+    own in-memory cache).
+    """
+    try:
+        from sqlalchemy import text
+
+        from ml.model_loader import get_model_loader
+
+        loader = get_model_loader()
+        session_obtained = False
+
+        async for session in get_session():
+            session_obtained = True
+            watchlist_symbols: list[str] = []
+            screener_symbols: list[str] = []
+
+            # 1. Active Watchlist symbols
+            try:
+                r = await session.execute(text(
+                    "SELECT symbol FROM watchlist "
+                    "WHERE symbol IS NOT NULL AND symbol != ''"
+                ))
+                watchlist_symbols = [row[0] for row in r.fetchall()]
+            except Exception:
+                logger.debug("ML preload: watchlist query failed (table missing?)", exc_info=True)
+
+            # 2. Active Smart Screener symbols (same universe as Screener110)
+            try:
+                r = await session.execute(text(
+                    "SELECT symbol FROM symbols "
+                    "WHERE (is_active = TRUE OR is_active IS NULL) "
+                    "AND symbol IS NOT NULL AND symbol != ''"
+                ))
+                screener_symbols = [row[0] for row in r.fetchall()]
+            except Exception:
+                logger.debug("ML preload: screener symbols query failed", exc_info=True)
+
+            # Union, preserving order, dedup.
+            # Order matters for LRU retention: ModelLoader.preload() loads in
+            # list order and keeps only the LAST ~20 models hot, so the most
+            # important (watchlist) symbols must come last to stay resident.
+            symbols = list(dict.fromkeys(screener_symbols + watchlist_symbols))
+            if not symbols:
+                logger.info("ML model preload: no active symbols found — skipping")
+                break
+
+            report = await loader.preload(symbols=symbols)
+            logger.info(
+                "ML model preload complete: %d loaded, %d missing "
+                "(%d watchlist + %d screener symbols)",
+                report.get("loaded", 0),
+                len(report.get("missing", [])),
+                len(watchlist_symbols),
+                len(screener_symbols),
+            )
+            break
+
+        if not session_obtained:
+            logger.warning("ML model preload: could not obtain DB session — skipping")
+    except Exception:
+        logger.exception("ML model preload failed (non-fatal)")
+
+
 async def _fetch_news_on_startup() -> None:
     """Background task: fetch news from RSS feeds on API startup.
 
@@ -688,9 +761,23 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     asyncio.create_task(_orchestrator_hourly_cron())
     logger.info("Orchestrator hourly cron started — generating signals every 3600s")
 
+    # ── Pre-warm the multi-market signals cache so the first page load is
+    #    instant instead of blocking on a ~60s pipeline rebuild ──
+    try:
+        from apps.api.endpoints.multi_market_signals import warm_signal_cache
+
+        asyncio.create_task(warm_signal_cache())
+        logger.info("Signal cache warm-up scheduled at startup")
+    except Exception:
+        logger.exception("Failed to schedule signal cache warm-up")
+
     # ── Fund sync cron (every 15 min during market hours, daily at 2 AM) ──
     asyncio.create_task(_fund_sync_cron())
     logger.info("Fund sync cron started — updating fund data every 15 min")
+
+    # ── Warm the ModelLoader LRU cache for active watchlist/screener symbols ──
+    asyncio.create_task(_ml_model_preload())
+    logger.info("ML model preload scheduled at startup — warming cache for active symbols")
 
     logger.info("Starting %s", settings.app_name)
     yield
