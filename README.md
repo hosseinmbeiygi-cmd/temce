@@ -875,7 +875,7 @@ chore: وظایف نگهداری
 ---## 🗄️ ساختار دیتابیس
 
 سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **128 جدول** دارد
-(تخمین کل ردیف‌ها: **~48,933,648**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
+(تخمین کل ردیف‌ها: **~42,474,311**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
 
 ### نمودار ارتباط جدول‌ها
 
@@ -1120,8 +1120,8 @@ erDiagram
 | `brsapi_gold_coin_prices` | 18 | ~9 | fetched_at | symbol→symbols |
 | `brsapi_gold_currency_pro_daily_history` | 20 | ~160,567 | created_at | symbol→symbols |
 | `brsapi_gold_currency_pro_history_24h` | 14 | ~0 | fetched_at | symbol→symbols |
-| `brsapi_gold_currency_pro_prices` | 23 | ~>0 | fetched_at | symbol→symbols |
-| `brsapi_historical_daily` | 23 | ~12,112,238 | created_at | symbol→symbols |
+| `brsapi_gold_currency_pro_prices` | 23 | ~19 | fetched_at | symbol→symbols |
+| `brsapi_historical_daily` | 23 | ~5,652,876 | created_at | symbol→symbols |
 | `brsapi_historical_real_legal` | 21 | ~909,896 | created_at | symbol→symbols |
 | `brsapi_ime_certificates` | 48 | ~4,259 | fetched_at | symbol→symbols |
 | `brsapi_ime_funds` | 67 | ~24,441 | fetched_at | symbol→symbols |
@@ -1136,7 +1136,7 @@ erDiagram
 | `brsapi_symbol_details` | 65 | ~3,923 | fetched_at | symbol→symbols |
 | `brsapi_symbol_snapshots` | 71 | ~1,194,116 | fetched_at | symbol→symbols |
 | `brsapi_sync_log` | 13 | ~50 | created_at | — |
-| `ml_engineered_features` | 50 | ~>0 | — | symbol→symbols |
+| `ml_engineered_features` | 50 | ~3 | — | symbol→symbols |
 | `ml_model_versions` | 13 | ~638 | created_at | — |
 | `ml_models` | 11 | ~359 | created_at | — |
 | `ml_predictions` | 22 | ~20,674 | created_at | symbol→symbols |
@@ -1199,7 +1199,7 @@ erDiagram
 | `indices` | 8 | ~4 | time | — |
 | `instruments` | 26 | ~499 | created_at | symbol→symbols |
 | `intraday_trades_deprecated` | 9 | ~9,135,020 | — | FK→symbols |
-| `paper_equity_history` | 9 | ~>0 | — | — |
+| `paper_equity_history` | 9 | ~3 | — | — |
 | `paper_signal_snapshots` | 25 | ~3,025 | — | symbol→symbols |
 | `paper_trades` | 26 | ~3,025 | — | symbol→symbols |
 | `symbol_relations` | 13 | ~0 | created_at | — |
@@ -1249,7 +1249,6 @@ erDiagram
 | لایه ستاره‌ای کدال (dim/fact) هرگز پیاده‌سازی نشده — import فعال به `codal_financial_statements` می‌رود | 10 |
 | ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 6 |
 | هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو | 6 |
-| آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید | 4 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` (۳۳۶K ردیف) است | 3 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` است | 2 |
 | ستون منبع تاریخ `expiry_date` در نمونه NULL دارد | 2 |
@@ -1259,19 +1258,20 @@ erDiagram
 | رکوردزنی جاب‌ها در `services/job_service.py` پیاده‌سازی نشده — جدول در عمل خالی می‌ماند | 1 |
 | نسخه قدیمی است — جدول زنده `brsapi_commodity_prices` جایگزین آن است | 1 |
 | هیچ SQL فعالی ندارد — مراجع کد صرفاً از نام ماژول/پکیج هستند | 1 |
+| آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید | 1 |
 
 ### تحلیل عمیق — مشکلات پیدا و ناپیدا
 
-این گزارش با `python scripts/analyze_db_issues.py` تولید می‌شود — مجموع **221 یافته**: 🔴 0 بحرانی، 🟠 2 بالا، 🟡 119 متوسط، 🔵/⚪ 100 کم/اطلاعاتی.
+این گزارش با `python scripts/analyze_db_issues.py` تولید می‌شود — مجموع **218 یافته**: 🔴 0 بحرانی، 🟠 2 بالا، 🟡 116 متوسط، 🔵/⚪ 100 کم/اطلاعاتی.
 
 <details>
-<summary>نمایش همه 221 یافته (کلیک کنید)</summary>
+<summary>نمایش همه 218 یافته (کلیک کنید)</summary>
 
 | شدت | تعداد |
 |------|------:|
 | 🔴 بحرانی | 0 |
 | 🟠 بالا | 2 |
-| 🟡 متوسط | 119 |
+| 🟡 متوسط | 116 |
 | 🔵 کم / ⚪ اطلاعاتی | 100 |
 
 **data:**
@@ -1386,7 +1386,7 @@ erDiagram
 
 **infra:**
 
-- 🟡 متوسط `-`: 10 هایپرتیبل بدون فشرده‌سازی: candlesticks_deprecated، commodity_prices، daily_history_deprecated، daily_real_legal، etf_nav، gold_currency_prices، intraday_trades_deprecated، orderbook_snapshots → *فعال‌سازی compression + retention policy*
+- 🟡 متوسط `-`: 5 هایپرتیبل بدون فشرده‌سازی: candlesticks_deprecated، commodity_prices، daily_history_deprecated، intraday_trades_deprecated، symbol_snapshots_deprecated → *فعال‌سازی compression + retention policy*
 - ⚪ اطلاعاتی `-`: 10 هایپرتیبل TimescaleDB: candlesticks_deprecated، commodity_prices، daily_history_deprecated، daily_real_legal، etf_nav، gold_currency_prices، intraday_trades_deprecated، orderbook_snapshots، shareholders، symbol_snapshots_deprecated
 
 **legacy:**
@@ -1444,11 +1444,8 @@ erDiagram
 
 **schema:**
 
-- 🟡 متوسط `commodity_certificates`: فقط ۱ ایندکس دارد اما ~125,256 ردیف دارد → *ایندکس روی ستون‌های پراستفاده اضافه کنید*
-- 🟡 متوسط `commodity_trades`: فقط ۱ ایندکس دارد اما ~320,005 ردیف دارد → *ایندکس روی ستون‌های پراستفاده اضافه کنید*
 - 🟡 متوسط `brsapi_historical_daily`: constraint یکتا روی `symbol,date` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🟡 متوسط `brsapi_intraday_trades`: constraint یکتا روی `symbol,date,time` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
-- 🟡 متوسط `news_articles`: constraint یکتا روی `url` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🟡 متوسط `codal_reports`: constraint یکتا روی `ins_id,report_type` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🔵 کم `account_mappings`: 2 ایندکس با ستون اول یکسان `source_label` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_candlesticks`: 4 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
@@ -1731,8 +1728,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | sign | unit | url_base_icon | path_icon | date | price_open | price_high | price_low | price_close | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 81766 | OMR | NULL | NULL | NULL | NULL | NULL | 1403-01-25 | 1687400.0 | 1743400.0 | 1686500.0 | 1743400.0 | … |
-| 81767 | OMR | NULL | NULL | NULL | NULL | NULL | 1403-01-21 | 1663300.0 | 1671300.0 | 1657400.0 | 1671100.0 | … |
+| 396948 | NIMA_SEK | NULL | NULL | NULL | NULL | NULL | 1405-05-03 | 154723.0 | 154723.0 | 154723.0 | 154723.0 | … |
+| 76190 | NIMA_SEK | NULL | NULL | NULL | NULL | NULL | 1405-05-01 | 154845.0 | 154845.0 | 154845.0 | 154845.0 | … |
 
 </details>
 
@@ -1751,10 +1748,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_gold_currency_pro_prices</code> — ~>0 ردیف، 23 ستون (نمایش 12 ستون از 23) ⚠️ 1 مشکل</summary>
+<summary><code>brsapi_gold_currency_pro_prices</code> — ~19 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/commodity.py` → `GoldCurrencyProPriceModel`
@@ -1771,7 +1767,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_historical_daily</code> — ~12,112,238 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
+<summary><code>brsapi_historical_daily</code> — ~5,652,876 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -1779,7 +1775,7 @@ _مشکلی شناسایی نشد._
 - مدل: `brsapi/models/tsetmc.py` → `HistoricalDailyModel`
 - سرویس: `services/backtest_service.py` (7)، `services/auto_retrain_pipeline.py` (6)، `services/iran_fear_greed_index.py` (6)، `services/hidden_accumulation.py` (4)
 - API: `apps/api/endpoints/backtests.py` (3)، `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/funds.py` (2)، `apps/api/endpoints/signal_insights.py` (2)
-- اسکریپت: `scripts/clean_historical_data.py` (9)، `scripts/check_partitions.py` (8)، `scripts/fix_historical_id.py` (8)، `scripts/fix_historical_id_v2.py` (7)
+- اسکریپت: `scripts/clean_historical_data.py` (9)، `scripts/dedup_and_constrain.py` (9)، `scripts/dedup_batched.py` (9)، `scripts/check_partitions.py` (8)
 - تست: `tests/test_instrument_relations.py` (4)، `tests/unit/test_brsapi_history_backfill_manual.py` (2)، `tests/unit/services/test_paper_trading_service.py` (1)
 - سایر: `ml/train_weight_optimizer.py` (5)، `brsapi/migrations/001_create_brsapi_tables.py` (3)، `backtesting/engine/adv.py` (2)، `backtesting/types.py` (1)
 
@@ -1787,8 +1783,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | date | time | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 3678487 | بالبر3 | 1404-10-23 | 06:10:58 | 0 | 0 | 0.0 | 0.0 | 0.0 | 39290.0 | 0.0 | 39290.0 | … |
-| 3678488 | بالبر3 | 1404-10-22 | 06:11:07 | 0 | 0 | 0.0 | 0.0 | 0.0 | 39290.0 | 0.0 | 39290.0 | … |
+| 3675676 | بالاس | 1400-06-29 | 12:29:08 | 398 | 695492 | 26266759988.0 | 36000.0 | 38152.0 | 36336.0 | 36000.0 | 38152.0 | … |
+| 3675677 | بالاس | 1400-06-28 | 14:13:48 | 688 | 1121250 | 40742063095.0 | 35858.0 | 38990.0 | 37745.0 | 38001.0 | 36710.0 | … |
 
 </details>
 
@@ -1809,8 +1805,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | date | buy_real_count | buy_legal_count | sell_real_count | sell_legal_count | buy_real_volume | buy_legal_volume | sell_real_volume | sell_legal_volume | buy_real_value | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 3180 | آ س پ | 1391-01-14 | 49 | 0 | 19 | 0 | 299199 | 0 | 299199 | 0 | 1256482549.0 | … |
-| 3181 | آ س پ | 1391-01-09 | 37 | 1 | 14 | 0 | 134609 | 9344 | 143953 | 0 | 572495024.0 | … |
+| 1 | آ س پ | 1405-04-24 | 80 | 1 | 155 | 0 | 6551386 | 574916 | 7126302 | 0 | 95535407920.0 | … |
+| 2 | آ س پ | 1405-04-23 | 178 | 1 | 226 | 0 | 16176269 | 2390509 | 18566778 | 0 | 229129476110.0 | … |
 
 </details>
 
@@ -1951,7 +1947,7 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `IntradayTradeModel`
 - سرویس: `services/backtest_service.py` (3)
-- اسکریپت: `scripts/import_transactions.py` (6)، `scripts/analyze_db_issues.py` (2)، `scripts/import_transaction_top43.py` (2)، `scripts/analyze_patterns.py` (1)
+- اسکریپت: `scripts/dedup_and_constrain.py` (7)، `scripts/dedup_batched.py` (7)، `scripts/import_transactions.py` (6)، `scripts/analyze_db_issues.py` (2)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1959,8 +1955,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | row | time | volume | price | canceled | trade_date | created_at | ins_id | instrument_id | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 4432 | عیار | 4371 | 12:03:57 | 2 | 508100.0 | False | 1405-05-14 | 2026-08-05 04:40:24.396704 | 34144395039913458 | NULL | NULL | … |
-| 4433 | عیار | 4372 | 12:03:57 | 3 | 508100.0 | False | 1405-05-14 | 2026-08-05 04:40:24.396704 | 34144395039913458 | NULL | NULL | … |
+| 1541428 | دعبید3 | 579 | 12:49:44 | 1701 | 18720.0 | False | 1405-05-12 | 2026-08-05 06:53:04.353461 | 51293756044181812 | NULL | NULL | … |
+| 1541429 | دعبید3 | 580 | 12:49:44 | 98299 | 18720.0 | False | 1405-05-12 | 2026-08-05 06:53:04.353461 | 51293756044181812 | NULL | NULL | … |
 
 </details>
 
@@ -2086,10 +2082,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>ml_engineered_features</code> — ~>0 ردیف، 50 ستون (نمایش 12 ستون از 50) ⚠️ 2 مشکل</summary>
+<summary><code>ml_engineered_features</code> — ~3 ردیف، 50 ستون (نمایش 12 ستون از 50) ⚠️ 1 مشکل</summary>
 
-**مشکلات (2):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+**مشکلات (1):**
 - بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
 
 **مراجع کد:**
@@ -2575,8 +2570,8 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | price | volume | value | side | time | date | data_source | created_at | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 3376c72c1042ec46d445df51f3619a… | كولان | كولان | 29450.0 | 74 | 2179300.0 | NULL | 11:42:52 | 1405-03-24 | tsetmc | 2026-07-12 14:11:26.154512 | NULL | … |
-| 19bcd3d2ff1f87bb2d0c5916f0365b… | كولان | كولان | 29450.0 | 74 | 2179300.0 | NULL | 11:42:52 | 1405-03-24 | tsetmc | 2026-07-12 14:11:26.154512 | NULL | … |
+| e9efe6bd7320406fc8be5c92557bb8… | سخاش | سخاش | 11690.0 | 7979 | 93274510.0 | NULL | 09:55:38 | 1405-03-18 | tsetmc | 2026-07-12 12:08:26.530015 | NULL | … |
+| 55280438b0860564df67194bb1ef0f… | سخاش | سخاش | 11690.0 | 52481 | 613502890.0 | NULL | 09:55:38 | 1405-03-18 | tsetmc | 2026-07-12 12:08:26.530015 | NULL | … |
 
 </details>
 
@@ -2976,7 +2971,7 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityCertificateModel`
-- اسکریپت: `scripts/analyze_db_issues.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/dedup_and_constrain.py` (1)، `scripts/dedup_batched.py` (1)
 
 **نمونه داده:**
 
@@ -3075,14 +3070,14 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityTradeModel`
-- اسکریپت: `scripts/analyze_db_issues.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/dedup_and_constrain.py` (1)، `scripts/dedup_batched.py` (1)
 
 **نمونه داده:**
 
 | id | symbol | name | trade_date | price | volume | value | counter_party | created_at | updated_at | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 14122 | PAC-BI6070B-00 | قیر 6070 | NULL | 8498.0 | 97 | 824306.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:20.940456+00:… | NULL | 2026-07-13 | 1405-04-22 |
-| 14464 | PACS-BIPG6422B-00 | قیر PG6422 | NULL | 9268.0 | 2077 | 19249636.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:20.940456+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 20791 | PACB-BIPG6422B-00 | قیر PG6422 | NULL | 9600.0 | 1850 | 17760000.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:23.796153+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 21479 | PACA-BIMC250B-00 | قیر MC250 | NULL | 12222.0 | 242 | 2957724.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:23.796153+00:… | NULL | 2026-07-13 | 1405-04-22 |
 
 </details>
 
@@ -3215,10 +3210,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>paper_equity_history</code> — ~>0 ردیف، 9 ستون ⚠️ 1 مشکل</summary>
+<summary><code>paper_equity_history</code> — ~3 ردیف، 9 ستون</summary>
 
-**مشکلات (1):**
-- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/paper_trading.py` → `PaperEquityModel`
@@ -3555,8 +3549,8 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | company_name | isin | report_type | fiscal_year | period | audit_status | publish_date | attachment_url | summary | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 92412cb617f3872aeb9c08d4f8b9bc… | ارفع | ارفع | آهن و فولاد ارفع | NULL | ن-۸۶ | NULL | NULL | NULL | ۱۴۰۳/۰۱/۲۷ | https://codal.ir/Reports/Attac… | کمیته انتصابات | … |
-| 7dcf07cc480742aa78a7daf0ec22a6… | ارفع | ارفع | آهن و فولاد ارفع | NULL | ن-۶۷ | NULL | NULL | NULL | ۱۳۹۷/۱۲/۰۶ | https://codal.ir/Reports/Attac… | آگهی ثبت افزایش سرمایه | … |
+| c2d331b0846832611944a6eb510d4b… | البرز | البرز | بیمه البرز | NULL | ن-۶۷ | NULL | NULL | NULL | ۱۳۹۴/۱۲/۰۵ | https://codal.ir/Reports/Attac… | آگهی ثبت افزایش سرمایه | … |
+| 256ba5524a435f143adcd8064d8f01… | انرژی | انرژی | بورس انرژی | NULL |  | NULL | NULL | NULL | ۱۳۹۴/۰۵/۲۶ | https://codal.ir/Reports/Attac… | آگهی ثبت تغیرات (به پیوست) | … |
 
 </details>
 
@@ -3743,8 +3737,8 @@ _مشکلی شناسایی نشد._
 
 | id | issuer_symbol | report_type | report_date_jalali | file_name | file_path | file_size_bytes | sha256 | detected_format | file_status | error_message | parsed_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 28943 | رتاپ | n30 | 1397-06-05 | رتاپ_ن-۳۰_۱۳۹۷_۰۶_۰۵.xlsx | C:\Users\Iran\Desktop\temce\da… | 16384 | fast:C:\Users\Iran\Desktop\tem… | xls_biff | saved | NULL | 2026-07-20 03:20:54.356079 | … |
-| 29089 | رتكو | n30 | 1399-12-27 | رتكو_ن-۳۰_۱۳۹۹_۱۲_۲۷.xlsx | C:\Users\Iran\Desktop\temce\da… | 18609 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:20:56.767752 | … |
+| 23644 | خکاوه | n30 | 1403-11-06 | خکاوه_ن-۳۰_۱۴۰۳_۱۱_۰۶.xlsx | C:\Users\Iran\Desktop\temce\da… | 80770 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:20:21.493608 | … |
+| 27042 | دماوند | n30 | 1401-09-07 | دماوند_ن-۳۰_۱۴۰۱_۰۹_۰۷.xlsx | C:\Users\Iran\Desktop\temce\da… | 61188 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:20:43.105116 | … |
 
 </details>
 
@@ -3762,8 +3756,8 @@ _مشکلی شناسایی نشد._
 
 | id | document_file_id | table_name | table_index | logical_section | extraction_status | row_count | column_count | raw_json | created_at | updated_at | gregorian_date | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 166 | 110 | Sheet1 | 0 | balance_sheet | success | 144 | 61 | {'rows': [['240,000 میلیون ریا… | 2026-07-20 03:14:26.183435 | NULL | 2026-07-20 | … |
-| 167 | 113 | Sheet1 | 0 | NULL | success | 68 | 28 | {'rows': [['150,000 میلیون ریا… | 2026-07-20 03:14:26.183436 | NULL | 2026-07-20 | … |
+| 3925 | 634 | NULL | 4 | NULL | success | 53 | 5 | {'rows': [['حسابرسی نشده', 'حس… | 2026-07-20 03:17:47.760571 | NULL | 2026-07-20 | … |
+| 7297 | 1061 | NULL | 2 | balance_sheet | success | 30 | 8 | {'rows': [['دارایی\u200cها', N… | 2026-07-20 03:18:02.889345 | NULL | 2026-07-20 | … |
 
 </details>
 
@@ -4333,7 +4327,7 @@ _مشکلی شناسایی نشد._
 
 ### جمع‌بندی جامع و نقشه راه اصلاحات
 
-سکوی داده شامل **128 جدول** و حدود **~48,933,648 ردیف** است. از این میان **55 جدول خالی**، **2 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **11 جدول بدون مدل ORM** و **6 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **4 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
+سکوی داده شامل **128 جدول** و حدود **~42,474,311 ردیف** است. از این میان **55 جدول خالی**، **2 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **11 جدول بدون مدل ORM** و **6 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **1 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
 
 **نقشه راه اصلاحات (اولویت‌بندی‌شده):**
 
@@ -4351,10 +4345,6 @@ _مشکلی شناسایی نشد._
 > برای به‌روزرسانی این گزارش: `python scripts/analyze_db_issues.py && python scripts/generate_db_readme.py`
 
 ---
-
----
-
-
 
 ## 📄 مجوز
 

@@ -20,14 +20,15 @@ Usage:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 except ImportError:  # pragma: no cover
     logger.warning("pandas/numpy not installed — vectorized engine unavailable")
     pd = None  # type: ignore
@@ -52,21 +53,21 @@ def _require_pandas() -> None:
 class VectorizedBacktestEngine:
     """Runs signal functions on a DataFrame and computes key metrics."""
 
-    def __init__(self, data: "pd.DataFrame") -> None:
+    def __init__(self, data: pd.DataFrame) -> None:
         _require_pandas()
         missing = [c for c in REQUIRED_COLUMNS if c not in data.columns]
         if missing:
             raise ValueError(f"Missing columns: {missing}. Required: {REQUIRED_COLUMNS}")
         self.data = data.copy()
         self.data["returns"] = self.data["price_close"].pct_change().fillna(0.0)
-        self._strategy_returns: "pd.Series | None" = None
-        self._equity_curve: "pd.Series | None" = None
+        self._strategy_returns: pd.Series | None = None
+        self._equity_curve: pd.Series | None = None
 
     # ── Run ──────────────────────────────────────────────────────────────
 
     def run_strategy(
         self,
-        strategy_func: Callable[["pd.DataFrame"], "pd.Series | np.ndarray"],
+        strategy_func: Callable[[pd.DataFrame], pd.Series | np.ndarray],
     ) -> dict[str, Any]:
         """
         Run a strategy and compute metrics.
@@ -94,7 +95,7 @@ class VectorizedBacktestEngine:
 
     def calculate_metrics(
         self,
-        returns: "pd.Series",
+        returns: pd.Series,
     ) -> dict[str, Any]:
         """Sharpe, Sortino, max drawdown, total return, win rate, ..."""
         _require_pandas()
@@ -173,9 +174,6 @@ class VectorizedBacktestEngine:
         except ImportError:  # pragma: no cover — matplotlib optional
             logger.warning("matplotlib not installed — writing SVG fallback")
             svg_path = out_path.with_suffix(".svg")
-            points = "\n".join(
-                f'<polyline points="0,0" style="display:none"/>'  # noqa: E501
-            )
             path_d = " ".join(
                 f"L{x},{100 - float(v) * 100}"
                 for x, v in enumerate(curve.values)
@@ -194,10 +192,10 @@ class VectorizedBacktestEngine:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def ma_cross_strategy(
-    data: "pd.DataFrame",
+    data: pd.DataFrame,
     fast: int = 20,
     slow: int = 50,
-) -> "pd.Series":
+) -> pd.Series:
     """MA cross: +1 when fast > slow, -1 when fast < slow."""
     _require_pandas()
     fast_ma = data["price_close"].rolling(fast).mean()
@@ -206,11 +204,11 @@ def ma_cross_strategy(
 
 
 def rsi_reversion_strategy(
-    data: "pd.DataFrame",
+    data: pd.DataFrame,
     period: int = 14,
     buy_below: float = 30.0,
     sell_above: float = 70.0,
-) -> "pd.Series":
+) -> pd.Series:
     """RSI mean-reversion: +1 when oversold, -1 when overbought."""
     _require_pandas()
     rsi = _rsi_series(data["price_close"], period)
@@ -220,7 +218,7 @@ def rsi_reversion_strategy(
     return signals
 
 
-def _rsi_series(closes: "pd.Series", period: int = 14) -> "pd.Series":
+def _rsi_series(closes: pd.Series, period: int = 14) -> pd.Series:
     delta = closes.diff()
     gain = delta.clip(lower=0.0)
     loss = -delta.clip(upper=0.0)
@@ -236,7 +234,7 @@ def _rsi_series(closes: "pd.Series", period: int = 14) -> "pd.Series":
 # ═══════════════════════════════════════════════════════════════════════════
 
 def run_vectorized_backtest(
-    data: "pd.DataFrame",
+    data: pd.DataFrame,
     strategy: str = "ma_cross",
     **strategy_kwargs: Any,
 ) -> dict[str, Any]:
