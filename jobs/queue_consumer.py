@@ -21,6 +21,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import uuid
+from contextlib import suppress
 from typing import Any
 
 from core.config import settings
@@ -71,9 +73,13 @@ class JobQueueConsumer:
         self._dispatcher = dispatcher
         self._max_retries = max_retries
         self._poll_timeout = poll_timeout if poll_timeout is not None else settings.job_queue_consumer_timeout
+        self._lease_seconds = settings.job_queue_lease_seconds
+        self._worker_id = uuid.uuid4().hex[:12]
+        self._processing_queue = f"{self._queue_name}:processing:{self._worker_id}"
+        self._worker_lease_key = f"{self._queue_name}:worker:{self._worker_id}"
 
         self._running = False
-        self._task: asyncio.Task | None = None
+        self._task: asyncio.Task[Any] | None = None
 
         # Diagnostics
         self.processed = 0
@@ -118,11 +124,15 @@ class JobQueueConsumer:
         self._running = False
         if self._task is not None:
             self._task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
+        client = self._redis()
+        if client is not None:
+            try:
+                await client.delete(self._worker_lease_key)
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not remove queue worker lease", exc_info=True)
         logger.info("JobQueueConsumer stopped (processed=%d failed=%d)", self.processed, self.failed)
 
     # ── Main loop ─────────────────────────────────────────────────────
@@ -133,19 +143,84 @@ class JobQueueConsumer:
             logger.warning("JobQueueConsumer: Redis unavailable — consumer idle")
             return
 
+        try:
+            try:
+                await client.set(self._worker_lease_key, "1", ex=self._lease_seconds)
+            except TypeError:
+                # Small Redis-compatible test clients may expose px only.
+                await client.set(self._worker_lease_key, "1", px=self._lease_seconds * 1000)
+            await self._recover_orphaned_messages(client)
+        except Exception:  # noqa: BLE001
+            logger.warning("JobQueueConsumer: orphan recovery unavailable", exc_info=True)
+
         while self._running:
             try:
-                # BRPOP returns [queue_name, value] or None on timeout.
-                result = await client.brpop(self._queue_name, self._poll_timeout)
-                if result is None:
+                if hasattr(client, "expire"):
+                    await client.expire(self._worker_lease_key, self._lease_seconds)
+                raw = await self._claim_message(client)
+                if raw is None:
                     continue
-                _, raw = result
-                await self._handle_message(raw)
+                try:
+                    await self._handle_message(raw)
+                finally:
+                    await self._ack_message(client, raw)
             except asyncio.CancelledError:
                 raise
             except Exception as e:  # noqa: BLE001 — keep the loop alive
                 logger.error("JobQueueConsumer loop error: %s", e)
                 await asyncio.sleep(1)
+
+    async def _claim_message(self, client: Any) -> str | None:
+        """Move a message to this worker's processing list before execution.
+
+        ``BRPOPLPUSH`` is the Redis list equivalent of a lease: a crash leaves
+        the item in the worker-specific processing list, where a later worker
+        can recover it after this worker lease expires. The fallback keeps
+        lightweight fake clients and old Redis-compatible clients working.
+        """
+        if hasattr(client, "brpoplpush"):
+            value = await client.brpoplpush(
+                self._queue_name,
+                self._processing_queue,
+                self._poll_timeout,
+            )
+            if value is None:
+                return None
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            return str(value)
+        result = await client.brpop(self._queue_name, self._poll_timeout)
+        if not result:
+            return None
+        value = result[1]
+        if isinstance(value, bytes):
+            return value.decode("utf-8", errors="replace")
+        return str(value)
+
+    async def _ack_message(self, client: Any, raw: str) -> None:
+        if hasattr(client, "lrem"):
+            await client.lrem(self._processing_queue, 1, raw)
+
+    async def _recover_orphaned_messages(self, client: Any) -> None:
+        """Requeue messages left by workers whose lease has expired."""
+        if not hasattr(client, "scan_iter") or not hasattr(client, "rpop"):
+            return
+        pattern = f"{self._queue_name}:processing:*"
+        async for key in client.scan_iter(match=pattern):
+            key_text = key.decode() if isinstance(key, bytes) else str(key)
+            if key_text == self._processing_queue:
+                continue
+            worker_id = key_text.rsplit(":", 1)[-1]
+            worker_lease = f"{self._queue_name}:worker:{worker_id}"
+            if await client.exists(worker_lease):
+                continue
+            while True:
+                raw = await client.rpop(key_text)
+                if raw is None:
+                    break
+                await client.lpush(self._queue_name, raw)
+            await client.delete(key_text)
+            logger.warning("Recovered orphaned queue messages from %s", key_text)
 
     async def _handle_message(self, raw: str) -> None:
         try:

@@ -2,7 +2,7 @@
 Integration test: fetch TSETMC AllSymbols from BrsApi and verify DB storage.
 
 Usage:
-    BRSAPI_API_KEY=FreeSV0E1LSgB9RDjuf0QorSLViX8pPG python -m brsapi.tests.test_tsetmc_symbols_integration
+    BRSAPI_API_KEY=<your-key> python -m brsapi.tests.test_tsetmc_symbols_integration
 
 Requires:
     - PostgreSQL running (DATABASE_URL in .env)
@@ -139,8 +139,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--key",
-        default=os.environ.get("BRSAPI_API_KEY", "FreeSV0E1LSgB9RDjuf0QorSLViX8pPG"),
-        help="BrsApi.ir API key (default: free demo key)",
+        default=os.environ.get("BRSAPI_API_KEY", ""),
+        help="BrsApi.ir API key (default: from BRSAPI_API_KEY env var)",
     )
     args = parser.parse_args()
 

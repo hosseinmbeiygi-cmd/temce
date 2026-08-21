@@ -440,9 +440,13 @@ class TestTradingCalendar:
         friday = date(2024, 1, 5)
         assert self.cal.is_trading_day(friday) is False
 
-    def test_saturday_not_trading(self):
+    def test_thursday_not_trading(self):
+        thursday = date(2024, 1, 4)
+        assert self.cal.is_trading_day(thursday) is False
+
+    def test_saturday_is_trading(self):
         saturday = date(2024, 1, 6)
-        assert self.cal.is_trading_day(saturday) is False
+        assert self.cal.is_trading_day(saturday) is True
 
     def test_sunday_is_trading(self):
         sunday = date(2024, 1, 7)
@@ -451,7 +455,7 @@ class TestTradingCalendar:
     def test_next_trading_day(self):
         friday = date(2024, 1, 5)
         next_day = self.cal.next_trading_day(friday)
-        assert next_day.weekday() not in (4, 5)  # Not Friday or Saturday
+        assert next_day.weekday() not in (3, 4)  # Not Thursday or Friday
         assert self.cal.is_trading_day(next_day)
 
     def test_trading_days_between(self):
@@ -459,7 +463,7 @@ class TestTradingCalendar:
         start = date(2024, 1, 7)  # Sunday
         end = date(2024, 1, 11)  # Thursday
         count = self.cal.trading_days_between(start, end)
-        assert count == 5  # Sun-Thu (if no holidays)
+        assert count == 4  # Sun-Wed; Thursday is closed
 
     def test_adjust_expiry_on_holiday(self):
         """Expiry on a holiday should move to previous trading day."""

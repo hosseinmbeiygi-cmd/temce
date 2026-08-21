@@ -2,6 +2,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 const LONG_TIMEOUT_MS = 600_000; // 10 minutes for heavy sync operations
 
+// Consumers such as React Query use this event to drop user-scoped cache data
+// whenever the in-memory session is cleared.
+export const AUTH_STATE_CLEARED_EVENT = "auth:state-cleared";
+
 // ── Auth token helpers (in-memory, XSS-safe) ────────────────────────
 // The refresh token lives in an httpOnly cookie (set by the backend); the
 // access token + user are kept in module memory only — never localStorage,
@@ -105,7 +109,26 @@ async function _silentRefresh(): Promise<string | null> {
 // ── 401 Handler ─────────────────────────────────────────────────
 
 function _handle401() {
-  clearStoredAuth();
+  const accessToken = getStoredAccessToken();
+  clearAuth();
+
+  // A failed refresh must not leave the httpOnly cookie alive. JavaScript
+  // cannot delete it directly, so expire it through the unauthenticated-safe
+  // logout endpoint before redirecting to the login page.
+  const headers: HeadersInit = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  try {
+    void Promise.resolve(
+      fetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+      }),
+    ).catch(() => undefined);
+  } catch {
+    // A synchronous fetch failure must not mask the original 401 response.
+  }
+
   if (typeof window !== "undefined") {
     const currentPath = window.location.pathname;
     if (!currentPath.startsWith("/auth/")) {
@@ -171,11 +194,15 @@ export async function apiPost<T>(
   const authToken = token ?? getStoredAccessToken();
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
+  const _postTimeout = timeoutMs ?? (
+    endpoint.includes('/backtests') || endpoint.includes('/ml/') || endpoint.includes('/brsapi') || endpoint.includes('/data-import') || endpoint.includes('/orchestrator') || endpoint.includes('/sync')
+      ? LONG_TIMEOUT_MS : REQUEST_TIMEOUT_MS
+  );
   let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers,
     body: data ? JSON.stringify(data) : undefined,
-  }, timeoutMs ?? LONG_TIMEOUT_MS);
+  }, _postTimeout);
 
   // Silent refresh on 401
   if (response.status === 401 && !endpoint.includes('/auth/')) {
@@ -186,7 +213,7 @@ export async function apiPost<T>(
         method: 'POST',
         headers,
         body: data ? JSON.stringify(data) : undefined,
-      }, timeoutMs ?? LONG_TIMEOUT_MS);
+      }, _postTimeout);
     }
   }
 
@@ -281,6 +308,9 @@ export function getStoredAuth() {
 
 export function clearAuth() {
   clearStoredAuth();
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event(AUTH_STATE_CLEARED_EVENT));
+  }
 }
 
 export function storeAuth(data: { user: Record<string, unknown>; access_token: string }) {

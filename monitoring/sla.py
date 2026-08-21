@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
@@ -20,7 +20,7 @@ class SLAMonitor:
                 "service": service,
                 "success": success,
                 "latency_ms": latency_ms,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 

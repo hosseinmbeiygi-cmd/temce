@@ -16,6 +16,6 @@ class ProviderSettings(BaseSettings):
     circuit_breaker_recovery_timeout: float = 30.0
     health_check_interval_seconds: int = 60
     concurrent_requests: int = 10
-    tsetmc_base_url: str = "http://tsetmc.com"
+    tsetmc_base_url: str = "https://tsetmc.com"
     tsetmc_ws_url: str | None = None
     codal_base_url: str = "https://codal.ir"

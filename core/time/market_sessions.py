@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import Any
 
+from core.constants.markets import MARKET_WEEKEND_DAYS
 from core.time import IRAN_TZ, now_tehran
 
 
@@ -56,7 +57,7 @@ class MarketSession:
         return time(12, 30) <= current_time <= time(13, 0)
 
     def is_weekend(self, day_name: str) -> bool:
-        weekends = {"friday"}
+        weekends = {"thursday", "friday"}
         return day_name.strip().lower() in weekends
 
 
@@ -68,7 +69,7 @@ POST_CLOSE = MarketSession("post_close", time(12, 30), time(13, 0))
 def get_current_session(dt: datetime | None = None) -> MarketSession:
     if dt is None:
         dt = now_tehran()
-    if dt.weekday() >= 5:
+    if dt.weekday() in MARKET_WEEKEND_DAYS:
         return MarketSession("closed", time(0, 0), time(0, 0))
     t = dt.time()
     if PRE_OPEN.open_time <= t < PRE_OPEN.close_time:
@@ -88,15 +89,17 @@ def is_market_open(dt: datetime | None = None) -> bool:
 def time_to_market_open(dt: datetime | None = None) -> timedelta:
     if dt is None:
         dt = now_tehran()
-    if dt.weekday() >= 5:
-        next_monday = dt + timedelta(days=(7 - dt.weekday()))
-        market_open = datetime.combine(next_monday.date(), CONTINUOUS.open_time, tzinfo=IRAN_TZ)
+    if dt.weekday() in MARKET_WEEKEND_DAYS:
+        next_day = dt + timedelta(days=1)
+        while next_day.weekday() in MARKET_WEEKEND_DAYS:
+            next_day += timedelta(days=1)
+        market_open = datetime.combine(next_day.date(), CONTINUOUS.open_time, tzinfo=IRAN_TZ)
         return market_open - dt
     today_open = datetime.combine(dt.date(), CONTINUOUS.open_time, tzinfo=IRAN_TZ)
     if dt < today_open:
         return today_open - dt
     next_day = dt + timedelta(days=1)
-    while next_day.weekday() >= 5:
+    while next_day.weekday() in MARKET_WEEKEND_DAYS:
         next_day += timedelta(days=1)
     market_open = datetime.combine(next_day.date(), CONTINUOUS.open_time, tzinfo=IRAN_TZ)
     return market_open - dt

@@ -8,8 +8,18 @@ logger = get_logger(__name__)
 
 
 class SQLMapping:
-    def __init__(self, table_name: str = "historical_data") -> None:
+    def __init__(self, table_name: str = "historical_data", dialect: str = "postgresql") -> None:
+        """
+        Args:
+            table_name: Destination table name.
+            dialect: SQL dialect for DDL generation — ``postgresql`` (default)
+                or ``sqlite``. PostgreSQL uses ``SERIAL``; SQLite uses
+                ``AUTOINCREMENT``. The historical provider defaults to the
+                project's PostgreSQL database, so this is a compat shim for
+                any embedded/sqlite test databases.
+        """
         self.table_name = table_name
+        self.dialect = dialect.lower()
         self.field_map: dict[str, str] = {
             "symbol": "symbol",
             "date": "trade_date",
@@ -33,7 +43,8 @@ class SQLMapping:
 
     def create_table_sql(self) -> str:
         cols = ", ".join(f"{col} {self._sql_type(col)}" for col in self.field_map.values())
-        return f"CREATE TABLE IF NOT EXISTS {self.table_name} (id INTEGER PRIMARY KEY AUTOINCREMENT, {cols})"
+        id_ddl = "id INTEGER PRIMARY KEY AUTOINCREMENT" if self.dialect == "sqlite" else "id SERIAL PRIMARY KEY"
+        return f"CREATE TABLE IF NOT EXISTS {self.table_name} ({id_ddl}, {cols})"
 
     def _sql_type(self, col: str) -> str:
         if col in ("volume", "trade_count", "trade_value"):

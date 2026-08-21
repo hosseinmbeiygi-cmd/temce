@@ -11,7 +11,7 @@ def main():
 
     # Parse connection info from DATABASE_URL
     url = settings.database_url
-    # postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db
+    # e.g. postgresql+asyncpg://user:pass@localhost:5432/market
     parts = url.replace("postgresql+asyncpg://", "").split("@")
     user_pass = parts[0].split(":")
     host_db = parts[1].split("/")

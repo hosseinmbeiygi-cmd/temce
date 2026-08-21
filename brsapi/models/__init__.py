@@ -29,10 +29,16 @@ Table                           Purpose
 ``brsapi_codal_announcements``  Codal announcements
 ``brsapi_raw_payloads``         Raw JSON audit trail
 ``brsapi_sync_log``             Sync operation tracking
+``brsapi_daily_usage``          Per-day request usage (admin reporting)
 =============================== ===================================================
 """
 
-from brsapi.models.base import BrsApiBase, RawPayloadModel, SyncLogModel
+from brsapi.models.base import (
+    BrsApiBase,
+    BrsApiDailyUsageModel,
+    RawPayloadModel,
+    SyncLogModel,
+)
 from brsapi.models.codal import CodalAnnouncementModel, CodalAttachmentModel
 from brsapi.models.commodity import (
     CommodityPriceModel,
@@ -70,6 +76,7 @@ __all__ = [
     "BrsApiBase",
     "RawPayloadModel",
     "SyncLogModel",
+    "BrsApiDailyUsageModel",
     # TSETMC
     "SymbolSnapshotModel",
     "SymbolDetailModel",

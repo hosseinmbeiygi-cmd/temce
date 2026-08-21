@@ -9,6 +9,7 @@ Provides:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -80,6 +81,12 @@ class SentimentAnalyzer:
 
         text_lower = text.lower()
 
+        # Tokenize once for word-boundary-aware counting.
+        # Using re.findall with Unicode word chars avoids the substring
+        # false-positive that str.count() causes (e.g. "سود" inside "سودآوری").
+        tokens = set(re.findall(r"[\w\u0600-\u06FF]+", text_lower))
+        # Also keep the raw text for position-based negation checks.
+
         # Count weighted positive/negative occurrences
         pos_score = 0.0
         neg_score = 0.0
@@ -87,7 +94,9 @@ class SentimentAnalyzer:
         neg_count = 0
 
         for word, weight in self.POSITIVE_WEIGHTS.items():
-            count = text_lower.count(word)
+            # Count as substring but only if the word forms a standalone token
+            # OR appears at a word boundary.  Fallback to .count() for short words.
+            count = sum(1 for t in tokens if t == word) if len(word) >= 3 else text_lower.count(word)
             if count > 0:
                 # Check negation
                 negated_count = sum(
@@ -116,7 +125,7 @@ class SentimentAnalyzer:
                     neg_count += negated_count
 
         for word, weight in self.NEGATIVE_WEIGHTS.items():
-            count = text_lower.count(word)
+            count = sum(1 for t in tokens if t == word) if len(word) >= 3 else text_lower.count(word)
             if count > 0:
                 negated_count = sum(
                     1 for _ in range(len(text_lower) - len(word) + 1)

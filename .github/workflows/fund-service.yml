@@ -28,6 +28,9 @@ on:
       - migrations/env.py
       - requirements*.txt
       - pyproject.toml
+      - docs/**
+      - scripts/check_mermaid_blocks.py
+      - scripts/check_mermaid_syntax.cjs
       - .github/workflows/fund-service.yml
   pull_request:
     branches: [main]
@@ -45,6 +48,9 @@ on:
       - migrations/env.py
       - requirements*.txt
       - pyproject.toml
+      - docs/**
+      - scripts/check_mermaid_blocks.py
+      - scripts/check_mermaid_syntax.cjs
       - .github/workflows/fund-service.yml
 
 env:
@@ -230,3 +236,21 @@ jobs:
           npm ci --no-audit --no-fund
           npx vitest run src/__tests__/fund-analysis.test.ts --reporter=verbose
         continue-on-error: true
+
+  # ── Mermaid docs syntax check ─────────────────────────────
+  docs:
+    name: Mermaid Syntax (docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install jsdom (for mermaid.parse sandbox)
+        run: npm i -D jsdom@29.1.1 --no-save --no-package-lock --no-audit --no-fund
+
+      - name: Check Mermaid diagram syntax
+        run: python scripts/check_mermaid_blocks.py

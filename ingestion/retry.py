@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 import random
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import Any, TypeVar
+
+import aiohttp
 
 from core.logging import get_logger
 
@@ -14,7 +16,7 @@ logger = get_logger(__name__)
 
 async def retry_async(
     fn: Callable[..., Awaitable[T]],
-    *args,
+    *args: Any,
     max_retries: int = 3,
     backoff_base: float = 2.0,
     max_delay: float = 60.0,
@@ -23,12 +25,35 @@ async def retry_async(
         ConnectionError,
         ConnectionResetError,
     ),
-    **kwargs,
+    **kwargs: Any,
 ) -> T:
     last_exc: Exception | None = None
+    retryable_http_statuses = {408, 425, 429, 500, 502, 503, 504}
+
     for attempt in range(max_retries + 1):
         try:
             return await fn(*args, **kwargs)
+        except aiohttp.ClientResponseError as e:
+            # Retrying every 4xx response hides permanent caller errors. Only
+            # transient gateway/rate-limit responses are retryable.
+            if e.status not in retryable_http_statuses:
+                raise
+            last_exc = e
+            if attempt < max_retries:
+                retry_after = e.headers.get("Retry-After") if e.headers else None
+                try:
+                    delay = float(retry_after) if retry_after is not None else backoff_base**attempt
+                except (TypeError, ValueError):
+                    delay = backoff_base**attempt
+                delay = min(delay + random.uniform(0, 0.5), max_delay)
+                logger.warning(
+                    "Retry %d/%d after HTTP %s: %.2fs",
+                    attempt + 1,
+                    max_retries,
+                    e.status,
+                    delay,
+                )
+                await asyncio.sleep(delay)
         except retryable_exceptions as e:
             last_exc = e
             if attempt < max_retries:
@@ -41,7 +66,9 @@ async def retry_async(
                     delay,
                 )
                 await asyncio.sleep(delay)
-    raise last_exc  # type: ignore
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("retry_async exhausted without an exception")  # pragma: no cover
 
 
 
@@ -60,7 +87,12 @@ class CircuitBreaker:
         self._last_failure_time: float | None = None
         self._lock = asyncio.Lock()
 
-    async def call(self, fn: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    async def call(
+        self,
+        fn: Callable[..., Awaitable[T]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> T:
         async with self._lock:
             if self._open:
                 if self._last_failure_time is not None and (

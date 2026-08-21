@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
@@ -30,7 +30,7 @@ class ManualMacroProvider(ManualDataProvider):
             return Result.fail(validation.error or "Validation failed")
         record = {
             **data,
-            "submitted_at": datetime.utcnow().isoformat(),
+            "submitted_at": datetime.now(UTC).isoformat(),
             "status": "pending",
             "id": len(self._entries) + 1,
         }

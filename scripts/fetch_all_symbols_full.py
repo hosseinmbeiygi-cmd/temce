@@ -14,7 +14,7 @@ Usage:
     python scripts/fetch_all_symbols_full.py                # everything
     python scripts/fetch_all_symbols_full.py --limit 50     # first 50 symbols
     python scripts/fetch_all_symbols_full.py --no-skip-synced   # re-fetch all
-    python scripts/fetch_all_symbols_full.py --api-key FreeSV0E1LSgB9RDjuf0QorSLViX8pPG
+    python scripts/fetch_all_symbols_full.py --api-key YOUR_BRSAPI_API_KEY
     python scripts/fetch_all_symbols_full.py --dry-run      # state + plan only
 
 Rate limits (BrsApi official):

@@ -5,23 +5,45 @@ Supports:
 - Market impact model (Almgren-Chriss simplified)
 - Commission tiers (Iranian market specific)
 - Partial fills for illiquid stocks
+- Per-symbol ADV resolution (audit F5) — no silent generic 1M default
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
+from backtesting.costs.iran_costs import (
+    BROKER_PCT,
+    CLEARING_FEE_PCT,
+    SELL_TAX_PCT,
+    IranTransactionCosts,
+)
 from backtesting.types import FillEvent, OrderEvent
 from core.ids import new_id
+
+if TYPE_CHECKING:
+    from backtesting.engine.adv import AdvResolver
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TransactionCostConfig:
-    """Configuration for transaction cost modeling."""
-    # Commission (Iranian market: 0.5% buy + 0.5% sell + tax)
-    commission_pct: float = 0.005  # 0.5% per side
+    """Configuration for transaction cost modeling.
+
+    Note: rates are single-sourced from ``backtesting.costs.iran_costs``
+    (audit F1). The canonical commission is computed through
+    ``Broker.cost_model`` which also includes the CSD clearing fee; the
+    fields below mirror the same rates for inspection/compat.
+    """
+    # Commission (Iranian market: 0.4% buy + 0.4% sell + 0.5% tax on sell)
+    commission_pct: float = BROKER_PCT  # 0.4% per side (canonical)
     # Tax on sell (Iranian market: 0.5% on sell proceeds)
-    sell_tax_pct: float = 0.005
+    sell_tax_pct: float = SELL_TAX_PCT
+    # CSD clearing fee per side
+    clearing_fee_pct: float = CLEARING_FEE_PCT
     # Base slippage in basis points
     base_slippage_bps: float = 5.0
     # Volume impact factor (slippage increases with order size relative to ADV)
@@ -34,18 +56,20 @@ class TransactionCostConfig:
 
 # Iranian market specific cost tiers
 IRAN_MARKET_COSTS = TransactionCostConfig(
-    commission_pct=0.005,      # 0.5% commission per side
-    sell_tax_pct=0.005,        # 0.5% tax on sell
-    base_slippage_bps=5.0,     # 5 bps base slippage
-    volume_impact_factor=0.15, # Higher impact for less liquid market
-    min_slippage_bps=3.0,      # 3 bps minimum
-    max_slippage_bps=150.0,    # 1.5% maximum
+    commission_pct=BROKER_PCT,      # 0.4% commission per side (canonical)
+    sell_tax_pct=SELL_TAX_PCT,      # 0.5% tax on sell
+    clearing_fee_pct=CLEARING_FEE_PCT,
+    base_slippage_bps=5.0,          # 5 bps base slippage
+    volume_impact_factor=0.15,      # Higher impact for less liquid market
+    min_slippage_bps=3.0,           # 3 bps minimum
+    max_slippage_bps=150.0,         # 1.5% maximum
 )
 
 # Conservative costs for backtesting
 CONSERVATIVE_COSTS = TransactionCostConfig(
-    commission_pct=0.005,
-    sell_tax_pct=0.005,
+    commission_pct=BROKER_PCT,
+    sell_tax_pct=SELL_TAX_PCT,
+    clearing_fee_pct=CLEARING_FEE_PCT,
     base_slippage_bps=10.0,
     volume_impact_factor=0.2,
     min_slippage_bps=5.0,
@@ -56,15 +80,55 @@ CONSERVATIVE_COSTS = TransactionCostConfig(
 class Broker:
     def __init__(
         self,
-        commission_pct: float = 0.005,
-        slippage_bps: float = 5.0,
+        commission_pct: float | None = None,
+        slippage_bps: float | None = None,
         config: TransactionCostConfig | None = None,
         average_daily_volume: int = 1_000_000,
+        cost_model: IranTransactionCosts | None = None,
+        adv_resolver: AdvResolver | None = None,
+        require_daily_volume: bool = False,
     ) -> None:
         self.config = config or IRAN_MARKET_COSTS
-        self.commission_pct = commission_pct or self.config.commission_pct
-        self.slippage_bps = slippage_bps or self.config.base_slippage_bps
+        self.commission_pct = commission_pct if commission_pct is not None else self.config.commission_pct
+        self.slippage_bps = slippage_bps if slippage_bps is not None else self.config.base_slippage_bps
+        # Per-symbol ADV (audit F5): when an order carries no daily_volume and
+        # the resolver cache has no value, fail fast (dev mode) or warn and fall
+        # back to `average_daily_volume` instead of silently under-pricing
+        # slippage for every symbol.
         self.average_daily_volume = average_daily_volume
+        self.adv_resolver = adv_resolver
+        self.require_daily_volume = require_daily_volume
+        self._warned_fallback: set[str] = set()
+        # Canonical cost model — single source of truth for commission/tax/clearing
+        # (audit F1/F3). Custom rates via commission_pct are still honoured.
+        if cost_model is not None:
+            self.cost_model = cost_model
+        else:
+            self.cost_model = IranTransactionCosts(
+                broker_pct=commission_pct if commission_pct is not None else BROKER_PCT,
+                sell_tax_pct=self.config.sell_tax_pct,
+                clearing_fee_pct=self.config.clearing_fee_pct,
+            )
+
+    def _resolve_daily_volume(self, order: OrderEvent) -> int | None:
+        """Resolve the ADV for an order (audit F5).
+
+        Priority: ``order.daily_volume`` → AdvResolver cache (sync peek) →
+        fail-fast (if ``require_daily_volume``) → None (warned fallback).
+        """
+        adv = getattr(order, "daily_volume", None)
+        if adv:
+            return int(adv)
+        if self.adv_resolver is not None:
+            cached = self.adv_resolver.peek(order.instrument_id)
+            if cached:
+                return int(cached)
+        if self.require_daily_volume:
+            raise ValueError(
+                f"ADV unknown for '{order.instrument_id}': set OrderEvent.daily_volume "
+                "or pre-warm the AdvResolver (audit F5 — no silent generic default)"
+            )
+        return None
 
     def _compute_slippage(
         self,
@@ -120,34 +184,34 @@ class Broker:
     ) -> float:
         """Compute total commission including fees and taxes.
 
-        Iranian market structure:
-        - Buy: 0.5% commission
-        - Sell: 0.5% commission + 0.5% tax on proceeds
+        Iranian market structure (canonical — audit F1/F3):
+        - Buy:  0.4% broker + 0.085% clearing
+        - Sell: 0.4% broker + 0.085% clearing + 0.5% tax on proceeds
 
         Returns:
             Total commission in currency units
         """
-        trade_value = exec_price * quantity
-
-        # Base commission
-        commission = trade_value * self.config.commission_pct
-
-        # Additional tax on sell side
-        if side == "sell":
-            commission += trade_value * self.config.sell_tax_pct
-
-        return commission
+        return self.cost_model.compute(side, exec_price, quantity)
 
     def submit_order_sync(self, order: OrderEvent) -> FillEvent | None:
         """Synchronous version of submit_order — for use in deterministic sync backtests."""
         if order.price <= 0 or order.quantity <= 0:
             return None
 
+        daily_volume = self._resolve_daily_volume(order)
+        if daily_volume is None and order.instrument_id not in self._warned_fallback:
+            self._warned_fallback.add(order.instrument_id)
+            logger.warning(
+                "No ADV resolved for '%s' — using fallback %d for slippage. "
+                "Set OrderEvent.daily_volume or pre-warm the AdvResolver (audit F5).",
+                order.instrument_id, self.average_daily_volume,
+            )
+
         slippage = self._compute_slippage(
             price=order.price,
             quantity=order.quantity,
             side=order.side,
-            daily_volume=getattr(order, "daily_volume", None),
+            daily_volume=daily_volume,
         )
 
         exec_price = order.price + slippage if order.side == "buy" else order.price - slippage
@@ -169,6 +233,14 @@ class Broker:
     async def submit_order(self, order: OrderEvent) -> FillEvent | None:
         """Submit order with realistic cost modeling.
 
+        When the order carries no ``daily_volume``, the ADV is resolved
+        automatically from the market DB (via the AdvResolver) so slippage
+        reflects the symbol's real liquidity (audit F5).
+
         Returns FillEvent with computed slippage and commission.
         """
+        if not getattr(order, "daily_volume", None) and self.adv_resolver is not None:
+            resolved = await self.adv_resolver.resolve(order.instrument_id)
+            if resolved:
+                order.daily_volume = resolved
         return self.submit_order_sync(order)

@@ -94,7 +94,8 @@ class WalkForwardValidator:
         market: str,
         model_name: str,
         feature_sequence: list[MarketFeatures],
-        targets: list[float],
+        targets: list[float] | None = None,
+        closes: list[float] | None = None,
         num_windows: int = 5,
         train_ratio: float = 0.7,
     ) -> Result[WalkForwardResult]:
@@ -104,7 +105,11 @@ class WalkForwardValidator:
             market: market type (stock, gold, etc.)
             model_name: model name in ModelRegistry (xgboost, lstm, etc.)
             feature_sequence: list of MarketFeatures (time-ordered)
-            targets: list of target values (same length as feature_sequence)
+            targets: list of target values (same length as feature_sequence);
+                     legacy precomputed-label path — ignored when ``closes`` given
+            closes: full chronological close-price array the features were built
+                    from; preferred label source (labels derived internally,
+                    see ``SignalFeaturePipeline.prepare_training_data``)
             num_windows: number of rolling windows
             train_ratio: proportion of each window used for training
         """
@@ -131,19 +136,23 @@ class WalkForwardValidator:
 
                 # Prepare train data
                 train_features = feature_sequence[start:train_end_idx]
-                train_targets = targets[start:train_end_idx]
+                train_targets = targets[start:train_end_idx] if targets is not None else None
 
                 # Prepare test data
                 test_features = feature_sequence[test_start_idx:test_end_idx]
-                test_targets = targets[test_start_idx:test_end_idx]
+                test_targets = targets[test_start_idx:test_end_idx] if targets is not None else None
 
                 # Convert to ML format
                 fm_train, tv_train = SignalFeaturePipeline.prepare_training_data(
-                    train_features, train_targets,
+                    train_features,
+                    closes=closes,
+                    targets=train_targets,
                     sequence_length=min(20, len(train_features) - 1)
                 )
                 fm_test, tv_test = SignalFeaturePipeline.prepare_training_data(
-                    test_features, test_targets,
+                    test_features,
+                    closes=closes,
+                    targets=test_targets,
                     sequence_length=min(20, len(test_features) - 1)
                 )
 
@@ -238,7 +247,8 @@ class WalkForwardValidator:
         self,
         market: str,
         feature_sequence: list[MarketFeatures],
-        targets: list[float],
+        targets: list[float] | None = None,
+        closes: list[float] | None = None,
         model_names: list[str] | None = None,
         num_windows: int = 5,
     ) -> Result[list[WalkForwardResult]]:
@@ -254,6 +264,7 @@ class WalkForwardValidator:
                 model_name=model_name,
                 feature_sequence=feature_sequence,
                 targets=targets,
+                closes=closes,
                 num_windows=num_windows,
             )
             if r.success:

@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   CandlestickChart,
   ChevronDown,
+  LogOut,
   Menu,
   Moon,
   Newspaper,
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   Search,
   Sun,
+  UserRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -22,6 +24,7 @@ import { NAV_CONFIG, SEARCH_SHORTCUTS, type NavGroup, type NavItem } from "@/lib
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/cn";
 import { SEARCH_SYMBOLS } from "@/lib/market-mock";
+import { useAuth } from "@/lib/auth-context";
 
 /* ── Small shared bits ──────────────────────────────────────── */
 
@@ -271,11 +274,24 @@ function SymbolSearch({ compact }: { compact: boolean }) {
 export default function TopNavbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuth();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [compact, setCompact] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileGroup, setMobileGroup] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.push("/auth/login");
+      setLoggingOut(false);
+    }
+  }
 
   function openSoon(key: string) {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -375,6 +391,33 @@ export default function TopNavbar() {
           </Link>
           <IconButton label="همگام‌سازی" icon={RefreshCw} onClick={() => router.push("/sync")} />
           <ThemeToggle />
+          {isAuthenticated ? (
+            <>
+              <button
+                type="button"
+                onClick={() => router.push("/profile")}
+                aria-label="پروفایل کاربر"
+                title={user?.username ? `پروفایل ${user.username}` : "پروفایل کاربر"}
+                className="hidden h-9 max-w-36 cursor-pointer items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 text-brand-100 transition-all hover:bg-white/10 hover:text-white sm:flex"
+              >
+                <UserRound className="size-4 shrink-0" aria-hidden />
+                <span className="truncate text-xs">{user?.username || "حساب کاربری"}</span>
+              </button>
+              <IconButton
+                label={loggingOut ? "در حال خروج" : "خروج"}
+                icon={LogOut}
+                onClick={() => void handleLogout()}
+                className={loggingOut ? "pointer-events-none opacity-50" : undefined}
+              />
+            </>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="hidden h-9 cursor-pointer items-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-brand-100 transition-all hover:bg-white/10 hover:text-white sm:flex"
+            >
+              ورود
+            </Link>
+          )}
           <IconButton
             label="منوی موبایل"
             icon={mobileOpen ? X : Menu}

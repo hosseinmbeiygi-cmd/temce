@@ -463,14 +463,28 @@ class FeatureEngine:
             f[key] = 0.0
         f["market_regime"] = 50.0  # پیش‌فرض خنثی
 
-        # تشخیص تقویمی
+        # تشخیص تقویمی (سیگنال‌هایی که به داده خارجی نیاز ندارند)
         today = date.today()
-        # روز پایانی ماه
+
+        # روز پایانی ماه (‴天真 recap صندوق‌ها و خروج نقدی)
         if today.month != (today + timedelta(days=1)).month:
             f["end_of_month"] = 1.0
-        # روز قبل از تعطیلات (جمعه)
+
+        # روز قبل از تعطیلات
         if today.weekday() == 4:  # پنجشنبه
             f["pre_holiday"] = 1.0
+
+        # روز اول ماه (‴天真 گزارش‌های کدال)
+        if today.day == 1:
+            f["agm_proximity"] = 0.5
+
+        # روز اول هفته (‴天真 شروع معاملات هفته)
+        if today.weekday() == 5:  # شنبه
+            f["market_index_3m"] = 0.3  # signals potential weekly momentum
+
+        # تقریباً انتهای سال مالی (month 12, last week)
+        if today.month == 12 and today.day >= 22:
+            f["agm_proximity"] = 1.0
 
         return f
 

@@ -11,9 +11,16 @@ as ``weights_bull.json`` / ``weights_bear.json`` / ``weights_neutral.json``.
 These files are consumed by ``services/dynamic_weighting.py`` to blend the
 static CANSLIM weights with regime-specific learned weights.
 
+**F6 fix (honest R²):** every regime is validated with a purged, embargoed
+walk-forward (``ml/weight_validator.py::PurgedWeightValidator``) instead of an
+in-sample R². ``r2`` in the JSON is the OUT-OF-SAMPLE mean across windows;
+``r2_is_mean`` is kept alongside for overfit comparison and ``provisional``
+flags weights that could not be validated.
+
 Bootstrap note: early snapshots may be computed with ``build_screener_scores.py
 --date <past_day>`` using the *current* feature store (mild look-ahead), so the
-first weights are provisional until genuine as-of snapshots accumulate.
+first weights are provisional until genuine as-of snapshots accumulate. Such
+weights are written with ``provisional: true`` and are logged as PROVISIONAL.
 
 Run::
 
@@ -21,6 +28,8 @@ Run::
     python ml/train_weight_optimizer.py --horizon 10        # 10-day forward return
     python ml/train_weight_optimizer.py --min-samples 50    # min rows per regime
     python ml/train_weight_optimizer.py --output-dir ml_artifacts/weights
+    python ml/train_weight_optimizer.py --wf-windows 5 --embargo-pct 0.02
+    python ml/train_weight_optimizer.py --no-walk-forward   # in-sample only (provisional)
 """
 
 from __future__ import annotations
@@ -28,7 +37,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +46,7 @@ from sklearn.linear_model import Ridge
 
 from core.database import get_session
 from core.logging import get_logger
+from ml.weight_validator import PurgedWeightValidator
 
 logger = get_logger(__name__)
 
@@ -68,7 +78,7 @@ def normalize_weights(coefs: pd.Series) -> dict[str, float]:
     """
     total = coefs.abs().sum()
     if total <= 0 or pd.isna(total):
-        return {k: 0.0 for k in coefs.index}
+        return dict.fromkeys(coefs.index, 0.0)
     return {k: float(v / total) for k, v in coefs.items()}
 
 
@@ -86,6 +96,10 @@ class WeightOptimizer:
         up_threshold: float = 0.02,
         down_threshold: float = -0.02,
         index_name: str = DEFAULT_INDEX_NAME,
+        wf_windows: int = 4,
+        wf_train_pct: float = 0.6,
+        embargo_pct: float = 0.02,
+        purge_pct: float = 0.02,
     ) -> None:
         self.horizon = horizon
         self.min_samples = min_samples
@@ -93,6 +107,18 @@ class WeightOptimizer:
         self.up_threshold = up_threshold
         self.down_threshold = down_threshold
         self.index_name = index_name
+        self.wf_windows = wf_windows
+        # F6: honest out-of-sample R² via purged walk-forward. Disabled with
+        # ``wf_windows <= 0`` (weights are then always written provisional).
+        self.validator: PurgedWeightValidator | None = None
+        if wf_windows > 0:
+            self.validator = PurgedWeightValidator(
+                n_windows=wf_windows,
+                train_pct=wf_train_pct,
+                embargo_pct=embargo_pct,
+                purge_pct=purge_pct,
+                alpha=alpha,
+            )
 
     # ── Data loading (each returns a DataFrame) ──────────────────────────
 
@@ -295,6 +321,7 @@ class WeightOptimizer:
         summary: dict[str, Any] = {
             "horizon": self.horizon,
             "alpha": self.alpha,
+            "validation": "purged_walk_forward" if self.validator else "in_sample_provisional",
             "trained_at": datetime.now(UTC).isoformat(),
             "rows": len(merged),
             "n_features": len(feature_cols),
@@ -309,14 +336,35 @@ class WeightOptimizer:
                 summary["regimes"][regime] = {"status": "skipped", "rows": int(len(sub))}
                 continue
 
-            X = sub[feature_cols].fillna(0.0).astype(float)
-            y = sub["fwd_return"].astype(float)
+            # F6: temporal ordering is required for honest walk-forward windows.
+            sub_sorted = sub.sort_values("trade_date").reset_index(drop=True)
+            X = sub_sorted[feature_cols].fillna(0.0).astype(float)
+            y = sub_sorted["fwd_return"].astype(float)
 
             model = Ridge(alpha=self.alpha)
             model.fit(X, y)
 
             coefs = pd.Series(model.coef_, index=feature_cols)
             weights = normalize_weights(coefs)
+
+            # F6: honest out-of-sample R² via purged walk-forward. Falls back
+            # to in-sample (flagged provisional) when validation is impossible.
+            validation: dict[str, Any] = {
+                "provisional": True,
+                "reason": "validation_disabled",
+                "n_windows": 0,
+                "r2_is_mean": None,
+                "r2_oos_mean": None,
+                "r2_oos_std": None,
+                "r2_oos_worst": None,
+                "stability_score": None,
+                "rows": int(len(sub)),
+            }
+            if self.validator is not None:
+                validation = self.validator.validate(X, y, sub_sorted["trade_date"])
+
+            r2_oos = validation["r2_oos_mean"]
+            r2_reported = r2_oos if r2_oos is not None else round(float(model.score(X, y)), 4)
 
             file_name = f"{WEIGHTS_PREFIX}{regime}{WEIGHTS_SUFFIX}"
             file_path = out_dir / file_name
@@ -326,19 +374,37 @@ class WeightOptimizer:
                 "alpha": self.alpha,
                 "rows": int(len(sub)),
                 "intercept": float(model.intercept_),
-                "r2": float(model.score(X, y)),
+                # F6: r2 is now the OUT-OF-SAMPLE mean (in-sample only as a
+                # provisional fallback) — see ml/weight_validator.py.
+                "r2": r2_reported,
+                "r2_is_mean": validation["r2_is_mean"],
+                "r2_oos_mean": r2_oos,
+                "r2_oos_std": validation["r2_oos_std"],
+                "r2_oos_worst": validation["r2_oos_worst"],
+                "wf_n_windows": validation["n_windows"],
+                "wf_stability": validation["stability_score"],
+                "provisional": bool(validation["provisional"]),
+                "validation_reason": validation.get("reason"),
                 "n_features": len(feature_cols),
                 "trained_at": datetime.now(UTC).isoformat(),
                 "weights": weights,
             }
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, ensure_ascii=False, indent=2)
-            logger.info("Saved %s (%d rows, R2=%.3f)", file_path, len(sub), payload["r2"])
+            logger.info(
+                "Saved %s (%d rows, OOS R2=%.3f%s)",
+                file_path, len(sub), payload["r2"],
+                " [PROVISIONAL]" if payload["provisional"] else "",
+            )
 
             summary["regimes"][regime] = {
                 "status": "ok",
                 "rows": int(len(sub)),
                 "r2": payload["r2"],
+                "r2_oos_mean": payload["r2_oos_mean"],
+                "r2_is_mean": payload["r2_is_mean"],
+                "wf_n_windows": payload["wf_n_windows"],
+                "provisional": payload["provisional"],
                 "top_features": dict(
                     sorted(weights.items(), key=lambda kv: -abs(kv[1]))[:10]
                 ),
@@ -361,9 +427,13 @@ class WeightOptimizer:
         parser.add_argument("--horizon", type=int, default=10, help="forward return horizon (days)")
         parser.add_argument("--min-samples", type=int, default=30, help="min rows per regime to fit")
         parser.add_argument("--alpha", type=float, default=1.0, help="Ridge regularisation alpha")
-        parser.add_argument("--up-threshold", type=float, default=0.02, help="index return % for bull regime")
-        parser.add_argument("--down-threshold", type=float, default=-0.02, help="index return % for bear regime")
+        parser.add_argument("--up-threshold", type=float, default=0.02, help="index return %% for bull regime")
+        parser.add_argument("--down-threshold", type=float, default=-0.02, help="index return %% for bear regime")
         parser.add_argument("--output-dir", type=str, default=None, help="output directory for weights JSON")
+        parser.add_argument("--wf-windows", type=int, default=4, help="purged walk-forward windows (0 = disable validation)")
+        parser.add_argument("--embargo-pct", type=float, default=0.02, help="embargo fraction between train and test (F6 leak guard)")
+        parser.add_argument("--purge-pct", type=float, default=0.02, help="purge fraction at the train/test boundary")
+        parser.add_argument("--no-walk-forward", action="store_true", help="skip purged validation — write provisional in-sample weights")
         args = parser.parse_args(argv)
 
         opt = cls(
@@ -372,6 +442,9 @@ class WeightOptimizer:
             alpha=args.alpha,
             up_threshold=args.up_threshold,
             down_threshold=args.down_threshold,
+            wf_windows=0 if args.no_walk_forward else args.wf_windows,
+            embargo_pct=args.embargo_pct,
+            purge_pct=args.purge_pct,
         )
         summary = await opt.train(output_dir=args.output_dir)
         print(json.dumps(summary, ensure_ascii=False, indent=2))

@@ -38,12 +38,30 @@ def calibrate_impact(
     log_x = log_x[valid]
     log_y = log_y[valid]
 
-    if len(log_x) < 5:
+    if len(log_x) < 5 or len(np.unique(log_x)) < 2:
         return 0.1, 0.6
 
-    coeffs = np.polyfit(log_x, log_y, 1)
+    try:
+        coeffs = np.polyfit(log_x, log_y, 1)
+    except (TypeError, ValueError, np.linalg.LinAlgError):
+        return 0.1, 0.6
+
+    fitted = np.polyval(coeffs, log_x)
+    residuals = log_y - fitted
+    ss_res = float(np.sum(residuals**2))
+    centered = log_y - float(np.mean(log_y))
+    ss_tot = float(np.sum(centered**2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+    # A nearly constant or poorly explained sample should not replace the
+    # conservative defaults with unstable market-impact parameters.
+    if not np.isfinite(r_squared) or r_squared < 0.25:
+        return 0.1, 0.6
+
     alpha = float(np.clip(coeffs[0], 0.1, 1.5))
     eta = float(np.clip(np.exp(coeffs[1]), 0.001, 1.0))
+    if not np.isfinite(alpha) or not np.isfinite(eta):
+        return 0.1, 0.6
 
     return eta, alpha
 

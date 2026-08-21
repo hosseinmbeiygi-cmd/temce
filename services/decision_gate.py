@@ -348,8 +348,15 @@ _gate: SmartDecisionGate | None = None
 
 
 def get_decision_gate(session: Any | None = None) -> SmartDecisionGate:
-    """Get or create the global SmartDecisionGate singleton."""
+    """Get or create the global SmartDecisionGate singleton.
+
+    If a *session* is provided and the existing singleton has no session
+    (was created at startup without DB access), the session is injected
+    so subsequent evaluations can read real market state.
+    """
     global _gate
     if _gate is None:
         _gate = SmartDecisionGate(session=session)
+    elif session is not None and getattr(_gate, "_session", None) is None:
+        _gate._session = session
     return _gate

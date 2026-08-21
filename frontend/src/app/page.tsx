@@ -19,7 +19,8 @@ import LiquidityBlocks from "@/components/dashboard/LiquidityBlocks";
 import GlobalMarkets from "@/components/dashboard/GlobalMarkets";
 import TrendChart from "@/components/dashboard/TrendChart";
 import EventCalendar from "@/components/dashboard/EventCalendar";
-import { MARKET_SESSION } from "@/lib/market-mock";
+import { useMarketSession } from "@/hooks/useMarketData";
+import { cn } from "@/lib/cn";
 import { faNum } from "@/lib/market-format";
 
 function LiveClock() {
@@ -49,6 +50,7 @@ const item = {
 
 export default function DashboardPage() {
   const [ready, setReady] = useState(false);
+  const session = useMarketSession();
 
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 620);
@@ -62,15 +64,22 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-[22px] font-black leading-tight text-ink">داشبورد بازار سرمایه</h1>
           <p className="mt-1 text-[12px] text-ink-3">
-            نمای زنده قیمت‌ها، جریان پول و عملکرد بازار — {MARKET_SESSION.dateFa}
+            نمای زنده قیمت‌ها، جریان پول و عملکرد بازار — {session.dateFa}
           </p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-line bg-card px-3.5 py-2 shadow-[var(--shadow-card)]">
           <span className="relative flex size-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-up opacity-60" />
-            <span className="relative inline-flex size-2 rounded-full bg-up" />
+            <span
+              className={cn(
+                "absolute inline-flex h-full w-full animate-ping rounded-full opacity-60",
+                session.isOpen ? "bg-up" : "bg-ink-3"
+              )}
+            />
+            <span
+              className={cn("relative inline-flex size-2 rounded-full", session.isOpen ? "bg-up" : "bg-ink-3")}
+            />
           </span>
-          <span className="text-[11.5px] font-bold text-ink-2">{MARKET_SESSION.note}</span>
+          <span className="text-[11.5px] font-bold text-ink-2">{session.note}</span>
           <span className="hidden h-4 w-px bg-line sm:block" />
           <LiveClock />
         </div>

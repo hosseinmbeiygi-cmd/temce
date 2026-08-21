@@ -182,7 +182,7 @@ async def test_manual_backfill_reports_progress_and_cancels(monkeypatch):
 
 
 def test_mask_api_key():
-    assert _mask_api_key("FreeSV0E1LSgB9RDjuf0QorSLViX8pPG") == "Free…8pPG"
+    assert _mask_api_key("TestApiKey00000000000000000000") == "Test…0000"
     assert _mask_api_key("ABC123") == "A***3"
     assert _mask_api_key("AB") == "***"
     assert _mask_api_key("") == ""

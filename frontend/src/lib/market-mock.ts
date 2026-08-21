@@ -136,11 +136,187 @@ export interface MarketEvent {
 
 /* ── Market session ─────────────────────────────────────────── */
 
-export const MARKET_SESSION = {
-  dateFa: "۱۴۰۵/۰۵/۱۷",
-  status: "باز",
-  note: "بازار سرمایه باز است — تا ساعت ۱۲:۳۰",
+/**
+ * وضعیت زنده بازار بر اساس ساعت و روز تهران (Asia/Tehran).
+ * سشن بورس/فرابورس: شنبه تا چهارشنبه، ۰۸:۴۵ تا ۱۲:۳۰.
+ * تعطیلات رسمی ایران (شمسی ثابت + قمری متغیر) نیز لحاظ می‌شود.
+ */
+export interface MarketSession {
+  dateFa: string;
+  status: string;
+  note: string;
+  isOpen: boolean;
+  /** نام تعطیل رسمی امروز (اگر تعطیل باشد)، وگرنه null */
+  holiday: string | null;
+  /** epoch ms رویداد بعدی بازار (بازگشایی/بستن) — برای countdown */
+  nextEventAt: number | null;
+  /** برچسب رویداد بعدی: "بازگشایی بازار" | "بستن بازار" */
+  nextEventLabel: string;
+}
+
+const MARKET_OPEN_MIN = 8 * 60 + 45; // 08:45
+const MARKET_CLOSE_MIN = 12 * 60 + 30; // 12:30
+const TRADING_WEEKDAYS = new Set(["Sat", "Sun", "Mon", "Tue", "Wed"]);
+
+// ── تعطیلات ثابت شمسی (هر سال یکسان — بر اساس تقویم جلالی) ──
+// کلید: ماه/روز شمسی (۱-۱۲ / ۱-۳۱)
+const SOLAR_HOLIDAYS: Record<string, string> = {
+  "1/1": "نوروز",
+  "1/2": "نوروز",
+  "1/3": "نوروز",
+  "1/4": "نوروز",
+  "1/12": "روز جمهوری اسلامی",
+  "1/13": "روز طبیعت",
+  "3/14": "رحلت امام خمینی",
+  "3/15": "قیام ۱۵ خرداد",
+  "11/22": "پیروزی انقلاب اسلامی",
+  "12/29": "ملی‌شدن صنعت نفت",
 };
+
+// ── تعطیلات قمری متغیر (هر سال جابه‌جا می‌شود — جدول میلادی) ──
+// کلید: تاریخ میلادی YYYY-MM-DD. این جدول برای سال‌های شمسی ۱۴۰۴ و ۱۴۰۵
+// تنظیم شده؛ برای سال‌های بعد باید به‌روزرسانی شود.
+const LUNAR_HOLIDAYS: Record<string, string> = {
+  // ۱۴۰۴ (۲۰۲۵-۲۰۲۶)
+  "2025-03-31": "عید فطر",
+  "2025-04-01": "عید فطر",
+  "2025-06-06": "عید قربان",
+  "2025-06-14": "عید غدیر خم",
+  "2025-06-26": "تاسوعا",
+  "2025-06-27": "عاشورا",
+  "2025-08-05": "اربعین",
+  "2025-08-13": "رحلت پیامبر اکرم",
+  "2025-08-15": "شهادت امام رضا",
+  "2025-09-01": "میلاد پیامبر اکرم",
+  // ۱۴۰۵ (۲۰۲۶-۲۰۲۷)
+  "2026-03-21": "عید فطر",
+  "2026-03-22": "عید فطر",
+  "2026-05-27": "عید قربان",
+  "2026-06-04": "عید غدیر خم",
+  "2026-06-24": "تاسوعا",
+  "2026-06-25": "عاشورا",
+  "2026-08-04": "اربعین",
+  "2026-08-12": "رحلت پیامبر اکرم",
+  "2026-08-14": "شهادت امام رضا",
+  "2026-08-30": "میلاد پیامبر اکرم",
+  "2027-03-10": "عید فطر",
+  "2027-03-11": "عید فطر",
+};
+
+function teheranParts(now: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tehran",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+}
+
+function teheranYmdKey(now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tehran",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** تاریخ شمسی به‌صورت «ماه/روز» برای جستجو در تعطیلات ثابت. */
+function teheranSolarMD(now: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US-u-ca-persian", {
+    timeZone: "Asia/Tehran",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${Number(get("month"))}/${Number(get("day"))}`;
+}
+
+/** نام تعطیل رسمی امروز (تهران) یا null اگر تعطیل نیست. */
+export function getIranianHoliday(now = new Date()): string | null {
+  const solar = SOLAR_HOLIDAYS[teheranSolarMD(now)];
+  if (solar) return solar;
+  return LUNAR_HOLIDAYS[teheranYmdKey(now)] ?? null;
+}
+
+function toFaDate(now: Date): string {
+  return new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran" }).format(now);
+}
+
+/**
+ * Epoch ms برای یک ساعت مشخص در روز جاری تهران.
+ * (محاسبه ساده با offset ثابت +03:30 — بدون احتساب DST.)
+ */
+function tehranMidnightUtc(now: Date): number {
+  const ymd = teheranYmdKey(now);
+  const [y, m, d] = ymd.split("-").map(Number);
+  return Date.UTC(y, m - 1, d) - 3.5 * 3600_000;
+}
+
+function addDaysTehran(now: Date, days: number): Date {
+  return new Date(tehranMidnightUtc(now) + days * 86_400_000 + 12 * 3600_000);
+}
+
+export function getMarketSession(now = new Date()): MarketSession {
+  const parts = teheranParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const weekday = get("weekday");
+  const minutes = Number(get("hour")) * 60 + Number(get("minute"));
+  const holiday = getIranianHoliday(now);
+
+  const isWeekend = !TRADING_WEEKDAYS.has(weekday);
+  const isTradingDay = !isWeekend && !holiday;
+  const isOpen = isTradingDay && minutes >= MARKET_OPEN_MIN && minutes < MARKET_CLOSE_MIN;
+
+  let status = "بسته";
+  let note = "بازار سرمایه بسته است — معاملات فردا ساعت ۰۸:۴۵";
+  if (holiday) {
+    status = "تعطیل";
+    note = `بازار سرمایه تعطیل است — ${holiday}`;
+  } else if (isWeekend) {
+    status = "تعطیل";
+    note = "بازار سرمایه تعطیل است — معاملات از شنبه";
+  } else if (minutes < MARKET_OPEN_MIN) {
+    note = "بازار سرمایه بسته است — بازگشایی ساعت ۰۸:۴۵";
+  } else if (isOpen) {
+    status = "باز";
+    note = "بازار سرمایه باز است — تا ساعت ۱۲:۳۰";
+  }
+
+  // ── رویداد بعدی برای countdown ──
+  let nextEventAt: number | null = null;
+  let nextEventLabel = "";
+  if (isOpen) {
+    // در حال باز بودن → تا بستن (امروز ۱۲:۳۰)
+    nextEventAt = tehranMidnightUtc(now) + MARKET_CLOSE_MIN * 60_000;
+    nextEventLabel = "بستن بازار";
+  } else {
+    // بسته → تا بازگشایی بعدی (فردا یا اولین روز معاملاتی بعد).
+    // اگر امروز روز معاملاتی است ولی ساعتش گذشته (بعد از ۱۲:۳۰)،
+    // بازگشایی «امروز ۰۸:۴۵» قبلاً سپری شده — باید از فردا شروع کنیم.
+    const startOffset = isTradingDay && minutes >= MARKET_CLOSE_MIN ? 1 : 0;
+    for (let i = startOffset; i < 8; i++) {
+      const cand = addDaysTehran(now, i);
+      const candWeekday = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tehran",
+        weekday: "short",
+      }).format(cand);
+      if (TRADING_WEEKDAYS.has(candWeekday) && !getIranianHoliday(cand)) {
+        nextEventAt = tehranMidnightUtc(cand) + MARKET_OPEN_MIN * 60_000;
+        nextEventLabel = "بازگشایی بازار";
+        break;
+      }
+    }
+  }
+
+  return { dateFa: toFaDate(now), status, note, isOpen, holiday, nextEventAt, nextEventLabel };
+}
+
+/** Legacy static constant — kept for imports that only need a default shape. */
+export const MARKET_SESSION = getMarketSession();
 
 /* ── Ticker / Sitebar strip ─────────────────────────────────── */
 

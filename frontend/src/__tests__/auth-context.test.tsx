@@ -184,19 +184,45 @@ describe("AuthProvider", () => {
   });
 
   describe("logout", () => {
-    it("clears state after a hydrated session", async () => {
+    it("clears state and invalidates the server session after a hydrated session", async () => {
       hydrateSessionMock.mockResolvedValue(AUTHED_SESSION);
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
 
       const { AuthProvider, useAuth } = await loadAuth();
       const { result } = renderHook(() => useAuth(), { wrapper: wrapperFor(AuthProvider) });
       await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
 
-      act(() => {
-        result.current.logout();
+      await act(async () => {
+        await result.current.logout();
       });
 
       expect(result.current.isAuthenticated).toBe(false);
       expect(result.current.user).toBeNull();
+      expect(result.current.accessToken).toBeNull();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/logout"),
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+          headers: { Authorization: "Bearer access-token-1" },
+        }),
+      );
+    });
+
+    it("keeps the local session cleared when the server logout fails", async () => {
+      hydrateSessionMock.mockResolvedValue(AUTHED_SESSION);
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error("network down")) as unknown as typeof fetch;
+
+      const { AuthProvider, useAuth } = await loadAuth();
+      const { result } = renderHook(() => useAuth(), { wrapper: wrapperFor(AuthProvider) });
+      await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
+      await act(async () => {
+        await result.current.logout();
+      });
+
+      expect(result.current.isAuthenticated).toBe(false);
       expect(result.current.accessToken).toBeNull();
     });
   });

@@ -1,7 +1,7 @@
 {
   "ready": false,
-  "last_status": 302,
-  "last_checked": "2026-08-12T05:43:27.936534+00:00",
-  "last_detail": "still redirecting to a heavy file (HTTP 302) — server-side usage counter has not reset",
-  "notified": false
+  "last_status": 0,
+  "last_checked": "2026-08-18T05:08:26.978458+00:00",
+  "last_detail": "request error: [Errno 11001] getaddrinfo failed",
+  "notified": true
 }

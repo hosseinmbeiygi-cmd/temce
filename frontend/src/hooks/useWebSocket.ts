@@ -28,9 +28,30 @@ export interface SymbolPriceUpdate {
   timestamp?: number;
 }
 
-const WS_URL = typeof window !== 'undefined'
-  ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v1/ws/market`
-  : 'ws://localhost:8000/api/v1/ws/market';
+function _getWsUrl(): string {
+  if (typeof window === 'undefined') return 'ws://localhost:8000/api/v1/ws/market';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  // If NEXT_PUBLIC_API_URL is absolute (http://host:8000/api/v1), derive WS from it.
+  if (apiUrl.startsWith('http://') || apiUrl.startsWith('https://')) {
+    try {
+      const u = new URL(apiUrl);
+      const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      // apiUrl is expected to end with /api/v1 (or /api/v1/); keep that prefix.
+      const basePath = u.pathname.replace(/\/$/, '') || '/api/v1';
+      return `${wsProto}//${u.host}${basePath}/ws/market`;
+    } catch {
+      // fall through to host:8000 fallback
+    }
+  }
+  // Default dev fallback: Next.js rewrites proxy HTTP but NOT WebSocket, so
+  // connecting WS to window.location.host (Next.js on :3000) always closes
+  // with 1006. Connect directly to the API on :8000 instead.
+  const host = window.location.hostname || 'localhost';
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProto}//${host}:8000/api/v1/ws/market`;
+}
+
+const WS_URL = _getWsUrl();
 
 const MAX_RECONNECT_DELAY = 30000;
 const BASE_RECONNECT_DELAY = 1000;

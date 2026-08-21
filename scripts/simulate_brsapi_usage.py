@@ -32,6 +32,16 @@ Scenarios (run all by default):
                   daily counter resets at Tehran midnight
   fuzz            seeded random mix of endpoints / delays / concurrency
                   (invariant check: limits always hold on the timeline)
+  per-endpoint    EVERY endpoint solo at its category's max rate for one
+                  virtual day — proves no single API can exceed the caps
+  all-max         ALL endpoints at max rate SIMULTANEOUSLY — the combined
+                  ceiling under full simultaneous pressure
+  starvation      ONE endpoint floods the shared 5-min window (bucket raised
+                  so it CAN fill all 1,000 slots) while the other categories
+                  trickle — do the others still get requests, and what
+                  happens when the hog eats the daily budget?
+  max-stress      absolute worst case: realtime-day + backlog-sync +
+                  nightly + fuzz all at once
 
 Verification (independent of the limiter's own counters):
   * Re-computes the max requests inside ANY sliding 300s window from the
@@ -170,6 +180,12 @@ class Recorder:
         self.accepted: list[RecordedRequest] = []
         self.rejected: list[RecordedRequest] = []
         self.rejected_reason: Counter[str] = Counter()
+        # per-endpoint stats from the per-endpoint scenario
+        self.per_endpoint_stats: dict[str, dict[str, Any]] = {}
+        # starvation metrics (per other-category accepted/rejected/waits)
+        self.starvation_stats: dict[str, dict[str, Any]] = {}
+        # endpoint path → list of virtual wait seconds (starvation scenario)
+        self.waits: dict[str, list[float]] = {}
 
     @property
     def total_demand(self) -> int:
@@ -187,6 +203,10 @@ class ScenarioResult:
     per_category_max_min: dict[str, int] = field(default_factory=dict)
     max_endpoint_usage: list[tuple[str, int]] = field(default_factory=list)
     details: str = ""
+    # detail tables for per-endpoint / starvation scenarios (attached by
+    # run_scenario after verify_scenario)
+    per_endpoint_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
+    starvation_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _sliding_window_max(timestamps: list[float], window: float) -> int:
@@ -302,6 +322,23 @@ async def sim_request(
         RecordedRequest(_clock.mono, _clock.wall, category, endpoint)
     )
     return True
+
+
+async def sim_request_timed(
+    limiter: RateLimiter,
+    rec: Recorder,
+    category: str,
+    endpoint: str,
+    *,
+    fail_fast: bool = True,
+) -> tuple[bool, float]:
+    """Like ``sim_request`` but also records the virtual wait time spent
+    inside ``acquire()`` (queueing behind a saturated window / bucket)."""
+    start = _clock.mono
+    ok = await sim_request(limiter, rec, category, endpoint, fail_fast=fail_fast)
+    waited = _clock.mono - start
+    rec.waits.setdefault(endpoint, []).append(waited)
+    return ok, waited
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -593,6 +630,213 @@ async def workload_fuzz(
     await asyncio.gather(*[worker(i) for i in range(8)])
 
 
+# ── per-endpoint: EVERY endpoint solo at max rate for a virtual day ──────
+# Each endpoint is run ALONE in a fresh limiter (full daily budget) so the
+# per-endpoint numbers measure that single API's ceiling, not the shared
+# budget. Demand is the category's configured bucket rate (max legal rate).
+
+
+def _category_rpm(category: str) -> int:
+    """Configured per-category bucket rate (requests per minute)."""
+    table = {
+        "tsetmc": brsapi_settings.rate_limit_tsetmc or 60,
+        "codal": brsapi_settings.rate_limit_codal or 12,
+        "ime": brsapi_settings.rate_limit_ime or 12,
+        "commodity": brsapi_settings.rate_limit_commodity or 1,
+        "cryptocurrency": brsapi_settings.rate_limit_crypto or 1,
+    }
+    return table.get(category, 30)
+
+
+async def workload_per_endpoint(
+    limiter: RateLimiter, rec: Recorder, limits: dict[str, int]
+) -> None:
+    """Run every endpoint solo at its category's max legal rate for one
+    virtual day. Verifies per-endpoint: max 5-min peak <= 5-min limit and
+    daily total <= daily limit for EVERY API in the catalog."""
+    catalog = sorted(BrsApiEndpoints.all().items())
+    for name, ep in catalog:
+        rpm = _category_rpm(ep.category.value)
+        delay = 60.0 / rpm if rpm else 5.0
+        # Fresh limiter per endpoint → full daily budget per endpoint, so the
+        # reported numbers isolate ONE API (the question: can a single API
+        # alone exceed the caps?)
+        solo = make_limiter(limits["daily"], limits["5min"])
+        solo_rec = Recorder()
+        end_wall = _clock.wall + timedelta(hours=24)
+        consecutive_rejections = 0
+        while _clock.wall < end_wall:
+            _clock.advance(delay)
+            ok = await sim_request(solo, solo_rec, ep.category.value, ep.path)
+            if ok:
+                consecutive_rejections = 0
+            else:
+                consecutive_rejections += 1
+                # Daily budget exhausted → every further request is rejected
+                # identically; no new information, stop this endpoint early.
+                if consecutive_rejections >= 100:
+                    break
+        max5 = _sliding_window_max(
+            [r.mono for r in solo_rec.accepted], 300.0
+        )
+        per_day: Counter[str] = Counter(
+            r.wall.strftime("%Y-%m-%d") for r in solo_rec.accepted
+        )
+        maxday = max(per_day.values(), default=0)
+        rec.per_endpoint_stats[name] = {
+            "path": ep.path,
+            "category": ep.category.value,
+            "accepted": len(solo_rec.accepted),
+            "rejected": len(solo_rec.rejected),
+            "max5min": max5,
+            "maxday": maxday,
+        }
+
+
+def _render_per_endpoint_stats(
+    stats: dict[str, dict], limits: dict[str, int]
+) -> str:
+    lines = [
+        f"{'endpoint':<24} {'cat':<14} {'accepted':>8} {'rejected':>8} "
+        f"{'max5min':>7} {'maxday':>8}  verdict"
+    ]
+    for name in sorted(stats):
+        s = stats[name]
+        ok = s["max5min"] <= limits["5min"] and s["maxday"] <= limits["daily"]
+        lines.append(
+            f"{name:<24} {s['category']:<14} {s['accepted']:>8,} {s['rejected']:>8,} "
+            f"{s['max5min']:>6}/{limits['5min']:,} "
+            f"{s['maxday']:>7}/{limits['daily']:,}  "
+            f"{'✅' if ok else '❌'}"
+        )
+    return "\n".join(lines)
+
+
+# ── all-max: ALL endpoints at max rate SIMULTANEOUSLY ─────────────────────
+# Every endpoint floods at its category bucket's max rate in parallel — the
+# absolute combined ceiling. The 5-min window and daily counter are shared,
+# so this is the strongest stress on the GLOBAL limits.
+
+
+async def workload_all_max(
+    limiter: RateLimiter, rec: Recorder, limits: dict[str, int]
+) -> None:
+    catalog = list(BrsApiEndpoints.all().values())
+    end_wall = _clock.wall + timedelta(hours=24)
+
+    async def worker(ep) -> None:
+        rpm = _category_rpm(ep.category.value)
+        delay = max(0.05, 60.0 / rpm)
+        consecutive_rejections = 0
+        while _clock.wall < end_wall:
+            _clock.advance(delay)
+            ok = await sim_request(limiter, rec, ep.category.value, ep.path)
+            if ok:
+                consecutive_rejections = 0
+            else:
+                consecutive_rejections += 1
+                # Daily budget is shared → once exhausted, stop this worker.
+                if consecutive_rejections >= 100:
+                    return
+
+    await asyncio.gather(*[worker(ep) for ep in catalog])
+
+
+# ── starvation: one endpoint hogs the shared 5-min window ────────────────
+# The user question: if ONE API keeps receiving 1,000+ requests per 5 min,
+# do the OTHER APIs receive anything? To make that possible the hog's bucket
+# is raised to 1,000/min (otherwise the 60/min tsetmc bucket caps it at 300
+# per 5 min and it physically cannot fill the shared window). The other
+# categories keep their real buckets and trickle at their real rates.
+
+
+async def workload_starvation(
+    limiter: RateLimiter, rec: Recorder, limits: dict[str, int]
+) -> None:
+    # Hog: tsetmc Candlestick with bucket raised so it can saturate the
+    # shared 1,000/5min window.
+    limiter.configure("tsetmc", 1_000)
+    hog_delay = 60.0 / 1_000  # 16.7 req/s → ~1,000 req/5min
+
+    others = [
+        ("codal", "/Codal/Announcement.php", 12),
+        ("ime", "/IME/Futures.php", 12),
+        ("commodity", "/Market/Commodity.php", 1),
+        ("cryptocurrency", "/Market/Cryptocurrency.php", 1),
+    ]
+    end_wall = _clock.wall + timedelta(minutes=30)
+
+    async def hog() -> None:
+        while _clock.wall < end_wall:
+            _clock.advance(hog_delay)
+            await sim_request(limiter, rec, "tsetmc", "/Tsetmc/Candlestick.php")
+            # Yield the loop on every iteration: once the hog starts getting
+            # fail-fast rejections the acquire() path never sleeps, so without
+            # this the hog would spin in a tight loop and the other workers
+            # would never get scheduled.
+            await asyncio.sleep(0)
+
+    async def other(cat: str, path: str, rpm: int) -> None:
+        # The hog is the only clock driver (small steps). Others fire when
+        # their own interval has elapsed on the shared virtual clock — no
+        # big advances that would jump the whole timeline past the window.
+        interval = 60.0 / rpm
+        last = _clock.mono
+        while _clock.wall < end_wall:
+            if _clock.mono - last >= interval:
+                await sim_request_timed(limiter, rec, cat, path)
+                last = _clock.mono
+            await asyncio.sleep(0)
+
+    await asyncio.gather(hog(), *[other(*o) for o in others])
+
+    # Summarise what the non-hog categories actually received and their
+    # worst queueing delay (virtual seconds spent inside acquire()).
+    for cat, path, _rpm in others:
+        acc = [r for r in rec.accepted if r.category == cat]
+        rej = [r for r in rec.rejected if r.category == cat]
+        waits = rec.waits.get(path, [])
+        rec.starvation_stats[cat] = {
+            "accepted": len(acc),
+            "rejected": len(rej),
+            "hog_accepted": len(
+                [r for r in rec.accepted if r.category == "tsetmc"]
+            ),
+            "max_wait_s": round(max(waits), 1) if waits else 0.0,
+            "avg_wait_s": round(sum(waits) / len(waits), 1) if waits else 0.0,
+        }
+
+
+def _render_starvation_stats(stats: dict[str, dict]) -> str:
+    lines = [
+        f"{'other category':<16} {'accepted':>8} {'rejected':>8} "
+        f"{'max wait s':>10} {'avg wait s':>10}"
+    ]
+    for cat in sorted(stats):
+        s = stats[cat]
+        lines.append(
+            f"{cat:<16} {s['accepted']:>8,} {s['rejected']:>8,} "
+            f"{s['max_wait_s']:>10.1f} {s['avg_wait_s']:>10.1f}"
+        )
+    return "\n".join(lines)
+
+
+# ── max-stress: absolutely everything at once ─────────────────────────────
+# realtime-day + backlog-sync + nightly + fuzz all concurrent → the worst
+# case the platform could ever generate.
+
+
+async def workload_max_stress(
+    limiter: RateLimiter, rec: Recorder, limits: dict[str, int]
+) -> None:
+    await asyncio.gather(
+        workload_realtime_day(limiter, rec, limits),
+        workload_backlog_sync(limiter, rec, limits),
+        workload_nightly(limiter, rec, limits),
+        workload_fuzz(limiter, rec, limits, seed=7),
+    )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 #  Runner + report
 # ──────────────────────────────────────────────────────────────────────────
@@ -605,6 +849,10 @@ SCENARIOS: dict[str, Workload | None] = {
     "nightly": workload_nightly,
     "concurrent": workload_concurrent,
     "multi-day": workload_multi_day,
+    "per-endpoint": workload_per_endpoint,
+    "all-max": workload_all_max,
+    "starvation": workload_starvation,
+    "max-stress": workload_max_stress,
     # fuzz needs the seed, so run_scenario dispatches it specially (None here)
     "fuzz": None,
 }
@@ -650,9 +898,13 @@ async def run_scenario(
             f"0 rejected, under budget"
         )
 
-    return verify_scenario(
+    result = verify_scenario(
         name, rec, limits["daily"], limits["5min"], details=details
     )
+    # Attach scenario-specific detail tables to the result for reporting.
+    result.per_endpoint_stats = dict(rec.per_endpoint_stats)
+    result.starvation_stats = dict(rec.starvation_stats)
+    return result
 
 
 def _render_table(
@@ -716,6 +968,12 @@ async def main(argv: list[str] | None = None) -> int:
             if key in ("daily", "5min", "five_min", "five-min"):
                 limits["daily" if key == "daily" else "5min"] = int(val)
 
+    # Keep the rate-limiter's own threshold WARN logs (80/90/95/100%) out of
+    # the report — they fire on every scenario run and bury the table.
+    import logging as _logging
+
+    _logging.getLogger("brsapi.rate_limiter").setLevel(_logging.CRITICAL)
+
     _install_clock()
     try:
         names = [args.scenario] if args.scenario else list(SCENARIOS)
@@ -753,6 +1011,26 @@ async def main(argv: list[str] | None = None) -> int:
                 _p("  per-endpoint usage (whole catalog):")
                 for ep, cnt in result.max_endpoint_usage:
                     _p(f"    {ep:<34} {cnt}")
+            elif result.name == "per-endpoint" and result.per_endpoint_stats:
+                _p("  every endpoint solo at max rate for 1 virtual day:")
+                for line in _render_per_endpoint_stats(
+                    result.per_endpoint_stats, limits
+                ).splitlines():
+                    _p(f"    {line}")
+            elif result.name == "starvation" and result.starvation_stats:
+                hog_acc = next(iter(result.starvation_stats.values()))[
+                    "hog_accepted"
+                ]
+                _p(
+                    f"  hog (tsetmc Candlestick, bucket raised to 1000/min) "
+                    f"sent {hog_acc:,} requests in 30 virtual min — the shared "
+                    f"5-min window is saturated."
+                )
+                _p("  what the OTHER categories received while hog was flooding:")
+                for line in _render_starvation_stats(
+                    result.starvation_stats
+                ).splitlines():
+                    _p(f"    {line}")
             else:
                 cats = ", ".join(
                     f"{k}={v}/min" for k, v in

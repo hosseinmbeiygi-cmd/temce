@@ -25,7 +25,6 @@ from datetime import datetime
 from typing import Any
 
 import jdatetime
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession

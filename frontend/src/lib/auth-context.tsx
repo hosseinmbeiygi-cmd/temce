@@ -37,7 +37,7 @@ export interface AuthContextValue extends AuthState {
     password: string;
     full_name?: string;
   }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshAccessToken: () => Promise<string | null>;
   hasRole: (role: string) => boolean;
   hasAnyRole: (...roles: string[]) => boolean;
@@ -131,6 +131,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const json = await res.json();
     const data = json.data ?? json;
 
+    if (data?.mfa_required) {
+      throw new Error(
+        JSON.stringify({
+          mfa_required: true,
+          mfa_token: data.mfa_token,
+          method: data.method ?? 'totp',
+          user: data.user,
+        })
+      );
+    }
+
+    if (!data?.access_token) {
+      throw new Error('Login failed: missing access token');
+    }
+
     const newState: AuthState = {
       user: data.user ?? data,
       accessToken: data.access_token,
@@ -189,7 +204,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── logout ──────────────────────────────────────────────────
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Capture the access token before clearing the local session. The server
+    // also invalidates the httpOnly refresh cookie, which local JavaScript
+    // cannot remove itself.
+    const accessToken = getStoredAuth()?.access_token ?? null;
     clearAuth();
     setState({
       user: null,
@@ -197,6 +216,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: false,
       isLoading: false,
     });
+
+    // Local logout must not depend on network availability. The backend
+    // operation is best-effort, while its endpoint always expires the cookie.
+    try {
+      const headers: HeadersInit = {};
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+      });
+    } catch {
+      // The local state is already cleared; a failed request must not keep the
+      // user stuck in the authenticated UI.
+    }
   }, []);
 
   // ── refresh token ───────────────────────────────────────────
@@ -244,6 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = useCallback((role: string): boolean => {
     const roles = state.user?.roles ?? [];
+    if (roles.length === 0) return false;
     if (roles.includes("admin")) return true;
     const userTopIdx = Math.min(
       ...roles.map((r) => { const i = ROLE_HIERARCHY.indexOf(r); return i >= 0 ? i : ROLE_HIERARCHY.length; })

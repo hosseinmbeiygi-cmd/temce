@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, extractArray } from "@/lib/api";
 import {
@@ -11,11 +12,13 @@ import {
   TOP_STOCKS_TODAY,
   VALUE_VOLUME,
   type IndexQuote,
+  type MarketSession,
   type NewsItem,
   type QuoteItem,
   type TickerItem,
   type Top5Symbol,
   type TopStock,
+  getMarketSession,
 } from "@/lib/market-mock";
 
 /**
@@ -159,6 +162,24 @@ function mapPriceToQuote(row: PriceRow): QuoteItem | null {
 // ── Hooks ────────────────────────────────────────────────────────────────
 
 /**
+ * وضعیت زنده بازار (باز/بسته/تعطیل) بر اساس ساعت تهران.
+ * هر ثانیه دوباره محاسبه می‌شود تا هم با تغییر ساعت همگام بماند و
+ * هم countdown رویداد بعدی (بازگشایی/بستن) در TickerBar دقیق تیک بزند.
+ */
+export function useMarketSession(): MarketSession {
+  const [session, setSession] = useState<MarketSession>(() => getMarketSession());
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSession(getMarketSession());
+    }, 1_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return session;
+}
+
+/**
  * Single source of truth for the live symbol snapshot feed. All dashboard
  * lists (ticker, top gainers, TSE/OTC tables, top performers) derive from
  * this one query so the browser makes a single request instead of four.
@@ -172,8 +193,8 @@ function useEnrichedHeatmap(): HeatmapCell[] {
       );
       return extractArray<HeatmapCell>(res);
     },
-    refetchInterval: 120_000,
-    staleTime: 60_000,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
     retry: 1,
   });
   return data ?? [];

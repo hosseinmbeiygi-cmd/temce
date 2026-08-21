@@ -48,7 +48,9 @@ class IranTradingCalendar:
         self._sessions: dict[date, TradingSession] = {}
 
     def is_holiday(self, d: date) -> bool:
-        return d.isoweekday() in (5, 6) or d.isoformat() in self._holidays
+        # Python weekday(): Thursday=3, Friday=4. Tehran equity markets
+        # trade Saturday through Wednesday.
+        return d.weekday() in (3, 4) or d.isoformat() in self._holidays
 
     def is_trading_day(self, d: date) -> bool:
         return not self.is_holiday(d)

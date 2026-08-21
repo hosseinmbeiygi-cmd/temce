@@ -5,6 +5,7 @@ import random
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from backtesting.costs.iran_costs import DEFAULT_IRAN_COSTS, IranTransactionCosts
 from backtesting.types import FillEvent
 
 
@@ -50,10 +51,12 @@ class QueueSimulation:
         base_cancel_rate: float = 0.05,
         base_trade_rate: float = 0.3,
         lambda_coeff: float = 0.0001,
+        cost_model: IranTransactionCosts = DEFAULT_IRAN_COSTS,
     ) -> None:
         self.base_cancel_rate = base_cancel_rate
         self.base_trade_rate = base_trade_rate
         self.lambda_coeff = lambda_coeff
+        self.cost_model = cost_model
         self._queues: dict[str, QueueState] = {}
 
     def get_or_create_queue(self, instrument_id: str) -> QueueState:
@@ -149,7 +152,7 @@ class QueueSimulation:
                     side="buy" if is_buy else "sell",
                     quantity=fill_qty,
                     price=order.price,
-                    commission=0.0,
+                    commission=self.cost_model.compute("buy" if is_buy else "sell", order.price, fill_qty),
                 )
                 fills.append(fill)
                 order.remaining_quantity -= fill_qty

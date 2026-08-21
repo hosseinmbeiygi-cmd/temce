@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import create_engine, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from bulk_importer.adapters.base import ParseResult
@@ -29,7 +31,7 @@ class Persistence:
         )
         self.SessionLocal = sessionmaker(bind=self.engine)
 
-    def create_tables(self):
+    def create_tables(self) -> None:
         """Create import tables if they don't exist."""
         # Import our models to register them
         from bulk_importer import models as _m  # noqa: F401
@@ -37,7 +39,7 @@ class Persistence:
         Base.metadata.create_all(self.engine)
         logger.info("Import tables created/verified")
 
-    def ensure_indexes(self):
+    def ensure_indexes(self) -> None:
         """Create additional indexes for performance."""
         indexes = [
             "CREATE INDEX IF NOT EXISTS ix_import_doc_status ON import_document_files (file_status)",
@@ -74,20 +76,28 @@ class Persistence:
         if existing:
             return existing
 
-        doc = DocumentFile(
-            file_name=file_name,
-            file_path=file_path,
-            file_size_bytes=file_size,
-            sha256=sha256,
-            issuer_symbol=issuer_symbol,
-            report_type=report_type,
-            report_date_jalali=report_date_jalali,
-            detected_format=detected_format,
-            file_status=FileStatus.SCANNED,
+        doc_values = {
+            "file_name": file_name,
+            "file_path": file_path,
+            "file_size_bytes": file_size,
+            "sha256": sha256,
+            "issuer_symbol": issuer_symbol,
+            "report_type": report_type,
+            "report_date_jalali": report_date_jalali,
+            "detected_format": detected_format,
+            "file_status": FileStatus.SCANNED,
+        }
+        # The initial SELECT is only a fast path.  Two importer workers can
+        # still pass it concurrently, so the INSERT itself must own the
+        # uniqueness decision at the database boundary.
+        stmt = pg_insert(DocumentFile).values(**doc_values).on_conflict_do_nothing(
+            index_elements=[DocumentFile.file_path]
         )
-        session.add(doc)
+        session.execute(stmt)
         session.flush()
-        return doc
+        return session.execute(
+            select(DocumentFile).where(DocumentFile.file_path == file_path)
+        ).scalar_one_or_none()
 
     def save_parse_result(
         self,
@@ -135,7 +145,7 @@ class Persistence:
         action: str,
         file_id: int | None = None,
         message: str | None = None,
-        details: dict | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Write an audit log entry."""
         entry = ImportAuditLog(
@@ -155,7 +165,7 @@ class Persistence:
             .limit(limit)
         ).scalars().all())
 
-    def get_stats(self, session: Session) -> dict:
+    def get_stats(self, session: Session) -> dict[str, int]:
         """Get import statistics."""
         from sqlalchemy import func
 

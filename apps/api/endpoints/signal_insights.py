@@ -197,9 +197,10 @@ async def get_walk_forward(
 
             pipeline = SignalFeaturePipeline()
             all_features = []
-            all_targets = []
 
-            # Create rolling features
+            # Create rolling features (each feature is built from a prefix of
+            # `closes`, so labels are derived internally from `closes` with the
+            # explicit (X_t, y_{t+1}) contract — see prepare_training_data).
             for i in range(50, len(closes)):
                 price_data = {
                     "closes": closes[:i],
@@ -214,11 +215,6 @@ async def get_walk_forward(
                 )
                 all_features.append(features)
 
-                # Target: next 5-day return
-                min(5, len(closes) - i - 1)
-                future_ret = (closes[i] - closes[i - 1]) / max(closes[i - 1], 0.001)
-                all_targets.append(future_ret)
-
             if len(all_features) < 50:
                 return ApiResponse(success=False, data=None, error={"message": "Not enough feature samples"})
 
@@ -227,7 +223,7 @@ async def get_walk_forward(
                 market=market,
                 model_name=model_name,
                 feature_sequence=all_features,
-                targets=all_targets,
+                closes=closes,
                 num_windows=num_windows,
             )
 

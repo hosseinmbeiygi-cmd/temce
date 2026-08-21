@@ -320,11 +320,11 @@ async def financial_reports(
         for r in rows:
             pd = r.parsed_data or {}
             # extract key P&L items from parsed Excel data (Persian labels)
-            def _get(*labels: str) -> float:
+            def _get(data: dict[str, Any], *labels: str) -> float:
                 for lbl in labels:
-                    if lbl in pd and pd[lbl] is not None:
+                    if lbl in data and data[lbl] is not None:
                         try:
-                            return float(pd[lbl])
+                            return float(data[lbl])
                         except (TypeError, ValueError):
                             continue
                 return 0.0
@@ -332,12 +332,12 @@ async def financial_reports(
             quarters.append({
                 "period": str(r.report_date or r.report_type or ""),
                 "report_type": r.report_type or "",
-                "revenue": _get("فروش", "درآمد فروش", "درآمد عملیاتی"),
-                "cost": _get("بهای تمام شده", "بهای تمام شده کالای فروش رفته"),
-                "gross_profit": _get("سود ناخالص", "سود (زیان) ناخالص"),
-                "operating_profit": _get("سود عملیاتی", "سود (زیان) عملیاتی"),
-                "net_profit": _get("سود خالص", "سود (زیان) خالص", "سود (زیان) ویژه"),
-                "eps": _get("سود هر سهم", "سود (زیان) هر سهم"),
+                "revenue": _get(pd, "فروش", "درآمد فروش", "درآمد عملیاتی"),
+                "cost": _get(pd, "بهای تمام شده", "بهای تمام شده کالای فروش رفته"),
+                "gross_profit": _get(pd, "سود ناخالص", "سود (زیان) ناخالص"),
+                "operating_profit": _get(pd, "سود عملیاتی", "سود (زیان) عملیاتی"),
+                "net_profit": _get(pd, "سود خالص", "سود (زیان) خالص", "سود (زیان) ویژه"),
+                "eps": _get(pd, "سود هر سهم", "سود (زیان) هر سهم"),
             })
 
         return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": quarters})
@@ -580,17 +580,16 @@ async def codal_analysis(
 )
 async def bulk_import_codal(
     files: list[UploadFile] = File(..., description="Excel (.xlsx) or CSV files with Codal data"),
-    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Upload multiple Codal disclosure files and import them all."""
+    from core.database import async_session_factory
     from repositories.codal_repository import CodalRepository
     from repositories.instrument_repository import InstrumentRepository
     from services.codal_import_service import CodalImportService
 
-    codal_repo = CodalRepository(session=session)
-    instrument_repo = InstrumentRepository(session=session)
-    service = CodalImportService(codal_repo=codal_repo, instrument_repo=instrument_repo)
-
+    # AsyncSession is not safe for concurrent use. Each file gets its own
+    # session and repository/service graph, so one slow or failing import
+    # cannot corrupt another file's transaction.
     total_files = len(files)
     per_file: dict[str, dict[str, Any]] = {}
     total_rows = 0
@@ -609,12 +608,20 @@ async def bulk_import_codal(
             all_errors.append(f"{file.filename}: empty file")
             return
 
-        result = await service.import_from_bytes(
-            symbol=symbol,
-            content=content,
-            filename=file.filename or "",
-            data_source="manual_import",
-        )
+        if async_session_factory is None:
+            all_errors.append(f"{file.filename}: database is not initialized")
+            return
+
+        async with async_session_factory() as file_session:
+            codal_repo = CodalRepository(session=file_session)
+            instrument_repo = InstrumentRepository(session=file_session)
+            service = CodalImportService(codal_repo=codal_repo, instrument_repo=instrument_repo)
+            result = await service.import_from_bytes(
+                symbol=symbol,
+                content=content,
+                filename=file.filename or "",
+                data_source="manual_import",
+            )
         if not result.success:
             all_errors.append(f"{file.filename}: {result.error}")
             return
@@ -639,7 +646,14 @@ async def bulk_import_codal(
         async with sem:
             await process_one(file)
 
-    await asyncio.gather(*[limited(f) for f in files])
+    results = await asyncio.gather(
+        *[limited(f) for f in files],
+        return_exceptions=True,
+    )
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error("Codal file import task failed: %s", result)
+            all_errors.append(f"unexpected import error: {result}")
 
     return ApiResponse[dict[str, Any]](
         success=not all_errors,

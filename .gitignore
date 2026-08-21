@@ -103,3 +103,4 @@ scripts/.codal_checkpoint.json
 # Local install archives
 timescaledb.zip
 tree.txt
+frontend/.tmp_routes.txt

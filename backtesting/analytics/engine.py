@@ -92,16 +92,36 @@ class AnalyticsEngine:
         if not trades:
             return
 
-        from collections import defaultdict
-        open_positions: dict[str, list[float]] = defaultdict(list)
+        # FIFO cost-basis PnL (audit F4): the buy-side commission is included
+        # in the round-trip PnL instead of only the sell commission.
+        #   cost_basis = entry_price + buy_commission / buy_qty  (per share)
+        #   pnl = (sell_price - cost_basis) * sell_qty - sell_commission
+        # A deque is used for FIFO so opening a position is O(1), not O(n).
+        from collections import defaultdict, deque
+
+        open_positions: dict[str, deque] = defaultdict(deque)  # inst -> [(price, commission, qty)]
         round_trip_pnls: list[float] = []
         for t in sorted(trades, key=lambda x: x.timestamp):
             if t.side == "buy":
-                open_positions[t.instrument_id].append(t.price)
-            elif t.side == "sell" and open_positions.get(t.instrument_id):
-                entry_price = open_positions[t.instrument_id].pop(0)
-                pnl = (t.price - entry_price) * t.quantity - t.commission
-                round_trip_pnls.append(pnl)
+                open_positions[t.instrument_id].append((t.price, t.commission, t.quantity))
+            elif t.side == "sell":
+                positions = open_positions.get(t.instrument_id)
+                remaining_sell = max(t.quantity, 0)
+                sell_comm_per_unit = t.commission / max(t.quantity, 1)
+                while positions and remaining_sell > 0:
+                    entry_price, entry_commission, entry_quantity = positions.popleft()
+                    matched_qty = min(entry_quantity, remaining_sell)
+                    buy_comm_used = entry_commission * (matched_qty / max(entry_quantity, 1))
+                    cost_basis = entry_price + buy_comm_used / max(matched_qty, 1)
+                    pnl = (t.price - cost_basis) * matched_qty - sell_comm_per_unit * matched_qty
+                    round_trip_pnls.append(pnl)
+                    remaining_sell -= matched_qty
+                    if entry_quantity > matched_qty:
+                        positions.appendleft((
+                            entry_price,
+                            entry_commission - buy_comm_used,
+                            entry_quantity - matched_qty,
+                        ))
 
         if not round_trip_pnls:
             ar.win_rate = 0.0

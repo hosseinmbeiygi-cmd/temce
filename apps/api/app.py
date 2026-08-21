@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import traceback
 from collections import deque
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager, suppress
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,47 @@ from core.logging import get_logger, setup_logging
 from ml.models import register_all_models
 
 logger = get_logger(__name__)
+
+
+# Every long-lived coroutine started by the API is registered here. Keeping a
+# strong reference prevents silent task failures and lets lifespan cancel and
+# await all work before closing Redis/DB connections.
+_background_tasks: set[asyncio.Task[Any]] = set()
+
+
+def _track_background_task(coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task[Any]:
+    task = asyncio.create_task(coro, name=name)
+    _background_tasks.add(task)
+
+    def _done(completed: asyncio.Task[Any]) -> None:
+        _background_tasks.discard(completed)
+        if completed.cancelled():
+            return
+        try:
+            error = completed.exception()
+        except asyncio.CancelledError:
+            return
+        if error is not None:
+            logger.error(
+                "Background task %s failed: %s",
+                name,
+                error,
+                exc_info=(type(error), error, error.__traceback__),
+            )
+
+    task.add_done_callback(_done)
+    return task
+
+
+async def _stop_background_tasks() -> None:
+    """Cancel and await API-owned background tasks before dependencies close."""
+    tasks = list(_background_tasks)
+    if not tasks:
+        return
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    _background_tasks.clear()
 
 
 # ── Notification callback for rate limit alerts ──
@@ -690,11 +732,19 @@ async def _brsapi_startup_sync() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    scheduler_app = None
     setup_logging()
     try:
         settings.validate_production()
     except Exception:
-        logger.warning("Production validation skipped (development mode)")
+        # Never boot a production process with an invalid security
+        # configuration. Development keeps the historical warning-only
+        # behavior, but production must fail closed so a bad SECRET_KEY,
+        # CORS policy, or insecure cookie cannot reach live traffic.
+        if settings.is_production:
+            logger.critical("Production configuration validation failed", exc_info=True)
+            raise
+        logger.warning("Production validation skipped (development mode)", exc_info=True)
 
     # Database: resilient init
     try:
@@ -718,6 +768,22 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # Hydrate orchestrator cron/alert state from Redis (multi-worker sync)
     await _load_cron_state_from_store()
 
+    # ── Start BrsApi usage recorder (daily usage report for admin) ──
+    try:
+        from brsapi.usage_recorder import get_usage_recorder
+        get_usage_recorder().start()
+        logger.info("BrsApi usage recorder started — flushing daily usage every 60s")
+    except Exception:
+        logger.warning("BrsApi usage recorder failed to start")
+
+    # ── Start accuracy outcome flusher (audit S2: no silent outcome loss) ──
+    try:
+        from services.accuracy_outcome_queue import get_accuracy_outcome_queue
+        get_accuracy_outcome_queue().start()
+        logger.info("Accuracy outcome queue flusher started — flushing every 30s")
+    except Exception:
+        logger.warning("Accuracy outcome flusher failed to start")
+
     # ── Register rate limit notification callback ──
     try:
         from brsapi.rate_limiter import get_rate_limiter
@@ -733,21 +799,21 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Start BrsApi scheduler (periodic sync jobs) ──
     try:
         from apps.scheduler.app import SchedulerApp
-        _scheduler_app = SchedulerApp()
-        _scheduler_app.start()
-        job_count = len(_scheduler_app.scheduler.get_jobs())
+        scheduler_app = SchedulerApp()
+        scheduler_app.start()
+        job_count = len(scheduler_app.scheduler.get_jobs())
         logger.info("BrsApi scheduler started with %d periodic jobs", job_count)
     except Exception:
         logger.exception("BrsApi scheduler startup failed — periodic syncs disabled")
 
     # ── Initial full sync (ALL endpoints, ordered) ──
-    asyncio.create_task(_brsapi_startup_sync())
+    _track_background_task(_brsapi_startup_sync(), "brsapi-startup-sync")
 
     # Auto-fetch news in background
-    asyncio.create_task(_fetch_news_on_startup())
+    _track_background_task(_fetch_news_on_startup(), "news-startup-ingest")
 
     # Auto-seed Decision Engine architecture data in background
-    asyncio.create_task(_decision_engine_startup_seed())
+    _track_background_task(_decision_engine_startup_seed(), "decision-engine-seed")
 
     # ── Start RealtimeService (WebSocket broadcasting) ──
     try:
@@ -758,7 +824,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         logger.exception("RealtimeService startup failed — WebSocket broadcasting disabled")
 
     # ── Hourly orchestrator cron (signal generation + outcome tracking + auto-retrain) ──
-    asyncio.create_task(_orchestrator_hourly_cron())
+    _track_background_task(_orchestrator_hourly_cron(), "orchestrator-hourly-cron")
     logger.info("Orchestrator hourly cron started — generating signals every 3600s")
 
     # ── Pre-warm the multi-market signals cache so the first page load is
@@ -766,21 +832,28 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         from apps.api.endpoints.multi_market_signals import warm_signal_cache
 
-        asyncio.create_task(warm_signal_cache())
+        _track_background_task(warm_signal_cache(), "signal-cache-warmup")
         logger.info("Signal cache warm-up scheduled at startup")
     except Exception:
         logger.exception("Failed to schedule signal cache warm-up")
 
     # ── Fund sync cron (every 15 min during market hours, daily at 2 AM) ──
-    asyncio.create_task(_fund_sync_cron())
+    _track_background_task(_fund_sync_cron(), "fund-sync-cron")
     logger.info("Fund sync cron started — updating fund data every 15 min")
 
     # ── Warm the ModelLoader LRU cache for active watchlist/screener symbols ──
-    asyncio.create_task(_ml_model_preload())
+    _track_background_task(_ml_model_preload(), "ml-model-preload")
     logger.info("ML model preload scheduled at startup — warming cache for active symbols")
 
     logger.info("Starting %s", settings.app_name)
     yield
+
+    # Stop producers before closing their DB/Redis dependencies. This also
+    # handles CancelledError explicitly through gather(return_exceptions=True).
+    await _stop_background_tasks()
+    with suppress(Exception):
+        if scheduler_app is not None:
+            scheduler_app.scheduler.shutdown(wait=False)
     with suppress(Exception):
         try:
             from services.realtime_service import get_realtime_service
@@ -793,6 +866,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     with suppress(Exception):
         from brsapi.client import close_client
         await close_client()
+    with suppress(Exception):
+        from brsapi.usage_recorder import get_usage_recorder
+        await get_usage_recorder().stop()
+    with suppress(Exception):
+        from services.accuracy_outcome_queue import get_accuracy_outcome_queue
+        await get_accuracy_outcome_queue().stop()
     with suppress(Exception):
         await close_database()
     logger.info("Shutting down %s", settings.app_name)

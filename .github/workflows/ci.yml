@@ -196,6 +196,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest pytest-asyncio pytest-cov pytest-timeout
 
+      - name: Backtest integrity guard (cost parity + engine runner D1)
+        run: |
+          pytest tests/unit/backtesting/test_cost_parity.py tests/unit/backtesting/test_engine_runner.py -v -x
+        env:
+          DATABASE_URL: postgresql://market:market@localhost:5432/market_test
+          REDIS_URL: redis://localhost:6379/0
+          ENV: test
+
       - name: Run unit tests
         run: |
           pytest tests/unit \

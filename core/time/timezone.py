@@ -43,8 +43,12 @@ def localize(dt: datetime, tz_name: str) -> datetime:
 
 
 def is_dst(dt: datetime | None = None, tz_name: str = "Asia/Tehran") -> bool:
-    if dt is None:
-        dt = datetime.now()
     tz = get_timezone(tz_name)
-    localized = localize(dt.replace(tzinfo=None), tz_name) if dt.tzinfo is None else dt.astimezone(tz)
+    if dt is None:
+        # Use an aware clock in the requested timezone; a host-local naive
+        # datetime can otherwise produce the wrong DST result on servers
+        # configured outside Tehran.
+        localized = datetime.now(tz)
+    else:
+        localized = localize(dt.replace(tzinfo=None), tz_name) if dt.tzinfo is None else dt.astimezone(tz)
     return bool(localized.dst()) if localized.dst() else False

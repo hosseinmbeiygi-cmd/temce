@@ -5,9 +5,8 @@ from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session, get_quote_service
+from apps.api.dependencies import get_quote_service
 from schemas.common.responses import ApiResponse
 from services.quote_import_service import QuoteImportService
 from services.quote_service import QuoteService
@@ -100,16 +99,14 @@ async def get_history(
 )
 async def bulk_import_quotes(
     files: list[UploadFile] = File(..., description="CSV files, each named after a symbol (e.g. فولاد.csv)"),
-    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Upload multiple daily quote CSV files — one per symbol — and import them all."""
+    from core.database import async_session_factory
     from repositories.instrument_repository import InstrumentRepository
     from repositories.quote_repository import QuoteRepository
 
-    quote_repo = QuoteRepository(session=session)
-    instrument_repo = InstrumentRepository(session=session)
-    service = QuoteImportService(quote_repo=quote_repo, instrument_repo=instrument_repo)
-
+    # AsyncSession cannot be shared by concurrent coroutines. Build a fresh
+    # repository/service graph inside each file worker.
     total_files = len(files)
     per_file: dict[str, dict[str, Any]] = {}
     total_rows = 0
@@ -128,12 +125,20 @@ async def bulk_import_quotes(
             all_errors.append(f"{file.filename}: empty file")
             return
 
-        result = await service.import_from_bytes(
-            symbol=symbol,
-            content=content,
-            filename=file.filename or "",
-            data_source="csv_import",
-        )
+        if async_session_factory is None:
+            all_errors.append(f"{file.filename}: database is not initialized")
+            return
+
+        async with async_session_factory() as file_session:
+            quote_repo = QuoteRepository(session=file_session)
+            instrument_repo = InstrumentRepository(session=file_session)
+            service = QuoteImportService(quote_repo=quote_repo, instrument_repo=instrument_repo)
+            result = await service.import_from_bytes(
+                symbol=symbol,
+                content=content,
+                filename=file.filename or "",
+                data_source="csv_import",
+            )
         if not result.success:
             all_errors.append(f"{file.filename}: {result.error}")
             return
@@ -159,7 +164,14 @@ async def bulk_import_quotes(
         async with sem:
             await process_one(file)
 
-    await asyncio.gather(*[limited(f) for f in files])
+    results = await asyncio.gather(
+        *[limited(f) for f in files],
+        return_exceptions=True,
+    )
+    for result in results:
+        if isinstance(result, Exception):
+            # Keep successful files and report only the failed worker.
+            all_errors.append(f"unexpected import error: {result}")
 
     return ApiResponse[dict[str, Any]](
         success=not all_errors,

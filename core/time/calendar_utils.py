@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from core.constants.markets import MARKET_WEEKEND_DAYS
+
 
 class CalendarUtils:
     @staticmethod
     def is_weekend(d: date) -> bool:
-        return d.weekday() >= 5
+        return d.weekday() in MARKET_WEEKEND_DAYS
 
     @staticmethod
     def is_holiday(d: date, holidays: set[date] | None = None) -> bool:

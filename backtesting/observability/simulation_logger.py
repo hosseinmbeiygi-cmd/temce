@@ -32,7 +32,7 @@ class SimulationLogger:
         self,
         name: str = "backtest.simulation",
         min_level: SimulationLogLevel = SimulationLogLevel.DEBUG,
-        max_entries: int = 0,
+        max_entries: int = 10_000,
     ) -> None:
         self._logger = logging.getLogger(name)
         self._entries: list[SimulationLogEntry] = []

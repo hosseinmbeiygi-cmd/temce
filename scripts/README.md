@@ -119,7 +119,9 @@ from scripts.bootstrap_env import bootstrap as bootstrap_environment
 ### ⚙️ اسکریپت‌های ویندوز/لینوکس
 | فایل | کاربرد |
 |------|--------|
-| `setup_windows_scheduler.ps1` / `.bat` | نصب jobهای زمان‌بندی ویندوز (صدا زدن `brsapi_full_update`, `fetch_news`, `start_scheduler`, `sync_live_data`) |
+| `setup_windows_scheduler.ps1` / `.bat` | نصب jobهای قدیمی زمان‌بندی BrsApi (live/comprehensive/APScheduler) |
+| `setup_brsapi_auto_sync.ps1` / `.bat` | نصب/حذف/بررسی Task اختصاصی سینک شبانه `sync_all_tables_auto.py` در ساعت ۰۰:۱۰ |
+| `sync_all_tables_auto.bat` | wrapper دارای لاگ برای اجرای Task Scheduler؛ لاگ در `logs/brsapi_sync_YYYYMMDD.log` |
 | `install_brsapi_tasks_silent.ps1` | نصب بی‌صدا taskهای BrsApi |
 | `fetch_news_daily.ps1` / `.bat` | اجرای روزانه `fetch_news.py` |
 | `ci_simulate_local.sh` | شبیه‌سازی CI به‌صورت محلی |
@@ -147,8 +149,17 @@ python scripts/train.py --mode quick --symbols فولاد,فملی
 # ۵. بک‌تست
 python scripts/run_sample_backtest.py
 
-# ۶. اجرای زمان‌بندی
+# ۶. اجرای زمان‌بندی قدیمی (در صورت نیاز)
 python scripts/start_scheduler.py
+
+# ۷. نصب سینک خودکار شبانه در Windows Task Scheduler
+scripts\\setup_brsapi_auto_sync.bat
+
+# بررسی Task ثبت‌شده
+scripts\\setup_brsapi_auto_sync.bat -Status
+
+# حذف Task
+scripts\\setup_brsapi_auto_sync.bat -Uninstall
 ```
 
 > **نکته:** همه اسکریپت‌ها با `python scripts/<name>.py` از ریشه پروژه اجرا می‌شوند. `bootstrap_env.py` مسیر پروژه را خودکار به `sys.path` اضافه می‌کند.

@@ -26,7 +26,8 @@ class TsetmcCollector(BaseCollector):
     """
 
     source_name = "tsetmc"
-    BASE_OLD = "http://old.tsetmc.com"
+    # The legacy host supports TLS; never send market data over plaintext HTTP.
+    BASE_OLD = "https://old.tsetmc.com"
     BASE_CDN = "https://cdn.tsetmc.com"
     BASE_MEMBERS = "https://members.tsetmc.com"
 

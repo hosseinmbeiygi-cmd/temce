@@ -1,9 +1,17 @@
-import asyncio, io, sys
+import asyncio, io, os, sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.path.insert(0, ".")
 import asyncpg
 
+# Credentials come from settings/.env — never hardcode them in scripts.
+try:
+    from scripts._db import database_url_async
+    DB_URL = database_url_async().replace("+asyncpg", "")
+except Exception:  # pragma: no cover
+    DB_URL = os.environ.get("DATABASE_URL", "").replace("+asyncpg", "")
+
 async def main():
-    conn = await asyncpg.connect('postgresql://hossein:1343@localhost:5432/my_first_db')
+    conn = await asyncpg.connect(DB_URL)
     rows = await conn.fetch("""
         SELECT id, created_at, gregorian_date, shamsi_date, date
         FROM brsapi_shareholder_records WHERE date IS NULL LIMIT 4

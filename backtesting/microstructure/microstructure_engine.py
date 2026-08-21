@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from backtesting.costs.iran_costs import DEFAULT_IRAN_COSTS, IranTransactionCosts
 from backtesting.engine.event_builder import EventType, MarketEvent
 from backtesting.market.market_engine import MarketEngine
 from backtesting.microstructure.auction_engine import AuctionEngine, AuctionResult
@@ -28,6 +29,7 @@ class MicrostructureEngine:
         latency_model: LatencyModel | None = None,
         auction_engine: AuctionEngine | None = None,
         hidden_liquidity: HiddenLiquidityModel | None = None,
+        cost_model: IranTransactionCosts = DEFAULT_IRAN_COSTS,
     ) -> None:
         self.cancel_model = cancel_model or CancelModel()
         self.arrival_model = arrival_model or OrderArrivalModel()
@@ -177,7 +179,7 @@ class MicrostructureEngine:
                     side=order.side,
                     quantity=order.remaining,
                     price=round(exec_price, 2),
-                    commission=0.0,
+                    commission=self.cost_model.compute(order.side, round(exec_price, 2), order.remaining),
                     slippage=impact,
                 )
                 fills.append(fill)

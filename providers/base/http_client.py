@@ -16,13 +16,18 @@ _DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537
 
 
 class HttpClient:
-    def __init__(self, base_url: str = "", timeout: int | None = None, headers: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, base_url: str = "", timeout: int | None = None, headers: dict[str, str] | None = None, concurrency: int | None = None
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout or settings.provider_default_timeout
         default_headers = {"User-Agent": _DEFAULT_USER_AGENT}
         self._headers = {**default_headers, **(headers or {})}
         self._client: httpx.AsyncClient | None = None
-        self._semaphore = asyncio.Semaphore(10)
+        # Concurrency per-host: previously hard-coded to 10, now derived from
+        # provider_rate_limit_per_minute (≈5 req/s) but overridable per-provider.
+        _conc = concurrency or max(5, min(20, settings.provider_rate_limit_per_minute // 12))
+        self._semaphore = asyncio.Semaphore(_conc)
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -31,6 +36,7 @@ class HttpClient:
                 timeout=httpx.Timeout(self.timeout),
                 headers=self._headers,
                 follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
             )
         return self._client
 

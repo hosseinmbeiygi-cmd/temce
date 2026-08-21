@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
 
@@ -50,70 +49,36 @@ class SignalAccuracyTracker:
         self._session = session
 
     async def record_outcome(self, outcome: SignalOutcome) -> Result[str]:
-        """Record the outcome of a single signal after its period ends."""
+        """Record the outcome of a single signal after its period ends.
+
+        Audit S2 (no silent failures): outcomes are enqueued and flushed to the
+        DB in batches by the background flusher. If the queue overflows the
+        drop is counted in Prometheus (``accuracy_tracking_dropped_total``).
+        Outside production a missing database raises loudly instead of silently
+        acknowledging the outcome.
+        """
+        from core.config import settings
+        from core.database import async_session_factory
+        from services.accuracy_outcome_queue import get_accuracy_outcome_queue
+
+        if async_session_factory is None and not settings.is_production:
+            raise RuntimeError(
+                "No database session available for accuracy tracking (audit S2): "
+                "fail-fast outside production — outcomes must never be silently dropped"
+            )
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
-
-            if async_session_factory is None:
-                logger.warning("No database session available for accuracy tracking")
-                return Result.ok(outcome.signal_id)
-
-            async with async_session_factory() as session:
-                stmt = text("""
-                    INSERT INTO signal_accuracy (
-                        id, signal_id, symbol, market, source,
-                        direction, timeframe,
-                        actual_return_pct, direction_correct,
-                        max_profit_pct, max_loss_pct,
-                        hit_target1, hit_target2, stopped_out,
-                        entry_price, exit_price, signal_price,
-                        signal_strength, signal_confidence,
-                        ml_score, rule_score,
-                        generated_at, outcome_set_at
-                    ) VALUES (
-                        :id, :signal_id, :symbol, :market, :source,
-                        :direction, :timeframe,
-                        :actual_return_pct, :direction_correct,
-                        :max_profit_pct, :max_loss_pct,
-                        :hit_target1, :hit_target2, :stopped_out,
-                        :entry_price, :exit_price, :signal_price,
-                        :signal_strength, :signal_confidence,
-                        :ml_score, :rule_score,
-                        :generated_at, :outcome_set_at
-                    )
-                """)
-                record_id = new_id("sacc")
-                await session.execute(stmt, {
-                    "id": record_id,
-                    "signal_id": outcome.signal_id,
-                    "symbol": outcome.symbol,
-                    "market": outcome.market,
-                    "source": outcome.source,
-                    "direction": outcome.direction,
-                    "timeframe": outcome.timeframe,
-                    "actual_return_pct": outcome.actual_return_pct,
-                    "direction_correct": outcome.direction_correct,
-                    "max_profit_pct": outcome.max_profit_pct,
-                    "max_loss_pct": outcome.max_loss_pct,
-                    "hit_target1": outcome.hit_target1,
-                    "hit_target2": outcome.hit_target2,
-                    "stopped_out": outcome.stopped_out,
-                    "entry_price": outcome.entry_price,
-                    "exit_price": outcome.exit_price,
-                    "signal_price": outcome.signal_price,
-                    "signal_strength": outcome.signal_strength,
-                    "signal_confidence": outcome.signal_confidence,
-                    "ml_score": outcome.ml_score,
-                    "rule_score": outcome.rule_score,
-                    "generated_at": datetime.now(UTC).replace(tzinfo=None),
-                    "outcome_set_at": datetime.now(UTC).replace(tzinfo=None),
-                })
-                await session.commit()
-                logger.info("Recorded outcome for signal %s: correct=%s return=%.2f%%",
-                            outcome.signal_id, outcome.direction_correct, outcome.actual_return_pct)
-                return Result.ok(record_id)
+            dropped = get_accuracy_outcome_queue().enqueue(outcome)
+            if dropped:
+                logger.error(
+                    "Accuracy outcome queue overflow — dropped oldest outcome for signal %s",
+                    outcome.signal_id,
+                )
+                return Result.fail("accuracy outcome queue overflow")
+            logger.info(
+                "Queued outcome for signal %s: correct=%s return=%.2f%%",
+                outcome.signal_id, outcome.direction_correct, outcome.actual_return_pct,
+            )
+            return Result.ok(outcome.signal_id)
         except Exception as e:
             logger.error("Failed to record signal outcome: %s", e)
             return Result.fail(str(e))
@@ -215,6 +180,7 @@ class SignalAccuracyTracker:
             from core.database import async_session_factory
 
             if async_session_factory is None:
+                self._count_unavailable_read()
                 return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
             async with async_session_factory() as session:
@@ -268,6 +234,7 @@ class SignalAccuracyTracker:
                 ))
         except Exception as e:
             logger.error("Failed to get accuracy by market: %s", e)
+            self._count_unavailable_read(reason="error")
             return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
     async def get_accuracy_by_symbol(
@@ -282,6 +249,7 @@ class SignalAccuracyTracker:
             from core.database import async_session_factory
 
             if async_session_factory is None:
+                self._count_unavailable_read()
                 return Result.ok({"symbol": symbol, "total": 0, "accuracy_pct": 0})
 
             async with async_session_factory() as session:
@@ -324,4 +292,17 @@ class SignalAccuracyTracker:
                 })
         except Exception as e:
             logger.error("Failed to get accuracy by symbol: %s", e)
+            self._count_unavailable_read(reason="error")
             return Result.ok({"symbol": symbol, "total": 0, "accuracy_pct": 0, "breakdown": []})
+
+    @staticmethod
+    def _count_unavailable_read(reason: str = "no_database") -> None:
+        """Count an unavailable accuracy read so it is never silent (audit S2)."""
+        try:
+            from apps.api.metrics import get_prometheus_exporter
+
+            get_prometheus_exporter().inc(
+                "accuracy_tracking_read_unavailable_total", labels={"reason": reason}
+            )
+        except Exception:  # noqa: BLE001 — metric plumbing must not break reads
+            pass

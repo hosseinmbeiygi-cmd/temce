@@ -578,18 +578,33 @@ async def main() -> None:
         "",
     ])
 
-    # ── splice into README (replace the existing DB section) ─────────────
+    # ── splice into README (replace or insert the DB section) ─────────
     content = README.read_text(encoding="utf-8")
     start = content.find("## 🗄️ ساختار دیتابیس")
     if start == -1:
-        raise SystemExit("DB section marker not found in README")
-    nxt = content.find("\n## ", start + 5)  # next top-level section
-    if nxt == -1:
-        nxt = len(content)
-    new_content = content[:start] + section.rstrip() + "\n\n" + content[nxt:].lstrip("\n")
+        # Section doesn't exist yet — insert before ## 📄 مجوز (or at end)
+        anchor = content.find("## 📄 مجوز")
+        if anchor == -1:
+            anchor = len(content)
+        # Go back to previous newline
+        while anchor > 0 and content[anchor - 1] in ("\r", "\n"):
+            anchor -= 1
+        new_content = (
+            content[:anchor]
+            + section.rstrip()
+            + "\n\n---\n\n"
+            + content[anchor:]
+        )
+        action = "added"
+    else:
+        nxt = content.find("\n## ", start + 5)  # next top-level section
+        if nxt == -1:
+            nxt = len(content)
+        new_content = content[:start] + section.rstrip() + "\n\n" + content[nxt:].lstrip("\n")
+        action = "replaced"
     README.write_text(new_content, encoding="utf-8")
     print(
-        f"OK: replaced DB schema section ({len(rows)} tables, {len(prob_counter)} problem types, "
+        f"OK: {action} DB schema section ({len(rows)} tables, {len(prob_counter)} problem types, "
         f"diagram {len(diagram_names)} nodes) in README.md"
     )
 

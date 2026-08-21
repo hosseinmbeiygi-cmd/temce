@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from backtesting.costs.iran_costs import DEFAULT_IRAN_COSTS, IranTransactionCosts, normalize_side
 from backtesting.engine.clock import Clock
 from backtesting.engine.data_layer import DataLake, InMemoryDataLake
 from backtesting.engine.event_builder import EventBuilder, EventType, MarketEvent
@@ -38,7 +39,11 @@ class HybridResult:
 
     def to_backtest_result(self, strategy_name: str = "HybridStrategy",
                            initial_capital: float = 1_000_000_000) -> BacktestResult:
-        nav = initial_capital + sum(f.price * f.quantity for f in self.fills)
+        # Fills carry commission now (audit F2) — deduct it so hybrid P&L is
+        # consistent with the portfolio-based backtest paths.
+        gross = sum(f.price * f.quantity for f in self.fills)
+        costs = sum((f.commission or 0.0) for f in self.fills)
+        nav = initial_capital + gross - costs
         return BacktestResult(
             strategy_name=strategy_name,
             initial_capital=initial_capital,
@@ -78,6 +83,7 @@ class HybridMarketSimulator:
         impact_model: ImpactModel | None = None,
         clock: Clock | None = None,
         flow_mix: dict[str, float] | None = None,
+        cost_model: IranTransactionCosts = DEFAULT_IRAN_COSTS,
     ) -> None:
         self.data_lake = data_lake or InMemoryDataLake()
         self.event_builder = event_builder or EventBuilder()
@@ -88,6 +94,7 @@ class HybridMarketSimulator:
         self.price_formation = price_formation or PriceFormation(mode="anchored")
         self.impact_model = impact_model or ImpactModel()
         self.clock = clock or Clock()
+        self.cost_model = cost_model
 
         # Default flow mix: what proportion of orders come from each source
         self.flow_mix = flow_mix or {"real": 0.8, "agent": 0.15, "strategy": 0.05}
@@ -327,10 +334,10 @@ class HybridMarketSimulator:
                     fill = FillEvent(
                         order_id=trade.buy_order_id,
                         instrument_id=order.instrument_id or "",
-                        side="buy",
+                        side=normalize_side(order.side),
                         quantity=trade.quantity,
                         price=trade.price,
-                        commission=0.0,
+                        commission=self.cost_model.compute(order.side, trade.price, trade.quantity),
                         slippage=0.0,
                     )
                     fills.append(fill)

@@ -479,12 +479,13 @@ class Router:
             tags=["Tabdeal"],
             dependencies=_optional_auth,
         )
-        # Table browser
+        # Table browser exposes arbitrary database metadata/rows; keep it
+        # restricted to administrators (never anonymous or optional-auth).
         router.include_router(
             tables_router,
             prefix="/tables",
             tags=["Tables"],
-            dependencies=_optional_auth,
+            dependencies=_require_admin,
         )
         # Strategy Composition
         router.include_router(

@@ -6,57 +6,73 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+یک پلتفرم جامع، ماژولار و مقیاس‌پذیر برای **جمع‌آوری، پردازش، ذخیره‌سازی، تحلیل و بک‌تست** داده‌های بازار سرمایه ایران (بورس تهران، فرابورس، کالا، انرژی، طلا، ارز، رمزارز، اوراق و مشتقه). این سیستم شامل موتور بک‌تست چندبازاری با مدل هزینه واقعی ایران، زنجیره کامل تولید سیگنال با بازخورد خودکار (دقت‌سنجی + بازآموزی)، غربالگری ۱۱۰ ستونه، تحلیل پول هوشمند (Smart Money)، و زیرساخت اجرایی Queue-محور با قفل توزیع‌شده است.
 
 ---
 
-یک پلتفرم جامع، ماژولار و مقیاس‌پذیر برای جمع‌آوری، پردازش، ذخیره‌سازی، تحلیل و بک‌تست داده‌های بازار سرمایه ایران. این سیستم شامل بیش از **۴۵ API endpoint**، **۵۰+ صفحه فرانت‌اند**، **موتور بک‌تست چندبازاری**، **سیستم سیگنال هوشمند با بازخورد خودکار** و **موتور تصمیم‌گیری** است.
+## 📊 آمار کلی پروژه (بررسی مستقیم کد)
+
+| بخش | تعداد |
+|------|------|
+| فایل‌های endpoint API | ۶۰ |
+| route تعریف‌شده (`@router.*`) | ~۴۳۸ |
+| صفحه فرانت‌اند (Next.js `page.tsx`) | ۸۸ |
+| فایل سرویس تجاری (`services/`) | ۱۰۳ |
+| ماژول موتور بک‌تست (`backtesting/`) | ۲۷۵ |
+| ماژول ML (`ml/`) | ۱۱۸ |
+| تعریف job زمان‌بندی‌شده | ۱۹ |
+| مهاجرت Alembic (head: `0039`) | ۳۹ |
+| جدول دیتابیس | ~۱۲۲ |
+| فایل تست | ۲۵۰ |
 
 ---
 
 ## 📚 مستندات کامل
 
-> 📖 **راهنمای جامع پروژه:** [**`docs/PROJECT_GUIDE.md`**](docs/PROJECT_GUIDE.md) — مستند ۷۰۵ خطی با جزئیات کامل معماری، استک، ساختار پروژه، ۶۳ ماژول API، ۱۹ job زمان‌بندی‌شده، موتور سیگنال، ML Pipeline، بک‌تست، فرانت‌اند، Docker و عیب‌یابی.
-
-مستندات تخصصی دیگر:
+> 📖 **راهنمای جامع پروژه:** [`docs/PROJECT_GUIDE.md`](docs/PROJECT_GUIDE.md) — معماری، استک، ساختار، ماژول‌های API، jobها، ML، بک‌تست و فرانت‌اند.
 
 | مستند | موضوع |
 |-------|-------|
-| [مستندات BrsApi.ir](docs/brsapi-data-sources.md) | کاتالوگ کامل endpoint ها، نرخ مجاز و راهنمای دریافت داده |
+| [مستندات BrsApi.ir](docs/brsapi-data-sources.md) | کاتالوگ endpoint ها، نرخ مجاز، بودجه‌بان و راهنمای دریافت داده |
 | [گزارش وضعیت Sync](docs/brsapi-sync-status-report.md) | تازگی جداول و وضعیت هماهنگ‌سازی داده‌ها |
 | [ارزیابی موتور سیگنال کوانت](docs/quant-signal-goal-assessment.md) | فاصله پروژه تا هدف «بهترین سیگنال» با اعداد واقعی |
-| [معماری Job Queue](docs/job-queue.md) | قفل توزیع‌شده Redis، Publisher/Consumer و dead-letter || [Model Loader](docs/ml-model-loader.md) | بارگذاری Lazy + LRU کش مدل‌های ML |
-  | [API موتور تصمیم‌گیری](docs/decision-engine-api.md) | مستندات API موتور تصمیم |
-  | [متغیرهای محیطی (.env)](docs/env-vars.md) | مرجع کامل همه متغیرها، پیش‌فرض‌ها و نکات امنیتی |
+| [معماری Job Queue](docs/job-queue.md) | قفل توزیع‌شده Redis، Publisher/Consumer و dead-letter |
+| [Model Loader](docs/ml-model-loader.md) | بارگذاری Lazy + LRU کش مدل‌های ML |
+| [API موتور تصمیم‌گیری](docs/decision-engine-api.md) | مستندات API موتور تصمیم |
+| [متغیرهای محیطی (.env)](docs/env-vars.md) | مرجع کامل همه متغیرها، پیش‌فرض‌ها و نکات امنیتی |
+| [ممیزی معماری](docs/ARCHITECTURE_AUDIT.md) | یافته‌های ممیزی عمیق و وضعیت رفع هرکدام |
+| [گزارش ممیزی مجدد](docs/re-audit-status.md) | وضعیت تأییدشده همه یافته‌های بحرانی/بالا با سوت‌های تست |
 
 ---
 
 ## 📑 فهرست مطالب
 
-- [📚 مستندات کامل](#-مستندات-کامل)
 - [ویژگی‌ها](#ویژگی‌ها)
 - [معماری](#معماری)
 - [بازارهای پشتیبانی‌شده](#بازارهای-پشتیبانی‌شده)
 - [تکنولوژی‌ها](#تکنولوژی‌ها)
 - [ساختار پروژه](#ساختار-پروژه)
-- [راه‌اندازی سریع](#راه‌اندازی-سریع)
+- [راه‌اندازی سریع](#راه-اندازی-سریع)
 - [استفاده با Docker](#استفاده-با-docker)
-- [فرانت‌اند Next.js](#فرانت‌اند-nextjs)
 - [API Reference](#api-reference)
-- [موتور بک‌تست](#موتور-بک‌تست)
-- [موتور سیگنال هوشمند](#موتور-سیگنال-هوشمند)
-- [موتور Smart Money](#موتور-smart-money)
-- [غربالگری هوشمند](#غربالگری-هوشمند)
-- [موتور مکالمه](#موتور-مکالمه)
-- [موتور تصمیم‌گیری](#موتور-تصمیم‌گیری)
+- [موتور بک‌تست](#موتور-بک-تست)
+- [سیستم سیگنال کوانت](#سیستم-سیگنال-کوانت)
+- [Smart Money](#smart-money)
+- [غربالگری](#غربالگری)
+- [موتور تصمیم‌گیری](#موتور-تصمیم-گیری)
 - [Machine Learning Pipeline](#machine-learning-pipeline)
-- [یکپارچه‌سازی BrsApi.ir](#یکپارچه‌سازی-brsapiir)
-- [سیستم شغل‌ها](#سیستم-شغل‌ها)
-- [مانیتورینگ](#مانیتورینگ)
-- [پیکربندی](#پیکربندی)
-- [دستورات کاربردی](#دستورات-کاربردی)
-- [ساختار دیتابیس](#ساختار-دیتابیس)
-- [عیب‌یابی](#عیب‌یابی)
+- [یکپارچه‌سازی BrsApi](#یکپارچه-سازی-brsapi)
+- [زیرساخت Job Queue](#زیرساخت-job-queue)
+- [صندوق‌های سرمایه‌گذاری](#صندوق-های-سرمایه-گذاری)
+- [اخبار و کدال](#اخبار-و-کدال)
+- [فرانت‌اند Next.js](#فرانت-اند-nextjs)
+- [مانیتورینگ و متریک‌ها](#مانیتورینگ-و-متریک-ها)
+- [تست‌ها](#تست-ها)
+- [CI/CD و استقرار](#cicd-و-استقرار)
+- [عیب‌یابی](#عیب-یابی)
 - [توسعه و مشارکت](#توسعه-و-مشارکت)
 
 ---
@@ -64,118 +80,73 @@
 ## ✨ ویژگی‌ها
 
 ### 🏛️ موتور بک‌تست چندبازاری
-- **Replay Engine**: موتور بازپخش رویدادمحور با قابلیت پشتیبانی از ۱۰۰+ میلیون رویداد
-- **Unified Timeline**: خط زمانی یکپارچه با مرتب‌سازی بر اساس `(timestamp, priority)`
-- **Market Rule Engine**: موتور قوانین مجزا برای هر بازار (دامنه نوسان، سشن، اندازه تیک)
-- **Agent-Based Modeling (ABM)**: شبیه‌سازی Market Maker، Noise Trader، Trend Follower، Mean Reversion
-- **Microstructure Engine**: مدل صف، ایمپکت قیمت (قانون جذر)، حراج، نقدینگی پنهان
-- **Portfolio Simulator**: مدیریت چند نماد هم‌زمان با allocation و rebalancing
-- **Experiments**: Grid Search، Walk-Forward، Monte Carlo، Bayesian Optimization
+- **دیسپچر یکتای موتورها** (`backtesting/runner.py::BacktestRunner`): ۶ موتور (Simulator کانونیکال + Replay + Hybrid + Portfolio + دو legacy منسوخ) با نرمال‌سازی نتیجه یکسان — هر مسیر بک‌تست همان PnL را می‌دهد (گارد پاریتی در CI).
+- **مدل هزینه واقعی ایران** (`backtesting/costs/iran_costs.py`): کارمزد ۰٫۴٪ + کارمزد تسویه + مالیات ۰٫۵٪ فقط در سمت فروش — تک‌منبع برای همه مسیرها.
+- **لغزش مبتنی بر ADV واقعی هر نماد** (`backtesting/engine/adv.py::AdvResolver`): واکشی خودکار میانگین حجم روزانه از دیتابیس + کش؛ بدون پیش‌فرض صامت ۱ میلیونی.
+- **FIFO cost-basis PnL**: کارمزد خرید در سود/زیان گردش معامله لحاظ می‌شود (AnalyticsEngine + TradeMetrics با `deque`).
+- **Replay Engine**: بازپخش رویدادمحور با خط زمانی یکپارچه (۱۰۰+ میلیون رویداد).
+- **Microstructure Engine**: صف، ایمپکت قیمت (قانون جذر)، حراج، نقدینگی پنهان، مدل تأخیر.
+- **Agent-Based Modeling**: بازارگردان، Noise Trader، Trend Follower، Mean Reversion.
+- **Portfolio Simulator**: چند نماد هم‌زمان با allocation و rebalancing.
+- **Experiments**: Grid Search، Walk-Forward (با purged/embargo)، Monte Carlo، بهینه‌سازی ژنتیک.
+- **قوانین بازار** (`backtesting/market/`): دامنه نوسان، اندازه تیک، سشن، حراج برای TSE/IFB/پایه/ETF/بدهی/مشتقه/IME/انرژی.
 
-### 🤖 سیستم سیگنال هوشمند با بازخورد خودکار
-- **Quant Signal Orchestrator**: تولید سیگنال هر ساعت به صورت خودکار
-- **Signal Voting System**: رأی‌گیری چند مدل برای افزایش دقت
-- **Confidence Calibration**: کالیبراسیون اطمینان سیگنال‌ها
-- **Outcome Tracking**: ثبت نتیجه سیگنال‌ها و محاسبه دقت
-- **Auto-Retrain**: بازآموزی خودکار مدل‌ها هنگام افت دقت زیر ۵۰٪
-- **Alert System**: هشدار تلگرام برای ۳ شکست متوالی یا افت دقت
+### 🤖 سیستم سیگنال کوانت (بازخورد خودکار)
+- **Quant Signal Orchestrator**: تولید سیگنال دوره‌ای، پایش دقت، بازآموزی خودکار هنگام افت دقت زیر آستانه.
+- **Signal Voting System**: رأی‌گیری چند مدل برای افزایش دقت.
+- **Confidence Calibration / Probability Calibrator**: کالیبراسیون اطمینان سیگنال‌ها.
+- **Outcome Tracking بدون شکست صامت** (`services/signal_accuracy_tracker.py` + `services/accuracy_outcome_queue.py`): outcomeها در صف داخلی بچ می‌شوند، هنگام شکست DB requeue می‌شوند و هر drop در Prometheus شمارش می‌شود (`accuracy_tracking_dropped_total`).
+- **Multi-Market Signal Engine + Multi-Timeframe Confirmer + Ensemble Engine**.
+- **Decision Engine (۱۰ دروازه)** با Rule-Based Override وابسته به رژیم بازار.
 
 ### 📊 Smart Money Analysis (۹ لایه)
-1. **Price-Volume Analysis**: تحلیل حجم و قیمت
-2. **Absorption Detection**: تشخیص جذب سفارشات
-3. **Ownership Analysis**: تحلیل مالکیت حقیقی/حقوقی
-4. **Compression Detection**: تشخیص فشردگی قیمت
-5. **Relative Strength**: قدرت نسبی نماد
-6. **Breakout Analysis**: تحلیل شکست
-7. **Buyer Power**: قدرت خریدار
-8. **Microstructure Analysis**: تحلیل ریزساختار
-9. **Breakout Quality**: کیفیت شکست
+1. Price-Volume Analysis — 2. Absorption Detection — 3. Ownership Analysis (حقیقی/حقوقی) — 4. Compression — 5. Relative Strength — 6. Breakout — 7. Buyer Power — 8. Microstructure — 9. Breakout Quality
 
-### 🔬 غربالگری هوشمند (Smart Screener)
-- **۴۰۰+ فیلتر**: فیلترهای پیشرفته بر اساس قیمت، حجم، اندیکاتورها، تکنیکال و بنیادی
-- **فیلترهای Smart Money**: فیلترهای مبتنی بر تحلیل پول هوشمند
-- **پشتیبانی از OR/AND**: منطق ترکیبی فیلترها با تشخیص خودکار
-- **ذخیره فیلترها**: ذخیره و بازیابی فیلترهای کاربر
-- **۱۱۰ ستون CANSLIM**: غربالگری جامع با ۱۱۰ معیار
+### 🔬 غربالگری
+- **Smart Screener**: ۴۰۰+ فیلتر با منطق OR/AND و ذخیره فیلترها.
+- **Screener 110 (CANSLIM)**: غربالگری ۱۱۰ ستونه.
+- **سرویس‌های غربالگری جداگانه** (screener، screener-v2، saved-filters).
 
 ### 🧠 موتور تصمیم‌گیری (Decision Engine)
-- **Enterprise Architecture Data**: ذخیره و مدیریت داده‌های معماری سازمانی
-- **Auto-Seeding**: پر کردن خودکار داده‌ها از فایل‌های JSON
-- **Decision Support**: پشتیبانی تصمیم‌گیری بر اساس داده‌های واقعی
-
-### 💬 موتور مکالمه ۲۰ سطحی (Chat Engine)
-- **Intent Classification**: تشخیص قصد کاربر
-- **Entity Extraction**: استخراج موجودیت‌ها
-- **Dialog Management**: مدیریت مکالمه چندمرحله‌ای
-- **Chart Generation**: تولید خودکار نمودار
-- **Sentiment Analysis**: تحلیل احساسات
-- **News Integration**: یکپارچه‌سازی اخبار
-
-### 📈 تحلیل تکنیکال و بنیادی
-- **اندیکاتورها**: RSI, MACD, Bollinger Bands, Moving Averages, Stochastic, and more
-- **تحلیل بنیادی**: EPS, P/E, P/B, ROE, ROA, and financial ratios
-- **تحلیل احساسات**: Persian sentiment analysis for news
-- **امواج الیوت**: Elliott Wave analysis
-- **سیگنال‌های چندبازاری**: Cross-market signal analysis
+- داده‌های معماری سازمانی + Auto-Seeding از JSON + API اختصاصی (`/decision-engine`).
 
 ### 🗄️ جمع‌آوری داده
-- **TSETMC**: داده‌های بورس تهران و فرابورس
-- **CODAL**: اطلاعیه‌های شرکت‌ها با دانلود پیوست‌ها
-- **BrsApi.ir**: کامودیتی، رمزارز، طلا، ارز، اوراق بدهی
-- **اخبار و ماکرو**: داده‌های بنیادی و کلان
-- **WebSocket**: داده‌های لحظه‌ای
+- **TSETMC** (بورس/فرابورس)، **CODAL** (اطلاعیه + دانلود پیوست)، **BrsApi.ir** (کامودیتی، رمزارز، طلا، ارز، بدهی)، اخبار، ماکرو، WebSocket لحظه‌ای.
 
-### 📊 ML Pipeline
-- **Feature Store**: ذخیره و مدیریت ویژگی‌ها
-- **Model Registry**: ثبت و نسخه‌گذاری مدل‌ها
-- **Hyperparameter Tuning**: بهینه‌سازی فراپارامترها
-- **Batch Inference**: پیش‌بینی دسته‌ای
-- **Drift Detection**: تشخیص تغییر توزیع داده
-- **Auto-Retrain**: بازآموزی خودکار هنگام افت دقت
+### 📈 ML Pipeline
+- **ModelLoader** (`ml/model_loader.py`): lazy loading + LRU کش (حداکثر ۲۰ مدل در حافظه) + `invalidate()` برای بازآموزی.
+- **Weight Validator** (`ml/weight_validator.py`): R² برش OOS با purged walk-forward (بدون R² درون‌نمونه).
+- Feature Store، Model Registry، Drift Detection، Auto-Retrain.
 
 ---
 
 ## 🏗️ معماری
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (Next.js 16)                   │
-│              port 3000 — Rewrite Proxy → API                │
-│   ۵۰+ صفحه │ RTL │ Dark Mode │ Responsive │ Charts        │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ /api/v1/*
-┌──────────────────────────▼──────────────────────────────────┐
-│                   API Gateway (FastAPI)                      │
-│              port 8000 — ۴۵+ endpoint                       │
-│   CORS │ Rate Limit │ Logging │ Timing │ Auth (optional)    │
-└────┬──────────────┬───────────────┬─────────────────────────┘
-     │              │               │
-┌────▼────┐  ┌──────▼──────┐  ┌────▼────────────────┐
-│ Services │  │   Jobs      │  │   ML Worker          │
-│ 40+ svc  │  │ Scheduler   │  │ Training/Inference   │
-└────┬─────┘  └──────┬──────┘  └────┬────────────────┘
-     │              │               │
-┌────▼──────────────▼───────────────▼─────────────────────────┐
-│                    Infrastructure                            │
-│  PostgreSQL 16 + TimescaleDB │ Redis 7 │ MinIO │ Telegram  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     Frontend (Next.js 16)                        │
+│              port 3000 — Rewrite Proxy → API                     │
+│   ۸۸ صفحه │ RTL │ Dark Mode │ Responsive │ Recharts             │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ /api/v1/*
+┌────────────────────────────▼────────────────────────────────────┐
+│                   API Gateway (FastAPI)                          │
+│              port 8000 — ۶۰ ماژول / ~۴۳۸ route                   │
+│  CORS │ CSRF │ Rate Limit │ Input Sanitization │ Timing │ Metrics│
+└────┬──────────────┬───────────────┬────────────┬────────────────┘
+     │              │               │            │
+┌────▼────┐  ┌──────▼──────┐  ┌─────▼─────┐  ┌───▼────────────┐
+│ Services │  │   Jobs       │  │ ML Worker  │  │ Job Queue      │
+│ ۱۰۳+ svc │  │ APScheduler  │  │ Train/Inf  │  │ Redis Streams  │
+│          │  │ + JobQueue   │  │            │  │ + Dead-Letter  │
+└────┬─────┘  └──────┬──────┘  └─────┬─────┘  └───┬────────────┘
+     │              │               │            │
+┌────▼──────────────▼───────────────▼────────────▼───────────────┐
+│                      Infrastructure                              │
+│  PostgreSQL 16 + TimescaleDB │ Redis 7 │ MinIO │ Prometheus     │
+│  OpenTelemetry │ Telegram Bot │ BrsApi.ir / TSETMC / CODAL      │
+└────────────────────────────────────────────────────────────────┘
 ```
-
-### اجزای اصلی
-
-| لایه | وظیفه | فناوری |
-|------|--------|--------|
-| **Frontend** | واسط کاربری تحت وب | Next.js 16, React 19, Tailwind CSS v4, Recharts |
-| **API Gateway** | REST API اصلی | FastAPI, Uvicorn, Pydantic v2 |
-| **Services** | منطق تجاری | Python 3.11+, ۴۰+ سرویس |
-| **Backtesting** | موتور بک‌تست | Event-driven replay, ABM, Microstructure |
-| **ML Pipeline** | یادگیری ماشین | scikit-learn, XGBoost, LightGBM, PyTorch |
-| **Jobs** | وظایف زمان‌بندی‌شده | APScheduler, Background Tasks |
-| **Database** | ذخیره‌سازی داده | PostgreSQL 16 + TimescaleDB |
-| **Cache** | کش و صف | Redis 7 |
-| **Storage** | ذخیره‌سازی فایل | MinIO (S3-compatible) |
-| **Monitoring** | مانیتورینگ | OpenTelemetry, Prometheus |
-| **Notifications** | هشدارها | Telegram Bot |
 
 ---
 
@@ -183,71 +154,65 @@
 
 | بازار | شناسه | دامنه نوسان | سشن | حراج | سفارش بازار |
 |-------|-------|------------|------|------|------------|
-| **بورس تهران (TSE)** | `tse` | ±۵٪ | ۰۸:۴۵-۱۲:۳۰ | ✅ | ✅ |
-| **فرابورس (IFB)** | `ifb` | ±۵٪ | ۰۸:۴۵-۱۲:۳۰ | ✅ | ✅ |
-| **بازار پایه** | `base_market` | ۳-۱٪ پلکانی | ۰۸:۴۵-۱۲:۳۰ | دوره‌ای | ❌ |
-| **ETF** | `etf` | ±۵٪ | ۰۸:۴۵-۱۲:۳۰ | ✅ | ✅ |
-| **اوراق بدهی** | `bonds` | ±۱٪ | ۰۸:۴۵-۱۲:۳۰ | ❌ | ✅ |
-| **مشتقه** | `derivatives` | متغیر | ۰۸:۴۵-۱۲:۳۰ | ❌ | ✅ |
-| **بورس کالا (IME)** | `ime` | ±۵٪ | ۱۱:۴۵-۱۸:۰۰ | ✅ | ✅ |
-| **بورس انرژی** | `energy` | ±۵٪ | ۱۱:۴۵-۱۸:۰۰ | دوره‌ای | ❌ |
-| **رمزارز** | `crypto` | بدون محدودیت | ۲۴/۷ | ❌ | ✅ |
-| **طلا و سکه** | `gold` | متغیر | متغیر | ❌ | ✅ |
-| **ارز** | `fx` | متغیر | متغیر | ❌ | ✅ |
+| بورس تهران (TSE) | `tse` | ±۵٪ | ۰۸:۴۵-۱۲:۳۰ | ✅ | ✅ |
+| فرابورس (IFB) | `ifb` | ±۵٪ | ۰۸:۴۵-۱۲:۳۰ | ✅ | ✅ |
+| بازار پایه | `base_market` | ۳-۱٪ پلکانی | ۰۸:۴۵-۱۲:۳۰ | دوره‌ای | ❌ |
+| ETF / صندوق | `etf` | ±۵٪ | ۰۸:۴۵-۱۲:۳۰ | ✅ | ✅ |
+| اوراق بدهی | `bonds` | ±۱٪ | ۰۸:۴۵-۱۲:۳۰ | ❌ | ✅ |
+| مشتقه | `derivatives` | متغیر | ۰۸:۴۵-۱۲:۳۰ | ❌ | ✅ |
+| بورس کالا (IME) | `ime` | ±۵٪ | ۱۱:۴۵-۱۸:۰۰ | ✅ | ✅ |
+| بورس انرژی | `energy` | ±۵٪ | ۱۱:۴۵-۱۸:۰۰ | دوره‌ای | ❌ |
+| رمزارز | `crypto` | بدون محدودیت | ۲۴/۷ | ❌ | ✅ |
+| طلا و سکه | `gold` | متغیر | متغیر | ❌ | ✅ |
+| ارز | `fx` | متغیر | متغیر | ❌ | ✅ |
 
 ---
 
 ## 🛠️ تکنولوژی‌ها
 
 ### Backend
-
 | تکنولوژی | نسخه | کاربرد |
 |-----------|-------|---------|
-| **Python** | 3.11+ | زبان اصلی |
-| **FastAPI** | 0.109+ | REST API |
-| **SQLAlchemy** | 2.0+ | ORM |
-| **Alembic** | 1.13+ | مهاجرت دیتابیس |
-| **Pydantic** | 2.5+ | اعتبارسنجی داده |
-| **httpx / aiohttp** | — | HTTP client ناهمزمان |
-| **APScheduler** | 3.10+ | زمان‌بندی وظایف |
-| **Redis** | 5.0+ | کش و صف |
-| **Pandas / NumPy** | — | پردازش داده |
-| **OpenTelemetry** | 1.22+ | ردیابی توزیع‌شده |
-| **Prometheus** | 0.19+ | متریک |
-| **MinIO** | 7.2+ | ذخیره‌سازی آبجکت |
+| Python | 3.11+ | زبان اصلی |
+| FastAPI / Uvicorn | 0.109+ | REST API |
+| SQLAlchemy 2.0 (async) | 2.0+ | ORM + AsyncPG |
+| Alembic | 1.13+ | مهاجرت دیتابیس |
+| Pydantic v2 | 2.5+ | اعتبارسنجی داده |
+| APScheduler | 3.10+ | زمان‌بندی وظایف |
+| Redis (redis.asyncio) | 5.0+ | کش، صف، قفل توزیع‌شده |
+| Pandas / NumPy | — | پردازش داده |
+| OpenTelemetry | 1.22+ | ردیابی توزیع‌شده |
+| Prometheus | — | متریک‌ها (`/metrics`) |
+| httpx / aiohttp | — | HTTP client ناهمزمان |
 
 ### ML (اختیاری)
-
 | تکنولوژی | کاربرد |
 |-----------|---------|
-| **scikit-learn** | مدل‌های پایه |
-| **XGBoost** | Gradient Boosting |
-| **LightGBM** | Gradient Boosting سریع |
-| **CatBoost** | Gradient Boosting با categorical |
-| **PyTorch** | یادگیری عمیق |
-| **SHAP** | تفسیرپذیری مدل |
+| scikit-learn | مدل‌های پایه (Ridge، RandomForest، ...) |
+| XGBoost / LightGBM / CatBoost | Gradient Boosting |
+| PyTorch | یادگیری عمیق (LSTM, GRU, Transformer) |
+| pandas_ta | محاسبه اندیکاتورها |
 
 ### Frontend
-
 | تکنولوژی | نسخه | کاربرد |
 |-----------|-------|---------|
-| **Next.js** | 16.2.9 | فریمورک React |
-| **React** | 19.2.4 | UI Library |
-| **TypeScript** | 5.x | Type Safety |
-| **Tailwind CSS** | 4.x | استایل‌دهی |
-| **Recharts** | 3.8+ | نمودارها |
-| **TanStack Query** | 5.x | مدیریت state سرور |
-| **Lightweight Charts** | 5.2+ | نمودار کندلاستیک |
-| **Vitest** | 4.1+ | تست واحد |
+| Next.js | 16.x | فریمورک React (App Router) |
+| React | 19.x | UI Library |
+| TypeScript | 5.x | Type Safety |
+| Tailwind CSS | 4.x | استایل‌دهی |
+| Recharts | 3.8+ | نمودارها |
+| TanStack Query | 5.x | مدیریت state سرور |
+| Lightweight Charts | 5.2+ | نمودار کندلاستیک |
+| Vitest | 4.x | تست واحد |
 
-### Database
-
+### Database / Infra
 | سرویس | نسخه | کاربرد |
 |-------|-------|---------|
-| **PostgreSQL** | 16 | دیتابیس اصلی |
-| **TimescaleDB** | latest | داده‌های زمانی |
-| **Redis** | 7.0 | کش و صف |
-| **MinIO** | — | ذخیره‌سازی آبجکت |
+| PostgreSQL | 16 | دیتابیس اصلی |
+| TimescaleDB | latest | هایپرتیبل داده زمانی |
+| Redis | 7 | کش + صف + قفل |
+| MinIO | — | ذخیره‌سازی آبجکت (S3) |
+| Prometheus / Grafana | — | مانیتورینگ |
 
 ---
 
@@ -257,103 +222,92 @@
 iran-market-platform/
 ├── apps/                          # لایه اپلیکیشن
 │   ├── api/                       # FastAPI اصلی
-│   │   ├── app.py                 # ساخت و پیکربندی FastAPI
-│   │   ├── router.py              # مسیریابی API
-│   │   ├── endpoints/             # ۴۵+ endpoint
-│   │   ├── middleware.py          # Logging, Rate Limit, Timing
-│   │   └── error_handlers.py     # مدیریت خطا
+│   │   ├── app.py                 # ساخت اپ + lifespan + /metrics
+│   │   ├── router.py              # مسیریابی ~۴۳۸ route
+│   │   ├── metrics.py             # PrometheusExporter + MetricsMiddleware
+│   │   ├── middleware.py          # CSRF، Input Sanitization، Rate Limit، Timing
+│   │   └── endpoints/             # ۶۰ ماژول endpoint
 │   ├── admin/                     # پنل مدیریت (port 8001)
 │   ├── scheduler/                 # زمان‌بندی وظایف
 │   ├── worker/                    # worker پس‌زمینه
+│   ├── decision_engine/           # موتور تصمیم‌گیری
 │   └── cli/                       # رابط خط فرمان
 │
-├── backtesting/                   # 🎯 موتور بک‌تست
-│   ├── abm/                       # Agent-Based Modeling
-│   ├── alpha/                     # تولید و ارزیابی آلفا
-│   ├── analytics/                 # تحلیل عملکرد
-│   ├── calibration/               # کالیبراسیون پارامترها
-│   ├── engine/                    # هسته شبیه‌سازی
-│   ├── execution/                 # شبیه‌ساز اجرا
-│   ├── experiment/                # موتور آزمایش
-│   ├── market/                    # موتور بازار و قوانین
-│   ├── microstructure/            # ریزساختار بازار
-│   ├── metrics/                   # معیارهای عملکرد
-│   ├── multi_market/              # چندبازاری
-│   ├── optimization/              # بهینه‌سازی پارامترها
-│   ├── portfolio/                 # مدیریت پرتفوی
-│   ├── regime/                    # تشخیص رژیم بازار
-│   ├── reporting/                 # تولید گزارش
-│   ├── risk/                      # مدیریت ریسک
-│   ├── scenarios/                 # سناریوهای بازار
-│   ├── signals/                   # سیگنال‌ها
-│   ├── strategies/                # استراتژی‌های معاملاتی
-│   │   ├── rule_based/            # استراتژی‌های قاعده‌محور
-│   │   ├── factor_based/          # استراتژی‌های فاکتورمحور
-│   │   ├── ml_based/              # استراتژی‌های ML
-│   │   ├── options/               # استراتژی‌های مشتقه
-│   │   └── portfolios/            # استراتژی‌های پرتفوی
-│   └── visualization/             # مصورسازی
+├── backtesting/                   # 🎯 موتور بک‌تست (۲۷۵ ماژول)
+│   ├── runner.py                  # BacktestRunner — دیسپچر یکتای موتورها
+│   ├── costs/iran_costs.py        # مدل هزینه واقعی ایران (تک‌منبع)
+│   ├── engine/                    # Simulator، Broker، Replay، adv.py (ADV)
+│   ├── analytics/engine.py        # AnalyticsEngine (cost-basis PnL)
+│   ├── metrics/                   # TradeMetrics، RiskMetrics، ...
+│   ├── abm/  alpha/  calibration/  execution/  experiment/
+│   ├── market/  microstructure/  multi_market/  optimization/
+│   ├── portfolio/  regime/  reporting/  risk/  scenarios/  signals/
+│   ├── strategies/                # rule_based / factor_based / ml_based / options / portfolios
+│   └── visualization/
 │
 ├── brsapi/                        # یکپارچه‌سازی BrsApi.ir
-│   ├── client.py                  # HTTP client
-│   ├── config.py                  # پیکربندی
-│   ├── parsers/                   # پارسرهای داده
-│   ├── repositories/              # لایه دسترسی به داده
-│   └── services/                  # سرویس‌های هماهنگ‌سازی
+│   ├── budget.py                  # BrsApiBudgetGovernor — بودجه‌بان روزانه/۵دقیقه/۳۰۲
+│   ├── usage_recorder.py          # ثبت مصرف روزانه در brsapi_daily_usage
+│   ├── readiness.py               # بررسی آمادگی کلید
+│   ├── rate_limiter.py            # محدودیت نرخ درون‌فرایندی
+│   ├── client.py                  # HTTP client با retry/circuit-breaker
+│   ├── parsers/  repositories/  services/  models/  migrations/
+│   └── jobs/registry.py           # رجیستری jobهای برس‌آپی
 │
 ├── core/                          # هسته سیستم
-│   ├── config/                    # پیکربندی سراسری
-│   ├── cache.py                   # مدیریت کش
-│   ├── concurrency/               # ابزارهای همزمانی
-│   ├── constants/                 # ثابت‌ها
-│   ├── database.py                # اتصال دیتابیس
-│   ├── dependency_injection/      # DI container
-│   ├── enums/                     # enumها
-│   ├── exceptions/                # خطاهای سفارشی
-│   ├── health/                    # سلامت سیستم
-│   ├── json/                      # ابزارهای JSON
-│   ├── logging/                   # لاگینگ
-│   ├── rate_limit/                # محدودیت نرخ
-│   ├── resilience/                # مقاومت خطا
-│   ├── retry/                     # تلاش مجدد
-│   ├── security/                  # امنیت
-│   └── time/                      # ابزارهای زمانی
+│   ├── config/                    # settings + validate_production
+│   ├── database.py                # async_session_factory
+│   ├── cache.py                   # کش مشترک Redis
+│   ├── cache_manager.py           # CacheManager سه‌لایه (L1/L2/L3)
+│   ├── security/                  # JWT + blacklist + MFA/TOTP + secrets
+│   ├── resilience/  retry/  rate_limit/  concurrency/
+│   ├── json/  constants/  exceptions/  health/  time/  ids/
+│   └── typing/result.py           # Result/PaginatedResult
 │
-├── services/                      # سرویس‌های تجاری
-│   ├── chat/                      # موتور مکالمه
-│   ├── smart_money/               # Smart Money (۹ لایه)
-│   ├── codal_analysis/            # تحلیل کدال
-│   ├── stock_assistant_service.py # دستیار سهام
-│   ├── unified_assistant_service.py # دستیار یکپارچه
-│   ├── screener_service.py        # غربالگر
-│   ├── smart_screener_v2.py       # غربالگر پیشرفته
-│   ├── strategy_generator.py      # تولید خودکار استراتژی
-│   ├── backtest_framework.py      # فریمورک بک‌تست
-│   ├── quant_signal_orchestrator.py # هماهنگ‌کننده سیگنال
-│   └── ... (۶۰+ سرویس دیگر)
+├── services/                      # ۱۰۳+ سرویس تجاری
+│   ├── accuracy_outcome_queue.py  # صف outcomeها (بدون شکست صامت)
+│   ├── signal_accuracy_tracker.py # دقت‌سنجی سیگنال‌ها
+│   ├── quant_signal_orchestrator.py # هماهنگ‌کننده سیگنال کوانت
+│   ├── multi_market_signal_engine.py  signal_voting_system.py
+│   ├── confidence_scorer.py  probability_calibrator.py
+│   ├── decision_gate.py  dynamic_weighting.py  ml_signal_connector.py
+│   ├── smart_money/               # تحلیل ۹ لایه‌ای
+│   ├── screener_service.py  smart_screener_v2.py  screener110_service.py
+│   ├── backtest_service.py  backtest_framework.py  strategy_generator.py
+│   ├── fund_service.py  fund_sync_service.py
+│   ├── news_service.py  codal_service.py  codal_attachment_service.py
+│   ├── market_service.py  market_watch_helper.py  monitoring_service.py
+│   ├── chat/  stock_assistant_service.py  unified_assistant_service.py
+│   └── ... (بقیه)
 │
-├── models/                        # مدل‌های دیتابیس
-├── schemas/                       # Pydantic schemaها
-├── ingestion/                     # جمع‌آوری داده
-├── pipelines/                     # پایپ‌لاین‌های پردازش
-├── providers/                     # تأمین‌کنندگان داده
-├── jobs/                          # وظایف زمان‌بندی‌شده
-├── ml/                            # ML Pipeline
-├── migrations/                    # مهاجرت دیتابیس
-├── scripts/                       # اسکریپت‌های کاربردی
-├── tests/                         # تست‌ها
-├── monitoring/                    # مانیتورینگ
-├── frontend/                      # 🟢 فرانت‌اند Next.js
-│   ├── src/
-│   │   ├── app/                   # ۵۰+ صفحه
-│   │   ├── components/            # کامپوننت‌ها
-│   │   ├── hooks/                 # هوک‌ها
-│   │   └── lib/                   # ابزارها
-│   └── package.json
-│
-├── docker-compose.yml             # سرویس‌های Docker
+├── models/  schemas/              # مدل‌های دیتابیس + Pydantic schemaها
+├── ingestion/  pipelines/  providers/  repositories/
+├── jobs/                          # سیستم job
+│   ├── locking.py                 # RedisJobLock (قفل توزیع‌شده)
+│   ├── queue_publisher.py         # ارسال job به Redis Stream
+│   ├── queue_consumer.py          # اجرای job در Worker + dead-letter
+│   └── definitions/               # ۱۹ تعریف job
+├── ml/                            # ML Pipeline (۱۱۸ ماژول)
+│   ├── model_loader.py            # lazy + LRU کش
+│   ├── weight_validator.py        # R² برش OOS (purged WF)
+│   ├── train_weight_optimizer.py  # بهینه‌ساز وزن رژیم‌ها
+│   ├── artifacts.py  models/  feature_store.py  types.py
+│   └── ml_artifacts/              # مدل‌های ذخیره‌شده
+├── migrations/versions/           # ۳۹ مهاجرت Alembic
+├── scripts/                       # اسکریپت‌های عملیاتی
+│   ├── run_backlog_sync.py        # sync بودجه‌آگاه برس‌آپی
+│   ├── replay_dead_letter.py      # بازگرداندن پیام‌های dead-letter
+│   ├── dead_letter_report.py      # گزارش توزیع خطاها
+│   ├── build_feature_store.py  clean_historical_data.py
+│   └── ...
+├── monitoring/  integrations/     # OpenTelemetry، Prometheus، RedisLogHandler
+├── tests/                         # ۲۵۰ فایل تست
+├── frontend/                      # 🟢 فرانت‌اند Next.js (۸۸ صفحه)
+│   └── src/{app,components,hooks,lib,__tests__}
+├── docker-compose.yml             # timescaledb + redis + backend + worker + frontend
+├── .env.example                   # نمونه متغیرهای محیطی
 ├── Makefile                       # دستورات کاربردی
-├── pyproject.toml                 # پیکربندی پروژه
+├── pyproject.toml                 # پیکربندی پروژه (ruff, pytest, deps)
 └── README.md                      # این فایل
 ```
 
@@ -362,55 +316,40 @@ iran-market-platform/
 ## 🚀 راه‌اندازی سریع
 
 ### پیش‌نیازها
+- **Python 3.11+**، **Node.js 18+**، **PostgreSQL 16**، **Redis 7** (یا Docker)
 
-- **Python 3.11+**
-- **Node.js 18+**
-- **PostgreSQL 16** (یا Docker)
-- **Redis 7** (یا Docker)
-
-### ۱. کلون و نصب
+### ۱. نصب وابستگی‌ها
 
 ```bash
-# کلون پروژه
-git clone https://github.com/your-username/iran-market-platform.git
-cd iran-market-platform
-
-# نصب وابستگی‌های بک‌اند
 pip install -r requirements.txt
-
-# (اختیاری) نصب وابستگی‌های ML
-pip install -e ".[ml]"
-
-# (اختیاری) نصب وابستگی‌های توسعه
-pip install -e ".[dev]"
+pip install -e ".[dev]"      # اختیاری: ابزارهای توسعه
+pip install -e ".[ml]"       # اختیاری: وابستگی‌های ML
 ```
 
 ### ۲. پیکربندی محیط
 
 ```bash
-# ایجاد فایل .env
-# (فایل .env.example در ریپازیتوری موجود نیست — مقادیر زیر را دستی ایجاد کنید)
-touch .env
+cp .env.example .env
+# مقادیر را مطابق محیط خود ویرایش کنید
 ```
 
-یا فایل `.env` را با محتوای زیر بسازید:
-
-متغیرهای محیطی اصلی:
+متغیرهای اصلی (مرجع کامل: [docs/env-vars.md](docs/env-vars.md)):
 
 ```env
 # دیتابیس
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/market
 
-# Redis
+# Redis (کش، صف، قفل)
 REDIS_URL=redis://localhost:6379/0
 
 # امنیت
 SECRET_KEY=your-secret-key-here
 CORS_ORIGINS=["http://localhost:3000"]
 
-# API Keys (اختیاری)
+# داده برس‌آپی (برای دریافت داده واقعی)
 BRSAPI_API_KEY=your-brsapi-key
-CODAL_API_KEY=your-codal-key
+BRSAPI_ENABLED=true
+BRSAPI_GLOBAL_DAILY_LIMIT=4000   # بودجه روزانه — مهم برای جلوگیری از مسدود شدن کلید
 
 # Telegram (اختیاری)
 TELEGRAM_BOT_TOKEN=your-bot-token
@@ -421,17 +360,19 @@ TELEGRAM_CHAT_ID=your-chat-id
 
 ```bash
 alembic upgrade head
+# یا
+make migrate
 ```
 
 ### ۴. اجرای سرور
 
 ```bash
-# اجرای بک‌اند
+# بک‌اند (Python 3.11+)
 python main.py
 # یا
 uvicorn apps.api.app:app --reload --host 0.0.0.0 --port 8000
 
-# اجرای فرانت‌اند (ترمینال جداگانه)
+# فرانت‌اند (ترمینال جداگانه)
 cd frontend
 npm install --no-audit --no-fund
 npm run dev
@@ -441,17 +382,16 @@ npm run dev
 
 | سرویس | آدرس | توضیح |
 |-------|------|-------|
-| **API** | http://localhost:8000 | FastAPI اصلی |
-| **Swagger** | http://localhost:8000/docs | مستندات API |
-| **ReDoc** | http://localhost:8000/redoc | مستندات زیبا |
-| **Frontend** | http://localhost:3000 | فرانت‌اند Next.js |
-| **Admin** | http://localhost:8001 | پنل مدیریت |
+| API | http://localhost:8000 | FastAPI اصلی |
+| Swagger | http://localhost:8000/docs | مستندات تعاملی API |
+| ReDoc | http://localhost:8000/redoc | مستندات زیبا |
+| Prometheus | http://localhost:8000/metrics | متریک‌های Prometheus |
+| Frontend | http://localhost:3000 | فرانت‌اند Next.js |
+| Admin | http://localhost:8001 | پنل مدیریت |
 
 ---
 
 ## 🐳 استفاده با Docker
-
-### اجرای سریع
 
 ```bash
 # ساخت و اجرای همه سرویس‌ها
@@ -464,90 +404,36 @@ docker compose logs -f
 docker compose down -v
 ```
 
-### سرویس‌های Docker
+### سرویس‌های docker-compose
 
 | سرویس | پورت | توضیح |
 |-------|------|-------|
-| **Backend (FastAPI)** | `8000` | سرویس اصلی REST API |
-| **Frontend (Next.js)** | `3000` | واسط کاربری |
-| **Admin Panel** | `8001` | پنل مدیریت |
-| **PostgreSQL + TimescaleDB** | `5432` | دیتابیس اصلی |
-| **Redis** | `6379` | کش و صف |
+| `backend` (FastAPI) | 8000 | سرویس اصلی REST API |
+| `worker` | — | اجرای jobها از صف |
+| `frontend` (Next.js) | 3000 | واسط کاربری |
+| `timescaledb` | 5432 | دیتابیس اصلی |
+| `redis` | 6379 | کش + صف + قفل |
 
-### Dockerfile‌ها
+### دستورات Makefile
 
+```bash
+make install        # نصب وابستگی‌ها
+make dev            # اجرای توسعه‌ای backend
+make dev-all        # backend + admin + worker
+make migrate        # alembic upgrade head
+make lint           # ruff
+make typecheck      # mypy
+make test           # تست‌ها
+make docker-up      # ساخت و اجرای Docker
+make backup         # پشتیبان‌گیری دیتابیس
+make prod-check     # بررسی تنظیمات production
 ```
-├── Dockerfile                    # بک‌اند اصلی
-├── Dockerfile.admin              # پنل مدیریت
-├── Dockerfile.worker             # worker پس‌زمینه
-├── Dockerfile.decision-engine    # موتور تصمیم‌گیری
-└── frontend/Dockerfile.dev       # فرانت‌اند توسعه
-```
-
----
-
-## 🖥️ فرانت‌اند Next.js
-
-### نمای کلی
-
-فرانت‌اند با **Next.js 16**, **React 19**, **TypeScript 5**, **Tailwind CSS v4** و **Recharts** ساخته شده است. همه درخواست‌های API از طریق Next.js Rewrite Proxy عبور می‌کنند.
-
-### صفحات اصلی
-
-| مسیر | صفحه | توضیح |
-|------|-------|---------|
-| `/` | **داشبورد** | شاخص کل، حجم معاملات، ترکیب صنایع |
-| `/markets` | **بازارها** | وضعیت لحظه‌ای بازار |
-| `/analysis` | **تحلیل** | تحلیل تکنیکال و بنیادی |
-| `/smart-screener` | **غربالگر هوشمند** | غربالگری با ۴۰۰+ فیلتر |
-| `/screener` | **غربالگر** | غربالگری ساده |
-| `/screener110` | **غربالگر ۱۱۰** | غربالگری CANSLIM |
-| `/signals` | **سیگنال‌ها** | سیگنال‌های معاملاتی |
-| `/signals/all` | **همه سیگنال‌ها** | سیگنال‌های همه بازارها |
-| `/smart-money` | **Smart Money** | تحلیل پول هوشمند |
-| `/backtest` | **بک‌تست** | اجرای استراتژی‌های معاملاتی |
-| `/portfolio` | **پرتفوی** | مدیریت سبد سهام |
-| `/news` | **اخبار** | اخبار و اطلاعیه‌ها |
-| `/codal` | **کدال** | اطلاعیه‌های شرکت‌ها |
-| `/brsapi` | **BrsApi** | کامودیتی، رمزارز، طلا، ارز |
-| `/brsapi/history/[symbol]` | **تاریخچه** | تاریخچه نماد خاص |
-| `/indicators` | **اندیکاتورها** | نمودار اندیکاتورها |
-| `/heatmap` | **هیت‌مپ** | هیت‌مپ بازار |
-| `/commodities` | **کامودیتی** | قیمت جهانی |
-| `/crypto` | **رمزارز** | قیمت ارزهای دیجیتال |
-| `/funds` | **صندوق‌ها** | صندوق‌های سرمایه‌گذاری |
-| `/macro` | **اقتصاد کلان** | داده‌های کلان |
-| `/economic-calendar` | **تقویم اقتصادی** | رویدادهای اقتصادی |
-| `/decision-engine` | **موتور تصمیم** | معماری سازمانی |
-| `/recommendations` | **پیشنهادات** | پیشنهادات خرید/فروش |
-| `/alerts` | **هشدارها** | هشدارهای قیمتی |
-| `/watchlist` | **دیده‌بان** | نمادهای تحت نظر |
-| `/chat` | **چت** | مکالمه با هوش مصنوعی |
-| `/settings` | **تنظیمات** | پیکربندی حساب |
-| `/admin` | **ادمین** | پنل مدیریت |
-| `/jobs` | **شغل‌ها** | مدیریت وظایف |
-| `/ml` | **ML** | مدل‌های یادگیری ماشین |
-| `/reports` | **گزارش‌ها** | گزارش‌های تولید شده |
-| `/tables` | **جداول** | مرور جداول دیتابیس |
-| `/health` | **سلامت** | وضعیت سیستم |
-
-### کامپوننت‌های نمودار
-
-| کامپوننت | توضیح |
-|----------|---------|
-| `AreaChartCard` | نمودار مساحت با گرادیان رنگی |
-| `BarChartCard` | نمودار میله‌ای با رنگ‌بندی مثبت/منفی |
-| `PieChartCard` | نمودار دوناتی با Legend سفارشی |
-| `CandleChartCard` | کندلاستیک با Custom Shape و نوار حجم |
-| `TradingViewChart` | نمودار TradingView (lightweight-charts) |
-| `SentimentChart` | نمودار احساسات |
-| `EquityCurveChart` | نمودار منحنی سرمایه |
 
 ---
 
 ## 📡 API Reference
 
-### ساختار URL
+همه مسیرها زیر پیشوند `/api/v1` هستند. ساختار کلی:
 
 ```
 GET  /api/v1/{resource}
@@ -555,441 +441,441 @@ POST /api/v1/{resource}
 GET  /api/v1/{resource}/{id}
 ```
 
-### گروه‌های اصلی API
+### گروه‌های اصلی (۶۰ ماژول / ~۴۳۸ route)
 
 | گروه | مسیر | توضیح |
 |------|------|-------|
-| **Health** | `/api/v1/health` | بررسی سلامت |
-| **Auth** | `/api/v1/auth` | ورود، ثبت‌نام، توکن |
-| **Market** | `/api/v1/market` | نمای کلی بازار |
-| **Instruments** | `/api/v1/instruments` | نمادها و ابزارها |
-| **Quotes** | `/api/v1/quotes` | قیمت‌ها |
-| **Trades** | `/api/v1/trades` | معاملات |
-| **Signals** | `/api/v1/signals` | سیگنال‌ها |
-| **Screener** | `/api/v1/screener` | غربالگری |
-| **Screener V2** | `/api/v1/screener-v2` | غربالگر پیشرفته |
-| **Screener110** | `/api/v1/screener110` | غربالگر CANSLIM |
-| **Saved Filters** | `/api/v1/saved-filters` | فیلترهای ذخیره شده |
-| **Smart Money** | `/api/v1/smart-money` | تحلیل پول هوشمند |
-| **Backtests** | `/api/v1/backtests` | بک‌تست |
-| **Compose** | `/api/v1/compose` | ترکیب استراتژی |
-| **ML** | `/api/v1/ml` | یادگیری ماشین |
-| **News** | `/api/v1/news` | اخبار |
-| **Codal** | `/api/v1/codal` | اطلاعیه‌ها |
-| **Macro** | `/api/v1/macro` | اقتصاد کلان |
-| **Chat** | `/api/v1/chat` | مکالمه |
-| **Stock Assistant** | `/api/v1/stock-assistant` | دستیار سهام |
-| **Assistant** | `/api/v1/assistant` | دستیار یکپارچه |
-| **BrsApi** | `/api/v1/brsapi` | کامودیتی، رمزارز |
-| **Tabdeal** | `/api/v1/tabdeal` | صرافی تبادل |
-| **Decision Engine** | `/api/v1/decision-engine` | موتور تصمیم |
-| **Market Dashboard** | `/api/v1/market-dashboard` | داشبورد بازار |
-| **Market Watch** | `/api/v1/market-watch` | دیده‌بان بازار |
-| **Market Insights** | `/api/v1/market-insights` | بینش بازار |
-| **Signal Insights** | `/api/v1/signal-insights` | بینش سیگنال |
-| **Queue Analysis** | `/api/v1/queue-analysis` | تحلیل صف |
-| **WebSocket** | `/api/v1/ws` | داده لحظه‌ای |
+| Health | `/api/v1/health` | سلامت سیستم (live/ready/full) |
+| Auth + MFA | `/api/v1/auth` | ورود، توکن، MFA/TOTP، باطل‌سازی توکن |
+| Market | `/api/v1/market` | نمای کلی، رشدها، هیت‌مپ |
+| Instruments | `/api/v1/instruments` | نمادها و جستجو |
+| Quotes / Trades | `/api/v1/quotes`, `/api/v1/trades` | قیمت‌ها و معاملات |
+| Signals | `/api/v1/signals` | سیگنال‌های معاملاتی |
+| Signal Insights | `/api/v1/signal-insights` | دقت، walk-forward، بازآموزی |
+| Screener | `/api/v1/screener`, `/screener-v2`, `/screener110` | غربالگری (۴۰۰+ فیلتر، ۱۱۰ ستونه) |
+| Saved Filters | `/api/v1/saved-filters` | فیلترهای ذخیره‌شده |
+| Smart Money | `/api/v1/smart-money` | تحلیل پول هوشمند ۹ لایه |
+| Backtests | `/api/v1/backtests` | اجرا و مدیریت بک‌تست |
+| Compose | `/api/v1/compose` | ترکیب استراتژی |
+| ML | `/api/v1/ml` | آموزش، مدل‌ها، ModelLoader cache-info |
+| News | `/api/v1/news` | اخبار (با dedup) |
+| Codal | `/api/v1/codal` | اطلاعیه‌ها + دانلود پیوست |
+| Funds | `/api/v1/funds` | صندوق‌های سرمایه‌گذاری (+ `POST /funds/{symbol}/update`) |
+| Macro | `/api/v1/macro` | اقتصاد کلان |
+| Economic Calendar | `/api/v1/economic-calendar` | تقویم اقتصادی |
+| Chat | `/api/v1/chat` | مکالمه هوشمند |
+| Stock Assistant | `/api/v1/stock-assistant` | دستیار سهام |
+| Assistant | `/api/v1/assistant` | دستیار یکپارچه |
+| BrsApi | `/api/v1/brsapi` | کامودیتی، رمزارز، طلا، ارز + مدیریت مصرف |
+| Market Dashboard | `/api/v1/market-dashboard` | داشبورد بازار |
+| Market Watch | `/api/v1/market-watch` | دیده‌بان بازار |
+| Decision Engine | `/api/v1/decision-engine` | موتور تصمیم‌گیری |
+| Queue Analysis | `/api/v1/queue-analysis` | تحلیل صف سفارشات |
+| Jobs | `/api/v1/jobs` | مدیریت jobها + `POST /jobs/queue/replay` + گزارش dead-letter |
+| Anomalies | `/api/v1/anomalies` | ناهنجاری‌ها |
+| WebSocket | `/api/v1/ws` | داده لحظه‌ای |
 
 ### نمونه درخواست
 
 ```bash
-# دریافت نمای کلی بازار
+# نمای کلی بازار
 curl http://localhost:8000/api/v1/market/overview
 
-# دریافت سیگنال‌ها
+# سیگنال‌ها
 curl http://localhost:8000/api/v1/signals
 
-# اجرای غربالگری
+# غربالگری
 curl -X POST http://localhost:8000/api/v1/screener/scan \
   -H "Content-Type: application/json" \
   -d '{"filters": [{"field": "volume", "op": ">", "value": 1000000}]}'
-
-# دریافت قیمت رمزارز
-curl http://localhost:8000/api/v1/brsapi/crypto
-
-# دریافت اطلاعیه‌های کدال
-curl http://localhost:8000/api/v1/codal
 
 # اجرای بک‌تست
 curl -X POST http://localhost:8000/api/v1/backtests/run \
   -H "Content-Type: application/json" \
   -d '{"strategy": "momentum", "symbol": "فولاد", "start_date": "2024-01-01"}'
+
+# به‌روزرسانی داده روزانه یک صندوق
+curl -X POST http://localhost:8000/api/v1/funds/صندوق-آفتاب/update
+
+# گزارش مصرف روزانه BrsApi
+curl http://localhost:8000/api/v1/brsapi/manage/usage?days=30
+
+# وضعیت صف job و گزارش dead-letter
+curl http://localhost:8000/api/v1/jobs/queue/summary
 ```
 
 ---
 
 ## 🎯 موتور بک‌تست
 
-### معماری
+### دیسپچر یکتا — `BacktestRunner`
 
+```python
+from backtesting.runner import BacktestRunner
+
+runner = BacktestRunner()
+result = runner.run("simulator", strategy, initial_capital=1_000_000_000, data=data)
 ```
-Data Lake → Event Builder → Unified Timeline → Replay Engine
-                                                      ↓
-                                               Market Engine
-                                                      ↓
-                                           Execution Simulator
-                                                      ↓
-                                            Portfolio Manager
-                                                      ↓
-                                            Analytics Engine
-```
+
+| موتور | شناسه | وضعیت |
+|-------|-------|--------|
+| `BacktestSimulator` | `simulator` | ✅ کانونیکال (همه سرویس‌ها) |
+| `ReplayEngine` | `replay` | پشتیبانی (ingestion/research) |
+| `HybridMarketSimulator` | `hybrid` | پشتیبانی (ABM/microstructure) |
+| `PortfolioBacktestSimulator` | `portfolio` | پشتیبانی (چند-نماده) |
+| `SimulationEngine` | `simulation` | 🔶 legacy منسوخ |
+| `BacktestEngine` | `backtest_engine` | 🔶 legacy منسوخ |
+
+همه موتورها به یک **کانترکت نتیجه یکسان** نرمالیزه می‌شوند و پاریتی در تست CI (`test_cost_parity.py`) fail-fast قفل شده است.
+
+### مدل هزینه واقعی ایران (F1/F2/F3)
+
+| جزء | نرخ | اعمال‌شده در |
+|-----|-----|------------|
+| کارمزد کارگزار | ۰٫۴٪ هر سمت | خرید + فروش |
+| کارمزد تسویه (CSD) | ۰٫۰۸۵٪ | هر سمت |
+| مالیات | ۰٫۵٪ | **فقط فروش** |
 
 ### استراتژی‌های پیش‌فرض
 
-#### Rule-Based
-| استراتژی | توضیح |
-|----------|---------|
-| `MomentumStrategy` | دنبال‌کننده روند |
-| `MeanReversionStrategy` | بازگشت به میانگین |
-| `MovingAverageCross` | تقاطع میانگین متحرک |
-| `RSIReversion` | بازگشت RSI |
-| `BreakoutStrategy` | شکست مقاومت |
-| `SupportResistanceStrategy` | حمایت و مقاومت |
-| `HalfTrendStrategy` | نیم‌روند |
-| `SqueezeMomentumStrategy` | فشردگی مومنتوم |
-| `VolatilityBreakout` | شکست نوسان |
-| `PhaseStrategy` | فاز بازار |
+| گروه | استراتژی‌ها |
+|------|------------|
+| Rule-Based | `MovingAverageCross`, `MomentumStrategy`, `MeanReversionStrategy`, `RSIReversion`, `BreakoutStrategy`, `SupportResistanceStrategy`, `HalfTrendStrategy`, `SqueezeMomentumStrategy`, `VolatilityBreakout`, `PhaseStrategy` |
+| Factor-Based | `MomentumFactorStrategy`, `ValueFactorStrategy`, `QualityFactorStrategy`, `LowVolatilityStrategy`, `MultiFactorStrategy` |
+| ML-Based | `ClassificationSignalStrategy`, `ForecastSignalStrategy`, ... |
 
-#### Factor-Based
-| استراتژی | توضیح |
-|----------|---------|
-| `MomentumFactorStrategy` | فاکتور مومنتوم |
-| `ValueFactorStrategy` | فاکتور ارزش |
-| `QualityFactorStrategy` | فاکتور کیفیت |
-| `LowVolatilityStrategy` | فاکتور نوسان کم |
-| `MultiFactorStrategy` | ترکیب چند فاکتور |
+### اجرای مستقیم
 
-#### ML-Based
-| استراتژی | توضیح |
-|----------|---------|
-| `ClassificationSignalStrategy` | سیگنال طبقه‌بندی |
-| `ForecastSignalStrategy` | پیش‌بینی قیمت |
-| `RankingSignalStrategy` | رتبه‌بندی نمادها |
-| `RegimeAwareStrategy` | آگاه از رژیم بازار |
-
-#### Options
-| استراتژی | توضیح |
-|----------|---------|
-| `CoveredCallStrategy` | کالا پوششی |
-| `ProtectivePutStrategy` | پوت حفاظتی |
-| `BullCallSpreadStrategy` | اسپرد کال صعودی |
-| `BearPutSpreadStrategy` | اسپرد پوت نزولی |
-| `StraddleStrategy` | Straddle |
-| `StrangleStrategy` | Strangle |
-
-#### Portfolio
-| استراتژی | توضیح |
-|----------|---------|
-| `EqualWeightStrategy` | وزن مساوی |
-| `MaxSharpeStrategy` | حداکثر شارپ |
-| `MinimumVarianceStrategy` | حداقل واریانس |
-| `RiskParityStrategy` | برابری ریسک |
-| `TacticalAllocationStrategy` | تخصیص تاکتیکی |
-
-### معیارهای عملکرد
-
-| معیار | توضیح |
-|-------|---------|
-| **CAGR** | نرخ بازده سالانه مرکب |
-| **Sharpe Ratio** | نسبت بازده به ریسک |
-| **Sortino Ratio** | نسبت بازده به ریسک منفی |
-| **Max Drawdown** | حداکثر افت سرمایه |
-| **Win Rate** | نرخ برد |
-| **Profit Factor** | فاکتور سود |
-| **Total Trades** | تعداد کل معاملات |
-| **Calmar Ratio** | نسبت کالمر |
-| **Deflated Sharpe** | شارپ تعدیل‌شده |
+```bash
+python scripts/run_backtest.py --symbol فولاد --strategy ma_cross
+python scripts/ultimate_walk_forward.py
+```
 
 ---
 
-## 🤖 موتور سیگنال هوشمند
+## 🤖 سیستم سیگنال کوانت
 
-### چرخه بازخورد خودکار
+مسیر تولید سیگنال تا بازخورد:
 
 ```
-تولید سیگنال (هر ساعت)
-       ↓
-ثبت سیگنال در دیتابیس
-       ↓
-پیگیری نتیجه (Outcome Tracking)
-       ↓
-محاسبه دقت (Accuracy)
-       ↓
-اگر دقت < 50% → بازآموزی خودکار
-       ↓
-اگر ۳ شکست متوالی → هشدار تلگرام
+MultiMarketSignalEngine → Ensemble Engine → Confidence Scoring
+        ↓                                        ↓
+  Decision Engine (۱۰ دروازه)          Probability Calibration
+        ↓                                        ↓
+   انتشار سیگنال ───────────────────────► SignalAccuracyTracker
+        ↓                                        ↓
+   Auto-Retrain (افت دقت) ◄────────── AccuracyOutcomeQueue (صف + متریک)
 ```
 
-### مولفه‌ها
-
-| مولفه | توضیح |
-|-------|---------|
-| **QuantSignalOrchestrator** | هماهنگ‌کننده اصلی |
-| **SignalVotingSystem** | رأی‌گیری چند مدل |
-| **ConfidenceCalibrator** | کالیبراسیون اطمینان |
-| **SignalAccuracyTracker** | ردیابی دقت |
-| **SignalPerformanceTracker** | ردیابی عملکرد |
-| **AutoRetrainPipeline** | بازآموزی خودکار |
-| **SignalDecisionEngine** | موتور تصمیم‌گیری |
+- **Outcome Tracking بدون شکست صامت**: outcomeها در `AccuracyOutcomeQueue` بچ می‌شوند و به `signal_accuracy` فلاش می‌شوند؛ شکست DB → requeue؛ سرریز → متریک `accuracy_tracking_dropped_total`. خارج از production نبود DB = خطای صریح.
+- **بازآموزی خودکار**: وقتی دقت بازار زیر ۵۵٪ افت کند، `AutoRetrainPipeline` مدل‌های آن بازار را بازآموزی می‌کند و `ModelLoader.invalidate()` کش را تازه می‌کند.
+- **Decision Gates**: ۱۰ دروازه پیکربندی‌پذیر + Rule-Based Override بر اساس رژیم بازار (رکود/حجم بالا) — `services/decision_gate.py`.
 
 ---
 
-## 💰 موتور Smart Money (۹ لایه)
+## 💰 Smart Money
 
-| لایه | نام | توضیح |
-|------|------|---------|
-| ۱ | **Price-Volume Analysis** | تحلیل حجم و قیمت |
-| ۲ | **Absorption Detection** | تشخیص جذب سفارشات بزرگ |
-| ۳ | **Ownership Analysis** | تحلیل مالکیت حقیقی/حقوقی |
-| ۴ | **Compression Detection** | تشخیص فشردگی قیمت |
-| ۵ | **Relative Strength** | قدرت نسبی نماد |
-| ۶ | **Breakout Analysis** | تحلیل شکست سطوح |
-| ۷ | **Buyer Power** | قدرت خریدار |
-| ۸ | **Microstructure Analysis** | تحلیل ریزساختار بازار |
-| ۹ | **Breakout Quality** | کیفیت شکست |
+سرویس `services/smart_money/` تحلیل ۹ لایه‌ای پول هوشمند را ارائه می‌دهد و از طریق `/api/v1/smart-money` در دسترس است. فیلترهای مبتنی بر آن در Smart Screener نیز قابل استفاده هستند.
 
 ---
 
-## 🔍 غربالگری هوشمند
+## 🔬 غربالگری
 
-### فیلترها
+| سرویس | مسیر | توضیح |
+|-------|------|-------|
+| `screener_service` | `/api/v1/screener` | غربالگری پایه با فیلترهای ترکیبی |
+| `smart_screener_v2` | `/api/v1/screener-v2` | ۴۰۰+ فیلتر، منطق OR/AND خودکار |
+| `screener110_service` | `/api/v1/screener110` | غربالگری ۱۱۰ ستونه CANSLIM |
 
-- **فیلترهای قیمتی**: قیمت، تغییر قیمت، نسبت قیمت به حداکثر/حداقل
-- **فیلترهای حجمی**: حجم معاملات، نسبت حجم به میانگین
-- **فیلترهای اندیکاتوری**: RSI, MACD, Bollinger Bands, Moving Averages
-- **فیلترهای بنیادی**: EPS, P/E, P/B, ROE, ROA
-- **فیلترهای Smart Money**: امتیاز پول هوشمند، فاز بازار
-- **فیلترهای تکنیکال**: الگوهای کندلی، حمایت/مقاومت
-- **فیلترهای بازار**: بازار، صنعت، نوع نماد
-
-### پشتیبانی از منطق OR/AND
-
+```bash
+curl http://localhost:8000/api/v1/screener110?market=stock
 ```
-"حجم بالای ۱ میلیون و RSI زیر ۳۰" → AND
-"حجم بالا یا RSI زیر ۳۰" → OR
-```
-
-تشخیص خودکار با کلمات کلیدی فارسی (`یا`) و انگلیسی (`or`).
-
----
-
-## 💬 موتور مکالمه
-
-### ۲۰ سطح هوشمندی
-
-1. **Intent Classification**: تشخیص قصد کاربر
-2. **Entity Extraction**: استخراج نماد، تاریخ، عدد
-3. **Dialog Management**: مدیریت مکالمه چندمرحله‌ای
-4. **Context Tracking**: ردیابی زمینه مکالمه
-5. **Chart Generation**: تولید خودکار نمودار
-6. **Sentiment Analysis**: تحلیل احساسات
-7. **News Integration**: یکپارچه‌سازی اخبار
-8. **Comparison Engine**: مقایسه نمادها
-9. **Personalizer**: شخصی‌سازی پاسخ‌ها
-10. **Suggestion Engine**: پیشنهادات هوشمند
 
 ---
 
 ## 🧠 موتور تصمیم‌گیری
 
-موتور تصمیم‌گیری بر اساس داده‌های معماری سازمانی عمل می‌کند:
-
-- **Auto-Seeding**: پر کردن خودکار از فایل‌های JSON
-- **Decision Support**: پشتیبانی تصمیم‌گیری
-- **Enterprise Architecture**: مدیریت داده‌های معماری
+- ذخیره‌سازی داده‌های معماری سازمانی + **Auto-Seeding** خودکار از فایل‌های JSON هنگام startup.
+- API اختصاصی در `/api/v1/decision-engine` — مستندات: [docs/decision-engine-api.md](docs/decision-engine-api.md).
 
 ---
 
-## 🤖 Machine Learning Pipeline
+## 📈 Machine Learning Pipeline
 
-### مدل‌ها
+### ModelLoader — lazy + LRU
 
-| مدل | کاربرد |
-|-----|---------|
-| **XGBoost** | طبقه‌بندی سیگنال |
-| **LightGBM** | طبقه‌بندی سریع |
-| **CatBoost** | طبقه‌بندی با categorical |
-| **Random Forest** | مجموعه درخت تصمیم |
-| **Neural Network** | یادگیری عمیق |
-
-### Pipeline
-
-```
-جمع‌آوری داده → پیش‌پردازش → ویژگی‌سازی → آموزش → ارزیابی → استقرار
-                                                        ↓
-                                                   بازآموزی خودکار
-```
-
----
-
-## 🔗 یکپارچه‌سازی BrsApi.ir
-
-### داده‌های دریافتی
-
-| نوع | توضیح |
-|-----|---------|
-| **Commodity** | کامودیتی‌های جهانی |
-| **Crypto** | ارزهای دیجیتال |
-| **Gold Coin** | سکه و طلا |
-| **Currency** | ارز |
-| **Codal** | اطلاعیه‌های شرکت‌ها |
-| **History** | تاریخچه قیمت |
-
-### Rate Limiting
-
-- **Daily Limit**: ۱۰,۰۰۰ درخواست
-- **5-min Limit**: ۵۰۰ درخواست
-- **Concurrency**: ۵ درخواست هم‌زمان
-- **Retry**: تلاش مجدد با backoff
-
----
-
-## ⏰ سیستم شغل‌ها
-
-### شغل‌های خودکار
-
-| شغل | زمان‌بندی | توضیح |
-|-----|----------|---------|
-| **Orchestrator Cron** | هر ساعت | تولید سیگنال + بازخورد |
-| **Fund Sync** | هر ۱۵ دقیقه | به‌روزرسانی صندوق‌ها |
-| **News Fetch** | هر روز | دریافت اخبار |
-| **BrsApi Sync** | هر روز | هماهنگ‌سازی BrsApi |
-| **Codal Sync** | هر روز | هماهنگ‌سازی کدال |
-| **Model Retrain** | هنگام افت دقت | بازآموزی مدل‌ها |
-
-### مدیریت شغل‌ها
-
-```bash
-# مشاهده شغل‌ها
-GET /api/v1/jobs
-
-# اجرای دستی شغل
-POST /api/v1/jobs/{job_id}/run
-
-# متوقف کردن شغل
-POST /api/v1/jobs/{job_id}/stop
-```
-
----
-
-## 📊 مانیتورینگ
-
-### OpenTelemetry
-
-- **Tracing**: ردیابی توزیع‌شده درخواست‌ها
-- **Metrics**: متریک‌های سیستم
-- **Logs**: لاگینگ یکپارچه
-
-### Prometheus
-
-```bash
-# متریک‌ها
-GET /metrics
-```
-
-### Health Checks
-
-```bash
-# بررسی سلامت
-GET /api/v1/health
-GET /api/v1/health/ready
-GET /api/v1/health/live
-GET /api/v1/health/full
-```
-
-### Telegram Alerts
-
-#### راه‌اندازی ربات تلگرام:
-
-1. با `@BotFather` در تلگرام ربات بسازید
-2. توکن ربات را کپی کنید
-3. ربات را در گروه/چت خصوصی اضافه کنید
-4. `TELEGRAM_BOT_TOKEN` و `TELEGRAM_CHAT_ID` را در `.env` تنظیم کنید
-
-#### انواع هشدار:
-
-- **۳ شکست متوالی**: هشدار فوری
-- **افت دقت زیر ۵۰٪**: هشدار بازآموزی
-- **بازیابی**: اطلاع‌رسانی بازگشت به حالت عادی
-
----
-
-## ⚙️ پیکربندی
-
-### متغیرهای محیطی اصلی
-
-| متغیر | پیش‌فرض | توضیح |
-|-------|---------|---------|
-| `DATABASE_URL` | — | URL اتصال دیتابیس |
-| `REDIS_URL` | — | URL اتصال Redis |
-| `SECRET_KEY` | — | کلید امنیتی |
-| `CORS_ORIGINS` | `["http://localhost:3000"]` | منشأهای مجاز |
-| `ENV` | `development` | محیط اجرا |
-| `API_PREFIX` | `/api/v1` | پیشوند API |
-| `LOG_LEVEL` | `INFO` | سطح لاگ |
-| `BRSAPI_API_KEY` | — | کلید BrsApi |
-| `CODAL_API_KEY` | — | کلید کدال |
-| `TELEGRAM_BOT_TOKEN` | — | توکن ربات تلگرام |
-| `TELEGRAM_CHAT_ID` | — | شناسه چت تلگرام |
-
-### پیکربندی تولید
+`ml/model_loader.py` فقط مدل‌های موردنیاز را بارگذاری می‌کند (حداکثر ۲۰ مدل در کش) — حل مشکل ۳۵۹ مدل و حافظه.
 
 ```python
-# core/config/__init__.py
-class Settings(BaseSettings):
-    environment: str = "production"
-    cors_origins: list[str] = ["https://yourdomain.com"]
-    secret_key: str = "your-secure-secret-key"
-    database_url: str = "postgresql+asyncpg://..."
+from ml.model_loader import get_model_loader
+
+loader = get_model_loader()
+model = await loader.get_model(symbol="فولاد", algorithm="xgboost")  # lazy load
+loader.invalidate("فولاد", "xgboost")  # بعد از بازآموزی
+await loader.preload(symbols=["فولاد", "شپنا"])  # پیش‌بارگذاری در startup
 ```
 
----
+- `GET /api/v1/ml/model-loader/cache-info` — وضعیت کش برای مانیتورینگ runtime.
+- مدل‌های جدید بدون ری‌استارت: بازآموزی → `invalidate(symbol, algorithm)` → دفعه بعد lazy-load با نسخه جدید.
 
-## 📋 دستورات کاربردی
+### ارزیابی صادقانه (F6)
 
-### Makefile
+`ml/weight_validator.py::PurgedWeightValidator` — R² برش **OOS** با purged walk-forward (پنجره train/test بدون نشت + embargo). مدل‌های آموزشی که اسنپ‌شات‌شان آلوده است با پرچم `provisional` مشخص می‌شوند.
+
+### قرارداد برچسب (F8)
+
+`SignalFeaturePipeline.prepare_training_data(feature_sequence, closes=..., targets=..., ...)` — برچسب `y_{t+1}` از `closes` در داخل محاسبه می‌شود و هم‌ترازی assert می‌شود؛ هیچ آرایه برچسب جابه‌جایی بی‌صدا نمی‌پذیرد.
 
 ```bash
-# نصب وابستگی‌ها
-make install
+# آموزش مدل‌ها برای همه نمادها
+python scripts/run_train_all_symbols.py
 
-# بررسی کیفیت
-make lint              # ruff linter
-make typecheck         # mypy type checker
-make test              # تست‌های unit
-make test-all          # تمام تست‌ها
+# آموزش رژیم‌یاب
+python ml/train_regime_classifier.py
 
-# اجرای محلی
-make dev               # API با hot-reload
-make api               # API بدون hot-reload
-make admin             # پنل مدیریت (port 8001)
-make worker            # worker پس‌زمینه
-
-# توجه: make dev-all از PowerShell استفاده می‌کند (فقط ویندوز)
-# در لینوکس/مک، هر سرویس را در ترمینال جداگانه اجرا کنید
-
-# Docker
-make docker-up         # ساخت و اجرا
-make docker-build      # ساخت imageها
-make docker-down       # توقف و حذف
-make docker-logs       # مشاهده لاگ‌ها
-
-# دیتابیس
-make backup            # بک‌آپ PostgreSQL
-make migrate           # اجرای مهاجرت
-make migrate-new       # ساخت مهاجرت جدید
-
-# تولید
-make prod-check        # بررسی پیکربندی تولید
-make clean             # پاکسازی
+# بهینه‌ساز وزن رژیم‌ها با اعتبارسنجی OOS
+python -m ml.train_weight_optimizer --market stock --no-walk-forward
 ```
 
 ---
 
-## 🗄️ ساختار دیتابیس
+## 🌐 یکپارچه‌سازی BrsApi
 
-سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **122 جدول** دارد
-(تخمین کل ردیف‌ها: **~42,785,178**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
+### بودجه‌بان — `BrsApiBudgetGovernor`
+
+برای جلوگیری از مسدود شدن کلید (خطای ۳۰۲ → فایل حجیم) یک **بودجه‌بان مرکزی** پیاده‌سازی شده است:
+
+- **شمارنده روزانه پایدار**: Redis `INCRBY` (کلید بر اساس تاریخ شمسی + TTL) با fallback فایل/حافظه — ری‌استارت/چند-worker بودجه تازه نمی‌گیرند.
+- **پنجره ۵دقیقه‌ای مشترک**: Redis sorted set با پیش‌پردازش کشویی؛ fail-fast یا صبر تا انقضای قدیمی‌ترین.
+- **حالت مسدودی ۳۰۲**: `report_302()` → cooldown (پیش‌فرض ۹۰۰ ثانیه)؛ `report_ok()` بعد از انقضا پاک می‌کند.
+- **ثبت مصرف روزانه**: `brsapi_daily_usage` + `POST /brsapi/manage/usage/flush` + گزارش از پنل ادمین.
+- محدودیت‌ها: `BRSAPI_GLOBAL_DAILY_LIMIT` (پیش‌فرض ۴۰۰۰)، `BRSAPI_GLOBAL_5MIN_LIMIT`، `BRSAPI_ENABLED`.
+
+### دریافت داده
+
+```bash
+# دریافت کامل اطلاعات همه نمادها
+python scripts/sync_live_data.py
+
+# sync بودجه‌آگاه (پس از مسدود شدن/بازگشت بودجه)
+python scripts/run_backlog_sync.py
+
+# آمادگی کلید (۱ درخواست ارزان)
+python scripts/brsapi_ready_check.py
+```
+
+- `BRSAPI_ENABLED=false` در `.env` تمام تماس‌های زنده را متوقف می‌کند (حالت امن هنگام مسدودی).
+
+---
+
+## 🔧 زیرساخت Job Queue
+
+### معماری Queue-محور (Redis Streams)
+
+```
+APScheduler ──► JobQueuePublisher (job:queue) ──► Worker (Consumer)
+                                                    │
+                                                    ├─ موفق → اجرا
+                                                    └─ خطا (۳ بار) → job:dead (dead-letter)
+```
+
+| فایل | مسئولیت |
+|------|---------|
+| `jobs/locking.py` | `RedisJobLock` — قفل توزیع‌شده (SET NX PX + Lua برای release/extend اتمیک، فقط owner) |
+| `jobs/queue_publisher.py` | ارسال job به Redis Stream + احراز هویت توکن |
+| `jobs/queue_consumer.py` | مصرف از صف، قفل، اجرا، retry و dead-letter + `stats()` |
+| `scripts/replay_dead_letter.py` | بازگرداندن پیام‌های dead-letter به صف اصلی (با `--list`/`--dry-run`/`--summary`) |
+| `scripts/dead_letter_report.py` | گزارش توزیع خطاها و job_nameها |
+
+### مدیریت از پنل/API
+
+```bash
+# وضعیت صف + گزارش dead-letter
+curl http://localhost:8000/api/v1/jobs/queue/summary
+
+# بازپخش پیام‌های dead-letter
+curl -X POST http://localhost:8000/api/v1/jobs/queue/replay
+```
+
+> در محیط تک-worker (توسعه)، `JOB_QUEUE_ENABLED=false` جاب‌ها را همان‌جا اجرا می‌کند (fallback درون‌فرایندی).
+
+---
+
+## 💼 صندوق‌های سرمایه‌گذاری
+
+- **FundService + FundRepository** با PostgreSQL (جدول `funds`).
+- **به‌روزرسانی روزانه**: `POST /api/v1/funds/{symbol}/update` + auto-refresh job از BrsApi.
+- **seed اولیه**: `scripts/seed_funds.py`.
+- صفحه فرانت‌اند `/funds` با دکمه به‌روزرسانی هر صندوق.
+
+---
+
+## 📰 اخبار و کدال
+
+- **اخبار**: سرویس خبر با dedup و تنوع منبع (`news_dedup.py`, `news_filter.py`) + جمع‌آوری خودکار.
+- **کدال**: `codal_service`, `codal_attachment_service` (دانلود پیوست از S3/MinIO با fallback محلی), `codal_download_service`, `codal_financial_service`.
+
+---
+
+## 🖥️ فرانت‌اند Next.js
+
+۸۸ صفحه، RTL کامل، Dark Mode، واکنش‌گرا. همه درخواست‌ها از Rewrite Proxy عبور می‌کنند (`API_URL` فقط سمت سرور).
+
+### صفحات اصلی
+
+| مسیر | صفحه |
+|------|------|
+| `/` | داشبورد (شاخص، حجم، ترکیب صنایع) |
+| `/markets` | وضعیت لحظه‌ای بازار |
+| `/analysis` | تحلیل تکنیکال و بنیادی |
+| `/smart-screener`, `/screener`, `/screener110` | غربالگری |
+| `/signals`, `/signals/all` | سیگنال‌ها |
+| `/smart-money` | پول هوشمند |
+| `/backtest` | بک‌تست |
+| `/portfolio` | پرتفوی |
+| `/funds` | صندوق‌ها |
+| `/news`, `/codal` | اخبار و اطلاعیه‌ها |
+| `/brsapi`, `/brsapi/history/[symbol]` | داده‌های برس‌آپی |
+| `/commodities`, `/crypto`, `/macro`, `/economic-calendar` | بازارهای جهانی و کلان |
+| `/decision-engine` | موتور تصمیم |
+| `/watchlist`, `/alerts`, `/recommendations` | دیده‌بان و هشدار |
+| `/chat` | مکالمه هوشمند |
+| `/admin`, `/jobs`, `/ml`, `/tables`, `/health` | مدیریت و مانیتورینگ |
+
+### کامپوننت‌های نمودار
+
+`AreaChartCard`, `BarChartCard`, `PieChartCard`, `CandleChartCard`, `TradingViewChart`, `SentimentChart`, `EquityCurveChart`
+
+---
+
+## 📊 مانیتورینگ و متریک‌ها
+
+| سطح | ابزار | جزئیات |
+|-----|-------|--------|
+| متریک | Prometheus `/metrics` | `http_requests_total`, `http_request_errors_total`, `http_request_duration_seconds`, `accuracy_tracking_dropped_total`, `accuracy_tracking_flush_failed_total`, `accuracy_tracking_read_unavailable_total` |
+| تریس | OpenTelemetry (`integrations/observability/otel_exporter.py`) | ردیابی توزیع‌شده |
+| لاگ | `RedisLogHandler` → Redis Stream (`log-aggregator:stream`) | تجمیع لاگ برای Loki/ELK |
+| سلامت | `/api/v1/health`, `/health/ready`, `/health/live`, `/health/full` | لایو/آمادگی/کامل |
+
+---
+
+## 🧪 تست‌ها
+
+```bash
+# تست‌های واحد
+pytest tests/unit -v
+
+# تست‌های integration
+pytest tests/integration -v
+
+# تست‌های e2e
+pytest tests/e2e -v
+
+# با coverage
+pytest --cov=. --cov-report=html
+
+# فرانت‌اند
+cd frontend
+npm test
+npx tsc --noEmit
+npm run lint
+```
+
+> گاردهای CI کلیدی: **Backtest integrity guard** (پاریتی هزینه + دیسپچر موتورها — `test_cost_parity.py` + `test_engine_runner.py`) و **چک سینتکس Mermaid مستندات** (`scripts/check_mermaid_blocks.py`).
+
+---
+
+## 🚀 CI/CD و استقرار
+
+### GitHub Actions (`.github/workflows/ci.yml`)
+
+- Lint & Typecheck (ruff, mypy)
+- Backend Tests (pytest)
+- Docker Build & Push
+- Frontend Build & Test
+- گاردهای یکپارچگی (پاریتی بک‌تست، مستندات Mermaid)
+
+### Docker Swarm (تولید)
+
+```bash
+docker swarm init
+docker stack deploy -c docker-compose.yml -c docker-compose.production.yml market
+```
+
+- Reverse proxy nginx با TLS-ready: `deploy/nginx/nginx.conf`.
+- بررسی تنظیمات production پیش از استقرار: `make prod-check` (رد `SECRET_KEY` پیش‌فرض، `CORS=*` و...).
+
+---
+
+## 🔧 عیب‌یابی
+
+| مشکل | راه‌حل |
+|------|--------|
+| خطای اتصال دیتابیس | `pg_isready` را چک کنید؛ `DATABASE_URL` را در `.env` اصلاح کنید |
+| Redis در دسترس نیست | `redis-cli ping`؛ `REDIS_URL` را اصلاح کنید |
+| کلید BrsApi مسدود شد (۳۰۲) | `BRSAPI_ENABLED=false` بگذارید، صبر کنید تا شمارنده ریست شود، سپس `python scripts/run_backlog_sync.py` با بودجه‌آگاه اجرا کنید |
+| خطای Rate Limit | صبر کنید یا `BRSAPI_GLOBAL_*_LIMIT` را در `.env` تنظیم کنید |
+| CERTIFICATE_VERIFY_FAILED در BrsApi | `BRSAPI_VERIFY_SSL=false` |
+| پیام‌های `job:dead` زیاد | `python scripts/dead_letter_report.py` (گزارش توزیع) سپس `python scripts/replay_dead_letter.py` بعد از رفع مشکل |
+| دقت ML پایین | `POST /api/v1/signal-insights/retrain?market=stock&force=true` یا صبر تا بازآموزی خودکار |
+| مهاجرت اجرا نمی‌شود | `alembic upgrade head` و بررسی زنجیره `0039` |
+| فرانت‌اند build نمی‌شود | `cd frontend && rm -rf node_modules .next && npm install && npm run build` |
+| `value too long for type character varying(30)` در `news_articles` | ✅ رفع‌شده — `published_at` به `VARCHAR(40)` ارتقا یافت (migration `0021`) و ریپازیتوری میکروثانیه‌ها را نرمال می‌کند؛ ستون‌های title/summary/content/url از قبل TEXT بودند |
+| `PendingRollbackError` بعد از خطای ذخیره خبر | ✅ رفع‌شده — `NewsIngestionService.ingest()` بعد از هر خطای ذخیره، سشن را rollback می‌کند تا مقاله‌های بعدی ادامه یابند (بجای مسموم شدن سشن) |
+| `DataError: expected a datetime.date ... got 'str'` در جاب‌ها | ✅ رفع‌شده — `SyncSnapshotsToQuotesJob`، `EvaluateAlertsJob` و `IranFearGreedIndex` حالا برای `fetched_at >= :today` آبجکت `datetime` (نیمه‌شب UTC) می‌فرستند نه رشته |
+| `InvalidRequestError: provisioning a new connection` در سینک صندوق‌ها | ✅ رفع‌شده — `FundSyncService.sync_all_funds()` حالا نمادها را ترتیبی سینک می‌کند (بدون `asyncio.gather` روی سشن مشترک) |
+
+---
+
+## 🛣️ وضعیت ممیزی معماری
+
+گزارش کامل: [docs/ARCHITECTURE_AUDIT.md](docs/ARCHITECTURE_AUDIT.md)
+
+**همه یافته‌های بحرانی/بالا (ردیف P0/P1) رفع شده‌اند:**
+
+| شناسه | موضوع | وضعیت |
+|-------|-------|--------|
+| F1/F2/F3 | مدل هزینه یکپارچه ایران + پاریتی + مالیات فقط-فروش | ✅ |
+| S1 | بودجه‌بان مرکزی BrsApi (جلوگیری از مسدودی) | ✅ |
+| F6 | R² برش OOS + purged walk-forward | ✅ |
+| F8 | قرارداد صریح برچسب در `prepare_training_data` | ✅ |
+| D1 | تجمیع موتورهای بک‌تست روی `BacktestRunner` | ✅ |
+| F4 | cost-basis PnL + deque | ✅ |
+| F5 | ADV واقعی هر نماد (اجباری/خودکار) | ✅ |
+| S2 | شکست‌های صامت → متریک + صف | ✅ |
+
+باقی‌مانده‌ها (غیربحرانی — ردیف P2): سیاست چرخه حیات `ml_artifacts` (M2)، متادیتا+هش مدل‌ها (M1)، تک‌منبع‌سازی منطق صندوق (D6)، پکیج screener یکپارچه (D7)، EvaluationSuite مشترک (M3)، حذف `.bak` (D3)، قطع وابستگی چرخه‌ای (D4).
+
+---
+
+## 🤝 توسعه و مشارکت
+
+1. **fork** و **branch** بسازید
+2. تغییرات را اعمال و **تست** کنید
+3. **PR** بفرستید
+
+### استانداردها
+
+- Linting: `ruff`
+- Type Checking: `mypy`
+- Testing: `pytest` (+ Vitest برای فرانت‌اند)
+- Formatting: `ruff format`
+
+### ساختار commits
+
+```
+feat: افزودن ویژگی جدید
+fix: رفع باگ
+docs: به‌روزرسانی مستندات
+test: افزودن تست
+refactor: بازآرایی کد
+chore: وظایف نگهداری
+```
+
+---## 🗄️ ساختار دیتابیس
+
+سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **128 جدول** دارد
+(تخمین کل ردیف‌ها: **~48,933,648**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
 
 ### نمودار ارتباط جدول‌ها
 
@@ -1024,6 +910,7 @@ erDiagram
     brsapi_shareholder_records {}
     brsapi_symbol_details {}
     brsapi_symbol_snapshots {}
+    ml_engineered_features {}
     ml_models {}
     ml_predictions {}
     ml_symbol_results {}
@@ -1037,7 +924,6 @@ erDiagram
     option_trades {}
     options {}
     brsapi_nav_records {}
-    candlesticks {}
     daily_history {}
     daily_real_legal {}
     etf_nav {}
@@ -1048,13 +934,13 @@ erDiagram
     orderbooks {}
     quotes {}
     shareholders {}
-    symbol_snapshots {}
     trades {}
     backtest_runs {}
     backtest_trades {}
     compare_results {}
     generated_strategies {}
     queue_analysis_results {}
+    screener_daily_scores {}
     screener_profiles {}
     screener_signals {}
     screener_snapshots {}
@@ -1063,14 +949,20 @@ erDiagram
     decision_results {}
     job_runs {}
     alerts {}
+    candlesticks_deprecated {}
     commodity_certificates {}
     commodity_funds {}
     commodity_futures {}
     commodity_options {}
     commodity_prices {}
     commodity_trades {}
+    daily_history_deprecated {}
     gold_currency_prices {}
     instruments {}
+    intraday_trades_deprecated {}
+    paper_signal_snapshots {}
+    paper_trades {}
+    symbol_snapshots_deprecated {}
     portfolio_positions {}
     recommendations {}
     saved_filters {}
@@ -1080,7 +972,7 @@ erDiagram
     analysis_reports {}
     brsapi_codal_announcements {}
     brsapi_codal_attachments {}
-    codal_announcements {}
+    codal_announcements_deprecated {}
     codal_audit_summary {}
     codal_financial_statements {}
     codal_reports {}
@@ -1134,8 +1026,8 @@ erDiagram
     brsapi_shareholder_records ||--o{ symbols : "دارای رابطه"
     brsapi_symbol_details ||--o{ symbols : "دارای رابطه"
     brsapi_symbol_snapshots ||--o{ symbols : "دارای رابطه"
-    candlesticks ||--o{ symbols : "دارای رابطه"
-    codal_announcements ||--o{ symbols : "دارای رابطه"
+    candlesticks_deprecated ||--o{ symbols : "دارای رابطه"
+    codal_announcements_deprecated ||--o{ symbols : "دارای رابطه"
     codal_audit_summary ||--o{ symbols : "دارای رابطه"
     codal_financial_statements ||--o{ symbols : "دارای رابطه"
     codal_reports ||--o{ symbols : "دارای رابطه"
@@ -1147,7 +1039,7 @@ erDiagram
     commodity_trades ||--o{ symbols : "دارای رابطه"
     compare_results ||--o{ symbols : "دارای رابطه"
     corporate_actions ||--o{ symbols : "دارای رابطه"
-    daily_history ||--o{ symbols : "دارای رابطه"
+    daily_history_deprecated ||--o{ symbols : "دارای رابطه"
     daily_real_legal ||--o{ symbols : "دارای رابطه"
     data_lineage ||--o{ dim_document : "دارای رابطه"
     data_lineage ||--o{ fact_financials : "دارای رابطه"
@@ -1177,7 +1069,8 @@ erDiagram
     import_document_tables ||--o{ import_document_files : "دارای رابطه"
     indicators ||--o{ symbols : "دارای رابطه"
     instruments ||--o{ symbols : "دارای رابطه"
-    intraday_trades ||--o{ symbols : "دارای رابطه"
+    intraday_trades_deprecated ||--o{ symbols : "دارای رابطه"
+    ml_engineered_features ||--o{ symbols : "دارای رابطه"
     ml_predictions ||--o{ symbols : "دارای رابطه"
     ml_symbol_results ||--o{ symbols : "دارای رابطه"
     open_interest_history ||--o{ option_contracts : "دارای رابطه"
@@ -1187,18 +1080,21 @@ erDiagram
     options ||--o{ symbols : "دارای رابطه"
     orderbook_snapshots ||--o{ symbols : "دارای رابطه"
     orderbooks ||--o{ symbols : "دارای رابطه"
+    paper_signal_snapshots ||--o{ symbols : "دارای رابطه"
+    paper_trades ||--o{ symbols : "دارای رابطه"
     portfolio_positions ||--o{ symbols : "دارای رابطه"
     queue_analysis_results ||--o{ symbols : "دارای رابطه"
     quotes ||--o{ symbols : "دارای رابطه"
     recommendations ||--o{ symbols : "دارای رابطه"
     saved_filters ||--o{ users : "دارای رابطه"
+    screener_daily_scores ||--o{ symbols : "دارای رابطه"
     screener_profiles ||--o{ symbols : "دارای رابطه"
     screener_signals ||--o{ symbols : "دارای رابطه"
     screener_snapshots ||--o{ symbols : "دارای رابطه"
     shareholders ||--o{ symbols : "دارای رابطه"
     signal_accuracy ||--o{ symbols : "دارای رابطه"
     signals ||--o{ symbols : "دارای رابطه"
-    symbol_snapshots ||--o{ symbols : "دارای رابطه"
+    symbol_snapshots_deprecated ||--o{ symbols : "دارای رابطه"
     tabdeal_markets ||--o{ symbols : "دارای رابطه"
     tabdeal_orders ||--o{ symbols : "دارای رابطه"
     tabdeal_trades ||--o{ symbols : "دارای رابطه"
@@ -1212,36 +1108,38 @@ erDiagram
 
 | جدول | ستون‌ها | ردیف (~) | منبع تاریخ دوتایی | رابطه با جدول‌های دیگر |
 |------|--------:|---------:|-------------------|------------------------|
-| `brsapi_candlesticks` | 17 | ~819 | created_at | symbol→symbols |
-| `brsapi_commodity_prices` | 19 | ~7,462 | fetched_at | symbol→symbols |
+| `brsapi_candlesticks` | 17 | ~2,166,522 | date | symbol→symbols |
+| `brsapi_commodity_prices` | 19 | ~13,440 | fetched_at | symbol→symbols |
 | `brsapi_crypto_daily_history` | 12 | ~18,609 | created_at | symbol→symbols |
-| `brsapi_crypto_prices` | 22 | ~19 | fetched_at | symbol→symbols |
+| `brsapi_crypto_prices` | 22 | ~567 | fetched_at | symbol→symbols |
 | `brsapi_currency_24h` | 18 | ~0 | fetched_at | symbol→symbols |
 | `brsapi_currency_prices` | 18 | ~28 | fetched_at | symbol→symbols |
+| `brsapi_daily_usage` | 8 | ~0 | — | — |
 | `brsapi_gold_24h` | 18 | ~0 | fetched_at | symbol→symbols |
 | `brsapi_gold_coin_history` | 14 | ~44,207 | created_at | symbol→symbols |
 | `brsapi_gold_coin_prices` | 18 | ~9 | fetched_at | symbol→symbols |
 | `brsapi_gold_currency_pro_daily_history` | 20 | ~160,567 | created_at | symbol→symbols |
 | `brsapi_gold_currency_pro_history_24h` | 14 | ~0 | fetched_at | symbol→symbols |
-| `brsapi_gold_currency_pro_prices` | 23 | ~19 | fetched_at | symbol→symbols |
-| `brsapi_historical_daily` | 23 | ~8,628,570 | created_at | symbol→symbols |
+| `brsapi_gold_currency_pro_prices` | 23 | ~>0 | fetched_at | symbol→symbols |
+| `brsapi_historical_daily` | 23 | ~12,112,238 | created_at | symbol→symbols |
 | `brsapi_historical_real_legal` | 21 | ~909,896 | created_at | symbol→symbols |
-| `brsapi_ime_certificates` | 48 | ~3,819 | fetched_at | symbol→symbols |
-| `brsapi_ime_funds` | 67 | ~21,019 | fetched_at | symbol→symbols |
-| `brsapi_ime_futures` | 59 | ~7,562 | date_end | symbol→symbols |
-| `brsapi_ime_options` | 101 | ~48,213 | fetched_at | symbol→symbols |
-| `brsapi_ime_physical_trades` | 37 | ~687 | date_trade | symbol→symbols |
+| `brsapi_ime_certificates` | 48 | ~4,259 | fetched_at | symbol→symbols |
+| `brsapi_ime_funds` | 67 | ~24,441 | fetched_at | symbol→symbols |
+| `brsapi_ime_futures` | 59 | ~8,379 | date_end | symbol→symbols |
+| `brsapi_ime_options` | 101 | ~58,294 | fetched_at | symbol→symbols |
+| `brsapi_ime_physical_trades` | 37 | ~935 | date_trade | symbol→symbols |
 | `brsapi_index_values` | 26 | ~3,437 | fetched_at | symbol→symbols |
-| `brsapi_intraday_trades` | 14 | ~1,643,525 | trade_date | symbol→symbols |
-| `brsapi_option_snapshots` | 81 | ~374,997 | date_end | symbol→symbols |
+| `brsapi_intraday_trades` | 14 | ~1,637,033 | trade_date | symbol→symbols |
+| `brsapi_option_snapshots` | 81 | ~499,922 | date_end | symbol→symbols |
 | `brsapi_raw_payloads` | 11 | ~0 | fetched_at | — |
-| `brsapi_shareholder_records` | 13 | ~771,203 | created_at | symbol→symbols |
-| `brsapi_symbol_details` | 65 | ~1,280 | fetched_at | symbol→symbols |
-| `brsapi_symbol_snapshots` | 71 | ~835,018 | fetched_at | symbol→symbols |
-| `brsapi_sync_log` | 13 | ~25,997 | created_at | — |
+| `brsapi_shareholder_records` | 14 | ~768,334 | created_at | symbol→symbols |
+| `brsapi_symbol_details` | 65 | ~3,923 | fetched_at | symbol→symbols |
+| `brsapi_symbol_snapshots` | 71 | ~1,194,116 | fetched_at | symbol→symbols |
+| `brsapi_sync_log` | 13 | ~50 | created_at | — |
+| `ml_engineered_features` | 50 | ~>0 | — | symbol→symbols |
 | `ml_model_versions` | 13 | ~638 | created_at | — |
 | `ml_models` | 11 | ~359 | created_at | — |
-| `ml_predictions` | 22 | ~19,960 | created_at | symbol→symbols |
+| `ml_predictions` | 22 | ~20,674 | created_at | symbol→symbols |
 | `ml_symbol_results` | 22 | ~5,506 | start_date | symbol→symbols |
 | `ml_training_runs` | 17 | ~6,078 | created_at | — |
 | `tabdeal_accounts` | 15 | ~0 | created_at | — |
@@ -1256,19 +1154,15 @@ erDiagram
 | `option_trades` | 13 | ~0 | created_at | FK→option_contracts |
 | `options` | 13 | ~3,225 | expiry_date | symbol→symbols |
 | `volatility_surface` | 11 | ~0 | date | — |
-| `brsapi_nav_records` | 14 | ~114 | fetched_at | symbol→symbols |
-| `candlesticks` | 10 | ~0 | time | FK→symbols |
-| `daily_history` | 17 | ~88,961 | trade_date | FK→symbols |
+| `brsapi_nav_records` | 14 | ~245 | fetched_at | symbol→symbols |
 | `daily_real_legal` | 16 | ~387,701 | trade_date | FK→symbols |
 | `etf_nav` | 7 | ~12 | time | FK→symbols |
-| `funds` | 31 | ~26 | snapshot_date | symbol→symbols |
+| `funds` | 31 | ~27 | snapshot_date | symbol→symbols |
 | `indicators` | 13 | ~0 | created_at | symbol→symbols |
-| `intraday_trades` | 9 | ~9,135,020 | trade_date | FK→symbols |
 | `orderbook_snapshots` | 34 | ~0 | time | FK→symbols |
 | `orderbooks` | 12 | ~0 | created_at | symbol→symbols |
-| `quotes` | 29 | ~3,343,338 | created_at | symbol→symbols |
+| `quotes` | 29 | ~3,366,996 | created_at | symbol→symbols |
 | `shareholders` | 8 | ~2,390 | record_date | FK→symbols |
-| `symbol_snapshots` | 28 | ~0 | time | FK→symbols |
 | `trades` | 14 | ~14,884,365 | created_at | symbol→symbols |
 | `backtest_runs` | 22 | ~1,579 | start_date | — |
 | `backtest_trades` | 18 | ~0 | created_at | symbol→symbols |
@@ -1276,11 +1170,12 @@ erDiagram
 | `compare_results` | 20 | ~0 | start_date | symbol→symbols |
 | `generated_strategies` | 38 | ~0 | created_at | symbol→symbols |
 | `generation_batches` | 14 | ~0 | created_at | — |
-| `queue_analysis_results` | 30 | ~0 | created_at | symbol→symbols |
-| `screener_profiles` | 61 | ~1,562 | created_at | symbol→symbols |
-| `screener_signals` | 37 | ~0 | created_at | symbol→symbols |
-| `screener_snapshots` | 20 | ~0 | created_at | symbol→symbols |
-| `signal_accuracy` | 28 | ~20,550 | created_at | symbol→symbols |
+| `queue_analysis_results` | 30 | ~500 | created_at | symbol→symbols |
+| `screener_daily_scores` | 14 | ~1,515 | — | symbol→symbols |
+| `screener_profiles` | 62 | ~1,562 | created_at | symbol→symbols |
+| `screener_signals` | 37 | ~511 | created_at | symbol→symbols |
+| `screener_snapshots` | 20 | ~511 | created_at | symbol→symbols |
+| `signal_accuracy` | 28 | ~3,693 | created_at | symbol→symbols |
 | `signals` | 17 | ~4 | created_at | symbol→symbols |
 | `audit_logs` | 12 | ~0 | timestamp | — |
 | `audit_trail` | 10 | ~0 | timestamp | — |
@@ -1289,31 +1184,38 @@ erDiagram
 | `job_runs` | 15 | ~0 | created_at | — |
 | `provider_health` | 14 | ~0 | created_at | — |
 | `provider_health_history` | 8 | ~0 | checked_at | — |
-| `alert_history` | 8 | ~274 | triggered_at | — |
-| `alerts` | 14 | ~1 | created_at | symbol→symbols |
+| `alert_history` | 8 | ~1,536 | triggered_at | — |
+| `alerts` | 14 | ~2 | created_at | symbol→symbols |
+| `candlesticks_deprecated` | 10 | ~0 | — | FK→symbols |
 | `commodity_certificates` | 8 | ~125,256 | time | symbol→symbols |
 | `commodity_funds` | 8 | ~186 | time | symbol→symbols |
 | `commodity_futures` | 11 | ~60 | expiry_date | symbol→symbols |
 | `commodity_options` | 11 | ~476 | expiry_date | symbol→symbols |
 | `commodity_prices` | 9 | ~42 | time | symbol→symbols |
 | `commodity_trades` | 12 | ~320,005 | created_at | symbol→symbols |
+| `daily_history_deprecated` | 17 | ~88,961 | — | FK→symbols |
 | `dual_date_columns` | 4 | ~117 | — | — |
 | `gold_currency_prices` | 12 | ~74,463 | time | symbol→symbols |
 | `indices` | 8 | ~4 | time | — |
 | `instruments` | 26 | ~499 | created_at | symbol→symbols |
+| `intraday_trades_deprecated` | 9 | ~9,135,020 | — | FK→symbols |
+| `paper_equity_history` | 9 | ~>0 | — | — |
+| `paper_signal_snapshots` | 25 | ~3,025 | — | symbol→symbols |
+| `paper_trades` | 26 | ~3,025 | — | symbol→symbols |
 | `symbol_relations` | 13 | ~0 | created_at | — |
+| `symbol_snapshots_deprecated` | 28 | ~0 | — | FK→symbols |
 | `markets` | 14 | ~0 | created_at | — |
 | `portfolio_positions` | 14 | ~0 | created_at | symbol→symbols |
 | `portfolios` | 11 | ~0 | created_at | — |
 | `recommendations` | 18 | ~0 | created_at | symbol→symbols |
 | `saved_filters` | 17 | ~0 | created_at | FK→users |
 | `symbols` | 19 | ~511 | created_at | — |
-| `users` | 21 | ~0 | created_at | — |
+| `users` | 21 | ~>0 | created_at | — |
 | `account_mappings` | 14 | ~0 | — | FK→dim_account |
 | `analysis_reports` | 22 | ~0 | report_date | FK→dim_company، symbol→symbols |
 | `brsapi_codal_announcements` | 24 | ~5,053 | date_publish | symbol→symbols |
-| `brsapi_codal_attachments` | 18 | ~359 | created_at | symbol→symbols |
-| `codal_announcements` | 17 | ~0 | date_publish | symbol→symbols |
+| `brsapi_codal_attachments` | 18 | ~10,336 | created_at | symbol→symbols |
+| `codal_announcements_deprecated` | 17 | ~0 | — | symbol→symbols |
 | `codal_audit_summary` | 33 | ~451 | analyzed_at | symbol→symbols |
 | `codal_financial_statements` | 16 | ~451 | imported_at | symbol→symbols |
 | `codal_reports` | 17 | ~226,818 | publish_date | symbol→symbols |
@@ -1333,7 +1235,7 @@ erDiagram
 | `import_document_files` | 18 | ~95,418 | created_at | — |
 | `import_document_tables` | 13 | ~524,564 | created_at | FK→import_document_files |
 | `macro_indicators` | 15 | ~0 | created_at | — |
-| `news_articles` | 16 | ~1,819 | created_at | — |
+| `news_articles` | 16 | ~71 | created_at | — |
 
 ### خلاصه مشکلات جدول‌ها
 
@@ -1341,42 +1243,36 @@ erDiagram
 
 | مشکل | تعداد جدول |
 |------|-----------:|
-| جدول خالی است | 58 |
-| مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست | 43 |
+| جدول خالی است | 55 |
+| مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست | 40 |
+| بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 11 |
 | لایه ستاره‌ای کدال (dim/fact) هرگز پیاده‌سازی نشده — import فعال به `codal_financial_statements` می‌رود | 10 |
-| بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 6 |
-| ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 5 |
+| ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 6 |
+| هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو | 6 |
+| آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید | 4 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` (۳۳۶K ردیف) است | 3 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` است | 2 |
 | ستون منبع تاریخ `expiry_date` در نمونه NULL دارد | 2 |
 | ستون منبع تاریخ `start_date` در نمونه NULL دارد | 1 |
 | نسخه قدیمی است — جدول زنده `brsapi_option_snapshots` جایگزین آن است | 1 |
-| نسخه قدیمی است — جدول زنده `brsapi_candlesticks` جایگزین آن است | 1 |
-| نسخه قدیمی — backfill به `brsapi_candlesticks` می‌نویسد | 1 |
 | ۱۲ ردیف یتیم بدون مصرف‌کننده — نسخه‌های زنده `brsapi_nav_records` و `funds` جایگزین‌اند | 1 |
-| نسخه قدیمی است — جدول زنده `brsapi_intraday_trades` جایگزین آن است | 1 |
-| هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو | 1 |
-| نسخه قدیمی است — جدول زنده `brsapi_symbol_snapshots` جایگزین آن است | 1 |
-| نسخه قدیمی — `brsapi_symbol_snapshots` (۸۰۳K ردیف) زنده است | 1 |
 | رکوردزنی جاب‌ها در `services/job_service.py` پیاده‌سازی نشده — جدول در عمل خالی می‌ماند | 1 |
 | نسخه قدیمی است — جدول زنده `brsapi_commodity_prices` جایگزین آن است | 1 |
 | هیچ SQL فعالی ندارد — مراجع کد صرفاً از نام ماژول/پکیج هستند | 1 |
-| نسخه قدیمی است — جدول زنده `brsapi_codal_announcements` جایگزین آن است | 1 |
-| باگ فعال: `services/codal_download_service.py` از این جدول (خالی) می‌خواند → دانلود ضمائم هرگز انجام نمی‌شود | 1 |
 
 ### تحلیل عمیق — مشکلات پیدا و ناپیدا
 
-این گزارش با `python scripts/analyze_db_issues.py` تولید می‌شود — مجموع **209 یافته**: 🔴 0 بحرانی، 🟠 6 بالا، 🟡 104 متوسط، 🔵/⚪ 99 کم/اطلاعاتی.
+این گزارش با `python scripts/analyze_db_issues.py` تولید می‌شود — مجموع **221 یافته**: 🔴 0 بحرانی، 🟠 2 بالا، 🟡 119 متوسط، 🔵/⚪ 100 کم/اطلاعاتی.
 
 <details>
-<summary>نمایش همه 209 یافته (کلیک کنید)</summary>
+<summary>نمایش همه 221 یافته (کلیک کنید)</summary>
 
 | شدت | تعداد |
 |------|------:|
 | 🔴 بحرانی | 0 |
-| 🟠 بالا | 6 |
-| 🟡 متوسط | 104 |
-| 🔵 کم / ⚪ اطلاعاتی | 99 |
+| 🟠 بالا | 2 |
+| 🟡 متوسط | 119 |
+| 🔵 کم / ⚪ اطلاعاتی | 100 |
 
 **data:**
 
@@ -1407,6 +1303,7 @@ erDiagram
 - 🟡 متوسط `brsapi_currency_24h`: ستون تاریخ `fetched_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_currency_prices`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_currency_prices`: ستون تاریخ `fetched_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `brsapi_daily_usage`: ستون تاریخ `usage_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_gold_24h`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_gold_24h`: ستون تاریخ `fetched_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_gold_coin_history`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
@@ -1451,6 +1348,9 @@ erDiagram
 - 🟡 متوسط `brsapi_shareholder_records`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_symbol_details`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_symbol_details`: ستون تاریخ `date_update` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `codal_announcements`: ستون تاریخ `date_publish` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `codal_announcements`: ستون تاریخ `date_send` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `codal_announcements`: ستون تاریخ `date_title` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `codal_audit_summary`: ستون تاریخ `report_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `codal_financial_statements`: ستون تاریخ `report_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `codal_reports`: ستون تاریخ `publish_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
@@ -1463,6 +1363,7 @@ erDiagram
 - 🟡 متوسط `dim_document`: ستون تاریخ `publish_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `funds`: ستون تاریخ `snapshot_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `indicators`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `intraday_trades`: ستون تاریخ `trade_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `macro_indicators`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `markets`: ستون تاریخ `close_time` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `markets`: ستون تاریخ `open_time` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
@@ -1470,63 +1371,67 @@ erDiagram
 - 🟡 متوسط `ml_symbol_results`: ستون تاریخ `start_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `news_articles`: ستون تاریخ `published_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `orderbooks`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `paper_equity_history`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `quotes`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `trades`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 
 **freshness:**
 
-- 🟡 متوسط `daily_history`: آخرین داده 35 روز پیش است (2026-07-01) → *اجرای جاب سینک مربوطه*
-- 🟡 متوسط `intraday_trades`: آخرین داده 32 روز پیش است (2026-07-04) → *اجرای جاب سینک مربوطه*
+- 🟡 متوسط `codal_reports`: آخرین داده 40 روز پیش است (2026-07-12) → *اجرای جاب سینک مربوطه*
+- 🟡 متوسط `daily_real_legal`: آخرین داده 38 روز پیش است (2026-07-14) → *اجرای جاب سینک مربوطه*
+- 🟡 متوسط `shareholders`: آخرین داده 44 روز پیش است (2026-07-08) → *اجرای جاب سینک مربوطه*
 - 🔵 کم `brsapi_historical_daily`: محاسبه max تاریخ به‌دلیل نبود ایندکس/وقفه انجام نشد
 - 🔵 کم `trades`: محاسبه max تاریخ به‌دلیل نبود ایندکس/وقفه انجام نشد
-- ⚪ اطلاعاتی `candlesticks`: جدول سری زمانی خالی است
 - ⚪ اطلاعاتی `orderbooks`: جدول سری زمانی خالی است
-- ⚪ اطلاعاتی `symbol_snapshots`: جدول سری زمانی خالی است
 
 **infra:**
 
-- 🟡 متوسط `-`: 10 هایپرتیبل بدون فشرده‌سازی: candlesticks، commodity_prices، daily_history، daily_real_legal، etf_nav، gold_currency_prices، intraday_trades، orderbook_snapshots → *فعال‌سازی compression + retention policy*
-- ⚪ اطلاعاتی `-`: 10 هایپرتیبل TimescaleDB: candlesticks، commodity_prices، daily_history، daily_real_legal، etf_nav، gold_currency_prices، intraday_trades، orderbook_snapshots، shareholders، symbol_snapshots
+- 🟡 متوسط `-`: 10 هایپرتیبل بدون فشرده‌سازی: candlesticks_deprecated، commodity_prices، daily_history_deprecated، daily_real_legal، etf_nav، gold_currency_prices، intraday_trades_deprecated، orderbook_snapshots → *فعال‌سازی compression + retention policy*
+- ⚪ اطلاعاتی `-`: 10 هایپرتیبل TimescaleDB: candlesticks_deprecated، commodity_prices، daily_history_deprecated، daily_real_legal، etf_nav، gold_currency_prices، intraday_trades_deprecated، orderbook_snapshots، shareholders، symbol_snapshots_deprecated
 
 **legacy:**
 
-- 🟠 بالا `candlesticks`: نسخه قدیمی/تکراری است — `brsapi_candlesticks` زنده است (داده اینجا با نسخه زنده همگام نیست) → *پس از تأیید، جدول قدیمی را drop کنید*
-- 🟠 بالا `codal_announcements`: نسخه قدیمی/تکراری است — `brsapi_codal_announcements` زنده است (داده اینجا با نسخه زنده همگام نیست) → *پس از تأیید، جدول قدیمی را drop کنید*
 - 🟠 بالا `commodity_prices`: نسخه قدیمی/تکراری است — `brsapi_commodity_prices` زنده است (داده اینجا با نسخه زنده همگام نیست) → *پس از تأیید، جدول قدیمی را drop کنید*
-- 🟠 بالا `intraday_trades`: نسخه قدیمی/تکراری است — `brsapi_intraday_trades` زنده است (داده اینجا با نسخه زنده همگام نیست) → *پس از تأیید، جدول قدیمی را drop کنید*
 - 🟠 بالا `option_snapshots`: نسخه قدیمی/تکراری است — `brsapi_option_snapshots` زنده است (داده اینجا با نسخه زنده همگام نیست) → *پس از تأیید، جدول قدیمی را drop کنید*
-- 🟠 بالا `symbol_snapshots`: نسخه قدیمی/تکراری است — `brsapi_symbol_snapshots` زنده است (داده اینجا با نسخه زنده همگام نیست) → *پس از تأیید، جدول قدیمی را drop کنید*
 
 **orphan:**
 
 - 🟡 متوسط `alerts`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `candlesticks`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `codal_announcements`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `codal_audit_summary`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `codal_financial_statements`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `codal_reports`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `daily_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `intraday_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `ml_symbol_results`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `options`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `paper_signal_snapshots`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `paper_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `queue_analysis_results`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `screener_profiles`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `signal_accuracy`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
-- 🔵 کم `brsapi_candlesticks`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_codal_announcements`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🟡 متوسط `symbol_snapshots`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_codal_announcements`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_codal_attachments`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_commodity_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_crypto_daily_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_crypto_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_currency_prices`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_gold_coin_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_gold_24h`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_gold_coin_history`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_gold_coin_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_gold_currency_pro_daily_history`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_gold_currency_pro_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_gold_currency_pro_prices`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_ime_certificates`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_ime_funds`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_ime_funds`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_ime_futures`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_ime_options`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_ime_physical_trades`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_ime_physical_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_index_values`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_nav_records`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_option_snapshots`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_symbol_details`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_nav_records`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_option_snapshots`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_symbol_details`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_certificates`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_funds`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_futures`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
@@ -1534,7 +1439,8 @@ erDiagram
 - 🔵 کم `commodity_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `funds`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
-- 🔵 کم `gold_currency_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `gold_currency_prices`: بررسی یتیم‌های `symbol` به‌دلیل حجم/وقفه انجام نشد
+- 🔵 کم `vw_clean_daily_history`: بررسی یتیم‌های `symbol` به‌دلیل حجم/وقفه انجام نشد
 
 **schema:**
 
@@ -1545,7 +1451,7 @@ erDiagram
 - 🟡 متوسط `news_articles`: constraint یکتا روی `url` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🟡 متوسط `codal_reports`: constraint یکتا روی `ins_id,report_type` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🔵 کم `account_mappings`: 2 ایندکس با ستون اول یکسان `source_label` → *ادغام ایندکس‌ها*
-- 🔵 کم `brsapi_candlesticks`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
+- 🔵 کم `brsapi_candlesticks`: 4 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_codal_announcements`: 2 ایندکس با ستون اول یکسان `date_publish` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_codal_announcements`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_codal_attachments`: 2 ایندکس با ستون اول یکسان `announcement_id` → *ادغام ایندکس‌ها*
@@ -1562,13 +1468,14 @@ erDiagram
 - 🔵 کم `brsapi_gold_currency_pro_daily_history`: 3 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_gold_currency_pro_history_24h`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_gold_currency_pro_prices`: 2 ایندکس با ستون اول یکسان `section` → *ادغام ایندکس‌ها*
+- 🔵 کم `brsapi_historical_daily`: 2 ایندکس با ستون اول یکسان `gregorian_date` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_historical_daily`: 2 ایندکس با ستون اول یکسان `ins_id` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_historical_daily`: 2 ایندکس با ستون اول یکسان `instrument_id` → *ادغام ایندکس‌ها*
-- 🔵 کم `brsapi_historical_daily`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
+- 🔵 کم `brsapi_historical_daily`: 3 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_historical_real_legal`: 2 ایندکس با ستون اول یکسان `ins_id` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_historical_real_legal`: 2 ایندکس با ستون اول یکسان `instrument_id` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_historical_real_legal`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
-- 🔵 کم `brsapi_ime_funds`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
+- 🔵 کم `brsapi_ime_funds`: 3 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_ime_futures`: 2 ایندکس با ستون اول یکسان `contract_code` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_ime_options`: 2 ایندکس با ستون اول یکسان `call_contract_code` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_ime_options`: 2 ایندکس با ستون اول یکسان `put_contract_code` → *ادغام ایندکس‌ها*
@@ -1578,7 +1485,7 @@ erDiagram
 - 🔵 کم `brsapi_option_snapshots`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_option_snapshots`: 2 ایندکس با ستون اول یکسان `underlying_symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `brsapi_shareholder_records`: 3 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
-- 🔵 کم `brsapi_symbol_snapshots`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
+- 🔵 کم `brsapi_symbol_snapshots`: 3 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `codal_audit_summary`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `codal_financial_statements`: 2 ایندکس با ستون اول یکسان `import_batch` → *ادغام ایندکس‌ها*
 - 🔵 کم `codal_financial_statements`: 2 ایندکس با ستون اول یکسان `report_date` → *ادغام ایندکس‌ها*
@@ -1591,6 +1498,7 @@ erDiagram
 - 🔵 کم `fact_ratios`: 2 ایندکس با ستون اول یکسان `company_id` → *ادغام ایندکس‌ها*
 - 🔵 کم `import_document_files`: 2 ایندکس با ستون اول یکسان `file_status` → *ادغام ایندکس‌ها*
 - 🔵 کم `import_document_tables`: 2 ایندکس با ستون اول یکسان `document_file_id` → *ادغام ایندکس‌ها*
+- 🔵 کم `ml_engineered_features`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `ml_symbol_results`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `open_interest_history`: 2 ایندکس با ستون اول یکسان `contract_id` → *ادغام ایندکس‌ها*
 - 🔵 کم `option_contracts`: 2 ایندکس با ستون اول یکسان `underlying_symbol` → *ادغام ایندکس‌ها*
@@ -1602,7 +1510,7 @@ erDiagram
 - 🔵 کم `screener_signals`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `screener_snapshots`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `signal_accuracy`: 2 ایندکس با ستون اول یکسان `market` → *ادغام ایندکس‌ها*
-- 🔵 کم `signal_accuracy`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
+- 🔵 کم `signal_accuracy`: 3 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `tabdeal_orders`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `tabdeal_trades`: 2 ایندکس با ستون اول یکسان `symbol` → *ادغام ایندکس‌ها*
 - 🔵 کم `trades`: 2 ایندکس با ستون اول یکسان `instrument_id` → *ادغام ایندکس‌ها*
@@ -1615,28 +1523,29 @@ erDiagram
 نام جدول در فایل‌های پایتون (به‌جز migrations و همین اسکریپت) محاسبه شده است.
 
 <details>
-<summary><code>brsapi_candlesticks</code> — ~819 ردیف، 17 ستون (نمایش 12 ستون از 17)</summary>
+<summary><code>brsapi_candlesticks</code> — ~2,166,522 ردیف، 17 ستون (نمایش 12 ستون از 17) ⚠️ 1 مشکل</summary>
 
-_مشکلی شناسایی نشد._
+**مشکلات (1):**
+- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `CandlestickModel`
-- سرویس: `services/history_backfill_service.py` (2)
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/backfill_ins_id.py` (1)، `scripts/run_brsapi_sync.py` (1)، `scripts/sync_all_tables.py` (1)
-- تست: `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
+- سرویس: `services/history_backfill_service.py` (2)، `services/market_service.py` (2)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/backfill_dates.py` (1)، `scripts/backfill_ins_id.py` (1)، `scripts/run_brsapi_sync.py` (1)
+- تست: `tests/unit/test_brsapi_candlestick_daily_job.py` (3)، `tests/test_instrument_relations.py` (1)، `tests/unit/test_brsapi_candlesticks.py` (1)، `tests/unit/test_brsapi_candlestick_manual.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (5)، `brsapi/parsers/tsetmc.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
 **نمونه داده:**
 
 | id | symbol | date | time | open | high | low | close | volume | count | candle_type | created_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 1 | آ س پ |  |  | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 3330 | NULL | 2026-07-15 23:34:47.861865 | … |
-| 2 | آباد |  |  | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 4102 | NULL | 2026-07-15 23:35:15.331081 | … |
+| 820 | پاسارگاد |  |  | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 367 | 3 | 2026-08-10 01:19:37.671675 | … |
+| 821 | پاسارگاد |  |  | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 367 | 2 | 2026-08-10 01:19:45.800784 | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_commodity_prices</code> — ~7,462 ردیف، 19 ستون (نمایش 12 ستون از 19)</summary>
+<summary><code>brsapi_commodity_prices</code> — ~13,440 ردیف، 19 ستون (نمایش 12 ستون از 19)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -1651,8 +1560,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | price | change_value | change_percent | unit | category | date | time | time_unix | fetched_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 1 | XAUUSD | انس طلا | 4021.21 | -31.85 | -0.79 | دلار | precious_metal | 1405/04/24 | 11:11 | 1784101290 | 2026-07-15T07:43:13.727Z | … |
-| 2 | XAGUSD | انس نقره | 58.04 | -0.66 | -1.14 | دلار | precious_metal | 1405/04/24 | 11:11 | 1784101290 | 2026-07-15T07:43:13.727Z | … |
+| 7516 | XAUUSD | انس طلا | 4247.97 | 1.95 | 0.05 | دلار | precious_metal | 1405/05/15 | 21:57 | 1786040846 | 2026-08-06T18:30:57.494Z | … |
+| 7519 | XAGUSD | انس نقره | 61.53 | -0.44 | -0.71 | دلار | precious_metal | 1405/05/15 | 21:57 | 1786040846 | 2026-08-06T18:30:57.494Z | … |
 
 </details>
 
@@ -1677,7 +1586,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_crypto_prices</code> — ~19 ردیف، 22 ستون (نمایش 12 ستون از 22)</summary>
+<summary><code>brsapi_crypto_prices</code> — ~567 ردیف، 22 ستون (نمایش 12 ستون از 22)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -1692,8 +1601,8 @@ _مشکلی شناسایی نشد._
 
 | id | name | symbol | price_usd | price_toman | price_irr | change_percent | market_cap | volume_24h | icon_url | rank | date | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 639667 | بیت‌کوین | BTC | 64352.0 | 0.0 | 0.0 | 1.01 | 1291665779250.0 | 0.0 |  | 0 | 1405/05/14 | … |
-| 639668 | اتریوم | ETH | 1871.0 | 0.0 | 0.0 | 0.56 | 226026280215.0 | 0.0 |  | 0 | 1405/05/14 | … |
+| 1147008 | بیت‌کوین | BTC | 65123.0 | 0.0 | 0.0 | 0.25 | 1304896276390.0 | 0.0 |  | 0 | 1405/05/19 | … |
+| 1147009 | اتریوم | ETH | 1920.0 | 0.0 | 0.0 | 0.06 | 231343331366.0 | 0.0 |  | 0 | 1405/05/19 | … |
 
 </details>
 
@@ -1722,14 +1631,28 @@ _مشکلی شناسایی نشد._
 - سرویس: `services/quant_signal_orchestrator.py` (3)، `services/auto_retrain_pipeline.py` (2)، `services/populate_profiles_service.py` (2)، `services/confidence_scorer.py` (1)
 - اسکریپت: `scripts/full_populate_profiles.py` (6)، `scripts/populate_24h_tables.py` (2)، `scripts/check_tables.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `bench_schema2_temp.py` (2)، `bench_schema_temp.py` (1)، `diagnostics/ingestion_audit.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
 **نمونه داده:**
 
 | id | symbol | name | price | change_value | change_percent | unit | date | time | time_unix | fetched_at | raw_json | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 14809 | BHD | دینار بحرین | 511870.0 | 5560.0 | 1.1 | IRR | 1405/05/12 | 19:59 | 1785774580 | 2026-08-05T03:17:34.970Z | {"date": "1405/05/12", "time":… | … |
-| 14810 | AFN | افغانی | 2933.0 | 30.0 | 1.03 | IRR | 1405/05/12 | 19:54 | 1785774290 | 2026-08-05T03:17:34.970Z | {"date": "1405/05/12", "time":… | … |
+| 28257 | USDT_IRT | دلار تتر | 185701.0 | -428.0 | -0.23 | IRR | 1405/05/19 | 15:27:03 | 1786363023 | 2026-08-10T11:57:53.514Z | {"date": "1405/05/19", "time":… | … |
+| 28258 | USD | دلار | 185800.0 | -100.0 | -0.05 | IRR | 1405/05/19 | 15:08 | 1786361917 | 2026-08-10T11:57:53.514Z | {"date": "1405/05/19", "time":… | … |
+
+</details>
+
+<details>
+<summary><code>brsapi_daily_usage</code> — جدول خالی است (8 ستون) ⚠️ 1 مشکل</summary>
+
+**مشکلات (1):**
+- جدول خالی است
+
+**مراجع کد:**
+- مدل: `brsapi/models/base.py` → `BrsApiDailyUsageModel`
+- API: `apps/api/endpoints/brsapi.py` (3)
+- تست: `tests/unit/test_brsapi_usage_recorder.py` (1)
+- سایر: `brsapi/usage_recorder.py` (3)، `brsapi/budget.py` (1)
 
 </details>
 
@@ -1744,7 +1667,7 @@ _مشکلی شناسایی نشد._
 - مدل: `brsapi/models/commodity.py` → `Gold24hModel`
 - اسکریپت: `scripts/populate_24h_tables.py` (3)
 - تست: `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `bench_schema2_temp.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)
 
 </details>
 
@@ -1759,7 +1682,7 @@ _مشکلی شناسایی نشد._
 - API: `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/signal_insights.py` (1)
 - اسکریپت: `scripts/import_gold_currency_history.py` (4)، `scripts/import_history_data.py` (2)، `scripts/add_constraints.py` (1)، `scripts/check_columns.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `bench_schema_temp.py` (2)، `brsapi/services/history_fetch_service.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `brsapi/services/history_fetch_service.py` (1)
 
 **نمونه داده:**
 
@@ -1780,14 +1703,14 @@ _مشکلی شناسایی نشد._
 - سرویس: `services/quant_signal_orchestrator.py` (3)، `services/confidence_scorer.py` (1)
 - اسکریپت: `scripts/populate_24h_tables.py` (2)، `scripts/check_tables.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `bench_schema2_temp.py` (1)، `diagnostics/ingestion_audit.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
 **نمونه داده:**
 
 | id | symbol | name | price | change_value | change_percent | unit | date | time | time_unix | fetched_at | raw_json | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 4816 | IR_GOLD_18K | طلای 18 عیار | 18235000.0 | -124600.0 | -0.68 | IRR | 1405/05/13 | 20:49 | 1785863942 | 2026-08-05T03:17:34.935Z | {"date": "1405/05/13", "time":… | … |
-| 4817 | IR_GOLD_24K | طلای 24 عیار | 24310000.0 | -167000.0 | -0.68 | IRR | 1405/05/13 | 20:49 | 1785863942 | 2026-08-05T03:17:34.935Z | {"date": "1405/05/13", "time":… | … |
+| 9154 | IR_GOLD_18K | طلای 18 عیار | 18825400.0 | 10800.0 | 0.06 | IRR | 1405/05/19 | 15:26 | 1786363000 | 2026-08-10T11:57:53.431Z | {"date": "1405/05/19", "time":… | … |
+| 9155 | IR_GOLD_24K | طلای 24 عیار | 25100300.0 | 14500.0 | 0.06 | IRR | 1405/05/19 | 15:26 | 1786363000 | 2026-08-10T11:57:53.431Z | {"date": "1405/05/19", "time":… | … |
 
 </details>
 
@@ -1798,11 +1721,11 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/commodity.py` → `GoldCurrencyProDailyHistoryModel`
-- سرویس: `services/quant_signal_orchestrator.py` (4)، `services/auto_retrain_pipeline.py` (3)، `services/multi_timeframe_confirmer.py` (1)، `services/risk_adjusted_filter.py` (1)
+- سرویس: `services/paper_trading_service.py` (4)، `services/quant_signal_orchestrator.py` (4)، `services/auto_retrain_pipeline.py` (3)، `services/multi_timeframe_confirmer.py` (1)
 - API: `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/signal_insights.py` (1)
 - اسکریپت: `scripts/import_history_data.py` (2)، `scripts/add_constraints.py` (1)، `scripts/check_columns.py` (1)، `scripts/check_tables.py` (1)
 - تست: `tests/test_brsapi_job_registry.py` (5)
-- سایر: `bench_schema_temp.py` (2)، `brsapi/jobs/registry.py` (2)، `bench_schema2_temp.py` (1)، `brsapi/services/history_fetch_service.py` (1)
+- سایر: `brsapi/jobs/registry.py` (2)، `brsapi/services/history_fetch_service.py` (1)
 
 **نمونه داده:**
 
@@ -1828,9 +1751,10 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_gold_currency_pro_prices</code> — ~19 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
+<summary><code>brsapi_gold_currency_pro_prices</code> — ~>0 ردیف، 23 ستون (نمایش 12 ستون از 23) ⚠️ 1 مشکل</summary>
 
-_مشکلی شناسایی نشد._
+**مشکلات (1):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
 
 **مراجع کد:**
 - مدل: `brsapi/models/commodity.py` → `GoldCurrencyProPriceModel`
@@ -1841,23 +1765,23 @@ _مشکلی شناسایی نشد._
 
 | id | section | symbol | name_en | name | sign | price | change_value | change_percent | unit | url_base_icon | path_icon | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 18579 | cryptocurrency | BTC | Bitcoin | بیت‌کوین |  | 64352.0 | 0.0 | 1.01 | دلار | https://s1.BrsApi.ir/Api/Marke… | BTC.png | … |
-| 18580 | cryptocurrency | ETH | Ethereum | اتریوم |  | 1871.0 | 0.0 | 0.56 | دلار | https://s1.BrsApi.ir/Api/Marke… | ETH.png | … |
+| 65073 | cryptocurrency | BTC | Bitcoin | بیت‌کوین |  | 65050.0 | 0.0 | 0.13 | دلار | https://s1.BrsApi.ir/Api/Marke… | BTC.png | … |
+| 65074 | cryptocurrency | ETH | Ethereum | اتریوم |  | 1919.0 | 0.0 | -0.08 | دلار | https://s1.BrsApi.ir/Api/Marke… | ETH.png | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_historical_daily</code> — ~8,628,570 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
+<summary><code>brsapi_historical_daily</code> — ~12,112,238 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `HistoricalDailyModel`
 - سرویس: `services/backtest_service.py` (7)، `services/auto_retrain_pipeline.py` (6)، `services/iran_fear_greed_index.py` (6)، `services/hidden_accumulation.py` (4)
-- API: `apps/api/endpoints/backtests.py` (3)، `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/signal_insights.py` (2)، `apps/admin/dashboard.py` (1)
-- اسکریپت: `scripts/check_partitions.py` (8)، `scripts/fix_historical_id.py` (8)، `scripts/fix_historical_id_v2.py` (7)، `scripts/merge_year_tables.py` (7)
-- تست: `tests/test_instrument_relations.py` (4)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
+- API: `apps/api/endpoints/backtests.py` (3)، `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/funds.py` (2)، `apps/api/endpoints/signal_insights.py` (2)
+- اسکریپت: `scripts/clean_historical_data.py` (9)، `scripts/check_partitions.py` (8)، `scripts/fix_historical_id.py` (8)، `scripts/fix_historical_id_v2.py` (7)
+- تست: `tests/test_instrument_relations.py` (4)، `tests/unit/test_brsapi_history_backfill_manual.py` (2)، `tests/unit/services/test_paper_trading_service.py` (1)
+- سایر: `ml/train_weight_optimizer.py` (5)، `brsapi/migrations/001_create_brsapi_tables.py` (3)، `backtesting/engine/adv.py` (2)، `backtesting/types.py` (1)
 
 **نمونه داده:**
 
@@ -1876,9 +1800,9 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `HistoricalRealLegalModel`
 - سرویس: `services/screener_service.py` (3)، `services/hidden_accumulation.py` (1)، `services/smart_money_service.py` (1)
-- API: `apps/admin/dashboard.py` (1)
+- API: `apps/api/endpoints/funds.py` (2)، `apps/admin/dashboard.py` (1)
 - اسکریپت: `scripts/import_real_legal.py` (4)، `scripts/check_partitions.py` (3)، `scripts/analyze_patterns.py` (1)، `scripts/backfill_ins_id.py` (1)
-- تست: `tests/test_instrument_relations.py` (1)
+- تست: `tests/unit/test_brsapi_history_backfill_manual.py` (2)، `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `brsapi/services/query_service.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
 **نمونه داده:**
@@ -1891,14 +1815,14 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_ime_certificates</code> — ~3,819 ردیف، 48 ستون (نمایش 12 ستون از 48)</summary>
+<summary><code>brsapi_ime_certificates</code> — ~4,259 ردیف، 48 ستون (نمایش 12 ستون از 48)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/ime.py` → `ImeCertificateModel`
 - جاب: `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/simulate_brsapi_usage.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (2)، `brsapi/jobs/registry.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1906,20 +1830,21 @@ _مشکلی شناسایی نشد._
 
 | id | commodity | contract_code | contract_description | contract_size | contract_size_unit | contract_currency | price_yesterday | price_first | price_first_change | price_first_change_pct | price_max | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 2302 | شمش روی | ZincIngot | گواهی سپرده پیوسته شمش روی | 1 | ضریب تبدیل نماد به گروه انبار | ریال | 5224059.0 | 5202150.0 | -21909.0 | -0.42 | 5299880.0 | … |
-| 2303 | شمش سرب | LeadIngot | گواهی سپرده پیوسته شمش سرب | 1 | ضریب تبدیل نماد به گروه انبار | ریال | 3743013.0 | 3661100.0 | -81913.0 | -2.19 | 3749990.0 | … |
+| 3847 | شمش نقره | SilverBar | گواهی سپرده پیوسته شمش نقره 99… | 1 | ضریب تبدیل نماد به گروه انبار | ریال | 3980122.0 | 4087200.0 | 107078.0 | 2.69 | 4087200.0 | … |
+| 3848 | شمش طلا | GoldBar | گواهی سپرده پیوسته شمش طلای +9… | 10 | ضریب تبدیل نماد به گروه انبار | ریال | 24560013.0 | 24400000.0 | -160013.0 | -0.65 | 24470000.0 | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_ime_funds</code> — ~21,019 ردیف، 67 ستون (نمایش 12 ستون از 67)</summary>
+<summary><code>brsapi_ime_funds</code> — ~24,441 ردیف، 67 ستون (نمایش 12 ستون از 67)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/ime.py` → `ImeFundModel`
+- API: `apps/api/endpoints/funds.py` (5)، `apps/api/endpoints/market_info.py` (1)
 - جاب: `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/audit_data_access.py` (1)، `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/audit_data_access.py` (1)، `scripts/simulate_brsapi_usage.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `brsapi/jobs/registry.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1927,13 +1852,13 @@ _مشکلی شناسایی نشد._
 
 | id | ins_id | symbol | name | isin | shares_count | base_volume | market_value | price_min | price_max | price_yesterday | price_first | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 643 | 33144542989832366 | زرفام | صندوق س.کالای آشنا | IRTKZFAM0001 | 1000000000 | 1 | 135602000000000.0 | 134610.0 | 136000.0 | 131532.0 | 134610.0 | … |
-| 644 | 17244733069907210 | رزگلد | صندوق س.پشتوانه طلا آرمان آتی | IRTKROZG0001 | 2000000000 | 1 | 33860000000000.0 | 16800.0 | 16994.0 | 16442.0 | 16800.0 | … |
+| 21035 | 34144395039913458 | عیار | صندوق طلای عیار مفید | IRTKMOFD0001 | 4810000000 | 1 | 2425110610000000.0 | 501998.0 | 508142.0 | 508624.0 | 508139.0 | … |
+| 21036 | 32469128621155736 | مثقال | صندوق س.کالای آگاه | IRTKZARA0001 | 3000000000 | 1 | 439005000000000.0 | 145713.0 | 147864.0 | 147482.0 | 147864.0 | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_ime_futures</code> — ~7,562 ردیف، 59 ستون (نمایش 12 ستون از 59) ⚠️ 1 مشکل</summary>
+<summary><code>brsapi_ime_futures</code> — ~8,379 ردیف، 59 ستون (نمایش 12 ستون از 59) ⚠️ 1 مشکل</summary>
 
 **مشکلات (1):**
 - ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
@@ -1942,7 +1867,7 @@ _مشکلی شناسایی نشد._
 - مدل: `brsapi/models/ime.py` → `ImeFutureModel`
 - سرویس: `services/quant_signal_orchestrator.py` (1)
 - جاب: `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/fix_dual_date_remaining.py` (1)، `scripts/start_scheduler.py` (1)، `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/fix_dual_date_remaining.py` (1)، `scripts/simulate_brsapi_usage.py` (1)، `scripts/start_scheduler.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `brsapi/jobs/registry.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1956,14 +1881,14 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_ime_options</code> — ~48,213 ردیف، 101 ستون (نمایش 12 ستون از 101)</summary>
+<summary><code>brsapi_ime_options</code> — ~58,294 ردیف، 101 ستون (نمایش 12 ستون از 101)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/ime.py` → `ImeOptionModel`
 - جاب: `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/simulate_brsapi_usage.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (4)، `brsapi/jobs/registry.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1971,19 +1896,19 @@ _مشکلی شناسایی نشد._
 
 | id | contract_category | contract_category_sub | contract_category_commodity | strike_price | level_strike | call_contract_id | call_contract_code | call_contract_description | call_contract_size | call_contract_size_unit | call_contract_currency | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 606 | SH05   تاریخ سررسید: 1405/06/2… | KASH05 | KA | 250000.0 | 5 | 1002045 | KASH05C250 | قرارداد اختیار معامله خرید واح… | 10 | واحد | ریال | … |
-| 607 | SH05   تاریخ سررسید: 1405/06/2… | KASH05 | KA | 270000.0 | 6 | 1002046 | KASH05C270 | قرارداد اختیار معامله خرید واح… | 10 | واحد | ریال | … |
+| 48304 | DY05   تاریخ سررسید: 1405/10/2… | LG ETCDY05 | LG ETC | 700000.0 | -3 | 1002143 | TLDY05C70 | قرارداد اختیار معامله خرید واح… | 1 | واحد | ریال | … |
+| 48305 | AZ05   تاریخ سررسید: 1405/09/2… | SilverBarAZ05 | SilverBar | 2400000.0 | -6 | 1002144 | SLAZ05C240 | قرارداد اختیار معامله خرید شمش… | 1 | SilverBar | ریال | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_ime_physical_trades</code> — ~687 ردیف، 37 ستون (نمایش 12 ستون از 37) ⚠️ 1 مشکل</summary>
+<summary><code>brsapi_ime_physical_trades</code> — ~935 ردیف، 37 ستون (نمایش 12 ستون از 37)</summary>
 
-**مشکلات (1):**
-- مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/ime.py` → `ImePhysicalTradeModel`
+- سرویس: `services/paper_trading_service.py` (1)
 - اسکریپت: `scripts/fix_dual_date_remaining.py` (2)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
@@ -1992,8 +1917,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | category_id | offer_code | market_hall | producer | supplier | broker | contract_type | settlement_type | date_price_settlement | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 1 | NCI-CR08AB-00 | مس مفتول | 1-3-14 | 1273803 | تالار صنعتی | ملی صنایع مس ایران | ملی صنایع مس ایران | سی ولکس | نقدی (مچینگ) | نقدی / اعتباری |  | … |
-| 2 | ABRO-GRSUSUB-00 | گوگرد گرانوله | 3-27-68 | 1273412 | تالار فرآورده های نفتی | پالایش نفت آبادان | پالایش نفت آبادان | راهین | نقدی (مچینگ) | نقدی |  | … |
+| 688 | CHMI-BSO004X-00 | شمش بلوم (150*150)4SP | 1-1-1 | 1289806 | تالار صنعتی | شرکت معدنی وصنعتی چادرملو | معدنی و صنعتی چادر ملو | بانک سپه | سلف | نقدی / اعتباری | 2026/08/01 | … |
+| 690 | AISC-BSD414X-00 | شمش بلوم (150*150) SWRY | 1-1-1 | 1291316 | تالار صنعتی | آهن و فولاد ارفع | آهن و فولاد ارفع | سی ولکس | سلف | نقدی / اعتباری | 2026/08/01 | … |
 
 </details>
 
@@ -2004,22 +1929,22 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `IndexValueModel`
-- سرویس: `services/quant_signal_orchestrator.py` (3)، `services/signal_decision_engine.py` (1)
-- اسکریپت: `scripts/sync_all_tables.py` (1)
-- تست: `tests/unit/test_brsapi_sync_fixes.py` (2)، `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `brsapi/parsers/tsetmc.py` (1)، `diagnostics/ingestion_audit.py` (1)
+- سرویس: `services/decision_gate.py` (3)، `services/quant_signal_orchestrator.py` (3)، `services/signal_decision_engine.py` (3)، `services/dynamic_weighting.py` (2)
+- اسکریپت: `scripts/sync_all_tables.py` (1)، `scripts/sync_delta_report.py` (1)
+- تست: `tests/unit/test_brsapi_sync_fixes.py` (2)، `tests/test_instrument_relations.py` (1)، `tests/unit/test_decision_gate.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `ml/train_weight_optimizer.py` (3)، `brsapi/parsers/tsetmc.py` (1)، `diagnostics/ingestion_audit.py` (1)
 
 **نمونه داده:**
 
 | id | name | state | index_value | index_change | index_change_pct | index_equal_weight | index_equal_weight_change | market_value | market_value_main | market_value_base | trade_count | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 49 |  | باز | 4903532.82 | -21150.81 | 0.0 | 1328109.58 | 4592.86 | 1.4271009234205443e+17 | 0.0 | 0.0 | 579506 | … |
-| 50 |  | باز | 4902781.49 | -21902.14 | 0.0 | 1327997.95 | 4481.23 | 1.4270697432604384e+17 | 0.0 | 0.0 | 582650 | … |
+| 3640 |  | بسته | 43871.09 | 1113.13 | 0.0 | 0.0 | 0.0 | 0.0 | 2.3105426381064972e+16 | 5101184554778607.0 | 332184 | … |
+| 3643 |  | بسته | 5407901.78 | 130549.16 | 0.0 | 1534561.27 | 36742.34 | 1.550961153907927e+17 | 0.0 | 0.0 | 441737 | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_intraday_trades</code> — ~1,643,525 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
+<summary><code>brsapi_intraday_trades</code> — ~1,637,033 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2040,14 +1965,14 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_option_snapshots</code> — ~374,997 ردیف، 81 ستون (نمایش 12 ستون از 81)</summary>
+<summary><code>brsapi_option_snapshots</code> — ~499,922 ردیف، 81 ستون (نمایش 12 ستون از 81)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `OptionSnapshotModel`
 - API: `apps/api/endpoints/options.py` (3)، `apps/admin/dashboard.py` (1)
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/audit_data_access.py` (1)، `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/audit_data_access.py` (1)، `scripts/sync_all_tables.py` (1)، `scripts/sync_delta_report.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (4)، `diagnostics/ingestion_audit.py` (1)
 
@@ -2055,8 +1980,8 @@ _مشکلی شناسایی نشد._
 
 | id | ins_id | symbol | name | isin | underlying_symbol | underlying_id | option_type | contract_size | strike_price | open_interest | date_begin | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 332 | 2605324180004362 | ضجوا6005 | اختیارخ جوانه.ک-16000-05/06/25 | IRO9JVAN2361 | جوانه کوچک | 67455383896188985 | call | 1000 | 16000.0 | 99 | 1405-03-17 | … |
-| 333 | 37113721866142979 | ضملی5026 | اختیارخ فملی-12000-1405/05/14 | IRO9MSMI0B81 | فملی | 35425587644337450 | call | 1000 | 12000.0 | 5085 | 1405-03-11 | … |
+| 378000 | 18021230509502207 | ضستا5049 | اختیارخ شستا-2400-1405/05/14 | IRO9TAMN0J61 | شستا | 2400322364771558 | call | 1000 | 2400.0 | 0 | 1405-03-12 | … |
+| 378001 | 30082561993947191 | ضملت5033 | اختیارخ وبملت-1354-1405/05/20 | IRO9BMLT0K41 | وبملت | 778253364357513 | call | 1000 | 1354.0 | 5194167 | 1405-03-12 | … |
 
 </details>
 
@@ -2074,88 +1999,111 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_shareholder_records</code> — ~771,203 ردیف، 13 ستون (نمایش 12 ستون از 13)</summary>
+<summary><code>brsapi_shareholder_records</code> — ~768,334 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `ShareholderRecordModel`
 - سرویس: `services/history_backfill_service.py` (2)
-- اسکریپت: `scripts/import_shareholders.py` (11)، `scripts/analyze_shareholders.py` (9)، `scripts/update_free_float.py` (4)، `scripts/analyze_db_issues.py` (1)
-- تست: `tests/test_instrument_relations.py` (1)
+- اسکریپت: `scripts/import_shareholders.py` (11)، `scripts/analyze_shareholders.py` (9)، `scripts/backfill_shareholder_dates.py` (7)، `scripts/update_free_float.py` (4)
+- تست: `tests/test_instrument_relations.py` (1)، `tests/unit/test_brsapi_shareholder_manual.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
 **نمونه داده:**
 
 | id | symbol | shareholder_name | volume | percent | change | date | created_at | ins_id | instrument_id | updated_at | gregorian_date | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 935098 | فوكا | شخص حقيقي | 746840709 | 12.49 | 1 | 2019-02-27 | 2026-07-26 06:37:55.119816 | IRO7FVAP0003 | NULL | NULL | 2026-07-26 | … |
-| 935106 | فوكا | شخص حقيقي | 746840709 | 12.49 | 1 | 2019-01-31 | 2026-07-26 06:37:55.119816 | IRO7FVAP0003 | NULL | NULL | 2026-07-26 | … |
+| 1897589 | شتران | بانک صادرات ایران | 39119744887 | 5.995 | 0 | 2026-08-10 | 2026-08-10 02:56:15.492427 | 51617145873056483 | NULL | NULL | 2026-08-10 | … |
+| 1897590 | شتران | شرکت سرمایه گذاری ایرانیان -سه… | 31074623449 | 4.762 | 0 | 2026-08-10 | 2026-08-10 02:56:15.492427 | 51617145873056483 | NULL | NULL | 2026-08-10 | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_symbol_details</code> — ~1,280 ردیف، 65 ستون (نمایش 12 ستون از 65)</summary>
+<summary><code>brsapi_symbol_details</code> — ~3,923 ردیف، 65 ستون (نمایش 12 ستون از 65)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `SymbolDetailModel`
 - سرویس: `services/populate_profiles_service.py` (3)، `services/watchlist_service.py` (3)، `services/fundamental_service.py` (1)
-- API: `apps/admin/dashboard.py` (1)
-- اسکریپت: `scripts/full_populate_profiles.py` (5)، `scripts/check_market_field.py` (4)، `scripts/fix_eps.py` (4)، `scripts/fix_null_market_field.py` (3)
-- تست: `tests/test_instrument_relations.py` (1)، `tests/test_sync_2.py` (1)
+- API: `apps/api/endpoints/brsapi.py` (4)، `apps/admin/dashboard.py` (1)
+- اسکریپت: `scripts/fetch_all_symbols_full.py` (6)، `scripts/full_populate_profiles.py` (5)، `scripts/check_market_field.py` (4)، `scripts/fix_eps.py` (4)
+- تست: `tests/unit/test_brsapi_symbol_details_daily_job.py` (3)، `tests/test_instrument_relations.py` (1)، `tests/test_sync_2.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (2)
 
 **نمونه داده:**
 
 | id | ins_id | instrument_id | symbol | name | name_en | isin | code_12 | code_5 | code_4 | market | board | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 485 | 57273529732791251 | NULL | خموتور | موتورسازان‌تراکتورسازی‌ایران | Motorsazan | IRO1MSTI0001 | IRO1MSTI0003 | MSTI1 | MSTI | بورس | بازار اول (تابلوی فرعی) بورس | … |
-| 583 | 31039212000825988 | NULL | آوند | صندوق س. آوند مفید-د | Avand ETF | IRT3AVNF0001 | IRT3AVNF0008 | AVNF1 | AVNF | فرابورس | بازار ابزارهای نوین مالی فرابو… | … |
+| 1286 | 25855824481936305 | NULL | آ س پ3 | آ.س.پ | A.S.P CO | IRO3ASPZ0003 | IRO3ASPZ0008 | ASPZ3 | ASPZ | فرابورس | -' | … |
+| 1287 | 17758788623651072 | NULL | آتی1 | ص.س.ج. یکم آرمان آتی | Arman Ati 1 VCF-VR | IRT3VC020001 | IRT3VC020008 | VC021 | VC02 | فرابورس | -' | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_symbol_snapshots</code> — ~835,018 ردیف، 71 ستون (نمایش 12 ستون از 71)</summary>
+<summary><code>brsapi_symbol_snapshots</code> — ~1,194,116 ردیف، 71 ستون (نمایش 12 ستون از 71)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `SymbolSnapshotModel`
 - سرویس: `services/watchlist_service.py` (8)، `services/market_health_index.py` (5)، `services/iran_fear_greed_index.py` (4)، `services/populate_profiles_service.py` (4)
-- API: `apps/api/endpoints/analysis.py` (3)، `apps/api/endpoints/ml.py` (2)، `apps/api/endpoints/news.py` (2)، `apps/api/endpoints/brsapi.py` (1)
-- جاب: `jobs/definitions/sync_jobs.py` (3)، `jobs/definitions/alert_jobs.py` (1)
-- اسکریپت: `scripts/full_populate_profiles.py` (7)، `scripts/merge_year_tables.py` (7)، `scripts/cleanup_duplicate_symbols.py` (5)، `scripts/fix_eps.py` (5)
-- تست: `tests/unit/test_brsapi_sync_fixes.py` (2)، `tests/test_instrument_relations.py` (1)
-- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (4)، `brsapi/tests/test_tsetmc_symbols_integration.py` (2)، `diagnostics/ingestion_audit.py` (2)
+- API: `apps/api/endpoints/funds.py` (4)، `apps/api/endpoints/analysis.py` (3)، `apps/api/endpoints/ml.py` (2)، `apps/api/endpoints/news.py` (2)
+- جاب: `jobs/definitions/sync_jobs.py` (3)، `jobs/definitions/alert_jobs.py` (1)، `jobs/definitions/fund_jobs.py` (1)
+- اسکریپت: `scripts/full_populate_profiles.py` (7)، `scripts/merge_year_tables.py` (7)، `scripts/_check_symbols_state.py` (7)، `scripts/fetch_all_symbols_full.py` (6)
+- تست: `tests/unit/test_brsapi_sync_fixes.py` (2)، `tests/test_instrument_relations.py` (1)، `tests/unit/services/test_paper_trading_service.py` (1)
+- سایر: `brsapi/migrations/001_create_brsapi_tables.py` (5)، `brsapi/tests/test_tsetmc_symbols_integration.py` (2)، `diagnostics/ingestion_audit.py` (2)، `brsapi/jobs/registry.py` (1)
 
 **نمونه داده:**
 
 | id | ins_id | symbol | name | isin | sector | sector_id | shares_count | base_volume | market_value | eps | pe_ratio | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 6448596 | 31879190587976736 | خوساز | محورسازان‌ایران‌خودرو | IRO1MESI0001 | خودرو و ساخت قطعات | 34 | 1119876222 | 1 | 16630161896700.0 | -286.0 | -51.9 | … |
-| 6488028 | 35757908588761589 | گوهر2 | صندوق س.کالای کیان | IRTKKIAN0002 | صندوق سرمایه‌گذاری قابل معامله | 68 | 300000000 | 1 | 300000000.0 | 0.0 | 0.0 | … |
+| 6935329 | 26547785441834730 | زشریف | کشت وصنعت شریف آباد | IRO3SAAZ0001 | زراعت و خدمات وابسته | 1 | 2404787000 | 1 | 40833283260000.0 | 2402.0 | 7.1 | … |
+| 6935330 | 48287767791629523 | رشد | صندوق س.رشد پایدار آبان-د | IRT3RSHF0001 | صندوق سرمایه‌گذاری قابل معامله | 68 | 4500000000 | 1 | 95418000000000.0 | 0.0 | 0.0 | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_sync_log</code> — ~25,997 ردیف، 13 ستون (نمایش 12 ستون از 13) ⚠️ 1 مشکل</summary>
+<summary><code>brsapi_sync_log</code> — ~50 ردیف، 13 ستون (نمایش 12 ستون از 13)</summary>
 
-**مشکلات (1):**
-- مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/base.py` → `SyncLogModel`
-- تست: `tests/unit/repositories/conftest.py` (3)
+- API: `apps/api/endpoints/brsapi.py` (2)
+- اسکریپت: `scripts/build_feature_store.py` (3)، `scripts/build_screener_scores.py` (2)، `scripts/clean_historical_data.py` (2)، `scripts/_check_nav_sync.py` (1)
+- تست: `tests/unit/repositories/conftest.py` (3)، `tests/unit/test_brsapi_sync_status.py` (2)، `tests/unit/scripts/test_build_screener_scores.py` (2)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (4)، `diagnostics/ingestion_audit.py` (2)
 
 **نمونه داده:**
 
 | id | endpoint | category | status | items_count | error_message | duration_ms | params_snapshot | started_at | completed_at | created_at | gregorian_date | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 26996 | /Test/Endpoint.php | test | success | 10 | NULL | 100.0 | NULL | 2026-07-27 18:36:12.519643 | 2026-07-27 18:36:12.519643 | 2026-07-27 21:36:12.658160 | 2026-07-27 | … |
-| 27002 | /Test/Old-cdf0d30e-f531-410b-b… | test | error | 0 | NULL | 10.0 | NULL | 2026-07-17 21:38:37.505177 | 2026-07-17 21:38:37.505177 | 2026-07-27 21:38:37.642687 | 2026-07-27 | … |
+| 37620 | /Tsetmc/AllSymbols.php | tsetmc | error | 0 | RequestError: [Errno 11001] ge… | 9297.00000002049 | {"type": "1"} | 2026-08-06 21:00:24.227862 | 2026-08-06 21:00:24.202862 | 2026-08-06 21:00:24.228353 | 2026-08-06 | … |
+| 37622 | /Tsetmc/Index.php | tsetmc | error | 0 | RequestError: [Errno 11001] ge… | 20703.999999997905 | {"type": "2"} | 2026-08-06 21:00:57.008610 | 2026-08-06 21:00:57.006613 | 2026-08-06 21:00:57.009027 | 2026-08-06 | … |
+
+</details>
+
+<details>
+<summary><code>ml_engineered_features</code> — ~>0 ردیف، 50 ستون (نمایش 12 ستون از 50) ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- API: `apps/scheduler/app.py` (1)
+- جاب: `jobs/definitions/feature_store_jobs.py` (1)
+- اسکریپت: `scripts/build_feature_store.py` (6)، `scripts/sync_delta_report.py` (1)
+
+**نمونه داده:**
+
+| symbol | trade_date | price_close | price_open | price_high | price_low | volume | trade_value | trade_count | rsi_14 | macd_histogram | macd_signal | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| فولاد | 2026-07-16 | 2354.0 | NULL | NULL | NULL | 5343075284 | 12463417315198.0 | 42892 | 100.0 | NULL | -1.0 | … |
+| خودرو | 2026-07-18 | 602.0 | NULL | NULL | NULL | 7659535055 | 4569697218208.0 | 16159 | 9.4 | NULL | -1.0 | … |
 
 </details>
 
@@ -2200,20 +2148,20 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>ml_predictions</code> — ~19,960 ردیف، 22 ستون (نمایش 12 ستون از 22)</summary>
+<summary><code>ml_predictions</code> — ~20,674 ردیف، 22 ستون (نمایش 12 ستون از 22)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/ml.py` → `MlPredictionModel`
-- سرویس: `services/quant_signal_orchestrator.py` (5)، `services/diagnostics_runner.py` (1)
+- سرویس: `services/quant_signal_orchestrator.py` (6)، `services/diagnostics_runner.py` (1)
 
 **نمونه داده:**
 
 | id | batch_id | symbol | model_type | prediction | accuracy | confidence | f1_score | mse | samples | duration_seconds | predicted_change_pct | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| mlpred_ea725d2058984f899483270… | 71995e81a17f | خودرو | xgboost | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 0.06 | NULL | … |
-| mlpred_de9ed58713cc4af1b3b528a… | 71995e81a17f | آبادا | xgboost | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 0.06 | NULL | … |
+| mlpred_93f9ad38bf6a4da594bc0aa… | 2cb3168bc8cc | خودرو | xgboost | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 0.02 | NULL | … |
+| mlpred_7c67858be2e94a4abb4d7d3… | 2cb3168bc8cc | آبادا | xgboost | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0 | 0.02 | NULL | … |
 
 </details>
 
@@ -2399,9 +2347,9 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/market_data.py` → `StockOptionModel`
 - سرویس: `services/options_service.py` (13)، `services/multi_market_signal_engine.py` (4)، `services/options_analytics.py` (4)، `services/symbol_catalog.py` (2)
-- API: `apps/api/endpoints/options.py` (13)، `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/screener_v2.py` (1)
-- جاب: `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/brsapi_full_update.py` (5)، `scripts/run_full_backtest.py` (5)، `scripts/audit_data_access.py` (1)، `scripts/start_scheduler.py` (1)
+- API: `apps/api/endpoints/options.py` (13)، `apps/api/endpoints/brsapi.py` (4)، `apps/api/endpoints/screener_v2.py` (1)
+- جاب: `jobs/replay.py` (1)، `jobs/definitions/brsapi_jobs.py` (1)
+- اسکریپت: `scripts/brsapi_full_update.py` (5)، `scripts/run_full_backtest.py` (5)، `scripts/_tmp_api_test2.py` (4)، `scripts/_tmp_api_test4.py` (3)
 - تست: `tests/unit/domain/test_black_scholes_pricing.py` (38)، `tests/unit/options/test_options_comprehensive.py` (13)، `tests/test_all_pages.py` (2)، `tests/unit/test_backend_api_edge_cases.py` (2)
 - سایر: `domain/options/margin_engine.py` (13)، `domain/options/commodity_pricing.py` (9)، `test_options.py` (7)، `domain/options/tree_pricing.py` (7)
 
@@ -2429,15 +2377,15 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_nav_records</code> — ~114 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
+<summary><code>brsapi_nav_records</code> — ~245 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `NavRecordModel`
-- API: `apps/admin/dashboard.py` (1)
+- API: `apps/api/endpoints/funds.py` (4)، `apps/api/endpoints/brsapi.py` (2)، `apps/admin/dashboard.py` (1)
 - جاب: `jobs/definitions/sync_jobs.py` (1)
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/backfill_ins_id.py` (1)، `scripts/sync_all_tables.py` (1)
+- اسکریپت: `scripts/_check_nav_sync.py` (2)، `scripts/analyze_db_issues.py` (1)، `scripts/backfill_ins_id.py` (1)، `scripts/sync_all_tables.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
@@ -2445,45 +2393,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | nav_issue | nav_redemption | date | time | fetched_at | raw_json | created_at | ins_id | instrument_id | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 35 | بانکیا | 10664.0 | 10566.0 | 1405-05-12 | 17:31:12 | 2026-08-04 05:53:01 | {"date": "1405-05-12", "time":… | 2026-08-04 09:23:00.210461 | 62478276461613732 | NULL | NULL | … |
-| 36 | بذر | 297760.0 | 295124.0 | 1405-05-12 | 18:04:08 | 2026-08-04 05:54:38 | {"date": "1405-05-12", "time":… | 2026-08-04 09:24:38.503886 | 37222720235819361 | NULL | NULL | … |
-
-</details>
-
-<details>
-<summary><code>candlesticks</code> — جدول خالی است (10 ستون) ⚠️ 4 مشکل</summary>
-
-**مشکلات (4):**
-- جدول خالی است
-- نسخه قدیمی است — جدول زنده `brsapi_candlesticks` جایگزین آن است
-- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
-- نسخه قدیمی — backfill به `brsapi_candlesticks` می‌نویسد
-
-**مراجع کد:**
-- مدل: _بدون مدل ORM_
-- سرویس: `services/history_backfill_service.py` (1)
-- اسکریپت: `scripts/analyze_db_issues.py` (1)
-- تست: `tests/test_instrument_relations.py` (1)
-
-</details>
-
-<details>
-<summary><code>daily_history</code> — ~88,961 ردیف، 17 ستون (نمایش 12 ستون از 17)</summary>
-
-_مشکلی شناسایی نشد._
-
-**مراجع کد:**
-- مدل: `models/market_data.py` → `DailyHistoryModel`
-- سرویس: `services/diagnostics_runner.py` (3)، `services/populate_profiles_service.py` (2)، `services/screener110_service.py` (2)، `services/screener_service.py` (2)
-- API: `apps/api/endpoints/screener110.py` (1)
-- اسکریپت: `scripts/full_populate_profiles.py` (4)، `scripts/brsapi_full_update.py` (2)، `scripts/analyze_db_issues.py` (1)، `scripts/populate_profiles.py` (1)
-
-**نمونه داده:**
-
-| symbol_id | trade_date | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | price_last_change | price_last_change_pct | … |
-|---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 48934567890123456 | 2023-04-16 | 0 | 0 | 0.0 | 0.0 | 0.0 | 7370.0 | 0.0 | 7380.0 | 0.0 | 0.0 | … |
-| 2234567890123456 | 2023-03-25 | 2137 | 3222331 | 37290951110.0 | 11360.0 | 11800.0 | 11370.0 | 11600.0 | 11520.0 | 150.0 | 1.32 | … |
+| 140 | ابتکار | 20919.0 | 20711.0 | 1405-05-17 | 08:59:30 | 2026-08-08 05:30:19 | {"date": "1405-05-17", "time":… | 2026-08-08 09:00:00.016267 | 65473703162196532 | NULL | NULL | … |
+| 141 | آبنوس | 25906.0 | 25649.0 | 1405-05-17 | 15:57:15 | 2026-08-08 12:27:52 | {"date": "1405-05-17", "time":… | 2026-08-08 15:57:51.099023 | 40912525017440979 | NULL | NULL | … |
 
 </details>
 
@@ -2494,7 +2405,7 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `DailyRealLegalModel`
-- سرویس: `services/populate_profiles_service.py` (2)، `services/screener110_service.py` (2)، `services/screener_service.py` (2)
+- سرویس: `services/populate_profiles_service.py` (2)، `services/screener110_service.py` (2)، `services/screener_ai_report_service.py` (2)، `services/screener_service.py` (2)
 - اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/full_populate_profiles.py` (1)، `scripts/populate_profiles.py` (1)
 - سایر: `ml/features/trade_features.py` (2)
 
@@ -2528,7 +2439,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>funds</code> — ~26 ردیف، 31 ستون (نمایش 12 ستون از 31)</summary>
+<summary><code>funds</code> — ~27 ردیف، 31 ستون (نمایش 12 ستون از 31)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2536,12 +2447,12 @@ _مشکلی شناسایی نشد._
 - مدل: `iran_market_data/app/storage/models.py` → `FundInfo`
 - مدل: `models/fund.py` → `FundModel`
 - سرویس: `services/fund_service.py` (13)، `services/symbol_catalog.py` (4)، `services/unified_assistant_service.py` (2)، `services/chat/chat_engine.py` (1)
-- API: `apps/api/endpoints/funds.py` (19)، `apps/api/endpoints/market_info.py` (7)، `apps/api/router.py` (5)، `apps/api/endpoints/brsapi.py` (3)
-- جاب: `jobs/definitions/brsapi_jobs.py` (1)
+- API: `apps/api/endpoints/funds.py` (46)، `apps/api/endpoints/market_info.py` (6)، `apps/api/router.py` (5)، `apps/api/endpoints/brsapi.py` (3)
+- جاب: `jobs/definitions/fund_jobs.py` (4)، `jobs/definitions/brsapi_jobs.py` (1)
 - ریپازیتوری: `repositories/fund_repository.py` (5)
-- اسکریپت: `scripts/fix_schema_gap.py` (5)، `scripts/analyze_db_issues.py` (1)، `scripts/audit_data_access.py` (1)، `scripts/seed_funds.py` (1)
-- تست: `tests/unit/test_funds_api.py` (51)، `tests/unit/services/test_fund_service.py` (4)، `tests/unit/test_backend_api.py` (3)، `tests/test_all_pages.py` (2)
-- سایر: `iran_market_data/app/collectors/fipiran.py` (6)، `brsapi/services/sync_service.py` (5)، `domain/funds/__init__.py` (3)، `providers/funds/provider.py` (3)
+- اسکریپت: `scripts/_tmp_api_test2.py` (8)، `scripts/fix_schema_gap.py` (5)، `scripts/_tmp_api_test.py` (2)، `scripts/_tmp_api_test3.py` (2)
+- تست: `tests/unit/test_funds_api.py` (51)، `tests/unit/jobs/test_job_context_result.py` (4)، `tests/unit/services/test_fund_service.py` (4)، `tests/unit/test_backend_api.py` (3)
+- سایر: `brsapi/services/sync_service.py` (6)، `iran_market_data/app/collectors/fipiran.py` (6)، `domain/funds/__init__.py` (3)، `providers/funds/provider.py` (3)
 
 **نمونه داده:**
 
@@ -2564,30 +2475,9 @@ _مشکلی شناسایی نشد._
 - API: `apps/api/endpoints/backtests.py` (7)، `apps/api/router.py` (4)، `apps/api/endpoints/stock_assistant.py` (4)، `apps/api/endpoints/compose.py` (2)
 - جاب: `jobs/definitions/macro_jobs.py` (4)، `jobs/definitions/analytics_jobs.py` (3)
 - ریپازیتوری: `repositories/indicator_repository.py` (2)
-- اسکریپت: `scripts/backtest_all_symbols.py` (3)، `scripts/audit_data_access.py` (2)، `scripts/rebuild_indicators.py` (2)، `scripts/run_full_backtest.py` (2)
+- اسکریپت: `scripts/backtest_all_symbols.py` (3)، `scripts/run_full_backtest.py` (3)، `scripts/audit_data_access.py` (2)، `scripts/rebuild_indicators.py` (2)
 - تست: `tests/unit/services/test_audit_modules.py` (7)، `tests/test_compose.py` (5)، `tests/unit/pipelines/test_indicator_pipeline.py` (5)، `tests/fixtures/sample_macro.py` (3)
 - سایر: `backtesting/composer/indicator_registry.py` (26)، `domain/indicators/registry/__init__.py` (11)، `backtesting/strategies/incremental_indicators.py` (6)، `domain/indicators/__init__.py` (6)
-
-</details>
-
-<details>
-<summary><code>intraday_trades</code> — ~9,135,020 ردیف، 9 ستون ⚠️ 1 مشکل</summary>
-
-**مشکلات (1):**
-- نسخه قدیمی است — جدول زنده `brsapi_intraday_trades` جایگزین آن است
-
-**مراجع کد:**
-- مدل: `models/market_data.py` → `IntradayTradeModel`
-- سرویس: `services/block_trade_detector.py` (2)، `services/backtest_service.py` (1)، `services/manipulation_detector.py` (1)، `services/market_health_index.py` (1)
-- اسکریپت: `scripts/run_ml_dual.py` (5)، `scripts/analyze_db_issues.py` (1)، `scripts/create_symbol_kpi_view.py` (1)
-- سایر: `ingestion/library_sources/finpy_adapter.py` (3)، `ingestion/sources/library_sources.py` (2)، `ingestion/parser/library_parsers.py` (1)
-
-**نمونه داده:**
-
-| symbol_id | trade_date | seq_no | time | volume | price | is_canceled | gregorian_date | shamsi_date |
-|---|---|---|---|---|---|---|---|---|
-| 7234567890123456 | 2026-06-09 | 23887 | 10:33:36 | 35 | 146630.0 | False | 2026-06-09 | 1405-03-19 |
-| 7234567890123456 | 2026-06-09 | 23888 | 10:34:10 | 70 | 146630.0 | False | 2026-06-09 | 1405-03-19 |
 
 </details>
 
@@ -2614,14 +2504,14 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/orderbook.py` → `OrderbookModel`
 - API: `apps/api/router.py` (3)، `apps/admin/dashboard.py` (2)، `apps/api/endpoints/tables.py` (1)
-- اسکریپت: `scripts/analyze_db_issues.py` (1)
+- اسکریپت: `scripts/_tmp_api_test4.py` (3)، `scripts/_tmp_api_test2.py` (2)، `scripts/analyze_db_issues.py` (1)
 - تست: `tests/comprehensive/test_all.py` (2)
 - سایر: `core/constants/paths.py` (1)
 
 </details>
 
 <details>
-<summary><code>quotes</code> — ~3,343,338 ردیف، 29 ستون (نمایش 12 ستون از 29)</summary>
+<summary><code>quotes</code> — ~3,366,996 ردیف، 29 ستون (نمایش 12 ستون از 29)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -2639,8 +2529,8 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | price_close | price_open | price_high | price_low | price_last | price_change | price_change_pct | volume | value | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| brsapi_رتاپ3_2026-07-29 | 7093655625757378 | رتاپ3 | 8320.0 | 8320.0 | 8320.0 | 8320.0 | 8320.0 | 170.0 | 2.09 | 7100000 | 59072000000.0 | … |
-| brsapi_همای_2026-08-03 | 15494954332657697 | همای | 10120.0 | 10117.0 | 10128.0 | 10116.0 | 10127.0 | 22.0 | 0.22 | 69187406 | 700177153901.0 | … |
+| 436dd31e379673edb2fd327ce56ea8… | بکام3 | بکام3 | 1513.0 | 0.0 | 0.0 | 0.0 | 1513.0 | 12.0 | 0.8 | 0 | 0.0 | … |
+| 6c6b31f3b14ac87484bda9f8823c54… | بکام3 | بکام3 | 1501.0 | 0.0 | 0.0 | 0.0 | 1501.0 | 0.0 | 0.0 | 0 | 0.0 | … |
 
 </details>
 
@@ -2652,8 +2542,10 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/market_data.py` → `ShareholderModel`
 - سرویس: `services/symbol_detail_service.py` (15)، `services/sync_master_service.py` (1)
-- اسکریپت: `scripts/import_shareholders.py` (3)، `scripts/analyze_db_issues.py` (1)، `scripts/analyze_shareholders.py` (1)، `scripts/update_free_float.py` (1)
-- سایر: `ingestion/sources/library_sources.py` (3)، `brsapi/migrations/001_create_brsapi_tables.py` (1)، `brsapi/services/query_service.py` (1)، `ingestion/library_sources/pytse_client_adapter.py` (1)
+- API: `apps/api/endpoints/brsapi.py` (6)
+- اسکریپت: `scripts/import_shareholders.py` (3)، `scripts/analyze_db_issues.py` (1)، `scripts/analyze_shareholders.py` (1)، `scripts/simulate_brsapi_usage.py` (1)
+- تست: `tests/unit/test_brsapi_history_backfill_manual.py` (1)
+- سایر: `ingestion/sources/library_sources.py` (3)، `brsapi/jobs/registry.py` (1)، `brsapi/migrations/001_create_brsapi_tables.py` (1)، `brsapi/services/query_service.py` (1)
 
 **نمونه داده:**
 
@@ -2665,23 +2557,6 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>symbol_snapshots</code> — جدول خالی است (28 ستون) ⚠️ 4 مشکل</summary>
-
-**مشکلات (4):**
-- جدول خالی است
-- نسخه قدیمی است — جدول زنده `brsapi_symbol_snapshots` جایگزین آن است
-- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
-- نسخه قدیمی — `brsapi_symbol_snapshots` (۸۰۳K ردیف) زنده است
-
-**مراجع کد:**
-- مدل: _بدون مدل ORM_
-- سرویس: `services/populate_profiles_service.py` (1)، `services/sync_master_service.py` (1)
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/dump_complete.py` (1)، `scripts/fix_null_market_field.py` (1)، `scripts/populate_profiles.py` (1)
-- سایر: `brsapi/parsers/tsetmc.py` (1)، `brsapi/services/query_service.py` (1)
-
-</details>
-
-<details>
 <summary><code>trades</code> — ~14,884,365 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
 _مشکلی شناسایی نشد._
@@ -2689,19 +2564,19 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/trade.py` → `TradeModel`
 - سرویس: `services/block_trade_detector.py` (19)، `services/ensemble_engine.py` (10)، `services/trade_service.py` (10)، `services/mass_scanner_service.py` (9)
-- API: `apps/api/endpoints/tabdeal.py` (14)، `apps/api/endpoints/alpha.py` (9)، `apps/api/endpoints/backtests.py` (5)، `apps/api/router.py` (4)
-- جاب: `jobs/definitions/brsapi_jobs.py` (1)، `jobs/definitions/housekeeping_jobs.py` (1)
+- API: `apps/api/endpoints/tabdeal.py` (14)، `apps/api/endpoints/alpha.py` (9)، `apps/api/endpoints/paper_trading.py` (8)، `apps/api/endpoints/backtests.py` (5)
+- جاب: `jobs/definitions/paper_trading_job.py` (4)، `jobs/definitions/brsapi_jobs.py` (1)، `jobs/definitions/housekeeping_jobs.py` (1)
 - ریپازیتوری: `repositories/backtest_repository.py` (1)
 - اسکریپت: `scripts/backtest_all_symbols.py` (12)، `scripts/test_alpha_direct.py` (9)، `scripts/run_full_backtest.py` (6)، `scripts/test_single_symbol.py` (6)
-- تست: `tests/unit/test_trades_e2e.py` (17)، `tests/unit/services/test_trade_service.py` (10)، `tests/comprehensive/test_all.py` (7)، `tests/unit/backtesting/test_excel_report.py` (3)
+- تست: `tests/unit/test_paper_trading_api.py` (18)، `tests/unit/backtesting/test_analytics_cost_basis.py` (18)، `tests/unit/test_trades_e2e.py` (17)، `tests/unit/services/test_trade_service.py` (10)
 - سایر: `backtesting/microstructure/calibration.py` (20)، `backtesting/optimization/walk_forward.py` (20)، `backtesting/calibration/nightly_calibration.py` (16)، `backtesting/abm/matching_engine.py` (10)
 
 **نمونه داده:**
 
 | id | instrument_id | symbol | price | volume | value | side | time | date | data_source | created_at | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 904263ef69a539cb37dae689fa7ec0… | بنو | بنو | 1617.0 | 3120 | 5045040.0 | NULL | 11:16:53 | 1405-03-24 | tsetmc | 2026-07-12 09:15:31.959212 | NULL | … |
-| fc3e84ee18c5f02b3924ceef52c7eb… | بنو | بنو | 1617.0 | 3120 | 5045040.0 | NULL | 11:18:51 | 1405-03-24 | tsetmc | 2026-07-12 09:15:31.959212 | NULL | … |
+| 3376c72c1042ec46d445df51f3619a… | كولان | كولان | 29450.0 | 74 | 2179300.0 | NULL | 11:42:52 | 1405-03-24 | tsetmc | 2026-07-12 14:11:26.154512 | NULL | … |
+| 19bcd3d2ff1f87bb2d0c5916f0365b… | كولان | كولان | 29450.0 | 74 | 2179300.0 | NULL | 11:42:52 | 1405-03-24 | tsetmc | 2026-07-12 14:11:26.154512 | NULL | … |
 
 </details>
 
@@ -2715,6 +2590,7 @@ _مشکلی شناسایی نشد._
 - سرویس: `services/diagnostics_runner.py` (2)
 - API: `apps/api/endpoints/tables.py` (1)
 - اسکریپت: `scripts/debug_db_check.py` (3)، `scripts/debug_db_check2.py` (3)، `scripts/backtest_all_symbols.py` (2)
+- تست: `tests/unit/test_ws_origin_and_table_guard.py` (1)
 - سایر: `postgresql_client.py` (5)
 
 **نمونه داده:**
@@ -2775,7 +2651,7 @@ _مشکلی شناسایی نشد._
 - مدل: `models/generated_strategy.py` → `GeneratedStrategyModel`
 - سرویس: `services/mass_scanner_service.py` (3)
 - API: `apps/api/endpoints/backtests.py` (1)
-- اسکریپت: `scripts/_create_generated_strategies.py` (11)، `scripts/backtest_all_symbols.py` (6)، `scripts/_check_tables.py` (3)، `scripts/run_full_backtest.py` (2)
+- اسکریپت: `scripts/_create_generated_strategies.py` (11)، `scripts/backtest_all_symbols.py` (6)، `scripts/run_full_backtest.py` (3)، `scripts/_check_tables.py` (3)
 
 </details>
 
@@ -2793,10 +2669,9 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>queue_analysis_results</code> — جدول خالی است (30 ستون) ⚠️ 1 مشکل</summary>
+<summary><code>queue_analysis_results</code> — ~500 ردیف، 30 ستون (نمایش 12 ستون از 30)</summary>
 
-**مشکلات (1):**
-- جدول خالی است
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/queue_analysis.py` → `QueueAnalysisResult`
@@ -2804,72 +2679,115 @@ _مشکلی شناسایی نشد._
 - API: `apps/api/endpoints/queue_analysis.py` (1)
 - اسکریپت: `scripts/fix_schema_gap.py` (1)
 
+**نمونه داده:**
+
+| id | symbol | run_id | market_type | queue_status | queue_volume_ratio | queue_days_streak | queue_type_change | distance_to_limit | last_price | limit_up | limit_down | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 1 | وپاسار2 | queue-auto-20260807-104110-83f… | bours | NONE | 0.0 | 0 | QUEUE_BROKEN | 0.0 | 9940.0 | 10143.0 | 9177.0 | … |
+| 2 | عیار | queue-auto-20260807-104110-83f… | bours | NONE | 0.0 | 0 | NO_CHANGE | 0.0 | 502700.0 | 534055.0 | 483193.0 | … |
+
 </details>
 
 <details>
-<summary><code>screener_profiles</code> — ~1,562 ردیف، 61 ستون (نمایش 12 ستون از 61)</summary>
+<summary><code>screener_daily_scores</code> — ~1,515 ردیف، 14 ستون (نمایش 12 ستون از 14) ⚠️ 1 مشکل</summary>
+
+**مشکلات (1):**
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- جاب: `jobs/definitions/feature_store_jobs.py` (1)
+- اسکریپت: `scripts/build_screener_scores.py` (5)، `scripts/sync_delta_report.py` (1)
+- تست: `tests/unit/scripts/test_build_screener_scores.py` (2)
+- سایر: `ml/train_weight_optimizer.py` (4)
+
+**نمونه داده:**
+
+| symbol | trade_date | score_total | score_momentum | score_value | score_growth | score_quality | score_liquidity | score_sentiment | rank_in_market | rank_in_industry | percentile_score | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| آبادا | 2026-08-11 | 2.200000047683716 | 0.0 | 0.0 | 7.5 | 0.0 | 5.0 | 5.0 | 461 | 5 | 9.800000190734863 | … |
+| آپ | 2026-08-11 | 2.200000047683716 | 0.0 | 0.0 | 7.5 | 0.0 | 5.0 | 5.0 | 462 | 8 | 9.600000381469727 | … |
+
+</details>
+
+<details>
+<summary><code>screener_profiles</code> — ~1,562 ردیف، 62 ستون (نمایش 12 ستون از 62)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/screener.py` → `ScreenerProfile`
-- سرویس: `services/populate_profiles_service.py` (3)، `services/screener110_service.py` (2)، `services/sync_master_service.py` (1)
+- سرویس: `services/populate_profiles_service.py` (3)، `services/screener_ai_report_service.py` (3)، `services/screener110_service.py` (2)، `services/sync_master_service.py` (1)
 - API: `apps/api/endpoints/screener110.py` (5)
-- اسکریپت: `scripts/full_populate_profiles.py` (13)، `scripts/fix_eps.py` (8)، `scripts/update_free_float.py` (6)، `scripts/import_codal_to_profiles.py` (3)
+- اسکریپت: `scripts/full_populate_profiles.py` (14)، `scripts/fix_eps.py` (8)، `scripts/update_free_float.py` (6)، `scripts/import_codal_to_profiles.py` (3)
 
 **نمونه داده:**
 
 | symbol | industry | sub_industry | free_float_shares | eps_current | eps_prev_year | exchange_rate_base | inflation_rate | net_operating_profit | accumulated_loss | registered_capital | legal_reserve | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| شتوکا | محصولات شیمیایی |  | 0 | 1545.0 | 1313.25 | 28500.0 | 35.0 | NULL | 0.0 | 1712.5 | NULL | … |
-| غگز | محصولات غذایی و آشامیدنی به جز… |  | 1795230871 | 81.0 | 68.85 | 28500.0 | 35.0 | NULL | 0.0 | 2637.718 | NULL | … |
+| وپایا | سرمایه‌گذاری‌ها |  | 0 | 235.0 | 199.75 | 28500.0 | 35.0 | NULL | 0.0 | 13000.0 | NULL | … |
+| وپترو3 | محصولات شیمیایی |  | 0 | 6913.0 | 5876.05 | 28500.0 | 35.0 | NULL | 0.0 | 1820.0 | NULL | … |
 
 </details>
 
 <details>
-<summary><code>screener_signals</code> — جدول خالی است (37 ستون) ⚠️ 1 مشکل</summary>
+<summary><code>screener_signals</code> — ~511 ردیف، 37 ستون (نمایش 12 ستون از 37)</summary>
 
-**مشکلات (1):**
-- جدول خالی است
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/screener.py` → `ScreenerSignal`
-- سرویس: `services/screener110_service.py` (1)
-- API: `apps/api/endpoints/screener110.py` (3)
+- سرویس: `services/screener_ai_report_service.py` (9)، `services/screener110_service.py` (1)
+- API: `apps/api/endpoints/screener110.py` (5)
 - جاب: `jobs/definitions/screener_jobs.py` (1)
+- اسکریپت: `scripts/build_screener_scores.py` (1)
+
+**نمونه داده:**
+
+| id | symbol | generated_at | current_price | live_pe | pe_ratio | institutional_ratio | volume_spike | liquidity_pct | nima_free_spread | score_fundamental | score_valuation | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 1 | آبادا | 2026-08-09 15:06:44.146146 | 9040.0 | 8.3 | 1.31 | 0.0 | 1.0 | 10698939170.0 | 6.523 | 7.5 | 10.0 | … |
+| 2 | آپ | 2026-08-09 15:06:44.146146 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 6.523 | 7.5 | 20.0 | … |
 
 </details>
 
 <details>
-<summary><code>screener_snapshots</code> — جدول خالی است (20 ستون) ⚠️ 1 مشکل</summary>
+<summary><code>screener_snapshots</code> — ~511 ردیف، 20 ستون (نمایش 12 ستون از 20)</summary>
 
-**مشکلات (1):**
-- جدول خالی است
+_مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/screener.py` → `ScreenerSnapshot`
-- سرویس: `services/screener110_service.py` (3)
+- سرویس: `services/screener110_service.py` (4)، `services/screener_ai_report_service.py` (1)
 - جاب: `jobs/definitions/screener_jobs.py` (1)
+
+**نمونه داده:**
+
+| symbol | timestamp | open | high | low | close | volume | current_price | price_change_pct | today_volume | avg_daily_value | institutional_buy | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| آبادا | 2026-08-09 15:06:44.146146 | NULL | NULL | NULL | NULL | NULL | 9040.0 | NULL | 1197640 | NULL | NULL | … |
+| آپ | 2026-08-09 15:06:44.146146 | NULL | NULL | NULL | NULL | NULL | 0.0 | NULL | 0 | NULL | NULL | … |
 
 </details>
 
 <details>
-<summary><code>signal_accuracy</code> — ~20,550 ردیف، 28 ستون (نمایش 12 ستون از 28)</summary>
+<summary><code>signal_accuracy</code> — ~3,693 ردیف، 28 ستون (نمایش 12 ستون از 28)</summary>
 
 _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/signal_accuracy.py` → `SignalAccuracyModel`
-- سرویس: `services/quant_signal_orchestrator.py` (10)، `services/signal_performance_tracker.py` (7)، `services/diagnostics_runner.py` (3)، `services/probability_calibrator.py` (3)
-- تست: `tests/e2e/test_orchestrator_pipeline.py` (4)
+- سرویس: `services/quant_signal_orchestrator.py` (12)، `services/signal_performance_tracker.py` (7)، `services/diagnostics_runner.py` (3)، `services/probability_calibrator.py` (3)
+- اسکریپت: `scripts/_check_signal_health.py` (17)، `scripts/cleanup_signal_accuracy.py` (9)
+- تست: `tests/e2e/test_orchestrator_pipeline.py` (4)، `tests/unit/test_ws_origin_and_table_guard.py` (1)
 - سایر: `core/calibration_bootstrap.py` (2)
 
 **نمونه داده:**
 
 | id | signal_id | symbol | market | source | direction | timeframe | actual_return_pct | direction_correct | max_profit_pct | max_loss_pct | hit_target1 | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| sacc_ffae185413c94a3ea9c718f1 | sig_12fda042e6ca4efe900eb515 | BRENT | commodity | commodity_analysis | buy | daily | -0.22693747872459846 | False | 0.0 | 0.0 | False | … |
-| sacc_18c0f562033c4f3eac07c854 | sig_82aacdf833e64beab8b546f4 | BRENT | commodity | commodity_analysis | buy | daily | -0.22693747872459846 | False | 0.0 | 0.0 | False | … |
+| sacc_219f97292b0f4fd1a8308618 | sig_7de42aba222c4e16a11273ee | کاسپین | stock | voting_weighted | buy | daily | 2.472703917790623 | True | 0.0 | 0.0 | False | … |
+| sacc_3686a67eec9b4a3b8efce964 | sig_3c6c60b2b649475abc188b59 | AMD | currency | voting_weighted | buy | daily | -3.787878787878788 | False | 0.0 | 0.0 | False | … |
 
 </details>
 
@@ -2880,13 +2798,13 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/signal.py` → `SignalModel`
-- سرویس: `services/quant_signal_orchestrator.py` (63)، `services/multi_market_signal_engine.py` (41)، `services/ensemble_engine.py` (12)، `services/multi_timeframe_confirmer.py` (7)
-- API: `apps/api/app.py` (20)، `apps/api/endpoints/signal_insights.py` (9)، `apps/api/endpoints/multi_market_signals.py` (7)، `apps/api/router.py` (5)
-- جاب: `jobs/definitions/screener_jobs.py` (2)، `jobs/signal_generation.py` (1)
+- سرویس: `services/quant_signal_orchestrator.py` (67)، `services/multi_market_signal_engine.py` (41)، `services/ensemble_engine.py` (12)، `services/unified_assistant_service.py` (11)
+- API: `apps/api/app.py` (21)، `apps/api/endpoints/multi_market_signals.py` (12)، `apps/api/endpoints/signal_insights.py` (9)، `apps/api/endpoints/screener110.py` (6)
+- جاب: `jobs/definitions/paper_trading_job.py` (5)، `jobs/definitions/screener_jobs.py` (2)، `jobs/signal_generation.py` (1)
 - ریپازیتوری: `repositories/signal_repository.py` (8)
-- اسکریپت: `scripts/run_full_backtest.py` (15)، `scripts/debug_signal_gates.py` (4)، `scripts/dump_signal_code.py` (4)، `scripts/audit_data_access.py` (2)
+- اسکریپت: `scripts/run_full_backtest.py` (15)، `scripts/debug_signal_gates.py` (4)، `scripts/dump_signal_code.py` (4)، `scripts/_check_signal_health.py` (4)
 - تست: `tests/unit/services/test_quant_signal_orchestrator.py` (83)، `tests/benchmark_signal_quality.py` (51)، `tests/unit/test_rate_limit_middleware.py` (50)، `tests/e2e/test_orchestrator_pipeline.py` (22)
-- سایر: `backtesting/research/alpha_evaluation_engine.py` (36)، `backtesting/signals/signal_conflict_resolver.py` (12)، `backtesting/alpha/fast_evaluator.py` (8)، `backtesting/signals/signal_router.py` (7)
+- سایر: `backtesting/research/alpha_evaluation_engine.py` (36)، `backtesting/engine/vectorized_engine.py` (12)، `backtesting/signals/signal_conflict_resolver.py` (12)، `backtesting/alpha/fast_evaluator.py` (8)
 
 **نمونه داده:**
 
@@ -2964,6 +2882,7 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/job_run.py` → `JobRunModel`
 - API: `apps/admin/dashboard.py` (4)، `apps/api/endpoints/jobs.py` (4)، `apps/api/endpoints/data_import.py` (2)، `apps/api/endpoints/tables.py` (1)
+- سایر: `monitoring/job_monitor.py` (1)
 
 </details>
 
@@ -2993,7 +2912,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>alert_history</code> — ~274 ردیف، 8 ستون</summary>
+<summary><code>alert_history</code> — ~1,536 ردیف، 8 ستون</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -3006,13 +2925,13 @@ _مشکلی شناسایی نشد._
 
 | id | alert_id | triggered_at | trigger_value | message | delivered | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|
-| alh_75ea5607e9ce4912b09941aa | alr_035b5d82ba7143759a9a776c | 2026-08-03 13:41:05.957049 | 28192.0 | کاج price reached 28192.0 (thr… | True | 2026-08-03 | 1405-05-12 |
-| alh_975921017e4246a8a59c5d60 | alr_035b5d82ba7143759a9a776c | 2026-08-03 15:21:06.072966 | 28201.0 | کاج price reached 28201.0 (thr… | True | 2026-08-03 | 1405-05-12 |
+| alh_72e7418ad5044cbd80bc297b | alr_035b5d82ba7143759a9a776c | 2026-08-07 07:05:19.276106 | 28242.0 | کاج price reached 28242.0 (thr… | True | 2026-08-07 | 1405-05-16 |
+| alh_0f1ca10f2e564d09872ab078 | alr_035b5d82ba7143759a9a776c | 2026-08-07 07:07:19.422440 | 28242.0 | کاج price reached 28242.0 (thr… | True | 2026-08-07 | 1405-05-16 |
 
 </details>
 
 <details>
-<summary><code>alerts</code> — ~1 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
+<summary><code>alerts</code> — ~2 ردیف، 14 ستون (نمایش 12 ستون از 14)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -3022,7 +2941,7 @@ _مشکلی شناسایی نشد._
 - API: `apps/api/app.py` (5)، `apps/api/router.py` (4)، `apps/api/endpoints/assistant.py` (2)، `apps/scheduler/app.py` (2)
 - جاب: `jobs/definitions/alert_jobs.py` (9)، `jobs/definitions/sync_jobs.py` (1)
 - ریپازیتوری: `repositories/alert_repository.py` (1)
-- اسکریپت: `scripts/audit_data_access.py` (2)، `scripts/import_shareholders.py` (1)
+- اسکریپت: `scripts/_tmp_api_test4.py` (3)، `scripts/audit_data_access.py` (2)، `scripts/_tmp_api_test3.py` (2)، `scripts/import_shareholders.py` (1)
 - تست: `tests/unit/test_rate_limit_middleware.py` (7)، `tests/unit/services/test_alert_service.py` (7)، `tests/unit/test_security_middleware.py` (6)، `tests/unit/test_cron_alerts_real.py` (5)
 - سایر: `domain/alerts/__init__.py` (3)، `core/config/__init__.py` (1)، `domain/alerts/rules.py` (1)، `monitoring/__init__.py` (1)
 
@@ -3030,7 +2949,22 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | alert_type | condition | channels | enabled | triggered_count | last_triggered | description | updated_at | created_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| alr_035b5d82ba7143759a9a776c | کاج | کاج | price_above | {"threshold": 1000, "operator"… | ["email", "console"] | True | 274 | 2026-08-04 06:23:13.054612 |  | NULL | 2026-07-28 13:32:22.564870 | … |
+| alr_035b5d82ba7143759a9a776c | کاج | کاج | price_above | {"threshold": 1000, "operator"… | ["email", "console"] | True | 1594 | 2026-08-10 18:39:21.978324 |  | NULL | 2026-07-28 13:32:22.564870 | … |
+| alr_e85cb1af402e48f889221758 |  | ????? | price_above | {"threshold": 5000, "operator"… | ["console"] | True | 0 | NULL | test | NULL | 2026-08-09 20:55:57.948030 | … |
+
+</details>
+
+<details>
+<summary><code>candlesticks_deprecated</code> — جدول خالی است (10 ستون) ⚠️ 3 مشکل</summary>
+
+**مشکلات (3):**
+- جدول خالی است
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
 
 </details>
 
@@ -3147,8 +3081,28 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | name | trade_date | price | volume | value | counter_party | created_at | updated_at | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 128210 | CACO-ZIE1-00 | شمش روی 99.97 | NULL | 882979.0 | 75 | 66223425.0 | کالسیمین\|سی ولکس | 2026-07-13 02:45:54.408036+00:… | NULL | 2026-07-13 | 1405-04-22 |
-| 128997 | SACE-CEMENT2B-00 | سیمان تیپ2 | NULL | 7014.0 | 3580 | 25110120.0 | سیمان ساوه\|صبا تأمین | 2026-07-13 02:45:54.408036+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 14122 | PAC-BI6070B-00 | قیر 6070 | NULL | 8498.0 | 97 | 824306.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:20.940456+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 14464 | PACS-BIPG6422B-00 | قیر PG6422 | NULL | 9268.0 | 2077 | 19249636.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:20.940456+00:… | NULL | 2026-07-13 | 1405-04-22 |
+
+</details>
+
+<details>
+<summary><code>daily_history_deprecated</code> — ~88,961 ردیف، 17 ستون (نمایش 12 ستون از 17) ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
+
+**نمونه داده:**
+
+| symbol_id | trade_date | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | price_last_change | price_last_change_pct | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 48934567890123456 | 2023-04-16 | 0 | 0 | 0.0 | 0.0 | 0.0 | 7370.0 | 0.0 | 7380.0 | 0.0 | 0.0 | … |
+| 2234567890123456 | 2023-03-25 | 2137 | 3222331 | 37290951110.0 | 11360.0 | 11800.0 | 11370.0 | 11600.0 | 11520.0 | 150.0 | 1.32 | … |
 
 </details>
 
@@ -3162,7 +3116,7 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: _بدون مدل ORM_
-- اسکریپت: `scripts/install_dual_dates.py` (5)، `scripts/fix_dual_date_gaps.py` (4)، `scripts/backfill_dual_dates.py` (2)، `scripts/analyze_db_issues.py` (1)
+- اسکریپت: `scripts/install_dual_dates.py` (6)، `scripts/fix_dual_date_gaps.py` (4)، `scripts/backfill_dual_dates.py` (2)، `scripts/analyze_db_issues.py` (1)
 - تست: `tests/unit/test_dual_dates.py` (4)
 
 **نمونه داده:**
@@ -3203,7 +3157,7 @@ _مشکلی شناسایی نشد._
 - سرویس: `services/market_service.py` (8)
 - API: `apps/api/endpoints/market_watch.py` (5)، `apps/api/endpoints/market.py` (3)، `apps/api/endpoints/market_dashboard.py` (3)، `apps/api/router.py` (1)
 - جاب: `jobs/definitions/sync_jobs.py` (2)، `jobs/definitions/brsapi_jobs.py` (1)
-- اسکریپت: `scripts/audit_data_access.py` (1)، `scripts/fix_dual_date_remaining.py` (1)
+- اسکریپت: `scripts/_tmp_api_test.py` (2)، `scripts/_tmp_api_test2.py` (2)، `scripts/audit_data_access.py` (1)، `scripts/fix_dual_date_remaining.py` (1)
 - سایر: `domain/indices/__init__.py` (3)، `ml/datasets/sampling.py` (3)، `ml/evaluation/stability.py` (3)، `ml/models/ensemble/blending.py` (3)
 
 **نمونه داده:**
@@ -3241,6 +3195,85 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
+<summary><code>intraday_trades_deprecated</code> — ~9,135,020 ردیف، 9 ستون ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
+
+**نمونه داده:**
+
+| symbol_id | trade_date | seq_no | time | volume | price | is_canceled | gregorian_date | shamsi_date |
+|---|---|---|---|---|---|---|---|---|
+| 7234567890123456 | 2026-06-09 | 23887 | 10:33:36 | 35 | 146630.0 | False | 2026-06-09 | 1405-03-19 |
+| 7234567890123456 | 2026-06-09 | 23888 | 10:34:10 | 70 | 146630.0 | False | 2026-06-09 | 1405-03-19 |
+
+</details>
+
+<details>
+<summary><code>paper_equity_history</code> — ~>0 ردیف، 9 ستون ⚠️ 1 مشکل</summary>
+
+**مشکلات (1):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+
+**مراجع کد:**
+- مدل: `models/paper_trading.py` → `PaperEquityModel`
+- سرویس: `services/paper_trading_service.py` (1)
+- جاب: `jobs/definitions/paper_trading_job.py` (1)
+
+**نمونه داده:**
+
+| id | date | equity | cash | open_value | realized_pnl | open_positions | total_closed | created_at |
+|---|---|---|---|---|---|---|---|---|
+| peq_356b13fddc714a279d351bbd | 2026-08-08 | 847461872.0 | 847461872.0 | 0.0 | -152538128.0 | 0 | 3027 | 2026-08-08 08:01:35.798715 |
+| peq_898e38c7439641b8bbc24cbf | 2026-08-09 | 847475349.0 | 847461872.0 | 13477.0 | -152538128.0 | 1 | 3027 | 2026-08-09 21:00:49.570150 |
+
+</details>
+
+<details>
+<summary><code>paper_signal_snapshots</code> — ~3,025 ردیف، 25 ستون (نمایش 12 ستون از 25)</summary>
+
+_مشکلی شناسایی نشد._
+
+**مراجع کد:**
+- مدل: `models/paper_trading.py` → `PaperSignalSnapshotModel`
+- سرویس: `services/paper_trading_service.py` (1)
+- جاب: `jobs/definitions/paper_trading_job.py` (1)
+- اسکریپت: `scripts/_check_signal_health.py` (2)
+
+**نمونه داده:**
+
+| id | batch_id | generated_at | symbol | name | market | direction | timeframe | source | entry_zone | stop_loss | targets | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| psnap_5f513f26f43447cdab935e44 | backfill | 2026-07-22 02:38:56.927338 | ونفت | NULL | stock | buy | daily | snapshot_analysis | NULL | NULL | NULL | … |
+| psnap_b4788f2d8e4f4d8a939febc8 | backfill | 2026-07-22 02:38:56.941351 | شاراک | NULL | stock | buy | daily | snapshot_analysis | NULL | NULL | NULL | … |
+
+</details>
+
+<details>
+<summary><code>paper_trades</code> — ~3,025 ردیف، 26 ستون (نمایش 12 ستون از 26)</summary>
+
+_مشکلی شناسایی نشد._
+
+**مراجع کد:**
+- مدل: `models/paper_trading.py` → `PaperTradeModel`
+- سرویس: `services/paper_trading_service.py` (1)
+- جاب: `jobs/definitions/paper_trading_job.py` (1)
+
+**نمونه داده:**
+
+| id | signal_snapshot_id | symbol | name | market | timeframe | source | confidence | score | entry_price | stop_loss_price | target1_price | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| ptrade_a66d355fa13c4780bbd7547… | psnap_5f513f26f43447cdab935e44 | ونفت | NULL | stock | daily | snapshot_analysis | 0.3 | NULL | 9290.0 | NULL | NULL | … |
+| ptrade_3e3b3845f4e54b0fbf7f547… | psnap_b4788f2d8e4f4d8a939febc8 | شاراک | NULL | stock | daily | snapshot_analysis | 0.3 | NULL | 17610.0 | NULL | NULL | … |
+
+</details>
+
+<details>
 <summary><code>symbol_relations</code> — جدول خالی است (13 ستون) ⚠️ 1 مشکل</summary>
 
 **مشکلات (1):**
@@ -3254,6 +3287,20 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
+<summary><code>symbol_snapshots_deprecated</code> — جدول خالی است (28 ستون) ⚠️ 3 مشکل</summary>
+
+**مشکلات (3):**
+- جدول خالی است
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
+
+</details>
+
+<details>
 <summary><code>markets</code> — جدول خالی است (14 ستون) ⚠️ 2 مشکل</summary>
 
 **مشکلات (2):**
@@ -3263,7 +3310,7 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/market.py` → `MarketModel`
 - سرویس: `services/quant_signal_orchestrator.py` (9)، `services/multi_market_signal_engine.py` (6)، `services/unified_assistant_service.py` (5)، `services/auto_retrain_pipeline.py` (3)
-- API: `apps/api/endpoints/tabdeal.py` (6)، `apps/api/endpoints/multi_market_signals.py` (5)، `apps/api/endpoints/signal_insights.py` (2)، `apps/api/app.py` (1)
+- API: `apps/api/endpoints/multi_market_signals.py` (8)، `apps/api/endpoints/tabdeal.py` (6)، `apps/api/endpoints/signal_insights.py` (2)، `apps/api/app.py` (1)
 - اسکریپت: `scripts/audit_data_access.py` (1)
 - تست: `tests/benchmark_signal_quality.py` (16)، `tests/unit/services/test_quant_signal_orchestrator.py` (15)، `tests/e2e/test_orchestrator_pipeline.py` (3)، `tests/test_all_pages.py` (2)
 - سایر: `backtesting/engine/replay_engine.py` (5)، `backtesting/engine/simulation_engine.py` (4)، `backtesting/relations/market_graph.py` (4)، `backtesting/hybrid/hybrid_simulator.py` (3)
@@ -3294,6 +3341,7 @@ _مشکلی شناسایی نشد._
 - سرویس: `services/live_risk_monitor.py` (4)، `services/unified_assistant_service.py` (3)، `services/portfolio_service.py` (1)
 - API: `apps/api/router.py` (3)، `apps/api/endpoints/portfolios.py` (2)، `apps/admin/dashboard.py` (1)، `apps/api/middleware.py` (1)
 - ریپازیتوری: `repositories/portfolio_repository.py` (1)
+- اسکریپت: `scripts/_tmp_api_test4.py` (2)
 - تست: `tests/unit/test_security_middleware.py` (7)، `tests/unit/services/test_portfolio_service.py` (4)
 - سایر: `backtesting/strategies/registry.py` (8)، `backtesting/strategies/portfolios/__init__.py` (5)، `backtesting/analytics/attribution.py` (2)، `domain/options/var_calculator.py` (2)
 
@@ -3309,7 +3357,7 @@ _مشکلی شناسایی نشد._
 - مدل: `models/recommendation.py` → `RecommendationModel`
 - سرویس: `services/market_health_index.py` (8)، `services/codal_analysis/audit_control_testing.py` (4)، `services/chat/learning_engine.py` (1)، `services/chat/suggestion_engine.py` (1)
 - API: `apps/api/endpoints/analysis.py` (6)، `apps/api/router.py` (4)، `apps/api/endpoints/recommendations.py` (4)، `apps/admin/dashboard.py` (2)
-- اسکریپت: `scripts/audit_data_access.py` (2)
+- اسکریپت: `scripts/audit_data_access.py` (2)، `scripts/_tmp_api_test.py` (2)، `scripts/_tmp_api_test2.py` (2)، `scripts/_tmp_api_test3.py` (2)
 - تست: `tests/comprehensive/test_all.py` (6)، `tests/unit/domain/test_recommendation_rules.py` (5)، `tests/debug_api.py` (2)، `tests/test_all_pages.py` (2)
 - سایر: `domain/recommendations/__init__.py` (4)، `core/security/permissions.py` (2)، `reports/builders/recommendation_report_builder.py` (2)، `backtesting/optimization/walk_forward.py` (1)
 
@@ -3335,12 +3383,12 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/market_data.py` → `SymbolModel`
 - سرویس: `services/chat/chat_engine.py` (41)، `services/mass_scanner_service.py` (31)، `services/chat/comparison_engine.py` (30)، `services/realtime_service.py` (29)
-- API: `apps/api/endpoints/backtests.py` (60)، `apps/api/endpoints/brsapi.py` (39)، `apps/api/endpoints/ml.py` (29)، `apps/api/endpoints/analysis.py` (14)
-- جاب: `jobs/market_data_jobs.py` (15)، `jobs/definitions/market_data_jobs.py` (11)، `jobs/definitions/sync_jobs.py` (6)، `jobs/definitions/alert_jobs.py` (4)
+- API: `apps/api/endpoints/brsapi.py` (65)، `apps/api/endpoints/backtests.py` (60)، `apps/api/endpoints/ml.py` (31)، `apps/api/endpoints/funds.py` (23)
+- جاب: `jobs/market_data_jobs.py` (15)، `jobs/definitions/market_data_jobs.py` (11)، `jobs/definitions/sync_jobs.py` (6)، `jobs/definitions/feature_store_jobs.py` (5)
 - ریپازیتوری: `repositories/news_repository.py` (13)، `repositories/backtest_repository.py` (8)، `repositories/generated_strategy_repository.py` (2)
-- اسکریپت: `scripts/brsapi_full_update.py` (29)، `scripts/sync_all_tables.py` (27)، `scripts/sync_symbol_details_all.py` (27)، `scripts/import_analysis_data.py` (26)
-- تست: `tests/comprehensive/test_all.py` (29)، `tests/unit/services/test_symbol_catalog.py` (20)، `tests/unit/test_queue_analysis_api.py` (18)، `tests/test_brsapi_job_registry.py` (15)
-- سایر: `brsapi/services/sync_service.py` (31)، `brsapi/services/history_fetch_service.py` (22)، `brsapi/jobs/registry.py` (21)، `ingestion/library_sources/universal_collector.py` (14)
+- اسکریپت: `scripts/brsapi_full_update.py` (29)، `scripts/build_feature_store.py` (28)، `scripts/sync_all_tables.py` (27)، `scripts/sync_symbol_details_all.py` (27)
+- تست: `tests/unit/test_ml_model_preload.py` (35)، `tests/comprehensive/test_all.py` (29)، `tests/unit/scripts/test_build_screener_scores.py` (23)، `tests/unit/services/test_symbol_catalog.py` (20)
+- سایر: `brsapi/jobs/registry.py` (99)، `brsapi/services/sync_service.py` (40)، `brsapi/services/history_fetch_service.py` (22)، `ml/model_loader.py` (16)
 
 **نمونه داده:**
 
@@ -3352,17 +3400,24 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>users</code> — جدول خالی است (21 ستون) ⚠️ 1 مشکل</summary>
+<summary><code>users</code> — ~>0 ردیف، 21 ستون (نمایش 12 ستون از 21) ⚠️ 1 مشکل</summary>
 
 **مشکلات (1):**
-- جدول خالی است
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
 
 **مراجع کد:**
 - مدل: `models/user.py` → `UserModel`
 - سرویس: `services/user_service.py` (3)، `services/chat/suggestion_engine.py` (2)، `services/codal_analysis/audit_fraud.py` (1)، `services/smart_money/confidence.py` (1)
-- API: `apps/api/endpoints/auth.py` (3)، `apps/admin/dashboard.py` (2)، `apps/api/endpoints/symbols.py` (2)، `apps/api/endpoints/decision_engine.py` (1)
-- تست: `tests/unit/test_rbac.py` (5)، `tests/unit/test_mfa_integration.py` (3)
-- سایر: `postgresql_client.py` (3)، `core/security/permissions.py` (2)، `brsapi/jobs/registry.py` (1)، `core/calibration_bootstrap.py` (1)
+- API: `apps/api/endpoints/auth.py` (3)، `apps/admin/dashboard.py` (2)، `apps/api/endpoints/symbols.py` (2)، `apps/api/endpoints/tables.py` (2)
+- تست: `tests/unit/test_rbac.py` (5)، `tests/unit/test_mfa_integration.py` (3)، `tests/unit/test_confirmed_runtime_fixes.py` (1)، `tests/unit/test_deep_confirmed_fixes.py` (1)
+- سایر: `postgresql_client.py` (3)، `core/security/permissions.py` (2)، `brsapi/rate_limiter.py` (1)، `brsapi/jobs/registry.py` (1)
+
+**نمونه داده:**
+
+| id | username | email | hashed_password | full_name | phone | roles | is_active | is_verified | last_login | refresh_token | metadata | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| usr_87358d25da2344ad9a1fa156 | admin_test_1786376238 | admin_test_1786376238@example.… | 100000$423189da84c2d91bcd64bca… | Admin Test |  | admin | True | False | 2026-08-10 15:43:25.592089 | eyJhbGciOiJIUzI1NiIsInR5cCI6Ik… | NULL | … |
+| usr_dee9fdd42ac8420e862f9aea | testadmin | testadmin@test.com | 100000$1b8f8c5bbc1a96781c0b722… | Test Admin |  | admin | True | True | 2026-08-06 18:15:04.807321 | eyJhbGciOiJIUzI1NiIsInR5cCI6Ik… | NULL | … |
 
 </details>
 
@@ -3400,7 +3455,7 @@ _مشکلی شناسایی نشد._
 - سرویس: `services/codal_attachment_service.py` (2)
 - API: `apps/api/endpoints/brsapi.py` (3)، `apps/api/endpoints/codal.py` (1)
 - جاب: `jobs/definitions/sync_jobs.py` (1)
-- اسکریپت: `scripts/fix_schema_gap.py` (6)، `scripts/backfill_ins_id.py` (1)، `scripts/batch_codal_sync.py` (1)، `scripts/check_codal_tables.py` (1)
+- اسکریپت: `scripts/fix_schema_gap.py` (6)، `scripts/backfill_dates.py` (1)، `scripts/backfill_ins_id.py` (1)، `scripts/batch_codal_sync.py` (1)
 - تست: `tests/test_codal_sync_3x.py` (1)، `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (4)، `diagnostics/ingestion_audit.py` (1)
 
@@ -3408,13 +3463,13 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | company_name | title | code | date_title | date_send | time_send | date_publish | time_publish | link | link_pdf | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 67 | طیور | طیور دانه سلامت دزفول | امیدنامه پذیرش در فرابورس ایرا… |  | NULL | ۱۴۰۵/۰۵/۰۵ | ۱۵:۵۹:۲۵ | ۱۴۰۵/۰۵/۰۵ | ۱۵:۵۹:۲۵ | https://codal.ir/Reports/Attac… | NULL | … |
-| 7302 | وبملت | بانک ملت | گزارش فعالیت هیئت مدیره دوره ۱… | ن-۱۱ | ۱۴۰۴/۱۲/۲۹ | ۱۴۰۵/۰۴/۳۱ | ۰۴:۰۴:۴۳ | ۱۴۰۵/۰۴/۳۱ | ۰۴:۰۴:۴۳ | https://codal.ir/Reports/Attac… | NULL | … |
+| 7524 | لبن | صنایع دامپروری و لبنی رضوی | آگهی دعوت به مجمع عمومی عادی ب… | ن-۵۴ | NULL | ۱۴۰۵/۰۵/۱۶ | ۰۵:۰۳:۱۶ | ۱۴۰۵/۰۵/۱۶ | ۰۵:۰۳:۱۶ | https://codal.ir/Reports/Decis… | https://codal.ir/DownloadFile.… | … |
+| 7525 | داسوه | داروسازی اسوه | اطلاعات و صورت‌های مالی میاندو… | ن-۱۰ | ۱۴۰۵/۰۳/۳۱ | ۱۴۰۵/۰۵/۱۵ | ۲۲:۴۸:۳۷ | ۱۴۰۵/۰۵/۱۵ | ۲۲:۴۸:۳۷ | https://codal.ir/Reports/Decis… | https://codal.ir/DownloadFile.… | … |
 
 </details>
 
 <details>
-<summary><code>brsapi_codal_attachments</code> — ~359 ردیف، 18 ستون (نمایش 12 ستون از 18)</summary>
+<summary><code>brsapi_codal_attachments</code> — ~10,336 ردیف، 18 ستون (نمایش 12 ستون از 18)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -3433,17 +3488,16 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>codal_announcements</code> — جدول خالی است (17 ستون) ⚠️ 3 مشکل</summary>
+<summary><code>codal_announcements_deprecated</code> — جدول خالی است (17 ستون) ⚠️ 3 مشکل</summary>
 
 **مشکلات (3):**
 - جدول خالی است
-- نسخه قدیمی است — جدول زنده `brsapi_codal_announcements` جایگزین آن است
-- باگ فعال: `services/codal_download_service.py` از این جدول (خالی) می‌خواند → دانلود ضمائم هرگز انجام نمی‌شود
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
 
 **مراجع کد:**
-- مدل: `iran_market_data/app/storage/models.py` → `CodalAnnouncement`
-- سرویس: `services/codal_download_service.py` (2)
-- سایر: `database_handler.py` (2)، `data_repo.py` (2)، `postgresql_client.py` (2)، `datenrepo.py` (1)
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
 
 </details>
 
@@ -3454,7 +3508,7 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/codal.py` → `CodalAuditSummaryModel`
-- API: `apps/api/endpoints/codal_audit.py` (7)، `apps/api/endpoints/brsapi.py` (2)
+- API: `apps/api/endpoints/codal_audit.py` (7)، `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/codal.py` (1)
 - اسکریپت: `scripts/batch_audit_all_symbols.py` (9)، `scripts/codal_deep.py` (4)، `scripts/extract_codal_financials.py` (4)، `scripts/codal_audit.py` (3)
 
 **نمونه داده:**
@@ -3474,7 +3528,7 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `models/codal_financial.py` → `CodalFinancialStatementModel`
 - سرویس: `services/codal_download_service.py` (2)
-- API: `apps/api/endpoints/brsapi.py` (1)
+- API: `apps/api/endpoints/brsapi.py` (1)، `apps/api/endpoints/codal.py` (1)
 - اسکریپت: `scripts/import_codal_excel.py` (8)، `scripts/codal_deep.py` (4)، `scripts/batch_audit_all_symbols.py` (3)، `scripts/codal_audit.py` (3)
 
 **نمونه داده:**
@@ -3501,20 +3555,20 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | company_name | isin | report_type | fiscal_year | period | audit_status | publish_date | attachment_url | summary | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| f7e84d474c297d4ef1439957a83a4d… | خکار | خکار | ایرکا پارت صنعت | NULL | ن-۶۷ | NULL | NULL | NULL | ۱۴۰۵/۰۳/۱۷ | https://codal.ir/Reports/Attac… | آگهی ثبت افزایش سرمایه | … |
-| 868d690fe03a8c36d1ef05a8c779be… | خکار | خکار | ایرکا پارت صنعت | NULL | ن-۶۷ | NULL | NULL | NULL | ۱۴۰۳/۱۰/۱۱ | https://codal.ir/Reports/Attac… | آگهی ثبت افزایش سرمایه | … |
+| 92412cb617f3872aeb9c08d4f8b9bc… | ارفع | ارفع | آهن و فولاد ارفع | NULL | ن-۸۶ | NULL | NULL | NULL | ۱۴۰۳/۰۱/۲۷ | https://codal.ir/Reports/Attac… | کمیته انتصابات | … |
+| 7dcf07cc480742aa78a7daf0ec22a6… | ارفع | ارفع | آهن و فولاد ارفع | NULL | ن-۶۷ | NULL | NULL | NULL | ۱۳۹۷/۱۲/۰۶ | https://codal.ir/Reports/Attac… | آگهی ثبت افزایش سرمایه | … |
 
 </details>
 
 <details>
-<summary><code>corporate_actions</code> — جدول خالی است (11 ستون) ⚠️ 2 مشکل</summary>
+<summary><code>corporate_actions</code> — جدول خالی است (11 ستون) ⚠️ 1 مشکل</summary>
 
-**مشکلات (2):**
+**مشکلات (1):**
 - جدول خالی است
-- مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
 
 **مراجع کد:**
 - مدل: `models/option.py` → `CorporateActionModel`
+- API: `apps/api/endpoints/codal.py` (1)
 - اسکریپت: `scripts/fix_schema_gap.py` (1)
 - سایر: `providers/capabilities/matrix.py` (1)
 
@@ -3689,8 +3743,8 @@ _مشکلی شناسایی نشد._
 
 | id | issuer_symbol | report_type | report_date_jalali | file_name | file_path | file_size_bytes | sha256 | detected_format | file_status | error_message | parsed_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 90827 | کساپا | NULL | NULL | کساپا__۱۳۹۰_۰۵_۰۲.xlsx | C:\Users\Iran\Desktop\temce\da… | 122368 | fast:C:\Users\Iran\Desktop\tem… | xls_biff | saved | NULL | 2026-07-20 03:32:30.342578 | … |
-| 92424 | کنور | n10 | 1403-09-10 | کنور_ن-۱۰_۱۴۰۳_۰۹_۱۰.xlsx | C:\Users\Iran\Desktop\temce\da… | 695902 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:32:39.924660 | … |
+| 28943 | رتاپ | n30 | 1397-06-05 | رتاپ_ن-۳۰_۱۳۹۷_۰۶_۰۵.xlsx | C:\Users\Iran\Desktop\temce\da… | 16384 | fast:C:\Users\Iran\Desktop\tem… | xls_biff | saved | NULL | 2026-07-20 03:20:54.356079 | … |
+| 29089 | رتكو | n30 | 1399-12-27 | رتكو_ن-۳۰_۱۳۹۹_۱۲_۲۷.xlsx | C:\Users\Iran\Desktop\temce\da… | 18609 | fast:C:\Users\Iran\Desktop\tem… | html | saved | NULL | 2026-07-20 03:20:56.767752 | … |
 
 </details>
 
@@ -3727,7 +3781,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>news_articles</code> — ~1,819 ردیف، 16 ستون (نمایش 12 ستون از 16)</summary>
+<summary><code>news_articles</code> — ~71 ردیف، 16 ستون (نمایش 12 ستون از 16)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -3743,8 +3797,8 @@ _مشکلی شناسایی نشد._
 
 | id | title | summary | content | source | url | category | symbols | published_at | sentiment | sentiment_score | data_source | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| news_7cff672805c6485781f0eb55 | آینده تنگه هرمز از نگاه بازار … | NULL | NULL | fardaye_energy | https://www.fardayeeghtesad.co… | companies | NULL | 2026-04-28T07:02:35+00:00 | neutral | 0.0 | rss | … |
-| news_d41fd9a46369432d987506f7 | نسخه انتخاب سهام در گروه دارو | واچ‌لیست با علی‌تسنیمی | واچ‌لیست با علی‌تسنیمی | fardaye_bourse | https://www.fardayeeghtesad.co… | market | NULL | 2026-05-30T15:00:00+00:00 | neutral | 0.0 | rss | … |
+| news_45e4a48fdb32482096582336 | مأموریت تصمیم‌ساز در حکمرانی ا… | چهره‌ها با مهدی طحانی | چهره‌ها با مهدی طحانی | fardaye_latest | https://www.fardayeeghtesad.co… | economic | NULL | 2026-08-06T14:14:27+00:00 | neutral | 0.0 | rss | … |
+| news_731061a1a1fb41858d91a5dc | جشن هرمز؛ شکست مرزها در ۷ بازا… | بازارنگر چهارشنبه ۱۴ مرداد ۱۴۰… | بازارنگر چهارشنبه ۱۴ مرداد ۱۴۰… | fardaye_latest | https://www.fardayeeghtesad.co… | market | NULL | 2026-08-05T10:12:48+00:00 | neutral | 0.0 | rss | … |
 
 </details>
 
@@ -4279,7 +4333,7 @@ _مشکلی شناسایی نشد._
 
 ### جمع‌بندی جامع و نقشه راه اصلاحات
 
-سکوی داده شامل **122 جدول** و حدود **~42,785,178 ردیف** است. از این میان **58 جدول خالی**، **6 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **6 جدول بدون مدل ORM** و **1 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **0 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
+سکوی داده شامل **128 جدول** و حدود **~48,933,648 ردیف** است. از این میان **55 جدول خالی**، **2 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **11 جدول بدون مدل ORM** و **6 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **4 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
 
 **نقشه راه اصلاحات (اولویت‌بندی‌شده):**
 
@@ -4298,245 +4352,9 @@ _مشکلی شناسایی نشد._
 
 ---
 
-## 🧪 تست‌ها
-
-### انواع تست
-
-```bash
-# تست‌های unit
-pytest tests/unit -v
-
-# تست‌های integration
-pytest tests/integration -v
-
-# تست‌های e2e
-pytest tests/e2e -v
-
-# تست‌های عملکرد
-pytest -m performance
-
-# با coverage
-pytest --cov=. --cov-report=html
-```
-
-### تست‌های فرانت‌اند
-
-```bash
-cd frontend
-npm test              # اجرای تست‌ها
-npm run test:watch    # حالت watch
-npm run lint          # بررسی lint
-npx tsc --noEmit      # بررسی TypeScript
-```
-
 ---
 
-## 🚀 استقرار
 
-### Docker Swarm (تولید)
-
-```bash
-# ساخت swarm
-docker swarm init
-
-# استقرار
-docker stack deploy -c docker-compose.yml -c docker-compose.production.yml market
-
-# مشاهده وضعیت
-docker stack services market
-```
-
-### CI/CD (GitHub Actions)
-
-```yaml
-# .github/workflows/ci.yml
-- Lint & Typecheck (ruff, mypy)
-- Backend Tests (pytest)
-- Docker Build & Push
-- Frontend Build & Test
-```
-
----
-
-## ⚠️ مشکلات شناخته‌شده و محدودیت‌ها
-
-> آخرین به‌روزرسانی: ۲۰۲۶-۰۸-۰۵
-
-این بخش شامل اشکلات، محدودیت‌ها و بدهی فنی فعلی پروژه است. وضعیت هر مورد بر اساس **بررسی مستقیم کد** به‌روزرسانی شده است:
-
-- ✅ **رفع شده** — در کد فعلی پیاده‌سازی شده
-- 🟡 **جزئی** — زیرساخت/ابزار اضافه شده ولی کامل نیست
-- ❌ **فعال** — همچنان وجود دارد
-
-> برای جزئیات بیشتر و کد پیشنهادی، [ANALYSIS.md](ANALYSIS.md) را ببینید.
-
-### 🔴 بحرانی (Critical)
-
-| # | مشکل | مکان | وضعیت | توضیح |
-|---|-------|------|--------|-------|
-| ۱ | **Connection Pool خیلی کم** | `core/config/__init__.py:27` | ✅ | پیش‌فرض به `pool_size=20, max_overflow=30` افزایش یافت (قابل تنظیم با `DATABASE_POOL_SIZE`) — همه اسکریپت‌ها هم از `settings` می‌خوانند. توجه: در حالت چند-worker، pool هر worker جداگانه است (تا ~۵۰ اتصال در هر worker) — با `workers>1` مقدار `max_connections` پستگرس را بررسی کنید |
-| ۲ | **CORS باز** | `core/config/__init__.py:43` | ✅ | پیش‌فرض به `["http://localhost:3000"]` محدود شد (قابل تنظیم با `CORS_ORIGINS`) و `validate_production()` همچنان مقدار `*` را در production رد می‌کند |
-| ۳ | **State در حافظه** | `apps/api/app.py:42-61` | ✅ | `_cron_state` و `_alert_state` حالا از Redis (کلیدهای `orchestrator:cron_state` / `orchestrator:alert_state` بدون TTL) بارگذاری/ذخیره می‌شوند — با fallback درون‌حافظه وقتی Redis در دسترس نیست؛ sync بین workerها و بقای state بعد از restart |
-| ۴ | **SQL خام در سرویس‌ها** | `multi_market_signal_engine.py` | ✅ | همه کوئری‌های `text()` به ORM `select()` تبدیل شدند — مدل‌های `CodalAuditSummaryModel` و `CryptoDailyHistoryModel` اضافه شدند (ستون‌ها با schema زنده تطبیق داده شدند) و فیلدهای `func.abs` / join بدون f-string |
-| ۵ | **BrsApi TLS غیرفعال** | `brsapi/client.py` | ✅ | `verify_ssl` با پیش‌فرض `True` فعال شد (client، history_fetch و همه اسکریپت‌ها) — در صورت نیاز با `BRSAPI_VERIFY_SSL=false` غیرفعال می‌شود |
-| ۶ | **رمز عبور در اسکریپت‌ها** | `scripts/_db.py` (جدید) | ✅ | همه اسکریپت‌ها (شامل `check_brsapi_tables.py`, `check_db_direct.py`, `run_train_all_symbols.py`, `sync_live_data.py`, `test_train_foolad.py`, `fix_categories.py`, `find_duplicate_symbols.py`, `remove_duplicate_symbols.py`, `check_codal_data.py`, `check_uncat.py`, `fix_remaining_categories.py` و تست‌ها) به `settings.database_url` منتقل شدند — helper مشترک `scripts/_db.py` با `psycopg2_connect()` / `database_url_async()` و **هیچ credential هاردکدشده‌ای باقی نمانده** |
-
-### 🟠 بالا (High)
-
-| # | مشکل | مکان | وضعیت | توضیح |
-|---|-------|------|--------|-------|
-| ۷ | **بدون Distributed Locking** | `jobs/locking.py` | ✅ | `JobLocking` به قفل توزیع‌شده Redis با TTL ارتقا یافت (`SET key owner NX PX <ms>` + Lua مقایسه‌ای برای release/extend اتمیک) — فقط owner می‌تواند قفل را آزاد/تمدید کند و TTL خودکار مانع قفل‌ماندن پس از crash می‌شود؛ با fallback درون‌حافظه وقتی Redis در دسترس نیست (خطای مقطعی Redis = fail-closed، اجرای هم‌زمان نمی‌شود) — ۱۷ تست واحد (`tests/unit/jobs/test_locking.py`) |
-| ۸ | **رقابت DB در شروع** | `apps/api/app.py` | ✅ | startup sync به یک background task با retry تبدیل شد و dedup در `sync_service` جلوی تکرار را می‌گیرد؛ **حالا `_brsapi_startup_sync`، `_fetch_news_on_startup` و `_decision_engine_startup_seed` با قفل توزیع‌شده (`JobLocking` مشترک، کلید `startup:*`، TTL 600s) محافظت می‌شوند** — worker دوم/فرایند SchedulerApp هم‌زمان همان task را اجرا نمی‌کند (2 تست در `tests/unit/test_input_sanitization.py`) |
-| ۹ | **پایپ‌لاین سیگنال تک‌رشته** | `quant_signal_orchestrator.py:1290` | ✅ | از `asyncio.gather(*tasks, return_exceptions=True)` برای موازی‌سازی استفاده می‌شود |
-| ۱۰ | **CSRF Protection ندارد** | `apps/api/middleware.py` | ✅ | `CSRFMiddleware` پیاده‌سازی و ثبت شد: برای متدهای ناامن (POST/PUT/PATCH/DELETE) درخواست‌های دارای Origin/Referer فقط در صورت تطبیق با `cors_origins` پذیرفته می‌شوند (بدون Origin/Referer = کلاینت غیرمرورگر → مجاز). غیرفعال وقتی `enable_csrf=False` — ۷ تست واحد (`tests/unit/test_security_hardening.py`) |
-| ۱۱ | **JWT Revocation ندارد** | `core/security/tokens.py` | ✅ | blacklist کامل access token با `jti`: هر access token یک `jti` یکتا دارد؛ logout با `revoke_access_token()` آن را در Redis (با TTL تا انقضای طبیعی) باطل می‌کند؛ `get_current_user`/`get_optional_user`/middleware/`verify_token` همه توکن‌های revoked را با 401 رد می‌کنند — با fallback امن وقتی Redis در دسترس نیست — ۹ تست واحد (`tests/unit/test_security_hardening.py`) |
-| ۱۲ | **MFA ندارد** | `core/security/secrets.py` | ✅ | MFA/TOTP کامل پیاده‌سازی شد: ماژول `core/security/totp.py` (RFC 6238 بدون وابستگی جدید — HMAC-SHA1/256/512، ۶ رقم، پنجره ±۱ مرحله) + ستون‌های `totp_secret`/`totp_enabled`/`totp_confirmed_at`/`mfa_method` در `UserModel` (مهاجرت‌های `0022` + `0023`) + جریان login دو مرحله‌ای (`/login` → `mfa_required` + توکن یک‌بارمصرف اتمیک در Redis → `/mfa/login`) + endpoint های `/mfa/status`, `/mfa/setup`, `/mfa/confirm`, `/mfa/disable` — **سه روش MFA**: authenticator app (TOTP)، ایمیل یا تلگرام (کد ۶ رقمی با `generate_otp` ارسالی) — fail-closed وقتی Redis/ارسال در دسترس نیست و rate limit ضد brute-force روی تأیید کد (۱۰ تلاش/۵ دقیقه/IP) — ۲۵ تست واحد (`tests/unit/test_totp_mfa.py`) |
-| ۱۳ | **بدون Reverse Proxy** | `deploy/nginx/nginx.conf` | ✅ | nginx به عنوان reverse proxy با TLS-ready پیکربندی اضافه شد (`deploy/nginx/nginx.conf`): upstream `api:8000` (backend) و `frontend:3000`، rate limiting، gzip، headerهای امنیتی و health check — سرویس nginx در `docker-compose.production.yml` با پورت ۸۰/۴۴۳ |
-| ۱۴ | **بدون TimescaleDB Hypertable** | `migrations/versions/0001_initial_schema.py` | ✅ | `create_hypertable()` برای ۱۰+ جدول (snapshots, trades, daily_history, candlesticks و…) اجرا می‌شود |
-| ۱۵ | **Duplicate Cache** | `core/cache.py` vs `integrations/cache/` | ✅ | یکپارچه شد: `integrations/cache/RedisClient` حالا facade روی `get_cache()` مشترک است (یک اتصال Redis برای کل فرایند؛ URL سفارشی همچنان اتصال خصوصی می‌گیرد) + `ping()` اضافه شد (رفع باگ پنهان HealthCheckJob)؛ `CacheManager` مرده (`manager.py`) حذف شد؛ `CacheWarmupJob`/`HealthCheckJob` به `get_cache()` مشترک منتقل شدند و `initialize()` ایدمپوتنت شد — ۱۰ تست واحد (`tests/unit/test_cache_unification.py`) |
-
-### 🟡 متوسط (Medium)
-
-| # | مشکل | مکان | وضعیت | توضیح |
-|---|-------|------|--------|-------|
-| ۱۶ | **API Versioning ندارد** | `core/config/__init__.py` | ✅ | پیشوند رسمی `/api/v1` فعال است |
-| ۱۷ | **Input Sanitization ناقص** | `apps/api/middleware.py` | ✅ | `InputSanitizationMiddleware` پیاده‌سازی و ثبت شد (قابل تنظیم با `ENABLE_INPUT_SANITIZATION`): بدنه JSON درخواست‌ها به‌صورت بازگشتی پاک‌سازی می‌شود — حذف تگ‌های HTML/کاراکترهای کنترلی (CR/LF/NUL)، truncate رشته‌های بزرگ، رد نوع‌های غیرمجاز در فیلدهای متنی (400)، و **حفظ فیلدهای opaque** (رمز عبور، کد، توکن، secret) برای تطبیق دقیق — 15 تست واحد (`tests/unit/test_input_sanitization.py`) |
-| ۱۸ | **Monitoring In-Memory** | `integrations/observability/` | 🟡 | `PrometheusExporter` و `OTelExporter` اضافه شده‌اند — اتصال کامل به endpoint هنوز ناقص |
-| ۱۹ | **Tracing ناسازگار با OTel** | `integrations/observability/otel_exporter.py` | ✅ | `OTelExporter` سازگار با OpenTelemetry پیاده‌سازی شده |
-| ۲۰ | **Prometheus Endpoint ندارد** | `core/config/monitoring.py` | ✅ | route `/metrics` در `apps/api/app.py` فعال شد (متن exposition فرمت Prometheus با `media_type=text/plain; version=0.0.4`) + `MetricsMiddleware` که counter درخواست‌ها، هیستوگرام latency و شمارنده خطاها را با برچسب method/route/status ثبت می‌کند — مسیر از RateLimit exempt شد — ۵ تست واحد (`tests/unit/test_security_hardening.py`) |
-| ۲۱ | **Log Aggregation ندارد** | — | ✅ | `integrations/observability/log_aggregator.py` اضافه شد: `RedisLogHandler` هر رکورد لاگ را به Redis Stream (`log-aggregator:stream`، cap ۵۰K) با فیلدهای source/level/timestamp/message انتشار می‌دهد تا collector مرکزی (Loki/ELK/Vector) آن را tail کند — publish best-effort و غیرمسدودکننده (شکست فقط شمارش می‌شود)؛ فعال با `LOG_AGGREGATION_ENABLED=true` |
-| ۲۲ | **S3 Storage ناقص** | `codal_attachment_service.py` | ✅ | خواندن از S3 کامل شد: `get_attachment_stream`/`get_attachment_content` از `S3CompatibleStorage` (MinIO) استفاده می‌کنند و پیوست‌ها به‌صورت streaming با `get_object` دانلود می‌شوند — fallback به ذخیره محلی وقتی S3 پیکربندی نشده — endpoint دانلود پیوست (`apps/api/endpoints/codal.py`) به نسخه async ارتقا یافت |
-| ۲۳ | **ارز و کالا سیگنال ضعیف** | `multi_market_signal_engine.py` | 🟡 | ارز و طلا به امتیاز ترکیبی `_composite_buy_score` (RSI + مومنتوم + روند MA + فیلتر نوسان ATR) ارتقا یافتند — بازده دنبال‌کردن ارز از ۰.۳۷٪ به ۰.۸۰٪ و طلا از ۰.۴۵٪ به ۰.۵۸٪ رسید؛ هنوز crypto/commodity/ime با threshold ساده `chg_pct` کار می‌کنند |
-| ۲۴ | **Models In-Memory** | `ml_signal_connector.py` | 🟡 | `load_models_from_disk()` اضافه شده — lazy loading از disk پشتیبانی می‌شود |
-| ۲۵ | **Feature Store ندارد** | `ml/feature_store.py`, `services/smart_money/feature_store.py` | ✅ | Feature Store با TTL caching پیاده‌سازی شده |
-
-### 🟢 پایین (Low) — بدهی فنی
-
-| # | مشکل | مکان | وضعیت | توضیح |
-|---|-------|------|--------|-------|
-| ۲۶ | **`type: ignore` زیاد** | ۵۰+ نقطه | ❌ | تایپ‌سیفیتی ناقص |
-| ۲۷ | **`noqa: BLE001` زیاد** | ۱۰+ نقطه | ❌ | `except Exception` عام |
-| ۲۸ | **BUG FIX‌های پراکنده** | `backtesting/` | ✅ | باگ‌های #1-#20 رفع شده و **تست رگرسیون متمرکز اضافه شد** (`tests/unit/backtesting/test_risk_bugfixes_regression.py` — ۳۲ تست برای stop_loss, take_profit, position_sizing, risk_metrics) |
-| ۲۹ | **ابزارهای منسوخ** | `scripts/import_csv.py` | ✅ | اسکریپت قدیمی حذف شده؛ ایمپورت CSV اکنون در `providers/reference/manual/file_importer.py` انجام می‌شود |
-| ۳۰ | **Endpoints منسوخ BrsApi** | `brsapi/services/sync_service.py` | ✅ | `Coin.php`/`Currency.php` رسماً deprecated اعلام شده و با `Gold_Currency.php` ترکیبی جایگزین شده‌اند |
-| ۳۱ | **Jobs منسوخ** | `jobs/definitions/sync_jobs.py` | ✅ | کلاس‌های `SyncInstrumentsJob`, `SyncQuotesJob`, `SyncCodalJob` از `BaseJob` ساخته شده‌اند و توابع قدیمی deprecated شدند |
-| ۳۲ | **TODO‌های باقیمانده** | `services/fund_service.py`, `populate_profiles_service.py` | ❌ | همچنان TODO‌ها موجودند (NAV repo, gross_margin, inflation_rate) |
-| ۳۳ | **Graceful Shutdown ناقص** | `apps/api/app.py` | ✅ | lifespan شامل توقف RealtimeService، بستن cache و close database است |
-
-### 🔵 بازارهای پوشش‌داده‌نشده
-
-| بازار | وضعیت | توضیح |
-|-------|-------|-------|
-| اوراق قرضه (Bonds) | ❌ وجود ندارد | نیاز به duration، منحنی بازده، credit spread |
-| ETF / صندوق‌ها | 🟡 جزئی | داده و سرویس صندوق (FundService, `/funds`) اضافه شده — تحلیل NAV discount/premium و tracking error هنوز کامل نیست |
-| Forex Futures | ❌ وجود ندارد | نیاز به داده‌های آتی ارز |
-| شاخص‌های بین‌المللی | ❌ وجود ندارد | S&P500, NASDAQ, DAX, Nikkei |
-| کالاهای کشاورزی | ❌ وجود ندارد | گندم، ذرت، سویا |
-| اوراق اسلامی (Sukuk) | ❌ وجود ندارد | ابزارهای مالی اسلامی |
-
-### 📊 BUG FIX‌های اعمال‌شده در بک‌تست
-
-این باگ‌ها در موتور بک‌تست شناسایی و رفع شده‌اند:
-
-| # | باگ | فایل | توضیح |
-|---|-----|------|-------|
-| ۱ | Stop Loss درصدی | `backtesting/risk/stop_loss.py:66` | بررسی نادرست در برابر entry price |
-| ۲ | Take Profit درصدی | `backtesting/risk/take_profit.py:44` | بررسی نادرست در برابر entry price |
-| ۵ | Volatility صفر | `backtesting/risk/position_sizing.py:19` | تقسیم بر صفر — fallback به max position |
-| ۶ | Kelly فرمول | `backtesting/risk/position_sizing.py:27` | فرمول استاندارد Kelly برای payoff کسری |
-| ۷ | محاسبه PnL | `backtesting/metrics/trade_metrics.py:21` | جفت‌سازی خرید/فروش به ازای هر نماد |
-| ۹ | Calmar Ratio | `backtesting/metrics/risk_metrics.py:28` | max_drawdown از قبل درصد بود — واحد ناسازگار |
-| ۱۰ | Omega Ratio | `backtesting/metrics/risk_metrics.py:40` | تقسیم بر صفر — نیاز به clamp |
-| ۱۱ | بازده مثبت | `backtesting/metrics/risk_metrics.py:50` | همه بازده‌ها مثبت → خطای Sortino |
-| ۱۵ | فروش بدون موقعیت | `backtesting/strategies/rule_based/moving_average_cross.py:45` | فروش وقتی موقعیت long نیست |
-| ۲۰ | انحراف معیار نمونه | `backtesting/metrics/risk_metrics.py:16,56` | استفاده از `ddof=1` برای سری بازده مالی |
-
-### 📡 BUG FIX‌های اعمال‌شده در BrsApi Sync
-
-این باگ‌ها هنگام بررسی لاگ‌های تولید (cron، ۲۰۲۶-۰۸-۰۲) شناسایی و رفع شده‌اند — هر دو جاب `brsapi_all_symbols` و `brsapi_index` هر ۲ دقیقه با خطا FAIL می‌شدند:
-
-| # | باگ | فایل | توضیح |
-|---|-----|------|-------|
-| ۱ | `ON CONFLICT DO UPDATE` بدون target | `brsapi/repositories/base.py:232,259` + `brsapi/services/sync_service.py:287` | سینتکس نامعتبر Postgres باعث FAIL جاب `brsapi_all_symbols` هر ۲ دقیقه می‌شد → پارامتر `conflict_target` الزامی شد و SQL معتبر `ON CONFLICT ("symbol","fetched_at") DO UPDATE` تولید می‌شود (بدون target → `ValueError` صریح) |
-| ۲ | رشته در ستون DateTime | `brsapi/parsers/tsetmc.py:209` + `brsapi/models/tsetmc.py:250` | `parse_index` مقدار رشته در `fetched_at` می‌نوشت و asyncpg با `DataError` رد می‌کرد (FAIL جاب `brsapi_index`) → حالا `datetime` واقعی تولید می‌کند و مدل `IndexValueModel.fetched_at` به `DateTime` هماهنگ با دیتابیس زنده شد |
-| ۳ | رشته در ستون DateTime + عدم وجود constraint یکتا | `brsapi/parsers/tsetmc.py:41,85` + `brsapi/models/tsetmc.py:125` | باگ پنهان (ماسک‌شده توسط باگ #۱): `parse_all_symbols` رشته در `fetched_at` می‌نوشت در حالی که ستون زنده `timestamptz` است، و `SymbolSnapshotModel.fetched_at` در مدل `String(30)` بود → به `DateTime` تغییر کرد و `uq_snap_symbol_fetched` (symbol, fetched_at) مستقیماً روی دیتابیس زنده اعمال شد (بعد از تأیید صفر duplicate). سینک زنده تأیید شد: `sync_all_symbols` → ۱٬۴۹۰ نماد با success |
-
-> تأیید: ۱۲ تست واحد (`tests/unit/test_brsapi_sync_fixes.py`) + ۳ تست یکپارچه‌سازی روی دیتابیس واقعی (`tests/unit/test_brsapi_sync_integration.py`) پاس شدند + **سینک زنده با API واقعی BrsApi** تأیید شد. ستون‌های زنده از قبل `timestamptz` بودند (نیازی به مهاجرت ستون نبود)؛ فقط constraint یکتا باید روی هر محیط جدید اعمال شود (مهاجرت `0020` به‌دلیل زنجیره شکسته alembic — `0021` موجود نیست — قابل اجرا نیست؛ این زنجیره در بک‌لاگ است).
-
-### 🛣️ نقشه راه رفع مشکلات
-
-> نقشه راه کامل با کد پیشنهادی در [ANALYSIS.md § نقشه راه توسعه](ANALYSIS.md#۱۷-نقشه-راه-توسعه) موجود است.
-> وضعیت به‌روزشده: بخشی از فازهای ۱ و ۲ (hypertables، feature store، موازی‌سازی pipeline، API versioning) ✅ تکمیل شده و بقیه عمدتاً مربوط به فازهای ۳ و ۴ است.
-> پچ‌های تولید ۲۰۲۶-۰۸ (رفع سینک BrsApi، سیگنال composite ارز/طلا، ریشه‌یابی direction_correct، رفع باگ RSI=0) اعمال شده و با تست‌های واحد + یکپارچه‌سازی روی دیتابیس واقعی تأیید شدند.
-
-| فاز | وضعیت | اولویت‌های باقی‌مانده |
-|-----|--------|---------------------|
-| **۱. تثبیت** | 🟢 کامل | افزایش `pool_size` پیش‌فرض ✅، TLS برای BrsApi ✅، Redis-backed state ✅، Redis-backed distributed lock (`jobs/locking.py`) ✅ |
-| **۲. بهینه‌سازی** | 🟡 نیمه‌کامل | یکپارچه‌سازی cache‌های تکراری، کامل‌کردن S3 storage |
-| **۳. امنیت** | ❌ باز | CSRF middleware، JWT blacklist، MFA، input sanitization، secrets manager |
-| **۴. مانیتورینگ** | 🟡 در حال انجام | فعال‌سازی route `/metrics`، Prometheus+Grafana، log aggregation |
-
----
-
-## 🔧 عیب‌یابی
-
-### خطاهای رایج
-
-| مشکل | راه‌حل |
-|------|--------|
-| **خطای اتصال دیتابیس** | بررسی کنید PostgreSQL در حال اجراست: `pg_isready` — سپس `DATABASE_URL` را در `.env` بررسی کنید |
-| **Redis در دسترس نیست** | بررسی کنید Redis در حال اجراست: `redis-cli ping` — سپس `REDIS_URL` را بررسی کنید |
-| **CORS Error** | در `.env` مقدار `CORS_ORIGINS` را تنظیم کنید: `CORS_ORIGINS=["http://localhost:3000"]` |
-| **خطای Rate Limit** | BrsApi دارای محدودیت ۱۰K/day و ۵۰۰/5min است. صبر کنید یا `brsapi/rate_limiter.py` را تنظیم کنید |
-| **خطای CERTIFICATE_VERIFY_FAILED در BrsApi** | از نسخه جدید، `verify_ssl=True` پیش‌فرض است. اگر گواهی سرور در CA store سیستم شما قابل اعتماد نیست، `BRSAPI_VERIFY_SSL=false` را در `.env` تنظیم کنید |
-| **فرانت‌اند build نمی‌شود** | `cd frontend && rm -rf node_modules && npm install` را اجرا کنید |
-| **مهاجرت اجرا نمی‌شود** | مطمئن شوید `alembic` نصب است و `alembic upgrade head` را اجرا کنید |
-| **تلگرام هشدار نمی‌دهد** | `TELEGRAM_BOT_TOKEN` و `TELEGRAM_CHAT_ID` را در `.env` تنظیم کنید (مرحله ساخت ربات را ببینید) |
-
-### نکات توسعه
-
-```bash
-# بررسی وضعیت سیستم
-python -c "from core.config import settings; print(settings.database_url)"
-
-# پاکسازی کش
-redis-cli FLUSHALL
-
-# مشاهده لاگ‌های API
-# لاگ‌ها در کنسول و اختیاری در فایل logs/ ذخیره می‌شوند
-```
-
----
-
-## 🤝 توسعه و مشارکت
-
-### راهنمای توسعه
-
-1. **fork** کنید
-2. **branch** جدید بسازید
-3. **تغییرات** را اعمال کنید
-4. **تست** کنید
-5. **PR** بفرستید
-
-### استانداردهای کد
-
-- **Linting**: ruff
-- **Type Checking**: mypy
-- **Testing**: pytest
-- **Formatting**: ruff format
-
-### ساختار commits
-
-```
-feat: افزودن ویژگی جدید
-fix: رفع باگ
-docs: به‌روزرسانی مستندات
-test: افزودن تست
-refactor: بازآرایی کد
-chore: وظایف نگهداری
-```
-
----
 
 ## 📄 مجوز
 
@@ -4548,11 +4366,10 @@ MIT License — مشاهده [LICENSE](LICENSE) برای جزئیات.
 
 - **FastAPI** — فریمورک API
 - **Next.js** — فریمورک React
-- **PostgreSQL** — دیتابیس
-- **Redis** — کش
-- **Recharts** — نمودارها
-- **TanStack Query** — مدیریت state
-- **BrsApi.ir** — ارائه‌دهنده داده
+- **PostgreSQL / TimescaleDB** — دیتابیس
+- **Redis** — کش، صف و قفل
+- **Recharts / TanStack Query** — فرانت‌اند
+- **BrsApi.ir** — ارائه‌دهنده داده بازار ایران
 
 ---
 

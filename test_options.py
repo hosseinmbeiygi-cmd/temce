@@ -191,8 +191,9 @@ def test_brsapi():
         import requests
         print("   📡 در حال دریافت داده از BrsApi.ir...")
         url = "https://Api.BrsApi.ir/Tsetmc/History.php"
+        import os
         params = {
-            "key": "FreeSV0E1LSgB9RDjuf0QorSLViX8pPG",
+            "key": os.environ.get("BRSAPI_API_KEY", ""),
             "type": 0,
             "l18": "اهرم"
         }

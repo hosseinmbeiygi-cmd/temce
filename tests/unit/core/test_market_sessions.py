@@ -50,5 +50,6 @@ def test_market_session_weekend():
     from core.time.market_sessions import MarketSession
 
     session = MarketSession()
+    assert session.is_weekend("Thursday") is True
     assert session.is_weekend("Friday") is True
     assert session.is_weekend("Saturday") is False

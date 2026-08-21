@@ -9,10 +9,16 @@ Tracks:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import tempfile
+import threading
 import time
 from typing import Any
+
+# Module-level lock: serialises all JSON file writes across instances.
+_WRITE_LOCK = threading.Lock()
 
 
 class ProfileStore:
@@ -34,11 +40,26 @@ class ProfileStore:
             self._profiles = {}
 
     def _save(self) -> None:
-        """Save profiles to disk."""
+        """Save profiles to disk atomically.
+
+        Uses temp-file + ``os.replace`` so a crash mid-write never corrupts
+        the file.  A ``threading.Lock`` serialises concurrent callers.
+        """
         try:
-            os.makedirs(os.path.dirname(self._storage_path), exist_ok=True)
-            with open(self._storage_path, "w", encoding="utf-8") as f:
-                json.dump(self._profiles, f, ensure_ascii=False, indent=2)
+            os.makedirs(os.path.dirname(self._storage_path) or ".", exist_ok=True)
+            with _WRITE_LOCK:
+                fd, tmp = tempfile.mkstemp(
+                    dir=os.path.dirname(self._storage_path) or ".",
+                    suffix=".json.tmp",
+                )
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        json.dump(self._profiles, f, ensure_ascii=False, indent=2)
+                    os.replace(tmp, self._storage_path)
+                except Exception:
+                    with contextlib.suppress(OSError):
+                        os.unlink(tmp)
+                    raise
         except Exception:
             pass
 

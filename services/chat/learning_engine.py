@@ -9,11 +9,18 @@ Features:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import tempfile
+import threading
 import time
 from collections import defaultdict
 from typing import Any
+
+# Module-level lock: serialises all JSON file writes across instances
+# to prevent data corruption when two async tasks call _save().
+_WRITE_LOCK = threading.Lock()
 
 
 class LearningEngine:
@@ -47,9 +54,13 @@ class LearningEngine:
             pass
 
     def _save(self) -> None:
-        """Save learning data to disk."""
+        """Save learning data to disk atomically.
+
+        Uses temp-file + ``os.replace`` so a crash mid-write never corrupts
+        the file.  A ``threading.Lock`` serialises concurrent callers.
+        """
         try:
-            os.makedirs(os.path.dirname(self._storage_path), exist_ok=True)
+            os.makedirs(os.path.dirname(self._storage_path) or ".", exist_ok=True)
             data_to_save = {
                 "feedback": self._data["feedback"][-500:],
                 "intent_patterns": dict(self._data["intent_patterns"]),
@@ -57,8 +68,20 @@ class LearningEngine:
                 "response_quality": self._data["response_quality"][-500:],
                 "user_preferences": self._data["user_preferences"],
             }
-            with open(self._storage_path, "w", encoding="utf-8") as f:
-                json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+            with _WRITE_LOCK:
+                fd, tmp = tempfile.mkstemp(
+                    dir=os.path.dirname(self._storage_path) or ".",
+                    suffix=".json.tmp",
+                )
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+                    os.replace(tmp, self._storage_path)
+                except Exception:
+                    # Clean up partial temp file on failure
+                    with contextlib.suppress(OSError):
+                        os.unlink(tmp)
+                    raise
         except Exception:
             pass
 

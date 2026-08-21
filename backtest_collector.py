@@ -35,17 +35,26 @@ class RateLimiter:
         self.lock = Lock()
 
     def wait_if_needed(self):
-        with self.lock:
-            now = time.time()
-            self.requests = [t for t in self.requests if now - t < self.window_seconds]
-            if len(self.requests) >= self.max_requests:
-                wait_time = self.window_seconds - (now - self.requests[0]) + 0.1
-                if wait_time > 0:
-                    print(f"\n⏳ محدودیت API! {wait_time:.1f} ثانیه صبر می‌کنم...", end="", flush=True)
-                    time.sleep(wait_time)
-                    self.wait_if_needed()
+        """Block until a request slot is available without recursive locking.
+
+        The old implementation slept while holding ``self.lock`` and then
+        called itself recursively, which deadlocked once the window filled.
+        Sleeping happens outside the lock; the loop re-checks the window after
+        waking so concurrent worker threads remain safe.
+        """
+        while True:
+            wait_time = 0.0
+            with self.lock:
+                now = time.time()
+                self.requests = [t for t in self.requests if now - t < self.window_seconds]
+                if len(self.requests) < self.max_requests:
+                    self.requests.append(now)
                     return
-            self.requests.append(time.time())
+                wait_time = self.window_seconds - (now - self.requests[0]) + 0.1
+
+            if wait_time > 0:
+                print(f"\n⏳ محدودیت API! {wait_time:.1f} ثانیه صبر می‌کنم...", end="", flush=True)
+                time.sleep(wait_time)
 
 rate_limiter = RateLimiter(RATE_LIMIT, RATE_WINDOW)
 

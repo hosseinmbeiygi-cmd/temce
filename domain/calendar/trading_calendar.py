@@ -1,19 +1,21 @@
 """Iranian Trading Calendar for TSE, IFB, and IME.
 
 Handles:
-- Weekend closures (Thursday-Friday for some, Friday-Saturday for others)
+- Weekly closure on Thursday and Friday for TSE/IFB
 - Official Iranian holidays (Shamsi & Qamari)
 - Market-specific hours (TSE: 9:00-12:30, IME: 10:00-15:00)
 - Expiry date adjustment (if expiry falls on holiday, move to previous trading day)
 - Trading days count for theta calculation
 
 Market hours:
-- TSE/IFB: Saturday-Wednesday 9:00-12:30 (Thursday half-day in some periods)
+- TSE/IFB: Saturday-Wednesday 9:00-12:30
 - IME: Saturday-Thursday with different sessions
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
+
+from core.time import now_tehran
 
 try:
     import jdatetime
@@ -101,14 +103,11 @@ class TradingCalendar:
         """Check if a date is a trading day for Iranian markets.
 
         Markets are closed on Fridays and official holidays.
-        Saturday-Wednesday are trading days.
-        Thursday may be half-day depending on market.
+        Saturday-Wednesday are trading days; Thursday and Friday are closed.
         """
-        # Friday is always closed for TSE/IFB
-        if d.weekday() == 4:  # Friday
-            return False
-        # Saturday is also closed for TSE/IFB
-        if d.weekday() == 5:  # Saturday
+        # Tehran equity markets trade Saturday through Wednesday; Thursday
+        # and Friday are the weekly closure days.
+        if d.weekday() in (3, 4):  # Thursday, Friday
             return False
         # Check holidays
         return d not in self.holidays
@@ -183,7 +182,7 @@ class TradingCalendar:
 
     def is_market_open_now(self, market: str = "tse") -> bool:
         """Check if market is currently open (simplified)."""
-        now = datetime.now()
+        now = now_tehran()
         today = now.date()
         if not self.is_trading_day(today):
             return False

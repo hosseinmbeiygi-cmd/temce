@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import scripts.dead_letter_report as report_mod
-from jobs.replay import MAX_SCAN, _build_summary
+from jobs.replay import MAX_SCAN, _build_summary, resolve_since
 
 
 # ── Demo data & pure helpers ─────────────────────────────────────────
@@ -115,11 +115,21 @@ def test_main_demo_window_filters_recent_only(tmp_path: Path):
     data = json.loads((tmp_path / "dead_letter_report.json").read_text(encoding="utf-8"))
     assert data["window"] == "today"
     assert data["since"] is not None
-    # 5 of 8 demo messages are 'today' (2h/6h/10h/10h/12h ago) → the rest excluded.
-    assert data["total"] == 5
+
+    # The demo fixture uses fixed hour offsets, so how many land "today"
+    # depends on the current Tehran wall-clock. Derive the expectation from
+    # the same threshold instead of hardcoding it (otherwise this test only
+    # passes in the afternoon).
+    since = resolve_since("today")
+    expected = sum(
+        1
+        for raw in report_mod._demo_raw_messages()
+        if (json.loads(raw).get("dead_lettered_at") or 0) >= since
+    )
+    assert data["total"] == expected
     names = {n["name"] for n in data["job_names"]}
-    assert "BrsapiCandlestickJob" not in names  # 2–3 days ago → excluded
-    assert "ModelRetrainJob" not in names        # 5 days ago → excluded
+    assert "BrsapiCandlestickJob" not in names  # 2–3 days ago → always excluded
+    assert "ModelRetrainJob" not in names        # 5 days ago → always excluded
 
 
 def test_main_demo_since_explicit_threshold(tmp_path: Path):

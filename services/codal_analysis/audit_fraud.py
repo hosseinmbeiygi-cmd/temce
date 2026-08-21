@@ -147,24 +147,105 @@ class FraudAssessor:
 
     def assess_asset_fraud(self, snap: FinancialSnapshot) -> list[FraudIndicatorResult]:
         results = []
+        revenue = snap.revenue or 0
+        inventory = snap.inventory or 0
+        raw = snap.raw_data or {}
+        prev_inventory = snap.prev.inventory if snap.prev else None
+        prev_cogs = snap.prev.cost_of_goods_sold if snap.prev else None
+        # payroll / other_expenses may live in raw_data if not mapped to attrs
+        payroll = float(raw.get("PAYROLL_EXPENSE", 0) or 0)
+        prev_payroll = float((snap.prev.raw_data or {}).get("PAYROLL_EXPENSE", 0) or 0) if snap.prev else None
+        other_expenses = float(raw.get("OTHER_EXPENSES", 0) or 0)
+
         for ind in ASSET_FRAUD_INDICATORS:
+            is_present = False
+            severity = "low"
+            note = ""
+
+            if ind["code"] == "AF1" and revenue > 0 and other_expenses > revenue * 0.3:
+                # High "other expenses" relative to revenue may indicate
+                # fictitious vendor payments.
+                is_present = True
+                severity = "medium"
+                note = f"Other expenses ({other_expenses:,.0f}) = {other_expenses / revenue * 100:.0f}% of revenue"
+
+            elif (
+                ind["code"] == "AF2"
+                and prev_inventory is not None
+                and prev_cogs is not None
+                and prev_cogs > 0
+            ):
+                # Inventory should roughly track COGS; a large unexplained
+                # drop signals potential shortages.
+                inv_change = inventory - prev_inventory
+                if inv_change < -prev_cogs * 0.2:
+                    is_present = True
+                    severity = "medium"
+                    note = f"Inventory dropped {abs(inv_change):,.0f} ({abs(inv_change) / prev_cogs * 100:.0f}% of COGS)"
+
+            elif ind["code"] == "AF4" and prev_payroll is not None and prev_payroll > 0:
+                # Payroll growing much faster than revenue → ghost employees
+                if revenue > 0 and snap.prev and snap.prev.revenue:
+                    payroll_growth = (payroll - prev_payroll) / prev_payroll
+                    revenue_growth = (revenue - snap.prev.revenue) / snap.prev.revenue
+                    if payroll_growth > revenue_growth + 0.2 and payroll_growth > 0.15:
+                        is_present = True
+                        severity = "high"
+                        note = f"Payroll growth {payroll_growth:.0%} far exceeds revenue growth {revenue_growth:.0%}"
+
             results.append(FraudIndicatorResult(
                 code=ind["code"],
                 description=ind["description"],
                 weight=ind["weight"],
-                is_present=False,
+                is_present=is_present,
+                severity=severity,
+                evidence_note=note,
             ))
+
         return results
 
     def assess_corruption(self, snap: FinancialSnapshot) -> list[FraudIndicatorResult]:
         results = []
+        revenue = snap.revenue or 0
+        cogs = snap.cost_of_goods_sold or 0
+        raw = snap.raw_data or {}
+        other_expenses = float(raw.get("OTHER_EXPENSES", 0) or 0)
+        prev_cogs = snap.prev.cost_of_goods_sold if snap.prev else None
+        rpt = float(raw.get("RELATED_PARTY_TRANSACTIONS", 0) or raw.get("related_party_transactions", 0) or 0)
+
         for ind in CORRUPTION_INDICATORS:
+            is_present = False
+            severity = "low"
+            note = ""
+
+            if ind["code"] == "CR1" and revenue > 0 and other_expenses > revenue * 0.2:
+                is_present = True
+                severity = "medium"
+                note = f"High other expenses ({other_expenses / revenue * 100:.0f}% of revenue) — possible consulting fees"
+
+            elif ind["code"] == "CR2" and revenue > 0 and prev_cogs and prev_cogs > 0:
+                # COGS growing faster than revenue without explanation
+                cogs_growth = (cogs - prev_cogs) / prev_cogs
+                rev_growth = (snap.revenue - snap.prev.revenue) / snap.prev.revenue if snap.prev and snap.prev.revenue else 0
+                if cogs_growth > rev_growth + 0.15:
+                    is_present = True
+                    severity = "high"
+                    note = f"COGS growth {cogs_growth:.0%} exceeds revenue growth {rev_growth:.0%}"
+
+            elif ind["code"] == "CR3" and revenue > 0 and rpt > revenue * 0.1:
+                is_present = True
+                severity = "high"
+                note = f"Related party transactions ({rpt:,.0f}) = {rpt / revenue * 100:.0f}% of revenue"
+
             results.append(FraudIndicatorResult(
                 code=ind["code"],
                 description=ind["description"],
                 weight=ind["weight"],
-                is_present=False,
+                is_present=is_present,
+                severity=severity,
+                evidence_note=note,
             ))
+
         return results
 
     def journal_entry_testing(self) -> list[str]:

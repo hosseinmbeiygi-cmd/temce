@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -74,17 +73,6 @@ const THEME_SCRIPT = `
 })()
 `;
 
-const SW_REGISTER = `
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').then(function(registration) {
-      console.log('SW registered:', registration.scope);
-    }).catch(function(error) {
-      console.log('SW registration failed:', error);
-    });
-  });
-}
-`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -96,10 +84,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="بازار" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        {/*
+          Theme bootstrap — plain <script> (not next/script): it is rendered
+          server-side into the initial HTML and runs before hydration, so the
+          stored theme is applied with no flash. next/script + React 19 warns
+          that inline scripts rendered on the client are never executed.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="antialiased font-sans" suppressHydrationWarning>
-        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-        <Script id="sw-register" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: SW_REGISTER }} />
         <Providers>
           <NotificationProvider>{children}</NotificationProvider>
         </Providers>

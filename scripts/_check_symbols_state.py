@@ -2,12 +2,20 @@
 """One-off check of brsapi_symbol_snapshots state."""
 import sys
 import io
+import os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.path.insert(0, ".")
 
 from sqlalchemy import create_engine, text
 
-ENG = create_engine("postgresql://hossein:1343@localhost:5432/my_first_db")
+# Credentials come from settings/.env — never hardcode them in scripts.
+try:
+    from scripts._db import database_url_async
+    DB_URL = database_url_async().replace("+asyncpg", "")
+except Exception:  # pragma: no cover
+    DB_URL = os.environ.get("DATABASE_URL", "").replace("+asyncpg", "")
+
+ENG = create_engine(DB_URL)
 
 with ENG.connect() as c:
     r = c.execute(text("SELECT COUNT(*) FROM brsapi_symbol_snapshots"))

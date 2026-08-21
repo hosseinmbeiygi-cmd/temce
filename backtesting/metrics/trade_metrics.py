@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 from backtesting.types import BacktestResult
@@ -19,22 +21,37 @@ class TradeMetrics:
         metrics["sell_trades"] = float(len(sell_trades))
 
         # BUG FIX #7: Compute PnL by pairing buys with sells per instrument
-        # Each buy-sell pair forms one round-trip trade
+        # Each buy-sell pair forms one round-trip trade.
+        # FIFO cost-basis PnL (audit F4): the buy-side commission is spread over
+        # the matched share and included in the PnL (not only the sell side).
+        #   cost_basis = buy_price + buy_commission_used / matched_qty
+        #   pnl = (sell_price - cost_basis) * matched_qty - sell_commission_used
+        # A deque keeps FIFO opening O(1) instead of O(n) with pop(0).
         round_trips: list[float] = []
-        open_buys: dict[str, list[tuple[float, int]]] = {}  # inst_id -> [(price, qty)]
+        open_buys: dict[str, deque] = {}  # inst_id -> deque[(price, qty_remaining, commission_remaining)]
         for t in trades:
             key = t.instrument_id or "default"
             if t.side == "buy":
-                open_buys.setdefault(key, []).append((t.price, t.quantity))
+                open_buys.setdefault(key, deque()).append((t.price, t.quantity, t.commission))
             elif t.side == "sell":
-                buys = open_buys.get(key, [])
-                if buys:
-                    buy_price, buy_qty = buys.pop(0)
-                    matched_qty = min(buy_qty, t.quantity)
-                    pnl = (t.price - buy_price) * matched_qty - t.commission
+                buys = open_buys.get(key)
+                remaining_sell = max(t.quantity, 0)
+                sell_comm_per_unit = t.commission / max(t.quantity, 1)
+                while buys and remaining_sell > 0:
+                    buy_price, buy_qty, buy_commission = buys.popleft()
+                    matched_qty = min(buy_qty, remaining_sell)
+                    buy_comm_used = buy_commission * (matched_qty / max(buy_qty, 1))
+                    cost_basis = buy_price + buy_comm_used / max(matched_qty, 1)
+                    sell_comm_used = sell_comm_per_unit * matched_qty
+                    pnl = (t.price - cost_basis) * matched_qty - sell_comm_used
                     round_trips.append(pnl)
+                    remaining_sell -= matched_qty
                     if buy_qty > matched_qty:
-                        buys.insert(0, (buy_price, buy_qty - matched_qty))
+                        buys.appendleft((
+                            buy_price,
+                            buy_qty - matched_qty,
+                            buy_commission - buy_comm_used,
+                        ))
 
         # Fallback: if no round trips (e.g., only buys or only sells), use raw values
         if not round_trips:
@@ -53,17 +70,24 @@ class TradeMetrics:
 
         # Compute avg trade duration from buy/sell pairs
         durations: list[float] = []
-        open_positions: dict[str, float] = {}
+        open_positions: dict[str, deque[tuple[float, int]]] = {}
         for t in trades:
             key = t.instrument_id or "default"
             ts = t.timestamp.timestamp() if hasattr(t.timestamp, "timestamp") else 0
             if t.side == "buy":
-                open_positions[key] = ts
-            elif t.side == "sell" and key in open_positions:
-                duration_days = (ts - open_positions[key]) / 86400
-                if duration_days >= 0:
-                    durations.append(duration_days)
-                del open_positions[key]
+                open_positions.setdefault(key, deque()).append((ts, t.quantity))
+            elif t.side == "sell":
+                remaining_sell = max(t.quantity, 0)
+                positions = open_positions.get(key)
+                while positions and remaining_sell > 0:
+                    opened_at, opened_qty = positions.popleft()
+                    matched_qty = min(opened_qty, remaining_sell)
+                    duration_days = (ts - opened_at) / 86400
+                    if duration_days >= 0:
+                        durations.append(duration_days)
+                    remaining_sell -= matched_qty
+                    if opened_qty > matched_qty:
+                        positions.appendleft((opened_at, opened_qty - matched_qty))
         metrics["avg_trade_duration"] = float(np.mean(durations)) if durations else 0.0
         metrics["max_trade_duration"] = float(max(durations)) if durations else 0.0
         metrics["min_trade_duration"] = float(min(durations)) if durations else 0.0
@@ -77,9 +101,14 @@ class TradeMetrics:
             if p > 0:
                 cur_wins += 1
                 cur_losses = 0
-            else:
+            elif p < 0:
                 cur_losses += 1
                 cur_wins = 0
+            else:
+                # A flat trade is neither a win nor a loss and must break
+                # both streaks instead of being counted as a loss.
+                cur_wins = 0
+                cur_losses = 0
             max_consec_wins = max(max_consec_wins, cur_wins)
             max_consec_losses = max(max_consec_losses, cur_losses)
         metrics["max_consecutive_wins"] = float(max_consec_wins)

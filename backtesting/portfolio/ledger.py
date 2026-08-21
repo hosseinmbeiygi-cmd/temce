@@ -163,10 +163,13 @@ class PortfolioLedger:
         self._cash -= total_cost
 
         # Add to positions (FIFO lot)
+        # Keep the buy-side commission in the lot cost basis.  This makes
+        # realized PnL net of both entry and exit costs instead of reporting a
+        # gross number that disagrees with the cash balance.
         lot = PositionLot(
             symbol=symbol,
             quantity=quantity,
-            avg_cost=price,
+            avg_cost=total_cost / quantity,
             entry_date=current_date,
             entry_price=price,
         )
@@ -228,7 +231,10 @@ class PortfolioLedger:
 
         # Add cash (settlement delay)
         self._cash += net_proceeds
-        self._realized_pnl += realized
+        # ``avg_cost`` already contains the proportional buy commission;
+        # subtract the sell-side commission and tax from realized PnL too so
+        # ledger PnL reconciles with NAV/cash.
+        self._realized_pnl += realized - commission - tax
 
         # Record entry
         entry = LedgerEntry(
@@ -276,11 +282,42 @@ class PortfolioLedger:
         self._entries.append(entry)
 
     def apply_capital_increase_retained(self, symbol: str, ratio: float, current_date: date) -> None:
-        """Apply capital increase from retained earnings (bonus shares)."""
+        """Apply a retained-earnings increase without creating fake PnL.
+
+        The total cost of a lot is unchanged.  When the share count rises,
+        the per-share cost must fall by the same old/new quantity ratio.
+        """
+        if ratio <= 0:
+            raise ValueError("capital increase ratio must be positive")
+
         lots = self._positions.get(symbol, [])
+        total_old = 0
+        total_new = 0
         for lot in lots:
-            bonus = int(lot.quantity * (ratio - 1))
-            lot.quantity += bonus
+            old_quantity = lot.quantity
+            bonus = int(old_quantity * (ratio - 1))
+            new_quantity = old_quantity + bonus
+            if new_quantity <= 0:
+                continue
+            lot.quantity = new_quantity
+            lot.avg_cost *= old_quantity / new_quantity
+            lot.entry_price *= old_quantity / new_quantity
+            total_old += old_quantity
+            total_new += new_quantity
+
+        if total_old and total_new != total_old:
+            self._entries.append(LedgerEntry(
+                entry_id=f"capital_increase_{int(time.time() * 1000)}",
+                entry_type=EntryType.CAPITAL_INCREASE,
+                symbol=symbol,
+                quantity=total_new - total_old,
+                timestamp=time.time(),
+                metadata={
+                    "ratio": ratio,
+                    "effective_ratio": total_new / total_old,
+                    "event_date": current_date.isoformat(),
+                },
+            ))
 
     def get_realized_pnl(self) -> float:
         return self._realized_pnl
@@ -320,12 +357,14 @@ class PortfolioLedger:
             self._blocked_cash = remaining
 
     def _add_settlement_days(self, d: date) -> date:
-        """Add settlement days to a date (simplified — skips weekends)."""
+        """Add settlement days using the Tehran market weekend (Thu/Fri)."""
         from datetime import timedelta
+
         result = d
         days_added = 0
         while days_added < self._settlement_days:
             result += timedelta(days=1)
-            if result.weekday() < 5:  # Monday-Friday
+            # Python weekday: Thursday=3, Friday=4 in Iran's market calendar.
+            if result.weekday() not in (3, 4):
                 days_added += 1
         return result

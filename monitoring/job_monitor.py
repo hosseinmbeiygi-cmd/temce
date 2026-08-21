@@ -1,16 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime
+from collections import deque
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# ponytail: in-process ring buffer, so history is lost on restart and not
+# shared across workers. Move to a `job_runs` table when cross-restart
+# failure-rate trends are needed.
+MAX_RUNS = 1000
+
 
 class JobMonitor:
-    def __init__(self) -> None:
-        self._runs: list[dict[str, Any]] = []
+    def __init__(self, maxlen: int = MAX_RUNS) -> None:
+        self._runs: deque[dict[str, Any]] = deque(maxlen=maxlen)
 
     def record_run(self, job_name: str, status: str, duration_s: float, error: str | None = None) -> None:
         self._runs.append(
@@ -19,7 +25,7 @@ class JobMonitor:
                 "status": status,
                 "duration_s": duration_s,
                 "error": error,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 

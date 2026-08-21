@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
@@ -29,7 +29,7 @@ class ManualQuoteProvider(ManualDataProvider):
             return Result.fail(validation.error or "Validation failed")
         quote = {
             **data,
-            "submitted_at": datetime.utcnow().isoformat(),
+            "submitted_at": datetime.now(UTC).isoformat(),
             "status": "pending",
             "id": len(self._quotes) + 1,
         }
@@ -50,7 +50,7 @@ class ManualQuoteProvider(ManualDataProvider):
         for q in self._quotes:
             if q.get("id") == quote_id:
                 q["status"] = "approved"
-                q["approved_at"] = datetime.utcnow().isoformat()
+                q["approved_at"] = datetime.now(UTC).isoformat()
                 return Result.ok(q)
         return Result.fail(f"Quote {quote_id} not found")
 

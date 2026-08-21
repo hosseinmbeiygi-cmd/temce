@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SourcePayload(BaseModel):
@@ -13,7 +13,7 @@ class SourcePayload(BaseModel):
     raw_data: bytes
     content_type: str
     fetch_time: datetime
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class FetchResult(BaseModel):

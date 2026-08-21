@@ -425,6 +425,25 @@ class BrsApiSettings(BaseSettings):
     # blocked-key cascade when multiple jobs pile up past the quota.
     fail_fast_on_daily_exhausted: bool = Field(default=True)
 
+    # BrsApiBudgetGovernor (brsapi/budget.py) — persistent, cross-process
+    # guard that prevents the key from getting blocked again. The in-process
+    # RateLimiter counters reset on restart/replica, so the governor keeps the
+    # REAL daily counter in Redis (INCR, atomic across workers) with a JSON
+    # file fallback, and rejects every live call for a cooldown after an
+    # HTTP 302 heavy-file redirect (the server's over-quota signal).
+    budget_redis_prefix: str = Field(
+        default="brsapi:budget",
+        description="Redis key prefix for the persistent budget governor counters (daily, 5min, block)",
+    )
+    budget_state_file: str = Field(
+        default="",
+        description="JSON file used by the budget governor when Redis is unavailable (empty = json/brsapi/budget_state.json)",
+    )
+    budget_block_cooldown_seconds: int = Field(
+        default=900, ge=0,
+        description="Seconds to reject ALL live BrsApi calls after an HTTP 302 heavy-file redirect (anti re-block cooldown)",
+    )
+
     # Candlestick full-market backfill (brsapi_candlesticks_all job)
     # The global rate limiter (1000 req/5min, 4000/day default) is the only
     # real gate — the artificial per-request delay is kept near zero (0.2s

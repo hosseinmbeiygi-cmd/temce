@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
@@ -30,7 +31,14 @@ logger = get_logger(__name__)
 
 
 class SimulationEngine:
-    """High-level simulation kernel that orchestrates all engines.
+    """[DEPRECATED] High-level simulation kernel that orchestrates all engines.
+
+    .. deprecated::
+       Audit D1 — this engine has **no production consumers** (it is only
+       exported from ``backtesting.engine``). Use
+       :class:`backtesting.engine.simulator.BacktestSimulator` (the canonical
+       engine every service uses), or dispatch through
+       :class:`backtesting.runner.BacktestRunner`.
 
     Flow:
         DataLake → EventBuilder → Timeline
@@ -72,6 +80,12 @@ class SimulationEngine:
         clock: Clock | None = None,
         mode: str = "EVENT",
     ) -> None:
+        warnings.warn(
+            "SimulationEngine is deprecated (audit D1) — use "
+            "BacktestSimulator or backtesting.runner.BacktestRunner instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.data_lake = data_lake or InMemoryDataLake()
         self.event_builder = event_builder or EventBuilder()
         self.event_bus = event_bus or EventBus()
@@ -255,7 +269,7 @@ class SimulationEngine:
                         side=order.side,
                         quantity=bf["quantity"],
                         price=bf["price"],
-                        commission=0.0,
+                        commission=self.fill_simulator.cost_model.compute(order.side, bf["price"], bf["quantity"]),
                         timestamp=delayed_ts,
                     ))
 
@@ -270,7 +284,7 @@ class SimulationEngine:
                         side=order.side,
                         quantity=bf["quantity"],
                         price=bf["price"],
-                        commission=0.0,
+                        commission=self.fill_simulator.cost_model.compute(order.side, bf["price"], bf["quantity"]),
                         timestamp=delayed_ts,
                     ))
 

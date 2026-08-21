@@ -5,6 +5,8 @@ from typing import Literal
 
 import pytz
 
+from core.constants.markets import MARKET_WEEKEND_DAYS
+
 IRAN_TZ = pytz.timezone("Asia/Tehran")
 UTC = UTC
 
@@ -15,6 +17,21 @@ def now_utc() -> datetime:
 
 def now_tehran() -> datetime:
     return datetime.now(IRAN_TZ)
+
+
+def now_iran() -> datetime:
+    """Alias for now_tehran() — used by the pipeline enrichment modules."""
+    return now_tehran()
+
+
+def utc_now_naive() -> datetime:
+    """Return current UTC time without tzinfo for legacy naive DB columns.
+
+    New APIs should persist timezone-aware UTC values. This adapter is for
+    existing ``DateTime(timezone=False)`` columns so comparisons stay
+    consistent across machines regardless of the host timezone.
+    """
+    return now_utc().replace(tzinfo=None)
 
 
 def utc_to_tehran(dt: datetime) -> datetime:
@@ -62,7 +79,7 @@ def range_dates(start: date, end: date) -> list[date]:
 def is_market_open(dt: datetime | None = None) -> bool:
     if dt is None:
         dt = now_tehran()
-    if dt.weekday() >= 5:
+    if dt.weekday() in MARKET_WEEKEND_DAYS:
         return False
     market_open = dt.replace(hour=9, minute=0, second=0, microsecond=0)
     market_close = dt.replace(hour=12, minute=30, second=0, microsecond=0)
@@ -74,7 +91,7 @@ def next_market_open(from_dt: datetime | None = None) -> datetime:
         from_dt = now_tehran()
     d = from_dt
     while True:
-        if d.weekday() < 5:
+        if d.weekday() not in MARKET_WEEKEND_DAYS:
             return d.replace(hour=9, minute=0, second=0, microsecond=0)
         d += timedelta(days=1)
 

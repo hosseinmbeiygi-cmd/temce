@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -15,6 +16,10 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+# Table names are interpolated into SQL as identifiers (quoted). Only accept
+# plain snake_case names — anything else is rejected before reaching a query.
+_SAFE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+
 TABLE_ORDER = [
     "instruments", "quotes", "trades", "signals", "recommendations",
     "indicators", "news_articles", "codal_reports", "markets",
@@ -23,6 +28,18 @@ TABLE_ORDER = [
     "ml_models", "ml_model_versions", "ml_training_runs",
     "users", "job_runs", "audit_logs", "provider_health", "provider_health_history",
 ]
+
+# Even administrators do not need credential material in a table-browser
+# response. Keep this deny-list centralized so a newly exposed ``users``
+# column cannot leak secrets by accident.
+_SENSITIVE_COLUMNS = frozenset({
+    "hashed_password",
+    "password_hash",
+    "refresh_token",
+    "access_token",
+    "totp_secret",
+    "telegram_chat_id",
+})
 
 
 def _serialize(val: Any) -> Any:
@@ -71,6 +88,10 @@ async def get_table_data(
     search: str | None = Query(None, description="Search in text columns"),
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse[dict[str, Any]]:
+    if not _SAFE_IDENTIFIER.match(table_name):
+        return ApiResponse[dict[str, Any]](
+            success=False, error={"message": "Invalid table name"}
+        )
     check = await session.execute(
         text("""
             SELECT EXISTS (
@@ -94,7 +115,11 @@ async def get_table_data(
         """),
         {"name": table_name},
     )
-    columns = [{"name": row[0], "type": row[1]} for row in cols_result.fetchall()]
+    columns = [
+        {"name": row[0], "type": row[1]}
+        for row in cols_result.fetchall()
+        if row[0] not in _SENSITIVE_COLUMNS
+    ]
 
     count_result = await session.execute(
         text(f'SELECT COUNT(*) FROM "{table_name}"')
@@ -111,11 +136,22 @@ async def get_table_data(
             params["search"] = f"%{search}%"
 
     offset = (page - 1) * page_size
+    visible_names = [column["name"] for column in columns]
+    # Select only approved columns; do not pull credential fields into the
+    # application process and hope they are filtered after the query.
+    select_list = ", ".join(f'"{name}"' for name in visible_names) or "1 AS row_marker"
     data_result = await session.execute(
-        text(f'SELECT * FROM "{table_name}" {where_clause} ORDER BY 1 LIMIT :limit OFFSET :offset'),
+        text(f'SELECT {select_list} FROM "{table_name}" {where_clause} ORDER BY 1 LIMIT :limit OFFSET :offset'),
         {**params, "limit": page_size, "offset": offset},
     )
-    rows = [dict(row._mapping) for row in data_result.fetchall()]
+    rows = [
+        {
+            key: value
+            for key, value in row._mapping.items()
+            if key not in _SENSITIVE_COLUMNS
+        }
+        for row in data_result.fetchall()
+    ]
 
     for row in rows:
         for k, v in row.items():

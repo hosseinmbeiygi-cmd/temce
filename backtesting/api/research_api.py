@@ -12,10 +12,8 @@ from backtesting.alpha.alpha_portfolio import AlphaPortfolio
 from backtesting.alpha.alpha_selection import AlphaSelection
 from backtesting.alpha.fast_evaluator import FastAlphaEvaluator
 from backtesting.analytics.engine import AnalyticsEngine
-from backtesting.engine.replay_engine import ReplayEngine
-from backtesting.engine.simulator import BacktestSimulator
 from backtesting.experiment.engine import ExperimentEngine, GridSearch
-from backtesting.hybrid.hybrid_simulator import HybridMarketSimulator
+from backtesting.runner import BacktestRunner
 
 
 class ExperimentStatus(StrEnum):
@@ -70,48 +68,33 @@ class ResearchAPI:
 
     async def run_backtest(
         self,
-        simulator: BacktestSimulator | ReplayEngine | HybridMarketSimulator,
+        simulator: Any,
         strategy_name: str = "Strategy",
         initial_capital: float = 1_000_000_000,
         **kwargs: Any,
     ) -> ResearchJob:
-        """Run a backtest and return a tracked job."""
+        """Run a backtest and return a tracked job.
+
+        Audit D1: engine selection and result normalisation are delegated to
+        :class:`backtesting.runner.BacktestRunner` — the single entry point
+        that dispatches every engine (BacktestSimulator / ReplayEngine /
+        HybridMarketSimulator / PortfolioBacktestSimulator) through the same
+        canonical cost model and result contract.
+        """
         job = self._create_job("backtest", {
             "strategy": strategy_name,
             "initial_capital": initial_capital,
+            "engine": getattr(simulator, "__name__", type(simulator).__name__)
+            if not isinstance(simulator, str) else simulator,
             **kwargs,
         })
         try:
             job.status = ExperimentStatus.RUNNING
-            if isinstance(simulator, HybridMarketSimulator):
-                result = await simulator.run(**kwargs)
-            elif isinstance(simulator, BacktestSimulator):
-                result = simulator.run(strategy=None, initial_capital=initial_capital, **kwargs)
-            else:
-                result = await simulator.run(strategy=None, initial_capital=initial_capital, **kwargs)
-
-            if result.is_ok:
-                bt_result = result.unwrap()
-                analytics = self.analytics_engine.compute(bt_result)
-                job.result = {
-                    "strategy_name": bt_result.strategy_name,
-                    "initial_capital": bt_result.initial_capital,
-                    "final_capital": bt_result.final_capital,
-                    "total_return": bt_result.total_return,
-                    "total_return_pct": bt_result.total_return_pct,
-                    "total_trades": bt_result.total_trades,
-                    "sharpe_ratio": analytics.sharpe_ratio,
-                    "sortino_ratio": analytics.sortino_ratio,
-                    "max_drawdown_pct": analytics.max_drawdown_pct,
-                    "cagr": analytics.cagr,
-                    "win_rate": analytics.win_rate,
-                    "profit_factor": analytics.profit_factor,
-                    "volatility": analytics.volatility,
-                }
-                job.status = ExperimentStatus.COMPLETED
-            else:
-                job.error = result.error
-                job.status = ExperimentStatus.FAILED
+            runner = BacktestRunner(analytics_engine=self.analytics_engine)
+            job.result = await runner.run(
+                simulator, initial_capital=initial_capital, **kwargs
+            )
+            job.status = ExperimentStatus.COMPLETED
         except Exception as e:
             job.error = str(e)
             job.status = ExperimentStatus.FAILED

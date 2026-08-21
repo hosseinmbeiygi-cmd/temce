@@ -15,7 +15,6 @@ from ml.train_weight_optimizer import (
     normalize_weights,
 )
 
-
 # ── Pure helpers ────────────────────────────────────────────────────────
 
 
@@ -133,6 +132,68 @@ class TestWeightOptimizer:
                 assert set(payload["weights"].keys()) <= {"feat_mom", "feat_val"}
                 # regression: text/categorical columns must be excluded
                 assert "queue_status" not in payload["weights"]
+                # F6: the payload must expose OOS validation fields.
+                assert "r2_is_mean" in payload
+                assert "r2_oos_mean" in payload
+                assert "wf_n_windows" in payload
+                assert "provisional" in payload
+                # Tiny sample (6 rows) cannot be walk-forward validated → the
+                # weights must be flagged provisional, never silently "valid".
+                assert payload["provisional"] is True
+                assert payload["r2_oos_mean"] is None
+
+    async def test_train_reports_validation_in_summary(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        opt = self._make_optimizer()
+
+        async def load_scores() -> pd.DataFrame:
+            return self._sample_scores()
+
+        async def load_index() -> pd.DataFrame:
+            return self._sample_index()
+
+        async def load_returns(start=None, end=None) -> pd.DataFrame:
+            return self._sample_returns()
+
+        monkeypatch.setattr(opt, "_load_scores", load_scores)
+        monkeypatch.setattr(opt, "_load_index", load_index)
+        monkeypatch.setattr(opt, "_load_forward_returns", load_returns)
+
+        summary = await opt.train(output_dir=tmp_path)
+
+        assert summary["validation"] == "purged_walk_forward"
+        bull = summary["regimes"].get("bull", {})
+        assert bull.get("status") == "ok"
+        assert "r2_oos_mean" in bull
+        assert "wf_n_windows" in bull
+        assert "provisional" in bull
+
+    async def test_train_no_walk_forward_marks_provisional(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """``wf_windows=0`` disables validation — weights must be flagged
+        provisional so consumers know they are in-sample only."""
+        opt = WeightOptimizer(horizon=2, min_samples=2, alpha=0.5, wf_windows=0)
+
+        async def load_scores() -> pd.DataFrame:
+            return self._sample_scores()
+
+        async def load_index() -> pd.DataFrame:
+            return self._sample_index()
+
+        async def load_returns(start=None, end=None) -> pd.DataFrame:
+            return self._sample_returns()
+
+        monkeypatch.setattr(opt, "_load_scores", load_scores)
+        monkeypatch.setattr(opt, "_load_index", load_index)
+        monkeypatch.setattr(opt, "_load_forward_returns", load_returns)
+
+        summary = await opt.train(output_dir=tmp_path)
+        assert summary["validation"] == "in_sample_provisional"
+
+        payload = json.loads((tmp_path / "weights_bull.json").read_text(encoding="utf-8"))
+        assert payload["provisional"] is True
+        assert payload["validation_reason"] == "validation_disabled"
+        assert payload["r2_oos_mean"] is None
+        # In-sample R² is still the fallback number, clearly flagged provisional.
+        assert isinstance(payload["r2"], float)
 
     async def test_train_skips_regime_below_min_samples(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         # Only bull rows present (all index momentum positive) — bear/neutral skipped.

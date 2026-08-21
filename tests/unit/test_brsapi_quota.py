@@ -63,14 +63,14 @@ async def test_singleton_defaults_match_config() -> None:
     assert limiter._five_min_limit == brsapi_settings.global_5min_limit
 
 
-def test_history_fetch_service_uses_rate_limiter() -> None:
+def test_history_fetch_service_uses_budget_governor() -> None:
     import inspect
 
     import brsapi.services.history_fetch_service as hfs
 
     src = inspect.getsource(hfs)
-    assert "get_rate_limiter" in src, "HistoryFetchService bypasses the rate limiter!"
-    assert "await get_rate_limiter().acquire(" in src, \
+    assert "get_budget_governor" in src, "HistoryFetchService bypasses the budget governor!"
+    assert "await get_budget_governor().acquire(" in src, \
         "HistoryFetchService fetch methods must acquire() before calling the API!"
 
 

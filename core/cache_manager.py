@@ -3,11 +3,14 @@
 Implements the ``CacheManager`` described in the platform upgrade plan:
 
 * **L1 — memory**: thread-of-execution safe OrderedDict LRU (fast path).
-* **L2 — Redis**: shared across workers/processes, TTL-based, pickle payloads.
+* **L2 — Redis**: shared across workers/processes, TTL-based, JSON payloads.
 * **L3 — compute**: when neither L1 nor L2 has the value, ``func()`` is
   awaited (typically a database read) and the result is promoted back to
-  both L1 and L2.  If Redis is unavailable the manager degrades gracefully
-  to L1-only caching — the value is still returned, just not shared.
+  both L1 and L2.  Concurrent misses on the same key are collapsed into a
+  single ``func()`` call via a Redis ``SET NX`` lock (single-flight), so a
+  cold key cannot stampede the database.  If Redis is unavailable the
+  manager degrades gracefully to L1-only caching — the value is still
+  returned, just not shared.
 
 Conventions follow ``core/cache.py`` (async ``get/set/delete`` + ``remember``)
 but add an explicit LRU memory layer and optional DB-style fallback.
@@ -25,10 +28,12 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-import pickle
+import contextlib
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
+
+import orjson
 
 from core.config import settings
 from core.logging import get_logger
@@ -36,6 +41,11 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 T = TypeVar("T")
+
+# Single-flight lock settings for the L3 compute path.
+_LOCK_TTL_SECONDS = 30
+_LOCK_WAIT_STEP = 0.1
+_LOCK_WAIT_ATTEMPTS = 50  # 50 * 0.1s = 5s max wait for the winner's write
 
 
 class LRUCache:
@@ -160,6 +170,11 @@ class CacheManager:
         Lookup order: L1 (memory) -> L2 (Redis) -> L3 (``func``).  When the
         value is computed it is written to L1 (always) and L2 (if Redis is
         reachable).  ``ttl`` defaults to the manager default (seconds).
+
+        Concurrent misses are single-flighted: the first caller takes a Redis
+        ``SET NX`` lock and runs ``func``; the others poll L2 for up to 5s and
+        return the winner's value.  A loser that times out falls through and
+        computes for itself rather than failing.
         """
         ttl = ttl if ttl is not None else self._default_ttl
 
@@ -171,33 +186,81 @@ class CacheManager:
             return hit
 
         # L2 — Redis
-        if await self._ensure_redis():
-            try:
-                raw = await self._redis.get(self._namespaced(key))
-                if raw is not None:
-                    value = self._deserialize(raw)
-                    if value is not None:
-                        self._l1.put(key, value)
-                        return value
-            except Exception:
-                logger.warning("CacheManager L2 read failed for %s", key, exc_info=True)
+        cached = await self._read_l2(key)
+        if cached is not None:
+            self._l1.put(key, cached)
+            return cached
 
         # L3 — compute (DB fallback)
         if func is None:
             return None
-        value = await func() if asyncio.iscoroutinefunction(func) else func()
+
+        # Single-flight: only the lock winner computes.
+        lock_key = self._namespaced(f"lock:{key}")
+        holds_lock = False
+        if await self._ensure_redis():
+            try:
+                holds_lock = bool(
+                    await self._redis.set(lock_key, b"1", nx=True, ex=_LOCK_TTL_SECONDS)
+                )
+            except Exception:
+                logger.warning("CacheManager lock failed for %s", key, exc_info=True)
+                holds_lock = True  # fail open — compute rather than hang
+            if not holds_lock:
+                waited = await self._await_winner(key)
+                if waited is not None:
+                    self._l1.put(key, waited)
+                    return waited
+                logger.warning("CacheManager single-flight wait timed out for %s", key)
+
+        try:
+            value = await func() if asyncio.iscoroutinefunction(func) else func()
+        finally:
+            if holds_lock and self._redis is not None:
+                with contextlib.suppress(Exception):
+                    await self._redis.delete(lock_key)
 
         # Promote back to L1 + L2
         self._l1.put(key, value)
-        if await self._ensure_redis():
-            try:
-                await self._redis.setex(
-                    self._namespaced(key), ttl, self._serialize(value)
-                )
-                self._keys.add(key)
-            except Exception:
-                logger.warning("CacheManager L2 write failed for %s", key, exc_info=True)
+        await self._write_l2(key, value, ttl)
         return value
+
+    async def _read_l2(self, key: str) -> Any | None:
+        """Read a single key from Redis. Returns None on miss or any error."""
+        if not await self._ensure_redis():
+            return None
+        try:
+            raw = await self._redis.get(self._namespaced(key))
+        except Exception:
+            logger.warning("CacheManager L2 read failed for %s", key, exc_info=True)
+            return None
+        return self._deserialize(raw) if raw is not None else None
+
+    async def _write_l2(self, key: str, value: Any, ttl: int) -> None:
+        """Write a value to Redis under ``ttl``. Never raises."""
+        if not await self._ensure_redis():
+            return
+        try:
+            payload = self._serialize(value)
+        except TypeError:
+            logger.warning(
+                "CacheManager: %s is not JSON-serialisable, L1-only", key, exc_info=True
+            )
+            return
+        try:
+            await self._redis.setex(self._namespaced(key), ttl, payload)
+            self._keys.add(key)
+        except Exception:
+            logger.warning("CacheManager L2 write failed for %s", key, exc_info=True)
+
+    async def _await_winner(self, key: str) -> Any | None:
+        """Poll L2 for the lock winner's write. Returns None if it never lands."""
+        for _ in range(_LOCK_WAIT_ATTEMPTS):
+            await asyncio.sleep(_LOCK_WAIT_STEP)
+            value = await self._read_l2(key)
+            if value is not None:
+                return value
+        return None
 
     async def get(self, key: str) -> Any | None:
         """Read without computing. Returns None on miss."""
@@ -207,14 +270,7 @@ class CacheManager:
         """Write a value into L1 + L2."""
         ttl = ttl if ttl is not None else self._default_ttl
         self._l1.put(key, value)
-        if await self._ensure_redis():
-            try:
-                await self._redis.setex(
-                    self._namespaced(key), ttl, self._serialize(value)
-                )
-                self._keys.add(key)
-            except Exception:
-                logger.warning("CacheManager L2 write failed for %s", key, exc_info=True)
+        await self._write_l2(key, value, ttl)
 
     async def invalidate(self, key: str) -> None:
         """Evict a key from all layers (memory + Redis)."""
@@ -224,7 +280,10 @@ class CacheManager:
             try:
                 await self._redis.delete(self._namespaced(key))
             except Exception:
-                pass
+                logger.warning(
+                    "CacheManager L2 invalidate failed for %s — stale value may be "
+                    "served by other workers", key, exc_info=True,
+                )
 
     async def clear_all(self) -> None:
         """Clear the memory layer and every key this manager has written."""
@@ -235,7 +294,10 @@ class CacheManager:
             try:
                 await self._redis.delete(*[self._namespaced(k) for k in keys])
             except Exception:
-                pass
+                logger.warning(
+                    "CacheManager L2 clear_all failed (%d keys) — stale values may be "
+                    "served by other workers", len(keys), exc_info=True,
+                )
 
     # ── Serialization ────────────────────────────────────────────────────
 
@@ -243,13 +305,20 @@ class CacheManager:
         return f"{self._namespace}:{key}"
 
     def _serialize(self, value: Any) -> bytes:
-        return pickle.dumps(value)
+        """JSON-encode a value. Raises TypeError on unsupported types.
+
+        Deliberately not pickle: L2 payloads are attacker-reachable for anyone
+        with write access to the Redis keyspace, and ``pickle.loads`` on such a
+        payload is arbitrary code execution in this process.
+        """
+        return orjson.dumps(value, option=orjson.OPT_SERIALIZE_NUMPY)
 
     def _deserialize(self, raw: bytes) -> Any:
         try:
-            return pickle.loads(raw)
-        except Exception:
-            return raw  # non-pickle payload — return as-is
+            return orjson.loads(raw)
+        except orjson.JSONDecodeError:
+            logger.warning("CacheManager: dropped non-JSON L2 payload")
+            return None
 
 
 _cache_manager: CacheManager | None = None

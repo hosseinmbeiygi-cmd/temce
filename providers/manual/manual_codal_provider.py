@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
@@ -21,7 +21,7 @@ class ManualCodalProvider(ManualDataProvider):
     async def submit(self, data: dict[str, Any], **kwargs: Any) -> Result[dict[str, Any]]:
         record = {
             **data,
-            "submitted_at": datetime.utcnow().isoformat(),
+            "submitted_at": datetime.now(UTC).isoformat(),
             "status": "pending",
             "id": len(self._pending) + 1,
         }
@@ -43,7 +43,7 @@ class ManualCodalProvider(ManualDataProvider):
         for entry in self._pending:
             if entry.get("id") == entry_id:
                 entry["status"] = "approved"
-                entry["approved_at"] = datetime.utcnow().isoformat()
+                entry["approved_at"] = datetime.now(UTC).isoformat()
                 return Result.ok(entry)
         return Result.fail(f"Entry {entry_id} not found")
 
@@ -51,7 +51,7 @@ class ManualCodalProvider(ManualDataProvider):
         for entry in self._pending:
             if entry.get("id") == entry_id:
                 entry["status"] = "rejected"
-                entry["rejected_at"] = datetime.utcnow().isoformat()
+                entry["rejected_at"] = datetime.now(UTC).isoformat()
                 entry["reject_reason"] = reason
                 return Result.ok(entry)
         return Result.fail(f"Entry {entry_id} not found")

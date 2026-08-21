@@ -304,11 +304,81 @@ class SignalFeaturePipeline:
     @staticmethod
     def prepare_training_data(
         feature_sequence: list[MarketFeatures],
-        returns: list[float],
+        closes: list[float] | None = None,
+        targets: list[float] | None = None,
         sequence_length: int = 20,
     ) -> tuple[FeatureMatrix, TargetVector]:
-        """Convert a sequence of features + returns into supervised learning data."""
+        """Convert a time-ordered feature sequence into supervised learning data.
+
+        Explicit label contract (X_t, y_{t+1}) — no look-ahead, no silent
+        misalignment:
+
+          - ``feature_sequence`` is chronological; row ``i`` uses the feature
+            vectors of bars ``[i - sequence_length, i - 1]`` as its input X.
+          - Exactly one of ``closes`` / ``targets`` must be provided.
+
+        Preferred path — ``closes`` (leak-proof, audit F8):
+
+          - ``closes`` is the symbol's full chronological close-price array.
+          - Every feature must have been built from a *prefix* of ``closes``:
+            ``feature.metadata["closes_count"]`` = length of that prefix and
+            ``feature.metadata["last_price"]`` == ``closes[closes_count - 1]``.
+            This is **asserted** so a shifted/foreign array fails loudly
+            instead of silently training on misaligned labels.
+          - The label for row ``i`` is the direction of the next-bar return
+            after the last feature bar, computed by the function itself:
+
+                y_i = 1 if closes[c] / closes[c-1] - 1 > 0 else 0,
+                where c = feature_sequence[i-1].metadata["closes_count"]
+
+        Legacy path — ``targets`` (precomputed, e.g. cross-symbol composite
+        multi-timeframe targets):
+
+          - ``targets[i]`` is used verbatim as the label for row ``i``.
+          - Only ``len(targets) == len(feature_sequence)`` is asserted; the
+            caller is responsible for alignment. Prefer ``closes``.
+        """
         import pandas as pd
+
+        if (closes is None) == (targets is None):
+            raise ValueError(
+                "prepare_training_data: pass exactly one of 'closes' or 'targets'"
+            )
+        if sequence_length < 1:
+            raise ValueError(f"sequence_length must be >= 1, got {sequence_length}")
+        if len(feature_sequence) < sequence_length + 1:
+            raise ValueError(
+                f"Not enough features for sequence_length={sequence_length}: "
+                f"got {len(feature_sequence)} (need at least {sequence_length + 1})"
+            )
+        if targets is not None and len(targets) != len(feature_sequence):
+            raise ValueError(
+                f"targets length {len(targets)} != feature_sequence length "
+                f"{len(feature_sequence)} — label array is misaligned"
+            )
+
+        if closes is not None:
+            # Hard alignment check: every feature must have been built from a
+            # prefix of `closes`, otherwise a shifted array would silently
+            # produce leaky/misaligned labels.
+            for idx, feat in enumerate(feature_sequence):
+                meta = feat.metadata or {}
+                c_count = meta.get("closes_count")
+                last_price = meta.get("last_price")
+                if not isinstance(c_count, int) or not (1 <= c_count <= len(closes)):
+                    raise ValueError(
+                        f"feature[{idx}] missing valid 'closes_count' in metadata — "
+                        "features must be built from prefixes of the `closes` array "
+                        "(use SignalFeaturePipeline.extract)"
+                    )
+                expected = float(closes[c_count - 1])
+                if abs(expected - float(last_price)) > 1e-6:
+                    raise ValueError(
+                        f"feature[{idx}] misaligned with `closes`: closes_count={c_count} "
+                        f"implies last_price={expected} but metadata.last_price={last_price}. "
+                        "The `closes` array does not match the features — refusing to "
+                        "train on a shifted label alignment."
+                    )
 
         X_rows = []
         y_values = []
@@ -319,9 +389,22 @@ class SignalFeaturePipeline:
             for j in range(i - sequence_length, i):
                 seq_vec.extend(feature_sequence[j].vector)
             X_rows.append(seq_vec)
-            # Target: future return
-            future_return = (returns[i] if i < len(returns) else 0.0)
-            # Binary classification: was direction correct?
+
+            if closes is not None:
+                # Next-bar return after the last feature bar — computed here,
+                # so the label can never be passed misaligned.
+                c_count = int(feature_sequence[i - 1].metadata["closes_count"])
+                if c_count >= len(closes):
+                    raise ValueError(
+                        f"feature[{i - 1}] closes_count={c_count} has no future bar in "
+                        "`closes` (len=" + str(len(closes)) + ") — cannot compute y_{t+1}."
+                    )
+                future_return = (closes[c_count] - closes[c_count - 1]) / max(closes[c_count - 1], 0.001)
+            else:
+                # Legacy: caller-provided label (asserted for length only).
+                future_return = targets[i]  # type: ignore[index]
+
+            # Binary classification: was the direction up?
             y_values.append(1.0 if future_return > 0 else 0.0)
 
         if not X_rows:

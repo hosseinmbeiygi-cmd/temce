@@ -36,7 +36,7 @@ from jobs.replay import (
 
 
 class FakeRedis:
-    """Minimal redis.asyncio fake: lists only (lrange / lpush / lrem / llen)."""
+    """Minimal redis.asyncio fake: lists only (lrange/lpush/lrem/lpop/rpush/llen)."""
 
     def __init__(self, lists: dict[str, list[str]] | None = None) -> None:
         self._lists: dict[str, list[str]] = {k: list(v) for k, v in (lists or {}).items()}
@@ -60,6 +60,14 @@ class FakeRedis:
             out.append(item)
         self._lists[key] = out
         return removed
+
+    async def lpop(self, key: str) -> str | None:
+        lst = self._lists.get(key, [])
+        return lst.pop(0) if lst else None
+
+    async def rpush(self, key: str, *values: str) -> int:
+        self._lists.setdefault(key, []).extend(values)
+        return len(self._lists[key])
 
     async def llen(self, key: str) -> int:
         return len(self._lists.get(key, []))

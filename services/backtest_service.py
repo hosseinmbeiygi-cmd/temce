@@ -148,6 +148,17 @@ class BacktestService:
             if not data:
                 return Result.fail(f"No historical data found for {symbols[0]} in the specified date range")
 
+            # ── Pre-warm per-symbol ADV (audit F5) ──
+            # The sync simulator reads ADV from the resolver cache to model
+            # volume-based slippage with the symbol's real liquidity instead of
+            # a generic default.
+            try:
+                from backtesting.engine.adv import get_adv_resolver
+
+                await get_adv_resolver().resolve(symbols[0])
+            except Exception:
+                logger.debug("ADV pre-warm skipped for %s", symbols[0], exc_info=True)
+
             # ── ML-based strategy: pre-compute predictions ──
             if strategy_type == "ml_signal":
                 await self._inject_ml_predictions(data, symbols[0], strategy_params)

@@ -204,7 +204,23 @@ flowchart LR
 
 ---
 
-## ۶. اولویت‌های توسعه برای Real-time کردن داده‌ها
+## ۶. گزارش مصرف روزانه BrsApi (پنل ادمین)
+
+برای مشاهده‌ی مصرف روزانه‌ی کلید (و جلوگیری از مسدودشدن مجدد)، سیستم «گزارش مصرف روزانه» با جدول `brsapi_daily_usage` و رکوردر `brsapi/usage_recorder.py::BrsApiUsageRecorder` پیاده‌سازی شده است:
+
+| آیتم | توضیح |
+|------|--------|
+| **جدول** | `brsapi_daily_usage` — یک ردیف به‌ازای هر روز شمسی (`usage_date` یکتا): `request_count` (ریکوئست‌های تاییدشده)، `daily_limit` (سقف همان روز)، `blocked_count` (تعداد 302های مسدودی)، `blocked_at`، `last_request_at`، `updated_at` |
+| **نویسنده** | `BrsApiUsageRecorder` — شمارنده درون‌حافظه + فلاش جمع‌پذیر (`ON CONFLICT (usage_date) DO UPDATE SET request_count = request_count + EXCLUDED...`) که در چند Worker امن است |
+| **اتصال** | به `BrsApiBudgetGovernor` وصل شده: هر `acquire()` موفق → `record_used`، هر 302 → `record_block` |
+| **فلاش** | پس‌زمینه هر ۶۰ ثانیه (شروع در lifespan اپ) + فلاش دستی `POST /api/v1/brsapi/manage/usage/flush` |
+| **گزارش** | `GET /api/v1/brsapi/manage/usage?days=30` → `days[]` + `summary` (کل/میانگین/حداکثر/روزهای مسدودی) + `live` (آمار زنده governor برای امروز) |
+| **مهاجرت** | `migrations/versions/0039_brsapi_daily_usage.py` |
+| **تست** | `tests/unit/test_brsapi_usage_recorder.py` (۱۰ تست) |
+
+---
+
+## ۷. اولویت‌های توسعه برای Real-time کردن داده‌ها
 
 | اولویت | داده | راه‌حل | تخمین |
 |--------|------|--------|-------|

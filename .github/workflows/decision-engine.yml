@@ -27,6 +27,9 @@ on:
       - "Dockerfile.decision-engine"
       - "alembic.ini"
       - "migrations/**"
+      - "docs/**"
+      - "scripts/check_mermaid_blocks.py"
+      - "scripts/check_mermaid_syntax.cjs"
       - ".github/workflows/decision-engine.yml"
   pull_request:
     branches: [main]
@@ -42,6 +45,9 @@ on:
       - "Dockerfile.decision-engine"
       - "alembic.ini"
       - "migrations/**"
+      - "docs/**"
+      - "scripts/check_mermaid_blocks.py"
+      - "scripts/check_mermaid_syntax.cjs"
       - ".github/workflows/decision-engine.yml"
   release:
     types: [published]
@@ -51,6 +57,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   DOCKERFILE: Dockerfile.decision-engine
   SERVICE_NAME: decision-engine
+  NODE_VERSION: "20"
 
 jobs:
   # ── Lint ────────────────────────────────────────────────────────
@@ -351,3 +358,21 @@ jobs:
 
           echo ""
           echo "🎯 All smoke tests passed!"
+
+  # ── Mermaid docs syntax check ─────────────────────────────
+  docs:
+    name: Mermaid Syntax (docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install jsdom (for mermaid.parse sandbox)
+        run: npm i -D jsdom@29.1.1 --no-save --no-package-lock --no-audit --no-fund
+
+      - name: Check Mermaid diagram syntax
+        run: python scripts/check_mermaid_blocks.py

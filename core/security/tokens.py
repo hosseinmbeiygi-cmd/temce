@@ -26,7 +26,8 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     # Add a unique jti claim so individual tokens can be revoked (logout /
     # password change) via a Redis blacklist without invalidating all tokens
     # of the user. Preserves an externally-supplied jti if one is given.
-    to_encode.setdefault("jti", _new_jti())
+    if not to_encode.get("jti"):
+        to_encode["jti"] = _new_jti()
     expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.access_token_expire_minutes))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)

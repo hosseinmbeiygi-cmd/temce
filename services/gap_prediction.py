@@ -176,66 +176,64 @@ class GapPredictor:
         )
 
     async def _get_gold_factor(self) -> float:
-        """Get overnight gold price change factor."""
+        """Get overnight gold price change factor (percentage)."""
         if self._session is None:
             return 0.0
 
         from sqlalchemy import text
 
         result = await self._session.execute(text("""
-            SELECT price, updated_at
-            FROM brsapi_gold_currency_pro_prices
+            SELECT price FROM brsapi_gold_currency_pro_prices
             WHERE symbol LIKE '%GOLD%' OR symbol LIKE '%طلا%'
-            ORDER BY updated_at DESC
-            LIMIT 1
+            ORDER BY updated_at DESC LIMIT 2
         """))
-
-        row = result.fetchone()
-        if not row:
+        rows = result.fetchall()
+        if not rows or len(rows) < 2:
             return 0.0
-
-        # Simplified: return 0 as placeholder
-        # In production, compare with previous day's close
-        return 0.0
+        current = float(rows[0][0]) if rows[0][0] else 0.0
+        previous = float(rows[1][0]) if rows[1][0] else 0.0
+        if previous == 0:
+            return 0.0
+        return ((current - previous) / previous) * 100
 
     async def _get_fx_factor(self) -> float:
-        """Get overnight USD/IRR change factor."""
+        """Get overnight USD/IRR change factor (percentage)."""
         if self._session is None:
             return 0.0
 
         from sqlalchemy import text
 
         result = await self._session.execute(text("""
-            SELECT price, updated_at
-            FROM brsapi_gold_currency_pro_prices
+            SELECT price FROM brsapi_gold_currency_pro_prices
             WHERE symbol LIKE '%USD%' OR symbol LIKE '%DOLLAR%'
-            ORDER BY updated_at DESC
-            LIMIT 1
+            ORDER BY updated_at DESC LIMIT 2
         """))
-
-        row = result.fetchone()
-        if not row:
+        rows = result.fetchall()
+        if not rows or len(rows) < 2:
             return 0.0
-
-        return 0.0
+        current = float(rows[0][0]) if rows[0][0] else 0.0
+        previous = float(rows[1][0]) if rows[1][0] else 0.0
+        if previous == 0:
+            return 0.0
+        return ((current - previous) / previous) * 100
 
     async def _get_oil_factor(self) -> float:
-        """Get overnight oil price change factor."""
+        """Get overnight oil price change factor (percentage)."""
         if self._session is None:
             return 0.0
 
         from sqlalchemy import text
 
         result = await self._session.execute(text("""
-            SELECT price, updated_at
-            FROM brsapi_commodity_prices
+            SELECT price FROM brsapi_commodity_prices
             WHERE symbol LIKE '%OIL%' OR symbol LIKE '%نفت%'
-            ORDER BY updated_at DESC
-            LIMIT 1
+            ORDER BY updated_at DESC LIMIT 2
         """))
-
-        row = result.fetchone()
-        if not row:
+        rows = result.fetchall()
+        if not rows or len(rows) < 2:
             return 0.0
-
-        return 0.0
+        current = float(rows[0][0]) if rows[0][0] else 0.0
+        previous = float(rows[1][0]) if rows[1][0] else 0.0
+        if previous == 0:
+            return 0.0
+        return ((current - previous) / previous) * 100

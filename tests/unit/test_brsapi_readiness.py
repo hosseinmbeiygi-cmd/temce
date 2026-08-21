@@ -31,8 +31,12 @@ class _FakeResp:
 
 
 def _make_client(rate_limiter: RateLimiter | None = None) -> BrsApiClient:
+    # Always pass an explicit limiter: a client built without one would use the
+    # production persistent budget-governor singleton and could read/write a
+    # real 302 block/state file during tests.
+    limiter = rate_limiter or RateLimiter()
     client = BrsApiClient(api_key="test", base_url="http://test.local",
-                          rate_limiter=rate_limiter)
+                          rate_limiter=limiter)
     client._client = AsyncMock()
     return client
 

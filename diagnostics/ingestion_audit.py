@@ -86,7 +86,7 @@ async def db_stats() -> dict:
 
 async def brsapi_health() -> dict:
     from brsapi.client import BrsApiClient
-    client = BrsApiClient(api_key=os.getenv("BRSAPI_API_KEY", "FreeSV0E1LSgB9RDjuf0QorSLViX8pPG"))
+    client = BrsApiClient(api_key=os.getenv("BRSAPI_API_KEY", ""))
     await client.start()
     try:
         result = await client.health()

@@ -9,7 +9,8 @@ price = 5000
 start = datetime(2023, 1, 1)
 for i in range(500):
     d = start + timedelta(days=i)
-    if d.weekday() >= 5:
+    # Tehran market trades Saturday-Wednesday; Thursday and Friday are closed.
+    if d.weekday() in (3, 4):
         continue
     change = random.gauss(0, 0.02) * price
     price = max(price * 0.9, price + change)

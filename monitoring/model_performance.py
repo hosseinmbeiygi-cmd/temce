@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
@@ -19,7 +19,7 @@ class ModelPerformanceMonitor:
                 "version": version,
                 "prediction": prediction,
                 "actual": actual,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 

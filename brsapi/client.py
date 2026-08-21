@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from logging import getLogger
@@ -29,14 +30,25 @@ from core.fix_network import fix_network as _fix_network
 
 _fix_network()
 
+from brsapi.budget import BrsApiBudgetGovernor, BudgetBlockedError, get_budget_governor
 from brsapi.config import BrsApiEndpoints, EndpointCategory, EndpointConfig
 from brsapi.config import settings as brsapi_settings
-from brsapi.rate_limiter import RateLimiter, get_rate_limiter
+from brsapi.rate_limiter import RateLimiter, RateLimitExhaustedError, get_rate_limiter
 from core.circuit_breaker import CircuitBreaker
 from core.result import Result
 
 T = TypeVar("T")
 logger = getLogger(__name__)
+
+_SENSITIVE_QUERY_RE = re.compile(
+    r"([?&](?:key|api_key|token|secret|password)=)[^&\s]+",
+    re.IGNORECASE,
+)
+
+
+def _redact_sensitive_text(value: str) -> str:
+    """Prevent credentials embedded in HTTP error URLs from being logged."""
+    return _SENSITIVE_QUERY_RE.sub(r"\1[REDACTED]", value)
 
 
 # ──────────────────────────────────────────────
@@ -102,6 +114,7 @@ class BrsApiClient:
         api_key: str | None = None,
         base_url: str | None = None,
         rate_limiter: RateLimiter | None = None,
+        budget_governor: BrsApiBudgetGovernor | None = None,
         proxy_url: str | None = None,
     ) -> None:
         self._api_key = api_key or brsapi_settings.api_key
@@ -116,6 +129,16 @@ class BrsApiClient:
         self._verify_ssl = brsapi_settings.verify_ssl
 
         self._rate_limiter = rate_limiter or get_rate_limiter()
+        if budget_governor is not None:
+            self._governor = budget_governor
+        elif rate_limiter is None:
+            # Production path: shared persistent governor (Redis/file backend)
+            # so restarts and replicas never spend the same daily budget twice.
+            self._governor = get_budget_governor()
+        else:
+            # Test/custom-limiter path: in-memory governor so unit tests never
+            # touch real Redis or the shared state file.
+            self._governor = BrsApiBudgetGovernor(rate_limiter=self._rate_limiter, persist=False)
         self._client: httpx.AsyncClient | None = None
         self._circuit_breakers: dict[str, CircuitBreaker] = {}
 
@@ -197,20 +220,19 @@ class BrsApiClient:
         request_params = self._build_params(endpoint, params)
         category = category_override or endpoint.category.value
 
-        # Fail fast when the daily budget is exhausted (avoid sleeping until
-        # midnight or hammering a blocked key).
+        # Fail fast when the global budget is exhausted or the key is in the
+        # post-302 cooldown. The budget governor checks the PERSISTED counters
+        # (shared across processes/restarts) so a restarted worker or a second
+        # replica cannot spend the same daily budget twice.
         if brsapi_settings.fail_fast_on_daily_exhausted:
-            status = self._rate_limiter.status()
-            if status["global"]["daily_remaining"] <= 0:
-                logger.warning(
-                    "BrsApi daily budget exhausted (%d/%d) — request rejected fast",
-                    status["global"]["daily_count"],
-                    status["global"]["daily_limit"],
-                )
-                return Result.fail(
-                    f"BrsApi daily budget exhausted ({status['global']['daily_count']}/"
-                    f"{status['global']['daily_limit']}) — request rejected to protect the key"
-                )
+            try:
+                await self._governor.check_allowed(category, endpoint.path)
+            except RateLimitExhaustedError as exc:
+                logger.warning("BrsApi budget exhausted — request rejected fast")
+                return Result.fail(str(exc))
+            except BudgetBlockedError as exc:
+                logger.warning("BrsApi key in 302-cooldown — request rejected fast")
+                return Result.fail(str(exc))
 
         # Circuit breaker for this endpoint path
         cb = self._circuit_breaker(endpoint.path)
@@ -224,8 +246,9 @@ class BrsApiClient:
                 endpoint,
             )
         except Exception as exc:
-            logger.warning("BrsApi fetch failed [%s]: %s", endpoint.path, exc)
-            return Result.fail(str(exc))
+            safe_error = _redact_sensitive_text(str(exc))
+            logger.warning("BrsApi fetch failed [%s]: %s", endpoint.path, safe_error)
+            return Result.fail(safe_error)
 
     # ── Internal fetch logic ─────────────────────
 
@@ -240,15 +263,16 @@ class BrsApiClient:
 
         start = asyncio.get_event_loop().time()
 
-        # Rate limit (passes endpoint path for per-endpoint tracking).
-        # ``fail_fast`` is forwarded from settings so even a custom limiter
-        # (e.g. in tests) rejects immediately when the daily quota is gone
-        # instead of sleeping until Tehran midnight.
-        await self._rate_limiter.acquire(
-            category,
-            endpoint=endpoint.path,
-            fail_fast=brsapi_settings.fail_fast_on_daily_exhausted,
-        )
+        # Rate limit through the budget governor (persisted daily cap + shared
+        # 5-min window + block cooldown) layered over the in-process limiter.
+        try:
+            await self._governor.acquire(
+                category,
+                endpoint=endpoint.path,
+                fail_fast=brsapi_settings.fail_fast_on_daily_exhausted,
+            )
+        except (RateLimitExhaustedError, BudgetBlockedError) as exc:
+            return Result.fail(str(exc))
 
         # HTTP request with retry
         last_error: str | None = None
@@ -263,6 +287,12 @@ class BrsApiClient:
 
                 if resp.status_code == 200:
                     data = self._parse_response(resp.content)
+                    # Best effort — a successful response may clear a stale
+                    # block after the cooldown; never fail the request on it.
+                    try:
+                        await self._governor.report_ok()
+                    except Exception:  # noqa: BLE001
+                        logger.debug("budget governor report_ok failed", exc_info=True)
                     brs_resp = BrsApiResponse(
                         endpoint=endpoint.path,
                         status_code=200,
@@ -285,6 +315,12 @@ class BrsApiClient:
                         "(server-side usage above plan threshold)",
                         location,
                     )
+                    # Arm the governor cooldown so subsequent calls reject fast
+                    # instead of hammering the still-over-quota account.
+                    try:
+                        await self._governor.report_302(location)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("budget governor report_302 failed", exc_info=True)
                     return Result.fail(
                         "BrsApi quota exceeded (HTTP 302 → heavy-file redirect). "
                         "Server-side usage is above the plan threshold — keep "
@@ -316,13 +352,13 @@ class BrsApiClient:
                 return Result.fail(f"Request timeout after {self._max_retries} retries")
 
             except httpx.RequestError as exc:
-                last_error = str(exc)
+                last_error = _redact_sensitive_text(str(exc))
                 if attempt < self._max_retries:
                     delay = min(self._backoff_base ** (attempt + 1), self._backoff_max)
                     logger.warning("RequestError (attempt %d/%d): %s – retrying in %.1fs", attempt + 1, self._max_retries, exc, delay)
                     await asyncio.sleep(delay)
                     continue
-                return Result.fail(f"RequestError: {exc}")
+                return Result.fail(f"RequestError: {_redact_sensitive_text(str(exc))}")
 
         return Result.fail(f"All retries exhausted: {last_error}")
 
@@ -413,11 +449,17 @@ class BrsApiClient:
         # Fail fast (never sleep) — this probe runs hourly and must never
         # block behind an exhausted daily budget.
         try:
-            await self._rate_limiter.acquire(
+            await self._governor.acquire(
                 endpoint.category.value,
                 endpoint=endpoint.path,
                 fail_fast=True,
             )
+        except BudgetBlockedError as exc:
+            return {
+                "ready": False,
+                "status_code": 302,
+                "detail": f"budget governor cooldown: {exc}",
+            }
         except Exception as exc:  # noqa: BLE001
             return {
                 "ready": False,
@@ -431,7 +473,7 @@ class BrsApiClient:
             return {
                 "ready": False,
                 "status_code": 0,
-                "detail": f"request error: {exc}",
+                "detail": f"request error: {_redact_sensitive_text(str(exc))}",
             }
 
         if resp.status_code == 200:
@@ -454,6 +496,8 @@ class BrsApiClient:
     async def health(self) -> dict[str, Any]:
         """Check connectivity by hitting a lightweight endpoint."""
         status = self._rate_limiter.status()
+        # Budget-governor snapshot: persisted daily usage + block cooldown.
+        governor_stats = await self._governor.stats()
         if not brsapi_settings.enabled:
             return {
                 "service": "brsapi",
@@ -465,6 +509,7 @@ class BrsApiClient:
                     path: cb.state for path, cb in self._circuit_breakers.items()
                 },
                 "rate_limit_buckets": status,
+                "budget_governor": governor_stats,
             }
         test_endpoint = BrsApiEndpoints.ALL_SYMBOLS
         result = await self.fetch(test_endpoint)
@@ -478,6 +523,7 @@ class BrsApiClient:
                 path: cb.state for path, cb in self._circuit_breakers.items()
             },
             "rate_limit_buckets": status,
+            "budget_governor": governor_stats,
         }
 
 

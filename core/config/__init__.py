@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        populate_by_name=True,
         extra="ignore",
     )
 
@@ -142,7 +143,7 @@ class Settings(BaseSettings):
     # Rate limit response headers
     rate_limit_include_headers: bool = True  # Add X-RateLimit-* headers to responses
 
-    tsetmc_base_url: str = "http://tsetmc.com"
+    tsetmc_base_url: str = "https://tsetmc.com"
 
     tsetmc_api_key: str = ""
     tsetmc_ws_url: str | None = None
@@ -192,10 +193,29 @@ class Settings(BaseSettings):
     # until max_retries, then moved to the dead-letter list for manual review.
     job_queue_dead_letter: str = Field(default="job:dead", alias="JOB_QUEUE_DEAD_LETTER")
     job_queue_consumer_timeout: int = Field(default=1, alias="JOB_QUEUE_CONSUMER_TIMEOUT")
+    # Lease for a worker's processing list. After expiry, a new consumer can
+    # safely recover messages left behind by a crashed worker.
+    job_queue_lease_seconds: int = Field(default=600, alias="JOB_QUEUE_LEASE_SECONDS")
 
     # Telegram notifications (optional)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+
+    @field_validator("ml_device")
+    @classmethod
+    def validate_ml_device(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"cpu", "mps"} and not normalized.startswith("cuda"):
+            raise ValueError("ML_DEVICE must be cpu, mps, or cuda[:index]")
+        return normalized
+
+    @field_validator("auth_cookie_samesite")
+    @classmethod
+    def validate_auth_cookie_samesite(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"lax", "strict", "none"}:
+            raise ValueError("AUTH_COOKIE_SAMESITE must be lax, strict, or none")
+        return normalized
 
     @property
     def is_production(self) -> bool:
@@ -215,6 +235,8 @@ class Settings(BaseSettings):
             errors.append("CORS_ORIGINS must be restricted in production")
         if self.database_url.startswith("sqlite"):
             errors.append("SQLite cannot be used in production")
+        if not self.auth_cookie_secure:
+            errors.append("AUTH_COOKIE_SECURE must be true in production (refresh cookie would travel over plain HTTP)")
         if self.otlp_endpoint is None:
             errors.append("OTLP_ENDPOINT should be configured for observability in production")
         if errors:

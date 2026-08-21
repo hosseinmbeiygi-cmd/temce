@@ -196,13 +196,14 @@ class OrderManager:
             else:
                 if order.order_type == "MARKET":
                     # Market orders should always fill; force fill at market price
+                    fallback_price = market_data.get("close", order.price)
                     fallback_fill = FillEvent(
                         order_id=order.order_id,
                         instrument_id=order.instrument_id,
                         side=order.side,
                         quantity=order.remaining,
-                        price=market_data.get("close", order.price),
-                        commission=0.0,
+                        price=fallback_price,
+                        commission=fill_simulator.cost_model.compute(order.side, fallback_price, order.remaining),
                     )
                     order.filled += fallback_fill.quantity
                     order.remaining = 0

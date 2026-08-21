@@ -14,6 +14,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: "20"
 
 jobs:
   # ── Validate Tag ──────────────────────────────────────────
@@ -43,6 +44,26 @@ jobs:
           if [ ! -f CHANGELOG.md ]; then
             echo "::warning::No CHANGELOG.md found. Consider adding one."
           fi
+
+  # ── Mermaid docs syntax check ─────────────────────────────
+  # Runs in parallel with build; does not gate the release (docs are
+  # already validated on every push to main via ci.yml).
+  docs:
+    name: Mermaid Syntax (docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install jsdom (for mermaid.parse sandbox)
+        run: npm i -D jsdom@29.1.1 --no-save --no-package-lock --no-audit --no-fund
+
+      - name: Check Mermaid diagram syntax
+        run: python scripts/check_mermaid_blocks.py
 
   # ── Build & Push All Images ───────────────────────────────
   build:

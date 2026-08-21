@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -26,7 +26,7 @@ VALID_CATEGORIES = {"market", "company", "economic", "political", "international
 _refresh_status: dict[str, Any] = {"running": False, "last_run": None, "last_result": None}
 
 
-def _item_to_response(item: NewsItem | dict) -> NewsResponse:
+def _item_to_response(item: NewsItem | dict[str, Any]) -> NewsResponse:
     """Convert a NewsItem domain object to a NewsResponse schema."""
     if isinstance(item, dict):
         trending = bool(item.get("trending", False))
@@ -156,7 +156,7 @@ async def create_news(
     return ApiResponse[NewsResponse](
         success=result.success,
         data=data,
-        error=result.error if not result.success else None,
+        error={"message": result.error} if not result.success and result.error else None,
     )
 
 
@@ -282,9 +282,7 @@ async def trending_news(
 
 
 @router.post("/refresh")
-async def refresh_news(
-    session: AsyncSession = Depends(get_db_session),
-) -> ApiResponse[dict[str, Any]]:
+async def refresh_news() -> ApiResponse[dict[str, Any]]:
     """Trigger background news ingestion from RSS feeds."""
     if _refresh_status["running"]:
         return ApiResponse[dict[str, Any]](
@@ -295,29 +293,47 @@ async def refresh_news(
     async def _run_refresh() -> None:
         _refresh_status["running"] = True
         try:
+            from core.database import get_session
             from services.news_ingestion import NewsIngestionService
-            service = NewsIngestionService(session=session)
-            stats = await service.ingest(
-                sources=None,
-                limit_per_source=30,
-                save=True,
-                verbose=False,
-                skip_sentiment=False,
-            )
+
+            # The request-scoped session is closed as soon as the response is
+            # returned. The background job owns a fresh session instead of
+            # retaining a dependency-managed session after request teardown.
+            stats = None
+            async for owned_session in get_session():
+                service = NewsIngestionService(session=owned_session)
+                stats = await service.ingest(
+                    sources=None,
+                    limit_per_source=30,
+                    save=True,
+                    verbose=False,
+                    skip_sentiment=False,
+                )
+                break
+            if stats is None:
+                raise RuntimeError("Could not obtain a database session")
             _refresh_status["last_result"] = {
                 "fetched": stats.get("fetched", 0),
                 "saved": stats.get("saved", 0),
                 "duplicates": stats.get("duplicates_removed", 0),
                 "filtered": stats.get("filtered_out", 0),
             }
-            _refresh_status["last_run"] = datetime.now().isoformat()
+            _refresh_status["last_run"] = datetime.now(UTC).isoformat()
         except Exception as e:
             logger.exception("News refresh failed")
             _refresh_status["last_result"] = {"error": str(e)}
         finally:
             _refresh_status["running"] = False
 
-    asyncio.create_task(_run_refresh())
+    # Register with the API lifecycle manager when available so shutdown
+    # cancels this task before the database is closed. Keep a small fallback
+    # for direct/unit invocation outside the FastAPI app.
+    try:
+        from apps.api.app import _track_background_task
+
+        _track_background_task(_run_refresh(), "news-manual-refresh")
+    except Exception:
+        asyncio.create_task(_run_refresh(), name="news-manual-refresh")
     return ApiResponse[dict[str, Any]](
         success=True,
         data={"status": "started", "last_result": _refresh_status["last_result"]},

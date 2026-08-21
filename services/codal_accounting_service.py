@@ -39,25 +39,52 @@ def _parse_filename(filename: str) -> dict[str, Any] | None:
     }
 
 
-def _normalize_number(text: str) -> float:
-    """Convert Persian number string to float. Handles commas, Persian digits, Arabic digits."""
+def _normalize_number(text: str | int | float | None) -> float:
+    """Convert a (possibly Persian) number cell to float.
+
+    Handles:
+    * numeric cells (openpyxl returns int/float for numeric values)
+    * Persian/Arabic digits and thousands separators (``,`` and ``٬``)
+    * ASCII/Persian minus signs, trailing-minus and parenthesized negatives
+      (``(۱۲)`` / ``12-`` → -12.0)
+    """
+    if text is None:
+        return 0.0
+    if isinstance(text, bool):
+        return float(text)
+    if isinstance(text, (int, float)):
+        return float(text)
+    text = text.strip()
     if not text:
         return 0.0
-    text = text.strip()
-    # Remove commas
-    text = text.replace(",", "")
     # Handle Persian/Arabic digits
     persian_digits = "۰۱۲۳۴۵۶۷۸۹"
     arabic_digits = "٠١٢٣٤٥٦٧٨٩"
     ascii_digits = "0123456789"
     trans_table = str.maketrans(persian_digits + arabic_digits, ascii_digits * 2)
     text = text.translate(trans_table)
-    # Remove non-numeric except minus
-    text = re.sub(r"[^\d\-]", "", text)
-    try:
-        return float(text) if text else 0.0
-    except ValueError:
+    # Normalize minus signs and parenthesized (accounting) negatives
+    text = text.replace("−", "-").replace("(", "-").replace(")", "")
+    # Remove thousands separators (but NOT the decimal point)
+    text = text.replace(",", "").replace("٬", "")
+    # Keep only digits and a single decimal point; a leading/trailing minus makes it negative
+    negative = text.lstrip().startswith("-") or text.rstrip().endswith("-")
+    # Preserve one decimal point: strip all non-digit/non-dot chars, then normalise
+    cleaned = re.sub(r"[^\d.]", "", text)
+    # If multiple dots exist (e.g. "1.234.567"), treat them as thousands separators
+    parts = cleaned.split(".")
+    if len(parts) > 2:
+        # European/continental style: dots are thousands separators → join without dot
+        digits = "".join(parts)
+    elif len(parts) == 2:
+        # Exactly one dot → decimal point
+        digits = parts[0] + "." + parts[1]
+    else:
+        digits = parts[0] if parts else ""
+    if not digits or digits == ".":
         return 0.0
+    value = float(digits)
+    return -value if negative else value
 
 
 def list_available_symbols() -> list[dict[str, Any]]:

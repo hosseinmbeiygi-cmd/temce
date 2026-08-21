@@ -5,7 +5,12 @@ REM ============================================
 
 setlocal enabledelayedexpansion
 
-set API_KEY=Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif
+REM کلید API از متغیر محیطی BRSAPI_API_KEY خوانده می‌شود (هرگز کلید واقعی را هاردکد نکنید)
+if defined BRSAPI_API_KEY (
+    set API_KEY=%BRSAPI_API_KEY%
+) else (
+    set API_KEY=your-brsapi-api-key
+)
 set BASE_URL=https://Api.BrsApi.ir
 
 echo.

@@ -47,6 +47,9 @@ _SENSITIVE_WRITE_PREFIXES = (
     "/api/v1/ml/train",
     "/api/v1/ml/predict",
     "/api/v1/portfolios",
+    "/api/v1/alerts",
+    "/api/v1/watchlist",
+    "/api/v1/trades",
     "/api/v1/data-import",
     "/api/v1/signal-insights",
 )
@@ -357,16 +360,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         max_calls = self._get_limit_for_path(path)
         key = self._get_key(client_ip, path)
 
-        # Ensure the limit is registered (only once per key, then reused)
-        if not self._limiter.has_limit(key):
-            self._limiter.set_limit(
-                key,
-                rate=max_calls / self.window_seconds,
-                burst=max_calls,
-                window_seconds=self.window_seconds,
-            )
+        allowed, remaining = await self._limiter.allow_async(
+            key,
+            max_calls=max_calls,
+            window_seconds=self.window_seconds,
+        )
 
-        if not self._limiter.allow(key):
+        if not allowed:
             logger.warning("Rate limit exceeded: %s %s from %s (limit: %d/min)", request.method, path, client_ip, max_calls)
             return JSONResponse(
                 status_code=429,
@@ -389,7 +389,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Add rate limit headers to successful responses
         if app_settings.rate_limit_include_headers:
-            remaining = self._limiter.remaining(key)
             response.headers["X-RateLimit-Limit"] = str(max_calls)
             response.headers["X-RateLimit-Remaining"] = str(remaining)
             response.headers["X-RateLimit-Reset"] = str(int(time.time()) + int(self.window_seconds))

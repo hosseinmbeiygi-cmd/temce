@@ -19,6 +19,17 @@ class RawDataLake:
         self._client: Any = None
 
     async def start(self) -> None:
+        from core.config import settings
+
+        if settings.is_production and (
+            self._config.lake_access_key == "minioadmin"
+            or self._config.lake_secret_key == "minioadmin"
+        ):
+            raise RuntimeError(
+                "Production ingestion requires non-default MinIO credentials "
+                "(INGESTION_LAKE_ACCESS_KEY/INGESTION_LAKE_SECRET_KEY)"
+            )
+
         from minio import Minio
 
         endpoint = self._config.lake_endpoint.replace("http://", "").replace("https://", "")
@@ -77,16 +88,28 @@ class RawDataLake:
     async def get_raw(self, object_key: str) -> bytes | None:
         if self._client is None:
             raise RuntimeError("RawDataLake not started")
+        resp: Any | None = None
         try:
             resp = await asyncio.to_thread(
                 self._client.get_object,
                 self._config.lake_bucket_raw,
                 object_key,
             )
-            return resp.read()
+            assert resp is not None
+            return await asyncio.to_thread(resp.read)
         except Exception:
             logger.exception("Failed to read raw object: %s", object_key)
             return None
+        finally:
+            # Minio keeps an HTTP connection occupied until both methods are
+            # called.  Always release it even when reading the body fails.
+            if resp is not None:
+                close = getattr(resp, "close", None)
+                if close is not None:
+                    await asyncio.to_thread(close)
+                release = getattr(resp, "release_conn", None)
+                if release is not None:
+                    await asyncio.to_thread(release)
 
     async def list_raw(self, source: str, date_prefix: str | None = None) -> list[str]:
         if self._client is None:

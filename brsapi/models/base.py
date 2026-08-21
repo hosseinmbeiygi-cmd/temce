@@ -84,3 +84,45 @@ class SyncLogModel(BrsApiBase):
     __table_args__ = (
         Index("idx_sync_log_endpoint_time", "endpoint", "started_at"),
     )
+
+
+# ──────────────────────────────────────────────
+#  Daily Usage (admin reporting)
+# ──────────────────────────────────────────────
+
+
+class BrsApiDailyUsageModel(BrsApiBase):
+    """
+    One row per Tehran day aggregating BrsApi request usage.
+
+    Written by :class:`brsapi.usage_recorder.BrsApiUsageRecorder` as an
+    incremental, additive upsert (``ON CONFLICT (usage_date) DO UPDATE``) so
+    multiple API workers each add their own share without clobbering each
+    other. Read by the admin panel via ``GET /api/v1/brsapi/manage/usage``.
+
+    - ``usage_date``    — Tehran calendar date (``YYYY-MM-DD``)
+    - ``request_count`` — live requests granted that day
+    - ``daily_limit``   — configured daily cap in effect (snapshot)
+    - ``blocked_count`` — HTTP 302 over-quota blocks observed
+    - ``blocked_at``    — last 302 block timestamp
+    - ``last_request_at`` — last granted request timestamp
+    """
+
+    __tablename__ = "brsapi_daily_usage"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    usage_date: Mapped[str] = mapped_column(
+        String(10), nullable=False, comment="Tehran date YYYY-MM-DD",
+    )
+    request_count: Mapped[int] = mapped_column(Integer, default=0, comment="Granted live requests that day")
+    daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="Configured daily cap in effect")
+    blocked_count: Mapped[int] = mapped_column(Integer, default=0, comment="HTTP 302 over-quota blocks observed")
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="Last 302 block timestamp")
+    last_request_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="Last granted request timestamp")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), index=True,
+    )
+
+    __table_args__ = (
+        Index("uq_brsapi_daily_usage_date", "usage_date", unique=True),
+    )

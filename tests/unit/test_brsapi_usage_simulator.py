@@ -196,6 +196,85 @@ class TestLimiterBehavior(unittest.TestCase):
             sim._restore_clock()
 
 
+class TestNewScenarios(unittest.TestCase):
+    """The per-endpoint / all-max / starvation / max-stress scenarios."""
+
+    def _run(self, name, daily=10000, five_min=1000):
+        sim.reset_clock()
+        sim._install_clock()
+        try:
+            return run(
+                sim.run_scenario(
+                    name, sim.SCENARIOS[name],
+                    {"daily": daily, "5min": five_min},
+                )
+            )
+        finally:
+            sim._restore_clock()
+
+    def test_per_endpoint_every_endpoint_covered(self):
+        result = self._run("per-endpoint")
+        catalog_size = len(sim.BrsApiEndpoints.all())
+        self.assertEqual(len(result.per_endpoint_stats), catalog_size)
+        self.assertTrue(result.ok)
+
+    def test_per_endpoint_no_endpoint_exceeds_5min_cap(self):
+        result = self._run("per-endpoint", daily=10000, five_min=1000)
+        for name, s in result.per_endpoint_stats.items():
+            self.assertLessEqual(
+                s["max5min"], 1000, f"{name} exceeded 5-min cap"
+            )
+            self.assertLessEqual(
+                s["maxday"], 10000, f"{name} exceeded daily cap"
+            )
+
+    def test_per_endpoint_small_budget_still_never_exceeds(self):
+        # Even a 500/day budget: the endpoint is capped exactly at 500,
+        # remaining requests are fail-fast rejected — never above the cap.
+        result = self._run("per-endpoint", daily=500, five_min=1000)
+        self.assertTrue(result.ok)
+        for name, s in result.per_endpoint_stats.items():
+            self.assertLessEqual(s["maxday"], 500, name)
+            self.assertLessEqual(s["max5min"], 1000, name)
+
+    def test_all_max_combined_ceiling_holds(self):
+        result = self._run("all-max", daily=10000, five_min=1000)
+        self.assertTrue(result.ok)
+        # Daily cap is the binding constraint under full simultaneous load.
+        self.assertEqual(result.max_daily, 10000)
+        self.assertLessEqual(result.max_5min, 1000)
+        self.assertGreater(result.total_rejected, 0)
+
+    def test_starvation_others_still_get_through_or_wait(self):
+        result = self._run("starvation", daily=10000, five_min=1000)
+        self.assertTrue(result.ok)
+        self.assertEqual(len(result.starvation_stats), 4)
+        for cat, s in result.starvation_stats.items():
+            # The shared 5-min window caps EVERYONE (incl. the hog) at 1,000.
+            self.assertEqual(s["hog_accepted"], 1001)
+            # Others may be heavily delayed but never push past the cap.
+            self.assertLessEqual(result.max_5min, 1000)
+
+    def test_starvation_small_daily_budget_others_get_rejected(self):
+        # When the hog also eats the daily budget, the others are rejected
+        # by fail-fast instead of waiting — they receive nothing.
+        result = self._run("starvation", daily=800, five_min=1000)
+        self.assertTrue(result.ok)
+        total_other_rejected = sum(
+            s["rejected"] for s in result.starvation_stats.values()
+        )
+        self.assertGreater(total_other_rejected, 0)
+        self.assertLessEqual(result.max_daily, 800)
+
+    def test_max_stress_never_exceeds_caps(self):
+        result = self._run("max-stress", daily=10000, five_min=1000)
+        self.assertTrue(result.ok)
+        self.assertLessEqual(result.max_5min, 1000)
+        self.assertLessEqual(result.max_daily, 10000)
+        # Demand far exceeds the budget → fail-fast protection kicks in.
+        self.assertGreater(result.total_rejected, 0)
+
+
 class TestEnvMismatchWarning(unittest.TestCase):
     def test_no_warning_with_env_below_cap(self):
         with patch.dict(

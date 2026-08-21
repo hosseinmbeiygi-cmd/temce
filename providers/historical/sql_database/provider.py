@@ -17,7 +17,8 @@ class SQLDatabaseProvider(BaseProvider):
         super().__init__(name="sql_database")
         self.db = DatabaseConnection(url)
         self.query = QueryBuilder()
-        self.mapping = SQLMapping()
+        dialect = "sqlite" if self.db.url and "sqlite" in self.db.url else "postgresql"
+        self.mapping = SQLMapping(dialect=dialect)
 
     async def fetch(self, symbol: str | None = None, **kwargs: Any) -> Result[Any]:
         if not symbol:

@@ -42,32 +42,51 @@ class HttpClient:
     async def __aexit__(self, *args: Any) -> None:
         await self.close()
 
-    async def get(self, path: str, params: dict[str, Any] | None = None, **kwargs: Any) -> httpx.Response:
+    async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        """Perform one request and retry only transient failures.
+
+        Permanent 4xx responses are caller/data errors and must not be retried;
+        429 and 5xx responses may be transient upstream failures.
+        """
         url = f"{self.base_url}{path}"
         client = await self._get_client()
-        for attempt in range(self.max_retries):
+        attempts = max(1, self.max_retries)
+        retryable_statuses = {408, 425, 429, 500, 502, 503, 504}
+
+        for attempt in range(attempts):
             try:
-                resp = await client.get(url, params=params, **kwargs)
+                resp = await client.request(method, url, **kwargs)
                 resp.raise_for_status()
                 return resp
-            except Exception as e:
-                logger.warning("GET %s failed (attempt %d/%d): %s", url, attempt + 1, self.max_retries, e)
-                if attempt == self.max_retries - 1:
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                if status not in retryable_statuses or attempt == attempts - 1:
                     raise
-                await asyncio.sleep(2**attempt)
-        raise Exception(f"Request failed after {self.max_retries} retries")  # pragma: no cover
+                logger.warning(
+                    "%s %s failed with HTTP %s (attempt %d/%d)",
+                    method,
+                    url,
+                    status,
+                    attempt + 1,
+                    attempts,
+                )
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                if attempt == attempts - 1:
+                    raise
+                logger.warning(
+                    "%s %s failed (attempt %d/%d): %s",
+                    method,
+                    url,
+                    attempt + 1,
+                    attempts,
+                    exc,
+                )
+            await asyncio.sleep(2**attempt)
+
+        raise RuntimeError(f"Request failed after {attempts} attempts")  # pragma: no cover
+
+    async def get(self, path: str, params: dict[str, Any] | None = None, **kwargs: Any) -> httpx.Response:
+        return await self._request("GET", path, params=params, **kwargs)
 
     async def post(self, path: str, json: dict[str, Any] | None = None, **kwargs: Any) -> httpx.Response:
-        url = f"{self.base_url}{path}"
-        client = await self._get_client()
-        for attempt in range(self.max_retries):
-            try:
-                resp = await client.post(url, json=json, **kwargs)
-                resp.raise_for_status()
-                return resp
-            except Exception as e:
-                logger.warning("POST %s failed (attempt %d/%d): %s", url, attempt + 1, self.max_retries, e)
-                if attempt == self.max_retries - 1:
-                    raise
-                await asyncio.sleep(2**attempt)
-        raise Exception(f"Request failed after {self.max_retries} retries")  # pragma: no cover
+        return await self._request("POST", path, json=json, **kwargs)

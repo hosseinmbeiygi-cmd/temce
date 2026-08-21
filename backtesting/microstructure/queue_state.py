@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+from backtesting.costs.iran_costs import DEFAULT_IRAN_COSTS, IranTransactionCosts
 from backtesting.types import FillEvent
 
 
@@ -55,6 +56,7 @@ class QueueState:
     bids: list[SimulatedOrder] = field(default_factory=list)
     asks: list[SimulatedOrder] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    cost_model: IranTransactionCosts = DEFAULT_IRAN_COSTS
 
     @property
     def total_bid_volume(self) -> int:
@@ -80,9 +82,20 @@ class QueueState:
         remaining_trade = trade_volume
 
         for order in target_orders:
-            if order.status != SimulatedOrderStatus.ACTIVE or order.remaining <= 0:
+            if order.status not in (SimulatedOrderStatus.ACTIVE, SimulatedOrderStatus.PARTIAL) or order.remaining <= 0:
                 continue
-            order.queue_ahead = max(0, order.queue_ahead - remaining_trade)
+
+            # Trade volume must first consume the order's queue-ahead. Only
+            # the residual volume can fill this order; the old code subtracted
+            # the full trade from queue_ahead and then also used the full trade
+            # as fill quantity, over-filling orders behind a large trade.
+            if order.queue_ahead > 0:
+                consumed_ahead = min(order.queue_ahead, remaining_trade)
+                order.queue_ahead -= consumed_ahead
+                remaining_trade -= consumed_ahead
+            if remaining_trade <= 0:
+                break
+
             if order.queue_ahead <= 0:
                 fill_qty = min(order.remaining, remaining_trade)
                 fill = FillEvent(
@@ -91,7 +104,7 @@ class QueueState:
                     side=order.side,
                     quantity=fill_qty,
                     price=trade_price,
-                    commission=0.0,
+                    commission=self.cost_model.compute(order.side, trade_price, fill_qty),
                 )
                 fills.append(fill)
                 order.remaining -= fill_qty

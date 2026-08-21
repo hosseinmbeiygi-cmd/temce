@@ -5,9 +5,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
+from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -24,8 +27,51 @@ async def health_check() -> ApiResponse[dict[str, str]]:
 
 
 @router.get("/ready", summary="Readiness check", description="Readiness probe for orchestration")
-async def readiness() -> ApiResponse[dict[str, str]]:
-    return ApiResponse[dict[str, str]](success=True, data={"status": "ready"})
+async def readiness() -> JSONResponse:
+    """Report whether required runtime dependencies can serve requests.
+
+    Liveness only answers whether the process is alive. Readiness verifies the
+    database and Redis cache separately and returns HTTP 503 while either
+    dependency is unavailable, so a load balancer will stop sending traffic.
+    """
+    checks: dict[str, dict[str, Any]] = {}
+
+    try:
+        from sqlalchemy import text
+
+        from core.database import async_session_factory
+
+        if async_session_factory is None:
+            raise RuntimeError("database is not initialized")
+        async with async_session_factory() as session:
+            await session.execute(text("SELECT 1"))
+        checks["database"] = {"status": "ok"}
+    except Exception:
+        logger.exception("Readiness database check failed")
+        checks["database"] = {"status": "error", "detail": "database unavailable"}
+
+    try:
+        from core.cache import get_cache
+
+        cache = get_cache()
+        if not cache.is_connected or not await cache.ping():
+            raise RuntimeError("Redis is unavailable")
+        checks["redis"] = {"status": "ok"}
+    except Exception:
+        logger.exception("Readiness Redis check failed")
+        checks["redis"] = {"status": "error", "detail": "redis unavailable"}
+
+    ready = all(check["status"] == "ok" for check in checks.values())
+    body = ApiResponse[dict[str, Any]](
+        success=ready,
+        data={
+            "status": "ready" if ready else "not_ready",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "checks": checks,
+        },
+        error=None if ready else {"message": "One or more required dependencies are unavailable"},
+    )
+    return JSONResponse(status_code=200 if ready else 503, content=body.model_dump())
 
 
 @router.get("/live", summary="Liveness check", description="Liveness probe for orchestration")
@@ -50,8 +96,9 @@ async def full_health() -> ApiResponse[dict[str, Any]]:
                 from sqlalchemy import text
                 await session.execute(text("SELECT 1"))
             db_status, db_detail = "ok", "PostgreSQL connected"
-    except Exception as exc:
-        db_status, db_detail = "error", str(exc)[:200]
+    except Exception:
+        logger.exception("Full health database check failed")
+        db_status, db_detail = "error", "database unavailable"
     checks["database"] = {
         "status": db_status,
         "latency_ms": round((time.monotonic() - db_start) * 1000, 2),
@@ -71,8 +118,9 @@ async def full_health() -> ApiResponse[dict[str, Any]]:
         else:
             reachable = await cache.ping()
             cache_status, cache_detail = ("ok", "Redis connected") if reachable else ("unavailable", "Redis ping failed")
-    except Exception as exc:
-        cache_status, cache_detail = "error", str(exc)[:200]
+    except Exception:
+        logger.exception("Full health Redis check failed")
+        cache_status, cache_detail = "error", "redis unavailable"
     checks["redis"] = {
         "status": cache_status,
         "latency_ms": round((time.monotonic() - cache_start) * 1000, 2),
@@ -93,8 +141,9 @@ async def full_health() -> ApiResponse[dict[str, Any]]:
                 brsapi_status, brsapi_detail = "ok", "BrsApi.ir reachable"
             else:
                 brsapi_status, brsapi_detail = "error", health_info.get("error", "Unknown BrsAPI error")
-    except Exception as exc:
-        brsapi_status, brsapi_detail = "error", str(exc)[:200]
+    except Exception:
+        logger.exception("Full health BrsApi check failed")
+        brsapi_status, brsapi_detail = "error", "BrsApi unavailable"
     checks["brsapi"] = {
         "status": brsapi_status,
         "latency_ms": round((time.monotonic() - brsapi_start) * 1000, 2),

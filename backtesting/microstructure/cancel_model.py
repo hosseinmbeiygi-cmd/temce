@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import numpy as np
 
 
 class CancelModel:
@@ -20,7 +20,10 @@ class CancelModel:
     def sample_cancel_events(self, queue_size: int, time_step_minutes: float = 1.0) -> int:
         rate = self.estimate_cancel_rate(queue_size)
         expected = rate * time_step_minutes
-        return int(random.poisson(expected)) if hasattr(random, "poisson") else int(expected * (0.5 + random.random()))
+        # ``random`` from the stdlib has no poisson() method. Use NumPy's
+        # Poisson sampler so cancellation counts have the requested
+        # distribution instead of a biased uniform fallback.
+        return int(np.random.poisson(max(expected, 0.0)))
 
     def calibrate_from_data(self, cancel_volumes: list[int], queue_sizes: list[int]) -> None:
         if len(cancel_volumes) < 2 or len(queue_sizes) < 2:

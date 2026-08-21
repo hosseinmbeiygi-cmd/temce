@@ -1,5 +1,7 @@
 import json
 import os
+import re
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -14,6 +16,33 @@ PG_PORT = os.getenv('PG_PORT')
 PG_DATABASE = os.getenv('PG_DATABASE')
 PG_USER = os.getenv('PG_USER')
 PG_PASSWORD = os.getenv('PG_PASSWORD')
+
+_SAFE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _safe_identifier(name: str) -> str:
+    """Quote a SQL identifier after strict validation."""
+    if not isinstance(name, str) or not _SAFE_IDENTIFIER.fullmatch(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return f'"{name}"'
+
+
+def _safe_columns(names) -> str:
+    names = list(names)
+    if not names:
+        raise ValueError("At least one column is required")
+    return ", ".join(_safe_identifier(name) for name in names)
+
+
+def _safe_updates(names) -> str:
+    updates = [
+        f'{_safe_identifier(name)} = EXCLUDED.{_safe_identifier(name)}'
+        for name in names
+    ]
+    if not updates:
+        raise ValueError("At least one update column is required")
+    return ", ".join(updates)
+
 
 connection_params = {
     'host': PG_HOST,
@@ -54,20 +83,33 @@ class DataRepository:
         if self._pool:
             self._pool.putconn(conn)
 
+    @contextmanager
+    def _managed_connection(self):
+        """Borrow a pooled connection and always return it to the pool."""
+        conn = self._get_connection()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._put_connection(conn)
+
     def close_all_connections(self) -> None:
         if self._pool:
             self._pool.closeall()
 
     def save_instrument(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO instruments ({columns}) VALUES ({placeholders}) "
         query += "ON CONFLICT (symbol) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k != 'symbol'])
+        update_columns = _safe_updates(k for k in data if k != 'symbol')
         query += update_columns
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 if cursor.fetchone():
@@ -78,15 +120,15 @@ class DataRepository:
             raise DatabaseError(f"Failed to save instrument: {e}")
 
     def save_price(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO prices ({columns}) VALUES ({placeholders}) "
         query += "ON CONFLICT (instrument_id, date) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k not in ['instrument_id', 'date']])
+        update_columns = _safe_updates(k for k in data if k not in ['instrument_id', 'date'])
         query += update_columns
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 if cursor.fetchone():
@@ -97,12 +139,12 @@ class DataRepository:
             raise DatabaseError(f"Failed to save price: {e}")
 
     def save_trade(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO trades ({columns}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 return cursor.fetchone()[0] if cursor.rowcount else None
@@ -110,15 +152,15 @@ class DataRepository:
             raise DatabaseError(f"Failed to save trade: {e}")
 
     def save_codal_announcement(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO codal_announcements ({columns}) VALUES ({placeholders}) "
         query += "ON CONFLICT (announcement_id) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k != 'announcement_id'])
+        update_columns = _safe_updates(k for k in data if k != 'announcement_id')
         query += update_columns
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 if cursor.fetchone():
@@ -129,12 +171,12 @@ class DataRepository:
             raise DatabaseError(f"Failed to save codal announcement: {e}")
 
     def save_news(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO news ({columns}) VALUES ({placeholders}) ON CONFLICT (url) DO NOTHING"
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 return cursor.fetchone()[0] if cursor.rowcount else None
@@ -142,12 +184,12 @@ class DataRepository:
             raise DatabaseError(f"Failed to save news: {e}")
 
     def log_audit(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO audit_logs ({columns}) VALUES ({placeholders})"
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 return cursor.fetchone()[0]
@@ -155,12 +197,12 @@ class DataRepository:
             raise DatabaseError(f"Failed to log audit: {e}")
 
     def log_alert(self, data: dict[str, Any]) -> int:
-        columns = ', '.join(data.keys())
+        columns = _safe_columns(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         query = f"INSERT INTO monitoring_alerts ({columns}) VALUES ({placeholders})"
 
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, tuple(data.values()))
                 conn.commit()
                 return cursor.fetchone()[0]
@@ -211,7 +253,7 @@ class DataRepository:
     def _get_instrument_id(self, symbol: str) -> int:
         query = "SELECT id FROM instruments WHERE symbol = %s"
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, (symbol,))
                 result = cursor.fetchone()
                 return result[0] if result else -1
@@ -221,7 +263,7 @@ class DataRepository:
     def _get_price_id(self, instrument_id: int, date: int) -> int:
         query = "SELECT id FROM prices WHERE instrument_id = %s AND date = %s"
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, (instrument_id, date))
                 result = cursor.fetchone()
                 return result[0] if result else -1
@@ -231,7 +273,7 @@ class DataRepository:
     def _get_codal_id(self, announcement_id: str) -> int:
         query = "SELECT id FROM codal_announcements WHERE announcement_id = %s"
         try:
-            with self._get_connection() as conn, conn.cursor() as cursor:
+            with self._managed_connection() as conn, conn.cursor() as cursor:
                 cursor.execute(query, (announcement_id,))
                 result = cursor.fetchone()
                 return result[0] if result else -1

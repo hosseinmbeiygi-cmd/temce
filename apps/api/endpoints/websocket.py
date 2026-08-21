@@ -18,6 +18,7 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from core.config import settings
 from core.logging import get_logger
 from services.realtime_service import get_realtime_service
 
@@ -27,6 +28,17 @@ router = APIRouter()
 
 @router.websocket("/market")
 async def market_websocket(websocket: WebSocket) -> None:
+    # CSWSH guard: reject connections from browser pages on origins outside
+    # the configured CORS allow-list. Without this, any website could open a
+    # socket to /ws/market and consume the market-data stream. Non-browser
+    # clients (scripts, trading apps) send no Origin header — those are
+    # accepted. A configured wildcard ("*") disables the check.
+    origin = websocket.headers.get("origin")
+    allowed = settings.cors_origins
+    if origin and allowed != ["*"] and origin not in allowed:
+        logger.warning("WebSocket connection rejected: origin %s not allowed", origin)
+        await websocket.close(code=1008)  # policy violation, before accept
+        return
     await websocket.accept()
     connection_id = str(uuid.uuid4())[:8]
     service = get_realtime_service()

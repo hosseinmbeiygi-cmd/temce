@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backtesting.costs.iran_costs import BROKER_PCT, CLEARING_FEE_PCT, SELL_TAX_PCT
+
 
 @dataclass
 class IranCommissionModel:
-    broker_buy_pct: float = 0.004
-    broker_sell_pct: float = 0.004
-    tax_pct: float = 0.005
-    clearing_fee_pct: float = 0.00085
+    # Rates are single-sourced from backtesting.costs.iran_costs (audit F1).
+    broker_buy_pct: float = BROKER_PCT
+    broker_sell_pct: float = BROKER_PCT
+    tax_pct: float = SELL_TAX_PCT
+    clearing_fee_pct: float = CLEARING_FEE_PCT
     settlement_fee: float = 0.0
     min_commission: float = 0.0
     max_commission: float = float("inf")

@@ -5,7 +5,8 @@ Generic BrsApi repository with bulk-insert / upsert support and sync logging.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+import re
+from datetime import timedelta
 from logging import getLogger
 from typing import Any, Generic, TypeVar
 
@@ -14,8 +15,37 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.models.base import RawPayloadModel, SyncLogModel
+from core.time import utc_now_naive
 
 logger = getLogger(__name__)
+
+_SAFE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+_SENSITIVE_PARAM_NAMES = frozenset({"key", "api_key", "token", "secret", "password"})
+
+
+def _redact_params(params: dict[str, str] | None) -> dict[str, str] | None:
+    """Remove credentials before params reach logs or audit storage."""
+    if not params:
+        return params
+    return {
+        name: "[REDACTED]" if name.lower() in _SENSITIVE_PARAM_NAMES else value
+        for name, value in params.items()
+    }
+
+
+def _quote_model_identifier(model_class: type[Any], name: str) -> str:
+    """Quote an identifier only when it is a real column of ``model_class``.
+
+    Record keys can originate from provider payloads.  They must never be
+    interpolated into SQL before being checked against the ORM table schema.
+    """
+    table = model_class.__table__
+    if not isinstance(name, str) or not _SAFE_IDENTIFIER.fullmatch(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    if name not in table.c:
+        raise ValueError(f"Unknown column for {table.name}: {name!r}")
+    return f'"{name}"'
+
 
 T = TypeVar("T")
 
@@ -47,8 +77,8 @@ class SyncLogRepository:
             items_count=items_count,
             error_message=error_message,
             duration_ms=duration_ms,
-            params_snapshot=json.dumps(params) if params else None,
-            completed_at=datetime.now(),
+            params_snapshot=json.dumps(_redact_params(params)) if params else None,
+            completed_at=utc_now_naive(),
         )
         self.session.add(entry)
         await self.session.flush()
@@ -70,23 +100,21 @@ class SyncLogRepository:
         Return ``True`` if enough time has passed since the last
         successful sync for *endpoint*.
         """
-        from datetime import datetime
-
         last = await self.last_sync(endpoint)
         if last is None:
             return True
         if last.completed_at is None:
             return True
-        elapsed = (datetime.now() - last.completed_at).total_seconds()
+        elapsed = (utc_now_naive() - last.completed_at).total_seconds()
         return elapsed >= interval_seconds
 
     async def count_since(self, endpoint: str, since_minutes: int = 60) -> int:
         """How many syncs for *endpoint* in the last N minutes."""
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         from sqlalchemy import func as sa_func
 
-        cutoff = datetime.now() - timedelta(minutes=since_minutes)
+        cutoff = utc_now_naive() - timedelta(minutes=since_minutes)
         stmt = (
             select(sa_func.count(SyncLogModel.id))
             .where(SyncLogModel.endpoint == endpoint, SyncLogModel.started_at >= cutoff)
@@ -111,11 +139,11 @@ class SyncLogRepository:
         - success_count: number of successful syncs
         - error_count: number of failed syncs
         """
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         from sqlalchemy import func as sa_func
 
-        cutoff = datetime.now() - timedelta(days=window_days)
+        cutoff = utc_now_naive() - timedelta(days=window_days)
         filters = [SyncLogModel.started_at >= cutoff]
         if endpoint:
             filters.append(SyncLogModel.endpoint == endpoint)
@@ -178,7 +206,7 @@ class RawPayloadRepository:
     ) -> RawPayloadModel:
         entry = RawPayloadModel(
             endpoint=endpoint,
-            params=json.dumps(params) if params else None,
+            params=json.dumps(_redact_params(params)) if params else None,
             status_code=status_code,
             payload=payload,
             size_bytes=len(payload),
@@ -190,16 +218,14 @@ class RawPayloadRepository:
     async def purge_older_than(self, days: int = 30) -> int:
         """Delete raw payloads older than *days*.
 
-        ``fetched_at`` is stored as a naive ``datetime.now()`` (see
+        ``fetched_at`` is stored as a naive ``utc_now_naive()`` (see
         ``RawPayloadModel``), so the cutoff must use the same clock/zone to
         compare correctly — mixing aware UTC with naive DB timestamps would
         silently miss or over-delete rows.
         """
-        from datetime import datetime, timedelta
-
         from sqlalchemy import delete as sa_delete
 
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = utc_now_naive() - timedelta(days=days)
         stmt = sa_delete(RawPayloadModel).where(RawPayloadModel.fetched_at < cutoff)
         result = await self.session.execute(stmt)
         await self.session.flush()
@@ -250,9 +276,17 @@ class BulkUpsertRepository(Generic[T]):
         """
         if not records:
             return 0
-        table_name = self.model_class.__tablename__
+        table_name = self.model_class.__table__.name
+        if not _SAFE_IDENTIFIER.fullmatch(table_name):
+            raise ValueError(f"Invalid model table identifier: {table_name!r}")
         cols = list(records[0].keys())
-        cols_str = ", ".join([f'"{c}"' for c in cols])
+        if not cols:
+            raise ValueError("bulk_insert requires at least one column")
+        expected_keys = frozenset(cols)
+        if any(frozenset(record.keys()) != expected_keys for record in records[1:]):
+            raise ValueError("All bulk_insert records must contain the same columns")
+        quoted_cols = [_quote_model_identifier(self.model_class, col) for col in cols]
+        cols_str = ", ".join(quoted_cols)
         placeholders = ", ".join([f":{c}" for c in cols])
 
         if on_conflict_update:
@@ -264,8 +298,13 @@ class BulkUpsertRepository(Generic[T]):
                 )
             # ``id`` is the PK — never overwrite it on conflict.
             update_cols = [c for c in cols if c != "id"]
-            update_clause = ", ".join([f'"{c}" = EXCLUDED."{c}"' for c in update_cols]) or ""
-            target_sql = ", ".join(f'"{c}"' for c in conflict_target)
+            update_clause = ", ".join(
+                f"{_quote_model_identifier(self.model_class, c)} = EXCLUDED.{_quote_model_identifier(self.model_class, c)}"
+                for c in update_cols
+            ) or ""
+            target_sql = ", ".join(
+                _quote_model_identifier(self.model_class, c) for c in conflict_target
+            )
             conflict_sql = (
                 f"ON CONFLICT ({target_sql}) DO UPDATE SET {update_clause}"
                 if update_clause
@@ -283,8 +322,10 @@ class BulkUpsertRepository(Generic[T]):
 
     async def truncate(self) -> None:
         """Truncate the table (use with caution — for full-refresh endpoints)."""
-        table_name = self.model_class.__tablename__
-        await self.session.execute(text(f"TRUNCATE TABLE {table_name}"))
+        table_name = self.model_class.__table__.name
+        if not _SAFE_IDENTIFIER.fullmatch(table_name):
+            raise ValueError(f"Invalid model table identifier: {table_name!r}")
+        await self.session.execute(text(f'TRUNCATE TABLE "{table_name}"'))
         await self.session.flush()
         logger.info("Truncated %s", table_name)
 

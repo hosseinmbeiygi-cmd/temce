@@ -16,6 +16,11 @@ class OrderEvent:
     order_type: OrderType = OrderType.MARKET
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     order_id: str = ""
+    # Average daily volume (ADV) of the instrument — drives volume-based
+    # slippage (audit F5). When unset the Broker resolves it automatically via
+    # the AdvResolver (brsapi_historical_daily) or fails/warns instead of
+    # silently assuming a generic default.
+    daily_volume: int | None = None
 
 
 @dataclass

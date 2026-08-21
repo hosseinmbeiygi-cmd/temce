@@ -300,8 +300,8 @@ async def change_password(
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     response: Response,
-    current_user: dict = Depends(get_current_user),
     authorization: str = Header(""),
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse:
@@ -315,21 +315,52 @@ async def logout(
 
     from models.user import UserModel
 
-    # Blacklist the current access token until its natural expiry.
-    token = authorization.split(" ")[1] if authorization.startswith("Bearer ") else ""
+    # Logout must remain usable when the short-lived access token has expired.
+    # In that case the refresh cookie is still enough to identify and revoke
+    # the server-side session.
+    token = ""
+    parts = authorization.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        token = parts[1]
+
+    access_user_id: str | None = None
     if token:
         try:
-            from core.security.tokens import revoke_access_token
+            from core.security.tokens import decode_access_token, revoke_access_token
+
+            payload = decode_access_token(token)
+            access_user_id = str(payload.get("sub") or "") or None
             await revoke_access_token(token)
         except Exception:
             logger.debug("Access token revocation failed during logout", exc_info=True)
 
-    result = await session.execute(select(UserModel).where(UserModel.id == current_user["sub"]))
-    user = result.scalar_one_or_none()
-    if user:
-        user.refresh_token = None
-        await session.flush()
-    _clear_refresh_cookie(response)
+    refresh_token = _refresh_token_from_cookie(request)
+    refresh_user_id: str | None = None
+    if refresh_token:
+        try:
+            from core.security.tokens import decode_refresh_token
+
+            payload = decode_refresh_token(refresh_token)
+            refresh_user_id = str(payload.get("sub") or "") or None
+        except Exception:
+            logger.debug("Refresh token could not be decoded during logout", exc_info=True)
+
+    user_id = access_user_id or refresh_user_id
+    try:
+        if session is not None and user_id:
+            result = await session.execute(select(UserModel).where(UserModel.id == user_id))
+            user = result.scalar_one_or_none()
+            # Do not revoke a newer login from another browser: only clear the
+            # refresh token that was actually presented by this session.
+            if user and refresh_token and user.refresh_token == refresh_token:
+                user.refresh_token = None
+                await session.flush()
+    except Exception:
+        # Cookie deletion is still useful when the database is temporarily
+        # unavailable; the next login/refresh will establish a new session.
+        logger.warning("Could not clear server-side refresh token during logout", exc_info=True)
+    finally:
+        _clear_refresh_cookie(response)
     return ApiResponse(success=True, message="Logged out successfully")
 
 

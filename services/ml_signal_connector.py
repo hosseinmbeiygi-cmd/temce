@@ -362,18 +362,35 @@ class MLSignalConnector:
         self,
         market: str,
         feature_sequence: list[MarketFeatures],
-        targets: list[float],
+        targets: list[float] | None = None,
+        closes: list[float] | None = None,
         model_names: list[str] | None = None,
     ) -> Result[dict[str, Any]]:
-        """Train ML models for a specific market on historical feature data."""
+        """Train ML models for a specific market on historical feature data.
+
+        Args:
+            market: market type (stock, gold, etc.)
+            feature_sequence: list of MarketFeatures (time-ordered)
+            targets: legacy precomputed labels — ignored when ``closes`` given
+            closes: full chronological close-price array the features were built
+                    from; preferred label source (labels derived internally with
+                    the explicit (X_t, y_{t+1}) contract)
+            model_names: optional subset of models to train
+        """
 
         if model_names is None:
             model_names = [cfg["model_name"] for cfg in self.DEFAULT_MODELS.get(market, self.DEFAULT_MODELS["stock"])]
 
-        _, sequence_length = feature_sequence[0].shape if feature_sequence else (0, 0)
+        if len(feature_sequence) < 2:
+            return Result.fail("Not enough feature samples to train (need at least 2)")
 
         # Prepare training data
-        fm, tv = SignalFeaturePipeline.prepare_training_data(feature_sequence, targets, sequence_length=min(20, len(feature_sequence) - 1))
+        fm, tv = SignalFeaturePipeline.prepare_training_data(
+            feature_sequence,
+            closes=closes,
+            targets=targets,
+            sequence_length=min(20, len(feature_sequence) - 1),
+        )
 
         if fm.data is None or fm.data.empty:
             return Result.fail("Not enough data to train")

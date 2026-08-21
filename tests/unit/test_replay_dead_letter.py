@@ -55,6 +55,14 @@ class FakeRedis:
     async def llen(self, key: str) -> int:
         return len(self._lists.get(key, []))
 
+    async def lpop(self, key: str) -> str | None:
+        lst = self._lists.get(key, [])
+        return lst.pop(0) if lst else None
+
+    async def rpush(self, key: str, *values: str) -> int:
+        self._lists.setdefault(key, []).extend(values)
+        return len(self._lists[key])
+
 
 def _dead_payload(
     job_name: str = "SyncQuotesJob",

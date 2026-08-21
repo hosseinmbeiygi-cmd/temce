@@ -177,6 +177,21 @@ class TestNewsIngestionRollback:
 # ════════════════════════════════════════════════════════════════════
 
 
+def _patch_factory(session) -> MagicMock:
+    """Build a mock for `async with async_session_factory() as session`.
+
+    The jobs call ``async_session_factory()`` (getting a context manager) and
+    then ``__aenter__``/``__aexit__`` on THAT object — so the mocks must be
+    attached to ``factory.return_value``, not the factory itself.
+    """
+    factory = MagicMock()
+    cm = AsyncMock()
+    cm.__aenter__ = AsyncMock(return_value=session)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    factory.return_value = cm
+    return factory
+
+
 class TestDatetimeCutoffs:
     @pytest.mark.asyncio
     async def test_sync_snapshots_job_passes_datetime(self) -> None:
@@ -192,11 +207,7 @@ class TestDatetimeCutoffs:
         session = MagicMock()
         session.execute = AsyncMock(return_value=FakeResult())
 
-        factory = MagicMock()
-        factory.__aenter__ = AsyncMock(return_value=session)
-        factory.__aexit__ = AsyncMock(return_value=False)
-
-        with patch.object(db, "async_session_factory", factory):
+        with patch.object(db, "async_session_factory", _patch_factory(session)):
             job = sync_jobs.SyncSnapshotsToQuotesJob()
             result = await job.execute(_ctx())
 
@@ -225,11 +236,7 @@ class TestDatetimeCutoffs:
         session.execute = AsyncMock(return_value=MagicMock())
         session.execute.return_value.scalars.return_value.all.return_value = []
 
-        factory = MagicMock()
-        factory.__aenter__ = AsyncMock(return_value=session)
-        factory.__aexit__ = AsyncMock(return_value=False)
-
-        with patch.object(db, "async_session_factory", factory):
+        with patch.object(db, "async_session_factory", _patch_factory(session)):
             job = alert_jobs.EvaluateAlertsJob()
             result = await job.execute(_ctx())
 
@@ -259,8 +266,11 @@ class TestDatetimeCutoffs:
         await svc._calc_activity_level()
         await svc._calc_trend_extension()
 
-        assert len(captured) == 3
-        for c in captured:
+        # Some queries inside these components bind other params — only the
+        # three snapshot cutoffs carry cutoff_today.
+        cutoffs = [c for c in captured if c is not None]
+        assert len(cutoffs) == 3, f"expected 3 cutoff_today binds, got {captured}"
+        for c in cutoffs:
             assert isinstance(c, datetime), f"cutoff_today is {type(c)}"
             assert not isinstance(c, str)
             assert c.tzinfo is not None

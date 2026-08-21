@@ -32,6 +32,7 @@ dependencies = [
     "aiohttp>=3.9",
     "minio>=7.2",
     "redis[hiredis]>=5.0",
+    "structlog>=24.1",
 ]
 
 [project.optional-dependencies]

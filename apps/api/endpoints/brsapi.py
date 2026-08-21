@@ -1119,8 +1119,6 @@ async def sync_section(
             "error": report.error,
         })
     except Exception as exc:
-        from core.logging import get_logger
-        logger = get_logger(__name__)
         logger.exception("Sync failed for section %s", section_id)
         return ApiResponse[dict[str, Any]](
             success=False,
@@ -1230,6 +1228,101 @@ async def download_section(
         media_type="application/json; charset=utf-8",
         headers={"Content-Disposition": f"attachment; filename={filename}.json"},
     )
+
+
+# ── Daily Usage Report (admin) ────────────────────────────────────
+# Historical per-day BrsApi request usage for the admin panel. The data is
+# written by ``brsapi.usage_recorder.BrsApiUsageRecorder`` (one additive row
+# per Tehran day) and read from the ``brsapi_daily_usage`` table.
+
+
+@router.get(
+    "/manage/usage",
+    summary="BrsApi daily usage report (admin)",
+    description="Per-day request usage (count + 302 blocks) read from brsapi_daily_usage "
+    "plus a live governor snapshot for today. For the admin panel usage widget.",
+)
+async def daily_usage_report(
+    days: int = Query(30, ge=1, le=90, description="Number of past days to include"),
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Return the historical daily-usage report for the admin panel."""
+    from datetime import timedelta as _td
+
+    from brsapi.budget import TEHRAN_TZ as _TEHRAN_TZ
+    from brsapi.budget import get_budget_governor
+    from brsapi.models.base import BrsApiDailyUsageModel
+
+    cutoff = (datetime.now(_TEHRAN_TZ) - _td(days=days)).strftime("%Y-%m-%d")
+    try:
+        stmt = (
+            select(BrsApiDailyUsageModel)
+            .where(BrsApiDailyUsageModel.usage_date >= cutoff)
+            .order_by(BrsApiDailyUsageModel.usage_date.desc())
+        )
+        rows = (await session.execute(stmt)).scalars().all()
+    except Exception as exc:
+        logger.exception("BrsApi daily usage query failed")
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={"days": [], "summary": {}, "live": None, "error": str(exc)},
+        )
+
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        items.append({
+            "usage_date": r.usage_date,
+            "request_count": r.request_count or 0,
+            "daily_limit": r.daily_limit,
+            "blocked_count": r.blocked_count or 0,
+            "blocked_at": r.blocked_at.isoformat() if r.blocked_at else None,
+            "last_request_at": r.last_request_at.isoformat() if r.last_request_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        })
+
+    summary: dict[str, Any] = {}
+    if items:
+        counts = [it["request_count"] for it in items]
+        summary = {
+            "days_recorded": len(items),
+            "total_requests": sum(counts),
+            "avg_per_day": round(sum(counts) / len(counts), 1),
+            "max_per_day": max(counts),
+            "blocked_days": sum(1 for it in items if it["blocked_count"]),
+            "last_usage_date": items[0]["usage_date"],
+        }
+
+    # Live governor snapshot (today's persistent counters + block state).
+    live: dict[str, Any] | None = None
+    try:
+        live = await get_budget_governor().stats()
+    except Exception as exc:
+        logger.debug("BrsApi daily usage: live governor stats unavailable (%s)", exc)
+
+    return ApiResponse[dict[str, Any]](success=True, data={
+        "days": items,
+        "summary": summary,
+        "live": live,
+        "query_days": days,
+    })
+
+
+@router.post(
+    "/manage/usage/flush",
+    summary="Flush BrsApi usage recorder to DB",
+    description="Immediately persist any in-memory usage counters to brsapi_daily_usage "
+    "(normally flushed every 60s by a background task).",
+)
+async def flush_usage_recorder() -> ApiResponse[dict[str, Any]]:
+    """Manually flush the usage recorder (useful before viewing the report)."""
+    try:
+        from brsapi.usage_recorder import get_usage_recorder
+
+        result = await get_usage_recorder().flush()
+        return ApiResponse[dict[str, Any]](success=True, data=result)
+    except Exception as exc:
+        logger.exception("BrsApi usage recorder flush failed")
+        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
 
 
 # ── Symbol Details (brsapi_symbol_details) ────────────────────────
@@ -1628,10 +1721,9 @@ async def _run_candle_backfill(max_symbols: int, allow_weekend: bool) -> None:
     and the manual trigger share identical logic; live progress is written
     into ``_CANDLE_BACKFILL_STATE``.
     """
-    from core.database import get_session
-
     from brsapi.jobs.registry import get_brsapi_job_registry
     from brsapi.services.sync_service import BrsApiSyncService
+    from core.database import get_session
 
     state = _CANDLE_BACKFILL_STATE
     try:
@@ -1766,10 +1858,9 @@ async def _run_shareholder_backfill(max_symbols: int, allow_weekend: bool) -> No
     and the manual trigger share identical logic; live progress is written
     into ``_SHAREHOLDER_BACKFILL_STATE``.
     """
-    from core.database import get_session
-
     from brsapi.jobs.registry import get_brsapi_job_registry
     from brsapi.services.sync_service import BrsApiSyncService
+    from core.database import get_session
 
     state = _SHAREHOLDER_BACKFILL_STATE
     try:
@@ -1911,10 +2002,9 @@ _history_real_legal_backfill_task: asyncio.Task | None = None
 
 async def _run_history_price_backfill(max_symbols: int, allow_weekend: bool) -> None:
     """Background worker for the manual full-market history-price backfill."""
-    from core.database import get_session
-
     from brsapi.jobs.registry import get_brsapi_job_registry
     from brsapi.services.sync_service import BrsApiSyncService
+    from core.database import get_session
 
     state = _HISTORY_PRICE_BACKFILL_STATE
     try:
@@ -1952,10 +2042,9 @@ async def _run_history_price_backfill(max_symbols: int, allow_weekend: bool) -> 
 
 async def _run_history_real_legal_backfill(max_symbols: int, allow_weekend: bool) -> None:
     """Background worker for the manual full-market history real/legal backfill."""
-    from core.database import get_session
-
     from brsapi.jobs.registry import get_brsapi_job_registry
     from brsapi.services.sync_service import BrsApiSyncService
+    from core.database import get_session
 
     state = _HISTORY_REAL_LEGAL_BACKFILL_STATE
     try:

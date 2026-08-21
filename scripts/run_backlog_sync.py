@@ -23,10 +23,11 @@ Usage:
     python scripts/run_backlog_sync.py --jobs real-legal      # single job
     python scripts/run_backlog_sync.py --budget 4000
 
-NOTE: run this at most ONCE per day. The in-process rate limiter resets on
-every process start, while the server-side counter (~5,000/day) does not -
-two 4,000-request runs in one day would exceed the real cap and re-block the
-key. The readiness check also aborts if the server has started redirecting.
+NOTE: the budget governor (brsapi/budget.py) now ENFORCES the once-per-day
+rule — the persisted daily counter (Redis/file, shared across restarts and
+replicas) is checked before the plan, so a second run in the same day is
+capped to the real remaining budget. The readiness check also aborts if the
+server has started redirecting.
 """
 
 from __future__ import annotations
@@ -43,10 +44,11 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
+from brsapi.budget import get_budget_governor  # noqa: E402
 from brsapi.client import BrsApiClient  # noqa: E402
-from brsapi.config import BrsApiEndpoints, settings as brsapi_settings  # noqa: E402
+from brsapi.config import BrsApiEndpoints  # noqa: E402
+from brsapi.config import settings as brsapi_settings
 from brsapi.jobs.registry import BrsApiJobRegistry  # noqa: E402
-from brsapi.rate_limiter import get_rate_limiter  # noqa: E402
 from brsapi.services.sync_service import BrsApiSyncService  # noqa: E402
 from core.database import get_session  # noqa: E402
 from core.logging import get_logger  # noqa: E402
@@ -138,6 +140,23 @@ async def main(argv: list[str] | None = None) -> int:
     client = BrsApiClient()
     await client.start()
 
+    # Cap the plan to what the PERSISTED budget (shared across restarts and
+    # replicas) still has for today — a second run (or a restarted worker)
+    # must not spend the same budget again and re-block the key.
+    governor = get_budget_governor()
+    gstats = await governor.stats()
+    _p(f"Persisted daily usage: {gstats['global']['daily_count']}/"
+       f"{gstats['global']['daily_limit']} (backend: {gstats['governor']['backend']})")
+    if gstats["block"]["blocked"]:
+        _p("Key is in the 302-cooldown (budget governor) — aborting. Run later.")
+        await client.stop()
+        return 1
+    budget = min(budget, int(gstats["global"]["daily_remaining"]))
+    if budget <= 0:
+        _p("No daily budget left (persisted counter) — run again tomorrow.")
+        await client.stop()
+        return 1
+
     _p(f"BrsApi: {brsapi_settings.base_url}")
     _p(f"Daily budget: {budget} requests | enabled: {brsapi_settings.enabled}")
     _p("--- readiness check (1 live request) ---")
@@ -209,9 +228,9 @@ async def main(argv: list[str] | None = None) -> int:
                 _p(f"  [ERROR] {report.error[:300]}")
         break
 
-    limiter = get_rate_limiter()
-    st = limiter.status()["global"]
-    _p(f"\n--- rate limiter: {st['daily_count']}/{st['daily_limit']} used today ---")
+    gstats = await governor.stats()
+    _p(f"\n--- budget governor: {gstats['global']['daily_count']}/"
+       f"{gstats['global']['daily_limit']} used today (backend: {gstats['governor']['backend']}) ---")
 
     await client.stop()
     _p("[DONE] Backlog sync finished.")

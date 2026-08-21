@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -29,7 +30,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # ── Config ──────────────────────────────────────────────────────────────────
-DATABASE_URL = "postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db"
+# Credentials come from settings/.env — never hardcode them in scripts.
+try:
+    from scripts._db import database_url_async
+
+    DATABASE_URL = database_url_async()
+except Exception:  # pragma: no cover
+    DATABASE_URL = os.environ.get("DATABASE_URL")
 BATCH_SIZE = 1000
 
 # (table, new TIMESTAMPTZ column, source column, is_shamsi_date)

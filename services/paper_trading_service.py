@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
+from core.time import utc_now_naive
 from models.paper_trading import (
     PaperEquityModel,
     PaperSignalSnapshotModel,
@@ -96,14 +97,17 @@ class PaperTradingService:
 
     def _signal_to_snapshot(self, sig: dict[str, Any], batch_id: str) -> PaperSignalSnapshotModel:
         """Map an enriched signal dict onto the snapshot model (full journal entry)."""
-        generated = sig.get("generated_at") or sig.get("timestamp") or datetime.now()
+        generated = sig.get("generated_at") or sig.get("timestamp") or utc_now_naive()
         if isinstance(generated, str):
             try:
                 generated = datetime.fromisoformat(generated.replace("Z", "+00:00"))
             except ValueError:
-                generated = datetime.now()
+                generated = utc_now_naive()
         if generated.tzinfo is not None:
             generated = generated.astimezone().replace(tzinfo=None)
+
+        raw_price = sig.get("price") or sig.get("entry_price")
+        price = float(str(raw_price)) if raw_price is not None else None
 
         return PaperSignalSnapshotModel(
             id=new_id("psnap"),
@@ -124,8 +128,7 @@ class PaperTradingService:
             reason=str(sig.get("reason") or sig.get("message") or ""),
             invalidation=str(sig.get("invalidation") or ""),
             trailing_stop=str(sig.get("trailing_stop") or ""),
-            price=float(sig.get("price") or sig.get("entry_price") or 0 or None)
-            if (sig.get("price") or sig.get("entry_price")) else None,
+            price=price,
             change_pct=float(sig.get("change_pct") or 0) if sig.get("change_pct") else None,
             score=float(sig.get("score") or sig.get("total_score") or 0) if (sig.get("score") or sig.get("total_score")) else None,
             strength=float(sig.get("strength") or sig.get("signal_strength") or 0) if (sig.get("strength") or sig.get("signal_strength")) else None,
@@ -180,7 +183,7 @@ class PaperTradingService:
             target2_price=target2,
             quantity=quantity,
             capital_allocated=capital_allocated,
-            opened_at=datetime.now(),
+            opened_at=utc_now_naive(),
             entry_notes=entry_notes or snap.reason,
             status="open",
         )
@@ -208,7 +211,7 @@ class PaperTradingService:
         trade.status = "closed"
         trade.exit_reason = exit_reason
         trade.exit_notes = exit_notes
-        trade.closed_at = datetime.now()
+        trade.closed_at = utc_now_naive()
 
         qty = trade.quantity or 0
         trade.pnl = (price - trade.entry_price) * qty
@@ -238,7 +241,7 @@ class PaperTradingService:
             price = await self._latest_price(trade.symbol, trade.market)
             if not price:
                 continue
-            now = datetime.now()
+            now = utc_now_naive()
             opened = trade.opened_at or now
             reason: str | None = None
             if trade.stop_loss_price and price <= trade.stop_loss_price:
@@ -312,7 +315,7 @@ class PaperTradingService:
             "avg_win": round(avg_win, 0),
             "avg_loss": round(avg_loss, 0),
             "equity": round(equity, 0),
-            "updated_at": datetime.now().isoformat(),
+            "updated_at": utc_now_naive().isoformat(),
         }
 
     async def list_trades(
@@ -396,7 +399,7 @@ class PaperTradingService:
             .order_by(desc(PaperEquityModel.date))
             .limit(limit)
         )
-        rows = (await self.session.execute(stmt)).scalars().all()
+        rows = list((await self.session.execute(stmt)).scalars().all())
         rows.reverse()
         return [
             {
@@ -415,7 +418,7 @@ class PaperTradingService:
         """Write today's equity row (upsert by date)."""
         try:
             dashboard = await self.get_dashboard()
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = utc_now_naive().strftime("%Y-%m-%d")
             stmt = select(PaperEquityModel).where(PaperEquityModel.date == today)
             existing = (await self.session.execute(stmt)).scalar_one_or_none()
             if existing is None:
@@ -446,7 +449,7 @@ class PaperTradingService:
         try:
             from datetime import timedelta
 
-            recent = datetime.now() - timedelta(days=2)
+            recent = utc_now_naive() - timedelta(days=2)
             stmt = select(
                 PaperSignalSnapshotModel.generated_at,
                 PaperSignalSnapshotModel.symbol,

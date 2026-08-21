@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 import sys
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -35,7 +36,13 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-DATABASE_URL = "postgresql+asyncpg://hossein:1343@localhost:5432/my_first_db"
+# Credentials come from settings/.env — never hardcode them in scripts.
+try:
+    from scripts._db import database_url_async
+
+    DATABASE_URL = database_url_async()
+except Exception:  # pragma: no cover
+    DATABASE_URL = os.environ.get("DATABASE_URL")
 DELETE_BATCH = 1000
 INDEX_NAME = "uq_brsapi_historical_daily_symbol_date"
 TABLE = "brsapi_historical_daily"

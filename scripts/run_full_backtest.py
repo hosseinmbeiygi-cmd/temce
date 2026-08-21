@@ -732,8 +732,14 @@ async def persist_results(results: list[StrategyResult], batch_id: str) -> int:
                 ).hexdigest()[:12]
                 sl_str = f"sl{r.stop_loss_pct}" if r.stop_loss_pct else "nosl"
                 tp_str = f"tp{r.take_profit_pct}" if r.take_profit_pct else "notp"
-                sid = f"{batch_id}_{r.symbol}_{r.entry_indicator}_{r.exit_indicator}_{sl_str}_{tp_str}_{param_hash}"[:60]
-                sid = sid.replace("-", "_").replace(".", "_")
+                # generated_strategies.id is String(50); a readable composite of
+                # batch + symbol + 2 indicators + sl/tp + hash regularly exceeds
+                # that, so hash the whole thing to a fixed 40 chars.
+                natural_key = (
+                    f"{batch_id}_{r.symbol}_{r.entry_indicator}_{r.exit_indicator}"
+                    f"_{sl_str}_{tp_str}_{param_hash}"
+                )
+                sid = "gs_" + hashlib.sha1(natural_key.encode()).hexdigest()  # 3 + 40 = 43
 
                 # Build description JSON
                 json.dumps({

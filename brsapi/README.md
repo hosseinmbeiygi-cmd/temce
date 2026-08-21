@@ -48,6 +48,9 @@ brsapi/
 | `BRSAPI_MAX_RAW_PAYLOAD_AGE_DAYS` | `30` | نگهداری پاسخ‌های خام |
 | `BRSAPI_GLOBAL_DAILY_LIMIT` | `10000` | سقف روزانه همه endpoint ها |
 | `BRSAPI_GLOBAL_5MIN_LIMIT` | `500` | سقف پنج‌دقیقه‌ای (پکیج AIO) |
+| `BRSAPI_BUDGET_REDIS_PREFIX` | `brsapi:budget` | پیشوند کلیدهای Redis گاورنر بودجه |
+| `BRSAPI_BUDGET_STATE_FILE` | (خالی) | فایل JSON حالت گاورنر وقتی Redis در دسترس نیست |
+| `BRSAPI_BUDGET_BLOCK_COOLDOWN_SECONDS` | `900` | مدت رد همه تماس‌ها پس از 302 (ضد مسدودی مجدد) |
 | `BRSAPI_RATE_LIMIT_TSETMC` | `30` | نرخ دسته tsetmc (در دقیقه) |
 | `BRSAPI_RATE_LIMIT_CODAL` | `12` | نرخ دسته codal |
 | `BRSAPI_RATE_LIMIT_IME` | `12` | نرخ دسته ime |
@@ -130,6 +133,31 @@ limiter.status()   # گزارش لحظه‌ای برای داشبورد
 - همه اندازه‌گیری‌ها با `time.monotonic()` انجام می‌شود (بدون وابستگی به event loop جاری)
 
 > ✅ **رفع فاز ۲:** قبل از این `asyncio.get_event_loop().time()` استفاده می‌شد که هنگام ساخت کلاینت (خارج از حلقه رویداد) در Python جدید `RuntimeError` می‌داد.
+
+---
+
+## 🛡️ گاورنر بودجه (`budget.py`) — جلوگیری از مسدودی مجدد کلید
+
+`RateLimiter` شمارنده‌هایش را فقط در حافظه نگه می‌دارد؛ پس از ری‌استارت یا در حالت چند-ریپلیکا (Swarm) هر فرایند بودجه تازه می‌گیرد — دقیقاً همان چیزی که باعث عبور از سقف واقعی (~۵,۰۰۰/روز) و مسدودشدن کلید شد.
+
+`BrsApiBudgetGovernor` این شکاف را با شمارنده‌های **پایدار و اشتراکی** می‌بندد:
+
+1. **شمارنده روزانه پایدار** — Redis `INCRBY` (اتمیک بین فرایندها) کلیدشده با تاریخ شمسی-تهران + TTL تا نیمه‌شب؛ اگر Redis در دسترس نبود، فایل JSON (`json/brsapi/budget_state.json`) و سپس حافظه.
+2. **پنجره ۵ دقیقه‌ای اشتراکی** — Redis Sorted Set از زمان‌مهرهای درخواست‌ها (پنجره لغزان prune‌شده) مشترک بین همه فرایندها.
+3. **حالت مسدودی ۳۰۲** — ریدایرکت ۳۰۲ به فایل حجیم (سیگنال «بیش از سقف» سمت سرور) یک cooldown فعال می‌کند که طی آن **هر** تماس زنده سریع رد می‌شود؛ فقط بعد از اتمام cooldown و پاسخ ۲۰۰ پاک می‌شود.
+
+```python
+from brsapi.budget import get_budget_governor
+
+governor = get_budget_governor()
+await governor.acquire("tsetmc", endpoint="/Tsetmc/Symbol.php")
+await governor.available_daily()   # بودجه باقی‌مانده پایدار امروز
+await governor.stats()             # گزارش مانیتورینگ (مصرف + block)
+```
+
+در `BrsApiClient` به‌صورت خودکار وصل است: `fetch()` پیش از هر تماس بودجه/حالت مسدودی را چک می‌کند و کلاینت نتیجه ۳۰۲/۲۰۰ را به گاورنر گزارش می‌دهد. `run_backlog_sync.py` هم برنامه خود را به بودجه پایدار محدود می‌کند (دیگر اجرای دوم در یک روز سقف را رد نمی‌کند).
+
+> 💡 کلیدهای Redis: `brsapi:budget:daily:{YYYY-MM-DD}`، `brsapi:budget:5min`، `brsapi:budget:block`.
 
 ---
 

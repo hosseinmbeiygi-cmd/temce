@@ -1,4 +1,6 @@
 import os
+import re
+from contextlib import contextmanager
 from typing import Any
 
 from dotenv import load_dotenv
@@ -13,6 +15,33 @@ PG_PORT = os.getenv('PG_PORT')
 PG_DATABASE = os.getenv('PG_DATABASE')
 PG_USER = os.getenv('PG_USER')
 PG_PASSWORD = os.getenv('PG_PASSWORD')
+
+_SAFE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _safe_identifier(name: str) -> str:
+    """Quote a SQL identifier after strict validation."""
+    if not isinstance(name, str) or not _SAFE_IDENTIFIER.fullmatch(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return f'"{name}"'
+
+
+def _safe_columns(names) -> str:
+    names = list(names)
+    if not names:
+        raise ValueError("At least one column is required")
+    return ", ".join(_safe_identifier(name) for name in names)
+
+
+def _safe_updates(names) -> str:
+    updates = [
+        f'{_safe_identifier(name)} = EXCLUDED.{_safe_identifier(name)}'
+        for name in names
+    ]
+    if not updates:
+        raise ValueError("At least one update column is required")
+    return ", ".join(updates)
+
 
 connection_params = {
     'host': PG_HOST,
@@ -53,23 +82,38 @@ class DatabaseHandler:
         if self._pool:
             self._pool.putconn(conn)
 
+    @contextmanager
+    def _managed_connection(self):
+        """Borrow a pooled connection and always return it to the pool."""
+        conn = self._get_connection()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._put_connection(conn)
+
     def close_all_connections(self) -> None:
         if self._pool:
             self._pool.closeall()
 
     def _build_upsert_query(self, table_name: str, data: dict[str, Any], conflict_column: str) -> tuple:
-        columns = ', '.join(data.keys())
+        table_identifier = _safe_identifier(table_name)
+        conflict_identifier = _safe_identifier(conflict_column)
+        columns = _safe_columns(data.keys())
         values = list(data.values())
         placeholders = ', '.join(['%s'] * len(values))
-        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders}) "
-        query += f"ON CONFLICT ({conflict_column}) DO UPDATE SET "
-        update_columns = ', '.join([f"{k} = EXCLUDED.{k}" for k in data if k != conflict_column])
+        query = f"INSERT INTO {table_identifier} ({columns}) VALUES ({placeholders}) "
+        query += f"ON CONFLICT ({conflict_identifier}) DO UPDATE SET "
+        update_columns = _safe_updates(k for k in data if k != conflict_column)
         query += update_columns
         return query, values
 
     def _execute_query(self, query: str, values: list[Any] | None = None, fetch: str = None) -> Any:
         try:
-            with self._get_connection() as conn, conn.cursor(cursor_factory=DictCursor) as cursor:
+            with self._managed_connection() as conn, conn.cursor(cursor_factory=DictCursor) as cursor:
                 cursor.execute(query, values or ())
                 result = cursor.fetchone() if fetch == 'one' else cursor.fetchall() if fetch == 'all' else None
                 conn.commit()
@@ -230,8 +274,9 @@ class DatabaseHandler:
         for i in range(0, len(data_list), batch_size):
             batch = data_list[i:i + batch_size]
             placeholders = ', '.join(['(%s, %s, %s, %s, %s, %s, %s)' for _ in batch])
+            table_identifier = _safe_identifier(table_name)
             query = f"""
-                INSERT INTO {table_name} (instrument_id, date, open, high, low, close, volume)
+                INSERT INTO {table_identifier} (instrument_id, date, open, high, low, close, volume)
                 VALUES {placeholders}
                 ON CONFLICT (instrument_id, date) DO NOTHING
             """
@@ -256,7 +301,7 @@ class DatabaseHandler:
 
         for table in tables:
             try:
-                query = f"SELECT COUNT(*) as count FROM {table}"
+                query = f"SELECT COUNT(*) as count FROM {_safe_identifier(table)}"
                 result = self._execute_query(query, fetch='one')
                 stats[table] = result['count'] if result else 0
             except Exception:
