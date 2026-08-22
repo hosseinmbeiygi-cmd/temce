@@ -108,12 +108,20 @@ _FIELD_SAMPLES: dict[str, Any] = {
     "volatility_regime": "low",
     "trend_direction": "up",
     "pattern_signal": "bullish",
+    "cci": -85.0,
+    "mfi": 65.0,
+    "williams_r": -55.0,
+    "williams": -55.0,
+    "stochastic_k": 72.0,
+    "stochastic": 72.0,
+    "composite_signal": "bullish",
 }
 
 # Fields that are represented as strings regardless of their sample values.
 _STRING_FIELDS = {
     "symbol", "name", "market", "industry", "sector", "phase",
     "volume_trend", "volatility_regime", "trend_direction", "pattern_signal",
+    "composite_signal",
 }
 
 # Dataclass attributes that can be set directly on ScreenedSymbol.

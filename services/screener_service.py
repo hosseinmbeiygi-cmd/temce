@@ -449,6 +449,13 @@ _FILTER_FIELD_MAP: dict[str, str] = {
     "volatility_regime": "volatility_regime",
     "trend_direction": "trend_direction",
     "pattern_signal": "pattern_signal",
+    "cci": "cci",
+    "mfi": "mfi",
+    "williams_r": "williams_r",
+    "williams": "williams_r",
+    "stochastic_k": "stochastic_k",
+    "stochastic": "stochastic_k",
+    "composite_signal": "composite_signal",
 }
 
 
