@@ -418,7 +418,7 @@ _SCREENER_SYNONYMS: dict[str, dict[str, Any]] = {
     "سودآور": {"field": "roe", "operator": "gt", "value": 15},
     "roe بالا": {"field": "roe", "operator": "gt", "value": 15},
     "roe کم": {"field": "roe", "operator": "lt", "value": 5},
-    "زیان‌ده": {"field": "roe", "operator": "lt", "value": 0},
+    "زیان‌ده": {"field": "eps", "operator": "lt", "value": 0},
     "زیان ده": {"field": "roe", "operator": "lt", "value": 0},
     "ضررده": {"field": "roe", "operator": "lt", "value": 0},
     "حاشیه سود بالا": {"field": "net_margin", "operator": "gt", "value": 20},
@@ -488,17 +488,17 @@ _SCREENER_SYNONYMS: dict[str, dict[str, Any]] = {
     # ── Volatility / Risk ───────────────────────────────────────────
     "نوسان کم": {"field": "atr_pct", "operator": "lt", "value": 2},
     "نوسان زیاد": {"field": "atr_pct", "operator": "gt", "value": 5},
-    "نوسان شدید": {"field": "atr_pct", "operator": "gt", "value": 7},
+    "نوسان شدید": {"field": "atr_pct", "operator": "gt", "value": 0.04},
     "نوسان بالا": {"field": "atr_pct", "operator": "gt", "value": 5},
-    "نوسان خفیف": {"field": "atr_pct", "operator": "lt", "value": 2},
-    "volatility بالا": {"field": "atr_pct", "operator": "gt", "value": 5},
+    "نوسان خفیف": {"field": "atr_pct", "operator": "lt", "value": 0.02},
+    "volatility بالا": {"field": "atr_pct", "operator": "gt", "value": 0.04},
     "volatility کم": {"field": "atr_pct", "operator": "lt", "value": 2},
     "بی‌ثبات": {"field": "atr_pct", "operator": "gt", "value": 5},
     "ریسک پایین": {"field": "risk_score", "operator": "lt", "value": 0.4},
     "ریسک بالا": {"field": "risk_score", "operator": "gt", "value": 0.7},
     "ریسک متوسط": {"field": "risk_score", "operator": "between", "value": 0.4, "value_to": 0.7},
     "پرریسک": {"field": "risk_score", "operator": "gt", "value": 0.7},
-    "کم‌ریسک": {"field": "risk_score", "operator": "lt", "value": 0.4},
+    "کم‌ریسک": {"field": "risk_score", "operator": "lt", "value": 0.3},
     "ایمن": {"field": "risk_score", "operator": "lt", "value": 0.3},
     "امن": {"field": "risk_score", "operator": "lt", "value": 0.3},
     "risk بالا": {"field": "risk_score", "operator": "gt", "value": 0.7},
@@ -516,7 +516,6 @@ _SCREENER_SYNONYMS: dict[str, dict[str, Any]] = {
     "برتر": {"field": "smc_score", "operator": "gt", "value": 0.6},
     "ضعیف": {"field": "smc_score", "operator": "lt", "value": 0.3},
     "قوی": {"field": "smc_score", "operator": "gt", "value": 0.6},
-    "متوسط": {"field": "smc_score", "operator": "between", "value": 0.3, "value_to": 0.6},
 
     # ── Order Flow / Absorption ─────────────────────────────────────
     "جذب عرضه": {"field": "orderflow_score", "operator": "gt", "value": 0.6},
@@ -533,11 +532,11 @@ _SCREENER_SYNONYMS: dict[str, dict[str, Any]] = {
 
     # ── Structure / Breakout ────────────────────────────────────────
     "آماده شکست": {"field": "trigger_score", "operator": "gt", "value": 0.6},
-    "شکست مقاومت": {"field": "trigger_score", "operator": "gt", "value": 0.7},
+    "شکست مقاومت": {"field": "distance_to_resistance", "operator": "eq", "value": 0},
     "breakout": {"field": "trigger_score", "operator": "gt", "value": 0.6},
     "عبور از مقاومت": {"field": "trigger_score", "operator": "gt", "value": 0.7},
     "نزدیک مقاومت": {"field": "distance_to_resistance", "operator": "lt", "value": 2},
-    "نزدیک حمایت": {"field": "distance_to_support", "operator": "lt", "value": 2},
+    "نزدیک حمایت": {"field": "distance_to_support", "operator": "lt", "value": 0.02},
     "زیر حمایت": {"field": "distance_to_support", "operator": "lt", "value": 0},
     "بالای مقاومت": {"field": "distance_to_resistance", "operator": "lt", "value": 0},
     "support قوی": {"field": "distance_to_support", "operator": "gt", "value": 3},
@@ -562,7 +561,6 @@ _SCREENER_SYNONYMS: dict[str, dict[str, Any]] = {
     "adx بالا": {"field": "adx", "operator": "gt", "value": 25},
     "adx پایین": {"field": "adx", "operator": "lt", "value": 20},
     "adx قوی": {"field": "adx", "operator": "gt", "value": 30},
-    "trend قوی": {"field": "adx", "operator": "gt", "value": 25},
     "trend ضعیف": {"field": "adx", "operator": "lt", "value": 20},
     "cci پایین": {"field": "cci", "operator": "lt", "value": -100},
     "cci بالا": {"field": "cci", "operator": "gt", "value": 100},
@@ -579,6 +577,95 @@ _SCREENER_SYNONYMS: dict[str, dict[str, Any]] = {
     "momentum منفی": {"field": "momentum_score", "operator": "lt", "value": 0},
     "تکنیکال قوی": {"field": "technical_score", "operator": "gt", "value": 0.6},
     "تکنیکال ضعیف": {"field": "technical_score", "operator": "lt", "value": 0.3},
+
+    # ── MACD (Persian) ────────────────────────────────────────────
+    "ماکد مثبت": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "ماکد منفی": {"field": "macd_histogram", "operator": "lt", "value": 0},
+    "ماکد بالای صفر": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "ماکد زیر صفر": {"field": "macd_histogram", "operator": "lt", "value": 0},
+    "ماکد صعودی": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "ماکد نزولی": {"field": "macd_histogram", "operator": "lt", "value": 0},
+    "macd صعودی": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "macd نزولی": {"field": "macd_histogram", "operator": "lt", "value": 0},
+    "macd بولیش": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "macd بریش": {"field": "macd_histogram", "operator": "lt", "value": 0},
+    "divergence مثبت": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "divergence منفی": {"field": "macd_histogram", "operator": "lt", "value": 0},
+    "واگرایی مثبت": {"field": "macd_histogram", "operator": "gt", "value": 0},
+    "واگرایی منفی": {"field": "macd_histogram", "operator": "lt", "value": 0},
+
+    # ── Bollinger Bands (Persian) ─────────────────────────────────
+    "بولینگر میانی": {"field": "bb_pct", "operator": "between", "value": 0.3, "value_to": 0.7},
+    "زیر بولینگر": {"field": "bb_pct", "operator": "lt", "value": 0.2},
+    "بالای بولینگر": {"field": "bb_pct", "operator": "gt", "value": 0.8},
+    "bb squeeze": {"field": "atr_pct", "operator": "lt", "value": 0.02},
+    "فشردگی بولینگر": {"field": "atr_pct", "operator": "lt", "value": 0.02},
+
+    # ── ADX (Persian) ─────────────────────────────────────────────
+    "ترند قوی": {"field": "adx", "operator": "gt", "value": 25},
+    "ترند ضعیف": {"field": "adx", "operator": "lt", "value": 20},
+    "بازار خنثی": {"field": "adx", "operator": "lt", "value": 20},
+    "adx بالای ۲۵": {"field": "adx", "operator": "gt", "value": 25},
+    "adx بالای ۳۰": {"field": "adx", "operator": "gt", "value": 30},
+
+    # ── CCI (Persian) ─────────────────────────────────────────────
+    "cci اشباع خرید": {"field": "cci", "operator": "gt", "value": 100},
+    "cci اشباع فروش": {"field": "cci", "operator": "lt", "value": -100},
+    "cci بالای ۱۰۰": {"field": "cci", "operator": "gt", "value": 100},
+    "cci زیر ۱۰۰": {"field": "cci", "operator": "lt", "value": -100},
+    "cci صعودی": {"field": "cci", "operator": "gt", "value": 0},
+    "cci نزولی": {"field": "cci", "operator": "lt", "value": 0},
+
+    # ── MFI (Persian) ─────────────────────────────────────────────
+    "mfi اشباع خرید": {"field": "mfi", "operator": "gt", "value": 80},
+    "mfi اشباع فروش": {"field": "mfi", "operator": "lt", "value": 20},
+    "mfi بالای ۸۰": {"field": "mfi", "operator": "gt", "value": 80},
+    "mfi زیر ۲۰": {"field": "mfi", "operator": "lt", "value": 20},
+    "mfi قوی": {"field": "mfi", "operator": "gt", "value": 50},
+    "mfi ضعیف": {"field": "mfi", "operator": "lt", "value": 30},
+
+    # ── Williams %R (Persian) ─────────────────────────────────────
+    "ویلیامز پایین": {"field": "williams_r", "operator": "lt", "value": -80},
+    "ویلیامز بالا": {"field": "williams_r", "operator": "gt", "value": -20},
+    "ویلیامز اشباع فروش": {"field": "williams_r", "operator": "lt", "value": -80},
+    "ویلیامز اشباع خرید": {"field": "williams_r", "operator": "gt", "value": -20},
+    "williams اشباع فروش": {"field": "williams_r", "operator": "lt", "value": -80},
+    "williams اشباع خرید": {"field": "williams_r", "operator": "gt", "value": -20},
+
+    # ── Stochastic (Persian) ──────────────────────────────────────
+    "استوکاستیک پایین": {"field": "stochastic_k", "operator": "lt", "value": 20},
+    "استوکاستیک بالا": {"field": "stochastic_k", "operator": "gt", "value": 80},
+    "استوکاستیک اشباع فروش": {"field": "stochastic_k", "operator": "lt", "value": 20},
+    "استوکاستیک اشباع خرید": {"field": "stochastic_k", "operator": "gt", "value": 80},
+    "sto پایین": {"field": "stochastic_k", "operator": "lt", "value": 20},
+    "sto بالا": {"field": "stochastic_k", "operator": "gt", "value": 80},
+    " stochastic low": {"field": "stochastic_k", "operator": "lt", "value": 20},
+    " stochastic high": {"field": "stochastic_k", "operator": "gt", "value": 80},
+
+    # ── ATR / Volatility (Persian) ────────────────────────────────
+    "volatility پایین": {"field": "atr_pct", "operator": "lt", "value": 0.02},
+    "آرام": {"field": "atr_pct", "operator": "lt", "value": 0.02},
+    "طوفانی": {"field": "atr_pct", "operator": "gt", "value": 0.04},
+    "tmr بالا": {"field": "volatility_regime", "operator": "eq", "value": "high"},
+    "tmr پایین": {"field": "volatility_regime", "operator": "eq", "value": "low"},
+
+    # ── Risk Score (Persian) ──────────────────────────────────────
+    "مخاطره‌آمیز": {"field": "risk_score", "operator": "gt", "value": 0.7},
+    "risk پایین": {"field": "risk_score", "operator": "lt", "value": 0.3},
+
+    # ── Distance to Support/Resistance (Persian) ──────────────────
+    "دور از حمایت": {"field": "distance_to_support", "operator": "gt", "value": 0.10},
+    "دور از مقاومت": {"field": "distance_to_resistance", "operator": "gt", "value": 0.10},
+    "شکست حمایت": {"field": "distance_to_support", "operator": "eq", "value": 0},
+    "بریکاوت": {"field": "distance_to_resistance", "operator": "eq", "value": 0},
+
+    # ── Fundamental (Persian) ─────────────────────────────────────
+    "eps مثبت": {"field": "eps", "operator": "gt", "value": 0},
+    "سودده": {"field": "eps", "operator": "gt", "value": 0},
+    "بدون بدهی": {"field": "debt_to_equity", "operator": "eq", "value": 0},
+    "حاشیه سود پایین": {"field": "net_margin", "operator": "lt", "value": 5},
+    "z ارزش": {"field": "pe_ratio", "operator": "lt", "value": 5},
+    "کوچکترین": {"field": "market_value", "operator": "lt", "value": 1_000_000_000_000},
 
     # ── Patterns ────────────────────────────────────────────────────
     "الگوی کف": {"field": "pattern_confidence", "operator": "gt", "value": 0.6},
@@ -674,17 +761,64 @@ def _extract_screener_filters(text: str) -> list[dict[str, Any]]:
         if phrase in text_lower:
             filters.append(dict(criterion))
 
-    # 2. Numeric patterns like RSI<30, P/E<8, حجم>1000
+    # 2. Numeric patterns like RSI<30, MACD>0, P/E<8, حجم>1000
+    _OP = r"([<>]=?|=)"
+    _NUM = r"(\d+(?:\.\d+)?)"
+    _NUM_NEG = r"(-?\d+(?:\.\d+)?)"
     numeric_patterns = [
-        (r"rsi\s*([<>]=?|=)\s*(\d+(?:\.\d+)?)", "rsi"),
-        (r"p\s*/\s*e\s*([<>]=?|=)\s*(\d+(?:\.\d+)?)", "pe_ratio"),
-        (r"pe\s*([<>]=?|=)\s*(\d+(?:\.\d+)?)", "pe_ratio"),
-        (r"roe\s*([<>]=?|=)\s*(\d+(?:\.\d+)?)", "roe"),
-        (r"حجم\s*([<>]=?|=)\s*(\d+)", "volume"),
-        (r"volume\s*([<>]=?|=)\s*(\d+)", "volume"),
-        (r"قیمت\s*([<>]=?|=)\s*(\d+)", "last_price"),
-        (r"price\s*([<>]=?|=)\s*(\d+)", "last_price"),
-        (r"smc\s*([<>]=?|=)\s*(\d+(?:\.\d+)?)", "smc_score"),
+        # ── Core oscillators ──
+        (rf"rsi\s*{_OP}\s*{_NUM}", "rsi"),
+        # ── MACD ──
+        (rf"macd\s*{_OP}\s*{_NUM_NEG}", "macd_histogram"),
+        (rf"macd\s*هیستوگرام\s*{_OP}\s*{_NUM_NEG}", "macd_histogram"),
+        # ── Bollinger Bands ──
+        (rf"bb\s*{_OP}\s*{_NUM}\s*%?", "bb_pct"),
+        (rf"bollinger\s*{_OP}\s*{_NUM}\s*%?", "bb_pct"),
+        (rf"بُولینگر\s*{_OP}\s*{_NUM}", "bb_pct"),
+        # ── ATR ──
+        (rf"atr\s*{_OP}\s*{_NUM}", "atr_pct"),
+        # ── ADX ──
+        (rf"adx\s*{_OP}\s*{_NUM}", "adx"),
+        (rf"trend\s*strength\s*{_OP}\s*{_NUM}", "adx"),
+        # ── CCI ──
+        (rf"cci\s*{_OP}\s*{_NUM_NEG}", "cci"),
+        # ── MFI ──
+        (rf"mfi\s*{_OP}\s*{_NUM}", "mfi"),
+        # ── Williams %R ──
+        (rf"williams\s*{_OP}\s*{_NUM_NEG}", "williams_r"),
+        (rf"williams\s*%?\s*r\s*{_OP}\s*{_NUM_NEG}", "williams_r"),
+        # ── Stochastic ──
+        (rf"stochastic\s*{_OP}\s*{_NUM}", "stochastic_k"),
+        (rf"sto\s*{_OP}\s*{_NUM}", "stochastic_k"),
+        # ── Momentum ──
+        (rf"momentum\s*{_OP}\s*{_NUM}", "momentum_score"),
+        # ── Composite scores ──
+        (rf"technical\s*score\s*{_OP}\s*{_NUM}", "technical_score"),
+        (rf"composite\s*score\s*{_OP}\s*{_NUM}", "composite_score"),
+        (rf"risk\s*score\s*{_OP}\s*{_NUM}", "risk_score"),
+        (rf"pattern\s*confidence\s*{_OP}\s*{_NUM}", "pattern_confidence"),
+        # ── Fundamental numeric ──
+        (r"p\s*/\s*e\s*" + _OP + r"\s*" + _NUM, "pe_ratio"),
+        (rf"pe\s*{_OP}\s*{_NUM}", "pe_ratio"),
+        (rf"roe\s*{_OP}\s*{_NUM}", "roe"),
+        (rf"eps\s*{_OP}\s*{_NUM_NEG}", "eps"),
+        (rf"market\s*cap\s*{_OP}\s*{_NUM}", "market_value"),
+        (rf"d\s*/\s*e\s*{_OP}\s*{_NUM}", "debt_to_equity"),
+        (rf"debt\s*to\s*equity\s*{_OP}\s*{_NUM}", "debt_to_equity"),
+        (rf"net\s*margin\s*{_OP}\s*{_NUM}", "net_margin"),
+        # ── Volume / price (Persian + English) ──
+        (rf"حجم\s*{_OP}\s*(\d+)", "volume"),
+        (rf"volume\s*{_OP}\s*(\d+)", "volume"),
+        (rf"تعداد\s*معاملات\s*{_OP}\s*(\d+)", "trade_count"),
+        (rf"trade\s*count\s*{_OP}\s*(\d+)", "trade_count"),
+        (rf"قیمت\s*{_OP}\s*(\d+)", "last_price"),
+        (rf"price\s*{_OP}\s*(\d+)", "last_price"),
+        # ── Support / Resistance levels ──
+        (rf"support\s*{_OP}\s*(\d+)", "support_level"),
+        (rf"resistance\s*{_OP}\s*(\d+)", "resistance_level"),
+        (rf"poc\s*{_OP}\s*(\d+)", "poc_price"),
+        # ── Smart money ──
+        (rf"smc\s*{_OP}\s*{_NUM}", "smc_score"),
     ]
     for pattern, field in numeric_patterns:
         for match in re.finditer(pattern, text_lower):
