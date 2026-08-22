@@ -874,8 +874,8 @@ chore: وظایف نگهداری
 
 ---## 🗄️ ساختار دیتابیس
 
-سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **128 جدول** دارد
-(تخمین کل ردیف‌ها: **~42,474,311**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
+سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **131 جدول** دارد
+(تخمین کل ردیف‌ها: **~43,128,436**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
 
 ### نمودار ارتباط جدول‌ها
 
@@ -898,6 +898,7 @@ erDiagram
     brsapi_gold_currency_pro_history_24h {}
     brsapi_gold_currency_pro_prices {}
     brsapi_historical_daily {}
+    brsapi_historical_daily_backup {}
     brsapi_historical_real_legal {}
     brsapi_ime_certificates {}
     brsapi_ime_funds {}
@@ -906,6 +907,7 @@ erDiagram
     brsapi_ime_physical_trades {}
     brsapi_index_values {}
     brsapi_intraday_trades {}
+    brsapi_intraday_trades_backup {}
     brsapi_option_snapshots {}
     brsapi_shareholder_records {}
     brsapi_symbol_details {}
@@ -976,6 +978,7 @@ erDiagram
     codal_audit_summary {}
     codal_financial_statements {}
     codal_reports {}
+    codal_reports_backup {}
     corporate_actions {}
     data_lineage {}
     dim_account {}
@@ -1013,6 +1016,7 @@ erDiagram
     brsapi_gold_currency_pro_history_24h ||--o{ symbols : "دارای رابطه"
     brsapi_gold_currency_pro_prices ||--o{ symbols : "دارای رابطه"
     brsapi_historical_daily ||--o{ symbols : "دارای رابطه"
+    brsapi_historical_daily_backup ||--o{ symbols : "دارای رابطه"
     brsapi_historical_real_legal ||--o{ symbols : "دارای رابطه"
     brsapi_ime_certificates ||--o{ symbols : "دارای رابطه"
     brsapi_ime_funds ||--o{ symbols : "دارای رابطه"
@@ -1021,6 +1025,7 @@ erDiagram
     brsapi_ime_physical_trades ||--o{ symbols : "دارای رابطه"
     brsapi_index_values ||--o{ symbols : "دارای رابطه"
     brsapi_intraday_trades ||--o{ symbols : "دارای رابطه"
+    brsapi_intraday_trades_backup ||--o{ symbols : "دارای رابطه"
     brsapi_nav_records ||--o{ symbols : "دارای رابطه"
     brsapi_option_snapshots ||--o{ symbols : "دارای رابطه"
     brsapi_shareholder_records ||--o{ symbols : "دارای رابطه"
@@ -1031,6 +1036,7 @@ erDiagram
     codal_audit_summary ||--o{ symbols : "دارای رابطه"
     codal_financial_statements ||--o{ symbols : "دارای رابطه"
     codal_reports ||--o{ symbols : "دارای رابطه"
+    codal_reports_backup ||--o{ symbols : "دارای رابطه"
     commodity_certificates ||--o{ symbols : "دارای رابطه"
     commodity_funds ||--o{ symbols : "دارای رابطه"
     commodity_futures ||--o{ symbols : "دارای رابطه"
@@ -1121,7 +1127,8 @@ erDiagram
 | `brsapi_gold_currency_pro_daily_history` | 20 | ~160,567 | created_at | symbol→symbols |
 | `brsapi_gold_currency_pro_history_24h` | 14 | ~0 | fetched_at | symbol→symbols |
 | `brsapi_gold_currency_pro_prices` | 23 | ~19 | fetched_at | symbol→symbols |
-| `brsapi_historical_daily` | 23 | ~5,652,876 | created_at | symbol→symbols |
+| `brsapi_historical_daily` | 23 | ~151,316 | created_at | symbol→symbols |
+| `brsapi_historical_daily_backup` | 23 | ~4,518,497 | — | symbol→symbols |
 | `brsapi_historical_real_legal` | 21 | ~909,896 | created_at | symbol→symbols |
 | `brsapi_ime_certificates` | 48 | ~4,259 | fetched_at | symbol→symbols |
 | `brsapi_ime_funds` | 67 | ~24,441 | fetched_at | symbol→symbols |
@@ -1130,6 +1137,7 @@ erDiagram
 | `brsapi_ime_physical_trades` | 37 | ~935 | date_trade | symbol→symbols |
 | `brsapi_index_values` | 26 | ~3,437 | fetched_at | symbol→symbols |
 | `brsapi_intraday_trades` | 14 | ~1,637,033 | trade_date | symbol→symbols |
+| `brsapi_intraday_trades_backup` | 14 | ~1,637,033 | — | symbol→symbols |
 | `brsapi_option_snapshots` | 81 | ~499,922 | date_end | symbol→symbols |
 | `brsapi_raw_payloads` | 11 | ~0 | fetched_at | — |
 | `brsapi_shareholder_records` | 14 | ~768,334 | created_at | symbol→symbols |
@@ -1218,7 +1226,8 @@ erDiagram
 | `codal_announcements_deprecated` | 17 | ~0 | — | symbol→symbols |
 | `codal_audit_summary` | 33 | ~451 | analyzed_at | symbol→symbols |
 | `codal_financial_statements` | 16 | ~451 | imported_at | symbol→symbols |
-| `codal_reports` | 17 | ~226,818 | publish_date | symbol→symbols |
+| `codal_reports` | 17 | ~155 | publish_date | symbol→symbols |
+| `codal_reports_backup` | 17 | ~226,818 | — | symbol→symbols |
 | `corporate_actions` | 11 | ~0 | ex_date | symbol→symbols |
 | `data_lineage` | 13 | ~0 | created_at | FK→dim_document، FK→fact_financials |
 | `dim_account` | 10 | ~0 | — | FK→dim_account |
@@ -1245,10 +1254,10 @@ erDiagram
 |------|-----------:|
 | جدول خالی است | 55 |
 | مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست | 40 |
-| بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 11 |
+| بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 14 |
 | لایه ستاره‌ای کدال (dim/fact) هرگز پیاده‌سازی نشده — import فعال به `codal_financial_statements` می‌رود | 10 |
+| هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو | 9 |
 | ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 6 |
-| هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو | 6 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` (۳۳۶K ردیف) است | 3 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` است | 2 |
 | ستون منبع تاریخ `expiry_date` در نمونه NULL دارد | 2 |
@@ -1767,7 +1776,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>brsapi_historical_daily</code> — ~5,652,876 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
+<summary><code>brsapi_historical_daily</code> — ~151,316 ردیف، 23 ستون (نمایش 12 ستون از 23)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -1775,7 +1784,7 @@ _مشکلی شناسایی نشد._
 - مدل: `brsapi/models/tsetmc.py` → `HistoricalDailyModel`
 - سرویس: `services/backtest_service.py` (7)، `services/auto_retrain_pipeline.py` (6)، `services/iran_fear_greed_index.py` (6)، `services/hidden_accumulation.py` (4)
 - API: `apps/api/endpoints/backtests.py` (3)، `apps/api/endpoints/brsapi.py` (2)، `apps/api/endpoints/funds.py` (2)، `apps/api/endpoints/signal_insights.py` (2)
-- اسکریپت: `scripts/clean_historical_data.py` (9)، `scripts/dedup_and_constrain.py` (9)، `scripts/dedup_batched.py` (9)، `scripts/check_partitions.py` (8)
+- اسکریپت: `scripts/dedup_brsapi_historical.py` (12)، `scripts/clean_historical_data.py` (9)، `scripts/check_partitions.py` (8)، `scripts/fix_historical_id.py` (8)
 - تست: `tests/test_instrument_relations.py` (4)، `tests/unit/test_brsapi_history_backfill_manual.py` (2)، `tests/unit/services/test_paper_trading_service.py` (1)
 - سایر: `ml/train_weight_optimizer.py` (5)، `brsapi/migrations/001_create_brsapi_tables.py` (3)، `backtesting/engine/adv.py` (2)، `backtesting/types.py` (1)
 
@@ -1783,8 +1792,28 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | date | time | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 3675676 | بالاس | 1400-06-29 | 12:29:08 | 398 | 695492 | 26266759988.0 | 36000.0 | 38152.0 | 36336.0 | 36000.0 | 38152.0 | … |
-| 3675677 | بالاس | 1400-06-28 | 14:13:48 | 688 | 1121250 | 40742063095.0 | 35858.0 | 38990.0 | 37745.0 | 38001.0 | 36710.0 | … |
+| 3698875 | بالاس | 1405-01-18 | 06:11:02 | 0 | 0 | 0.0 | 0.0 | 0.0 | 63200.0 | 0.0 | 63200.0 | … |
+| 3721587 | بالبر3 | 1403-05-17 | 06:11:59 | 0 | 0 | 0.0 | 0.0 | 0.0 | 16810.0 | 0.0 | 16670.0 | … |
+
+</details>
+
+<details>
+<summary><code>brsapi_historical_daily_backup</code> — ~4,518,497 ردیف، 23 ستون (نمایش 12 ستون از 23) ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
+
+**نمونه داده:**
+
+| id | symbol | date | time | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 3698875 | بالاس | 1405-01-18 | 06:11:02 | 0 | 0 | 0.0 | 0.0 | 0.0 | 63200.0 | 0.0 | 63200.0 | … |
+| 3721587 | بالبر3 | 1403-05-17 | 06:11:59 | 0 | 0 | 0.0 | 0.0 | 0.0 | 16810.0 | 0.0 | 16670.0 | … |
 
 </details>
 
@@ -1947,7 +1976,7 @@ _مشکلی شناسایی نشد._
 **مراجع کد:**
 - مدل: `brsapi/models/tsetmc.py` → `IntradayTradeModel`
 - سرویس: `services/backtest_service.py` (3)
-- اسکریپت: `scripts/dedup_and_constrain.py` (7)، `scripts/dedup_batched.py` (7)، `scripts/import_transactions.py` (6)، `scripts/analyze_db_issues.py` (2)
+- اسکریپت: `scripts/import_transactions.py` (6)، `scripts/analyze_db_issues.py` (2)، `scripts/import_transaction_top43.py` (2)، `scripts/analyze_patterns.py` (1)
 - تست: `tests/test_instrument_relations.py` (1)
 - سایر: `brsapi/migrations/001_create_brsapi_tables.py` (3)، `diagnostics/ingestion_audit.py` (1)
 
@@ -1955,8 +1984,28 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | row | time | volume | price | canceled | trade_date | created_at | ins_id | instrument_id | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 1541428 | دعبید3 | 579 | 12:49:44 | 1701 | 18720.0 | False | 1405-05-12 | 2026-08-05 06:53:04.353461 | 51293756044181812 | NULL | NULL | … |
-| 1541429 | دعبید3 | 580 | 12:49:44 | 98299 | 18720.0 | False | 1405-05-12 | 2026-08-05 06:53:04.353461 | 51293756044181812 | NULL | NULL | … |
+| 124992 | عیار | 24867 | 12:32:42 | 820 | 503598.0 | False | 1405-05-11 | 2026-08-05 04:41:18.589711 | 34144395039913458 | NULL | NULL | … |
+| 124993 | عیار | 24868 | 12:32:43 | 82 | 503500.0 | False | 1405-05-11 | 2026-08-05 04:41:18.589711 | 34144395039913458 | NULL | NULL | … |
+
+</details>
+
+<details>
+<summary><code>brsapi_intraday_trades_backup</code> — ~1,637,033 ردیف، 14 ستون (نمایش 12 ستون از 14) ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
+
+**نمونه داده:**
+
+| id | symbol | row | time | volume | price | canceled | trade_date | created_at | ins_id | instrument_id | updated_at | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 1572228 | ومهان | 690 | 10:06:55 | 1524 | 6540.0 | False | 1405-05-12 | 2026-08-05 06:55:24.914625 | 47026464823464687 | NULL | NULL | … |
+| 1572229 | ومهان | 691 | 10:06:55 | 1155 | 6540.0 | False | 1405-05-12 | 2026-08-05 06:55:24.914625 | 47026464823464687 | NULL | NULL | … |
 
 </details>
 
@@ -2055,8 +2104,8 @@ _مشکلی شناسایی نشد._
 
 | id | ins_id | symbol | name | isin | sector | sector_id | shares_count | base_volume | market_value | eps | pe_ratio | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 6935329 | 26547785441834730 | زشریف | کشت وصنعت شریف آباد | IRO3SAAZ0001 | زراعت و خدمات وابسته | 1 | 2404787000 | 1 | 40833283260000.0 | 2402.0 | 7.1 | … |
-| 6935330 | 48287767791629523 | رشد | صندوق س.رشد پایدار آبان-د | IRT3RSHF0001 | صندوق سرمایه‌گذاری قابل معامله | 68 | 4500000000 | 1 | 95418000000000.0 | 0.0 | 0.0 | … |
+| 6871375 | 34144395039913458 | عیار | صندوق طلای عیار مفید | IRTKMOFD0001 | صندوق سرمایه‌گذاری قابل معامله | 68 | 4810000000 | 1 | 2425110610000000.0 | 0.0 | 0.0 | … |
+| 6871376 | 1438514795814416 | یاقوت | صندوق س یاقوت آگاه-ثابت | IRT1YGHT0001 | صندوق سرمایه‌گذاری قابل معامله | 68 | 14000000000 | 1 | 631890000000000.0 | 0.0 | 0.0 | … |
 
 </details>
 
@@ -2570,8 +2619,8 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | price | volume | value | side | time | date | data_source | created_at | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| e9efe6bd7320406fc8be5c92557bb8… | سخاش | سخاش | 11690.0 | 7979 | 93274510.0 | NULL | 09:55:38 | 1405-03-18 | tsetmc | 2026-07-12 12:08:26.530015 | NULL | … |
-| 55280438b0860564df67194bb1ef0f… | سخاش | سخاش | 11690.0 | 52481 | 613502890.0 | NULL | 09:55:38 | 1405-03-18 | tsetmc | 2026-07-12 12:08:26.530015 | NULL | … |
+| 1c7a15557580ec0f99b17820e559ce… | آ س پ | آ س پ | 9800.0 | 20000 | 196000000.0 | NULL | 10:37:00 | 1405-03-18 | tsetmc | 2026-07-12 09:11:30.317766 | NULL | … |
+| 211776f5d0573f52080fbb228a5858… | آ س پ | آ س پ | 9800.0 | 5000 | 49000000.0 | NULL | 10:37:00 | 1405-03-18 | tsetmc | 2026-07-12 09:11:30.317766 | NULL | … |
 
 </details>
 
@@ -2971,7 +3020,7 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityCertificateModel`
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/dedup_and_constrain.py` (1)، `scripts/dedup_batched.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)
 
 **نمونه داده:**
 
@@ -3070,14 +3119,14 @@ _مشکلی شناسایی نشد._
 
 **مراجع کد:**
 - مدل: `models/market_data.py` → `CommodityTradeModel`
-- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/dedup_and_constrain.py` (1)، `scripts/dedup_batched.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)
 
 **نمونه داده:**
 
 | id | symbol | name | trade_date | price | volume | value | counter_party | created_at | updated_at | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 20791 | PACB-BIPG6422B-00 | قیر PG6422 | NULL | 9600.0 | 1850 | 17760000.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:23.796153+00:… | NULL | 2026-07-13 | 1405-04-22 |
-| 21479 | PACA-BIMC250B-00 | قیر MC250 | NULL | 12222.0 | 242 | 2957724.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:23.796153+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 5040 | KPC-NIACB-00 | اسید نیتریک | NULL | 6900.0 | 40 | 276000.0 | پتروشیمی کارون\|سینا | 2026-07-13 02:45:19.538394+00:… | NULL | 2026-07-13 | 1405-04-22 |
+| 5685 | PACR-BIPG6410B-00 | قیر PG6410 | NULL | 7276.0 | 1500 | 10914000.0 | نفت پاسارگاد\|باهنر | 2026-07-13 02:45:19.538394+00:… | NULL | 2026-07-13 | 1405-04-22 |
 
 </details>
 
@@ -3204,8 +3253,8 @@ _مشکلی شناسایی نشد._
 
 | symbol_id | trade_date | seq_no | time | volume | price | is_canceled | gregorian_date | shamsi_date |
 |---|---|---|---|---|---|---|---|---|
-| 7234567890123456 | 2026-06-09 | 23887 | 10:33:36 | 35 | 146630.0 | False | 2026-06-09 | 1405-03-19 |
-| 7234567890123456 | 2026-06-09 | 23888 | 10:34:10 | 70 | 146630.0 | False | 2026-06-09 | 1405-03-19 |
+| 2234567890123456 | 2026-06-06 | 1 | 09:56:28 | 10048 | 8160.0 | False | 2026-06-06 | 1405-03-16 |
+| 2234567890123456 | 2026-06-06 | 2 | 09:56:28 | 2277 | 8160.0 | False | 2026-06-06 | 1405-03-16 |
 
 </details>
 
@@ -3305,7 +3354,7 @@ _مشکلی شناسایی نشد._
 - مدل: `models/market.py` → `MarketModel`
 - سرویس: `services/quant_signal_orchestrator.py` (9)، `services/multi_market_signal_engine.py` (6)، `services/unified_assistant_service.py` (5)، `services/auto_retrain_pipeline.py` (3)
 - API: `apps/api/endpoints/multi_market_signals.py` (8)، `apps/api/endpoints/tabdeal.py` (6)، `apps/api/endpoints/signal_insights.py` (2)، `apps/api/app.py` (1)
-- اسکریپت: `scripts/audit_data_access.py` (1)
+- اسکریپت: `scripts/validate_analysis_report.py` (3)، `scripts/audit_data_access.py` (1)
 - تست: `tests/benchmark_signal_quality.py` (16)، `tests/unit/services/test_quant_signal_orchestrator.py` (15)، `tests/e2e/test_orchestrator_pipeline.py` (3)، `tests/test_all_pages.py` (2)
 - سایر: `backtesting/engine/replay_engine.py` (5)، `backtesting/engine/simulation_engine.py` (4)، `backtesting/relations/market_graph.py` (4)، `backtesting/hybrid/hybrid_simulator.py` (3)
 
@@ -3535,7 +3584,7 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
-<summary><code>codal_reports</code> — ~226,818 ردیف، 17 ستون (نمایش 12 ستون از 17)</summary>
+<summary><code>codal_reports</code> — ~155 ردیف، 17 ستون (نمایش 12 ستون از 17)</summary>
 
 _مشکلی شناسایی نشد._
 
@@ -3549,8 +3598,28 @@ _مشکلی شناسایی نشد._
 
 | id | instrument_id | symbol | company_name | isin | report_type | fiscal_year | period | audit_status | publish_date | attachment_url | summary | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| c2d331b0846832611944a6eb510d4b… | البرز | البرز | بیمه البرز | NULL | ن-۶۷ | NULL | NULL | NULL | ۱۳۹۴/۱۲/۰۵ | https://codal.ir/Reports/Attac… | آگهی ثبت افزایش سرمایه | … |
-| 256ba5524a435f143adcd8064d8f01… | انرژی | انرژی | بورس انرژی | NULL |  | NULL | NULL | NULL | ۱۳۹۴/۰۵/۲۶ | https://codal.ir/Reports/Attac… | آگهی ثبت تغیرات (به پیوست) | … |
+| fea623ba598db0deab46f6b04150ed… | آبادا | آبادا | تولید نیروی برق آبادان | NULL | ب-۴ | NULL | NULL | NULL | ۱۴۰۳/۱۰/۰۱ | https://codal.ir/Reports/Attac… | تمدید فرصت اعطا شده به ناشر جه… | … |
+| fff88bb47f474324caba016625fdff… | آبادا | آبادا | تولید نیروی برق آبادان | NULL | ن-۲۰ | NULL | NULL | NULL | ۱۴۰۱/۱۱/۰۴ | https://codal.ir/Reports/Attac… | افشای اطلاعات بااهمیت - (تغییر… | … |
+
+</details>
+
+<details>
+<summary><code>codal_reports_backup</code> — ~226,818 ردیف، 17 ستون (نمایش 12 ستون از 17) ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- مرجع کد فعال: _هیچ_
+
+**نمونه داده:**
+
+| id | instrument_id | symbol | company_name | isin | report_type | fiscal_year | period | audit_status | publish_date | attachment_url | summary | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 127a59506b69ba755313df07bcfdb0… | بترانس | بترانس | ایران ترانسفو | NULL |  | NULL | NULL | NULL | ۱۴۰۴/۰۵/۱۳ | https://codal.ir/DownloadFile.… | مشخصات کمیته ریسک | … |
+| 96f9bca32e0cd5315d63f941d0772f… | بموتو | بموتو | موتوژن | NULL | ن-۸۴ | NULL | NULL | NULL | ۱۴۰۰/۰۶/۲۴ | https://codal.ir/Reports/Attac… | افشای جزییات زمین و ساختمان | … |
 
 </details>
 
@@ -4327,7 +4396,7 @@ _مشکلی شناسایی نشد._
 
 ### جمع‌بندی جامع و نقشه راه اصلاحات
 
-سکوی داده شامل **128 جدول** و حدود **~42,474,311 ردیف** است. از این میان **55 جدول خالی**، **2 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **11 جدول بدون مدل ORM** و **6 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **1 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
+سکوی داده شامل **131 جدول** و حدود **~43,128,436 ردیف** است. از این میان **55 جدول خالی**، **2 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **14 جدول بدون مدل ORM** و **9 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **1 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
 
 **نقشه راه اصلاحات (اولویت‌بندی‌شده):**
 
