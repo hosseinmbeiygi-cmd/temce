@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import sys
 import time
@@ -236,17 +237,15 @@ async def _dump_json(session: AsyncSession) -> int:
     rows = r.fetchall()
     all_records: list[dict] = []
     for row in rows:
-        rec = dict(zip(cols, row))
+        rec = dict(zip(cols, row, strict=False))
         all_records.append(rec)
         sym = rec.get("symbol") or "unknown"
         safe = "".join(ch if ch not in '<>:"/\\|?*' else "_" for ch in sym)
-        try:
+        with contextlib.suppress(Exception):
             (JSON_DIR / f"{safe}.json").write_text(
                 json.dumps(rec, ensure_ascii=False, indent=2, default=str),
                 encoding="utf-8",
             )
-        except Exception:  # noqa: BLE001
-            pass
 
     summary = {
         "generated_at": _now(),

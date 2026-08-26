@@ -27,6 +27,7 @@ function LiveClock() {
   // Date must not be read during SSR/client hydration; use a stable initial
   // value and start the live clock after the component mounts.
   const [now, setNow] = useState(() => new Date(0));
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt live clock after mount
   useEffect(() => {
     setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 30_000);

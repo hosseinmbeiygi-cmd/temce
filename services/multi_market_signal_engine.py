@@ -235,7 +235,7 @@ def _composite_buy_score(
     if volumes is not None:
         vol_series = volumes
     else:
-        vol_series = [max(h - l, 0.0) / max(c, 1e-9) for h, l, c in zip(highs, lows, closes)]
+        vol_series = [max(h - low, 0.0) / max(c, 1e-9) for h, low, c in zip(highs, lows, closes, strict=False)]
     vol_trend = _volume_trend(vol_series)
     if vol_trend > 0.6:
         buy_score += 0.10

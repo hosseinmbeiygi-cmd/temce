@@ -56,6 +56,7 @@ export default function DecisionSubmitter({ onSuccess }: { onSuccess?: () => voi
   // the placeholder attribute mismatch → hydration error → tree regenerated.
   // Start with the deterministic prefix and append the timestamp after mount.
   const [runIdPlaceholder, setRunIdPlaceholder] = useState("manual-");
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: add timestamp after mount
   useEffect(() => {
     setRunIdPlaceholder(`manual-${Date.now()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps

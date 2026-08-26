@@ -54,6 +54,7 @@ export default function TickerBar() {
   // Client-only countdown: keep Date.now() out of render by storing it in state
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(0);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt client time after mount
   useEffect(() => {
     setMounted(true);
     setNow(Date.now());

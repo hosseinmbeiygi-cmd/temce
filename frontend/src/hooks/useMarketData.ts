@@ -180,6 +180,7 @@ export function useMarketSession(): MarketSession {
     nextEventLabel: "",
   });
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt market session after mount
   useEffect(() => {
     setSession(getMarketSession());
     const id = setInterval(() => {

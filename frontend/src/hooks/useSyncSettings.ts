@@ -32,6 +32,7 @@ export function useSyncSettings(): [
 
   // Adopt stored thresholds after hydration (no visual flip: the rendered
   // output only depends on `settings` once async data has arrived anyway).
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt persisted settings after mount
   useEffect(() => {
     setSettings(loadSyncSettings());
     // eslint-disable-next-line react-hooks/exhaustive-deps

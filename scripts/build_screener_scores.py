@@ -97,7 +97,7 @@ async def build_daily_scores(session: Any, trade_date: date) -> dict[str, Any]:
     for r in results:
         ind = r.get("industry") or "سایر"
         by_industry.setdefault(ind, []).append(r)
-    for ind, group in by_industry.items():
+    for _ind, group in by_industry.items():
         group.sort(key=lambda r: r.get("final_score", 0), reverse=True)
         for idx, r in enumerate(group, start=1):
             r["rank_in_industry"] = idx
@@ -139,7 +139,7 @@ async def build_daily_scores(session: Any, trade_date: date) -> dict[str, Any]:
             constraint="screener_daily_scores_pkey",
             set_={
                 col: getattr(stmt.excluded, col)
-                for col in rows[0].keys() if col not in ("symbol", "trade_date")
+                for col in rows[0] if col not in ("symbol", "trade_date")
             },
         )
         for i in range(0, len(rows), CHUNK_SIZE):

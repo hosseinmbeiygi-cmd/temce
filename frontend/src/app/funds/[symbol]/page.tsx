@@ -49,6 +49,7 @@ interface FundDetail extends Fund {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- alias for readability
 interface SymbolDetail extends FundChecklistSymbolDetailLike {}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

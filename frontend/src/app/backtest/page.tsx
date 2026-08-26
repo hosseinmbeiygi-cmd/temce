@@ -312,6 +312,7 @@ export default function BacktestPage() {
 
   // Load initial strategy params once strategies data arrives — useEffect to avoid setState during render
   const [prevStrategies, setPrevStrategies] = useState(strategies);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- sync: adopt server strategies into form once
   useEffect(() => {
     if (strategies && strategies.length > 0 && strategies !== prevStrategies) {
       setPrevStrategies(strategies);

@@ -33,6 +33,7 @@ if str(_project_root) not in sys.path:
 
 import argparse
 import asyncio
+import contextlib
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -45,10 +46,8 @@ from models.ml import MlModelModel, MlModelVersionModel, MlTrainingRunModel
 logger = get_logger(__name__)
 
 if sys.platform == "win32":
-    try:
+    with contextlib.suppress(Exception):
         sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
-    except Exception:
-        pass
 
 
 # ── Pure scan logic (no DB) ──────────────────────────────────────────────

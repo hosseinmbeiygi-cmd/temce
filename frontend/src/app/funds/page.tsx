@@ -100,6 +100,7 @@ function FundsPageContent() {
 
   // ── Deep link from homepage map tiles (?type=…) ──
   const searchParams = useSearchParams();
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deep-link: sync URL param to filter
   useEffect(() => {
     const t = searchParams?.get("type");
     if (t) setTypeFilter(t);
