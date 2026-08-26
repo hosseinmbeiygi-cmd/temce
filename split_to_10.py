@@ -2,6 +2,7 @@ import os
 import traceback
 from pathlib import Path
 
+
 def collect_python_files(root_dir='.'):
     """جمع‌آوری مسیر تمام فایل‌های .py به جز پوشه‌های حذف‌شده"""
     skip_dirs = {
@@ -68,10 +69,10 @@ def write_chunks_to_files(chunks, output_dir='output_texts'):
 
                 try:
                     try:
-                        with open(py_file, 'r', encoding='utf-8') as src:
+                        with open(py_file, encoding='utf-8') as src:
                             content = src.read()
                     except UnicodeDecodeError:
-                        with open(py_file, 'r', encoding='latin-1') as src:
+                        with open(py_file, encoding='latin-1') as src:
                             content = src.read()
                     except Exception as e:
                         content = f"[Error reading file: {e}]"
@@ -103,7 +104,7 @@ def main():
 
         # نمایش مسیر خروجی
         output_path = Path('output_texts').resolve()
-        print(f"\nفایل‌های خروجی در پوشه زیر ساخته شدند:")
+        print("\nفایل‌های خروجی در پوشه زیر ساخته شدند:")
         print(f"  {output_path}")
 
         # نمایش لیست فایل‌های ساخته شده
@@ -114,7 +115,7 @@ def main():
         else:
             print("پوشه خروجی یافت نشد!")
 
-    except Exception as e:
+    except Exception:
         print("خطای غیرمنتظره رخ داد:")
         traceback.print_exc()
 

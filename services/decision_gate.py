@@ -212,7 +212,6 @@ class SmartDecisionGate:
 
             # Use the most recent row for regime, but sum the 3 rows for
             # the cumulative 3-day change.
-            latest_change = float(rows[0][0]) if rows[0][0] is not None else 0.0
             three_d_change = sum(
                 float(row[0]) for row in rows if row[0] is not None
             )
@@ -347,13 +346,19 @@ class _MarketState:
 _gate: SmartDecisionGate | None = None
 
 
-def get_decision_gate(session: Any | None = None) -> SmartDecisionGate:
-    """Get or create the global SmartDecisionGate singleton.
+def get_decision_gate(
+    session: Any | None = None,
+    instance: SmartDecisionGate | None = None,
+) -> SmartDecisionGate:
+    """Get or create the SmartDecisionGate.
 
-    If a *session* is provided and the existing singleton has no session
-    (was created at startup without DB access), the session is injected
-    so subsequent evaluations can read real market state.
+    Args:
+        session: optional database session for market-condition queries.
+        instance: optional pre-built instance to use instead of the singleton.
+                  Use this in tests or when a fresh gate is needed.
     """
+    if instance is not None:
+        return instance
     global _gate
     if _gate is None:
         _gate = SmartDecisionGate(session=session)

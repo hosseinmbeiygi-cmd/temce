@@ -20,7 +20,6 @@ Create Date:     2026-08-10
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
 
 revision = "0036_clean_historical_view"

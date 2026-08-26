@@ -1054,6 +1054,39 @@ async def sync_section(
     from brsapi.services.sync_service import BrsApiSyncService
     sync_svc = BrsApiSyncService(client=client, session=session)
 
+    # NAV is a symbol-scoped endpoint. Use the dedicated sync path so the
+    # required l18 parameter, instrument id enrichment, date normalization,
+    # and per-day deduplication are all handled consistently.
+    if section_id == "nav":
+        if not symbol or not symbol.strip():
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data={
+                    "section_id": section_id,
+                    "success": False,
+                    "items_count": 0,
+                    "skipped": False,
+                    "error": "پارامتر symbol (l18) برای دریافت NAV الزامی است",
+                },
+            )
+        try:
+            report = await sync_svc.sync_nav(session, symbol.strip())
+            return ApiResponse[dict[str, Any]](success=report.success, data={
+                "endpoint": report.endpoint,
+                "section_id": section_id,
+                "success": report.success,
+                "items_count": report.items_count,
+                "duration_ms": report.duration_ms,
+                "skipped": report.skipped,
+                "error": report.error,
+            })
+        except Exception as exc:
+            logger.exception("NAV sync failed for symbol %s", symbol)
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data={"section_id": section_id, "success": False, "items_count": 0, "error": str(exc)},
+            )
+
     # Candlestick has a dedicated convenience method that attaches
     # symbol + candle_type to every record (the generic path would leave
     # both empty) — use it whenever a symbol is given.
@@ -1131,6 +1164,7 @@ async def download_section(
     section_id: str,
     format: str = Query("json", description="Download format: json or csv"),
     live: bool = Query(False, description="Fetch fresh data from API instead of reading from DB"),
+    limit: int = Query(1000, ge=1, le=50000, description="Maximum number of database rows to export"),
     date_start: str | None = Query(None, description="Start date (YYYY-MM-DD) for date-range sections"),
     date_end: str | None = Query(None, description="End date (YYYY-MM-DD) for date-range sections"),
     symbol: str | None = Query(None, description="Symbol for symbol-specific endpoints"),
@@ -1195,7 +1229,16 @@ async def download_section(
         )
 
     model = cfg["model"]
-    stmt = select(model).order_by(model.created_at.desc()) if hasattr(model, "created_at") else select(model)
+    # Exporting an entire snapshot/history table can contain millions of rows
+    # and keep the request open indefinitely.  The management UI is intended
+    # for a practical export of the most recent data, so cap the result and
+    # make the cap explicit in the response filename.
+    stmt = select(model)
+    if hasattr(model, "created_at"):
+        stmt = stmt.order_by(model.created_at.desc())
+    elif hasattr(model, "fetched_at"):
+        stmt = stmt.order_by(model.fetched_at.desc())
+    stmt = stmt.limit(limit)
     result = await session.execute(stmt)
     rows = result.scalars().all()
 
@@ -1207,7 +1250,7 @@ async def download_section(
                 d[k] = v.isoformat()
         data.append(d)
 
-    filename = f"brsapi_{section_id}"
+    filename = f"brsapi_{section_id}_latest_{len(data)}"
 
     if format == "csv":
         if not data:

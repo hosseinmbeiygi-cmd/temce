@@ -1141,7 +1141,14 @@ class OptionsStrategyEngine:
 _options_engine: OptionsStrategyEngine | None = None
 
 
-def get_options_engine() -> OptionsStrategyEngine:
+def get_options_engine(instance: OptionsStrategyEngine | None = None) -> OptionsStrategyEngine:
+    """Get or create the OptionsStrategyEngine.
+
+    Args:
+        instance: optional pre-built instance to use instead of the singleton.
+    """
+    if instance is not None:
+        return instance
     global _options_engine
     if _options_engine is None:
         _options_engine = OptionsStrategyEngine()

@@ -310,12 +310,14 @@ export default function BacktestPage() {
     },
   });
 
-  // Load initial strategy params once strategies data arrives (adjust state during render)
+  // Load initial strategy params once strategies data arrives — useEffect to avoid setState during render
   const [prevStrategies, setPrevStrategies] = useState(strategies);
-  if (strategies && strategies.length > 0 && strategies !== prevStrategies) {
-    setPrevStrategies(strategies);
-    setFormData(prev => ({ ...prev, strategyParams: getDefaultParams(prev.strategyType) }));
-  }
+  useEffect(() => {
+    if (strategies && strategies.length > 0 && strategies !== prevStrategies) {
+      setPrevStrategies(strategies);
+      setFormData(prev => ({ ...prev, strategyParams: getDefaultParams(prev.strategyType) }));
+    }
+  }, [strategies, prevStrategies]);
 
   const { data: runs, isLoading: loadingRuns } = useQuery({
     queryKey: ["backtest-runs"],

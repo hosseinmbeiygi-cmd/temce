@@ -15,10 +15,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import date, timedelta
 
+import _db
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-import _db
 
 DATABASE_URL = _db.database_url_async()
 

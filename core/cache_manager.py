@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
@@ -118,7 +119,12 @@ class CacheManager:
         server on every call; ``reset_redis_state()`` re-probes.
         """
         if self._redis is not None:
-            return True
+            try:
+                await self._redis.ping()
+                return True
+            except Exception:
+                self._redis = None
+                self._redis_connected = None
         if self._redis_connected is False:
             return False
         try:
@@ -138,10 +144,8 @@ class CacheManager:
 
     async def close(self) -> None:
         if self._redis is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await self._redis.close()
-            except Exception:
-                pass
         self._redis = None
         self._redis_connected = None
 
@@ -214,7 +218,8 @@ class CacheManager:
                 logger.warning("CacheManager single-flight wait timed out for %s", key)
 
         try:
-            value = await func() if asyncio.iscoroutinefunction(func) else func()
+            maybe = func()
+            value = await maybe if inspect.isawaitable(maybe) else maybe
         finally:
             if holds_lock and self._redis is not None:
                 with contextlib.suppress(Exception):
@@ -233,6 +238,8 @@ class CacheManager:
             raw = await self._redis.get(self._namespaced(key))
         except Exception:
             logger.warning("CacheManager L2 read failed for %s", key, exc_info=True)
+            self._redis = None
+            self._redis_connected = None
             return None
         return self._deserialize(raw) if raw is not None else None
 
@@ -252,6 +259,8 @@ class CacheManager:
             self._keys.add(key)
         except Exception:
             logger.warning("CacheManager L2 write failed for %s", key, exc_info=True)
+            self._redis = None
+            self._redis_connected = None
 
     async def _await_winner(self, key: str) -> Any | None:
         """Poll L2 for the lock winner's write. Returns None if it never lands."""

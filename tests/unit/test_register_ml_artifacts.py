@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pytest
 
 from scripts.register_ml_artifacts import (
-    _resolve_latest_version,
     build_model_rows,
     scan_artifacts_dir,
 )

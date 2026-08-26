@@ -112,3 +112,15 @@ class MFAStatusResponse(BaseModel):
     secret: str | None = None
     uri: str | None = None
     telegram_chat_id: str | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Request a password-reset code via email/phone (overseas phone supported)."""
+
+    account: str = Field(..., min_length=3, max_length=255, description="Username, email or phone")
+
+
+class ResetPasswordRequest(BaseModel):
+    account: str = Field(..., min_length=3, max_length=255)
+    code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
+    new_password: str = Field(..., min_length=8, max_length=128)

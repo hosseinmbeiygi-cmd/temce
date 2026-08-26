@@ -25,7 +25,6 @@ class PaperTradingJob(BaseJob):
 
     async def execute(self, context: JobContext) -> JobResult:
         from core.database import async_session_factory
-
         from services.paper_trading_service import PaperTradingService
         from services.quant_signal_orchestrator import QuantSignalOrchestrator
 

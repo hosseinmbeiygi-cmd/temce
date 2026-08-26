@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, ".")
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+
 from core.config import settings  # noqa: E402
 
 

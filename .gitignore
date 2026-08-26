@@ -104,3 +104,7 @@ scripts/.codal_checkpoint.json
 timescaledb.zip
 tree.txt
 frontend/.tmp_routes.txt
+
+# Separate projects (not part of trading system)
+claw-code/
+mimicode-go/

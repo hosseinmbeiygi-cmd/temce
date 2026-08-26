@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
+from unittest.mock import AsyncMock, patch
 
 # ── Fake session that records executed statements ──────────────────────────
 
@@ -189,7 +186,6 @@ def test_compute_symbol_handles_no_features():
 
 
 def test_sanitize_row_drops_nan():
-    import math
 
     from scripts.build_feature_store import _sanitize_row
 

@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator, Coroutine
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
@@ -27,6 +27,11 @@ from core.config import settings
 from core.database import close_database, get_session, init_database
 from core.logging import get_logger, setup_logging
 from ml.models import register_all_models
+
+try:
+    from apps.api.dependencies import require_roles
+except Exception:  # pragma: no cover
+    require_roles = None  # type: ignore
 
 logger = get_logger(__name__)
 
@@ -947,16 +952,27 @@ def create_app() -> FastAPI:
         return ApiResponse(success=True, data=list(_cron_state["history"]))
 
     @app.post("/api/v1/orchestrator-cron/toggle")
-    async def orchestrator_cron_toggle():
+    async def orchestrator_cron_toggle(
+        _user: dict = Depends(require_roles("admin")) if require_roles else None,  # type: ignore
+    ):
         """Enable or disable the hourly orchestrator cron."""
-        await _load_cron_state_from_store()
-        _cron_state["enabled"] = not _cron_state["enabled"]
-        await _save_cron_state_to_store()
-        from schemas.common.responses import ApiResponse
-        return ApiResponse(success=True, data={"enabled": _cron_state["enabled"]})
+        # Use distributed lock to prevent lost updates when two admins toggle concurrently.
+        locked = await _with_startup_lock("cron_toggle", "cron-toggle")
+        try:
+            await _load_cron_state_from_store()
+            _cron_state["enabled"] = not _cron_state["enabled"]
+            await _save_cron_state_to_store()
+            from schemas.common.responses import ApiResponse
+
+            return ApiResponse(success=True, data={"enabled": _cron_state["enabled"]})
+        finally:
+            if locked:
+                await _release_startup_lock("cron_toggle")
 
     @app.post("/api/v1/orchestrator-cron/run-now")
-    async def orchestrator_cron_run_now():
+    async def orchestrator_cron_run_now(
+        _user: dict = Depends(require_roles("admin")) if require_roles else None,  # type: ignore
+    ):
         """Trigger an immediate orchestrator run (does not wait for the hourly tick).
 
         Returns the full orchestrator report including signals, accuracy, and retrain status.

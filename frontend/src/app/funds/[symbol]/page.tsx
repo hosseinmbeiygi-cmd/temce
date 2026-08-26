@@ -9,6 +9,8 @@ import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import { Card } from "@/components/ui/Card";
 import { apiGet, apiPost } from "@/lib/api";
+import FundChecklistPanel from "@/components/FundChecklistPanel";
+import type { FundChecklistSymbolDetailLike } from "@/lib/fund-checklist-real";
 import { toast } from "sonner";
 import type { Fund } from "../page";
 
@@ -46,6 +48,8 @@ interface FundDetail extends Fund {
     summary: string;
   };
 }
+
+interface SymbolDetail extends FundChecklistSymbolDetailLike {}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -135,6 +139,20 @@ export default function FundDetailPage() {
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
+  });
+
+  const { data: symbolDetail } = useQuery({
+    queryKey: ["fund-symbol-detail", symbol],
+    queryFn: async (): Promise<SymbolDetail | null> => {
+      try {
+        const res = await apiGet<{ success: boolean; data: SymbolDetail }>(`/brsapi/symbol-details/${encodeURIComponent(symbol)}`);
+        return res?.success ? res.data ?? null : null;
+      } catch {
+        return null;
+      }
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
   });
 
   const chartData = useMemo(() => {
@@ -360,6 +378,10 @@ export default function FundDetailPage() {
               </div>
             </Card>
           )}
+
+          <div className="mt-5">
+            <FundChecklistPanel fund={detail} symbolDetail={symbolDetail} />
+          </div>
         </>
       )}
     </AppLayout>

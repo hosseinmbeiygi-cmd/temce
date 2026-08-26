@@ -14,10 +14,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import Column, Date, Float, Integer, MetaData, String, Table, Text, text
+from sqlalchemy import Column, Date, Float, Integer, MetaData, String, Table, Text
 from sqlalchemy.sql.elements import TextClause
 
-from scripts.build_screener_scores import CHUNK_SIZE, build_daily_scores
+from scripts.build_screener_scores import build_daily_scores
 
 pytestmark = pytest.mark.asyncio
 

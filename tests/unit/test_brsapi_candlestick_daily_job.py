@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock
 from brsapi.jobs.registry import BrsApiJobRegistry, BrsApiSyncJob
 from brsapi.services.sync_service import SyncReport
 
-
 # ── Job registration ──────────────────────────────────────────────────
 
 

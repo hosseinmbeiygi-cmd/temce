@@ -14,7 +14,8 @@ const nextConfig: NextConfig = {
   // proxy forwards to backend (resolves api:8000 in Docker network).
   // API_URL is NOT a NEXT_PUBLIC_* var, so it never leaks to the browser.
   async rewrites() {
-    const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    // Server-side only: API_URL must be used in production (Docker: http://api:8000). Fallback to localhost only in dev.
+    const apiUrl = process.env.API_URL || (process.env.NODE_ENV === "production" ? "http://api:8000" : "http://127.0.0.1:8000");
     const apiPrefix = process.env.API_PREFIX || process.env.NEXT_PUBLIC_API_PREFIX || "/api/v1";
 
     if (process.env.NODE_ENV !== "production") {

@@ -1,7 +1,7 @@
 """Endpoint matrix using the ACTUAL paths the frontend pages call."""
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 

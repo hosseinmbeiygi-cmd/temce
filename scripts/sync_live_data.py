@@ -14,9 +14,8 @@ if sys.platform == "win32":
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
 import _db
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from brsapi.client import close_client, get_client
 from brsapi.services.sync_service import BrsApiSyncService

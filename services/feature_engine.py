@@ -20,19 +20,62 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from core.indicators import (
+    compute_atr,
+    compute_macd_signal,
+    compute_rsi,
+)
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# ── Default constants ────────────────────────────────────────────
-_BASE_FX_CURRENT = 28500.0   # نرخ ارز مبنا (قابل تنظیم)
-_BASE_FX_PRIOR = 24500.0     # نرخ ارز مبنا سال قبل
-_BANK_INTEREST_RATE = 22.5   # نرخ سود بانکی (%)
-_BOND_YIELD = 28.0           # بازده اوراق (%)
-_INFLATION_RATE = 35.0       # نرخ تورم (%)
-_USD_NIMA = 44500.0          # دلار نیما
-_USD_FREE = 59500.0          # دلار آزاد
-_INVESTABLE_CAPITAL = 500_000_000  # سرمایه کل برای position sizing (تومان)
+# ── Default constants (loaded from config/macroeconomics.yaml at runtime) ──────
+_DEFAULT_MACRO_ECONOMICS = {
+    "base_fx_current": 28500.0,
+    "base_fx_prior": 24500.0,
+    "bank_interest_rate": 22.5,
+    "bond_yield": 28.0,
+    "inflation_rate": 35.0,
+    "usd_nima": 44500.0,
+    "usd_free": 59500.0,
+}
+_DEFAULT_PORTFOLIO = {
+    "investable_capital": 500_000_000,
+}
+
+
+def _load_macroeconomics_config() -> tuple[dict[str, float], dict[str, float]]:
+    """Load macroeconomics constants from config/macetheconomics.yaml.
+
+    Returns (macro_economics, portfolio) dicts, falling back to hardcoded
+    defaults if the file is missing or malformed.
+    """
+    try:
+        import os
+
+        import yaml
+        config_path = os.path.join(
+            os.path.dirname(__file__), "..", "config", "macroeconomics.yaml"
+        )
+        with open(config_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        macro = cfg.get("macroeconomics", {})
+        portfolio = cfg.get("portfolio", {})
+        if macro and isinstance(macro, dict):
+            me = {k: float(v) for k, v in macro.items()}
+        else:
+            me = dict(_DEFAULT_MACRO_ECONOMICS)
+        if portfolio and isinstance(portfolio, dict):
+            pf = {k: float(v) for k, v in portfolio.items()}
+        else:
+            pf = dict(_DEFAULT_PORTFOLIO)
+        return me, pf
+    except Exception as e:
+        logger.debug("Could not load macroeconomics.yaml: %s — using defaults", e)
+        return dict(_DEFAULT_MACRO_ECONOMICS), dict(_DEFAULT_PORTFOLIO)
+
+
+_macroeconomics, _portfolio_config = _load_macroeconomics_config()
 
 
 class FeatureEngine:
@@ -192,13 +235,14 @@ class FeatureEngine:
         f["eps_ttm"] = eps_raw * 4 if eps_raw > 0 else 0  # تعدیل به 12 ماه
         f["eps_last_year"] = eps_raw * 3 if eps_raw > 0 else 0  # تخمین سال قبل
 
+        me = _macroeconomics
         # نرخ ارز مبنا
-        f["base_fx_current"] = _BASE_FX_CURRENT
-        f["base_fx_prior"] = _BASE_FX_PRIOR
+        f["base_fx_current"] = me["base_fx_current"]
+        f["base_fx_prior"] = me["base_fx_prior"]
 
         # EPS دلاری
-        f["eps_dollar_ttm"] = round(f["eps_ttm"] / _BASE_FX_CURRENT, 2) if _BASE_FX_CURRENT > 0 else 0
-        f["eps_dollar_last_year"] = round(f["eps_last_year"] / _BASE_FX_PRIOR, 2) if _BASE_FX_PRIOR > 0 else 0
+        f["eps_dollar_ttm"] = round(f["eps_ttm"] / me["base_fx_current"], 2) if me["base_fx_current"] > 0 else 0
+        f["eps_dollar_last_year"] = round(f["eps_last_year"] / me["base_fx_prior"], 2) if me["base_fx_prior"] > 0 else 0
 
         # رشد دلاری سود
         if f["eps_dollar_last_year"] > 0:
@@ -206,7 +250,8 @@ class FeatureEngine:
         else:
             f["eps_dollar_growth"] = 0.0
 
-        f["inflation_rate"] = _INFLATION_RATE
+        me = _macroeconomics
+        f["inflation_rate"] = me["inflation_rate"]
 
         # رشد اسمی EPS
         if f["eps_last_year"] > 0:
@@ -215,7 +260,7 @@ class FeatureEngine:
             f["eps_nominal_growth"] = 0.0
 
         # رشد واقعی سود
-        inflation_decimal = _INFLATION_RATE / 100.0
+        inflation_decimal = me["inflation_rate"] / 100.0
         f["eps_real_growth"] = round(
             (1 + f["eps_nominal_growth"]) / (1 + inflation_decimal) - 1, 4
         ) if inflation_decimal > 0 else f["eps_nominal_growth"]
@@ -264,12 +309,14 @@ class FeatureEngine:
         else:
             f["earnings_yield"] = 0.0
 
+        me = _macroeconomics
+
         # متغیرهای کلان
-        f["bank_interest_rate"] = _BANK_INTEREST_RATE
-        f["bond_yield"] = _BOND_YIELD
-        f["usd_nima"] = _USD_NIMA
-        f["usd_free"] = _USD_FREE
-        f["usd_spread"] = round(_USD_FREE / _USD_NIMA, 2) if _USD_NIMA > 0 else 0
+        f["bank_interest_rate"] = me["bank_interest_rate"]
+        f["bond_yield"] = me["bond_yield"]
+        f["usd_nima"] = me["usd_nima"]
+        f["usd_free"] = me["usd_free"]
+        f["usd_spread"] = round(me["usd_free"] / me["usd_nima"], 2) if me["usd_nima"] > 0 else 0
 
         return f
 
@@ -306,12 +353,14 @@ class FeatureEngine:
         else:
             f["volume_spike"] = 1.0
 
-        # ── گردش شناور ──
-        float_shares = enriched.get("free_float_pct", 0) or 0
+        # ── گردش شناور ── (تعداد سهام شناور = shares_count * free_float_pct / 100)
+        shares_count = float(enriched.get("shares_count", 0) or 0)
+        free_float_pct = float(enriched.get("free_float_pct", 0) or 0)
         last_price = float(enriched.get("price_last", 0) or 0)
-        if float_shares > 0 and last_price > 0:
+        float_shares_count = shares_count * free_float_pct / 100.0 if shares_count > 0 else 0
+        if float_shares_count > 0 and last_price > 0:
             f["float_turnover_pct"] = round(
-                100 * f["trade_value"] / (float(float_shares) * last_price), 2
+                100 * f["trade_value"] / (float_shares_count * last_price), 2
             )
         else:
             f["float_turnover_pct"] = 0.0
@@ -357,10 +406,12 @@ class FeatureEngine:
         f["inst_sell_volume"] = int(enriched.get("sell_legal_volume", 0) or 0)
         f["net_inst_volume"] = f["inst_buy_volume"] - f["inst_sell_volume"]
 
-        # نسبت خالص حقوقی به شناور
-        float_shares = int(enriched.get("free_float_pct", 0) or 0)
-        if float_shares > 0:
-            f["net_inst_ratio"] = round(f["net_inst_volume"] / float_shares * 100, 2)
+        # نسبت خالص حقوقی به شناور (بر حسب تعداد سهام شناور، نه درصد)
+        shares_count = float(enriched.get("shares_count", 0) or 0)
+        free_float_pct = float(enriched.get("free_float_pct", 0) or 0)
+        float_shares_count = shares_count * free_float_pct / 100.0 if shares_count > 0 else 0
+        if float_shares_count > 0:
+            f["net_inst_ratio"] = round(f["net_inst_volume"] / float_shares_count * 100, 2)
         else:
             f["net_inst_ratio"] = 0.0
 
@@ -442,49 +493,23 @@ class FeatureEngine:
         """
         بلوک رویدادها و ریسک‌های کیفی.
 
-        توجه: این بلوک به شدت به منابع داده خارجی وابسته است
-        (کدال، اخبار، پایش تلگرام، تحلیل سیاسی).
-        در این نسخه، مقادیر پیش‌فرض (صفر) برگردانده می‌شوند.
+        ویژگی‌های تقویمی (بدون نیاز به داده خارجی) محاسبه می‌شوند.
+        سایر ویژگی‌های رویدادی به منابع داده خارجی نیاز دارند
+        (کدال، اخبار، پایش تلگرام) و در این نسخه پیاده‌سازی نشده‌اند.
         """
         f: dict[str, Any] = {}
 
-        for key in [
-            "ceo_change_success", "ceo_change_fail",
-            "agm_proximity", "agm_risk",
-            "capital_inc_cash", "capital_inc_reval",
-            "price_liberation", "gov_support",
-            "heavy_legal_case", "telegram_hype",
-            "end_of_month", "pre_holiday",
-            "political_tension", "political_relief",
-            "feedstock_meeting", "big_ipo",
-            "sector_outflow", "sector_inflow",
-            "market_index_3m",
-        ]:
-            f[key] = 0.0
-        f["market_regime"] = 50.0  # پیش‌فرض خنثی
+        f["market_regime"] = 50.0
 
-        # تشخیص تقویمی (سیگنال‌هایی که به داده خارجی نیاز ندارند)
         today = date.today()
 
-        # روز پایانی ماه (‴天真 recap صندوق‌ها و خروج نقدی)
-        if today.month != (today + timedelta(days=1)).month:
-            f["end_of_month"] = 1.0
+        f["end_of_month"] = 1.0 if today.month != (today + timedelta(days=1)).month else 0.0
 
-        # روز قبل از تعطیلات
-        if today.weekday() == 4:  # پنجشنبه
-            f["pre_holiday"] = 1.0
+        f["pre_holiday"] = 1.0 if today.weekday() == 4 else 0.0
 
-        # روز اول ماه (‴天真 گزارش‌های کدال)
-        if today.day == 1:
-            f["agm_proximity"] = 0.5
+        f["agm_proximity"] = 1.0 if (today.month == 12 and today.day >= 22) else (0.5 if today.day == 1 else 0.0)
 
-        # روز اول هفته (‴天真 شروع معاملات هفته)
-        if today.weekday() == 5:  # شنبه
-            f["market_index_3m"] = 0.3  # signals potential weekly momentum
-
-        # تقریباً انتهای سال مالی (month 12, last week)
-        if today.month == 12 and today.day >= 22:
-            f["agm_proximity"] = 1.0
+        f["market_index_3m"] = 0.3 if today.weekday() == 5 else 0.0
 
         return f
 
@@ -600,7 +625,7 @@ class FeatureEngine:
         # حجم معامله
         risk_per_trade = last_price - f["stop_loss"]
         f["position_size"] = round(
-            (0.01 * _INVESTABLE_CAPITAL) / max(risk_per_trade, 1), 0
+            (0.01 * _portfolio_config["investable_capital"]) / max(risk_per_trade, 1), 0
         ) if risk_per_trade > 0 else 0
 
         # ── خلاصه تصمیم ──
@@ -659,7 +684,7 @@ class FeatureEngine:
             score -= 5
 
         earnings_yield = float(c.get("earnings_yield", 0))
-        bank_rate = float(c.get("bank_interest_rate", 22.5))
+        bank_rate = float(c.get("bank_interest_rate", _macroeconomics["bank_interest_rate"]))
         if earnings_yield > bank_rate:
             score += 20
         elif earnings_yield > bank_rate * 0.7:
@@ -814,16 +839,11 @@ class FeatureEngine:
 
     @staticmethod
     def _score_event(g: dict[str, Any]) -> float:
-        """S_E: رویدادهای مثبت و منفی."""
-        positive = sum(float(g.get(k, 0)) for k in [
-            "ceo_change_success", "capital_inc_cash", "capital_inc_reval",
-            "price_liberation", "gov_support", "political_relief", "sector_inflow",
+        """S_E: رویدادهای تقویمی فعال."""
+        calendar_features = sum(float(g.get(k, 0)) for k in [
+            "end_of_month", "pre_holiday", "agm_proximity", "market_index_3m",
         ])
-        negative = sum(float(g.get(k, 0)) for k in [
-            "ceo_change_fail", "agm_risk", "heavy_legal_case", "telegram_hype",
-            "political_tension", "feedstock_meeting",
-        ])
-        score = 50 + (positive * 15) - (negative * 20)
+        score = 50 + (calendar_features * 10)
         return max(0, min(100, round(score, 1)))
 
     # ═══════════════════════════════════════════════════════════════
@@ -842,9 +862,7 @@ class FeatureEngine:
             penalty = min(penalty + 0.25, 0.50)
 
         neg_count = sum(1 for k in [
-            "ceo_change_fail", "agm_risk", "heavy_legal_case", "telegram_hype",
-            "end_of_month", "pre_holiday", "political_tension",
-            "feedstock_meeting", "big_ipo", "sector_outflow", "market_index_3m",
+            "end_of_month", "pre_holiday", "agm_proximity", "market_index_3m",
         ] if float(g.get(k, 0)) > 0)
         penalty += neg_count * 0.04
 
@@ -856,11 +874,9 @@ class FeatureEngine:
 
     @staticmethod
     def _count_neg_events(g: dict[str, Any]) -> int:
-        """تعداد رویدادهای منفی فعال."""
+        """تعداد رویدادهای منفی فعال (تقویمی)."""
         return sum(1 for k in [
-            "ceo_change_fail", "agm_risk", "heavy_legal_case", "telegram_hype",
-            "end_of_month", "pre_holiday", "political_tension",
-            "feedstock_meeting", "big_ipo", "sector_outflow", "market_index_3m",
+            "end_of_month", "pre_holiday", "agm_proximity", "market_index_3m",
         ] if float(g.get(k, 0)) > 0)
 
     @staticmethod
@@ -943,35 +959,13 @@ class FeatureEngine:
 
     @staticmethod
     def _compute_rsi(closes: list[float], period: int = 14) -> float:
-        """محاسبه RSI."""
-        if len(closes) < period + 1:
-            return 50.0
-        gains, losses = [], []
-        for i in range(1, len(closes)):
-            delta = closes[i] - closes[i - 1]
-            gains.append(max(delta, 0))
-            losses.append(max(-delta, 0))
-        avg_gain = sum(gains[-period:]) / period
-        avg_loss = sum(losses[-period:]) / period
-        if avg_loss < 1e-10:
-            return 100.0
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
+        """محاسبه RSI (تفبه به core.indicators)."""
+        return compute_rsi(closes, period)
 
     @staticmethod
     def _compute_macd_signal(closes: list[float]) -> float:
         """MACD signal: 1 = bullish, -1 = bearish, 0 = neutral."""
-        if len(closes) < 26:
-            return 0.0
-        ema12 = sum(closes[-12:]) / 12
-        ema26 = sum(closes[-26:]) / 26
-        macd = ema12 - ema26
-        signal = sum(closes[-9:]) / 9  # simplified
-        if macd > signal:
-            return 1.0
-        elif macd < signal:
-            return -1.0
-        return 0.0
+        return compute_macd_signal(closes)
 
     @staticmethod
     def _compute_atr(
@@ -981,17 +975,8 @@ class FeatureEngine:
         period: int = 14,
     ) -> float:
         """محاسبه ATR."""
-        if len(closes) < period + 1:
-            return 0.0
-        trs = []
-        for i in range(1, len(closes)):
-            tr = max(
-                highs[i] - lows[i],
-                abs(highs[i] - closes[i - 1]),
-                abs(lows[i] - closes[i - 1]),
-            )
-            trs.append(tr)
-        return sum(trs[-period:]) / period if trs else 0.0
+        result = compute_atr(highs, lows, closes, period)
+        return result if result is not None else 0.0
 
     @staticmethod
     def _detect_breakout(closes: list[float], lookback: int = 20) -> bool:

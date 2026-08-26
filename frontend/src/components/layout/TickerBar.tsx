@@ -51,10 +51,15 @@ export default function TickerBar() {
   const session = useMarketSession();
   const AVG = tickerItems.length > 0 ? tickerItems.reduce((s, t) => s + t.changePct, 0) / tickerItems.length : 0;
   const items = [...tickerItems, ...tickerItems];
-  // The countdown derives from Date.now(), which differs between the server
-  // and client renders → hydration mismatch. Render it only after mount.
+  // Client-only countdown: keep Date.now() out of render by storing it in state
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    setMounted(true);
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   return (
     <div className="sticky top-14 z-40 border-b border-line bg-card/88 backdrop-blur supports-[backdrop-filter]:bg-card/75">
       <div className="mx-auto flex h-12 max-w-[1600px] items-center gap-3 px-3 lg:px-5">
@@ -91,7 +96,7 @@ export default function TickerBar() {
             <Timer className="size-3.5 text-brand-400" aria-hidden />
             {session.nextEventLabel} در
             <span dir="ltr" className="font-mono text-[11px] font-bold tabular-nums text-ink">
-              {fmtCountdown(session.nextEventAt - Date.now())}
+              {fmtCountdown(session.nextEventAt - now)}
             </span>
           </span>
         )}

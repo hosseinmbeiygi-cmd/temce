@@ -49,7 +49,6 @@ def test_unencodable_message_replaced_gracefully():
 
 def test_exception_with_unencodable_text_dropped_silently():
     """logger.exception with Persian/→ text must NOT trigger handleError."""
-    import sys
 
     logger, stream = _make_logger()
     try:

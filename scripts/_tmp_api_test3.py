@@ -1,5 +1,4 @@
 """Full endpoint status matrix against the running server."""
-import json
 import sys
 import urllib.request
 

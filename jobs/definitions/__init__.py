@@ -1,6 +1,5 @@
 from jobs.definitions.alert_jobs import EvaluateAlertsJob
 from jobs.definitions.analytics_jobs import AnalyticsComputationJob, IndicatorCalculationJob
-from jobs.definitions.brsapi_ready_check_job import BrsApiReadyCheckJob
 from jobs.definitions.backtest_jobs import BacktestExecutionJob, BacktestOptimizationJob
 from jobs.definitions.brsapi_jobs import (
     BrsApiAllSymbolsJob,
@@ -17,6 +16,7 @@ from jobs.definitions.brsapi_jobs import (
     BrsApiIndexSelectedJob,
     BrsApiOptionsJob,
 )
+from jobs.definitions.brsapi_ready_check_job import BrsApiReadyCheckJob
 from jobs.definitions.codal_jobs import CodalAttachmentDownloadJob, CodalIngestionJob, CodalSyncJob
 from jobs.definitions.feature_store_jobs import FeatureStoreBuildJob, ScreenerDailyScoresJob
 from jobs.definitions.fund_jobs import FundsSyncJob

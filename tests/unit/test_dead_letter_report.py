@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, patch
 import scripts.dead_letter_report as report_mod
 from jobs.replay import MAX_SCAN, _build_summary, resolve_since
 
-
 # ── Demo data & pure helpers ─────────────────────────────────────────
 
 def test_demo_messages_decode_and_classify():

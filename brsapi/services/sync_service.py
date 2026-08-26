@@ -251,9 +251,10 @@ class BrsApiSyncService:
 
         sync_log, raw_payload = self._ensure_repos(sess)
 
-        # 1. Dedup check
-        if dedup_seconds > 0 and not params:
-            needs = await sync_log.needs_sync(endpoint.path, dedup_seconds)
+        # 1. Dedup check — include params in dedup key so per-symbol calls are also deduped
+        if dedup_seconds > 0:
+            dedup_key = f"{endpoint.path}:{params!r}" if params else endpoint.path
+            needs = await sync_log.needs_sync(dedup_key, dedup_seconds)
             if not needs:
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logger.debug("Skipped %s (recent sync exists)", endpoint.path)
@@ -495,9 +496,8 @@ class BrsApiSyncService:
             reports yesterday's NAV), the record is dropped instead of
             creating a duplicate row.
         """
-        from sqlalchemy import select
-
         import jdatetime
+        from sqlalchemy import select
 
         today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
         try:
@@ -580,7 +580,6 @@ class BrsApiSyncService:
                 rate limit (1 req / 10s → default 11s).
         """
         import jdatetime
-
         from sqlalchemy import select
 
         if symbols is None:
@@ -655,7 +654,7 @@ class BrsApiSyncService:
                     fail_count += 1
                     failed_symbols.append(symbol)
                     logger.warning("NAV sync failed for %s: %s", symbol, report.error)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 fail_count += 1
                 failed_symbols.append(symbol)
                 logger.warning("NAV sync timed out for %s", symbol)

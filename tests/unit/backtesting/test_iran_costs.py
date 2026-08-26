@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pytest
 
-
 # ── F3: tax on sell side only ───────────────────────────────────────────────
 
 
@@ -137,7 +136,7 @@ def test_engine_commission_iran_mode_buy_has_no_tax():
 
 
 def test_fill_simulator_charges_commission():
-    from backtesting.execution.execution_policy import MarketExecutionPolicy, LimitExecutionPolicy
+    from backtesting.execution.execution_policy import LimitExecutionPolicy, MarketExecutionPolicy
     from backtesting.execution.fill_simulator import FillSimulator
     from backtesting.execution.order_models import Order
     from backtesting.execution.partial_fill import PartialFillHandler
@@ -183,7 +182,7 @@ def test_cost_parity_across_paths():
 def test_broker_default_matches_canonical_rates():
     """F1: default Broker (main backtest path) uses the canonical rates."""
     from backtesting.costs.iran_costs import BROKER_PCT, SELL_TAX_PCT
-    from backtesting.engine.broker import Broker, IRAN_MARKET_COSTS
+    from backtesting.engine.broker import IRAN_MARKET_COSTS, Broker
 
     broker = Broker()
     assert broker.cost_model.broker_pct == BROKER_PCT

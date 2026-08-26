@@ -79,6 +79,7 @@ async def test_train_with_db_data_invalidates_loader_cache():
         })})()
 
         import numpy as np
+
         from ml.types import FeatureMatrix, TargetVector
 
         fm = FeatureMatrix(data=pd.DataFrame({"f1": np.ones(20)}), feature_names=["f1"])

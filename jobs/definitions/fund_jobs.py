@@ -20,9 +20,8 @@ class FundsSyncJob(BaseJob):
     """Sync all known fund symbols into the ``funds`` table from snapshots."""
 
     async def execute(self, context: JobContext) -> JobResult:
-        from core.database import get_session
-
         from brsapi.services.query_service import BrsApiQueryService
+        from core.database import get_session
         from services.fund_service import FundService
         from services.fund_sync_service import KNOWN_FUND_SYMBOLS, FundSyncService
 

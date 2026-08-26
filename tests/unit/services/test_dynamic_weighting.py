@@ -8,7 +8,6 @@ from services.dynamic_weighting import (
     BASE_WEIGHTS,
     DynamicWeighting,
     MarketSignalProvider,
-    get_dynamic_weights,
 )
 
 

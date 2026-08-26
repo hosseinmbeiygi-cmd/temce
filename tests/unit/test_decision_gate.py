@@ -72,7 +72,7 @@ class _FakeSession:
             return _FakeResult([[self._volume_avg]])
         return _FakeResult([])
 
-    async def __aenter__(self) -> "_FakeSession":
+    async def __aenter__(self) -> _FakeSession:
         return self
 
     async def __aexit__(self, *args: Any) -> None:

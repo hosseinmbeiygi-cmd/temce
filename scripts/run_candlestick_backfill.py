@@ -30,11 +30,11 @@ def _log(msg: str) -> None:
 
 
 async def main(max_symbols: int, sleep_s: float | None) -> None:
-    from core.database import get_session
     from brsapi.client import get_client
+    from brsapi.config import settings as brsapi_settings
     from brsapi.jobs.registry import get_brsapi_job_registry
     from brsapi.services.sync_service import BrsApiSyncService
-    from brsapi.config import settings as brsapi_settings
+    from core.database import get_session
 
     chunk = max_symbols if max_symbols > 0 else brsapi_settings.candle_daily_max_symbols
     _log(f"Starting manual candlestick backfill — chunk={chunk} sleep={sleep_s or brsapi_settings.candle_req_delay}s")

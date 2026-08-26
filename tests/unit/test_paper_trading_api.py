@@ -22,7 +22,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from apps.api.endpoints.paper_trading import _svc, router as paper_trading_router
+from apps.api.endpoints.paper_trading import _svc
+from apps.api.endpoints.paper_trading import router as paper_trading_router
 from core.typing import PaginatedResult, Result
 from services.paper_trading_service import PaperTradingService
 

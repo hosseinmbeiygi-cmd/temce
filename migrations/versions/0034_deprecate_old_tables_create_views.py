@@ -42,9 +42,6 @@ Create Date:     2026-08-10
 
 from __future__ import annotations
 
-from typing import Any
-
-import sqlalchemy as sa
 from alembic import op
 
 revision = "0034_deprecate_old_tables_create_views"

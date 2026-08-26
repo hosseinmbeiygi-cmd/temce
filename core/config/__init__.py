@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 30
-    jwt_algorithm: str = "HS256"
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     bcrypt_rounds: int = 12
     max_login_attempts: int = 5
     lockout_minutes: int = 15
@@ -217,6 +217,23 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_COOKIE_SAMESITE must be lax, strict, or none")
         return normalized
 
+    @field_validator("auth_cookie_secure", mode="after")
+    @classmethod
+    def validate_cookie_secure_for_samesite(cls, value: bool, info) -> bool:  # type: ignore[no-untyped-def]
+        # SameSite=None requires Secure per spec; Lax/Strict may be Secure or not
+        # depending on deployment, but None without Secure is always rejected by browsers.
+        samesite = (info.data.get("auth_cookie_samesite") or "lax").lower() if isinstance(info.data, dict) else "lax"
+        if samesite == "none" and not value:
+            raise ValueError("AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true")
+        return value
+
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def validate_jwt_algorithm(cls, value: str) -> str:
+        if value.strip().lower() == "none":
+            raise ValueError("JWT_ALGORITHM=none is not allowed")
+        return value
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
@@ -229,7 +246,7 @@ class Settings(BaseSettings):
         if not self.is_production:
             return
         errors: list[str] = []
-        if self.secret_key == "change-me-in-production":
+        if not self.secret_key.strip() or self.secret_key == "change-me-in-production":
             errors.append("SECRET_KEY must be changed from default in production")
         if self.cors_origins == ["*"]:
             errors.append("CORS_ORIGINS must be restricted in production")
@@ -245,7 +262,7 @@ class Settings(BaseSettings):
     @property
     def database_url_async(self) -> str:
         if self.database_url.startswith("sqlite"):
-            return self.database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+            return self.database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
         if "postgres" in self.database_url:
             # Already has a driver suffix like +asyncpg or +psycopg2
             if "+" in self.database_url.split("://", 1)[0]:

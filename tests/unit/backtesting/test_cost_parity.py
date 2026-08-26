@@ -209,7 +209,7 @@ def test_no_hardcoded_free_fills_in_source():
 
 def test_all_cost_classes_use_canonical_rates():
     """F1 guard: every active cost class defaults to the canonical rates."""
-    from backtesting.engine.broker import Broker, IRAN_MARKET_COSTS, CONSERVATIVE_COSTS
+    from backtesting.engine.broker import CONSERVATIVE_COSTS, IRAN_MARKET_COSTS, Broker
     from backtesting.engine.commission import CommissionModel
     from backtesting.models.iran_costs import IranCommissionModel
 

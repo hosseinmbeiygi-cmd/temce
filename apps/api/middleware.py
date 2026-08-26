@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
+from contextlib import suppress
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -93,16 +94,22 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             for prefix in _SENSITIVE_WRITE_PREFIXES:
                 if path.startswith(prefix):
                     auth_header = request.headers.get("authorization", "")
-                    if not auth_header.startswith("Bearer "):
+                    parts = auth_header.split()
+                    if len(parts) != 2 or parts[0].lower() != "bearer":
                         logger.warning("Unauthenticated access to sensitive endpoint: %s %s", request.method, path)
                         return JSONResponse(
                             status_code=401,
                             content={"success": False, "error": "Authentication required for this endpoint", "code": "AUTH_REQUIRED"},
                         )
                     # Validate the token at middleware level (signature + revocation)
-                    token = auth_header.split(" ")[1]
+                    token = parts[1]
                     try:
                         payload = decode_access_token(token)
+                        if payload.get("type") == "refresh":
+                            return JSONResponse(
+                                status_code=401,
+                                content={"success": False, "error": "Invalid token type", "code": "INVALID_TOKEN"},
+                            )
                         if await is_token_revoked(payload.get("jti")):
                             return JSONResponse(
                                 status_code=401,
@@ -254,6 +261,18 @@ class InputSanitizationMiddleware(BaseHTTPMiddleware):
         # Replace the body the downstream handlers will read.
         body = json.dumps(sanitized, ensure_ascii=False).encode("utf-8")
         request._body = body
+        # Keep Content-Length in sync with the sanitized body so ASGI servers
+        # don't truncate/over-read the new payload.
+        try:
+            headers = [(k, v) for k, v in request.scope.get("headers", []) if k.lower() != b"content-length"]
+            headers.append((b"content-length", str(len(body)).encode()))
+            request.scope["headers"] = headers
+            if hasattr(request, "headers"):
+                # Starlette caches headers; force rebuild on next access
+                with suppress(Exception):
+                    request._headers = None  # type: ignore[attr-defined]
+        except Exception:
+            logger.debug("Failed to update content-length after sanitization", exc_info=True)
 
         async def receive():
             return {"type": "http.request", "body": body, "more_body": False}

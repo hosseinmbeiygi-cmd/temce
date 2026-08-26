@@ -27,7 +27,6 @@ from backtesting.risk.stop_loss import StopLoss
 from backtesting.risk.take_profit import TakeProfit
 from backtesting.types import BacktestResult, EquityPoint, PositionState
 
-
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 

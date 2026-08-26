@@ -39,12 +39,12 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from core.result import Result
 from brsapi.client import BrsApiResponse
-from brsapi.repositories import BulkUpsertRepository
-from brsapi.services.sync_service import BrsApiSyncService
 from brsapi.models.base import BrsApiBase, RawPayloadModel, SyncLogModel
 from brsapi.models.tsetmc import IndexValueModel, SymbolSnapshotModel
+from brsapi.repositories import BulkUpsertRepository
+from brsapi.services.sync_service import BrsApiSyncService
+from core.result import Result
 
 # Tables the pipeline writes: the two under test + the sync-log / raw-payload
 # audit tables the generic ``sync()`` path records into.

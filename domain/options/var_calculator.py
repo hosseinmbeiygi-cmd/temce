@@ -61,9 +61,15 @@ class VaRCalculator:
         var_95_pct = -np.percentile(scaled_returns, 5)
         var_99_pct = -np.percentile(scaled_returns, 1)
 
-        # CVaR (Expected Shortfall) = average of losses beyond VaR
-        cvar_95_pct = -np.mean(scaled_returns[scaled_returns <= -var_95_pct])
-        cvar_99_pct = -np.mean(scaled_returns[scaled_returns <= -var_99_pct])
+        # CVaR (Expected Shortfall) = average of losses beyond VaR (guard empty tail)
+        tail_95 = scaled_returns[scaled_returns <= -var_95_pct]
+        tail_99 = scaled_returns[scaled_returns <= -var_99_pct]
+        cvar_95_pct = -np.mean(tail_95) if tail_95.size > 0 else var_95_pct
+        if not np.isfinite(cvar_95_pct):
+            cvar_95_pct = var_95_pct
+        cvar_99_pct = -np.mean(tail_99) if tail_99.size > 0 else var_99_pct
+        if not np.isfinite(cvar_99_pct):
+            cvar_99_pct = var_99_pct
 
         return VaRResult(
             var_95=var_95_pct * portfolio_value,

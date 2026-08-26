@@ -277,20 +277,22 @@ async def main() -> None:
         tables = {}
         r = await c.execute(
             text(
-                "SELECT t.tablename, "
+                "SELECT t.table_name, "
                 "       GREATEST(CASE WHEN s.n_live_tup::bigint > 0 THEN s.n_live_tup::bigint "
                 "            ELSE c.reltuples::bigint END, 0) AS est, "
-                "       count(col.column_name)::int AS ncols "
-                "FROM pg_tables t "
-                "JOIN pg_class c ON c.relname = t.tablename AND c.relnamespace = 'public'::regnamespace "
-                "LEFT JOIN pg_stat_user_tables s ON s.relname = t.tablename AND s.schemaname = 'public' "
-                "LEFT JOIN information_schema.columns col ON col.table_name = t.tablename AND col.table_schema = 'public' "
-                "WHERE t.schemaname = 'public' AND t.tablename NOT LIKE 'alembic_%' "
-                "GROUP BY t.tablename, c.reltuples, s.n_live_tup"
+                "       count(col.column_name)::int AS ncols, "
+                "       t.table_type "
+                "FROM information_schema.tables t "
+                "JOIN pg_class c ON c.relname = t.table_name AND c.relnamespace = 'public'::regnamespace "
+                "LEFT JOIN pg_stat_user_tables s ON s.relname = t.table_name AND s.schemaname = 'public' "
+                "LEFT JOIN information_schema.columns col ON col.table_name = t.table_name AND col.table_schema = 'public' "
+                "WHERE t.table_schema = 'public' AND t.table_name NOT LIKE 'alembic_%' "
+                "  AND t.table_type IN ('BASE TABLE', 'VIEW') "
+                "GROUP BY t.table_name, c.reltuples, s.n_live_tup, t.table_type"
             )
         )
-        for name, est, ncols in r.fetchall():
-            tables[name] = {"est": est, "ncols": ncols, "rels": set(), "src": None}
+        for name, est, ncols, ttype in r.fetchall():
+            tables[name] = {"est": est, "ncols": ncols, "rels": set(), "src": None, "is_view": ttype == 'VIEW'}
 
         # hypertables: the parent's reltuples stays 0 (rows live in chunks), so
         # sum reltuples over the chunks for an accurate estimate. Gracefully
@@ -408,22 +410,91 @@ async def main() -> None:
                 rel_tables.add(rel[3:])
     diagram_names = sorted(hub_names | rel_tables, key=lambda t: (_domain(t), t))
 
-    lines = ["```mermaid", "erDiagram", '    %% --- نمودار ارتباط جدول‌های اصلی (خوشه‌بندی‌شده بر اساس دامنه) ---']
+    # ── domain color map ────────────────────────────────────────────────
+    DOMAIN_COLORS = {
+        "هسته / کاربران":          "#4A90D9",
+        "کدال و صورت‌های مالی":      "#27AE60",
+        "بازار سهام (سری زمانی)":   "#E67E22",
+        "BrsApi — لحظه‌ای و مرجع":  "#E74C3C",
+        "آپشن":                     "#9B59B6",
+        "بک‌تست و سیگنال":          "#1ABC9C",
+        "ML و آموزش":               "#3498DB",
+        "Tabdeal":                  "#E91E63",
+        "کلان و اخبار":             "#FF9800",
+        "زیرساخت و عملیات":         "#95A5A6",
+        "سایر":                     "#BDC3C7",
+    }
+
+    lines = ["```mermaid", "%%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '14px' } } }%%"]
+    lines.append("erDiagram")
+    lines.append("    %% =============================================")
+    lines.append("    %%  ER Diagram — رنگ‌بندی بر اساس دامنه کسب‌وکار")
+    lines.append("    %% =============================================")
+    lines.append("")
+
+    # entity definitions with row count annotation
     for name in diagram_names:
         lines.append(f"    {name} {{}}")
+    lines.append("")
+
+    # edges with cardinality
     edges = []
     for name, meta in tables.items():
         for rel in sorted(meta["rels"]):
             if rel.startswith("FK→"):
                 target = rel[3:]
                 if name in diagram_names and target in diagram_names:
-                    edges.append((name, target))
+                    edges.append((name, target, rel[3:]))
             elif rel == "symbol→symbols" and name in diagram_names and name != "symbols":
-                edges.append((name, "symbols"))
-    for src, dst in edges:
-        lines.append(f"    {src} ||--o{{ {dst} : \"دارای رابطه\"")
+                edges.append((name, "symbols", "symbol"))
+    for src, dst, label in edges:
+        lines.append(f"    {src} ||--o{{ {dst} : \"{label}\"")
+    lines.append("")
+
+    # English class names for mermaid (Persian not supported)
+    DOMAIN_CLASS = {
+        "هسته / کاربران":          "Core",
+        "کدال و صورت‌های مالی":      "Codal",
+        "بازار سهام (سری زمانی)":   "Market",
+        "BrsApi — لحظه‌ای و مرجع":  "BrsApi",
+        "آپشن":                     "Options",
+        "بک‌تست و سیگنال":          "Backtest",
+        "ML و آموزش":               "ML",
+        "Tabdeal":                  "Tabdeal",
+        "کلان و اخبار":             "Macro",
+        "زیرساخت و عملیات":         "Infra",
+        "سایر":                     "Other",
+    }
+
+    # classDef for each domain
+    lines.append("    %% --- رنگ‌بندی دامنه‌ها ---")
+    for domain, color in DOMAIN_COLORS.items():
+        cname = DOMAIN_CLASS.get(domain, "Other")
+        lines.append(f"    classDef {cname} fill:{color},stroke:#333,stroke-width:2px,color:#fff")
+    lines.append("")
+
+    # class assignments
+    for name in diagram_names:
+        domain = _domain(name)
+        cname = DOMAIN_CLASS.get(domain, "Other")
+        lines.append(f"    class {name} {cname}")
     lines.append("```")
     diagram = "\n".join(lines)
+
+    # ── color legend (Markdown table) ───────────────────────────────────
+    legend_lines = ["**راهنمای رنگ‌ها:**"]
+    legend_lines.append("")
+    legend_lines.append("| رنگ | دامنه | تعداد جدول |")
+    legend_lines.append("|-----|-------|-----------:|")
+    domain_counts: Counter[str] = Counter()
+    for name in diagram_names:
+        domain_counts[_domain(name)] += 1
+    for domain, color in DOMAIN_COLORS.items():
+        cnt = domain_counts.get(domain, 0)
+        if cnt:
+            legend_lines.append(f"| <span style=\"color:{color}\">■</span> | {domain} | {cnt} |")
+    legend_lines.append("")
+    legend = "\n".join(legend_lines)
 
     # ── stats table ─────────────────────────────────────────────────────
     rows = []
@@ -437,7 +508,8 @@ async def main() -> None:
         srows = sample[1] if sample else []
         has_rows = bool(srows)
         est_txt = _fmt(est) if est else (">0" if has_rows else "0")
-        rows.append(f"| `{name}` | {meta['ncols']} | ~{est_txt} | {src} | {rels} |")
+        view_tag = ' 🔍' if meta.get('is_view') else ''
+        rows.append(f"| `{name}`{view_tag} | {meta['ncols']} | ~{est_txt} | {src} | {rels} |")
         probs = _build_problems(name, meta, tables, models_by_table, refs_by_table)
         problems_by_table[name] = probs
         prob_counter.update(probs)
@@ -531,19 +603,21 @@ async def main() -> None:
         f"سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **{len(tables)} جدول** دارد",
         f"(تخمین کل ردیف‌ها: **~{_fmt(total_rows)}**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.",
         "",
-        "### نمودار ارتباط جدول‌ها",
+        "### نمودار ارتباط جدول‌ها (رنگ‌بندی بر اساس دامنه)",
         "",
         "نمودار زیر روابط **Foreign Key** و اتصال معنایی `symbol`/`ins_id` به جدول مرجع `symbols` را برای",
-        "جدول‌های اصلی نشان می‌دهد (فقط جدول‌هایی که رابطه دارند در نمودار می‌آیند؛ لیست کامل در جدول زیر است):",
+        "جدول‌های اصلی نشان می‌دهد. هر رنگ نشان‌دهنده یک **دامنه کسب‌وکار** است (فقط جدول‌هایی که رابطه دارند در نمودار می‌آیند):",
         "",
         diagram,
+        "",
+        legend,
         "",
         "### آمار کامل جدول‌ها",
         "",
         "ستون‌ها: تعداد ستون هر جدول. ردیف: تخمین PostgreSQL (دقیق نیست؛ `>0` یعنی داده دارد ولی آمار جمع نشده).",
         "رابطه: Foreign Keyهای واقعی و اتصال معنایی به `symbols`.",
         "",
-        "| جدول | ستون‌ها | ردیف (~) | منبع تاریخ دوتایی | رابطه با جدول‌های دیگر |",
+        "| جدول (🔍 = view) | ستون‌ها | ردیف (~) | منبع تاریخ دوتایی | رابطه با جدول‌های دیگر |",
         "|------|--------:|---------:|-------------------|------------------------|",
         *rows,
         "",
@@ -600,7 +674,11 @@ async def main() -> None:
         nxt = content.find("\n## ", start + 5)  # next top-level section
         if nxt == -1:
             nxt = len(content)
-        new_content = content[:start] + section.rstrip() + "\n\n" + content[nxt:].lstrip("\n")
+        # Strip trailing --- separator from section to avoid ---## collision
+        clean_section = section.rstrip()
+        if clean_section.endswith("\n---"):
+            clean_section = clean_section[:-4].rstrip()
+        new_content = content[:start] + clean_section + "\n\n---\n\n" + content[nxt:].lstrip("\n")
         action = "replaced"
     README.write_text(new_content, encoding="utf-8")
     print(

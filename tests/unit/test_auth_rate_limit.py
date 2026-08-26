@@ -120,7 +120,7 @@ class TestAuthLimitsConfig:
 
     def test_config_has_all_endpoints(self):
         assert set(auth_module._AUTH_LIMITS) == {
-            "login", "register", "change_password", "mfa_login", "mfa_setup"
+            "login", "register", "change_password", "mfa_login", "mfa_setup", "mfa_confirm", "mfa_disable"
         }
 
     def test_config_bursts_are_positive(self):

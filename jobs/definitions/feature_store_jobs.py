@@ -28,7 +28,6 @@ class FeatureStoreBuildJob(BaseJob):
 
     async def execute(self, context: JobContext) -> JobResult:
         from core.database import get_session
-
         from scripts.build_feature_store import FeatureStoreBuilder
 
         days = int(context.get_param("days", 100))
@@ -36,7 +35,7 @@ class FeatureStoreBuildJob(BaseJob):
         symbols = context.get_param("symbols", None)
 
         try:
-            async for session in get_session():
+            async for _session in get_session():
                 builder = FeatureStoreBuilder(symbols=symbols, days=days, workers=workers)
                 stats = await builder.build_all()
                 return JobResult.success_result(
@@ -55,7 +54,6 @@ class ScreenerDailyScoresJob(BaseJob):
 
     async def execute(self, context: JobContext) -> JobResult:
         from core.database import get_session
-
         from scripts.build_screener_scores import build_daily_scores
 
         date_str = context.get_param("date", None)

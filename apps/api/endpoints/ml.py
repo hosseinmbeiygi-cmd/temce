@@ -34,8 +34,9 @@ async def _db_list_models(session: AsyncSession) -> list[dict] | None:
     """List real registered models from ml_models + ml_model_versions tables."""
     import json as json_lib
 
-    from models.ml import MlModelModel, MlModelVersionModel
     from sqlalchemy import select
+
+    from models.ml import MlModelModel, MlModelVersionModel
 
     rows = (await session.execute(select(MlModelModel).order_by(MlModelModel.name))).scalars().all()
     if not rows:
@@ -85,8 +86,9 @@ async def _db_list_models(session: AsyncSession) -> list[dict] | None:
 
 async def _db_list_runs(session: AsyncSession, limit: int = 200) -> list[dict] | None:
     """List training runs from ml_training_runs table."""
-    from models.ml import MlTrainingRunModel
     from sqlalchemy import select
+
+    from models.ml import MlTrainingRunModel
 
     rows = (
         await session.execute(
@@ -172,8 +174,9 @@ async def list_runs(session: AsyncSession = Depends(get_db_session)) -> ApiRespo
 async def get_run(run_id: str, session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict]:
     # Prefer DB-persisted run (direct lookup by id)
     try:
-        from models.ml import MlTrainingRunModel
         from sqlalchemy import select
+
+        from models.ml import MlTrainingRunModel
 
         row = (
             await session.execute(select(MlTrainingRunModel).where(MlTrainingRunModel.id == run_id))

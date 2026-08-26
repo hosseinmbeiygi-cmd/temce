@@ -309,7 +309,7 @@ async def _run(artifacts_dir: Path, dry_run: bool, only: list[str]) -> int:
     finally:
         await close_database()
 
-    print(f"\n  Summary:")
+    print("\n  Summary:")
     print(f"    Models:   {len(models)}")
     print(f"    Versions: {total_versions}")
     print(f"    Runs:     {total_runs}")

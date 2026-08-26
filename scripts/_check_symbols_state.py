@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 """One-off check of brsapi_symbol_snapshots state."""
-import sys
 import io
 import os
+import sys
+
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.path.insert(0, ".")
 

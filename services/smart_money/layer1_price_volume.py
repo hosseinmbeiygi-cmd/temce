@@ -1,13 +1,40 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from core.logging import get_logger
 from services.smart_money.normalizer import MinMaxClipped
+
+logger = get_logger(__name__)
 
 norm = MinMaxClipped()
 
+_DEFAULT_PVS_WEIGHTS = {
+    "rvol_n": 0.20, "vtr_n": 0.20, "clv_n": 0.15,
+    "rec_n": 0.15, "ipe_n": 0.15, "lf_n": 0.15,
+}
+
+
+def _load_pvs_weights() -> dict[str, float]:
+    """Load PVS weights from config/smart_money.yaml, falling back to defaults."""
+    try:
+        import yaml
+        config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "smart_money.yaml")
+        with open(config_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+        weights = (cfg.get("layer_weights", {}).get("price_volume", {}).get("pvs", {}))
+        if weights and isinstance(weights, dict):
+            return {k: float(v) for k, v in weights.items()}
+    except Exception as e:
+        logger.debug("Could not load smart_money.yaml weights: %s", e)
+    return dict(_DEFAULT_PVS_WEIGHTS)
+
 
 class PriceVolumeLayer:
+    def __init__(self, weights: dict[str, float] | None = None) -> None:
+        self.weights = weights if weights is not None else _load_pvs_weights()
+
     def compute(
         self, quote: dict[str, Any], history: list[dict[str, Any]], index_return: float = 0.0
     ) -> dict[str, float]:
@@ -45,7 +72,15 @@ class PriceVolumeLayer:
         lf = (last - c) / c if c else 0.0
         lf_n = norm(lf, -0.01, 0.02)
 
-        pvs = 0.20 * rvol_n + 0.20 * vtr_n + 0.15 * clv_n + 0.15 * rec_n + 0.15 * ipe_n + 0.15 * lf_n
+        w = self.weights
+        pvs = (
+            w.get("rvol_n", 0.20) * rvol_n
+            + w.get("vtr_n", 0.20) * vtr_n
+            + w.get("clv_n", 0.15) * clv_n
+            + w.get("rec_n", 0.15) * rec_n
+            + w.get("ipe_n", 0.15) * ipe_n
+            + w.get("lf_n", 0.15) * lf_n
+        )
 
         return {
             "pvs": min(1.0, max(0.0, pvs)),

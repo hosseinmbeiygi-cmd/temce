@@ -19,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts import simulate_brsapi_usage as sim  # noqa: E402
 from brsapi.rate_limiter import RateLimiter  # noqa: E402
+from scripts import simulate_brsapi_usage as sim  # noqa: E402
 
 TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 

@@ -27,7 +27,6 @@ from brsapi.models import IndexValueModel, SymbolSnapshotModel
 from brsapi.parsers import TsetmcParser
 from brsapi.repositories import BulkUpsertRepository
 
-
 # ── Bug 1: ON CONFLICT DO UPDATE without a conflict target ──────────────
 
 

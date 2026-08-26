@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.ids import new_id
@@ -43,8 +43,8 @@ class UserService:
                 return Result.fail("Username or email already exists")
 
             # Personal system: first user gets admin role automatically
-            count_result = await self.session.execute(select(UserModel))
-            is_first_user = len(count_result.scalars().all()) == 0
+            total_users = await self.session.scalar(select(func.count(UserModel.id)))
+            is_first_user = (total_users or 0) == 0
             initial_role = "admin" if is_first_user else "user"
 
             user = UserModel(
@@ -564,14 +564,80 @@ class UserService:
             logger.error("Change password failed: %s", e)
             return Result.fail(str(e))
 
+    # ── Forgot password (overseas phone supported) ────────────────────────
+    _RESET_PREFIX = "auth:reset:"
+    _RESET_TTL = 10 * 60  # 10 minutes
+
+    async def request_password_reset(self, account: str) -> Result[dict[str, Any]]:
+        try:
+            from core.cache import get_cache
+
+            q = account.strip()
+            result = await self.session.execute(
+                select(UserModel).where((UserModel.username == q) | (UserModel.email == q) | (UserModel.phone == q))
+            )
+            user = result.scalar_one_or_none()
+            if not user:
+                return Result.fail("Account not found")
+            cache = get_cache()
+            if not cache.is_connected:
+                return Result.fail("Service temporarily unavailable")
+            code = generate_otp()
+            await cache.set(self._RESET_PREFIX + user.id, code, ttl=self._RESET_TTL)
+            # Deliver via available channel: prefer email, fallback to phone/sms
+            if user.email:
+                try:
+                    from integrations.notifications.email_sender import EmailSender
+
+                    await EmailSender().send(user.email, subject="Password reset code", body=f"Your reset code is: {code} (10 min)")
+                except Exception:
+                    logger.warning("Reset email failed for %s", user.id, exc_info=True)
+            if user.phone:
+                try:
+                    from integrations.notifications.sms_sender import SmsSender  # type: ignore
+
+                    await SmsSender().send(user.phone, f"Reset code: {code}")  # type: ignore
+                except Exception:
+                    logger.debug("SMS reset not configured for %s", user.id)
+            logger.info("Password reset code issued for %s", user.id)
+            return Result.ok({"user_id": user.id, "masked_email": (user.email[:3] + "***" if user.email else ""), "masked_phone": (user.phone[:3] + "***" if user.phone else "")})
+        except Exception as e:
+            logger.error("request_password_reset failed: %s", e)
+            return Result.fail(str(e))
+
+    async def reset_password(self, account: str, code: str, new_password: str) -> Result[None]:
+        try:
+            from core.cache import get_cache
+
+            q = account.strip()
+            result = await self.session.execute(
+                select(UserModel).where((UserModel.username == q) | (UserModel.email == q) | (UserModel.phone == q))
+            )
+            user = result.scalar_one_or_none()
+            if not user:
+                return Result.fail("Account not found")
+            cache = get_cache()
+            if not cache.is_connected:
+                return Result.fail("Service temporarily unavailable")
+            stored = await cache.pop(self._RESET_PREFIX + user.id)
+            if not stored or str(stored) != str(code):
+                return Result.fail("Invalid or expired code")
+            user.hashed_password = hash_password(new_password)
+            user.refresh_token = None
+            await self.session.flush()
+            logger.info("Password reset via code for %s", user.id)
+            return Result.ok(None)
+        except Exception as e:
+            logger.error("reset_password failed: %s", e)
+            return Result.fail(str(e))
+
     async def list_users(self, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
         try:
             result = await self.session.execute(
                 select(UserModel).offset((page - 1) * page_size).limit(page_size)
             )
             users = result.scalars().all()
-            total_result = await self.session.execute(select(UserModel))
-            total = len(total_result.scalars().all())
+            total = await self.session.scalar(select(func.count(UserModel.id))) or 0
             return Result.ok({
                 "items": [
                     {

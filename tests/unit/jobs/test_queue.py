@@ -19,7 +19,6 @@ import pytest
 from jobs.queue_consumer import JobQueueConsumer
 from jobs.queue_publisher import JobQueuePublisher
 
-
 # ── Fake redis client (lists + locks) ────────────────────────────────────
 
 

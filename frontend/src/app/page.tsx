@@ -24,8 +24,11 @@ import { cn } from "@/lib/cn";
 import { faNum } from "@/lib/market-format";
 
 function LiveClock() {
-  const [now, setNow] = useState(() => new Date());
+  // Date must not be read during SSR/client hydration; use a stable initial
+  // value and start the live clock after the component mounts.
+  const [now, setNow] = useState(() => new Date(0));
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);

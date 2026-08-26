@@ -15,6 +15,7 @@ from typing import Any
 
 from core.calibration_bootstrap import BOOTSTRAP_PRIOR_WEIGHT, get_accuracy_prior
 from core.db_utils import safe_row_float
+from core.indicators import compute_trend_strength, compute_volatility_regime
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -307,43 +308,13 @@ class ConfidenceScorer:
 
     @staticmethod
     def _compute_trend_strength(closes: list[float], period: int = 20) -> float:
-        """Compute trend strength (0-1) based on ADX-like logic."""
-        if len(closes) < period:
-            return 0.5
-
-        # Directional movement
-        up_days = 0
-        down_days = 0
-        for i in range(1, period):
-            if closes[-i] > closes[-i - 1]:
-                up_days += 1
-            elif closes[-i] < closes[-i - 1]:
-                down_days += 1
-
-        total = up_days + down_days
-        if total == 0:
-            return 0.5
-
-        # Trend strength: how directional vs. choppy
-        strength = abs(up_days - down_days) / total
-        return min(1.0, strength * 1.5)
+        """Compute trend strength (0-1) based on ADX-like logic — unified formula."""
+        return compute_trend_strength(closes, period)
 
     @staticmethod
     def _compute_volatility_regime(closes: list[float], period: int = 20) -> float:
-        """Compute volatility regime (0-1). Lower = more stable."""
-        if len(closes) < period:
-            return 0.5
-
-        returns = [(closes[i] - closes[i - 1]) / max(closes[i - 1], 0.001)
-                   for i in range(-period, 0) if closes[i - 1] > 0]
-        if not returns:
-            return 0.5
-
-        import numpy as np
-        vol = float(np.std(returns))
-        # Normalize: vol of 0.01 (1%) → 0.3, vol of 0.05 (5%) → 0.7
-        normalized = min(1.0, vol * 20)
-        return float(normalized)
+        """Compute volatility regime (0-1). Lower = more stable — unified formula."""
+        return compute_volatility_regime(closes, period)
 
     async def _get_market_condition(self, market: str) -> float:
         """Get overall market condition score (0-1).

@@ -23,7 +23,6 @@ if PROJECT_ROOT not in sys.path:
 
 from jobs.replay import _build_summary, classify_error, resolve_since, summarize_dead_letter
 
-
 # ---------------------------------------------------------------------------
 # classify_error
 # ---------------------------------------------------------------------------
@@ -174,7 +173,8 @@ def test_resolve_since_today_is_tehran_midnight():
     now = 1_799_366_400.0
     since = resolve_since("today", now=now)
     assert since is not None
-    from datetime import UTC as _UTC, datetime
+    from datetime import UTC as _UTC
+    from datetime import datetime
 
     dt = datetime.fromtimestamp(since, tz=_UTC)
     # Tehran midnight == previous UTC 20:30 (Iran is UTC+3:30)

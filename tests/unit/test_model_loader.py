@@ -6,7 +6,6 @@ the real ``ml_artifacts/`` directory.
 
 from __future__ import annotations
 
-import os
 import pickle
 import tempfile
 from pathlib import Path

@@ -127,9 +127,20 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
                  + r * K * math.exp(-r * T) * stats.norm.cdf(-d2)) / 365.0
         intrinsic = max(0.0, K - S)
 
-    gamma = npdf_d1 / (S * sigma * math.sqrt(T))
+    # Guard against near-zero sigma*sqrt(T) that would produce inf gamma
+    denom = S * sigma * math.sqrt(T)
+    if denom < 1e-12 or not math.isfinite(denom):
+        gamma = 0.0
+    else:
+        gamma = npdf_d1 / denom
+        if not math.isfinite(gamma):
+            gamma = 0.0
     vega = S * npdf_d1 * math.sqrt(T) / 100.0
+    if not math.isfinite(vega):
+        vega = 0.0
     rho = K * T * math.exp(-r * T) * (nd2 if option_type == "call" else -stats.norm.cdf(-d2)) / 100.0
+    if not math.isfinite(rho):
+        rho = 0.0
 
     return OptionPrice(
         model=PRICING_MODEL_BLACK_SCHOLES,

@@ -93,6 +93,7 @@ async function _silentRefresh(): Promise<string | null> {
 
       if (newAccessToken) {
         writeStoredAuth({ access_token: newAccessToken });
+        if (data.user) _memoryAuth.user = data.user as Record<string, unknown>;
         return newAccessToken;
       }
       return null;
@@ -150,6 +151,11 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
     credentials: "include",
   });
     return response;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+    }
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -367,7 +373,12 @@ export function extractTotal(response: unknown): number {
   return 0;
 }
 
-export function safeExtractArray<T = unknown>(response: unknown, _endpoint?: string): T[] {
-  void _endpoint;
+export function safeExtractArray<T = unknown>(response: unknown, endpoint?: string): T[] {
+  if (response && typeof response === "object") {
+    const obj = response as Record<string, unknown>;
+    if (obj.success === false || obj.error || obj.detail) {
+      console.warn(`[safeExtractArray] backend error at ${endpoint ?? "?"}:`, obj.error ?? obj.detail ?? obj);
+    }
+  }
   return extractArray<T>(response);
 }

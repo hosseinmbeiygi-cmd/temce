@@ -90,7 +90,24 @@ class BacktestResult:
 
 
 class SignalBacktestEngine:
-    """Backtests signals against historical price data to measure real performance."""
+    """Backtests signals against historical price data to measure real performance.
+
+    Transaction costs are deducted from each trade's return. Default costs:
+        - stock: 0.3% round-trip (0.15% entry + 0.15% exit)
+        - gold/currency/commodity: 0.5%
+        - crypto: 0.5%
+        - option: 1.0%
+    """
+
+    DEFAULT_TRANSACTION_COSTS = {
+        "stock": 0.003,
+        "gold": 0.005,
+        "currency": 0.005,
+        "crypto": 0.005,
+        "commodity": 0.005,
+        "option": 0.01,
+        "ime": 0.005,
+    }
 
     def __init__(self, session: Any = None) -> None:
         self._session = session
@@ -186,6 +203,10 @@ class SignalBacktestEngine:
                     with contextlib.suppress(Exception):
                         await self._tracker.record_outcome(outcome)
 
+                    # Apply transaction costs to the return
+                    costs_pct = self.DEFAULT_TRANSACTION_COSTS.get(market_type, 0.003)
+                    cost_adjusted_return = outcome.actual_return_pct - (costs_pct * 100)
+
                     outcomes.append(BacktestedSignal(
                         signal_id=outcome.signal_id,
                         symbol=outcome.symbol,
@@ -197,7 +218,7 @@ class SignalBacktestEngine:
                         exit_date=hist_data[-1].get("date", ""),
                         entry_price=outcome.entry_price,
                         exit_price=outcome.exit_price,
-                        return_pct=outcome.actual_return_pct,
+                        return_pct=cost_adjusted_return,
                         correct=outcome.direction_correct,
                         max_profit_pct=outcome.max_profit_pct,
                         max_loss_pct=outcome.max_loss_pct,
@@ -309,21 +330,25 @@ class SignalBacktestEngine:
         # Profit factor
         total_profit = sum(wins) if wins else 0
         total_loss = sum(abs(loss) for loss in losses) if losses else 0
-        result.profit_factor = total_profit / max(total_loss, 0.001)
+        result.profit_factor = total_profit / total_loss if total_loss > 0 else (float("inf") if total_profit > 0 else 0.0)
 
-        # Sharpe (using avg return as mean, std of returns)
+        # Sharpe ratio (annualized for daily returns: multiply by sqrt(252))
         if len(returns) > 1:
             mean_r = np.mean(returns)
             std_r = np.std(returns, ddof=1)
-            result.sharpe = mean_r / max(std_r, 0.001)
+            period_sharpe = mean_r / max(std_r, 0.001)
+            result.sharpe = period_sharpe * (252 ** 0.5)
         else:
             result.sharpe = 0.0
 
-        # Max drawdown (cumulative returns)
-        cumulative = np.cumsum(returns) if returns else [0]
-        peak = np.maximum.accumulate(cumulative)
-        drawdown = (peak - cumulative) / np.maximum(peak, 0.001)
-        result.max_drawdown_pct = float(np.max(drawdown)) * 100 if len(drawdown) > 0 else 0
+        # Max drawdown (compounding returns via cumprod)
+        if returns:
+            cumulative = np.cumprod(1.0 + np.array(returns) / 100.0)
+            peak = np.maximum.accumulate(cumulative)
+            drawdown = (peak - cumulative) / np.maximum(peak, 1e-10)
+            result.max_drawdown_pct = float(np.max(drawdown)) * 100
+        else:
+            result.max_drawdown_pct = 0.0
 
         # By market
         markets = {o.market for o in outcomes}

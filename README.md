@@ -872,19 +872,25 @@ refactor: بازآرایی کد
 chore: وظایف نگهداری
 ```
 
----## 🗄️ ساختار دیتابیس
+---
 
-سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **131 جدول** دارد
+## 🗄️ ساختار دیتابیس
+
+سکوی داده روی **PostgreSQL 16 + TimescaleDB** اجرا می‌شود و در حال حاضر **137 جدول** دارد
 (تخمین کل ردیف‌ها: **~43,128,436**). جدول‌های بزرگ سری‌زمانی با TimescaleDB به هایپرتیبل تبدیل شده‌اند.
 
-### نمودار ارتباط جدول‌ها
+### نمودار ارتباط جدول‌ها (رنگ‌بندی بر اساس دامنه)
 
 نمودار زیر روابط **Foreign Key** و اتصال معنایی `symbol`/`ins_id` به جدول مرجع `symbols` را برای
-جدول‌های اصلی نشان می‌دهد (فقط جدول‌هایی که رابطه دارند در نمودار می‌آیند؛ لیست کامل در جدول زیر است):
+جدول‌های اصلی نشان می‌دهد. هر رنگ نشان‌دهنده یک **دامنه کسب‌وکار** است (فقط جدول‌هایی که رابطه دارند در نمودار می‌آیند):
 
 ```mermaid
+%%{ init: { 'theme': 'base', 'themeVariables': { 'fontSize': '14px' } } }%%
 erDiagram
-    %% --- نمودار ارتباط جدول‌های اصلی (خوشه‌بندی‌شده بر اساس دامنه) ---
+    %% =============================================
+    %%  ER Diagram — رنگ‌بندی بر اساس دامنه کسب‌وکار
+    %% =============================================
+
     brsapi_candlesticks {}
     brsapi_commodity_prices {}
     brsapi_crypto_daily_history {}
@@ -926,6 +932,7 @@ erDiagram
     option_trades {}
     options {}
     brsapi_nav_records {}
+    candlesticks {}
     daily_history {}
     daily_real_legal {}
     etf_nav {}
@@ -936,6 +943,7 @@ erDiagram
     orderbooks {}
     quotes {}
     shareholders {}
+    symbol_snapshots {}
     trades {}
     backtest_runs {}
     backtest_trades {}
@@ -965,6 +973,7 @@ erDiagram
     paper_signal_snapshots {}
     paper_trades {}
     symbol_snapshots_deprecated {}
+    vw_clean_daily_history {}
     portfolio_positions {}
     recommendations {}
     saved_filters {}
@@ -974,6 +983,7 @@ erDiagram
     analysis_reports {}
     brsapi_codal_announcements {}
     brsapi_codal_attachments {}
+    codal_announcements {}
     codal_announcements_deprecated {}
     codal_audit_summary {}
     codal_financial_statements {}
@@ -996,123 +1006,276 @@ erDiagram
     import_document_tables {}
     macro_indicators {}
     news_articles {}
-    account_mappings ||--o{ dim_account : "دارای رابطه"
-    alerts ||--o{ symbols : "دارای رابطه"
-    analysis_reports ||--o{ dim_company : "دارای رابطه"
-    analysis_reports ||--o{ symbols : "دارای رابطه"
-    backtest_trades ||--o{ symbols : "دارای رابطه"
-    brsapi_candlesticks ||--o{ symbols : "دارای رابطه"
-    brsapi_codal_announcements ||--o{ symbols : "دارای رابطه"
-    brsapi_codal_attachments ||--o{ symbols : "دارای رابطه"
-    brsapi_commodity_prices ||--o{ symbols : "دارای رابطه"
-    brsapi_crypto_daily_history ||--o{ symbols : "دارای رابطه"
-    brsapi_crypto_prices ||--o{ symbols : "دارای رابطه"
-    brsapi_currency_24h ||--o{ symbols : "دارای رابطه"
-    brsapi_currency_prices ||--o{ symbols : "دارای رابطه"
-    brsapi_gold_24h ||--o{ symbols : "دارای رابطه"
-    brsapi_gold_coin_history ||--o{ symbols : "دارای رابطه"
-    brsapi_gold_coin_prices ||--o{ symbols : "دارای رابطه"
-    brsapi_gold_currency_pro_daily_history ||--o{ symbols : "دارای رابطه"
-    brsapi_gold_currency_pro_history_24h ||--o{ symbols : "دارای رابطه"
-    brsapi_gold_currency_pro_prices ||--o{ symbols : "دارای رابطه"
-    brsapi_historical_daily ||--o{ symbols : "دارای رابطه"
-    brsapi_historical_daily_backup ||--o{ symbols : "دارای رابطه"
-    brsapi_historical_real_legal ||--o{ symbols : "دارای رابطه"
-    brsapi_ime_certificates ||--o{ symbols : "دارای رابطه"
-    brsapi_ime_funds ||--o{ symbols : "دارای رابطه"
-    brsapi_ime_futures ||--o{ symbols : "دارای رابطه"
-    brsapi_ime_options ||--o{ symbols : "دارای رابطه"
-    brsapi_ime_physical_trades ||--o{ symbols : "دارای رابطه"
-    brsapi_index_values ||--o{ symbols : "دارای رابطه"
-    brsapi_intraday_trades ||--o{ symbols : "دارای رابطه"
-    brsapi_intraday_trades_backup ||--o{ symbols : "دارای رابطه"
-    brsapi_nav_records ||--o{ symbols : "دارای رابطه"
-    brsapi_option_snapshots ||--o{ symbols : "دارای رابطه"
-    brsapi_shareholder_records ||--o{ symbols : "دارای رابطه"
-    brsapi_symbol_details ||--o{ symbols : "دارای رابطه"
-    brsapi_symbol_snapshots ||--o{ symbols : "دارای رابطه"
-    candlesticks_deprecated ||--o{ symbols : "دارای رابطه"
-    codal_announcements_deprecated ||--o{ symbols : "دارای رابطه"
-    codal_audit_summary ||--o{ symbols : "دارای رابطه"
-    codal_financial_statements ||--o{ symbols : "دارای رابطه"
-    codal_reports ||--o{ symbols : "دارای رابطه"
-    codal_reports_backup ||--o{ symbols : "دارای رابطه"
-    commodity_certificates ||--o{ symbols : "دارای رابطه"
-    commodity_funds ||--o{ symbols : "دارای رابطه"
-    commodity_futures ||--o{ symbols : "دارای رابطه"
-    commodity_options ||--o{ symbols : "دارای رابطه"
-    commodity_prices ||--o{ symbols : "دارای رابطه"
-    commodity_trades ||--o{ symbols : "دارای رابطه"
-    compare_results ||--o{ symbols : "دارای رابطه"
-    corporate_actions ||--o{ symbols : "دارای رابطه"
-    daily_history_deprecated ||--o{ symbols : "دارای رابطه"
-    daily_real_legal ||--o{ symbols : "دارای رابطه"
-    data_lineage ||--o{ dim_document : "دارای رابطه"
-    data_lineage ||--o{ fact_financials : "دارای رابطه"
-    decision_results ||--o{ symbols : "دارای رابطه"
-    dim_account ||--o{ dim_account : "دارای رابطه"
-    dim_company ||--o{ symbols : "دارای رابطه"
-    dim_document ||--o{ dim_company : "دارای رابطه"
-    dim_document ||--o{ dim_report_type : "دارای رابطه"
-    etf_nav ||--o{ symbols : "دارای رابطه"
-    fact_financials ||--o{ dim_account : "دارای رابطه"
-    fact_financials ||--o{ dim_company : "دارای رابطه"
-    fact_financials ||--o{ dim_date : "دارای رابطه"
-    fact_financials ||--o{ dim_document : "دارای رابطه"
-    fact_financials ||--o{ dim_report_type : "دارای رابطه"
-    fact_growth ||--o{ dim_company : "دارای رابطه"
-    fact_growth ||--o{ dim_date : "دارای رابطه"
-    fact_quality_signals ||--o{ dim_company : "دارای رابطه"
-    fact_quality_signals ||--o{ dim_date : "دارای رابطه"
-    fact_ratios ||--o{ dim_company : "دارای رابطه"
-    fact_ratios ||--o{ dim_date : "دارای رابطه"
-    fact_text_analytics ||--o{ dim_company : "دارای رابطه"
-    fact_text_analytics ||--o{ dim_document : "دارای رابطه"
-    funds ||--o{ symbols : "دارای رابطه"
-    generated_strategies ||--o{ symbols : "دارای رابطه"
-    gold_currency_prices ||--o{ symbols : "دارای رابطه"
-    import_audit_log ||--o{ import_document_files : "دارای رابطه"
-    import_document_tables ||--o{ import_document_files : "دارای رابطه"
-    indicators ||--o{ symbols : "دارای رابطه"
-    instruments ||--o{ symbols : "دارای رابطه"
-    intraday_trades_deprecated ||--o{ symbols : "دارای رابطه"
-    ml_engineered_features ||--o{ symbols : "دارای رابطه"
-    ml_predictions ||--o{ symbols : "دارای رابطه"
-    ml_symbol_results ||--o{ symbols : "دارای رابطه"
-    open_interest_history ||--o{ option_contracts : "دارای رابطه"
-    option_contracts ||--o{ symbols : "دارای رابطه"
-    option_snapshots ||--o{ option_contracts : "دارای رابطه"
-    option_trades ||--o{ option_contracts : "دارای رابطه"
-    options ||--o{ symbols : "دارای رابطه"
-    orderbook_snapshots ||--o{ symbols : "دارای رابطه"
-    orderbooks ||--o{ symbols : "دارای رابطه"
-    paper_signal_snapshots ||--o{ symbols : "دارای رابطه"
-    paper_trades ||--o{ symbols : "دارای رابطه"
-    portfolio_positions ||--o{ symbols : "دارای رابطه"
-    queue_analysis_results ||--o{ symbols : "دارای رابطه"
-    quotes ||--o{ symbols : "دارای رابطه"
-    recommendations ||--o{ symbols : "دارای رابطه"
-    saved_filters ||--o{ users : "دارای رابطه"
-    screener_daily_scores ||--o{ symbols : "دارای رابطه"
-    screener_profiles ||--o{ symbols : "دارای رابطه"
-    screener_signals ||--o{ symbols : "دارای رابطه"
-    screener_snapshots ||--o{ symbols : "دارای رابطه"
-    shareholders ||--o{ symbols : "دارای رابطه"
-    signal_accuracy ||--o{ symbols : "دارای رابطه"
-    signals ||--o{ symbols : "دارای رابطه"
-    symbol_snapshots_deprecated ||--o{ symbols : "دارای رابطه"
-    tabdeal_markets ||--o{ symbols : "دارای رابطه"
-    tabdeal_orders ||--o{ symbols : "دارای رابطه"
-    tabdeal_trades ||--o{ symbols : "دارای رابطه"
-    trades ||--o{ symbols : "دارای رابطه"
+
+    account_mappings ||--o{ dim_account : "dim_account"
+    alerts ||--o{ symbols : "symbol"
+    analysis_reports ||--o{ dim_company : "dim_company"
+    analysis_reports ||--o{ symbols : "symbol"
+    backtest_trades ||--o{ symbols : "symbol"
+    brsapi_candlesticks ||--o{ symbols : "symbol"
+    brsapi_codal_announcements ||--o{ symbols : "symbol"
+    brsapi_codal_attachments ||--o{ symbols : "symbol"
+    brsapi_commodity_prices ||--o{ symbols : "symbol"
+    brsapi_crypto_daily_history ||--o{ symbols : "symbol"
+    brsapi_crypto_prices ||--o{ symbols : "symbol"
+    brsapi_currency_24h ||--o{ symbols : "symbol"
+    brsapi_currency_prices ||--o{ symbols : "symbol"
+    brsapi_gold_24h ||--o{ symbols : "symbol"
+    brsapi_gold_coin_history ||--o{ symbols : "symbol"
+    brsapi_gold_coin_prices ||--o{ symbols : "symbol"
+    brsapi_gold_currency_pro_daily_history ||--o{ symbols : "symbol"
+    brsapi_gold_currency_pro_history_24h ||--o{ symbols : "symbol"
+    brsapi_gold_currency_pro_prices ||--o{ symbols : "symbol"
+    brsapi_historical_daily ||--o{ symbols : "symbol"
+    brsapi_historical_daily_backup ||--o{ symbols : "symbol"
+    brsapi_historical_real_legal ||--o{ symbols : "symbol"
+    brsapi_ime_certificates ||--o{ symbols : "symbol"
+    brsapi_ime_funds ||--o{ symbols : "symbol"
+    brsapi_ime_futures ||--o{ symbols : "symbol"
+    brsapi_ime_options ||--o{ symbols : "symbol"
+    brsapi_ime_physical_trades ||--o{ symbols : "symbol"
+    brsapi_index_values ||--o{ symbols : "symbol"
+    brsapi_intraday_trades ||--o{ symbols : "symbol"
+    brsapi_intraday_trades_backup ||--o{ symbols : "symbol"
+    brsapi_nav_records ||--o{ symbols : "symbol"
+    brsapi_option_snapshots ||--o{ symbols : "symbol"
+    brsapi_shareholder_records ||--o{ symbols : "symbol"
+    brsapi_symbol_details ||--o{ symbols : "symbol"
+    brsapi_symbol_snapshots ||--o{ symbols : "symbol"
+    candlesticks ||--o{ symbols : "symbol"
+    candlesticks_deprecated ||--o{ symbols : "symbols"
+    codal_announcements ||--o{ symbols : "symbol"
+    codal_announcements_deprecated ||--o{ symbols : "symbol"
+    codal_audit_summary ||--o{ symbols : "symbol"
+    codal_financial_statements ||--o{ symbols : "symbol"
+    codal_reports ||--o{ symbols : "symbol"
+    codal_reports_backup ||--o{ symbols : "symbol"
+    commodity_certificates ||--o{ symbols : "symbol"
+    commodity_funds ||--o{ symbols : "symbol"
+    commodity_futures ||--o{ symbols : "symbol"
+    commodity_options ||--o{ symbols : "symbol"
+    commodity_prices ||--o{ symbols : "symbol"
+    commodity_trades ||--o{ symbols : "symbol"
+    compare_results ||--o{ symbols : "symbol"
+    corporate_actions ||--o{ symbols : "symbol"
+    daily_history ||--o{ symbols : "symbol"
+    daily_history_deprecated ||--o{ symbols : "symbols"
+    daily_real_legal ||--o{ symbols : "symbols"
+    data_lineage ||--o{ dim_document : "dim_document"
+    data_lineage ||--o{ fact_financials : "fact_financials"
+    decision_results ||--o{ symbols : "symbol"
+    dim_account ||--o{ dim_account : "dim_account"
+    dim_company ||--o{ symbols : "symbol"
+    dim_document ||--o{ dim_company : "dim_company"
+    dim_document ||--o{ dim_report_type : "dim_report_type"
+    etf_nav ||--o{ symbols : "symbols"
+    fact_financials ||--o{ dim_account : "dim_account"
+    fact_financials ||--o{ dim_company : "dim_company"
+    fact_financials ||--o{ dim_date : "dim_date"
+    fact_financials ||--o{ dim_document : "dim_document"
+    fact_financials ||--o{ dim_report_type : "dim_report_type"
+    fact_growth ||--o{ dim_company : "dim_company"
+    fact_growth ||--o{ dim_date : "dim_date"
+    fact_quality_signals ||--o{ dim_company : "dim_company"
+    fact_quality_signals ||--o{ dim_date : "dim_date"
+    fact_ratios ||--o{ dim_company : "dim_company"
+    fact_ratios ||--o{ dim_date : "dim_date"
+    fact_text_analytics ||--o{ dim_company : "dim_company"
+    fact_text_analytics ||--o{ dim_document : "dim_document"
+    funds ||--o{ symbols : "symbol"
+    generated_strategies ||--o{ symbols : "symbol"
+    gold_currency_prices ||--o{ symbols : "symbol"
+    import_audit_log ||--o{ import_document_files : "import_document_files"
+    import_document_tables ||--o{ import_document_files : "import_document_files"
+    indicators ||--o{ symbols : "symbol"
+    instruments ||--o{ symbols : "symbol"
+    intraday_trades ||--o{ symbols : "symbol"
+    intraday_trades_deprecated ||--o{ symbols : "symbols"
+    ml_engineered_features ||--o{ symbols : "symbol"
+    ml_predictions ||--o{ symbols : "symbol"
+    ml_symbol_results ||--o{ symbols : "symbol"
+    open_interest_history ||--o{ option_contracts : "option_contracts"
+    option_contracts ||--o{ symbols : "symbol"
+    option_snapshots ||--o{ option_contracts : "option_contracts"
+    option_trades ||--o{ option_contracts : "option_contracts"
+    options ||--o{ symbols : "symbol"
+    orderbook_snapshots ||--o{ symbols : "symbols"
+    orderbooks ||--o{ symbols : "symbol"
+    paper_signal_snapshots ||--o{ symbols : "symbol"
+    paper_trades ||--o{ symbols : "symbol"
+    portfolio_positions ||--o{ symbols : "symbol"
+    queue_analysis_results ||--o{ symbols : "symbol"
+    quotes ||--o{ symbols : "symbol"
+    recommendations ||--o{ symbols : "symbol"
+    saved_filters ||--o{ users : "users"
+    screener_daily_scores ||--o{ symbols : "symbol"
+    screener_profiles ||--o{ symbols : "symbol"
+    screener_signals ||--o{ symbols : "symbol"
+    screener_snapshots ||--o{ symbols : "symbol"
+    shareholders ||--o{ symbols : "symbols"
+    signal_accuracy ||--o{ symbols : "symbol"
+    signals ||--o{ symbols : "symbol"
+    symbol_snapshots ||--o{ symbols : "symbol"
+    symbol_snapshots_deprecated ||--o{ symbols : "symbols"
+    tabdeal_markets ||--o{ symbols : "symbol"
+    tabdeal_orders ||--o{ symbols : "symbol"
+    tabdeal_trades ||--o{ symbols : "symbol"
+    trades ||--o{ symbols : "symbol"
+    vw_clean_daily_history ||--o{ symbols : "symbol"
+
+    %% --- رنگ‌بندی دامنه‌ها ---
+    classDef Core fill:#4A90D9,stroke:#333,stroke-width:2px,color:#fff
+    classDef Codal fill:#27AE60,stroke:#333,stroke-width:2px,color:#fff
+    classDef Market fill:#E67E22,stroke:#333,stroke-width:2px,color:#fff
+    classDef BrsApi fill:#E74C3C,stroke:#333,stroke-width:2px,color:#fff
+    classDef Options fill:#9B59B6,stroke:#333,stroke-width:2px,color:#fff
+    classDef Backtest fill:#1ABC9C,stroke:#333,stroke-width:2px,color:#fff
+    classDef ML fill:#3498DB,stroke:#333,stroke-width:2px,color:#fff
+    classDef Tabdeal fill:#E91E63,stroke:#333,stroke-width:2px,color:#fff
+    classDef Macro fill:#FF9800,stroke:#333,stroke-width:2px,color:#fff
+    classDef Infra fill:#95A5A6,stroke:#333,stroke-width:2px,color:#fff
+    classDef Other fill:#BDC3C7,stroke:#333,stroke-width:2px,color:#fff
+
+    class brsapi_candlesticks BrsApi
+    class brsapi_commodity_prices BrsApi
+    class brsapi_crypto_daily_history BrsApi
+    class brsapi_crypto_prices BrsApi
+    class brsapi_currency_24h BrsApi
+    class brsapi_currency_prices BrsApi
+    class brsapi_gold_24h BrsApi
+    class brsapi_gold_coin_history BrsApi
+    class brsapi_gold_coin_prices BrsApi
+    class brsapi_gold_currency_pro_daily_history BrsApi
+    class brsapi_gold_currency_pro_history_24h BrsApi
+    class brsapi_gold_currency_pro_prices BrsApi
+    class brsapi_historical_daily BrsApi
+    class brsapi_historical_daily_backup BrsApi
+    class brsapi_historical_real_legal BrsApi
+    class brsapi_ime_certificates BrsApi
+    class brsapi_ime_funds BrsApi
+    class brsapi_ime_futures BrsApi
+    class brsapi_ime_options BrsApi
+    class brsapi_ime_physical_trades BrsApi
+    class brsapi_index_values BrsApi
+    class brsapi_intraday_trades BrsApi
+    class brsapi_intraday_trades_backup BrsApi
+    class brsapi_option_snapshots BrsApi
+    class brsapi_shareholder_records BrsApi
+    class brsapi_symbol_details BrsApi
+    class brsapi_symbol_snapshots BrsApi
+    class ml_engineered_features ML
+    class ml_models ML
+    class ml_predictions ML
+    class ml_symbol_results ML
+    class tabdeal_markets Tabdeal
+    class tabdeal_orders Tabdeal
+    class tabdeal_quotes Tabdeal
+    class tabdeal_trades Tabdeal
+    class open_interest_history Options
+    class option_contracts Options
+    class option_snapshots Options
+    class option_trades Options
+    class options Options
+    class brsapi_nav_records Market
+    class candlesticks Market
+    class daily_history Market
+    class daily_real_legal Market
+    class etf_nav Market
+    class funds Market
+    class indicators Market
+    class intraday_trades Market
+    class orderbook_snapshots Market
+    class orderbooks Market
+    class quotes Market
+    class shareholders Market
+    class symbol_snapshots Market
+    class trades Market
+    class backtest_runs Backtest
+    class backtest_trades Backtest
+    class compare_results Backtest
+    class generated_strategies Backtest
+    class queue_analysis_results Backtest
+    class screener_daily_scores Backtest
+    class screener_profiles Backtest
+    class screener_signals Backtest
+    class screener_snapshots Backtest
+    class signal_accuracy Backtest
+    class signals Backtest
+    class decision_results Infra
+    class job_runs Infra
+    class alerts Other
+    class candlesticks_deprecated Other
+    class commodity_certificates Other
+    class commodity_funds Other
+    class commodity_futures Other
+    class commodity_options Other
+    class commodity_prices Other
+    class commodity_trades Other
+    class daily_history_deprecated Other
+    class gold_currency_prices Other
+    class instruments Other
+    class intraday_trades_deprecated Other
+    class paper_signal_snapshots Other
+    class paper_trades Other
+    class symbol_snapshots_deprecated Other
+    class vw_clean_daily_history Other
+    class portfolio_positions Core
+    class recommendations Core
+    class saved_filters Core
+    class symbols Core
+    class users Core
+    class account_mappings Codal
+    class analysis_reports Codal
+    class brsapi_codal_announcements Codal
+    class brsapi_codal_attachments Codal
+    class codal_announcements Codal
+    class codal_announcements_deprecated Codal
+    class codal_audit_summary Codal
+    class codal_financial_statements Codal
+    class codal_reports Codal
+    class codal_reports_backup Codal
+    class corporate_actions Codal
+    class data_lineage Codal
+    class dim_account Codal
+    class dim_company Codal
+    class dim_date Codal
+    class dim_document Codal
+    class dim_report_type Codal
+    class fact_financials Codal
+    class fact_growth Codal
+    class fact_quality_signals Codal
+    class fact_ratios Codal
+    class fact_text_analytics Codal
+    class import_audit_log Codal
+    class import_document_files Codal
+    class import_document_tables Codal
+    class macro_indicators Macro
+    class news_articles Macro
 ```
+
+**راهنمای رنگ‌ها:**
+
+| رنگ | دامنه | تعداد جدول |
+|-----|-------|-----------:|
+| <span style="color:#4A90D9">■</span> | هسته / کاربران | 5 |
+| <span style="color:#27AE60">■</span> | کدال و صورت‌های مالی | 25 |
+| <span style="color:#E67E22">■</span> | بازار سهام (سری زمانی) | 14 |
+| <span style="color:#E74C3C">■</span> | BrsApi — لحظه‌ای و مرجع | 27 |
+| <span style="color:#9B59B6">■</span> | آپشن | 5 |
+| <span style="color:#1ABC9C">■</span> | بک‌تست و سیگنال | 11 |
+| <span style="color:#3498DB">■</span> | ML و آموزش | 4 |
+| <span style="color:#E91E63">■</span> | Tabdeal | 4 |
+| <span style="color:#FF9800">■</span> | کلان و اخبار | 2 |
+| <span style="color:#95A5A6">■</span> | زیرساخت و عملیات | 2 |
+| <span style="color:#BDC3C7">■</span> | سایر | 16 |
+
 
 ### آمار کامل جدول‌ها
 
 ستون‌ها: تعداد ستون هر جدول. ردیف: تخمین PostgreSQL (دقیق نیست؛ `>0` یعنی داده دارد ولی آمار جمع نشده).
 رابطه: Foreign Keyهای واقعی و اتصال معنایی به `symbols`.
 
-| جدول | ستون‌ها | ردیف (~) | منبع تاریخ دوتایی | رابطه با جدول‌های دیگر |
+| جدول (🔍 = view) | ستون‌ها | ردیف (~) | منبع تاریخ دوتایی | رابطه با جدول‌های دیگر |
 |------|--------:|---------:|-------------------|------------------------|
 | `brsapi_candlesticks` | 17 | ~2,166,522 | date | symbol→symbols |
 | `brsapi_commodity_prices` | 19 | ~13,440 | fetched_at | symbol→symbols |
@@ -1163,14 +1326,18 @@ erDiagram
 | `options` | 13 | ~3,225 | expiry_date | symbol→symbols |
 | `volatility_surface` | 11 | ~0 | date | — |
 | `brsapi_nav_records` | 14 | ~245 | fetched_at | symbol→symbols |
+| `candlesticks` 🔍 | 12 | ~>0 | time | symbol→symbols |
+| `daily_history` 🔍 | 19 | ~>0 | trade_date | symbol→symbols |
 | `daily_real_legal` | 16 | ~387,701 | trade_date | FK→symbols |
 | `etf_nav` | 7 | ~12 | time | FK→symbols |
 | `funds` | 31 | ~27 | snapshot_date | symbol→symbols |
 | `indicators` | 13 | ~0 | created_at | symbol→symbols |
+| `intraday_trades` 🔍 | 10 | ~>0 | trade_date | symbol→symbols |
 | `orderbook_snapshots` | 34 | ~0 | time | FK→symbols |
 | `orderbooks` | 12 | ~0 | created_at | symbol→symbols |
 | `quotes` | 29 | ~3,366,996 | created_at | symbol→symbols |
 | `shareholders` | 8 | ~2,390 | record_date | FK→symbols |
+| `symbol_snapshots` 🔍 | 18 | ~>0 | time | symbol→symbols |
 | `trades` | 14 | ~14,884,365 | created_at | symbol→symbols |
 | `backtest_runs` | 22 | ~1,579 | start_date | — |
 | `backtest_trades` | 18 | ~0 | created_at | symbol→symbols |
@@ -1212,6 +1379,7 @@ erDiagram
 | `paper_trades` | 26 | ~3,025 | — | symbol→symbols |
 | `symbol_relations` | 13 | ~0 | created_at | — |
 | `symbol_snapshots_deprecated` | 28 | ~0 | — | FK→symbols |
+| `vw_clean_daily_history` 🔍 | 19 | ~>0 | — | symbol→symbols |
 | `markets` | 14 | ~0 | created_at | — |
 | `portfolio_positions` | 14 | ~0 | created_at | symbol→symbols |
 | `portfolios` | 11 | ~0 | created_at | — |
@@ -1223,6 +1391,7 @@ erDiagram
 | `analysis_reports` | 22 | ~0 | report_date | FK→dim_company، symbol→symbols |
 | `brsapi_codal_announcements` | 24 | ~5,053 | date_publish | symbol→symbols |
 | `brsapi_codal_attachments` | 18 | ~10,336 | created_at | symbol→symbols |
+| `codal_announcements` 🔍 | 13 | ~>0 | date_publish | symbol→symbols |
 | `codal_announcements_deprecated` | 17 | ~0 | — | symbol→symbols |
 | `codal_audit_summary` | 33 | ~451 | analyzed_at | symbol→symbols |
 | `codal_financial_statements` | 16 | ~451 | imported_at | symbol→symbols |
@@ -1253,35 +1422,47 @@ erDiagram
 | مشکل | تعداد جدول |
 |------|-----------:|
 | جدول خالی است | 55 |
-| مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست | 40 |
-| بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 14 |
+| مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست | 41 |
+| بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود | 17 |
 | لایه ستاره‌ای کدال (dim/fact) هرگز پیاده‌سازی نشده — import فعال به `codal_financial_statements` می‌رود | 10 |
 | هیچ مرجع کد فعالی ندارد — کاندیدای حذف/آرشیو | 9 |
-| ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 6 |
+| ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟ | 7 |
+| آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید | 7 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` (۳۳۶K ردیف) است | 3 |
 | نسخه قدیمی — داده آپشن در `brsapi_option_snapshots` است | 2 |
 | ستون منبع تاریخ `expiry_date` در نمونه NULL دارد | 2 |
 | ستون منبع تاریخ `start_date` در نمونه NULL دارد | 1 |
 | نسخه قدیمی است — جدول زنده `brsapi_option_snapshots` جایگزین آن است | 1 |
+| نسخه قدیمی است — جدول زنده `brsapi_candlesticks` جایگزین آن است | 1 |
+| نسخه قدیمی — backfill به `brsapi_candlesticks` می‌نویسد | 1 |
 | ۱۲ ردیف یتیم بدون مصرف‌کننده — نسخه‌های زنده `brsapi_nav_records` و `funds` جایگزین‌اند | 1 |
+| نسخه قدیمی است — جدول زنده `brsapi_intraday_trades` جایگزین آن است | 1 |
+| نسخه قدیمی است — جدول زنده `brsapi_symbol_snapshots` جایگزین آن است | 1 |
+| نسخه قدیمی — `brsapi_symbol_snapshots` (۸۰۳K ردیف) زنده است | 1 |
 | رکوردزنی جاب‌ها در `services/job_service.py` پیاده‌سازی نشده — جدول در عمل خالی می‌ماند | 1 |
 | نسخه قدیمی است — جدول زنده `brsapi_commodity_prices` جایگزین آن است | 1 |
 | هیچ SQL فعالی ندارد — مراجع کد صرفاً از نام ماژول/پکیج هستند | 1 |
-| آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید | 1 |
+| نسخه قدیمی است — جدول زنده `brsapi_codal_announcements` جایگزین آن است | 1 |
+| باگ فعال: `services/codal_download_service.py` از این جدول (خالی) می‌خواند → دانلود ضمائم هرگز انجام نمی‌شود | 1 |
 
 ### تحلیل عمیق — مشکلات پیدا و ناپیدا
 
-این گزارش با `python scripts/analyze_db_issues.py` تولید می‌شود — مجموع **218 یافته**: 🔴 0 بحرانی، 🟠 2 بالا، 🟡 116 متوسط، 🔵/⚪ 100 کم/اطلاعاتی.
+این گزارش با `python scripts/analyze_db_issues.py` تولید می‌شود — مجموع **232 یافته**: 🔴 0 بحرانی، 🟠 8 بالا، 🟡 123 متوسط، 🔵/⚪ 101 کم/اطلاعاتی.
 
 <details>
-<summary>نمایش همه 218 یافته (کلیک کنید)</summary>
+<summary>نمایش همه 232 یافته (کلیک کنید)</summary>
 
 | شدت | تعداد |
 |------|------:|
 | 🔴 بحرانی | 0 |
-| 🟠 بالا | 2 |
-| 🟡 متوسط | 116 |
-| 🔵 کم / ⚪ اطلاعاتی | 100 |
+| 🟠 بالا | 8 |
+| 🟡 متوسط | 123 |
+| 🔵 کم / ⚪ اطلاعاتی | 101 |
+
+**bloat:**
+
+- 🟡 متوسط `brsapi_historical_daily`: 5,214,113 ردیف مرده (بلاوات ~97٪) → *VACUUM (ANALYZE) یا autovacuum را تنظیم کنید*
+- 🟡 متوسط `codal_reports`: 226,729 ردیف مرده (بلاوات ~100٪) → *VACUUM (ANALYZE) یا autovacuum را تنظیم کنید*
 
 **data:**
 
@@ -1326,6 +1507,7 @@ erDiagram
 - 🟡 متوسط `brsapi_gold_currency_pro_prices`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_gold_currency_pro_prices`: ستون تاریخ `fetched_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_historical_daily`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `brsapi_historical_daily_backup`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_historical_real_legal`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_ime_certificates`: ستون تاریخ `date_update` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_ime_certificates`: ستون تاریخ `date_y` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
@@ -1349,6 +1531,7 @@ erDiagram
 - 🟡 متوسط `brsapi_ime_physical_trades`: ستون تاریخ `location_delivery` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_index_values`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_intraday_trades`: ستون تاریخ `trade_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `brsapi_intraday_trades_backup`: ستون تاریخ `trade_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_nav_records`: ستون تاریخ `date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_nav_records`: ستون تاریخ `fetched_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `brsapi_option_snapshots`: ستون تاریخ `date_begin` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
@@ -1363,6 +1546,7 @@ erDiagram
 - 🟡 متوسط `codal_audit_summary`: ستون تاریخ `report_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `codal_financial_statements`: ستون تاریخ `report_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `codal_reports`: ستون تاریخ `publish_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
+- 🟡 متوسط `codal_reports_backup`: ستون تاریخ `publish_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `compare_results`: ستون تاریخ `end_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `compare_results`: ستون تاریخ `start_date` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
 - 🟡 متوسط `data_lineage`: ستون تاریخ `created_at` با نوع `character varying` ذخیره شده (باید DATE/TIMESTAMPTZ باشد) → *مهاجرت ستون به نوع زمانی + backfill*
@@ -1386,9 +1570,9 @@ erDiagram
 
 **freshness:**
 
-- 🟡 متوسط `codal_reports`: آخرین داده 40 روز پیش است (2026-07-12) → *اجرای جاب سینک مربوطه*
-- 🟡 متوسط `daily_real_legal`: آخرین داده 38 روز پیش است (2026-07-14) → *اجرای جاب سینک مربوطه*
-- 🟡 متوسط `shareholders`: آخرین داده 44 روز پیش است (2026-07-08) → *اجرای جاب سینک مربوطه*
+- 🟡 متوسط `codal_reports`: آخرین داده 41 روز پیش است (2026-07-12) → *اجرای جاب سینک مربوطه*
+- 🟡 متوسط `daily_real_legal`: آخرین داده 39 روز پیش است (2026-07-14) → *اجرای جاب سینک مربوطه*
+- 🟡 متوسط `shareholders`: آخرین داده 45 روز پیش است (2026-07-08) → *اجرای جاب سینک مربوطه*
 - 🔵 کم `brsapi_historical_daily`: محاسبه max تاریخ به‌دلیل نبود ایندکس/وقفه انجام نشد
 - 🔵 کم `trades`: محاسبه max تاریخ به‌دلیل نبود ایندکس/وقفه انجام نشد
 - ⚪ اطلاعاتی `orderbooks`: جدول سری زمانی خالی است
@@ -1411,6 +1595,7 @@ erDiagram
 - 🟡 متوسط `codal_audit_summary`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `codal_financial_statements`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `codal_reports`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `codal_reports_backup`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `daily_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `intraday_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `ml_symbol_results`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
@@ -1421,25 +1606,28 @@ erDiagram
 - 🟡 متوسط `screener_profiles`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `signal_accuracy`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🟡 متوسط `symbol_snapshots`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🟡 متوسط `vw_clean_daily_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_codal_announcements`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_codal_attachments`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_commodity_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_crypto_daily_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_crypto_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_currency_24h`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_currency_prices`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_gold_24h`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_gold_coin_history`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_gold_coin_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
-- 🔵 کم `brsapi_gold_currency_pro_daily_history`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_gold_coin_prices`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_gold_currency_pro_daily_history`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_gold_currency_pro_history_24h`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_gold_currency_pro_prices`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_historical_daily`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `brsapi_ime_certificates`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_ime_funds`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_ime_funds`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_ime_futures`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_ime_options`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_ime_physical_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_ime_physical_trades`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_index_values`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
-- 🔵 کم `brsapi_nav_records`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
-- 🔵 کم `brsapi_option_snapshots`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
+- 🔵 کم `brsapi_nav_records`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
+- 🔵 کم `brsapi_option_snapshots`: ستون `ins_id` در جدول مرجع `symbols` وجود ندارد — مقایسه ممکن نیست
 - 🔵 کم `brsapi_symbol_details`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_certificates`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_funds`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
@@ -1448,11 +1636,16 @@ erDiagram
 - 🔵 کم `commodity_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `commodity_trades`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 - 🔵 کم `funds`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
-- 🔵 کم `gold_currency_prices`: بررسی یتیم‌های `symbol` به‌دلیل حجم/وقفه انجام نشد
-- 🔵 کم `vw_clean_daily_history`: بررسی یتیم‌های `symbol` به‌دلیل حجم/وقفه انجام نشد
+- 🔵 کم `gold_currency_prices`: رجوع به `symbol` دارد که در جدول مرجع `symbols` نیست (ردیف یتیم) → *پاکسازی ردیف‌های یتیم یا تکمیل symbols*
 
 **schema:**
 
+- 🟠 بالا `brsapi_historical_daily_backup`: جدول Primary Key ندارد → *برای کلید امن upsert/backfill، PK اضافه کنید*
+- 🟠 بالا `brsapi_intraday_trades_backup`: جدول Primary Key ندارد → *برای کلید امن upsert/backfill، PK اضافه کنید*
+- 🟠 بالا `codal_reports_backup`: جدول Primary Key ندارد → *برای کلید امن upsert/backfill، PK اضافه کنید*
+- 🟠 بالا `brsapi_historical_daily_backup`: هیچ ایندکسی ندارد (جستجو = full scan) → *ایندکس روی ستون‌های فیلتر/join اضافه کنید*
+- 🟠 بالا `brsapi_intraday_trades_backup`: هیچ ایندکسی ندارد (جستجو = full scan) → *ایندکس روی ستون‌های فیلتر/join اضافه کنید*
+- 🟠 بالا `codal_reports_backup`: هیچ ایندکسی ندارد (جستجو = full scan) → *ایندکس روی ستون‌های فیلتر/join اضافه کنید*
 - 🟡 متوسط `brsapi_historical_daily`: constraint یکتا روی `symbol,date` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🟡 متوسط `brsapi_intraday_trades`: constraint یکتا روی `symbol,date,time` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
 - 🟡 متوسط `codal_reports`: constraint یکتا روی `ins_id,report_type` ندارد (upsert با ON CONFLICT پرخطر است) → *ایندکس یکتا اضافه کنید*
@@ -1792,8 +1985,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | date | time | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 3698875 | بالاس | 1405-01-18 | 06:11:02 | 0 | 0 | 0.0 | 0.0 | 0.0 | 63200.0 | 0.0 | 63200.0 | … |
-| 3721587 | بالبر3 | 1403-05-17 | 06:11:59 | 0 | 0 | 0.0 | 0.0 | 0.0 | 16810.0 | 0.0 | 16670.0 | … |
+| 8655374 | آسیا3 | 1405-05-18 | 06:10:58 | 0 | 0 | 0.0 | 0.0 | 0.0 | 3360.0 | 0.0 | 3360.0 | … |
+| 8655375 | آسیا3 | 1405-05-17 | 06:10:26 | 0 | 0 | 0.0 | 0.0 | 0.0 | 3266.0 | 0.0 | 3266.0 | … |
 
 </details>
 
@@ -1984,8 +2177,8 @@ _مشکلی شناسایی نشد._
 
 | id | symbol | row | time | volume | price | canceled | trade_date | created_at | ins_id | instrument_id | updated_at | … |
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
-| 124992 | عیار | 24867 | 12:32:42 | 820 | 503598.0 | False | 1405-05-11 | 2026-08-05 04:41:18.589711 | 34144395039913458 | NULL | NULL | … |
-| 124993 | عیار | 24868 | 12:32:43 | 82 | 503500.0 | False | 1405-05-11 | 2026-08-05 04:41:18.589711 | 34144395039913458 | NULL | NULL | … |
+| 193632 | عیار | 28337 | 13:13:45 | 22 | 520000.0 | False | 1405-05-10 | 2026-08-05 04:41:33.098872 | 34144395039913458 | NULL | NULL | … |
+| 193633 | عیار | 28338 | 13:13:45 | 3 | 520000.0 | False | 1405-05-10 | 2026-08-05 04:41:33.098872 | 34144395039913458 | NULL | NULL | … |
 
 </details>
 
@@ -2443,6 +2636,54 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
+<summary><code>candlesticks</code> — ~>0 ردیف، 12 ستون ⚠️ 5 مشکل</summary>
+
+**مشکلات (5):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+- نسخه قدیمی است — جدول زنده `brsapi_candlesticks` جایگزین آن است
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- ستون‌های تاریخ دوتایی (gregorian/shamsi) در نمونه NULL دارند — backfill کامل نشده؟
+- نسخه قدیمی — backfill به `brsapi_candlesticks` می‌نویسد
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- سرویس: `services/history_backfill_service.py` (1)، `services/market_service.py` (1)
+- API: `apps/api/endpoints/brsapi.py` (6)
+- اسکریپت: `scripts/run_backlog_sync.py` (5)، `scripts/simulate_brsapi_usage.py` (2)، `scripts/analyze_db_issues.py` (1)، `scripts/sync_candlesticks_watchlist.py` (1)
+- تست: `tests/test_instrument_relations.py` (1)، `tests/unit/test_brsapi_history_backfill_manual.py` (1)، `tests/unit/test_brsapi_shareholder_manual.py` (1)
+- سایر: `brsapi/jobs/registry.py` (1)
+
+**نمونه داده:**
+
+| id | symbol_id | symbol | candle_type | time | open | high | low | close | volume | gregorian_date | shamsi_date |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 820 | NULL | پاسارگاد | 3 |  | 0.0 | 0.0 | 0.0 | 0.0 | 0 | NULL | NULL |
+| 821 | NULL | پاسارگاد | 2 |  | 0.0 | 0.0 | 0.0 | 0.0 | 0 | NULL | NULL |
+
+</details>
+
+<details>
+<summary><code>daily_history</code> — ~>0 ردیف، 19 ستون (نمایش 12 ستون از 19) ⚠️ 1 مشکل</summary>
+
+**مشکلات (1):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+
+**مراجع کد:**
+- مدل: `models/market_data.py` → `DailyHistoryModel`
+- سرویس: `services/diagnostics_runner.py` (3)، `services/populate_profiles_service.py` (2)، `services/screener110_service.py` (2)، `services/screener_ai_report_service.py` (2)
+- API: `apps/api/endpoints/screener110.py` (1)
+- اسکریپت: `scripts/full_populate_profiles.py` (9)، `scripts/brsapi_full_update.py` (2)، `scripts/analyze_db_issues.py` (1)، `scripts/populate_profiles.py` (1)
+
+**نمونه داده:**
+
+| id | symbol_id | symbol | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | price_last_change | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 11931685 | NULL | آ س پ | 0 | 0 | 0.0 | 0.0 | 0.0 | 9180.0 | 0.0 | 9040.0 | 0.0 | … |
+| 12069382 | NULL | آ س پ | 437 | 11362154 | 207439431250.0 | 17900.0 | 18260.0 | 17730.0 | 18260.0 | 18260.0 | 530.0 | … |
+
+</details>
+
+<details>
 <summary><code>daily_real_legal</code> — ~387,701 ردیف، 16 ستون (نمایش 12 ستون از 16)</summary>
 
 _مشکلی شناسایی نشد._
@@ -2526,6 +2767,28 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
+<summary><code>intraday_trades</code> — ~>0 ردیف، 10 ستون ⚠️ 2 مشکل</summary>
+
+**مشکلات (2):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+- نسخه قدیمی است — جدول زنده `brsapi_intraday_trades` جایگزین آن است
+
+**مراجع کد:**
+- مدل: `models/market_data.py` → `IntradayTradeModel`
+- سرویس: `services/block_trade_detector.py` (2)، `services/backtest_service.py` (1)، `services/manipulation_detector.py` (1)، `services/market_health_index.py` (1)
+- اسکریپت: `scripts/run_ml_dual.py` (5)، `scripts/analyze_db_issues.py` (1)، `scripts/create_symbol_kpi_view.py` (1)، `scripts/_check_readme_vs_db.py` (1)
+- سایر: `ingestion/library_sources/finpy_adapter.py` (3)، `ingestion/sources/library_sources.py` (2)، `ingestion/parser/library_parsers.py` (1)
+
+**نمونه داده:**
+
+| id | symbol_id | symbol | trade_date | time | volume | price | created_at | gregorian_date | shamsi_date |
+|---|---|---|---|---|---|---|---|---|---|
+| 193632 | 57534567890123463 | عیار | 1405-05-10 | 13:13:45 | 22 | 520000.0 | 2026-08-05 04:41:33.098872 | 2026-08-01 | 1405-05-10 |
+| 193633 | 57534567890123463 | عیار | 1405-05-10 | 13:13:45 | 3 | 520000.0 | 2026-08-05 04:41:33.098872 | 2026-08-01 | 1405-05-10 |
+
+</details>
+
+<details>
 <summary><code>orderbook_snapshots</code> — جدول خالی است (34 ستون) ⚠️ 3 مشکل</summary>
 
 **مشکلات (3):**
@@ -2597,6 +2860,30 @@ _مشکلی شناسایی نشد._
 |---|---|---|---|---|---|---|---|
 | 28534567890123456 | 2026-07-08 | شخص حقیقی | 49530000 | 2.008 | 0.0 | 2026-07-08 | 1405-04-17 |
 | 35134567890123456 | 2026-07-08 | شخص حقیقی | 45883823 | 1.941 | 0.0 | 2026-07-08 | 1405-04-17 |
+
+</details>
+
+<details>
+<summary><code>symbol_snapshots</code> — ~>0 ردیف، 18 ستون (نمایش 12 ستون از 18) ⚠️ 4 مشکل</summary>
+
+**مشکلات (4):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+- نسخه قدیمی است — جدول زنده `brsapi_symbol_snapshots` جایگزین آن است
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- نسخه قدیمی — `brsapi_symbol_snapshots` (۸۰۳K ردیف) زنده است
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- سرویس: `services/populate_profiles_service.py` (1)، `services/sync_master_service.py` (1)
+- اسکریپت: `scripts/analyze_db_issues.py` (1)، `scripts/dump_complete.py` (1)، `scripts/fix_null_market_field.py` (1)، `scripts/populate_profiles.py` (1)
+- سایر: `brsapi/parsers/tsetmc.py` (1)، `brsapi/services/query_service.py` (1)
+
+**نمونه داده:**
+
+| id | symbol_id | symbol | time | price_last | price_close | price_first | price_yesterday | price_close_change | price_close_change_pct | price_min | price_max | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 6871375 | 57534567890123463 | عیار | 16:59:59 | 502700.0 | 504181.0 | 508139.0 | 508624.0 | -4443.0 | -0.87 | 501998.0 | 508142.0 | … |
+| 6871376 | 57534567890123468 | یاقوت | 14:59:57 | 45167.0 | 45135.0 | 45132.0 | 45066.0 | 69.0 | 0.15 | 45131.0 | 45183.0 | … |
 
 </details>
 
@@ -3344,6 +3631,27 @@ _مشکلی شناسایی نشد._
 </details>
 
 <details>
+<summary><code>vw_clean_daily_history</code> — ~>0 ردیف، 19 ستون (نمایش 12 ستون از 19) ⚠️ 3 مشکل</summary>
+
+**مشکلات (3):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+- بدون مدل ORM — فقط از طریق SQL خام یا اسکریپت استفاده می‌شود
+- مصرف‌کننده فعال (سرویس/API/جاب) ندارد — فقط اسکریپت/تست
+
+**مراجع کد:**
+- مدل: _بدون مدل ORM_
+- اسکریپت: `scripts/clean_historical_data.py` (1)، `scripts/_check_readme_vs_db.py` (1)
+
+**نمونه داده:**
+
+| id | symbol_id | symbol | trade_date | trade_count | trade_volume | trade_value | price_min | price_max | price_yesterday | price_first | price_last | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 12073010 | NULL | آ س پ | 2026-08-10 | 628 | 19997000 | 61990700000.0 | 3100.0 | 3100.0 | 1000.0 | 3100.0 | 3100.0 | … |
+| 12073640 | NULL | آ س پ3 | 2026-08-10 | 2 | 75000 | 755250000.0 | 10070.0 | 10070.0 | 9800.0 | 10070.0 | 10070.0 | … |
+
+</details>
+
+<details>
 <summary><code>markets</code> — جدول خالی است (14 ستون) ⚠️ 2 مشکل</summary>
 
 **مشکلات (2):**
@@ -3527,6 +3835,29 @@ _مشکلی شناسایی نشد._
 |---|---|---|---|---|---|---|---|---|---|---|---|…|
 | 6 | 2 | فیروزا |  | html | https://codal.ir/Reports/Decis… | local | NULL | NULL | NULL | downloading |  | … |
 | 4 | 2 | فیروزا |  | pdf | https://codal.ir/DownloadFile.… | local | NULL | NULL | NULL | downloading |  | … |
+
+</details>
+
+<details>
+<summary><code>codal_announcements</code> — ~>0 ردیف، 13 ستون (نمایش 12 ستون از 13) ⚠️ 3 مشکل</summary>
+
+**مشکلات (3):**
+- آمار جدول جمع نشده (reltuples = -1) — برای برآورد دقیق، ANALYZE اجرا کنید
+- نسخه قدیمی است — جدول زنده `brsapi_codal_announcements` جایگزین آن است
+- باگ فعال: `services/codal_download_service.py` از این جدول (خالی) می‌خواند → دانلود ضمائم هرگز انجام نمی‌شود
+
+**مراجع کد:**
+- مدل: `iran_market_data/app/storage/models.py` → `CodalAnnouncement`
+- سرویس: `services/codal_download_service.py` (2)
+- اسکریپت: `scripts/_check_readme_vs_db.py` (1)
+- سایر: `database_handler.py` (2)، `data_repo.py` (2)، `postgresql_client.py` (2)، `datenrepo.py` (1)
+
+**نمونه داده:**
+
+| id | symbol | title | code | date_title | date_send | date_publish | link | link_pdf | link_excel | created_at | gregorian_date | … |
+|---|---|---|---|---|---|---|---|---|---|---|---|…|
+| 7524 | لبن | آگهی دعوت به مجمع عمومی عادی ب… | ن-۵۴ | NULL | ۱۴۰۵/۰۵/۱۶ | ۱۴۰۵/۰۵/۱۶ | https://codal.ir/Reports/Decis… | https://codal.ir/DownloadFile.… | NULL | 2026-08-07 07:23:15.074838 | 2026-08-07 | … |
+| 7525 | داسوه | اطلاعات و صورت‌های مالی میاندو… | ن-۱۰ | ۱۴۰۵/۰۳/۳۱ | ۱۴۰۵/۰۵/۱۵ | ۱۴۰۵/۰۵/۱۵ | https://codal.ir/Reports/Decis… | https://codal.ir/DownloadFile.… | https://excel.codal.ir/service… | 2026-08-07 07:23:15.074838 | 2026-08-06 | … |
 
 </details>
 
@@ -4396,7 +4727,7 @@ _مشکلی شناسایی نشد._
 
 ### جمع‌بندی جامع و نقشه راه اصلاحات
 
-سکوی داده شامل **131 جدول** و حدود **~43,128,436 ردیف** است. از این میان **55 جدول خالی**، **2 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **14 جدول بدون مدل ORM** و **9 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **1 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
+سکوی داده شامل **137 جدول** و حدود **~43,128,436 ردیف** است. از این میان **55 جدول خالی**، **6 جدول نسخه قدیمی** با جایگزین زنده `brsapi_*`، **17 جدول بدون مدل ORM** و **9 جدول بدون هیچ مرجع کد فعال** وجود دارد (برای **7 جدول** آمار PostgreSQL جمع نشده و برآورد ردیف دقیق نیست).
 
 **نقشه راه اصلاحات (اولویت‌بندی‌شده):**
 

@@ -60,8 +60,9 @@ class _PipelineAdapter:
         return getattr(self._final_estimator, "coef_", None)
 
     def predict(self, fm: FeatureMatrix):
-        import numpy as np
         from types import SimpleNamespace
+
+        import numpy as np
 
         df = fm.to_df().copy()
         expected = getattr(self._pipeline, "feature_names_in_", None)
@@ -279,8 +280,9 @@ class InferenceService:
         from pathlib import Path
 
         try:
-            from models.ml import MlModelVersionModel
             from sqlalchemy import select
+
+            from models.ml import MlModelVersionModel
 
             session = getattr(self.model_repo, "_session", None)
             if session is None:
@@ -318,10 +320,7 @@ class InferenceService:
                     pass
 
             # Wrap raw pipelines so predict(fm) works with FeatureMatrix input
-            if hasattr(loaded, "predict"):
-                model = _PipelineAdapter(loaded, trained_features)
-            else:
-                model = loaded
+            model = _PipelineAdapter(loaded, trained_features) if hasattr(loaded, "predict") else loaded
             return model, trained_features, True
         except Exception as e:
             logger.debug("DB registry load failed for %s: %s", model_id, e)
@@ -374,8 +373,9 @@ class InferenceService:
             if self.model_repo is not None:
                 session = getattr(self.model_repo, "_session", None)
                 if session is not None:
-                    from models.ml import MlModelModel, MlModelVersionModel
                     from sqlalchemy import select
+
+                    from models.ml import MlModelModel, MlModelVersionModel
 
                     models = (await session.execute(select(MlModelModel))).scalars().all()
                     versions = (

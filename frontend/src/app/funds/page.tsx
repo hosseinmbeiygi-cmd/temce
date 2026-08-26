@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Suspense, useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -90,7 +90,7 @@ function typeColor(type: string): string {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-export default function FundsPage() {
+function FundsPageContent() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("nav");
   const [typeFilter, setTypeFilter] = useState("همه");
@@ -516,5 +516,13 @@ export default function FundsPage() {
         />
       )}
     </AppLayout>
+  );
+}
+
+export default function FundsPage() {
+  return (
+    <Suspense fallback={<AppLayout title="ØµÙ†Ø¯ÙˆÙ‚â€ŒÙ‡Ø§"><Skeleton className="h-64 w-full rounded-2xl" /></AppLayout>}>
+      <FundsPageContent />
+    </Suspense>
   );
 }

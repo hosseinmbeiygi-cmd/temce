@@ -397,6 +397,7 @@ class MLSignalConnector:
 
         trained_count = 0
         errors: list[str] = []
+        walk_forward_results: list[dict[str, Any]] = []
 
         for model_name in model_names:
             try:
@@ -405,6 +406,40 @@ class MLSignalConnector:
                 self._trained_models.setdefault(market, {})[model_name] = model
                 trained_count += 1
                 logger.info("Trained %s model for market '%s'", model_name, market)
+
+                # Walk-forward validation after training
+                try:
+                    from services.walk_forward_validator import WalkForwardValidator
+                    validator = WalkForwardValidator()
+                    wf_result = await validator.validate_model(
+                        market=market,
+                        model_name=model_name,
+                        feature_sequence=feature_sequence,
+                        targets=targets,
+                        closes=closes,
+                        num_windows=5,
+                    )
+                    if wf_result.success:
+                        wf_val = wf_result.value
+                        walk_forward_results.append({
+                            "model_name": model_name,
+                            "is_reliable": wf_val.is_reliable,
+                            "avg_test_accuracy": round(wf_val.avg_test_accuracy, 4),
+                            "avg_overfitting": round(wf_val.avg_overfitting, 4),
+                            "robustness_score": round(wf_val.robustness_score, 3),
+                        })
+                        if not wf_val.is_reliable:
+                            logger.warning(
+                                "Model %s for %s failed walk-forward reliability "
+                                "(acc=%.2f%%, overfitting=%.2f%%, robustness=%.2f)",
+                                model_name, market,
+                                wf_val.avg_test_accuracy * 100,
+                                wf_val.avg_overfitting * 100,
+                                wf_val.robustness_score,
+                            )
+                except Exception as wf_err:
+                    logger.debug("Walk-forward validation skipped for %s/%s: %s", model_name, market, wf_err)
+
             except Exception as e:
                 errors.append(f"{model_name}: {e}")
                 logger.warning("Failed to train %s for %s: %s", model_name, market, e)
@@ -414,4 +449,5 @@ class MLSignalConnector:
             "trained": trained_count,
             "total_requested": len(model_names),
             "errors": errors,
+            "walk_forward": walk_forward_results,
         })

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from core.logging import get_logger
 from jobs.queue_consumer import JobQueueConsumer, get_job_queue_consumer
 

@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from apps.api.dependencies import get_watchlist_service
+from apps.api.dependencies import get_current_user, get_watchlist_service
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 from services.watchlist_service import WatchlistService
@@ -37,6 +37,7 @@ async def get_watchlist(
 async def add_symbol(
     body: dict[str, str],
     service: WatchlistService = Depends(get_watchlist_service),
+    current_user: dict = Depends(get_current_user),
 ) -> ApiResponse[dict[str, Any]]:
     symbol = body.get("symbol", "").strip()
     name = body.get("name", "")
@@ -52,6 +53,7 @@ async def add_symbol(
 async def remove_symbol(
     symbol: str,
     service: WatchlistService = Depends(get_watchlist_service),
+    current_user: dict = Depends(get_current_user),
 ) -> ApiResponse[dict[str, Any]]:
     result = await service.remove_symbol(symbol)
     if not result.success:

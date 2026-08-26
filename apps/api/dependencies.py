@@ -170,11 +170,14 @@ def get_report_service(session: AsyncSession = Depends(get_db_session)):
 
 
 async def get_current_user(authorization: str = Header("")) -> dict:
-    if not authorization or not authorization.startswith("Bearer "):
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(status_code=401, detail="Not authenticated")
-    token = authorization.split(" ")[1]
+    token = parts[1]
     try:
         payload = decode_access_token(token)
+        if payload.get("type") == "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
         return await _reject_if_revoked(payload)
     except HTTPException:
         raise
@@ -183,11 +186,14 @@ async def get_current_user(authorization: str = Header("")) -> dict:
 
 
 async def get_optional_user(authorization: str = Header("")) -> dict | None:
-    if not authorization or not authorization.startswith("Bearer "):
+    parts = authorization.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
         return None
-    token = authorization.split(" ")[1]
+    token = parts[1]
     try:
         payload = decode_access_token(token)
+        if payload.get("type") == "refresh":
+            return None
         if await is_token_revoked(payload.get("jti")):
             return None
         return payload

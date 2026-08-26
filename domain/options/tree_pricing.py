@@ -58,8 +58,9 @@ def _crr_params(r: float, sigma: float, q: float, dt: float) -> tuple[float, flo
 def _trinomial_params(r: float, sigma: float, q: float, dt: float) -> tuple[float, float, float, float, float, float]:
     """Trinomial tree parameters (Boyle, 1986)."""
     dx = sigma * math.sqrt(3 * dt)
-    r - q - 0.5 * sigma**2
-    sigma**2 * dt
+    # drift and variance terms (kept for documentation; used implicitly in probabilities below)
+    _drift = r - q - 0.5 * sigma**2
+    _var = sigma**2 * dt
     pu = ((math.exp((r - q) * dt / 2) - math.exp(-sigma * math.sqrt(dt / 2)))
           / (math.exp(sigma * math.sqrt(dt / 2)) - math.exp(-sigma * math.sqrt(dt / 2))))**2
     pm = 1.0 - pu - ((math.exp((r - q) * dt / 2) - math.exp(-sigma * math.sqrt(dt / 2)))
@@ -134,10 +135,8 @@ def binomial_tree_price(params: TreeOptionParams) -> OptionPrice:
     else:
         gamma = 0.0
 
-    # Theta: difference between option value at step 0 and step 2 (two steps ahead)
+    # Theta: finite difference at root node (per year)
     if N >= 2:
-        theta_annual = (option[0] - option[0]) / (2 * dt)  # Needs re-computation for accuracy
-        # Simplified: use finite difference at node
         theta_annual = (disc * (p * option[0] + (1 - p) * option[1]) - option[0]) / dt
     else:
         theta_annual = 0.0

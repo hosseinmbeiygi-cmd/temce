@@ -231,10 +231,14 @@ class WalkForwardValidator:
             else:
                 result.robustness_score = 0.0
 
+            # Average test Sharpe across windows (must be positive for a usable model)
+            avg_test_sharpe = np.mean([w.test_sharpe for w in windows]) if windows else 0.0
+
             result.is_reliable = (
-                result.avg_test_accuracy > 0.55 and
-                result.avg_overfitting < 0.15 and
-                result.robustness_score > 0.5
+                result.avg_test_accuracy > 0.58 and
+                result.avg_overfitting < 0.10 and
+                result.robustness_score > 0.5 and
+                avg_test_sharpe > 0.5
             )
 
             return Result.ok(result)

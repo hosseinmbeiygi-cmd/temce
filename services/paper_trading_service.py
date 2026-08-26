@@ -158,9 +158,15 @@ class PaperTradingService:
             return Result.fail("Signal has no entry price — cannot open trade")
 
         # Derive target/stop prices from the signal strings when possible.
-        stop = self._parse_price(snap.stop_loss) or (price * 0.95)
-        target1 = self._parse_price(snap.targets) or (price * 1.08)
-        target2 = target1 * 1.08
+        stop = self._parse_price(snap.stop_loss)
+        if stop is None or stop <= 0:
+            stop = price * 0.95
+
+        target1, target2 = self._parse_targets(snap.targets, price)
+        if target1 is None or target1 <= 0:
+            target1 = price * 1.08
+        if target2 is None or target2 <= 0:
+            target2 = target1 * 1.08
 
         if capital_allocated <= 0:
             capital_allocated = min(price * 100, DEFAULT_INITIAL_CAPITAL * 0.1)
@@ -534,6 +540,30 @@ class PaperTradingService:
             return float(m.group(0).replace(",", ""))
         except ValueError:
             return None
+
+    @staticmethod
+    def _parse_targets(targets_str: str | None, entry_price: float) -> tuple[float | None, float | None]:
+        """Parse target1 and target2 from a free-text targets string.
+
+        Handles formats like:
+            - "15000 | 17000"
+            - "هدف اول: 15000 | هدف دوم: 17000"
+            - "15000"
+        Returns (target1, target2) where target2 is None if not found.
+        """
+        if not targets_str:
+            return None, None
+        import re
+
+        numbers = re.findall(r"[\d.,]+", str(targets_str))
+        parsed = [float(n.replace(",", "")) for n in numbers if n.replace(",", "").replace(".", "").isdigit()]
+
+        if not parsed:
+            return None, None
+
+        target1 = parsed[0] if len(parsed) >= 1 else None
+        target2 = parsed[1] if len(parsed) >= 2 else None
+        return target1, target2
 
     async def _latest_price(self, symbol: str, market: str) -> float | None:
         """Best-effort latest close price for a symbol across known sources."""

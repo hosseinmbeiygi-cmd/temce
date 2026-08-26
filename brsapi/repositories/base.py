@@ -313,11 +313,18 @@ class BulkUpsertRepository(Generic[T]):
         else:
             conflict_sql = "ON CONFLICT DO NOTHING"
 
-        await self.session.execute(
+        result = await self.session.execute(
             text(f'INSERT INTO "{table_name}" ({cols_str}) VALUES ({placeholders}) {conflict_sql}'),
             records,
         )
         await self.session.flush()
+        # rowcount is driver-dependent (psycopg may return None); fall back to len(records) only if unavailable
+        try:
+            rc = result.rowcount  # type: ignore[attr-defined]
+            if rc is not None and rc >= 0:
+                return int(rc)
+        except Exception:
+            pass
         return len(records)
 
     async def truncate(self) -> None:

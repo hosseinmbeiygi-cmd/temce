@@ -60,7 +60,7 @@ async def init_database() -> None:
         return
 
     # Ensure data directory exists for SQLite fallback
-    Path("data").mkdir(parents=True, exist_ok=True)
+    Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
 
     url = settings.database_url_async
     is_sqlite = url.startswith("sqlite")
@@ -92,7 +92,7 @@ async def init_database() -> None:
             raise RuntimeError(
                 "Cannot connect to PostgreSQL database. "
                 "Please ensure PostgreSQL is running on the host and port specified in your .env DATABASE_URL. "
-                f"Tried: {url}"
+                f"Tried: {url.split('@')[-1] if '@' in url else url}"
             )
 
     engine = create_async_engine(url, echo=settings.database_echo, **_get_pool_config(url))

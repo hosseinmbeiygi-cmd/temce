@@ -71,18 +71,20 @@ import random
 import sys
 import time as _real_time
 from collections import Counter, defaultdict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 import brsapi.rate_limiter as _rl  # noqa: E402
-from brsapi.config import BrsApiEndpoints, settings as brsapi_settings  # noqa: E402
+from brsapi.config import BrsApiEndpoints  # noqa: E402
+from brsapi.config import settings as brsapi_settings
 from brsapi.jobs.registry import BRsAPI_SYNC_JOBS  # noqa: E402
-from brsapi.rate_limiter import RateLimitExhaustedError, RateLimiter  # noqa: E402
+from brsapi.rate_limiter import RateLimiter, RateLimitExhaustedError  # noqa: E402
 
 TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
@@ -983,7 +985,7 @@ async def main(argv: list[str] | None = None) -> int:
         results: list[ScenarioResult] = []
         _p("=" * 78)
         _p(f"BrsApi Rate-Limit Simulator  |  limits: {_fmt_limit(limits)}")
-        _p(f"Using the REAL RateLimiter (brsapi/rate_limiter.py) + virtual clock")
+        _p("Using the REAL RateLimiter (brsapi/rate_limiter.py) + virtual clock")
         warning = _limit_mismatch_warning()
         if warning:
             _p(warning)

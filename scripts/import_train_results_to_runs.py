@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # --- auto PYTHONPATH ---
@@ -35,7 +35,7 @@ from models.ml import MlTrainingRunModel  # noqa: E402
 
 
 def _run_id(symbol: str, model: str) -> str:
-    digest = hashlib.md5(f"{symbol}|{model}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.md5(f"{symbol}|{model}".encode()).hexdigest()[:12]
     return f"tam_{digest}"
 
 
@@ -80,7 +80,7 @@ def _row(r: dict, run_time: datetime) -> dict:
 
 async def main(path: Path) -> None:
     results, summary = _load_results(path)
-    run_time = datetime.now(timezone.utc)
+    run_time = datetime.now(UTC)
 
     engine = create_async_engine(settings.database_url, pool_size=2)
     factory = async_sessionmaker(engine, expire_on_commit=False)

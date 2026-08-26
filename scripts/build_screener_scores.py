@@ -24,7 +24,7 @@ import argparse
 import asyncio
 import sys
 import time
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +35,7 @@ if str(_project_root) not in sys.path:
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: E402
 
-from core.database import init_database, get_session  # noqa: E402
+from core.database import get_session, init_database  # noqa: E402
 from core.logging import get_logger  # noqa: E402
 from services.screener110_service import BatchLoader, VectorCalculator  # noqa: E402
 
@@ -129,7 +129,7 @@ async def build_daily_scores(session: Any, trade_date: date) -> dict[str, Any]:
     # blocked for minutes). Build the bare insert once and feed the row
     # chunks as executemany params.
     if rows:
-        from sqlalchemy import Table, MetaData
+        from sqlalchemy import MetaData, Table
         table = await session.run_sync(
             lambda sync_s: Table("screener_daily_scores", MetaData(),
                                  autoload_with=sync_s.bind, keep_existing=True)

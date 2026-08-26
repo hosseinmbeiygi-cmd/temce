@@ -33,7 +33,7 @@ if str(_project_root) not in sys.path:
 
 from sqlalchemy import text  # noqa: E402
 
-from core.database import init_database, get_session  # noqa: E402
+from core.database import get_session, init_database  # noqa: E402
 from core.logging import get_logger  # noqa: E402
 
 logger = get_logger(__name__)

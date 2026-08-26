@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://temce.ir/schemas/proposal_order.v1.json",
+  "title": "ProposalOrder — سفارش پیشنهادی (منتظر تأیید انسانی)",
+  "description": "خروجی Risk Engine پس از کنترل‌ها؛ بدون تأیید به Broker نمی‌رود. Idempotency Key الزامی.",
+  "type": "object",
+  "required": ["id", "created_at", "expires_at", "market", "strategy", "legs", "proposed_price", "cost", "risk", "idempotency_key", "calc_version"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "شناسه یکتای Proposal" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time", "description": "TTL — پس از آن منقضی و غیرقابل تأیید" },
+    "market": { "type": "string", "enum": ["option", "future", "certificate", "fund", "physical"] },
+    "underlying_symbol": { "type": "string", "example": "خودرو" },
+    "strategy": { "type": "string", "example": "covered_call" },
+    "strategy_fa": { "type": "string", "example": "کاورد کال" },
+    "legs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type", "side", "quantity", "strike", "premium"],
+        "properties": {
+          "type": { "type": "string", "enum": ["call", "put", "stock", "future"] },
+          "side": { "type": "string", "enum": ["buy", "sell"] },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "strike": { "type": "number" },
+          "premium": { "type": "number" },
+          "expiry": { "type": "string", "format": "date" }
+        }
+      }
+    },
+    "proposed_price": { "type": "number", "description": "قیمت پیشنهادی برای ارسال (Limit)" },
+    "cost": {
+      "type": "object",
+      "required": ["gross", "commission", "net", "slippage_bps"],
+      "properties": {
+        "gross": { "type": "number" },
+        "commission": { "type": "number" },
+        "net": { "type": "number" },
+        "slippage_bps": { "type": "number", "description": "لغزش پیش‌بینی (bps)" }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "required": ["max_loss", "margin", "var_95", "liquidity_flag", "staleness_flag"],
+      "properties": {
+        "max_loss": { "type": "number" },
+        "margin": { "type": "number" },
+        "var_95": { "type": "number" },
+        "liquidity_flag": { "type": "string", "enum": ["ok", "thin", "illiquid"] },
+        "staleness_flag": { "type": "string", "enum": ["fresh", "stale", "expired"] }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "description": "سناریوهای زیان",
+      "items": { "type": "object", "required": ["price", "pnl"], "properties": { "price": { "type": "number" }, "pnl": { "type": "number" } } }
+    },
+    "idempotency_key": { "type": "string", "description": "کلید یکتایی — ارسال دوباره با همین کلید بی‌اثر است" },
+    "calc_version": {
+      "type": "object",
+      "required": ["git_sha", "input_hash", "param_version", "timestamp"],
+      "properties": {
+        "git_sha": { "type": "string" },
+        "input_hash": { "type": "string" },
+        "param_version": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "description": "پس از تأیید پر می‌شود",
+      "properties": {
+        "approved_by": { "type": "string" },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "decision": { "type": "string", "enum": ["approved", "rejected", "expired"] },
+        "reason": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

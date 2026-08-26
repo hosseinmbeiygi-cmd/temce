@@ -74,6 +74,7 @@ async def is_token_revoked(jti: str | None) -> bool:
         from core.cache import get_cache
         cache = get_cache()
         if not cache.is_connected:
+            logger.warning("Revocation check skipped: Redis unavailable for jti=%s", jti)
             return False
         value = await cache.get(_REVOKED_PREFIX + jti)
         return value is not None
@@ -94,6 +95,7 @@ async def revoke_token(jti: str | None, ttl: int = 3600) -> None:
         from core.cache import get_cache
         cache = get_cache()
         if not cache.is_connected:
+            logger.warning("Revoke skipped: Redis unavailable for jti=%s (ttl=%s)", jti, ttl)
             return
         await cache.set(_REVOKED_PREFIX + jti, "1", ttl=max(1, int(ttl)))
     except Exception:

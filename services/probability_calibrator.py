@@ -87,8 +87,9 @@ class ProbabilityCalibrator:
     # Minimum signals per bucket to consider calibration reliable
     MIN_SIGNALS_PER_BUCKET = 30
 
-    # Bucket edges for grouping predicted probabilities
-    DEFAULT_BUCKETS = [0.0, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0]
+    # Bucket edges for grouping predicted probabilities (symmetric, full range)
+    DEFAULT_BUCKETS = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45,
+                       0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0]
 
     def __init__(self, session: Any = None) -> None:
         self._session = session

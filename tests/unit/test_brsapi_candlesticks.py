@@ -19,7 +19,6 @@ from brsapi.models import CandlestickModel
 from brsapi.parsers import TsetmcParser
 from brsapi.services.sync_service import BrsApiSyncService, SyncReport
 
-
 # ── Parser: Jalali → dual dates ───────────────────────────────────────
 
 

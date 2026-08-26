@@ -167,9 +167,21 @@ function mapPriceToQuote(row: PriceRow): QuoteItem | null {
  * هم countdown رویداد بعدی (بازگشایی/بستن) در TickerBar دقیق تیک بزند.
  */
 export function useMarketSession(): MarketSession {
-  const [session, setSession] = useState<MarketSession>(() => getMarketSession());
+  // Keep the first render identical on the server and in the browser. Reading
+  // the current time during render makes the dashboard hydrate with different
+  // text around minute/day boundaries and can replace the whole page.
+  const [session, setSession] = useState<MarketSession>({
+    dateFa: "—",
+    status: "در حال بارگذاری",
+    note: "در حال دریافت وضعیت بازار",
+    isOpen: false,
+    holiday: null,
+    nextEventAt: null,
+    nextEventLabel: "",
+  });
 
   useEffect(() => {
+    setSession(getMarketSession());
     const id = setInterval(() => {
       setSession(getMarketSession());
     }, 1_000);
@@ -188,10 +200,19 @@ function useEnrichedHeatmap(): HeatmapCell[] {
   const { data } = useQuery({
     queryKey: ["live-heatmap"],
     queryFn: async (): Promise<HeatmapCell[]> => {
-      const res = await apiGet<{ success: boolean; data: HeatmapCell[] }>(
-        "/market/enriched-heatmap?limit=120"
-      );
-      return extractArray<HeatmapCell>(res);
+      try {
+        const res = await apiGet<{ success: boolean; data: HeatmapCell[] }>(
+          "/market/enriched-heatmap?limit=120"
+        );
+        const arr = extractArray<HeatmapCell>(res);
+        if (arr.length === 0 && (res as unknown as Record<string, unknown>)?.success === false) {
+          console.warn("[useEnrichedHeatmap] backend returned success:false", res);
+        }
+        return arr;
+      } catch (e) {
+        console.warn("[useEnrichedHeatmap] fetch failed, falling back to mock", e);
+        throw e;
+      }
     },
     refetchInterval: 30_000,
     staleTime: 10_000,

@@ -238,8 +238,9 @@ class TestRefreshCookieOnly:
                 )
 
         # Endpoint reads the (missing) cookie → rejects without calling the service.
-        assert resp.status_code == 200
+        assert resp.status_code == 401
         body = resp.json()
+        # JSONResponse with ApiResponse body keeps success=False shape for frontend !res.ok handling
         assert body["success"] is False
         assert "No refresh token provided" in body["error"]["message"]
 

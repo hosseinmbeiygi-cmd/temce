@@ -34,7 +34,7 @@ from enum import Enum
 from typing import Any
 
 from core.logging import get_logger
-from services.decision_gate import GateOverride, SmartDecisionGate, get_decision_gate
+from services.decision_gate import GateOverride, SmartDecisionGate
 
 # ── Cross-market regime cache ───────────────────────────────────────────────
 # Populated lazily by _detect_regime() when real data is available
@@ -1057,7 +1057,7 @@ class SignalDecisionEngine:
         rr = candidate.risk_reward
 
         gross = win_rate * rr - loss_rate * 1.0
-        cost_r = costs_pct / max(candidate.stop_loss_pct, 0.001) if candidate.stop_loss_pct > 0 else costs_pct
+        cost_r = costs_pct / abs(candidate.stop_loss_pct) if abs(candidate.stop_loss_pct) > 0.001 else costs_pct
 
         return round(gross - cost_r, 4)
 
@@ -1110,17 +1110,22 @@ _decision_engine: SignalDecisionEngine | None = None
 def get_decision_engine(
     policy_path: str | None = None,
     session: Any = None,
+    instance: SignalDecisionEngine | None = None,
 ) -> SignalDecisionEngine:
-    """Get or create the singleton SignalDecisionEngine.
+    """Get or create the SignalDecisionEngine.
 
-    Note: the first call caches the engine instance. Subsequent calls
+    Args:
+        policy_path: optional path to a YAML/JSON policy config.
+        session: optional database session for market-condition queries.
+        instance: optional pre-built instance to use instead of the singleton.
+                  When provided, the singleton is bypassed entirely — use this
+                  in tests or when a fresh engine with different config is needed.
+
+    The first call without *instance* caches the engine. Subsequent calls
     with different policy_path/session return the cached instance.
-    For tests or different policies, create a fresh instance directly:
-        engine = SignalDecisionEngine(policy=my_policy, session=my_session)
-
-    The embedded SmartDecisionGate shares the *session* argument so
-    market data queries use the same connection pool.
     """
+    if instance is not None:
+        return instance
     global _decision_engine
     if _decision_engine is None:
         policy = SignalPolicy(json_path=policy_path) if policy_path else SignalPolicy()

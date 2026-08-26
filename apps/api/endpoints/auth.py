@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_current_user, require_roles
@@ -10,6 +11,7 @@ from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
 from schemas.api.auth import (
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     MFADisableRequest,
     MFALoginRequest,
@@ -17,6 +19,7 @@ from schemas.api.auth import (
     MFAStatusResponse,
     MFAVerifyRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     UpdateProfileRequest,
     UserResponse,
 )
@@ -42,14 +45,34 @@ _AUTH_LIMITS: dict[str, tuple[float, int]] = {
     # Delivering a code costs an email/Telegram message — cap to prevent
     # channel flooding by a credentialed attacker.
     "mfa_setup": (3 / 300.0, 3),       # 3 setups per 5min per IP
+    "mfa_confirm": (5 / 300.0, 5),     # 5 attempts per 5min per IP
+    "mfa_disable": (5 / 300.0, 5),     # 5 attempts per 5min per IP
 }
 
 _limiter = get_rate_limiter()
 
 
+def _get_client_ip(request: Request) -> str:
+    try:
+        headers = getattr(request, "headers", None)
+        if headers is not None:
+            # Starlette Headers or plain dict
+            xff = headers.get("x-forwarded-for") if hasattr(headers, "get") else None
+            if xff:
+                first = xff.split(",")[0].strip()
+                if first:
+                    return first
+    except Exception:
+        pass
+    client = getattr(request, "client", None)
+    if client and getattr(client, "host", None):
+        return client.host
+    return "unknown"
+
+
 def _rate_limit_auth(request: Request, endpoint: str) -> None:
     """FastAPI dependency: rate-limit an auth endpoint by client IP."""
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     key = f"auth:{endpoint}:{client_ip}"
     rate, burst = _AUTH_LIMITS[endpoint]
     if not _limiter.has_limit(key):
@@ -73,6 +96,14 @@ def mfa_login_rate_limit(request: Request) -> None:
 
 def mfa_setup_rate_limit(request: Request) -> None:
     _rate_limit_auth(request, "mfa_setup")
+
+
+def mfa_confirm_rate_limit(request: Request) -> None:
+    _rate_limit_auth(request, "mfa_confirm")
+
+
+def mfa_disable_rate_limit(request: Request) -> None:
+    _rate_limit_auth(request, "mfa_disable")
 
 
 def register_rate_limit(request: Request) -> None:
@@ -115,6 +146,9 @@ def _clear_refresh_cookie(response: Response) -> None:
         key=settings.auth_cookie_name,
         path="/",
         domain=settings.auth_cookie_domain or None,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite=settings.auth_cookie_samesite,
     )
 
 
@@ -228,7 +262,10 @@ async def refresh(
     svc = UserService(session)
     token = _refresh_token_from_cookie(request)
     if not token:
-        return ApiResponse(success=False, error={"message": "No refresh token provided"})
+        return JSONResponse(
+            status_code=401,
+            content=ApiResponse(success=False, error={"message": "No refresh token provided"}).model_dump(mode="json"),
+        )  # type: ignore[return-value]
     result = await svc.refresh_token(token)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
@@ -284,10 +321,39 @@ async def login_history(
     return ApiResponse(success=True, data=result.value)
 
 
+@router.post("/forgot-password")
+async def forgot_password(
+    req: ForgotPasswordRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(register_rate_limit),
+) -> ApiResponse:
+    svc = UserService(session)
+    result = await svc.request_password_reset(req.account)
+    if not result.success:
+        return ApiResponse(success=False, error={"message": result.error})
+    return ApiResponse(success=True, data=result.value, message="Reset code sent if account exists")
+
+
+@router.post("/reset-password")
+async def reset_password(
+    req: ResetPasswordRequest,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(register_rate_limit),
+) -> ApiResponse:
+    svc = UserService(session)
+    result = await svc.reset_password(req.account, req.code, req.new_password)
+    if not result.success:
+        return ApiResponse(success=False, error={"message": result.error})
+    return ApiResponse(success=True, message="Password has been reset. Please login.")
+
+
 @router.post("/change-password")
 async def change_password(
     req: ChangePasswordRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
+    authorization: str = Header(""),
     session: AsyncSession = Depends(get_session),
     _: None = Depends(change_password_rate_limit),
 ) -> ApiResponse:
@@ -295,6 +361,18 @@ async def change_password(
     result = await svc.change_password(current_user["sub"], req.current_password, req.new_password)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
+    # Revoke the current access token so the old session cannot be reused after password change.
+    token = ""
+    parts = authorization.split()
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        token = parts[1]
+    if token:
+        try:
+            from core.security.tokens import revoke_access_token
+
+            await revoke_access_token(token)
+        except Exception:
+            logger.debug("Failed to revoke token after password change", exc_info=True)
     return ApiResponse(success=True, message="Password changed successfully. Please login again.")
 
 
@@ -409,6 +487,7 @@ async def mfa_confirm(
     req: MFAVerifyRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(mfa_confirm_rate_limit),
 ) -> ApiResponse:
     """Enable MFA once the user proves possession of the secret via a code."""
     svc = UserService(session)
@@ -423,6 +502,7 @@ async def mfa_disable(
     req: MFADisableRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(mfa_disable_rate_limit),
 ) -> ApiResponse:
     """Disable MFA.
 

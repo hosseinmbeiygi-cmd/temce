@@ -39,8 +39,10 @@ from sqlalchemy import func, select, text  # noqa: E402
 from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
-from core import database as db_module  # noqa: E402  (module ref so async_session_factory is read live, not captured as None)
-from core.database import init_database, get_session  # noqa: E402
+from core import (
+    database as db_module,  # noqa: E402  (module ref so async_session_factory is read live, not captured as None)
+)
+from core.database import get_session, init_database  # noqa: E402
 from core.logging import get_logger  # noqa: E402
 
 logger = get_logger(__name__)
@@ -163,7 +165,7 @@ class FeatureStoreBuilder:
     async def _save_rows(self, session: AsyncSession, rows: list[dict[str, Any]]) -> None:
         if not rows:
             return
-        from sqlalchemy import Table, MetaData
+        from sqlalchemy import MetaData, Table
         table = await session.run_sync(
             lambda sync_s: Table("ml_engineered_features", MetaData(),
                                  autoload_with=sync_s.bind, keep_existing=True)
@@ -288,9 +290,7 @@ def _sanitize_row(row: dict[str, Any]) -> dict[str, Any]:
 
     cleaned: dict[str, Any] = {}
     for key, value in row.items():
-        if value is None:
-            cleaned[key] = None
-        elif isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        if value is None or isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
             cleaned[key] = None
         elif isinstance(value, dict):
             cleaned[key] = {k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)

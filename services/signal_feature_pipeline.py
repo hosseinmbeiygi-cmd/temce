@@ -13,6 +13,11 @@ from typing import Any
 
 import numpy as np
 
+from core.indicators import (
+    compute_atr,
+    compute_rsi,
+    compute_trend_strength,
+)
 from core.logging import get_logger
 from ml.types import FeatureMatrix, TargetVector
 
@@ -110,7 +115,7 @@ class SignalFeaturePipeline:
             names.append(f"volatility_{period}d")
 
         # 3. RSI (14)
-        rsi = self._compute_rsi(closes)
+        rsi = compute_rsi(closes)
         vector.append(rsi / 100.0)
         names.append("rsi_14")
 
@@ -143,7 +148,7 @@ class SignalFeaturePipeline:
         names.append("real_buy_ratio")
 
         # 8. ATR-normalized position
-        atr = self._compute_atr(highs, lows, closes) or price_data.get("last_price", 0) * 0.02
+        atr = compute_atr(highs, lows, closes) or price_data.get("last_price", 0) * 0.02
         last_price = closes[-1] if closes else price_data.get("last_price", 0)
         atr_norm = atr / max(last_price, 0.001)
         vector.append(min(atr_norm, 0.2) / 0.2)
@@ -160,7 +165,7 @@ class SignalFeaturePipeline:
         names.append("price_position_20d")
 
         # 10. Trend strength (ADX-like)
-        vector.append(self._trend_strength(closes))
+        vector.append(compute_trend_strength(closes))
         names.append("trend_strength")
 
         return MarketFeatures(
@@ -261,45 +266,7 @@ class SignalFeaturePipeline:
         return features
 
     # ── Technical Helpers ──
-
-    @staticmethod
-    def _compute_rsi(closes: list[float], period: int = 14) -> float:
-        if len(closes) < period + 1:
-            return 50.0
-        gains = []
-        losses = []
-        for i in range(1, len(closes)):
-            delta = closes[i] - closes[i - 1]
-            gains.append(max(delta, 0))
-            losses.append(max(-delta, 0))
-        avg_gain = sum(gains[-period:]) / period
-        avg_loss = sum(losses[-period:]) / period
-        if avg_loss < 1e-10:
-            return 100.0
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
-
-    @staticmethod
-    def _compute_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
-        if len(closes) < period + 1:
-            return None
-        trs = []
-        for i in range(1, len(closes)):
-            tr = max(
-                highs[i] - lows[i],
-                abs(highs[i] - closes[i - 1]),
-                abs(lows[i] - closes[i - 1]),
-            )
-            trs.append(tr)
-        return sum(trs[-period:]) / period
-
-    @staticmethod
-    def _trend_strength(closes: list[float], period: int = 14) -> float:
-        """Simple trend strength: proportion of days moving in the same direction."""
-        if len(closes) < period:
-            return 0.5
-        up_days = sum(1 for i in range(-period, 0) if closes[i] > closes[i - 1])
-        return up_days / period
+    # All technical indicators are now in core.indicators (unified, Wilder's smoothing).
 
     @staticmethod
     def prepare_training_data(

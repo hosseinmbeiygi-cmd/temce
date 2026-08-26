@@ -20,7 +20,7 @@ import asyncio
 import io
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -59,7 +59,7 @@ def shamsi_to_gregorian_utc(value: Any) -> datetime | None:
     try:
         y, m, d = (int(p) for p in s.split("-"))
         g = jdatetime.date(y, m, d).togregorian()
-        return datetime(g.year, g.month, g.day, tzinfo=timezone.utc)
+        return datetime(g.year, g.month, g.day, tzinfo=UTC)
     except (ValueError, TypeError):
         return None
 
@@ -69,8 +69,8 @@ def to_utc(value: Any) -> datetime | None:
     if not isinstance(value, datetime):
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 async def ensure_column(session: AsyncSession, table: str, column: str) -> bool:

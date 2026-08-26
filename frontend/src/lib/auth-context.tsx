@@ -260,13 +260,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const stored = getStoredAuth();
+      const freshUser = (data.user as AuthUser | undefined) ?? (getStoredAuth()?.user as AuthUser | undefined) ?? {};
       storeAuth({
-        user: (stored?.user as AuthUser | undefined) ?? {},
+        user: freshUser,
         access_token: newAccessToken,
       });
 
-      setState((prev) => ({ ...prev, accessToken: newAccessToken }));
+      setState((prev) => ({ ...prev, accessToken: newAccessToken, user: freshUser }));
       return newAccessToken;
     } catch {
       logout();

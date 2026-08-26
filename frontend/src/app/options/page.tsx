@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
@@ -123,15 +124,23 @@ export default function OptionsPage() {
     onSuccess: (data) => setAnalysis(data),
   });
 
+  const chainReqIdRef = useRef(0);
   const loadChain = useCallback(async (sym: string) => {
+    const reqId = ++chainReqIdRef.current;
     setSelectedSymbol(sym);
     setChainLoading(true);
     try {
       const d = await apiGet<{ data: ChainData }>(`/options/live/chain/${encodeURIComponent(sym)}?limit=100`);
+      if (reqId !== chainReqIdRef.current) return; // stale response guard
       setChainData(d.data);
       if (d.data?.underlying_price) setStockPrice(d.data.underlying_price);
-    } catch (e) { console.error(e); }
-    setChainLoading(false);
+    } catch (e) {
+      if (reqId !== chainReqIdRef.current) return;
+      console.error(e);
+      toast.error("خطا در دریافت زنجیره اختیار");
+    } finally {
+      if (reqId === chainReqIdRef.current) setChainLoading(false);
+    }
   }, []);
 
   const handleAnalyze = useCallback(() => {
@@ -139,7 +148,7 @@ export default function OptionsPage() {
   }, [selectedStrategy, stockPrice, strike, callPremium, putPremium, analyzeMutation]);
 
   const handleQuickBuy = useCallback((type: string, strikePrice: number, qty: number) => {
-    alert(`ثبت سفارش خرید ${type === "call" ? "اختیار خرید" : "اختیار فروش"} ${selectedSymbol}\nاعمال: ${fmt(strikePrice)}\nتعداد: ${qty} قرارداد`);
+    toast.info(`ثبت سفارش خرید ${type === "call" ? "اختیار خرید" : "اختیار فروش"} ${selectedSymbol} — اعمال: ${fmt(strikePrice)} — تعداد: ${qty} قرارداد`, { description: "این قابلیت فعلاً نمایشی است و به کارگزاری متصل نشده" });
   }, [selectedSymbol]);
 
   const tabs = [

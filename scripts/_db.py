@@ -5,8 +5,8 @@ All connection details come from ``core.settings`` (``DATABASE_URL`` in
 ``python scripts/foo.py`` the scripts directory is on ``sys.path`` so
 ``import _db`` resolves this module.
 """
-from pathlib import Path
 import sys
+from pathlib import Path
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 if PROJECT_ROOT not in sys.path:

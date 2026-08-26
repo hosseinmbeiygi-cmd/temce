@@ -124,12 +124,12 @@ class UniversalMarginEngine:
 
         # ── Strategy Detection ──
 
-        # 1. Covered Call
-        long_stock_qty = sum(idx.quantity for idx in stocks if idx.direction == Direction.LONG)
+        # 1. Covered Call — quantity is shares, so compare shares vs contracts*size
+        long_stock_qty = sum(idx.quantity * idx.contract_size for idx in stocks if idx.direction == Direction.LONG)
         short_calls = [idx for idx in shorts if idx.leg_type == LegType.CALL]
         if long_stock_qty > 0 and short_calls:
             total_contracts = sum(idx.quantity for idx in short_calls)
-            contract_multiplier = stocks[0].contract_size if stocks else 1000
+            contract_multiplier = short_calls[0].contract_size
             if long_stock_qty >= total_contracts * contract_multiplier:
                 return MarginResult(0.0, 0.0, net_premium, "covered_call")
 
