@@ -163,22 +163,26 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
 
 // ── Core API Functions ──────────────────────────────────────────
 
-export async function apiGet<T>(
+async function apiRequest<T>(
   endpoint: string,
-  token?: string | null
+  init: RequestInit & { timeoutMs?: number },
+  token?: string | null,
 ): Promise<T> {
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  const headers: HeadersInit = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> | undefined) };
   const authToken = token ?? getStoredAccessToken();
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  if (authToken) (headers as Record<string, string>).Authorization = `Bearer ${authToken}`;
 
-  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers });
+  const timeoutMs = init.timeoutMs ?? REQUEST_TIMEOUT_MS;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- timeoutMs is consumed, rest is fetch init
+  const { timeoutMs: _t, ...fetchInit } = init as RequestInit & { timeoutMs?: number };
 
-  // Silent refresh on 401
+  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { ...fetchInit, headers }, timeoutMs);
+
   if (response.status === 401 && !endpoint.includes('/auth/')) {
     const newToken = await _silentRefresh();
     if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { headers });
+      (headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
+      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { ...fetchInit, headers }, timeoutMs);
     }
   }
 
@@ -187,7 +191,11 @@ export async function apiGet<T>(
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
   }
-  return response.json();
+  return response.json() as Promise<T>;
+}
+
+export async function apiGet<T>(endpoint: string, token?: string | null): Promise<T> {
+  return apiRequest<T>(endpoint, { headers: {} }, token);
 }
 
 export async function apiPost<T>(
@@ -196,39 +204,11 @@ export async function apiPost<T>(
   token?: string | null,
   timeoutMs?: number
 ): Promise<T> {
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  const authToken = token ?? getStoredAccessToken();
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
-
-  const _postTimeout = timeoutMs ?? (
+  const postTimeout = timeoutMs ?? (
     endpoint.includes('/backtests') || endpoint.includes('/ml/') || endpoint.includes('/brsapi') || endpoint.includes('/data-import') || endpoint.includes('/orchestrator') || endpoint.includes('/sync')
       ? LONG_TIMEOUT_MS : REQUEST_TIMEOUT_MS
   );
-  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-  }, _postTimeout);
-
-  // Silent refresh on 401
-  if (response.status === 401 && !endpoint.includes('/auth/')) {
-    const newToken = await _silentRefresh();
-    if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body: data ? JSON.stringify(data) : undefined,
-      }, _postTimeout);
-    }
-  }
-
-  if (response.status === 401) { _handle401(); }
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
-  }
-  return response.json();
+  return apiRequest<T>(endpoint, { method: 'POST', body: data ? JSON.stringify(data) : undefined, timeoutMs: postTimeout }, token);
 }
 
 export async function apiPut<T>(
@@ -236,68 +216,11 @@ export async function apiPut<T>(
   data?: Record<string, unknown>,
   token?: string | null
 ): Promise<T> {
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  const authToken = token ?? getStoredAccessToken();
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
-
-  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-    method: 'PUT',
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-  });
-
-  // Silent refresh on 401
-  if (response.status === 401 && !endpoint.includes('/auth/')) {
-    const newToken = await _silentRefresh();
-    if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-        method: 'PUT',
-        headers,
-        body: data ? JSON.stringify(data) : undefined,
-      });
-    }
-  }
-
-  if (response.status === 401) { _handle401(); }
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
-  }
-  return response.json();
+  return apiRequest<T>(endpoint, { method: 'PUT', body: data ? JSON.stringify(data) : undefined }, token);
 }
 
-export async function apiDelete<T>(
-  endpoint: string,
-  token?: string | null
-): Promise<T> {
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  const authToken = token ?? getStoredAccessToken();
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
-
-  let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-    method: 'DELETE',
-    headers,
-  });
-
-  // Silent refresh on 401
-  if (response.status === 401 && !endpoint.includes('/auth/')) {
-    const newToken = await _silentRefresh();
-    if (newToken) {
-      headers.Authorization = `Bearer ${newToken}`;
-      response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
-        method: 'DELETE',
-        headers,
-      });
-    }
-  }
-
-  if (response.status === 401) { _handle401(); }
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
-  }
-  return response.json();
+export async function apiDelete<T>(endpoint: string, token?: string | null): Promise<T> {
+  return apiRequest<T>(endpoint, { method: 'DELETE' }, token);
 }
 
 // ── Auth Helpers (legacy, kept for backward compatibility) ───────

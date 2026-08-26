@@ -448,8 +448,15 @@ export default function TopNavbar() {
                   <div
                     role="button"
                     tabIndex={0}
+                    aria-expanded={mobileGroup === item.label}
                     onClick={() => setMobileGroup(mobileGroup === item.label ? null : item.label)}
-                    onKeyDown={(e) => e.key === "Enter" && setMobileGroup(mobileGroup === item.label ? null : item.label)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setMobileGroup(mobileGroup === item.label ? null : item.label);
+                      }
+                      if (e.key === "Escape") setMobileGroup(null);
+                    }}
                     className="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-semibold text-brand-100 hover:bg-white/5"
                   >
                     <span className="flex items-center gap-2">

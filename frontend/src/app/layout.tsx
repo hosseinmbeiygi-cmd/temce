@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning
       className={`${vazirmatn.variable} ${jetbrainsMono.variable}`}>
       <head>
-        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+        {/* Material Icons moved to self-hosted lucide-react to keep offline/IR capability */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="بازار" />
@@ -93,6 +93,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="antialiased font-sans" suppressHydrationWarning>
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-[100] focus:rounded-lg focus:bg-card focus:px-4 focus:py-2 focus:text-ink focus:shadow-lg">
+          پرش به محتوای اصلی
+        </a>
         <Providers>
           <NotificationProvider>{children}</NotificationProvider>
         </Providers>

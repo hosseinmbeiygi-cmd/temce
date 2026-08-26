@@ -14,10 +14,10 @@ function useServiceWorker() {
         navigator.serviceWorker
           .register("/sw.js")
           .then((registration) => {
-            console.log("SW registered:", registration.scope);
+            if (process.env.NODE_ENV !== "production") console.log("SW registered:", registration.scope);
           })
           .catch((error) => {
-            console.log("SW registration failed:", error);
+            if (process.env.NODE_ENV !== "production") console.log("SW registration failed:", error);
           });
       };
       if (document.readyState === "complete") {
@@ -31,7 +31,20 @@ function useServiceWorker() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: 1,
+            staleTime: 60_000,
+            gcTime: 300_000,
+            refetchOnWindowFocus: false,
+            refetchIntervalInBackground: false,
+          },
+        },
+      }),
+  );
   useServiceWorker();
 
   useEffect(() => {

@@ -3,10 +3,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  outputFileTracingRoot: path.join(process.cwd(), ".."),
-  allowedDevOrigins: ["100.127.255.253", "192.168.43.162"],
+  outputFileTracingRoot: path.resolve(__dirname, ".."),
+  allowedDevOrigins: process.env.ALLOWED_DEV_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["127.0.0.1"],
   experimental: {
-    optimizePackageImports: ["recharts", "@tanstack/react-query"],
+    optimizePackageImports: ["recharts", "@tanstack/react-query", "framer-motion", "lucide-react", "lightweight-charts"],
   },
 
   // ------ Server-Side Proxy ---------------------------------------------------------------------------------------
