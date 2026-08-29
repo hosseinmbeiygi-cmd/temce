@@ -12,6 +12,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class BrsApiBase(DeclarativeBase):
     """Base class for all BrsApi ORM models."""
+
     __abstract__ = True
 
 
@@ -23,8 +24,13 @@ class InstrumentRefMixin:
     - ``ins_id``: TSETMC internal instrument ID (string, from API)
     - ``instrument_id``: ForeignKey to ``instruments.id``
     """
-    ins_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True, comment="TSETMC internal instrument ID")
-    instrument_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True, comment="FK to instruments.id")
+
+    ins_id: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True, comment="TSETMC internal instrument ID"
+    )
+    instrument_id: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, index=True, comment="FK to instruments.id"
+    )
 
 
 # ──────────────────────────────────────────────
@@ -39,6 +45,9 @@ class RawPayloadModel(BrsApiBase):
     This table is optional (controlled by
     ``BrsApiSettings.raw_payload_sink_enabled``) and has a
     configurable retention period.
+
+    سند v5.0 §2.3: آرشیو تغییرناپذیر با Market_Time, Receive_Time,
+    Response_Latency_ms, HTTP_Status, SHA256_Checksum, schema_version.
     """
 
     __tablename__ = "brsapi_raw_payloads"
@@ -51,7 +60,23 @@ class RawPayloadModel(BrsApiBase):
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), index=True,
+        DateTime,
+        server_default=func.now(),
+        index=True,
+    )
+    # سند §2.3: ستون‌های اضافی برای ردیابی کامل
+    receive_time: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, comment="Wall-clock at client receive"
+    )
+    market_time: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, comment="Market timestamp inside the payload"
+    )
+    response_latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True, comment="Round-trip latency in ms")
+    schema_version: Mapped[str | None] = mapped_column(
+        String(40), nullable=True, comment="Payload schema version (raw_payload.vN)"
+    )
+    checksum_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True, comment="SHA256 of payload"
     )
 
 
@@ -81,9 +106,7 @@ class SyncLogModel(BrsApiBase):
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    __table_args__ = (
-        Index("idx_sync_log_endpoint_time", "endpoint", "started_at"),
-    )
+    __table_args__ = (Index("idx_sync_log_endpoint_time", "endpoint", "started_at"),)
 
 
 # ──────────────────────────────────────────────
@@ -112,17 +135,22 @@ class BrsApiDailyUsageModel(BrsApiBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     usage_date: Mapped[str] = mapped_column(
-        String(10), nullable=False, comment="Tehran date YYYY-MM-DD",
+        String(10),
+        nullable=False,
+        comment="Tehran date YYYY-MM-DD",
     )
     request_count: Mapped[int] = mapped_column(Integer, default=0, comment="Granted live requests that day")
     daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="Configured daily cap in effect")
     blocked_count: Mapped[int] = mapped_column(Integer, default=0, comment="HTTP 302 over-quota blocks observed")
     blocked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="Last 302 block timestamp")
-    last_request_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="Last granted request timestamp")
+    last_request_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, comment="Last granted request timestamp"
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now(), index=True,
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        index=True,
     )
 
-    __table_args__ = (
-        Index("uq_brsapi_daily_usage_date", "usage_date", unique=True),
-    )
+    __table_args__ = (Index("uq_brsapi_daily_usage_date", "usage_date", unique=True),)

@@ -16,6 +16,7 @@ from core.result import Result
 from ml.models.registry import model_registry
 from ml.types import TargetVector
 from services.signal_feature_pipeline import MarketFeatures, SignalFeaturePipeline
+from services.statistical_acceptance_gate import TradeOutcome, evaluate_acceptance
 
 logger = get_logger(__name__)
 
@@ -23,6 +24,7 @@ logger = get_logger(__name__)
 @dataclass
 class WalkForwardWindow:
     """Single train/test split in a walk-forward validation."""
+
     window_index: int
     train_start: str
     train_end: str
@@ -40,6 +42,7 @@ class WalkForwardWindow:
 @dataclass
 class WalkForwardResult:
     """Aggregated walk-forward validation results."""
+
     market: str
     model_name: str
     num_windows: int = 0
@@ -51,7 +54,11 @@ class WalkForwardResult:
     std_test_accuracy: float = 0.0
     windows: list[dict[str, Any]] = field(default_factory=list)
     robustness_score: float = 0.0  # 0-1: how stable the model is across windows
-    is_reliable: bool = False      # avg_test_accuracy > 0.55 and overfitting < 0.15
+    is_reliable: bool = False  # avg_test_accuracy > 0.55 and overfitting < 0.15
+    # سند v5.0 §7.2: Statistical Acceptance Gate result
+    oos_trade_count: int = 0
+    acceptance_passed: bool | None = None
+    acceptance_reasons: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +72,8 @@ class WalkForwardResult:
             "max_test_accuracy_pct": round(self.max_test_accuracy * 100, 2),
             "robustness_score": round(self.robustness_score, 3),
             "is_reliable": self.is_reliable,
+            "acceptance_passed": self.acceptance_passed,
+            "acceptance_reasons": self.acceptance_reasons,
             "windows": self.windows,
         }
 
@@ -147,13 +156,10 @@ class WalkForwardValidator:
                     train_features,
                     closes=closes,
                     targets=train_targets,
-                    sequence_length=min(20, len(train_features) - 1)
+                    sequence_length=min(20, len(train_features) - 1),
                 )
                 fm_test, tv_test = SignalFeaturePipeline.prepare_training_data(
-                    test_features,
-                    closes=closes,
-                    targets=test_targets,
-                    sequence_length=min(20, len(test_features) - 1)
+                    test_features, closes=closes, targets=test_targets, sequence_length=min(20, len(test_features) - 1)
                 )
 
                 if fm_train.data is None or fm_train.data.empty:
@@ -163,9 +169,9 @@ class WalkForwardValidator:
 
                 # Train
                 try:
-                    model = model_registry.create(model_name, params={
-                        "epochs": 10, "input_size": len(fm_train.feature_names)
-                    })
+                    model = model_registry.create(
+                        model_name, params={"epochs": 10, "input_size": len(fm_train.feature_names)}
+                    )
                     model.fit(fm_train, tv_train)
 
                     # Predict on train
@@ -206,14 +212,17 @@ class WalkForwardValidator:
                 market=market,
                 model_name=model_name,
                 num_windows=len(windows),
-                windows=[{
-                    "window": w.window_index,
-                    "train_acc_pct": round(w.train_accuracy * 100, 2),
-                    "test_acc_pct": round(w.test_accuracy * 100, 2),
-                    "overfitting_pct": round(w.overfitting * 100, 2),
-                    "train_size": w.train_size,
-                    "test_size": w.test_size,
-                } for w in windows],
+                windows=[
+                    {
+                        "window": w.window_index,
+                        "train_acc_pct": round(w.train_accuracy * 100, 2),
+                        "test_acc_pct": round(w.test_accuracy * 100, 2),
+                        "overfitting_pct": round(w.overfitting * 100, 2),
+                        "train_size": w.train_size,
+                        "test_size": w.test_size,
+                    }
+                    for w in windows
+                ],
             )
 
             result.avg_train_accuracy = np.mean([w.train_accuracy for w in windows])
@@ -235,11 +244,29 @@ class WalkForwardValidator:
             avg_test_sharpe = np.mean([w.test_sharpe for w in windows]) if windows else 0.0
 
             result.is_reliable = (
-                result.avg_test_accuracy > 0.58 and
-                result.avg_overfitting < 0.10 and
-                result.robustness_score > 0.5 and
-                avg_test_sharpe > 0.5
+                result.avg_test_accuracy > 0.58
+                and result.avg_overfitting < 0.10
+                and result.robustness_score > 0.5
+                and avg_test_sharpe > 0.5
             )
+
+            # سند v5.0 §7.2: feed the OOS results into the Acceptance Gate
+            result.oos_trade_count = sum(w.test_size for w in windows)
+            # Convert window test accuracy into synthetic trade outcomes for the gate
+            # (the gate is designed for trade-level pnl, not raw accuracy).
+            # We model each OOS observation as a +1 / -1 trade, with cost = 0.5%
+            # (the system's default commission + slippage from the policy YAML).
+            oos_trades: list[TradeOutcome] = []
+            for w in windows:
+                n_win = int(round(w.test_accuracy * w.test_size))
+                n_loss = w.test_size - n_win
+                # First half / second half by window order
+                period = 0 if w.window_index <= (result.num_windows + 1) // 2 else 1
+                oos_trades.extend(TradeOutcome(pnl_pct=1.0, cost_pct=0.5, period_index=period) for _ in range(n_win))
+                oos_trades.extend(TradeOutcome(pnl_pct=-1.0, cost_pct=0.5, period_index=period) for _ in range(n_loss))
+            acceptance = evaluate_acceptance(oos_trades, mc_ev_samples=None)
+            result.acceptance_passed = acceptance.passed
+            result.acceptance_reasons = acceptance.failed_conditions
 
             return Result.ok(result)
 

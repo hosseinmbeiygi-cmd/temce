@@ -52,6 +52,7 @@ class VolatilitySurface(BaseEntity):
 # Tier 1/2 vol surface per IME v5.0 doc (§3.2)
 # =============================================================================
 
+
 def cubic_spline_surface_iv(
     strikes: list[float], vols: list[float], query_strike: float, min_valid_points: int = 3
 ) -> float | None:
@@ -93,13 +94,9 @@ def sabr_sufficiency_gate(
     reasons: list[str] = []
     for maturity, strikes in strikes_per_maturity.items():
         if len(strikes) < min_strikes:
-            reasons.append(
-                f"maturity {maturity}: {len(strikes)} strikes < {min_strikes} required"
-            )
+            reasons.append(f"maturity {maturity}: {len(strikes)} strikes < {min_strikes} required")
     if len(strikes_per_maturity) < min_maturities:
-        reasons.append(
-            f"{len(strikes_per_maturity)} active maturities < {min_maturities} required"
-        )
+        reasons.append(f"{len(strikes_per_maturity)} active maturities < {min_maturities} required")
     if calibration_rmse is None or calibration_rmse >= rmse_threshold:
         reasons.append(f"calibration RMSE {calibration_rmse} not below {rmse_threshold}")
     if calibrated_days < stability_window_days:

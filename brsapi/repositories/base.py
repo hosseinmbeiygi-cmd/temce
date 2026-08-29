@@ -4,9 +4,10 @@ Generic BrsApi repository with bulk-insert / upsert support and sync logging.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from logging import getLogger
 from typing import Any, Generic, TypeVar
 
@@ -23,14 +24,16 @@ _SAFE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
 _SENSITIVE_PARAM_NAMES = frozenset({"key", "api_key", "token", "secret", "password"})
 
 
+def _sha256(payload: str) -> str:
+    """Return the SHA-256 hex digest of a payload string (سند §2.3)."""
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _redact_params(params: dict[str, str] | None) -> dict[str, str] | None:
     """Remove credentials before params reach logs or audit storage."""
     if not params:
         return params
-    return {
-        name: "[REDACTED]" if name.lower() in _SENSITIVE_PARAM_NAMES else value
-        for name, value in params.items()
-    }
+    return {name: "[REDACTED]" if name.lower() in _SENSITIVE_PARAM_NAMES else value for name, value in params.items()}
 
 
 def _quote_model_identifier(model_class: type[Any], name: str) -> str:
@@ -115,9 +118,8 @@ class SyncLogRepository:
         from sqlalchemy import func as sa_func
 
         cutoff = utc_now_naive() - timedelta(minutes=since_minutes)
-        stmt = (
-            select(sa_func.count(SyncLogModel.id))
-            .where(SyncLogModel.endpoint == endpoint, SyncLogModel.started_at >= cutoff)
+        stmt = select(sa_func.count(SyncLogModel.id)).where(
+            SyncLogModel.endpoint == endpoint, SyncLogModel.started_at >= cutoff
         )
         result = await self.session.execute(stmt)
         return result.scalar() or 0
@@ -149,12 +151,8 @@ class SyncLogRepository:
             filters.append(SyncLogModel.endpoint == endpoint)
 
         total_runs = sa_func.count(SyncLogModel.id).label("total_runs")
-        success_count = sa_func.sum(
-            sa_case((SyncLogModel.status == "success", 1), else_=0)
-        ).label("success_count")
-        error_count = sa_func.sum(
-            sa_case((SyncLogModel.status == "error", 1), else_=0)
-        ).label("error_count")
+        success_count = sa_func.sum(sa_case((SyncLogModel.status == "success", 1), else_=0)).label("success_count")
+        error_count = sa_func.sum(sa_case((SyncLogModel.status == "error", 1), else_=0)).label("error_count")
         error_rate = (error_count * 100.0 / sa_func.nullif(total_runs, 0)).label("error_rate")
         avg_duration = sa_func.avg(SyncLogModel.duration_ms).label("avg_duration_ms")
         last_success = sa_func.max(
@@ -192,7 +190,9 @@ class SyncLogRepository:
 
 
 class RawPayloadRepository:
-    """Stores raw JSON payloads for audit."""
+    """Stores raw JSON payloads for audit (سند v5.0 §2.3 Raw_Tick contract)."""
+
+    DEFAULT_SCHEMA_VERSION = "raw_payload.v1"
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -203,6 +203,12 @@ class RawPayloadRepository:
         payload: str,
         status_code: int = 200,
         params: dict[str, str] | None = None,
+        *,
+        receive_time: datetime | None = None,
+        market_time: datetime | None = None,
+        response_latency_ms: float | None = None,
+        schema_version: str | None = None,
+        checksum_sha256: str | None = None,
     ) -> RawPayloadModel:
         entry = RawPayloadModel(
             endpoint=endpoint,
@@ -210,6 +216,11 @@ class RawPayloadRepository:
             status_code=status_code,
             payload=payload,
             size_bytes=len(payload),
+            receive_time=receive_time or datetime.now(),
+            market_time=market_time,
+            response_latency_ms=response_latency_ms,
+            schema_version=schema_version or self.DEFAULT_SCHEMA_VERSION,
+            checksum_sha256=checksum_sha256 or _sha256(payload),
         )
         self.session.add(entry)
         await self.session.flush()
@@ -298,13 +309,14 @@ class BulkUpsertRepository(Generic[T]):
                 )
             # ``id`` is the PK — never overwrite it on conflict.
             update_cols = [c for c in cols if c != "id"]
-            update_clause = ", ".join(
-                f"{_quote_model_identifier(self.model_class, c)} = EXCLUDED.{_quote_model_identifier(self.model_class, c)}"
-                for c in update_cols
-            ) or ""
-            target_sql = ", ".join(
-                _quote_model_identifier(self.model_class, c) for c in conflict_target
+            update_clause = (
+                ", ".join(
+                    f"{_quote_model_identifier(self.model_class, c)} = EXCLUDED.{_quote_model_identifier(self.model_class, c)}"
+                    for c in update_cols
+                )
+                or ""
             )
+            target_sql = ", ".join(_quote_model_identifier(self.model_class, c) for c in conflict_target)
             conflict_sql = (
                 f"ON CONFLICT ({target_sql}) DO UPDATE SET {update_clause}"
                 if update_clause
@@ -354,11 +366,6 @@ class BulkUpsertRepository(Generic[T]):
         col = getattr(self.model_class, order_column, None)
         if col is None:
             col = self.model_class.created_at
-        stmt = (
-            select(self.model_class)
-            .where(self.model_class.symbol == symbol)
-            .order_by(col.desc())
-            .limit(limit)
-        )
+        stmt = select(self.model_class).where(self.model_class.symbol == symbol).order_by(col.desc()).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())

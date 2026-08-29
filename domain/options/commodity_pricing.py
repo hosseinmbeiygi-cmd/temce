@@ -8,6 +8,7 @@ Supports:
 
 Market: Iranian commodity options (gold coin, saffron, cumin on IME)
 """
+
 from __future__ import annotations
 
 import math
@@ -37,31 +38,31 @@ class AssetClass(Enum):
 # Contract specifications for Iranian commodity options
 CONTRACT_SPECS: dict[AssetClass, dict[str, Any]] = {
     AssetClass.GOLD_COIN: {
-        "contract_size": 1,        # 1 gold coin (Bahar Azadi)
+        "contract_size": 1,  # 1 gold coin (Bahar Azadi)
         "unit": "coin",
         "settlement": SettlementMode.PHYSICAL,
-        "default_carry": 0.28,     # ~28% annual carry (high interest rate environment)
+        "default_carry": 0.28,  # ~28% annual carry (high interest rate environment)
     },
     AssetClass.SAFFRON: {
-        "contract_size": 100,      # 100 grams
+        "contract_size": 100,  # 100 grams
         "unit": "gram",
         "settlement": SettlementMode.PHYSICAL,
         "default_carry": 0.20,
     },
     AssetClass.CUMIN: {
-        "contract_size": 100,      # 100 kg
+        "contract_size": 100,  # 100 kg
         "unit": "kg",
         "settlement": SettlementMode.PHYSICAL,
         "default_carry": 0.18,
     },
     AssetClass.PISTACHIO: {
-        "contract_size": 100,      # 100 kg
+        "contract_size": 100,  # 100 kg
         "unit": "kg",
         "settlement": SettlementMode.PHYSICAL,
         "default_carry": 0.18,
     },
     AssetClass.EQUITY: {
-        "contract_size": 1000,     # 1000 shares per contract
+        "contract_size": 1000,  # 1000 shares per contract
         "unit": "share",
         "settlement": SettlementMode.CASH,
         "default_carry": 0.0,
@@ -72,13 +73,14 @@ CONTRACT_SPECS: dict[AssetClass, dict[str, Any]] = {
 @dataclass
 class CommodityOptionParams:
     """Parameters for commodity option pricing."""
-    S: float                    # Current spot price
-    K: float                    # Strike price
-    T: float                    # Time to expiry (years)
-    r: float                    # Risk-free rate (Iranian interbank ~23-30%)
-    q: float = 0.0              # Continuous dividend yield / cost of carry
-    sigma: float = 0.30         # Implied volatility
-    option_type: str = "call"   # "call" or "put"
+
+    S: float  # Current spot price
+    K: float  # Strike price
+    T: float  # Time to expiry (years)
+    r: float  # Risk-free rate (Iranian interbank ~23-30%)
+    q: float = 0.0  # Continuous dividend yield / cost of carry
+    sigma: float = 0.30  # Implied volatility
+    option_type: str = "call"  # "call" or "put"
     asset_class: AssetClass = AssetClass.EQUITY
     settlement: SettlementMode = SettlementMode.CASH
     futures_price: float | None = None  # For Black-76 model
@@ -177,14 +179,18 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
         pdf_d1 = stats.norm.pdf(d1)
         if params.option_type == "call":
             delta = exp_rt * stats.norm.cdf(d1)
-            theta_annual = (exp_rt * (-F * pdf_d1 * sigma / (2 * math.sqrt(T)))
-                           - r * F * exp_rt * stats.norm.cdf(d1)
-                           + r * K * exp_rt * stats.norm.cdf(d2))
+            theta_annual = (
+                exp_rt * (-F * pdf_d1 * sigma / (2 * math.sqrt(T)))
+                - r * F * exp_rt * stats.norm.cdf(d1)
+                + r * K * exp_rt * stats.norm.cdf(d2)
+            )
         else:
             delta = -exp_rt * stats.norm.cdf(-d1)
-            theta_annual = (exp_rt * (F * pdf_d1 * sigma / (2 * math.sqrt(T)))
-                           + r * F * exp_rt * stats.norm.cdf(-d1)
-                           - r * K * exp_rt * stats.norm.cdf(-d2))
+            theta_annual = (
+                exp_rt * (F * pdf_d1 * sigma / (2 * math.sqrt(T)))
+                + r * F * exp_rt * stats.norm.cdf(-d1)
+                - r * K * exp_rt * stats.norm.cdf(-d2)
+            )
     else:
         # Black-Scholes-Merton with dividend yield q
         price_fn = commodity_bs_call if params.option_type == "call" else commodity_bs_put  # type: ignore[assignment]
@@ -199,20 +205,26 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
 
         if params.option_type == "call":
             delta = eqT * nd1
-            theta_annual = (-S * eqT * pdf_d1 * sigma / (2 * math.sqrt(T))
-                           - q * S * eqT * nd1
-                           + r * K * erT * stats.norm.cdf(d2))
+            theta_annual = (
+                -S * eqT * pdf_d1 * sigma / (2 * math.sqrt(T)) - q * S * eqT * nd1 + r * K * erT * stats.norm.cdf(d2)
+            )
         else:
             delta = -eqT * stats.norm.cdf(-d1)
-            theta_annual = (-S * eqT * pdf_d1 * sigma / (2 * math.sqrt(T))
-                           + q * S * eqT * stats.norm.cdf(-d1)
-                           - r * K * erT * stats.norm.cdf(-d2))
+            theta_annual = (
+                -S * eqT * pdf_d1 * sigma / (2 * math.sqrt(T))
+                + q * S * eqT * stats.norm.cdf(-d1)
+                - r * K * erT * stats.norm.cdf(-d2)
+            )
 
-    gamma = (pdf_d1 / (S * sigma * math.sqrt(T))) if params.futures_price is None else (
-        exp_rt * pdf_d1 / (F * sigma * math.sqrt(T))
+    gamma = (
+        (pdf_d1 / (S * sigma * math.sqrt(T)))
+        if params.futures_price is None
+        else (exp_rt * pdf_d1 / (F * sigma * math.sqrt(T)))
     )
-    vega = S * pdf_d1 * math.sqrt(T) / 100.0 if params.futures_price is None else (
-        exp_rt * F * pdf_d1 * math.sqrt(T) / 100.0
+    vega = (
+        S * pdf_d1 * math.sqrt(T) / 100.0
+        if params.futures_price is None
+        else (exp_rt * F * pdf_d1 * math.sqrt(T) / 100.0)
     )
     rho = (K * T * erT * (stats.norm.cdf(d2) if params.option_type == "call" else -stats.norm.cdf(-d2))) / 100.0
 
@@ -234,7 +246,11 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
             "asset_class": params.asset_class.value,
             "settlement": params.settlement.value,
             "futures_price": params.futures_price,
-            "S": S, "K": K, "T": T, "r": r, "sigma": sigma,
+            "S": S,
+            "K": K,
+            "T": T,
+            "r": r,
+            "sigma": sigma,
         },
     )
 
@@ -273,6 +289,7 @@ def implied_volatility_commodity(
 # =============================================================================
 # Tier 1/2 pricing per IME v5.0 architecture doc (§3.1–§3.4)
 # =============================================================================
+
 
 def displaced_diffusion_call(F: float, K: float, T: float, r: float, sigma: float, alpha: float) -> float:
     """Displaced Diffusion call on a futures (Tier 2, conditional on verified α floor).
@@ -320,8 +337,14 @@ def displaced_diffusion_allowed(alpha: float, source: str | None, has_timestamp:
 
 
 def price_displaced_diffusion(
-    F: float, K: float, T: float, r: float, sigma: float, alpha: float,
-    option_type: str = "call", model_version: str = "ime-v5.0-dd-1",
+    F: float,
+    K: float,
+    T: float,
+    r: float,
+    sigma: float,
+    alpha: float,
+    option_type: str = "call",
+    model_version: str = "ime-v5.0-dd-1",
 ) -> OptionPrice | None:
     """Price with closed-form Greeks; None when the Tier-2 precondition fails.
 
@@ -353,7 +376,9 @@ def price_displaced_diffusion(
     else:
         price = erT * (Ks * stats.norm.cdf(-d2) - Fs * stats.norm.cdf(-d1))
         delta = -erT * stats.norm.cdf(-d1)
-        theta_annual = erT * (Fs * pdf * sigma / (2 * math.sqrt(T)) + r * Fs * stats.norm.cdf(-d1) - r * Ks * stats.norm.cdf(-d2))
+        theta_annual = erT * (
+            Fs * pdf * sigma / (2 * math.sqrt(T)) + r * Fs * stats.norm.cdf(-d1) - r * Ks * stats.norm.cdf(-d2)
+        )
 
     denom = Fs * sigma * math.sqrt(T)
     gamma = erT * pdf / denom if denom > 1e-12 else 0.0
@@ -375,7 +400,11 @@ def price_displaced_diffusion(
         parameters={
             "model": "displaced_diffusion",
             "alpha": alpha,
-            "F": F, "K": K, "T": T, "r": r, "sigma": sigma,
+            "F": F,
+            "K": K,
+            "T": T,
+            "r": r,
+            "sigma": sigma,
             "option_type": option_type,
             "model_version": model_version,
         },
@@ -397,8 +426,14 @@ def put_call_parity_violation(
 
 
 def _solve_implied_vol(
-    price_fn, vega_fn, market_price: float, initial_guess: float,
-    max_iter: int, tol: float, vol_min: float, vol_max: float,
+    price_fn,
+    vega_fn,
+    market_price: float,
+    initial_guess: float,
+    max_iter: int,
+    tol: float,
+    vol_min: float,
+    vol_max: float,
 ) -> float | None:
     """Newton-Raphson with Brent fallback; None when no root in [vol_min, vol_max].
 
@@ -462,6 +497,7 @@ def implied_volatility_black76(
 
 
 # ── Futures / physical commodity (§3.4) ────────────────────────────────────
+
 
 def fair_futures_price(spot: float, risk_free: float, carry_cost: float, convenience_yield: float, T: float) -> float:
     """Tier-1 cost-of-carry fair futures: F* = S · e^((r + c − y)·T).
