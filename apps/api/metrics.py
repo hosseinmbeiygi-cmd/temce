@@ -47,12 +47,18 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         route_path = request.url.path
 
         exporter.inc("http_requests_total", labels={"method": request.method, "route": route_path})
+        # Track in-flight requests so dashboards can spot queueing under load.
+        in_flight_key = "http_request_in_flight"
+        current = exporter.gauge(in_flight_key)
+        exporter.set_gauge(in_flight_key, current + 1.0)
         start = time.monotonic()
         try:
             response = await call_next(request)
         except Exception:
+            exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
             exporter.inc("http_request_errors_total", labels={"method": request.method, "route": route_path})
             raise
+        exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
         exporter.observe(
             "http_request_duration_seconds",
             time.monotonic() - start,

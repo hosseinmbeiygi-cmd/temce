@@ -1,37 +1,77 @@
 from __future__ import annotations
 
+import traceback
+import uuid
+from typing import Any
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from core.config import settings
 from core.exceptions import AppError, AuthenticationError, NotFoundError, ValidationError
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def _trace_id(request: Request) -> str:
+    """Return trace_id from request.state (set by RequestContextMiddleware) or a fresh uuid4."""
+    return getattr(request.state, "trace_id", None) or uuid.uuid4().hex
+
+
+def _is_dev() -> bool:
+    return settings.environment == "development" or getattr(settings, "is_development", False)
+
+
+def error_payload(
+    *,
+    message: str,
+    code: str,
+    request: Request,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a standardized error response body.
+
+    In production only ``success``, ``error``, and ``code`` are returned.
+    In development ``trace_id`` and ``extra`` are included for diagnostics.
+    """
+    body: dict[str, Any] = {"success": False, "error": message, "code": code}
+    if _is_dev():
+        body["trace_id"] = _trace_id(request)
+        if extra:
+            body["extra"] = extra
+    return body
 
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"success": False, "error": exc.message, "code": exc.code})
+    payload = error_payload(message=exc.message, code=exc.code, request=request)
+    return JSONResponse(status_code=exc.status_code, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
 async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"success": False, "error": str(exc), "code": "NOT_FOUND"})
+    payload = error_payload(message=str(exc), code="NOT_FOUND", request=request)
+    return JSONResponse(status_code=404, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
 async def validation_error_handler(request: Request, exc: ValidationError) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"success": False, "error": str(exc), "code": "VALIDATION_ERROR"})
+    payload = error_payload(message=str(exc), code="VALIDATION_ERROR", request=request)
+    return JSONResponse(status_code=422, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
 async def auth_error_handler(request: Request, exc: AuthenticationError) -> JSONResponse:
-    return JSONResponse(status_code=401, content={"success": False, "error": str(exc), "code": "AUTH_ERROR"})
+    payload = error_payload(message=str(exc), code="AUTH_ERROR", request=request)
+    return JSONResponse(status_code=401, content=payload, headers={"X-Trace-Id": _trace_id(request)})
 
 
 async def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    import traceback
-
-    from core.logging import get_logger
-    logger = get_logger(__name__)
-    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc)
+    trace_id = _trace_id(request)
+    logger.error("Unhandled exception on %s %s [trace=%s]: %s", request.method, request.url.path, trace_id, exc)
     logger.debug("Traceback:\n%s", traceback.format_exc())
-    return JSONResponse(
-        status_code=500, content={"success": False, "error": "Internal server error", "code": "INTERNAL_ERROR"}
-    )
+    payload: dict[str, Any] = {"success": False, "error": "Internal server error", "code": "INTERNAL_ERROR"}
+    if _is_dev():
+        payload["trace_id"] = trace_id
+        payload["exception"] = type(exc).__name__
+    return JSONResponse(status_code=500, content=payload, headers={"X-Trace-Id": trace_id})
 
 
 def register_error_handlers(app):

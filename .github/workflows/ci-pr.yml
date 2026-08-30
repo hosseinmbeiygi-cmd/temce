@@ -136,6 +136,9 @@ jobs:
           pip install pytest pytest-asyncio pytest-timeout
           httpx fastapi sqlalchemy numpy pydantic asyncpg redis aiosqlite
 
+      - name: Router auth audit
+        run: python scripts/check_router_auth.py
+
       - name: Run unit tests
         run: >
           python -m pytest tests/unit

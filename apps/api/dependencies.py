@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
+from typing import TypeVar
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,9 @@ from core.logging import get_logger
 from core.security.tokens import decode_access_token, is_token_revoked
 
 logger = get_logger(__name__)
+
+S = TypeVar("S")
+
 
 # 🔧 PostgreSQL connection via dependency injection
 # This is now using settings.database_url from core.config
@@ -23,8 +27,45 @@ async def _reject_if_revoked(payload: dict) -> dict:
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     from core.database import get_session
+
     async for session in get_session():
         yield session
+
+
+def get_service(service_factory: Callable[..., S]) -> Callable[..., S]:
+    """Generic FastAPI dependency factory for session-scoped services.
+
+    Replaces the ~30 one-line ``get_*_service`` wrappers. Usage:
+
+        SymbolService = get_service("services.symbol_service:SymbolService")
+        router.get("/x", dependencies=[Depends(SymbolService)])
+
+    Or, when the service needs both DB session and BrsApi client:
+
+        TradeService = get_service(
+            "services.trade_service:TradeService",
+            extra_deps={"brsapi_query_service": "brsapi.services.query_service:BrsApiQueryService",
+                        "brsapi_client": "brsapi.client:get_client_async"},
+        )
+
+    Lazy import path avoids the multi-second import cost at module load.
+    The factory is memoized per import-path so the same dependency is reused.
+    """
+    # Memoize on the callable identity; FastAPI calls the dep per request.
+    # We resolve imports lazily inside the inner function so that the heavy
+    # services are not imported until the first request reaches an endpoint.
+    if not isinstance(service_factory, str) or ":" not in service_factory:
+        raise ValueError("get_service requires a 'module.path:ClassName' string")
+    module_path, _, class_name = service_factory.partition(":")
+
+    def _dep(session: AsyncSession = Depends(get_db_session)) -> S:
+        import importlib
+
+        mod = importlib.import_module(module_path)
+        cls = getattr(mod, class_name)
+        return cls(session=session)
+
+    return _dep
 
 
 def get_symbol_service(session: AsyncSession = Depends(get_db_session)):
@@ -208,6 +249,7 @@ async def require_role(role: str, current_user: dict = Depends(get_current_user)
     Admin always has access to everything.
     """
     from core.enums.rbac import has_role
+
     user_roles = current_user.get("roles", [])
     if not has_role(user_roles, role):
         raise HTTPException(status_code=403, detail=f"Insufficient permissions: requires {role} or higher")
@@ -322,3 +364,20 @@ def get_gap_prediction_service(session: AsyncSession = Depends(get_db_session)):
     from services.gap_prediction import GapPredictor
 
     return GapPredictor(session=session)
+
+
+# ── Gold module (Iranian gold market) ──────────────────────────
+
+
+def get_gold_live_service(
+    brsapi=Depends(get_brsapi_query_service),
+):
+    from services.gold.live_service import GoldLiveService
+
+    return GoldLiveService(brsapi=brsapi)
+
+
+def get_gold_position_service(session: AsyncSession = Depends(get_db_session)):
+    from services.gold.position_service import GoldFuturesPositionService
+
+    return GoldFuturesPositionService(session=session)

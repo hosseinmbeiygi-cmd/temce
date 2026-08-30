@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from collections.abc import Callable
 from contextlib import suppress
 
@@ -16,6 +17,10 @@ from core.security.sanitizers import strip_html
 from core.security.tokens import decode_access_token, is_token_revoked
 
 logger = get_logger(__name__)
+
+# Trace-id header clients can supply to propagate a distributed trace; otherwise
+# the server mints a uuid4. Surfaced back on every response as ``X-Trace-Id``.
+TRACE_HEADER = "X-Trace-Id"
 
 # Fields whose value is intentionally opaque / hashed server-side (passwords,
 # one-time codes, secrets, tokens). Skipping them keeps e.g. ``password``
@@ -56,6 +61,23 @@ _SENSITIVE_WRITE_PREFIXES = (
 )
 
 
+class RequestContextMiddleware(BaseHTTPMiddleware):
+    """Attach a per-request context (trace_id, start time) before everything else.
+
+    Must be the OUTERMOST middleware so every downstream layer (logging,
+    error handlers, metrics) can read ``request.state.trace_id``.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        incoming = request.headers.get(TRACE_HEADER.lower())
+        trace_id = incoming or uuid.uuid4().hex
+        request.state.trace_id = trace_id
+        request.state.request_started = time.monotonic()
+        response = await call_next(request)
+        response.headers[TRACE_HEADER] = trace_id
+        return response
+
+
 class TimingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         start = time.monotonic()
@@ -63,19 +85,35 @@ class TimingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         except Exception:
             elapsed = time.monotonic() - start
-            logger.exception("Unhandled exception processing %s %s (%.3fs)", request.method, request.url.path, elapsed)
+            trace_id = getattr(request.state, "trace_id", "-")
+            logger.exception(
+                "Unhandled exception processing %s %s (%.3fs) [trace=%s]",
+                request.method,
+                request.url.path,
+                elapsed,
+                trace_id,
+            )
             raise
         elapsed = time.monotonic() - start
-        logger.info("%s %s -> %d (%.3fs)", request.method, request.url.path, response.status_code, elapsed)
+        trace_id = getattr(request.state, "trace_id", "-")
+        logger.info(
+            "%s %s -> %d (%.3fs) [trace=%s]",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed,
+            trace_id,
+        )
         response.headers["X-Response-Time-Ms"] = str(round(elapsed * 1000))
         return response
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        logger.debug("Request: %s %s", request.method, request.url.path)
+        trace_id = getattr(request.state, "trace_id", "-")
+        logger.debug("Request: %s %s [trace=%s]", request.method, request.url.path, trace_id)
         response = await call_next(request)
-        logger.debug("Response: %d", response.status_code)
+        logger.debug("Response: %d [trace=%s]", response.status_code, trace_id)
         return response
 
 
@@ -99,7 +137,11 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                         logger.warning("Unauthenticated access to sensitive endpoint: %s %s", request.method, path)
                         return JSONResponse(
                             status_code=401,
-                            content={"success": False, "error": "Authentication required for this endpoint", "code": "AUTH_REQUIRED"},
+                            content={
+                                "success": False,
+                                "error": "Authentication required for this endpoint",
+                                "code": "AUTH_REQUIRED",
+                            },
                         )
                     # Validate the token at middleware level (signature + revocation)
                     token = parts[1]
@@ -170,7 +212,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 if not self._origin_allowed(origin):
                     logger.warning(
                         "CSRF blocked: %s %s from origin %s",
-                        request.method, request.url.path, origin,
+                        request.method,
+                        request.url.path,
+                        origin,
                     )
                     return JSONResponse(
                         status_code=403,
@@ -386,7 +430,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         )
 
         if not allowed:
-            logger.warning("Rate limit exceeded: %s %s from %s (limit: %d/min)", request.method, path, client_ip, max_calls)
+            logger.warning(
+                "Rate limit exceeded: %s %s from %s (limit: %d/min)", request.method, path, client_ip, max_calls
+            )
             return JSONResponse(
                 status_code=429,
                 content={

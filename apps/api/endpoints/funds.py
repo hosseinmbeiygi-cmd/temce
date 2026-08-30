@@ -32,8 +32,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.dependencies import get_brsapi_query_service, get_db_session
 from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from brsapi.models.ime import ImeFundModel
-from brsapi.models.tsetmc import NavRecordModel, SymbolSnapshotModel
+from brsapi.models.tsetmc import IntradayTradeModel, NavRecordModel, SymbolSnapshotModel
 from brsapi.services.query_service import BrsApiQueryService
+from core.config import settings
 from core.logging import get_logger
 from models.fund import FundModel
 from schemas.common.responses import ApiResponse
@@ -46,9 +47,9 @@ router = APIRouter()
 # brsapi_symbol_snapshots has ~836K rows; the latest-per-symbol query takes
 # several seconds, so we cache the merged map with a TTL and refresh it in the
 # background (stale-while-revalidate) so the endpoint never blocks on a slow
-# rebuild. Snapshots are refreshed every few minutes, so a 120s cache keeps
-# data fresh while keeping the endpoint snappy.
-_CACHE_TTL_SECONDS = 120.0
+# rebuild. Snapshots are refreshed every few minutes, so the configured TTL
+# (default 120s) keeps data fresh while keeping the endpoint snappy.
+_CACHE_TTL_SECONDS = settings.fund_cache_ttl_seconds
 _cache_lock = asyncio.Lock()
 _cache: dict[str, Any] | None = None
 _cache_at: float = 0.0
@@ -330,16 +331,12 @@ async def _load_merged_funds(session: AsyncSession) -> dict[str, dict[str, Any]]
         fund_sector = "صندوق سرمایه‌گذاری قابل معامله"
         subq = (
             select(SymbolSnapshotModel.symbol, func.max(SymbolSnapshotModel.fetched_at).label("latest"))
-            .where(
-                (SymbolSnapshotModel.sector == fund_sector)
-                | (SymbolSnapshotModel.symbol.in_(etf_list))
-            )
+            .where((SymbolSnapshotModel.sector == fund_sector) | (SymbolSnapshotModel.symbol.in_(etf_list)))
             .group_by(SymbolSnapshotModel.symbol)
             .subquery()
         )
-        stmt = (
-            select(SymbolSnapshotModel)
-            .join(subq, (SymbolSnapshotModel.symbol == subq.c.symbol) & (SymbolSnapshotModel.fetched_at == subq.c.latest))
+        stmt = select(SymbolSnapshotModel).join(
+            subq, (SymbolSnapshotModel.symbol == subq.c.symbol) & (SymbolSnapshotModel.fetched_at == subq.c.latest)
         )
         result = await session.execute(stmt)
         for row in result.scalars().all():
@@ -411,9 +408,7 @@ async def _load_nav_history(session: AsyncSession, symbol: str) -> list[dict[str
 
     try:
         result = await session.execute(
-            select(NavRecordModel)
-            .where(NavRecordModel.symbol == symbol)
-            .order_by(NavRecordModel.date.asc())
+            select(NavRecordModel).where(NavRecordModel.symbol == symbol).order_by(NavRecordModel.date.asc())
         )
         for r in result.scalars().all():
             d = r.date or ""
@@ -464,7 +459,9 @@ async def list_funds(
     fund_type: str | None = Query(None, description="نوع صندوق (سهامی، درآمد ثابت، اهرمی، مختلط، بخشی، اختصاصی)"),
     market: str | None = Query(None, description="بازار (tse / ime)"),
     min_nav_change: float | None = Query(None, description="حداقل درصد تغییر NAV"),
-    sort_by: str = Query("nav", description="مرتب‌سازی: nav / nav_change_pct / trade_volume / market_value / symbol / name"),
+    sort_by: str = Query(
+        "nav", description="مرتب‌سازی: nav / nav_change_pct / trade_volume / market_value / symbol / name"
+    ),
     sort_desc: bool = Query(True, description="نزولی؟"),
     limit: int = Query(200, ge=1, le=500, description="تعداد نتایج"),
     offset: int = Query(0, ge=0, description="شروع از"),
@@ -477,7 +474,8 @@ async def list_funds(
     if search:
         s = search.strip().lower()
         funds = [
-            f for f in funds
+            f
+            for f in funds
             if s in f["symbol"].lower() or s in (f["name"] or "").lower() or s in (f["isin"] or "").lower()
         ]
     if fund_type:
@@ -503,7 +501,7 @@ async def list_funds(
         funds.sort(key=lambda f: f.get(field) or 0, reverse=sort_desc)
 
     total = len(funds)
-    page_items = funds[offset: offset + limit]
+    page_items = funds[offset : offset + limit]
 
     # ── Type / market breakdown ──
     type_counts: dict[str, int] = {}
@@ -535,6 +533,120 @@ async def list_fund_types() -> list[dict[str, str]]:
         {"key": "بخشی", "label": "بخشی"},
         {"key": "اختصاصی", "label": "اختصاصی"},
     ]
+
+
+@router.get("/top", summary="صندوق‌های برتر بر اساس معیارهای مختلف")
+async def get_top_funds(
+    metric: str = Query(
+        "market_value",
+        description="market_value / trade_volume / trade_value / nav_change_pct / intraday_volume",
+    ),
+    top: int = Query(20, ge=1, le=100, description="تعداد نتایج"),
+    fund_type: str | None = Query(None, description="فیلتر نوع صندوق"),
+    market: str | None = Query(None, description="فیلتر بازار (tse/ime)"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """رتبه‌بندی صندوق‌ها بر اساس metric.
+
+    metric=market_value      → market_value اسنپ‌شات (اندازه صندوق)
+    metric=trade_volume      → حجم معاملات روز (تعداد سهام)
+    metric=trade_value       → ارزش معاملات روز (ریال)
+    metric=nav_change_pct    → درصد تغییر NAV
+    metric=intraday_volume   → حجم تیک‌های درون‌روز از brsapi_intraday_trades
+    """
+    funds = list((await _get_cached_funds(session)).values())
+
+    # Optional filters (use same logic as /funds).
+    if fund_type:
+        funds = [f for f in funds if f.get("fund_type") == fund_type]
+    if market:
+        funds = [f for f in funds if f.get("market") == market]
+
+    if metric == "intraday_volume":
+        # Per-symbol latest trade_date (each fund may have its own latest day).
+        from sqlalchemy import func
+        from sqlalchemy import select as _select
+
+        last_per_sym_rows = (
+            await session.execute(
+                _select(
+                    IntradayTradeModel.symbol,
+                    func.max(IntradayTradeModel.trade_date).label("ld"),
+                )
+                .where(IntradayTradeModel.symbol.in_([f["symbol"] for f in funds]))
+                .group_by(IntradayTradeModel.symbol)
+            )
+        ).all()
+        last_per_sym = {s: ld for s, ld in last_per_sym_rows if ld}
+
+        # Aggregate tick counts per (symbol, last_date).
+        if last_per_sym:
+            # Build a values list: (symbol, date) pairs.
+            pairs = list(last_per_sym.items())
+            # Split: one query per (date, [symbols]) for efficiency.
+            by_date: dict[str, list[str]] = {}
+            for sym, ld in pairs:
+                by_date.setdefault(str(ld), []).append(sym)
+            tick_map: dict[str, int] = {}
+            for ld, syms in by_date.items():
+                rows = (
+                    await session.execute(
+                        _select(
+                            IntradayTradeModel.symbol,
+                            func.count(IntradayTradeModel.id),
+                        )
+                        .where(
+                            IntradayTradeModel.trade_date == ld,
+                            IntradayTradeModel.symbol.in_(syms),
+                        )
+                        .group_by(IntradayTradeModel.symbol)
+                    )
+                ).all()
+                for sym, n in rows:
+                    tick_map[sym] = int(n or 0)
+        else:
+            tick_map = {}
+        for f in funds:
+            f["_sort"] = tick_map.get(f["symbol"], 0)
+    else:
+        key_map = {
+            "market_value": lambda f: float(f.get("market_value") or 0),
+            "trade_volume": lambda f: float(f.get("trade_volume") or 0),
+            "trade_value": lambda f: float(f.get("trade_value") or 0),
+            "nav_change_pct": lambda f: float(f.get("nav_change_pct") or 0),
+        }
+        kf = key_map.get(metric)
+        if kf is None:
+            return {
+                "metric": metric,
+                "error": f"unknown metric; use one of: {list(key_map)} | intraday_volume",
+                "items": [],
+            }
+        for f in funds:
+            f["_sort"] = kf(f)
+
+    funds.sort(key=lambda f: f["_sort"], reverse=True)
+    items = [
+        {
+            "rank": i + 1,
+            "symbol": f["symbol"],
+            "name": f.get("name") or f["symbol"],
+            "fund_type": f.get("fund_type"),
+            "market": f.get("market"),
+            "nav": f.get("nav"),
+            "nav_change_pct": f.get("nav_change_pct"),
+            "market_value": f.get("market_value"),
+            "trade_volume": f.get("trade_volume"),
+            "trade_value": f.get("trade_value"),
+            "metric_value": f["_sort"],
+        }
+        for i, f in enumerate(funds[:top])
+    ]
+    return {
+        "metric": metric,
+        "total_considered": len(funds),
+        "items": items,
+    }
 
 
 # ── Fund market overview (FundBase-style homepage) ──────────────────────────
@@ -680,13 +792,15 @@ async def _build_fund_overview(session: AsyncSession) -> dict[str, Any]:
         changes = [today_change[s] for s in syms]
         vals = [today_value[s] for s in syms]
         inflows = [today_inflow[s] for s in syms]
-        categories.append({
-            "name": ftype,
-            "count": len(syms),
-            "avg_change_pct": round(_trimmed_mean(changes), 2),
-            "trade_value": round(sum(vals), 0),
-            "real_inflow": round(sum(inflows), 0),
-        })
+        categories.append(
+            {
+                "name": ftype,
+                "count": len(syms),
+                "avg_change_pct": round(_trimmed_mean(changes), 2),
+                "trade_value": round(sum(vals), 0),
+                "real_inflow": round(sum(inflows), 0),
+            }
+        )
     categories.sort(key=lambda c: -c["trade_value"])
     total_value = sum(c["trade_value"] for c in categories) or 1
     for c in categories:
@@ -731,10 +845,7 @@ async def _build_fund_overview(session: AsyncSession) -> dict[str, Any]:
     }
 
     # ── Trade value breakdown (donut) ──
-    trade_breakdown = [
-        {"name": c["name"], "value": c["trade_value"], "pct": c["share_pct"]}
-        for c in categories
-    ]
+    trade_breakdown = [{"name": c["name"], "value": c["trade_value"], "pct": c["share_pct"]} for c in categories]
 
     # ── Historical returns per category (m1/m3/m6/y1) ──
     # Returns are per-fund ``(latest / period_start - 1)`` and then aggregated per
@@ -938,13 +1049,386 @@ async def get_funds_nav_history(
         by_date: dict[str, dict[str, Any]] = {}
         for p in series:
             cur = by_date.get(p["date"])
-            if cur is None or (
-                p.get("source") == "nav_record" and cur.get("source") != "nav_record"
-            ):
+            if cur is None or (p.get("source") == "nav_record" and cur.get("source") != "nav_record"):
                 by_date[p["date"]] = p
         ordered = sorted(by_date.values(), key=lambda p: p["date"])
         result[sym] = ordered[-limit:]
     return {"symbols": result}
+
+
+@router.get("/intraday", summary="تیک‌های درون‌روز چند صندوق (از brsapi_intraday_trades)")
+async def get_funds_intraday(
+    symbols: str = Query(..., description="نمادها با کاما جدا (حداکثر ۲۰)"),
+    date: str | None = Query(None, description="تاریخ شمسی YYYY-MM-DD؛ پیش‌فرض آخرین روز موجود برای هر نماد"),
+    limit: int = Query(5000, ge=1, le=50000, description="حداکثر تیک به‌ازای هر نماد"),
+    include_canceled: bool = Query(False, description="شامل تیک‌های کنسل‌شده؟"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """ریز معاملات (تیک) صندوق‌ها از جدول ``brsapi_intraday_trades``.
+
+    - اگر ``date`` خالی باشد، برای هر نماد آخرین روز موجود انتخاب می‌شود
+      (هر صندوق ممکن است تاریخ متفاوتی داشته باشد).
+    - پاسخ برای هر نماد شامل خلاصه + آرایه تیک‌ها به ترتیب زمانی است.
+    """
+    from sqlalchemy import or_, select
+
+    sym_list = [s.strip() for s in symbols.split(",") if s.strip()][:20]
+    if not sym_list:
+        return {"symbols": {}}
+
+    result: dict[str, dict[str, Any]] = {}
+    # 1) Resolve per-symbol target date (unless caller forced one).
+    per_sym_date: dict[str, str] = {}
+    if date:
+        per_sym_date = dict.fromkeys(sym_list, date)
+    else:
+        try:
+            last_q = (
+                await session.execute(
+                    select(
+                        IntradayTradeModel.symbol,
+                        IntradayTradeModel.trade_date,
+                    )
+                    .where(IntradayTradeModel.symbol.in_(sym_list))
+                    .order_by(IntradayTradeModel.symbol, IntradayTradeModel.trade_date.desc())
+                )
+            ).all()
+            for sym, d in last_q:
+                if d and sym not in per_sym_date:
+                    per_sym_date[sym] = str(d)
+        except Exception:
+            logger.exception("intraday last-date query failed")
+
+    # 2) Pull ticks for each (symbol, date).
+    for sym in sym_list:
+        d = per_sym_date.get(sym)
+        if not d:
+            result[sym] = {"trade_date": None, "ticks": [], "summary": None}
+            continue
+        try:
+            stmt = (
+                select(IntradayTradeModel)
+                .where(
+                    IntradayTradeModel.symbol == sym,
+                    IntradayTradeModel.trade_date == d,
+                )
+                .order_by(IntradayTradeModel.time.asc())
+                .limit(limit)
+            )
+            if not include_canceled:
+                stmt = stmt.where(
+                    or_(
+                        IntradayTradeModel.canceled.is_(False),
+                        IntradayTradeModel.canceled.is_(None),
+                    )
+                )
+            rows = (await session.execute(stmt)).scalars().all()
+            ticks = [
+                {
+                    "time": r.time,
+                    "price": float(r.price) if r.price is not None else None,
+                    "volume": int(r.volume) if r.volume is not None else 0,
+                    "canceled": bool(r.canceled) if r.canceled is not None else False,
+                }
+                for r in rows
+            ]
+            prices = [t["price"] for t in ticks if t["price"]]
+            vols = [t["volume"] for t in ticks]
+            summary = None
+            if prices:
+                summary = {
+                    "count": len(ticks),
+                    "first_price": prices[0],
+                    "last_price": prices[-1],
+                    "price_min": min(prices),
+                    "price_max": max(prices),
+                    "volume": sum(vols),
+                    "value": sum(p * v for p, v in zip(prices, vols, strict=False)),
+                    "first_time": ticks[0]["time"],
+                    "last_time": ticks[-1]["time"],
+                }
+            result[sym] = {"trade_date": d, "ticks": ticks, "summary": summary}
+        except Exception as e:
+            logger.exception("intraday fetch failed for %s", sym)
+            result[sym] = {"trade_date": d, "ticks": [], "error": str(e)[:120]}
+
+    return {"symbols": result}
+
+
+@router.get("/intraday/candles", summary="کندل OHLCV دقیقه‌ای برای یک یا چند صندوق")
+async def get_funds_intraday_candles(
+    symbols: str = Query(..., description="نمادها با کاما جدا (حداکثر ۱۰)"),
+    date: str | None = Query(None, description="تاریخ شمسی YYYY-MM-DD (پیش‌فرض: آخرین روز)"),
+    interval_minutes: int = Query(1, ge=1, le=60, description="بازه کندل به دقیقه"),
+    include_canceled: bool = Query(False, description="شامل تیک‌های کنسل‌شده؟"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """کندل ۱ (یا N) دقیقه‌ای از تیک‌های درون‌روز.
+
+    Aggregation در دیتابیس انجام می‌شود (GROUP BY minute bucket) — برای
+    صندوق‌های پرمعامله مثل عیار با ۶۰۰K+ تیک سریع است.
+    """
+    from sqlalchemy import func, or_
+
+    sym_list = [s.strip() for s in symbols.split(",") if s.strip()][:10]
+    if not sym_list:
+        return {"symbols": {}}
+
+    bucket_expr = func.substr(IntradayTradeModel.time, 1, 5)  # HH:MM
+
+    result: dict[str, dict[str, Any]] = {}
+    for sym in sym_list:
+        try:
+            # Resolve date.
+            target = date
+            if not target:
+                target = str(
+                    (
+                        await session.execute(
+                            select(IntradayTradeModel.trade_date)
+                            .where(IntradayTradeModel.symbol == sym)
+                            .order_by(IntradayTradeModel.trade_date.desc())
+                            .limit(1)
+                        )
+                    ).scalar()
+                    or ""
+                )
+            if not target:
+                result[sym] = {"trade_date": None, "candles": []}
+                continue
+
+            base = (
+                select(
+                    bucket_expr.label("m"),
+                    func.min(IntradayTradeModel.price).label("lo"),
+                    func.max(IntradayTradeModel.price).label("hi"),
+                    func.sum(IntradayTradeModel.volume).label("vol"),
+                    func.sum(IntradayTradeModel.price * IntradayTradeModel.volume).label("val"),
+                    func.count(IntradayTradeModel.id).label("n"),
+                )
+                .where(
+                    IntradayTradeModel.symbol == sym,
+                    IntradayTradeModel.trade_date == target,
+                    IntradayTradeModel.price.is_not(None),
+                    IntradayTradeModel.price > 0,
+                )
+                .group_by(bucket_expr)
+                .order_by(bucket_expr)
+            )
+            if not include_canceled:
+                base = base.where(
+                    or_(
+                        IntradayTradeModel.canceled.is_(False),
+                        IntradayTradeModel.canceled.is_(None),
+                    )
+                )
+
+            # First/last per bucket — needs a subquery because of GROUP BY.
+            # Use array_agg trick: take min and max row id per bucket, then join.
+            rows = (await session.execute(base)).all()
+            if not rows:
+                result[sym] = {"trade_date": target, "candles": []}
+                continue
+
+            # For first/last price per minute, fetch the bucket with the
+            # earliest/latest time row. Cheaper: just one extra query that
+            # picks the first and last time per minute.
+            min_max_subq = (
+                select(
+                    bucket_expr.label("m"),
+                    func.min(IntradayTradeModel.time).label("first_time"),
+                    func.max(IntradayTradeModel.time).label("last_time"),
+                )
+                .where(
+                    IntradayTradeModel.symbol == sym,
+                    IntradayTradeModel.trade_date == target,
+                    IntradayTradeModel.price.is_not(None),
+                    IntradayTradeModel.price > 0,
+                )
+                .group_by(bucket_expr)
+                .subquery()
+            )
+            first_pick = select(
+                min_max_subq.c.m,
+                IntradayTradeModel.price.label("p"),
+            ).join(
+                IntradayTradeModel,
+                (IntradayTradeModel.time == min_max_subq.c.first_time)
+                & (IntradayTradeModel.symbol == sym)
+                & (IntradayTradeModel.trade_date == target),
+            )
+            last_pick = select(
+                min_max_subq.c.m,
+                IntradayTradeModel.price.label("p"),
+            ).join(
+                IntradayTradeModel,
+                (IntradayTradeModel.time == min_max_subq.c.last_time)
+                & (IntradayTradeModel.symbol == sym)
+                & (IntradayTradeModel.trade_date == target),
+            )
+            first_map: dict[str, float] = {r[0]: float(r[1]) for r in (await session.execute(first_pick)).all()}
+            last_map: dict[str, float] = {r[0]: float(r[1]) for r in (await session.execute(last_pick)).all()}
+
+            candles = []
+            for m, lo, hi, vol, val, n in rows:
+                vwap = float(val) / float(vol) if vol else 0.0
+                candles.append(
+                    {
+                        "minute": m,
+                        "open": first_map.get(m, float(lo)),
+                        "high": float(hi),
+                        "low": float(lo),
+                        "close": last_map.get(m, float(lo)),
+                        "volume": int(vol or 0),
+                        "value": float(val or 0),
+                        "vwap": round(vwap, 2),
+                        "trades": int(n or 0),
+                    }
+                )
+
+            # Optional: merge buckets into N-minute candles.
+            if interval_minutes > 1:
+                merged: list[dict[str, Any]] = []
+                for i in range(0, len(candles), interval_minutes):
+                    grp = candles[i : i + interval_minutes]
+                    if not grp:
+                        continue
+                    merged.append(
+                        {
+                            "minute": grp[0]["minute"],
+                            "open": grp[0]["open"],
+                            "high": max(c["high"] for c in grp),
+                            "low": min(c["low"] for c in grp),
+                            "close": grp[-1]["close"],
+                            "volume": sum(c["volume"] for c in grp),
+                            "value": sum(c["value"] for c in grp),
+                            "vwap": round(
+                                sum(c["value"] for c in grp) / max(1, sum(c["volume"] for c in grp)),
+                                2,
+                            ),
+                            "trades": sum(c["trades"] for c in grp),
+                        }
+                    )
+                candles = merged
+
+            result[sym] = {"trade_date": target, "candles": candles}
+        except Exception as e:
+            logger.exception("candles fetch failed for %s", sym)
+            result[sym] = {"trade_date": date, "candles": [], "error": str(e)[:120]}
+
+    return {"symbols": result}
+
+
+@router.get("/intraday/stream", summary="Sreal-time ticks via Server-Sent Events")
+async def stream_fund_intraday(
+    symbols: str = Query(..., description="نمادها با کاما جدا (حداکثر ۵)"),
+    poll_seconds: float = Query(5.0, ge=1.0, le=60.0, description="فاصله polling"),
+    max_events: int = Query(500, ge=1, le=5000, description="حداکثر تعداد event قبل از قطع"),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """پخش زنده تیک‌های درون‌روز از طریق Server-Sent Events.
+
+    هر ``poll_seconds`` ثانیه، تیک‌های جدید صندوق‌های انتخابی (نسبت به آخرین
+    تیکی که client دریافت کرده) push می‌شوند. اگر تیک جدیدی نباشد heartbeat
+    می‌فرستیم تا connection قطع نشود.
+    """
+    import asyncio
+    import json
+
+    from fastapi.responses import StreamingResponse
+
+    sym_list = [s.strip() for s in symbols.split(",") if s.strip()][:5]
+    if not sym_list:
+        return {"error": "no symbols"}
+
+    # Seed last_ids with the current max per symbol so we only stream
+    # FUTURE ticks (no replay of history).
+    last_ids: dict[str, int] = dict.fromkeys(sym_list, 0)
+    try:
+        from sqlalchemy import func as _func
+
+        seed_rows = (
+            await session.execute(
+                select(
+                    IntradayTradeModel.symbol,
+                    _func.max(IntradayTradeModel.id),
+                )
+                .where(IntradayTradeModel.symbol.in_(sym_list))
+                .group_by(IntradayTradeModel.symbol)
+            )
+        ).all()
+        for sym, max_id in seed_rows:
+            if max_id is not None:
+                last_ids[sym] = int(max_id)
+    except Exception:
+        logger.exception("SSE seed query failed")
+
+    async def _fetch_new() -> list[dict[str, Any]]:
+        events: list[dict[str, Any]] = []
+        try:
+            for sym in sym_list:
+                stmt = (
+                    select(IntradayTradeModel)
+                    .where(
+                        IntradayTradeModel.symbol == sym,
+                        IntradayTradeModel.id > last_ids[sym],
+                    )
+                    .order_by(IntradayTradeModel.id.asc())
+                    .limit(500)
+                )
+                rows = (await session.execute(stmt)).scalars().all()
+                for r in rows:
+                    last_ids[sym] = max(last_ids[sym], r.id or 0)
+                    events.append(
+                        {
+                            "symbol": sym,
+                            "trade_date": r.trade_date,
+                            "time": r.time,
+                            "price": float(r.price) if r.price is not None else None,
+                            "volume": int(r.volume) if r.volume is not None else 0,
+                            "canceled": bool(r.canceled) if r.canceled is not None else False,
+                        }
+                    )
+        except Exception:
+            logger.exception("SSE fetch failed")
+        return events
+
+    async def event_gen():
+        # Initial fetch to seed last_ids (so we don't replay history).
+        try:
+            await _fetch_new()
+        except Exception:
+            pass
+        sent = 0
+        while sent < max_events:
+            try:
+                new_events = await _fetch_new()
+                if new_events:
+                    payload = json.dumps(
+                        {"type": "ticks", "events": new_events},
+                        ensure_ascii=False,
+                    )
+                    yield f"data: {payload}\n\n"
+                    sent += len(new_events)
+                else:
+                    # Heartbeat
+                    yield 'data: {"type": "heartbeat"}\n\n'
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("SSE stream iteration failed")
+                yield 'data: {"type": "error"}\n\n'
+                break
+            await asyncio.sleep(poll_seconds)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/{symbol}/nav", summary="تاریخچه NAV یک صندوق")
@@ -1187,12 +1671,7 @@ def _compute_full_analysis(f: dict[str, Any]) -> dict[str, Any]:
     transparency = max(0, min(100, transparency))
 
     total = round(
-        financial * 0.25
-        + liquidity * 0.20
-        + management * 0.18
-        + risk * 0.15
-        + cost * 0.12
-        + transparency * 0.10
+        financial * 0.25 + liquidity * 0.20 + management * 0.18 + risk * 0.15 + cost * 0.12 + transparency * 0.10
     )
 
     issues_count = 0

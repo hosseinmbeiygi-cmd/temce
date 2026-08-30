@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     api_title: str = "Iran Market Platform API"
     api_version: str = "0.1.0"
+    api_max_page_size: int = Field(default=1000, ge=1, le=10_000)
+    # Funds merged-list cache TTL (seconds). The brsapi_symbol_snapshots
+    # latest-per-symbol query is expensive; this keeps the /funds endpoints
+    # snappy while staying within a few sync intervals.
+    fund_cache_ttl_seconds: float = Field(default=120.0, ge=1.0)
+    # Smart Screener V2 per-IP rate limit. The endpoint hits expensive
+    # scoring pipelines; the cap prevents a single client from monopolising
+    # the worker pool.
+    screener_v2_rate_window_seconds: int = Field(default=60, ge=1)
+    screener_v2_rate_max: int = Field(default=30, ge=1)
     # Safe-by-default: restricted to the documented local dev origin.
     # Set CORS_ORIGINS explicitly for other origins (e.g. ["https://yourdomain.com"]).
     cors_origins: list[str] = Field(default=["http://localhost:3000"], alias="CORS_ORIGINS")
@@ -85,44 +95,36 @@ class Settings(BaseSettings):
             "/api/v1/signals": 10,
             "/api/v1/signal-insights": 10,
             "/api/v1/signal-insights/generate": 5,
-
             # ── Backtesting (expensive) ──
             "/api/v1/backtests/run": 5,
             "/api/v1/backtests/generate": 5,
             "/api/v1/backtests/cascade": 2,
             "/api/v1/backtests/adaptive": 2,
-
             # ── ML (expensive) ──
             "/api/v1/ml/train": 2,
             "/api/v1/ml/predict": 20,
             "/api/v1/ml/evaluate": 5,
-
             # ── Portfolios & Alerts ──
             "/api/v1/portfolios": 30,
             "/api/v1/alerts": 30,
             "/api/v1/watchlist": 60,
-
             # ── Screener ──
             "/api/v1/screener-v2": 20,
             "/api/v1/screener-v2/run": 5,
             "/api/v1/screener110": 20,
-
             # ── Chat & Assistant ──
             "/api/v1/chat": 20,
             "/api/v1/stock-assistant": 15,
             "/api/v1/assistant": 15,
             "/api/v1/compose": 10,
-
             # ── Data Import (expensive) ──
             "/api/v1/data-import": 5,
             "/api/v1/data-import/sync": 2,
-
             # ── Auth (strict) ──
             "/api/v1/auth/login": 10,
             "/api/v1/auth/register": 5,
             "/api/v1/auth/change-password": 5,
             "/api/v1/auth/refresh": 30,
-
             # ── Read-only (generous) ──
             "/api/v1/heatmap": 60,
             "/api/v1/news": 60,

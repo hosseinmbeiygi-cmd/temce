@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from core.config import settings
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
 from schemas.common.responses import ApiResponse
@@ -41,8 +42,9 @@ def _cache_set(key: str, val: Any) -> None:
 
 # ── Rate Limiting ──
 # Uses the shared core RateLimiter instead of a duplicated in-memory window.
-_RATE_LIMIT_WINDOW = 60
-_RATE_LIMIT_MAX = 30
+# Limits are configurable via Settings so ops can tune without a deploy.
+_RATE_LIMIT_WINDOW = settings.screener_v2_rate_window_seconds
+_RATE_LIMIT_MAX = settings.screener_v2_rate_max
 _screener_limiter = get_rate_limiter()
 
 
@@ -60,12 +62,30 @@ def _check_rate_limit(client_ip: str) -> bool:
 
 # ── Valid sort columns ──
 VALID_SORT_COLUMNS = {
-    "composite_score", "smc_score", "technical_score", "momentum_score",
-    "risk_score", "change_pct", "volume", "value", "liquidity_score",
-    "power_score", "structure_score", "orderflow_score", "trigger_score",
-    "rsi", "macd_histogram", "adx", "bb_pct", "atr_pct",
-    "pe_ratio", "eps", "market_value", "last_price",
-    "trend_strength", "pattern_confidence",
+    "composite_score",
+    "smc_score",
+    "technical_score",
+    "momentum_score",
+    "risk_score",
+    "change_pct",
+    "volume",
+    "value",
+    "liquidity_score",
+    "power_score",
+    "structure_score",
+    "orderflow_score",
+    "trigger_score",
+    "rsi",
+    "macd_histogram",
+    "adx",
+    "bb_pct",
+    "atr_pct",
+    "pe_ratio",
+    "eps",
+    "market_value",
+    "last_price",
+    "trend_strength",
+    "pattern_confidence",
 }
 
 
@@ -96,8 +116,10 @@ async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[
 
 # ── Schemas ──
 
+
 class ScreenerV2Request(BaseModel):
     """Request body for V2 screener filter."""
+
     filters: list[dict[str, Any]] = Field(default_factory=list)
     logic: str = Field("and")
     sort_by: str = Field("composite_score")
@@ -113,6 +135,7 @@ class ScreenerV2Request(BaseModel):
 
 
 # ── Endpoints ──
+
 
 @router.get(
     "",
@@ -138,7 +161,9 @@ async def screener_v2(
 
     sort_by = _validate_sort_by(sort_by)
 
-    cache_key = hashlib.md5(f"v2:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()).hexdigest()
+    cache_key = hashlib.md5(
+        f"v2:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()
+    ).hexdigest()
     cached = _cache_get(cache_key)
     if cached:
         return ApiResponse(success=True, data=cached)
@@ -147,9 +172,12 @@ async def screener_v2(
         instruments, market_watch = await _fetch_v2_market_data(limit=min(200, limit * 4))
 
         if not instruments:
-            return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": "No market data available"})
+            return ApiResponse(
+                success=False, data={"items": [], "total": 0}, error={"message": "No market data available"}
+            )
 
         from services.smart_screener_v2 import SmartScreenerV2
+
         screener = SmartScreenerV2()
         results, stats = screener.batch_analyze(
             instruments=instruments,
@@ -164,25 +192,49 @@ async def screener_v2(
         items = []
         for r in results:
             item = {
-                "symbol": r.symbol, "name": r.name, "market": r.market, "industry": r.industry,
-                "last_price": r.last_price, "change_pct": r.change_pct, "volume": r.volume, "value": r.value,
-                "smc_score": round(r.smc_score, 4), "phase": r.phase, "rank": r.rank, "reason": r.reason,
-                "liquidity_score": round(r.liquidity_score, 4), "power_score": round(r.power_score, 4),
-                "structure_score": round(r.structure_score, 4), "orderflow_score": round(r.orderflow_score, 4),
+                "symbol": r.symbol,
+                "name": r.name,
+                "market": r.market,
+                "industry": r.industry,
+                "last_price": r.last_price,
+                "change_pct": r.change_pct,
+                "volume": r.volume,
+                "value": r.value,
+                "smc_score": round(r.smc_score, 4),
+                "phase": r.phase,
+                "rank": r.rank,
+                "reason": r.reason,
+                "liquidity_score": round(r.liquidity_score, 4),
+                "power_score": round(r.power_score, 4),
+                "structure_score": round(r.structure_score, 4),
+                "orderflow_score": round(r.orderflow_score, 4),
                 "trigger_score": round(r.trigger_score, 4),
-                "rsi": round(r.rsi, 2), "macd_histogram": round(r.macd_histogram, 4),
-                "bb_pct": round(r.bb_pct, 4), "atr_pct": round(r.atr_pct, 2), "adx": round(r.adx, 2),
-                "trend_direction": r.trend_direction, "trend_strength": round(r.trend_strength, 4),
+                "rsi": round(r.rsi, 2),
+                "macd_histogram": round(r.macd_histogram, 4),
+                "bb_pct": round(r.bb_pct, 4),
+                "atr_pct": round(r.atr_pct, 2),
+                "adx": round(r.adx, 2),
+                "trend_direction": r.trend_direction,
+                "trend_strength": round(r.trend_strength, 4),
                 "volatility_regime": r.volatility_regime,
-                "pattern_signal": r.pattern_signal, "pattern_confidence": round(r.pattern_confidence, 4),
-                "technical_score": round(r.technical_score, 4), "momentum_score": round(r.momentum_score, 4),
-                "risk_score": round(r.risk_score, 4), "composite_score": round(r.composite_score, 4),
+                "pattern_signal": r.pattern_signal,
+                "pattern_confidence": round(r.pattern_confidence, 4),
+                "technical_score": round(r.technical_score, 4),
+                "momentum_score": round(r.momentum_score, 4),
+                "risk_score": round(r.risk_score, 4),
+                "composite_score": round(r.composite_score, 4),
                 "composite_signal": r.composite_signal,
-                "support_level": r.support_level, "resistance_level": r.resistance_level,
-                "distance_to_support": r.distance_to_support, "distance_to_resistance": r.distance_to_resistance,
-                "poc_price": r.poc_price, "value_area_high": r.value_area_high, "value_area_low": r.value_area_low,
+                "support_level": r.support_level,
+                "resistance_level": r.resistance_level,
+                "distance_to_support": r.distance_to_support,
+                "distance_to_resistance": r.distance_to_resistance,
+                "poc_price": r.poc_price,
+                "value_area_high": r.value_area_high,
+                "value_area_low": r.value_area_low,
                 "volume_trend": r.volume_trend,
-                "pe_ratio": r.pe_ratio, "eps": r.eps, "market_value": r.market_value,
+                "pe_ratio": r.pe_ratio,
+                "eps": r.eps,
+                "market_value": r.market_value,
             }
             items.append(item)
 
@@ -213,7 +265,9 @@ async def screener_v2_filter(
     body.sort_by = _validate_sort_by(body.sort_by)
 
     filters_key = hashlib.md5(json.dumps(body.filters, default=str).encode()).hexdigest()
-    cache_key = hashlib.md5(f"v2f:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()).hexdigest()
+    cache_key = hashlib.md5(
+        f"v2f:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()
+    ).hexdigest()
     cached = _cache_get(cache_key)
     if cached:
         return ApiResponse(success=True, data=cached)
@@ -222,101 +276,122 @@ async def screener_v2_filter(
         instruments, market_watch = await _fetch_v2_market_data(limit=min(200, body.limit * 4))
 
         if not instruments:
-            return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": "No market data available"})
+            return ApiResponse(
+                success=False, data={"items": [], "total": 0}, error={"message": "No market data available"}
+            )
 
         from services.smart_screener_v2 import SmartScreenerV2
+
         screener = SmartScreenerV2()
 
         # Apply signal filter if specified
         if body.signal_filter:
             screener.config.min_pattern_confidence = 0.5
 
+        # Run pipeline with filters applied inside batch_analyze
+        # Note: batch_analyze does NOT accept a logic/filter_logic param,
+        # so OR logic must be handled here after pipeline execution.
+        # First run without filters to get all scored results, then apply
+        # the user's logic client-side.
         results, stats = screener.batch_analyze(
             instruments=instruments,
             market_watch=market_watch,
             sort_by=body.sort_by,
             sort_order=body.sort_order,
-            limit=body.limit,
+            limit=len(instruments),  # Get all results, paginate after filtering
             min_score=body.min_score,
             market=body.market,
-            filters=body.filters if body.filters else None,
         )
 
-        # Apply client-side filters (numeric + string)
+        # Apply client-side filters with correct AND/OR logic
         if body.filters:
             filtered = []
             for r in results:
-                match = True
+                matches: list[bool] = []
                 for f in body.filters:
                     field_name = f.get("field", "")
                     operator = f.get("operator", "gte")
                     value = f.get("value")
                     if value is None:
+                        matches.append(True)  # Skip empty filters
                         continue
                     r_val = getattr(r, field_name, None)
                     if r_val is None:
-                        if body.logic == "and":
-                            match = False
-                            break
+                        r_val = r.details.get(field_name)
+                    if r_val is None:
+                        matches.append(False)
                         continue
 
                     # ── String operators (eq, neq, contains, in, not_in) ──
                     if operator in ("eq", "neq", "contains", "in", "not_in"):
-                        str_r_val = str(r_val)
-                        str_value = str(value)
+                        str_r_val = str(r_val).lower()
+                        str_value = str(value).lower()
                         if operator == "eq":
-                            if str_r_val != str_value:
-                                if body.logic == "and":
-                                    match = False
-                                    break
+                            matches.append(str_r_val == str_value)
                         elif operator == "neq":
-                            if str_r_val == str_value:
-                                if body.logic == "and":
-                                    match = False
-                                    break
+                            matches.append(str_r_val != str_value)
                         elif operator == "contains":
-                            if str_value not in str_r_val:
-                                if body.logic == "and":
-                                    match = False
-                                    break
+                            matches.append(str_value in str_r_val)
                         elif operator == "in":
-                            values = [v.strip() for v in str_value.split(",") if v.strip()]
-                            if str_r_val not in values:
-                                if body.logic == "and":
-                                    match = False
-                                    break
+                            values_list = [v.strip().lower() for v in str_value.split(",") if v.strip()]
+                            matches.append(str_r_val in values_list)
                         elif operator == "not_in":
-                            values = [v.strip() for v in str_value.split(",") if v.strip()]
-                            if str_r_val in values:
-                                if body.logic == "and":
-                                    match = False
-                                    break
+                            values_list = [v.strip().lower() for v in str_value.split(",") if v.strip()]
+                            matches.append(str_r_val not in values_list)
+                        else:
+                            matches.append(False)
                         continue
 
-                    # ── Numeric operators (gte, lte, gt, lt, between) ──
+                    # ── Numeric operators (gte, lte, gt, lt, eq, neq, between) ──
                     try:
                         num_r_val = float(r_val)
                         num_value = float(value)
                     except (TypeError, ValueError):
+                        matches.append(False)
                         continue
-                    if operator == "gte" and num_r_val < num_value or operator == "lte" and num_r_val > num_value or operator == "gt" and num_r_val <= num_value or operator == "lt" and num_r_val >= num_value:
-                        if body.logic == "and":
-                            match = False
-                            break
+
+                    if operator == "gte":
+                        matches.append(num_r_val >= num_value)
+                    elif operator == "lte":
+                        matches.append(num_r_val <= num_value)
+                    elif operator == "gt":
+                        matches.append(num_r_val > num_value)
+                    elif operator == "lt":
+                        matches.append(num_r_val < num_value)
+                    elif operator == "eq":
+                        tolerance = max(abs(num_value) * 0.01, 0.001)
+                        matches.append(abs(num_r_val - num_value) <= tolerance)
+                    elif operator == "neq":
+                        tolerance = max(abs(num_value) * 0.01, 0.001)
+                        matches.append(abs(num_r_val - num_value) > tolerance)
                     elif operator == "between":
                         value_to = f.get("value_to")
                         if value_to is not None:
                             try:
                                 num_value_to = float(value_to)
-                                if not (num_value <= num_r_val <= num_value_to):
-                                    if body.logic == "and":
-                                        match = False
-                                        break
+                                matches.append(num_value <= num_r_val <= num_value_to)
                             except (TypeError, ValueError):
-                                pass
-                if match:
-                    filtered.append(r)
+                                matches.append(False)
+                        else:
+                            matches.append(False)
+                    else:
+                        # Unknown operator; fail closed
+                        matches.append(False)
+
+                # Apply AND/OR logic
+                if body.logic == "or":
+                    # Match if ANY filter matches
+                    if matches and any(matches):
+                        filtered.append(r)
+                else:
+                    # Match only if ALL filters match (default AND)
+                    if matches and all(matches):
+                        filtered.append(r)
+
             results = filtered
+
+        # Paginate after filtering
+        results = results[: body.limit]
 
         # Apply signal filter
         if body.signal_filter:
@@ -325,25 +400,49 @@ async def screener_v2_filter(
         items = []
         for r in results:
             item = {
-                "symbol": r.symbol, "name": r.name, "market": r.market, "industry": r.industry,
-                "last_price": r.last_price, "change_pct": r.change_pct, "volume": r.volume, "value": r.value,
-                "smc_score": round(r.smc_score, 4), "phase": r.phase, "rank": r.rank, "reason": r.reason,
-                "liquidity_score": round(r.liquidity_score, 4), "power_score": round(r.power_score, 4),
-                "structure_score": round(r.structure_score, 4), "orderflow_score": round(r.orderflow_score, 4),
+                "symbol": r.symbol,
+                "name": r.name,
+                "market": r.market,
+                "industry": r.industry,
+                "last_price": r.last_price,
+                "change_pct": r.change_pct,
+                "volume": r.volume,
+                "value": r.value,
+                "smc_score": round(r.smc_score, 4),
+                "phase": r.phase,
+                "rank": r.rank,
+                "reason": r.reason,
+                "liquidity_score": round(r.liquidity_score, 4),
+                "power_score": round(r.power_score, 4),
+                "structure_score": round(r.structure_score, 4),
+                "orderflow_score": round(r.orderflow_score, 4),
                 "trigger_score": round(r.trigger_score, 4),
-                "rsi": round(r.rsi, 2), "macd_histogram": round(r.macd_histogram, 4),
-                "bb_pct": round(r.bb_pct, 4), "atr_pct": round(r.atr_pct, 2), "adx": round(r.adx, 2),
-                "trend_direction": r.trend_direction, "trend_strength": round(r.trend_strength, 4),
+                "rsi": round(r.rsi, 2),
+                "macd_histogram": round(r.macd_histogram, 4),
+                "bb_pct": round(r.bb_pct, 4),
+                "atr_pct": round(r.atr_pct, 2),
+                "adx": round(r.adx, 2),
+                "trend_direction": r.trend_direction,
+                "trend_strength": round(r.trend_strength, 4),
                 "volatility_regime": r.volatility_regime,
-                "pattern_signal": r.pattern_signal, "pattern_confidence": round(r.pattern_confidence, 4),
-                "technical_score": round(r.technical_score, 4), "momentum_score": round(r.momentum_score, 4),
-                "risk_score": round(r.risk_score, 4), "composite_score": round(r.composite_score, 4),
+                "pattern_signal": r.pattern_signal,
+                "pattern_confidence": round(r.pattern_confidence, 4),
+                "technical_score": round(r.technical_score, 4),
+                "momentum_score": round(r.momentum_score, 4),
+                "risk_score": round(r.risk_score, 4),
+                "composite_score": round(r.composite_score, 4),
                 "composite_signal": r.composite_signal,
-                "support_level": r.support_level, "resistance_level": r.resistance_level,
-                "distance_to_support": r.distance_to_support, "distance_to_resistance": r.distance_to_resistance,
-                "poc_price": r.poc_price, "value_area_high": r.value_area_high, "value_area_low": r.value_area_low,
+                "support_level": r.support_level,
+                "resistance_level": r.resistance_level,
+                "distance_to_support": r.distance_to_support,
+                "distance_to_resistance": r.distance_to_resistance,
+                "poc_price": r.poc_price,
+                "value_area_high": r.value_area_high,
+                "value_area_low": r.value_area_low,
                 "volume_trend": r.volume_trend,
-                "pe_ratio": r.pe_ratio, "eps": r.eps, "market_value": r.market_value,
+                "pe_ratio": r.pe_ratio,
+                "eps": r.eps,
+                "market_value": r.market_value,
             }
             items.append(item)
 
@@ -385,6 +484,7 @@ async def compare_symbols(
             snap_map = {s.get("symbol"): s for s in snapshots if s.get("symbol") in symbol_list}
 
             from services.smart_screener_v2 import SmartScreenerV2
+
             screener = SmartScreenerV2()
 
             results = []
@@ -392,22 +492,48 @@ async def compare_symbols(
                 s = snap_map.get(sym)
                 if not s:
                     continue
-                quote = {"symbol": sym, "price_close": s.get("price_close", 0), "price_last": s.get("price_last", 0), "price_change_pct": s.get("price_last_change_pct", 0), "volume": s.get("trade_volume", 0), "value": s.get("trade_value", 0), "pe_ratio": s.get("pe_ratio"), "eps": s.get("eps"), "market_value": s.get("market_value")}
-                result = screener.analyze_symbol(sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, [])
-                results.append({
-                    "symbol": result.symbol, "name": result.name, "industry": result.industry,
-                    "last_price": result.last_price, "change_pct": result.change_pct,
-                    "composite_score": round(result.composite_score, 4), "composite_signal": result.composite_signal,
-                    "smc_score": round(result.smc_score, 4), "technical_score": round(result.technical_score, 4),
-                    "momentum_score": round(result.momentum_score, 4), "risk_score": round(result.risk_score, 4),
-                    "rsi": round(result.rsi, 2), "macd_histogram": round(result.macd_histogram, 4),
-                    "trend_direction": result.trend_direction, "trend_strength": round(result.trend_strength, 4),
-                    "volatility_regime": result.volatility_regime,
-                    "pattern_signal": result.pattern_signal, "pattern_confidence": round(result.pattern_confidence, 4),
-                    "support_level": result.support_level, "resistance_level": result.resistance_level,
-                    "distance_to_support": result.distance_to_support, "distance_to_resistance": result.distance_to_resistance,
-                    "volume_trend": result.volume_trend, "pe_ratio": result.pe_ratio,
-                })
+                quote = {
+                    "symbol": sym,
+                    "price_close": s.get("price_close", 0),
+                    "price_last": s.get("price_last", 0),
+                    "price_change_pct": s.get("price_last_change_pct", 0),
+                    "volume": s.get("trade_volume", 0),
+                    "value": s.get("trade_value", 0),
+                    "pe_ratio": s.get("pe_ratio"),
+                    "eps": s.get("eps"),
+                    "market_value": s.get("market_value"),
+                }
+                result = screener.analyze_symbol(
+                    sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, []
+                )
+                results.append(
+                    {
+                        "symbol": result.symbol,
+                        "name": result.name,
+                        "industry": result.industry,
+                        "last_price": result.last_price,
+                        "change_pct": result.change_pct,
+                        "composite_score": round(result.composite_score, 4),
+                        "composite_signal": result.composite_signal,
+                        "smc_score": round(result.smc_score, 4),
+                        "technical_score": round(result.technical_score, 4),
+                        "momentum_score": round(result.momentum_score, 4),
+                        "risk_score": round(result.risk_score, 4),
+                        "rsi": round(result.rsi, 2),
+                        "macd_histogram": round(result.macd_histogram, 4),
+                        "trend_direction": result.trend_direction,
+                        "trend_strength": round(result.trend_strength, 4),
+                        "volatility_regime": result.volatility_regime,
+                        "pattern_signal": result.pattern_signal,
+                        "pattern_confidence": round(result.pattern_confidence, 4),
+                        "support_level": result.support_level,
+                        "resistance_level": result.resistance_level,
+                        "distance_to_support": result.distance_to_support,
+                        "distance_to_resistance": result.distance_to_resistance,
+                        "volume_trend": result.volume_trend,
+                        "pe_ratio": result.pe_ratio,
+                    }
+                )
 
             return ApiResponse(success=True, data={"items": results})
             break
@@ -450,7 +576,13 @@ async def sector_analysis(
                 if not sector:
                     sector = "نامشخص"
                 if sector not in sector_data:
-                    sector_data[sector] = {"symbols": 0, "total_change": 0, "total_volume": 0, "up_count": 0, "total_market_value": 0}
+                    sector_data[sector] = {
+                        "symbols": 0,
+                        "total_change": 0,
+                        "total_volume": 0,
+                        "up_count": 0,
+                        "total_market_value": 0,
+                    }
                 sector_data[sector]["symbols"] += 1
                 sector_data[sector]["total_change"] += float(s.get("price_last_change_pct", 0) or 0)
                 sector_data[sector]["total_volume"] += int(s.get("trade_volume", 0) or 0)
@@ -463,15 +595,23 @@ async def sector_analysis(
                 count = data["symbols"]
                 avg_change = data["total_change"] / count if count else 0
                 breadth = data["up_count"] / count if count else 0
-                sectors.append({
-                    "sector": name,
-                    "symbol_count": count,
-                    "avg_change_pct": round(avg_change, 2),
-                    "total_volume": data["total_volume"],
-                    "breadth": round(breadth, 4),
-                    "total_market_value": data["total_market_value"],
-                    "signal": "strong_buy" if avg_change > 3 and breadth > 0.7 else "buy" if avg_change > 1 and breadth > 0.55 else "sell" if avg_change < -3 and breadth < 0.3 else "neutral",
-                })
+                sectors.append(
+                    {
+                        "sector": name,
+                        "symbol_count": count,
+                        "avg_change_pct": round(avg_change, 2),
+                        "total_volume": data["total_volume"],
+                        "breadth": round(breadth, 4),
+                        "total_market_value": data["total_market_value"],
+                        "signal": "strong_buy"
+                        if avg_change > 3 and breadth > 0.7
+                        else "buy"
+                        if avg_change > 1 and breadth > 0.55
+                        else "sell"
+                        if avg_change < -3 and breadth < 0.3
+                        else "neutral",
+                    }
+                )
 
             sectors.sort(key=lambda x: x["avg_change_pct"], reverse=True)
 

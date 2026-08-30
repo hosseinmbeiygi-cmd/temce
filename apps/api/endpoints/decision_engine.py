@@ -41,11 +41,28 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _safe_error_message(exc: BaseException, *, default_message: str = "Internal error") -> str:
+    """Return a non-leaking message string for a caught exception.
+
+    Preserves the historical ``{"message": <str>}`` response shape. In
+    production ``str(exc)`` is suppressed and a generic message is returned
+    (the full exception is still logged). In development ``str(exc)`` is
+    included for debugging.
+    """
+    from core.config import settings
+
+    is_dev = settings.environment == "development"
+    if is_dev:
+        return str(exc) or default_message
+    return default_message
+
+
 # ── Pydantic Schema ──
 
 
 class DecisionResultCreate(BaseModel):
     """Schema for saving a new decision result."""
+
     symbol: str = Field(..., min_length=1, max_length=20, description="نماد بورسی")
     run_id: str = Field(..., min_length=1, max_length=50, description="شناسه اجرا")
     model_version: str = Field("Enterprise-Final-1.0", max_length=50, description="نسخه مدل")
@@ -98,6 +115,7 @@ def _result_to_dict(r: DecisionResult) -> dict[str, Any]:
         "evaluated_at": r.evaluated_at.isoformat() if r.evaluated_at else None,
     }
 
+
 # ── Cache ──
 _CACHE: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 300  # 5 minutes for static architecture data
@@ -141,8 +159,12 @@ async def _auto_seed(session: AsyncSession) -> None:
     if arch is None:
         return
     # Merge all data files
-    for key, fname in [("features", "features.json"), ("services", "services.json"),
-                        ("database", "database.json"), ("api", "api.json")]:
+    for key, fname in [
+        ("features", "features.json"),
+        ("services", "services.json"),
+        ("database", "database.json"),
+        ("api", "api.json"),
+    ]:
         data = _load_json(fname)
         if data:
             arch[key] = data
@@ -160,13 +182,17 @@ async def _auto_seed(session: AsyncSession) -> None:
 
 # ── Helper: get architecture from DB or JSON fallback ──
 
+
 async def _get_data_from_db(session: AsyncSession) -> dict | None:
     """Get active architecture record from PostgreSQL."""
     try:
         result = await session.execute(
-            select(DecisionArchitecture).where(
+            select(DecisionArchitecture)
+            .where(
                 DecisionArchitecture.is_active == True  # noqa: E712
-            ).order_by(DecisionArchitecture.id.desc()).limit(1)
+            )
+            .order_by(DecisionArchitecture.id.desc())
+            .limit(1)
         )
         row = result.scalar_one_or_none()
         if row is not None:
@@ -185,11 +211,11 @@ async def _get_architecture(session: AsyncSession) -> dict | None:
     arch = await _get_data_from_db(session)
 
     if arch is None:
-            arch = _load_json("architecture.json")
-            if arch is not None:
-                # Auto-seed: load JSON into DB for next time
-                with contextlib.suppress(Exception):
-                    await _auto_seed(session)
+        arch = _load_json("architecture.json")
+        if arch is not None:
+            # Auto-seed: load JSON into DB for next time
+            with contextlib.suppress(Exception):
+                await _auto_seed(session)
 
     if arch is not None:
         _cache_set("architecture:active", arch)
@@ -234,7 +260,7 @@ async def get_architecture(
         return ApiResponse(success=True, data=arch)
     except Exception as exc:
         logger.exception("Failed to get architecture: %s", exc)
-        return ApiResponse(success=False, data={}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -323,9 +349,6 @@ async def get_overview(
     return ApiResponse(success=True, data=overview)
 
 
-
-
-
 # ════════════════════════════════════════════════════════════════════════════
 # 📊 DECISION RESULTS CRUD — ذخیره و بازیابی تصمیمات واقعی
 # ════════════════════════════════════════════════════════════════════════════
@@ -375,7 +398,7 @@ async def save_decision(
         )
     except Exception as exc:
         logger.exception("Failed to save decision for %s: %s", body.symbol, exc)
-        return ApiResponse(success=False, data={}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -385,7 +408,9 @@ async def save_decision(
 )
 async def list_decisions(
     symbol: str | None = Query(None, description="فیلتر بر اساس نماد"),
-    decision: str | None = Query(None, description="فیلتر بر اساس نوع تصمیم (BUY/WATCHLIST/HOLD/REDUCE/REJECT/NEUTRAL)"),
+    decision: str | None = Query(
+        None, description="فیلتر بر اساس نوع تصمیم (BUY/WATCHLIST/HOLD/REDUCE/REJECT/NEUTRAL)"
+    ),
     run_id: str | None = Query(None, description="فیلتر بر اساس شناسه اجرا"),
     limit: int = Query(50, ge=1, le=200, description="تعداد نتایج"),
     offset: int = Query(0, ge=0, description="شروع از"),
@@ -414,15 +439,18 @@ async def list_decisions(
 
         items = [_result_to_dict(r) for r in rows]
 
-        return ApiResponse(success=True, data={
-            "items": items,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-        })
+        return ApiResponse(
+            success=True,
+            data={
+                "items": items,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
     except Exception as exc:
         logger.exception("Failed to list decisions: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -454,7 +482,7 @@ async def buy_candidates(
         return ApiResponse(success=True, data={"items": items, "total": len(items)})
     except Exception as exc:
         logger.exception("Failed to get buy candidates: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -482,7 +510,7 @@ async def watchlist_decisions(
         return ApiResponse(success=True, data={"items": items, "total": len(items)})
     except Exception as exc:
         logger.exception("Failed to get watchlist: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -510,7 +538,7 @@ async def rejected_decisions(
         return ApiResponse(success=True, data={"items": items, "total": len(items)})
     except Exception as exc:
         logger.exception("Failed to get rejected: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -551,23 +579,28 @@ async def list_runs(
 
         items = []
         for row in rows:
-            items.append({
-                "run_id": row.run_id,
-                "decision_count": row.decision_count,
-                "first_seen": row.first_seen.isoformat() if row.first_seen else None,
-                "last_seen": row.last_seen.isoformat() if row.last_seen else None,
-                "model_version": row.model_version,
-            })
+            items.append(
+                {
+                    "run_id": row.run_id,
+                    "decision_count": row.decision_count,
+                    "first_seen": row.first_seen.isoformat() if row.first_seen else None,
+                    "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+                    "model_version": row.model_version,
+                }
+            )
 
-        return ApiResponse(success=True, data={
-            "items": items,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-        })
+        return ApiResponse(
+            success=True,
+            data={
+                "items": items,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
     except Exception as exc:
         logger.exception("Failed to list runs: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -583,9 +616,8 @@ async def get_decision_stats(
         from sqlalchemy import func
 
         # ── Count by decision type ──
-        count_stmt = (
-            select(DecisionResult.decision, func.count(DecisionResult.id).label("cnt"))
-            .group_by(DecisionResult.decision)
+        count_stmt = select(DecisionResult.decision, func.count(DecisionResult.id).label("cnt")).group_by(
+            DecisionResult.decision
         )
         count_result = await session.execute(count_stmt)
         decision_counts: dict[str, int] = {}
@@ -669,8 +701,9 @@ async def get_decision_stats(
     except Exception as exc:
         logger.exception("Failed to get decision stats: %s", exc)
         return ApiResponse(
-            success=False, data={},
-            error={"message": str(exc)},
+            success=False,
+            data={},
+            error={"message": _safe_error_message(exc)},
         )
 
 
@@ -696,13 +729,14 @@ async def get_symbol_decision(
 
         if row is None:
             return ApiResponse(
-                success=False, data={},
+                success=False,
+                data={},
                 error={"message": f"هیچ تصمیمی برای {symbol} یافت نشد"},
             )
         return ApiResponse(success=True, data=_result_to_dict(row))
     except Exception as exc:
         logger.exception("Failed to get decision for %s: %s", symbol, exc)
-        return ApiResponse(success=False, data={}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -727,14 +761,17 @@ async def get_symbol_decision_history(
         rows = result.scalars().all()
 
         items = [_result_to_dict(r) for r in rows]
-        return ApiResponse(success=True, data={
-            "symbol": symbol.upper(),
-            "items": items,
-            "total": len(items),
-        })
+        return ApiResponse(
+            success=True,
+            data={
+                "symbol": symbol.upper(),
+                "items": items,
+                "total": len(items),
+            },
+        )
     except Exception as exc:
         logger.exception("Failed to get decision history for %s: %s", symbol, exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -762,46 +799,55 @@ async def get_migration_status(
         table_status = []
         for table_name in ["decision_architectures", "decision_results", "alembic_version"]:
             try:
-                count_result = await session.execute(
-                    text(f"SELECT COUNT(*) FROM {table_name}")
-                )
+                count_result = await session.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
                 row_count = count_result.scalar() or 0
 
                 # Get last updated timestamp
-                ts_col = "evaluated_at" if table_name == "decision_results" else "created_at" if table_name == "decision_architectures" else None
+                ts_col = (
+                    "evaluated_at"
+                    if table_name == "decision_results"
+                    else "created_at"
+                    if table_name == "decision_architectures"
+                    else None
+                )
                 last_updated = None
                 if ts_col:
                     try:
-                        ts_result = await session.execute(
-                            text(f"SELECT MAX({ts_col}) FROM {table_name}")
-                        )
+                        ts_result = await session.execute(text(f"SELECT MAX({ts_col}) FROM {table_name}"))
                         ts_val = ts_result.scalar()
                         last_updated = ts_val.isoformat() if ts_val else None
                     except Exception:
                         pass
 
-                table_status.append({
-                    "table_name": table_name,
-                    "row_count": row_count,
-                    "last_updated": last_updated,
-                    "status": "ok",
-                })
+                table_status.append(
+                    {
+                        "table_name": table_name,
+                        "row_count": row_count,
+                        "last_updated": last_updated,
+                        "status": "ok",
+                    }
+                )
             except Exception as exc:
-                table_status.append({
-                    "table_name": table_name,
-                    "row_count": 0,
-                    "last_updated": None,
-                    "status": "missing",
-                    "error": str(exc)[:100],
-                })
+                table_status.append(
+                    {
+                        "table_name": table_name,
+                        "row_count": 0,
+                        "last_updated": None,
+                        "status": "missing",
+                        "error": str(exc)[:100],
+                    }
+                )
 
         # ── Architecture version info ──
         arch_info = None
         try:
             arch_result = await session.execute(
-                select(DecisionArchitecture).where(
+                select(DecisionArchitecture)
+                .where(
                     DecisionArchitecture.is_active == True  # noqa: E712
-                ).order_by(DecisionArchitecture.id.desc()).limit(1)
+                )
+                .order_by(DecisionArchitecture.id.desc())
+                .limit(1)
             )
             arch_row = arch_result.scalar_one_or_none()
             if arch_row:
@@ -828,7 +874,7 @@ async def get_migration_status(
 
     except Exception as exc:
         logger.exception("Failed to get migration status: %s", exc)
-        return ApiResponse(success=False, data={}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={}, error={"message": _safe_error_message(exc)})
 
 
 @router.post(
@@ -863,9 +909,7 @@ async def seed_architecture(
 
         # Check if this version already exists
         version = arch.get("system", {}).get("version", "unknown")
-        result = await session.execute(
-            select(DecisionArchitecture).where(DecisionArchitecture.version == version)
-        )
+        result = await session.execute(select(DecisionArchitecture).where(DecisionArchitecture.version == version))
         existing = result.scalar_one_or_none()
 
         if existing:
@@ -887,10 +931,13 @@ async def seed_architecture(
         for key in list(_CACHE.keys()):
             _CACHE.pop(key, None)
 
-        return ApiResponse(success=True, data={
-            "message": f"All architecture data (version {version}) saved to database",
-            "version": version,
-        })
+        return ApiResponse(
+            success=True,
+            data={
+                "message": f"All architecture data (version {version}) saved to database",
+                "version": version,
+            },
+        )
     except Exception as exc:
         logger.exception("Failed to seed architecture: %s", exc)
-        return ApiResponse(success=False, data={}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={}, error={"message": _safe_error_message(exc)})

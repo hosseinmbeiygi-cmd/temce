@@ -10,6 +10,13 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_backtest_service, get_db_session
+from apps.api.endpoints.backtest_requests import (
+    AdaptiveDecideRequest,
+    CompareStrategiesRequest,
+    RunOnAllSymbolsRequest,
+    SaveCompareRequest,
+    ScanIndicatorsRequest,
+)
 from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
 from core.ids import new_id
 from core.logging import get_logger
@@ -134,20 +141,27 @@ async def get_backtest_result(
 async def list_strategies(
     service: BacktestService = Depends(get_backtest_service),
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
-    return ApiResponse[PaginatedResult[dict[str, Any]]](success=True, data=PaginatedResult(items=service.list_strategies(), total=len(service.list_strategies()), page=1, page_size=100))
+    return ApiResponse[PaginatedResult[dict[str, Any]]](
+        success=True,
+        data=PaginatedResult(
+            items=service.list_strategies(), total=len(service.list_strategies()), page=1, page_size=100
+        ),
+    )
 
 
-@router.post("/run-all", summary="Run backtest on all symbols", description="Run the selected strategy on all symbols at once")
+@router.post(
+    "/run-all", summary="Run backtest on all symbols", description="Run the selected strategy on all symbols at once"
+)
 async def run_backtest_on_all_symbols(
-    body: dict[str, Any],
+    body: RunOnAllSymbolsRequest,
     service: BacktestService = Depends(get_backtest_service),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
-    strategy_type = body.get("strategy_type", "moving_average_cross")
-    strategy_params = body.get("strategy_params", {})
-    start_date = body.get("start_date")
-    end_date = body.get("end_date")
-    capital = body.get("initial_capital", 1_000_000_000)
+    strategy_type = body.strategy_type
+    strategy_params = body.strategy_params
+    start_date = body.start_date
+    end_date = body.end_date
+    capital = body.initial_capital
 
     # Fetch symbols from the instruments table
     from sqlalchemy import text
@@ -281,37 +295,40 @@ async def run_backtest_on_all_symbols(
         logger.warning("run-all timed out after %ds for %d symbols", MAX_TIMEOUT, len(symbols))
         results = [{"symbol": s, "status": "failed", "error": "TIMEOUT"} for s in symbols]
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "strategy_type": strategy_type,
-        "total_symbols": len(symbols),
-        "successful": sum(1 for r in results if r["status"] != "failed"),
-        "failed": sum(1 for r in results if r["status"] == "failed"),
-        "results": results,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "strategy_type": strategy_type,
+            "total_symbols": len(symbols),
+            "successful": sum(1 for r in results if r["status"] != "failed"),
+            "failed": sum(1 for r in results if r["status"] == "failed"),
+            "results": results,
+        },
+    )
 
 
 @router.post("/compare/save", summary="Save compare result to history")
 async def save_compare_result(
-    body: dict[str, Any],
+    body: SaveCompareRequest,
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     compare_id = new_id("cmp")
-    results_json = json.dumps(body.get("results", []), ensure_ascii=False)
+    results_json = json.dumps(body.results, ensure_ascii=False)
     orm = CompareResultModel(
         id=compare_id,
-        symbol=body.get("symbol", ""),
-        total_strategies=body.get("total_strategies", 0),
-        successful=body.get("successful", 0),
-        failed=body.get("failed", 0),
-        best=body.get("best"),
-        worst=body.get("worst"),
+        symbol=body.symbol,
+        total_strategies=body.total_strategies,
+        successful=body.successful,
+        failed=body.failed,
+        best=body.best,
+        worst=body.worst,
         results_json=results_json,
-        best_return_pct=body.get("best_return_pct"),
-        worst_return_pct=body.get("worst_return_pct"),
-        avg_return_pct=body.get("avg_return_pct"),
-        start_date=body.get("start_date"),
-        end_date=body.get("end_date"),
-        capital=body.get("capital"),
+        best_return_pct=body.best_return_pct,
+        worst_return_pct=body.worst_return_pct,
+        avg_return_pct=body.avg_return_pct,
+        start_date=body.start_date,
+        end_date=body.end_date,
+        capital=body.capital,
         notes=body.get("notes", ""),
         executed_at=datetime.now(),
     )
@@ -347,27 +364,30 @@ async def list_compare_history(
 
     items = []
     for r in rows:
-        items.append({
-            "id": r.id,
-            "symbol": r.symbol,
-            "total_strategies": r.total_strategies,
-            "successful": r.successful,
-            "failed": r.failed,
-            "best": r.best,
-            "worst": r.worst,
-            "best_return_pct": r.best_return_pct,
-            "worst_return_pct": r.worst_return_pct,
-            "avg_return_pct": r.avg_return_pct,
-            "notes": r.notes,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-        })
+        items.append(
+            {
+                "id": r.id,
+                "symbol": r.symbol,
+                "total_strategies": r.total_strategies,
+                "successful": r.successful,
+                "failed": r.failed,
+                "best": r.best,
+                "worst": r.worst,
+                "best_return_pct": r.best_return_pct,
+                "worst_return_pct": r.worst_return_pct,
+                "avg_return_pct": r.avg_return_pct,
+                "notes": r.notes,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+        )
     return ApiResponse[PaginatedResult[dict[str, Any]]](
-        success=True,        data=PaginatedResult(
-                items=items,
-                total=total,
-                page=page,
-                page_size=page_size,
-            ),
+        success=True,
+        data=PaginatedResult(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+        ),
     )
 
 
@@ -388,35 +408,42 @@ async def get_compare_history_detail(
         except (json.JSONDecodeError, TypeError):
             logger.warning("Failed to parse results_json for compare %s", compare_id)
             pass
-    return ApiResponse[dict[str, Any] | None](success=True, data={
-        "id": row.id,
-        "symbol": row.symbol,
-        "total_strategies": row.total_strategies,
-        "successful": row.successful,
-        "failed": row.failed,
-        "best": row.best,
-        "worst": row.worst,
-        "best_return_pct": row.best_return_pct,
-        "worst_return_pct": row.worst_return_pct,
-        "avg_return_pct": row.avg_return_pct,
-        "start_date": row.start_date,
-        "end_date": row.end_date,
-        "capital": row.capital,
-        "notes": row.notes,
-        "results": results_data,
-        "created_at": row.created_at.isoformat() if row.created_at else None,
-    })
+    return ApiResponse[dict[str, Any] | None](
+        success=True,
+        data={
+            "id": row.id,
+            "symbol": row.symbol,
+            "total_strategies": row.total_strategies,
+            "successful": row.successful,
+            "failed": row.failed,
+            "best": row.best,
+            "worst": row.worst,
+            "best_return_pct": row.best_return_pct,
+            "worst_return_pct": row.worst_return_pct,
+            "avg_return_pct": row.avg_return_pct,
+            "start_date": row.start_date,
+            "end_date": row.end_date,
+            "capital": row.capital,
+            "notes": row.notes,
+            "results": results_data,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        },
+    )
 
 
-@router.post("/compare", summary="Compare all strategies", description="Run all strategies on a single symbol and compare performance")
+@router.post(
+    "/compare",
+    summary="Compare all strategies",
+    description="Run all strategies on a single symbol and compare performance",
+)
 async def compare_strategies(
-    body: dict[str, Any],
+    body: CompareStrategiesRequest,
     service: BacktestService = Depends(get_backtest_service),
 ) -> ApiResponse[dict[str, Any]]:
-    symbol = body.get("symbol", "فولاد")
-    start_date = body.get("start_date")
-    end_date = body.get("end_date")
-    capital = body.get("initial_capital", 1_000_000_000)
+    symbol = body.symbol
+    start_date = body.start_date
+    end_date = body.end_date
+    capital = body.initial_capital
 
     today = date.today()
     start = start_date or date(today.year - 1, 1, 1)
@@ -483,7 +510,9 @@ async def compare_strategies(
     results = await asyncio.gather(*[_run_strategy(name) for name in strategy_names])
 
     # Find best/worst based on total_return_pct
-    completed = [r for r in results if r["status"] != "failed" and r.get("metrics", {}).get("total_return_pct") is not None]
+    completed = [
+        r for r in results if r["status"] != "failed" and r.get("metrics", {}).get("total_return_pct") is not None
+    ]
     best = max(completed, key=lambda r: r["metrics"]["total_return_pct"]) if completed else None
     worst = min(completed, key=lambda r: r["metrics"]["total_return_pct"]) if completed else None
 
@@ -511,6 +540,7 @@ async def compare_strategies(
     dsr_best = None
     dsr_worst = None
     if completed:
+
         def _rank_key(r):
             dsr = r.get("deflated_sharpe", {}).get("deflated_sharpe", 0)
             sharpe = r["metrics"].get("sharpe_ratio", 0) or 0
@@ -519,19 +549,22 @@ async def compare_strategies(
         dsr_best = max(completed, key=_rank_key)
         dsr_worst = min(completed, key=_rank_key)
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "symbol": symbol,
-        "total_strategies": len(strategy_names),
-        "successful": sum(1 for r in results if r["status"] != "failed"),
-        "failed": sum(1 for r in results if r["status"] == "failed"),
-        "best": best["strategy"] if best else None,
-        "worst": worst["strategy"] if worst else None,
-        "dsr_best": dsr_best["strategy"] if dsr_best else None,
-        "dsr_worst": dsr_worst["strategy"] if dsr_worst else None,
-        "dsr_note": f"Deflated Sharpe-adjusted ranking: best={dsr_best['strategy'] if dsr_best else 'N/A'}, worst={dsr_worst['strategy'] if dsr_worst else 'N/A'}",
-        "multiple_testing_note": f"Rankings adjusted for {len(completed)} strategies tested (Deflated Sharpe Ratio)",
-        "results": results,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "symbol": symbol,
+            "total_strategies": len(strategy_names),
+            "successful": sum(1 for r in results if r["status"] != "failed"),
+            "failed": sum(1 for r in results if r["status"] == "failed"),
+            "best": best["strategy"] if best else None,
+            "worst": worst["strategy"] if worst else None,
+            "dsr_best": dsr_best["strategy"] if dsr_best else None,
+            "dsr_worst": dsr_worst["strategy"] if dsr_worst else None,
+            "dsr_note": f"Deflated Sharpe-adjusted ranking: best={dsr_best['strategy'] if dsr_best else 'N/A'}, worst={dsr_worst['strategy'] if dsr_worst else 'N/A'}",
+            "multiple_testing_note": f"Rankings adjusted for {len(completed)} strategies tested (Deflated Sharpe Ratio)",
+            "results": results,
+        },
+    )
 
 
 # ── Strategy Auto-Generator ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -605,6 +638,7 @@ async def generate_history() -> ApiResponse[list[dict[str, Any]]]:
 async def generate_export():
     """Export strategy generation results as CSV file."""
     from fastapi.responses import Response
+
     gen = get_strategy_generator()
     csv = gen.export_csv()
     if not csv:
@@ -629,6 +663,7 @@ async def save_strategies(body: SaveStrategyRequest) -> ApiResponse[dict[str, An
     session_factory = None
     try:
         from core.database import async_session_factory as sf
+
         session_factory = sf
     except ImportError:
         logger.warning("Database import failed — saving strategies unavailable")
@@ -715,37 +750,40 @@ async def get_saved_strategies(
 
         strategies = []
         for r in rows:
-            strategies.append({
-                "id": r.id,
-                "symbol": r.symbol,
-                "strategy": r.entry_indicator,
-                "params": json.loads(r.entry_params) if r.entry_params else {},
-                "metrics": {
-                    "total_return_pct": r.total_return_pct,
-                    "annualized_return_pct": r.annualized_return_pct,
-                    "sharpe_ratio": r.sharpe_ratio,
-                    "sortino_ratio": r.sortino_ratio,
-                    "calmar_ratio": r.calmar_ratio,
-                    "max_drawdown_pct": r.max_drawdown_pct,
-                    "win_rate": r.win_rate,
-                    "profit_factor": r.profit_factor,
-                    "total_trades": r.total_trades,
-                    "winning_trades": r.winning_trades,
-                    "losing_trades": r.losing_trades,
-                },
-                "score": r.score,
-                "batch_id": r.batch_id,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-            })
+            strategies.append(
+                {
+                    "id": r.id,
+                    "symbol": r.symbol,
+                    "strategy": r.entry_indicator,
+                    "params": json.loads(r.entry_params) if r.entry_params else {},
+                    "metrics": {
+                        "total_return_pct": r.total_return_pct,
+                        "annualized_return_pct": r.annualized_return_pct,
+                        "sharpe_ratio": r.sharpe_ratio,
+                        "sortino_ratio": r.sortino_ratio,
+                        "calmar_ratio": r.calmar_ratio,
+                        "max_drawdown_pct": r.max_drawdown_pct,
+                        "win_rate": r.win_rate,
+                        "profit_factor": r.profit_factor,
+                        "total_trades": r.total_trades,
+                        "winning_trades": r.winning_trades,
+                        "losing_trades": r.losing_trades,
+                    },
+                    "score": r.score,
+                    "batch_id": r.batch_id,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+            )
 
     return ApiResponse[dict[str, Any]](success=True, data={"strategies": strategies, "total": len(strategies)})
 
 
 # ── All-Indicators Full Scan (Phase 2: 30 indicators via SignalStrategy) ──────────────────────────────────────────────────────────────────
 
+
 @router.post("/scan-indicators", summary="Scan all 30 indicators with 6-stage filter")
 async def scan_indicators(
-    body: dict[str, Any],
+    body: ScanIndicatorsRequest,
 ) -> ApiResponse[dict[str, Any]]:
     """Run all 30 indicators via SignalStrategy with 6-stage filter across symbols.
     Returns results immediately (fire-and-forget). Poll /backtests/scan-indicators/status for progress."""
@@ -755,33 +793,38 @@ async def scan_indicators(
     if scanner.is_running:
         return ApiResponse[dict[str, Any]](success=False, error={"message": "Scan already in progress"})
 
-    symbols = body.get("symbols")
-    indicator_ids = body.get("indicator_ids")
-    filters = body.get("filters")
-    start_date = body.get("start_date")
-    end_date = body.get("end_date")
-    capital = body.get("capital", 1_000_000_000)
+    symbols = body.symbols
+    indicator_ids = body.indicator_ids
+    filters = body.filters
+    start_date = body.start_date
+    end_date = body.end_date
+    capital = body.capital
     batch_size = body.get("batch_size", 10)
     max_concurrent = body.get("max_concurrent", 10)
 
-    asyncio.create_task(scanner.scan_all(
-        symbols=symbols,
-        indicator_ids=indicator_ids,
-        filters=filters,
-        start_date=date.fromisoformat(start_date) if start_date else None,
-        end_date=date.fromisoformat(end_date) if end_date else None,
-        capital=capital,
-        batch_size=batch_size,
-        max_concurrent=max_concurrent,
-    ))
+    asyncio.create_task(
+        scanner.scan_all(
+            symbols=symbols,
+            indicator_ids=indicator_ids,
+            filters=filters,
+            start_date=date.fromisoformat(start_date) if start_date else None,
+            end_date=date.fromisoformat(end_date) if end_date else None,
+            capital=capital,
+            batch_size=batch_size,
+            max_concurrent=max_concurrent,
+        )
+    )
 
-    return ApiResponse[dict[str, Any]](success=True, data={"message": "Indicator scan started", "batch_id": scanner._batch_id})
+    return ApiResponse[dict[str, Any]](
+        success=True, data={"message": "Indicator scan started", "batch_id": scanner._batch_id}
+    )
 
 
 @router.get("/scan-indicators/status", summary="Indicator scan status")
 async def scan_indicators_status() -> ApiResponse[dict[str, Any]]:
     """Check progress of running indicator scan."""
     from services.mass_scanner_service import get_mass_scanner
+
     scanner = get_mass_scanner()
     return ApiResponse[dict[str, Any]](success=True, data=scanner.progress)
 
@@ -792,26 +835,39 @@ async def scan_indicators_results(
 ) -> ApiResponse[dict[str, Any]]:
     """Get results from the last indicator scan from the database."""
     from sqlalchemy import text
-    result = await session.execute(text("""
+
+    result = await session.execute(
+        text("""
         SELECT id, symbol, entry_indicator, entry_params, exit_condition,
                total_return_pct, sharpe_ratio, max_drawdown_pct, win_rate,
                profit_factor, total_trades, score, batch_id
         FROM generated_strategies
         WHERE strategy_type = 'indicator'
         ORDER BY score DESC LIMIT 200
-    """))
+    """)
+    )
     rows = result.fetchall()
     items = []
     for row in rows:
-        items.append({
-            "id": row[0], "symbol": row[1], "indicator": row[2],
-            "params": row[3], "exit_condition": row[4],
-            "total_return_pct": row[5], "sharpe_ratio": row[6],
-            "max_drawdown_pct": row[7], "win_rate": row[8],
-            "profit_factor": row[9], "total_trades": row[10],
-            "score": row[11], "batch_id": row[12],
-        })
+        items.append(
+            {
+                "id": row[0],
+                "symbol": row[1],
+                "indicator": row[2],
+                "params": row[3],
+                "exit_condition": row[4],
+                "total_return_pct": row[5],
+                "sharpe_ratio": row[6],
+                "max_drawdown_pct": row[7],
+                "win_rate": row[8],
+                "profit_factor": row[9],
+                "total_trades": row[10],
+                "score": row[11],
+                "batch_id": row[12],
+            }
+        )
     return ApiResponse[dict[str, Any]](success=True, data={"results": items, "total": len(items)})
+
 
 @router.get("/data/stats", summary="Backtest data statistics")
 async def data_stats(
@@ -832,6 +888,7 @@ async def data_symbols(
 
 
 # ── Walk-Forward Optimization ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 class WalkForwardRequest(BaseModel):
     symbol: str = "فولاد"
@@ -859,7 +916,9 @@ async def walk_forward(
 
     data = await service._load_historical_data(body.symbol, start, end)
     if not data:
-        return ApiResponse[dict[str, Any]](success=False, error={"message": f"No historical data found for {body.symbol}"})
+        return ApiResponse[dict[str, Any]](
+            success=False, error={"message": f"No historical data found for {body.symbol}"}
+        )
 
     param_grid = STRATEGY_PARAM_RANGES.get(body.strategy, {})
     if not param_grid:
@@ -880,6 +939,7 @@ async def walk_forward(
 
 
 # ── Monte Carlo Simulation ────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 class MonteCarloRequest(BaseModel):
     symbol: str = "فولاد"
@@ -906,6 +966,7 @@ async def monte_carlo(
 
     # First run the backtest to get trades
     from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
+
     registry = get_strategy_registry()
     if not registry.list_names():
         register_all_strategies()
@@ -915,7 +976,9 @@ async def monte_carlo(
 
     data = await service._load_historical_data(body.symbol, start, end)
     if not data:
-        return ApiResponse[dict[str, Any]](success=False, error={"message": f"No historical data found for {body.symbol}"})
+        return ApiResponse[dict[str, Any]](
+            success=False, error={"message": f"No historical data found for {body.symbol}"}
+        )
 
     clean_params = {}
     for k, v in body.strategy_params.items():
@@ -929,10 +992,7 @@ async def monte_carlo(
     if not result.success:
         return ApiResponse[dict[str, Any]](success=False, error={"message": result.error})
 
-    trades = [
-        {"pnl": getattr(t, "pnl", 0), "side": str(getattr(t, "side", ""))}
-        for t in result.value.trades
-    ]
+    trades = [{"pnl": getattr(t, "pnl", 0), "side": str(getattr(t, "side", ""))} for t in result.value.trades]
 
     mc = MonteCarloSimulator(n_simulations=body.n_simulations, max_workers=body.max_workers)
     mc_result = mc.simulate(trades=trades, initial_capital=body.capital)
@@ -943,6 +1003,7 @@ async def monte_carlo(
 
 
 # ── Portfolio-Level Backtest ────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 class PortfolioRunRequest(BaseModel):
     name: str = "Portfolio Backtest"
@@ -1002,7 +1063,11 @@ async def portfolio_run(
         broker_kwargs["slippage_bps"] = body.slippage_bps
 
     allocator = Allocator(method=body.allocation_method)
-    rebalancer = Rebalancer(RebalanceRule(frequency_days=body.rebalance_frequency_days)) if body.rebalance_frequency_days else None
+    rebalancer = (
+        Rebalancer(RebalanceRule(frequency_days=body.rebalance_frequency_days))
+        if body.rebalance_frequency_days
+        else None
+    )
 
     simulator = PortfolioBacktestSimulator(
         broker=Broker(**broker_kwargs),
@@ -1041,18 +1106,22 @@ async def portfolio_run(
         for ep in bt_result.equity_curve
     ]
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "name": body.name,
-        "instruments": body.symbols,
-        "total_return_pct": round(bt_result.total_return_pct, 2),
-        "final_capital": bt_result.final_capital,
-        "total_trades": bt_result.total_trades,
-        "equity_curve": equity_curve,
-        "allocation_method": body.allocation_method,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "name": body.name,
+            "instruments": body.symbols,
+            "total_return_pct": round(bt_result.total_return_pct, 2),
+            "final_capital": bt_result.final_capital,
+            "total_trades": bt_result.total_trades,
+            "equity_curve": equity_curve,
+            "allocation_method": body.allocation_method,
+        },
+    )
 
 
 # ── Cascade Engine Endpoints ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 
 class CascadeRequest(BaseModel):
     symbols: list[str]
@@ -1087,24 +1156,26 @@ async def cascade_run(body: CascadeRequest) -> ApiResponse[dict[str, Any]]:
     start = date.fromisoformat(body.start_date) if body.start_date else None
     end = date.fromisoformat(body.end_date) if body.end_date else None
 
-    asyncio.create_task(engine.run(
-        symbols=body.symbols,
-        strategies=body.strategies,
-        features=body.features,
-        start_date=start,
-        end_date=end,
-        capital=body.capital,
-        filters=body.filters,
-        use_genetic=body.use_genetic,
-        genetic_generations=body.genetic_generations,
-        population_size=body.population_size,
-        use_walk_forward=body.use_walk_forward,
-        walk_forward_windows=body.walk_forward_windows,
-        walk_forward_train_ratio=body.walk_forward_train_ratio,
-        stop_loss=body.stop_loss,
-        trailing_stop=body.trailing_stop,
-        trailing_stop_pct=body.trailing_stop_pct,
-    ))
+    asyncio.create_task(
+        engine.run(
+            symbols=body.symbols,
+            strategies=body.strategies,
+            features=body.features,
+            start_date=start,
+            end_date=end,
+            capital=body.capital,
+            filters=body.filters,
+            use_genetic=body.use_genetic,
+            genetic_generations=body.genetic_generations,
+            population_size=body.population_size,
+            use_walk_forward=body.use_walk_forward,
+            walk_forward_windows=body.walk_forward_windows,
+            walk_forward_train_ratio=body.walk_forward_train_ratio,
+            stop_loss=body.stop_loss,
+            trailing_stop=body.trailing_stop,
+            trailing_stop_pct=body.trailing_stop_pct,
+        )
+    )
 
     return ApiResponse[dict[str, Any]](success=True, data={"message": "Cascade engine started"})
 
@@ -1112,6 +1183,7 @@ async def cascade_run(body: CascadeRequest) -> ApiResponse[dict[str, Any]]:
 @router.get("/cascade/status", summary="Cascade engine status")
 async def cascade_status() -> ApiResponse[dict[str, Any]]:
     from services.cascade_engine import get_cascade_engine
+
     engine = get_cascade_engine()
     return ApiResponse[dict[str, Any]](success=True, data=engine.progress)
 
@@ -1119,6 +1191,7 @@ async def cascade_status() -> ApiResponse[dict[str, Any]]:
 @router.get("/cascade/results", summary="Cascade engine results")
 async def cascade_results() -> ApiResponse[dict[str, Any]]:
     from services.cascade_engine import get_cascade_engine
+
     engine = get_cascade_engine()
     return ApiResponse[dict[str, Any]](success=True, data=engine.get_results())
 
@@ -1133,6 +1206,7 @@ async def cascade_combinations(
 ) -> ApiResponse[dict[str, Any]]:
     from services.cascade_engine import compute_total_combinations
     from services.strategy_generator import STRATEGY_PARAM_RANGES
+
     total = compute_total_combinations(
         strategies=strategies or list(STRATEGY_PARAM_RANGES.keys()),
         use_genetic=use_genetic,
@@ -1145,6 +1219,7 @@ async def cascade_combinations(
 
 # ── Adaptive Engine Endpoints ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+
 @router.post("/adaptive/init", summary="Initialize adaptive trading system")
 async def adaptive_init(body: CascadeRequest) -> ApiResponse[dict[str, Any]]:
     """Initialize the adaptive system with historical data."""
@@ -1156,6 +1231,7 @@ async def adaptive_init(body: CascadeRequest) -> ApiResponse[dict[str, Any]]:
     end = date.fromisoformat(body.end_date) if body.end_date else date.today()
 
     from services.backtest_service import BacktestService
+
     svc = BacktestService()
     all_data = []
     for sym in (body.symbols or ["فولاد"])[:5]:
@@ -1164,21 +1240,25 @@ async def adaptive_init(body: CascadeRequest) -> ApiResponse[dict[str, Any]]:
             all_data.extend(data)
 
     if not all_data:
-        return ApiResponse[dict[str, Any]](success=False, error={"message": "No historical data found for any of the specified symbols"})
+        return ApiResponse[dict[str, Any]](
+            success=False, error={"message": "No historical data found for any of the specified symbols"}
+        )
 
     await system.initialize(all_data)
 
-    return ApiResponse[dict[str, Any]](success=True, data={"message": "Adaptive system initialized", "data_points": len(all_data)})
+    return ApiResponse[dict[str, Any]](
+        success=True, data={"message": "Adaptive system initialized", "data_points": len(all_data)}
+    )
 
 
 @router.post("/adaptive/decide", summary="Get adaptive trading decision")
-async def adaptive_decide(body: dict[str, Any]) -> ApiResponse[dict[str, Any]]:
+async def adaptive_decide(body: AdaptiveDecideRequest) -> ApiResponse[dict[str, Any]]:
     """Get a trading decision from the adaptive system."""
     from services.adaptive_engine import get_adaptive_system
 
     system = get_adaptive_system()
-    market_data = body.get("market_data", {})
-    portfolio_returns = body.get("portfolio_returns", [])
+    market_data = body.market_data
+    portfolio_returns = body.portfolio_returns
 
     decision = system.decide(market_data, portfolio_returns)
     return ApiResponse[dict[str, Any]](success=True, data=decision)
@@ -1193,10 +1273,13 @@ async def adaptive_coevolve(body: CascadeRequest) -> ApiResponse[dict[str, Any]]
     end = date.fromisoformat(body.end_date) if body.end_date else date.today()
 
     from services.backtest_service import BacktestService
+
     svc = BacktestService()
     data = await svc._load_historical_data((body.symbols or ["فولاد"])[0], start, end)
     if not data:
-        return ApiResponse[dict[str, Any]](success=False, error={"message": f"No historical data found for {(body.symbols or ['فولاد'])[0]}"})
+        return ApiResponse[dict[str, Any]](
+            success=False, error={"message": f"No historical data found for {(body.symbols or ['فولاد'])[0]}"}
+        )
 
     optimizer = CoEvolutionOptimizer(pop_size=30, generations=8)
     result = optimizer.run(data)
@@ -1210,12 +1293,17 @@ async def adaptive_regime() -> ApiResponse[dict[str, Any]]:
 
     system = get_adaptive_system()
     if not system.is_initialized:
-        return ApiResponse[dict[str, Any]](success=True, data={"initialized": False, "message": "System not initialized"})
+        return ApiResponse[dict[str, Any]](
+            success=True, data={"initialized": False, "message": "System not initialized"}
+        )
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "initialized": True,
-        "current_regime": system.regime_detector.current_regime,
-        "regime_label": system.regime_detector.get_regime_label(),
-        "allocation": system.regime_detector.get_regime_allocation(),
-        "history": system.regime_detector.regime_history[-50:],
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "initialized": True,
+            "current_regime": system.regime_detector.current_regime,
+            "regime_label": system.regime_detector.get_regime_label(),
+            "allocation": system.regime_detector.get_regime_allocation(),
+            "history": system.regime_detector.regime_history[-50:],
+        },
+    )

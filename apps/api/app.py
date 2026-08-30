@@ -18,6 +18,7 @@ from apps.api.middleware import (
     InputSanitizationMiddleware,
     LoggingMiddleware,
     RateLimitMiddleware,
+    RequestContextMiddleware,
     SecurityMiddleware,
     TimingMiddleware,
 )
@@ -79,11 +80,13 @@ async def _stop_background_tasks() -> None:
 
 # ── Notification callback for rate limit alerts ──
 
+
 async def _rate_limit_notify(message: str) -> None:
     """Send rate limit alerts via Telegram if configured, always log."""
     logger.warning("RATE LIMIT ALERT: %s", message)
     try:
         from integrations.notifications.telegram_sender import TelegramSender
+
         sender = TelegramSender()
         result = await sender.send(f"⚠️ <b>BrsApi Rate Limit</b>\n\n{message}")
         if not result.success:
@@ -170,6 +173,7 @@ async def _send_cron_alert(title: str, message: str, icon: str = "🔴") -> None
     logger.warning("CRON ALERT [%s]: %s", title, message)
     try:
         from integrations.notifications.telegram_sender import TelegramSender
+
         sender = TelegramSender()
         result = await sender.send(f"{icon} <b>Cron Alert: {title}</b>\n\n{message}")
         if not result.success:
@@ -188,6 +192,7 @@ async def _check_cron_alerts() -> None:
         return
 
     import time
+
     now_ts = time.time()
 
     latest = history[-1]
@@ -316,14 +321,16 @@ async def _orchestrator_hourly_cron() -> None:
             _cron_state["last_retrain_count"] = len(retrain)
             _cron_state["last_error"] = None
             _cron_state["run_count"] += 1
-            _cron_state["history"].append({
-                "run": _cron_state["run_count"],
-                "timestamp": _cron_state["last_run"],
-                "signals": len(signals),
-                "accuracy": accuracy.get("overall", 0),
-                "retrain_count": len(retrain),
-                "success": True,
-            })
+            _cron_state["history"].append(
+                {
+                    "run": _cron_state["run_count"],
+                    "timestamp": _cron_state["last_run"],
+                    "signals": len(signals),
+                    "accuracy": accuracy.get("overall", 0),
+                    "retrain_count": len(retrain),
+                    "success": True,
+                }
+            )
 
             logger.info(
                 "Cron run #%d complete: %d signals, %.0f%% overall accuracy, %d markets retrained",
@@ -352,15 +359,17 @@ async def _orchestrator_hourly_cron() -> None:
             _cron_state["last_error"] = str(traceback.format_exc())[:500]
             _cron_state["last_run"] = datetime.now(UTC).isoformat()
             _cron_state["run_count"] += 1
-            _cron_state["history"].append({
-                "run": _cron_state["run_count"],
-                "timestamp": _cron_state["last_run"],
-                "signals": 0,
-                "accuracy": 0,
-                "retrain_count": 0,
-                "success": False,
-                "error": _cron_state["last_error"][:200],
-            })
+            _cron_state["history"].append(
+                {
+                    "run": _cron_state["run_count"],
+                    "timestamp": _cron_state["last_run"],
+                    "signals": 0,
+                    "accuracy": 0,
+                    "retrain_count": 0,
+                    "success": False,
+                    "error": _cron_state["last_error"][:200],
+                }
+            )
 
             # Check alerts after failed run
             await _check_cron_alerts()
@@ -388,6 +397,7 @@ def _get_startup_locker():
     if _startup_locker is None:
         try:
             from jobs.locking import JobLocking
+
             _startup_locker = JobLocking(default_ttl=600)
         except Exception:
             _startup_locker = None
@@ -553,21 +563,22 @@ async def _ml_model_preload() -> None:
 
             # 1. Active Watchlist symbols
             try:
-                r = await session.execute(text(
-                    "SELECT symbol FROM watchlist "
-                    "WHERE symbol IS NOT NULL AND symbol != ''"
-                ))
+                r = await session.execute(
+                    text("SELECT symbol FROM watchlist WHERE symbol IS NOT NULL AND symbol != ''")
+                )
                 watchlist_symbols = [row[0] for row in r.fetchall()]
             except Exception:
                 logger.debug("ML preload: watchlist query failed (table missing?)", exc_info=True)
 
             # 2. Active Smart Screener symbols (same universe as Screener110)
             try:
-                r = await session.execute(text(
-                    "SELECT symbol FROM symbols "
-                    "WHERE (is_active = TRUE OR is_active IS NULL) "
-                    "AND symbol IS NOT NULL AND symbol != ''"
-                ))
+                r = await session.execute(
+                    text(
+                        "SELECT symbol FROM symbols "
+                        "WHERE (is_active = TRUE OR is_active IS NULL) "
+                        "AND symbol IS NOT NULL AND symbol != ''"
+                    )
+                )
                 screener_symbols = [row[0] for row in r.fetchall()]
             except Exception:
                 logger.debug("ML preload: screener symbols query failed", exc_info=True)
@@ -583,8 +594,7 @@ async def _ml_model_preload() -> None:
 
             report = await loader.preload(symbols=symbols)
             logger.info(
-                "ML model preload complete: %d loaded, %d missing "
-                "(%d watchlist + %d screener symbols)",
+                "ML model preload complete: %d loaded, %d missing (%d watchlist + %d screener symbols)",
                 report.get("loaded", 0),
                 len(report.get("missing", [])),
                 len(watchlist_symbols),
@@ -613,6 +623,7 @@ async def _fetch_news_on_startup() -> None:
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 from services.news_ingestion import NewsIngestionService
+
                 logger.info("Auto-fetching news on startup (attempt %d/%d)...", attempt, MAX_RETRIES)
                 session_obtained = False
                 async for session in get_session():
@@ -627,7 +638,8 @@ async def _fetch_news_on_startup() -> None:
                     )
                     logger.info(
                         "Startup news fetch complete: fetched=%d saved=%d",
-                        stats.get("fetched", 0), stats.get("saved", 0),
+                        stats.get("fetched", 0),
+                        stats.get("saved", 0),
                     )
                 if not session_obtained:
                     raise RuntimeError("Could not obtain DB session for startup news fetch")
@@ -639,7 +651,9 @@ async def _fetch_news_on_startup() -> None:
                     delay = BASE_DELAY * (2 ** (attempt - 1))  # 15s, 30s, 60s
                     logger.warning(
                         "Startup news fetch failed (attempt %d/%d) — retrying in %ds",
-                        attempt, MAX_RETRIES, delay,
+                        attempt,
+                        MAX_RETRIES,
+                        delay,
                     )
                     await asyncio.sleep(delay)
                 else:
@@ -668,8 +682,11 @@ async def _brsapi_startup_sync() -> None:
             try:
                 from brsapi.client import get_client
                 from brsapi.services.sync_service import BrsApiSyncService
+
                 logger.info("=" * 60)
-                logger.info("BrsApi STARTUP SYNC — attempt %d/%d — fetching ALL endpoints in order", attempt, MAX_RETRIES)
+                logger.info(
+                    "BrsApi STARTUP SYNC — attempt %d/%d — fetching ALL endpoints in order", attempt, MAX_RETRIES
+                )
                 logger.info("=" * 60)
 
                 client = await get_client()
@@ -698,18 +715,26 @@ async def _brsapi_startup_sync() -> None:
                         status = "OK" if r.success else ("SKIP" if r.skipped else "FAIL")
                         logger.info(
                             "  [%s] %s — %d items, %.0fms%s",
-                            status, r.endpoint, r.items_count, r.duration_ms,
+                            status,
+                            r.endpoint,
+                            r.items_count,
+                            r.duration_ms,
                             f" — {r.error}" if r.error else "",
                         )
 
                     # Log rate limiter status
                     from brsapi.rate_limiter import get_rate_limiter
+
                     rl_status = get_rate_limiter().status()
                     g = rl_status["global"]
                     logger.info(
                         "Rate limits: daily %d/%d (%.0f%%) | 5min %d/%d (%.0f%%)",
-                        g["daily_count"], g["daily_limit"], g["daily_used_pct"],
-                        g["5min_count"], g["5min_limit"], g["5min_used_pct"],
+                        g["daily_count"],
+                        g["daily_limit"],
+                        g["daily_used_pct"],
+                        g["5min_count"],
+                        g["5min_limit"],
+                        g["5min_used_pct"],
                     )
 
                     break
@@ -724,7 +749,9 @@ async def _brsapi_startup_sync() -> None:
                     delay = BASE_DELAY * (2 ** (attempt - 1))  # 30s, 60s, 120s
                     logger.warning(
                         "BrsApi startup sync failed (attempt %d/%d) — retrying in %ds",
-                        attempt, MAX_RETRIES, delay,
+                        attempt,
+                        MAX_RETRIES,
+                        delay,
                     )
                     await asyncio.sleep(delay)
                 else:
@@ -734,6 +761,7 @@ async def _brsapi_startup_sync() -> None:
 
 
 # ── Lifespan ──
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
@@ -776,6 +804,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Start BrsApi usage recorder (daily usage report for admin) ──
     try:
         from brsapi.usage_recorder import get_usage_recorder
+
         get_usage_recorder().start()
         logger.info("BrsApi usage recorder started — flushing daily usage every 60s")
     except Exception:
@@ -784,6 +813,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Start accuracy outcome flusher (audit S2: no silent outcome loss) ──
     try:
         from services.accuracy_outcome_queue import get_accuracy_outcome_queue
+
         get_accuracy_outcome_queue().start()
         logger.info("Accuracy outcome queue flusher started — flushing every 30s")
     except Exception:
@@ -792,11 +822,13 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Register rate limit notification callback ──
     try:
         from brsapi.rate_limiter import get_rate_limiter
+
         rl = get_rate_limiter()
         rl.on_threshold(_rate_limit_notify)
         logger.info(
             "Rate limiter initialized: daily=%d, 5min=%d",
-            rl._daily_limit, rl._five_min_limit,
+            rl._daily_limit,
+            rl._five_min_limit,
         )
     except Exception:
         logger.warning("Rate limiter notification setup failed")
@@ -804,6 +836,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Start BrsApi scheduler (periodic sync jobs) ──
     try:
         from apps.scheduler.app import SchedulerApp
+
         scheduler_app = SchedulerApp()
         scheduler_app.start()
         job_count = len(scheduler_app.scheduler.get_jobs())
@@ -823,6 +856,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Start RealtimeService (WebSocket broadcasting) ──
     try:
         from services.realtime_service import get_realtime_service
+
         rt_service = get_realtime_service()
         await rt_service.start()
     except Exception:
@@ -862,6 +896,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     with suppress(Exception):
         try:
             from services.realtime_service import get_realtime_service
+
             rt_service = get_realtime_service()
             await rt_service.stop()
         except Exception:
@@ -870,12 +905,15 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         await cache.close()
     with suppress(Exception):
         from brsapi.client import close_client
+
         await close_client()
     with suppress(Exception):
         from brsapi.usage_recorder import get_usage_recorder
+
         await get_usage_recorder().stop()
     with suppress(Exception):
         from services.accuracy_outcome_queue import get_accuracy_outcome_queue
+
         await get_accuracy_outcome_queue().stop()
     with suppress(Exception):
         await close_database()
@@ -905,6 +943,9 @@ def create_app() -> FastAPI:
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RateLimitMiddleware)
+    # RequestContextMiddleware LAST → OUTERMOST layer so every downstream
+    # middleware/handler can read request.state.trace_id.
+    app.add_middleware(RequestContextMiddleware)
 
     register_error_handlers(app)
 
@@ -926,6 +967,7 @@ def create_app() -> FastAPI:
     async def orchestrator_cron_status():
         """Get the status of the hourly orchestrator cron."""
         from schemas.common.responses import ApiResponse
+
         await _load_cron_state_from_store()
         data = dict(_cron_state)
         data["history"] = list(data["history"])
@@ -948,6 +990,7 @@ def create_app() -> FastAPI:
         Useful for frontend timeline charts showing signal counts and accuracy trends.
         """
         from schemas.common.responses import ApiResponse
+
         await _load_cron_state_from_store()
         return ApiResponse(success=True, data=list(_cron_state["history"]))
 
@@ -1002,15 +1045,17 @@ def create_app() -> FastAPI:
         _cron_state["last_retrain_count"] = len(d.get("retrain", []))
         _cron_state["last_error"] = None
         _cron_state["run_count"] += 1
-        _cron_state["history"].append({
-            "run": _cron_state["run_count"],
-            "timestamp": _cron_state["last_run"],
-            "signals": len(d.get("signals", [])),
-            "accuracy": d.get("accuracy", {}).get("overall", 0),
-            "retrain_count": len(d.get("retrain", [])),
-            "success": True,
-            "source": "manual",
-        })
+        _cron_state["history"].append(
+            {
+                "run": _cron_state["run_count"],
+                "timestamp": _cron_state["last_run"],
+                "signals": len(d.get("signals", [])),
+                "accuracy": d.get("accuracy", {}).get("overall", 0),
+                "retrain_count": len(d.get("retrain", [])),
+                "success": True,
+                "source": "manual",
+            }
+        )
         await _save_cron_state_to_store()
 
         return ApiResponse(success=True, data=d)
@@ -1021,6 +1066,7 @@ def create_app() -> FastAPI:
         """Check BrsApi rate limit status (daily, 5min, per-endpoint)."""
         from brsapi.rate_limiter import get_rate_limiter
         from schemas.common.responses import ApiResponse
+
         return ApiResponse(success=True, data=get_rate_limiter().status())
 
     # ── Cache health / stats endpoint ──
@@ -1035,10 +1081,13 @@ def create_app() -> FastAPI:
         from schemas.common.responses import ApiResponse
         from services.screener_service import ScreenerPipeline, ScreenerService
 
-        return ApiResponse(success=True, data={
-            "score_cache": ScreenerPipeline._score_cache.stats,
-            "prebuilt_cache": ScreenerService._prebuilt_cache.stats,
-        })
+        return ApiResponse(
+            success=True,
+            data={
+                "score_cache": ScreenerPipeline._score_cache.stats,
+                "prebuilt_cache": ScreenerService._prebuilt_cache.stats,
+            },
+        )
 
     router = Router()
     app.include_router(router.setup(), prefix=settings.api_prefix)

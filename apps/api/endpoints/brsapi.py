@@ -11,10 +11,12 @@ import asyncio
 import csv
 import io
 import json
+from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func as sa_func
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -232,25 +234,27 @@ async def get_historical_daily(
 
             items = []
             for row in rows:
-                items.append({
-                    "id": row.id,
-                    "symbol": row.symbol,
-                    "date": row.date,
-                    "time": row.time,
-                    "trade_count": row.trade_count,
-                    "trade_volume": row.trade_volume,
-                    "trade_value": row.trade_value,
-                    "price_min": row.price_min,
-                    "price_max": row.price_max,
-                    "price_yesterday": row.price_yesterday,
-                    "price_first": row.price_first,
-                    "price_last": row.price_last,
-                    "price_last_change": row.price_last_change,
-                    "price_last_change_pct": row.price_last_change_pct,
-                    "price_close": row.price_close,
-                    "price_close_change": row.price_close_change,
-                    "price_close_change_pct": row.price_close_change_pct,
-                })
+                items.append(
+                    {
+                        "id": row.id,
+                        "symbol": row.symbol,
+                        "date": row.date,
+                        "time": row.time,
+                        "trade_count": row.trade_count,
+                        "trade_volume": row.trade_volume,
+                        "trade_value": row.trade_value,
+                        "price_min": row.price_min,
+                        "price_max": row.price_max,
+                        "price_yesterday": row.price_yesterday,
+                        "price_first": row.price_first,
+                        "price_last": row.price_last,
+                        "price_last_change": row.price_last_change,
+                        "price_last_change_pct": row.price_last_change_pct,
+                        "price_close": row.price_close,
+                        "price_close_change": row.price_close_change,
+                        "price_close_change_pct": row.price_close_change_pct,
+                    }
+                )
 
             page_size = limit if limit > 0 else 50
             page = (offset // page_size) + 1
@@ -290,13 +294,7 @@ async def get_historical_daily(
                 data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=limit, total_pages=1),
             )
 
-        q_stmt = (
-            sa_select(QuoteModel)
-            .where(*q_conditions)
-            .order_by(QuoteModel.date.desc())
-            .offset(offset)
-            .limit(limit)
-        )
+        q_stmt = sa_select(QuoteModel).where(*q_conditions).order_by(QuoteModel.date.desc()).offset(offset).limit(limit)
         q_result = await session.execute(q_stmt)
         q_rows = q_result.scalars().all()
 
@@ -307,25 +305,27 @@ async def get_historical_daily(
             py = row.price_yesterday or 0
             change = pl - py
             change_pct = (change / py * 100) if py else 0
-            items.append({
-                "id": row.id,
-                "symbol": row.symbol,
-                "date": row.date,
-                "time": row.time,
-                "trade_count": row.trade_count,
-                "trade_volume": row.volume,
-                "trade_value": row.value,
-                "price_min": row.price_low or row.price_min or 0,
-                "price_max": row.price_high or row.price_max or 0,
-                "price_yesterday": py,
-                "price_first": row.price_first or row.price_open or 0,
-                "price_last": pl,
-                "price_last_change": row.price_change or round(change, 0),
-                "price_last_change_pct": row.price_change_pct or round(change_pct, 2),
-                "price_close": pc,
-                "price_close_change": round(pc - py, 0),
-                "price_close_change_pct": round(((pc - py) / py * 100), 2) if py else 0,
-            })
+            items.append(
+                {
+                    "id": row.id,
+                    "symbol": row.symbol,
+                    "date": row.date,
+                    "time": row.time,
+                    "trade_count": row.trade_count,
+                    "trade_volume": row.volume,
+                    "trade_value": row.value,
+                    "price_min": row.price_low or row.price_min or 0,
+                    "price_max": row.price_high or row.price_max or 0,
+                    "price_yesterday": py,
+                    "price_first": row.price_first or row.price_open or 0,
+                    "price_last": pl,
+                    "price_last_change": row.price_change or round(change, 0),
+                    "price_last_change_pct": row.price_change_pct or round(change_pct, 2),
+                    "price_close": pc,
+                    "price_close_change": round(pc - py, 0),
+                    "price_close_change_pct": round(((pc - py) / py * 100), 2) if py else 0,
+                }
+            )
 
         page_size = limit if limit > 0 else 50
         page = (offset // page_size) + 1
@@ -413,6 +413,7 @@ async def get_codal_announcements(
             from sqlalchemy import column
             from sqlalchemy import select as _s
             from sqlalchemy import text as _t
+
             try:
                 name_result = await session.execute(
                     _s(column("id"), column("symbol").label("instr_symbol"))
@@ -427,27 +428,29 @@ async def get_codal_announcements(
         items = []
         for row in rows:
             rid = str(row.instrument_id) if row.instrument_id else None
-            items.append({
-                "id": row.id,
-                "symbol": row.symbol,
-                "company_name": row.company_name,
-                "title": row.title,
-                "code": row.code,
-                "date_publish": row.date_publish,
-                "time_publish": row.time_publish,
-                "date_title": row.date_title,
-                "date_send": row.date_send,
-                "time_send": row.time_send,
-                "link": row.link,
-                "link_pdf": row.link_pdf,
-                "link_excel": row.link_excel,
-                "link_attachment": row.link_attachment,
-                "ins_id": row.ins_id,
-                "instrument_id": rid,
-                "instrument_symbol": instrument_names.get(rid) if rid else None,
-                "fetched_at": row.fetched_at,
-                "created_at": str(row.created_at) if row.created_at else None,
-            })
+            items.append(
+                {
+                    "id": row.id,
+                    "symbol": row.symbol,
+                    "company_name": row.company_name,
+                    "title": row.title,
+                    "code": row.code,
+                    "date_publish": row.date_publish,
+                    "time_publish": row.time_publish,
+                    "date_title": row.date_title,
+                    "date_send": row.date_send,
+                    "time_send": row.time_send,
+                    "link": row.link,
+                    "link_pdf": row.link_pdf,
+                    "link_excel": row.link_excel,
+                    "link_attachment": row.link_attachment,
+                    "ins_id": row.ins_id,
+                    "instrument_id": rid,
+                    "instrument_symbol": instrument_names.get(rid) if rid else None,
+                    "fetched_at": row.fetched_at,
+                    "created_at": str(row.created_at) if row.created_at else None,
+                }
+            )
 
         total_pages = max(1, (total + page_size - 1) // page_size)
 
@@ -512,12 +515,15 @@ async def get_codal_announcements_lazy(
         records = CodalParser.parse_announcements_only(result.value.data)
 
         if not records:
-            return ApiResponse[dict[str, Any]](success=True, data={
-                "symbol": symbol,
-                "announcements": [],
-                "count": 0,
-                "message": "No announcements found for this symbol",
-            })
+            return ApiResponse[dict[str, Any]](
+                success=True,
+                data={
+                    "symbol": symbol,
+                    "announcements": [],
+                    "count": 0,
+                    "message": "No announcements found for this symbol",
+                },
+            )
 
         # 3. Lookup ins_id + instrument_id using SnapshotModel
         from brsapi.models import SymbolSnapshotModel
@@ -538,9 +544,8 @@ async def get_codal_announcements_lazy(
             try:
                 from sqlalchemy import column as _c
                 from sqlalchemy import text as _t
-                fb = await session.execute(
-                    _s(_c("id")).select_from(_t("instruments")).where(_c("symbol") == symbol)
-                )
+
+                fb = await session.execute(_s(_c("id")).select_from(_t("instruments")).where(_c("symbol") == symbol))
                 fb_row = fb.scalar_one_or_none()
                 if fb_row:
                     instrument_id = str(fb_row)
@@ -573,14 +578,17 @@ async def get_codal_announcements_lazy(
                 await session.rollback()
                 stored = 0
 
-        return ApiResponse[dict[str, Any]](success=True, data={
-            "symbol": symbol,
-            "announcements": records,
-            "count": len(records),
-            "stored": stored,
-            "ins_id": ins_id,
-            "instrument_id": instrument_id,
-        })
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={
+                "symbol": symbol,
+                "announcements": records,
+                "count": len(records),
+                "stored": stored,
+                "ins_id": ins_id,
+                "instrument_id": instrument_id,
+            },
+        )
 
     except Exception as exc:
         logger.exception("Failed to fetch lazy codal announcements for %s", symbol)
@@ -630,6 +638,23 @@ from brsapi.repositories import SyncLogRepository
 from core.logging import get_logger as _get_logger
 
 logger = _get_logger(__name__)
+
+
+def _safe_error_message(exc: BaseException, *, default_message: str = "Internal error") -> str:
+    """Return a non-leaking message string for a caught exception.
+
+    Preserves the historical ``{"message": <str>}`` response shape so existing
+    clients see no breaking change. In production ``str(exc)`` is suppressed
+    and a generic message is returned (the full exception is still logged). In
+    development ``str(exc)`` is included for debugging.
+    """
+    from core.config import settings
+
+    is_dev = settings.environment == "development"
+    if is_dev:
+        return str(exc) or default_message
+    return default_message
+
 
 # ── Date column for each section ──────────────────────────────────────
 # Maps section_id -> the most meaningful date column to show as "last data date"
@@ -942,10 +967,9 @@ async def list_sections(
     # Get row estimates from pg_stat for fast approximate counts
     pg_stat_counts: dict[str, int] = {}
     try:
-        pg_result = await session.execute(text(
-            "SELECT relname, n_live_tup FROM pg_stat_user_tables "
-            "WHERE schemaname = 'public'"
-        ))
+        pg_result = await session.execute(
+            text("SELECT relname, n_live_tup FROM pg_stat_user_tables WHERE schemaname = 'public'")
+        )
         for row in pg_result:
             pg_stat_counts[row[0]] = row[1] or 0
     except Exception:
@@ -1011,7 +1035,9 @@ async def list_sections(
                     "duration_ms": last.duration_ms if last else 0.0,
                     "completed_at": str(last.completed_at) if last and last.completed_at else None,
                     "error_message": last.error_message if last else None,
-                } if last else None,
+                }
+                if last
+                else None,
             }
         except Exception as exc:
             logger.warning("build_section failed for %s: %s", section_id, exc)
@@ -1028,9 +1054,7 @@ async def list_sections(
             }
 
     # Run ALL section queries in parallel
-    results = await asyncio.gather(*[
-        build_section(sid, cfg) for sid, cfg in SECTIONS.items()
-    ])
+    results = await asyncio.gather(*[build_section(sid, cfg) for sid, cfg in SECTIONS.items()])
 
     return ApiResponse[list[dict[str, Any]]](success=True, data=list(results))
 
@@ -1052,6 +1076,7 @@ async def sync_section(
 
     client = await get_client()
     from brsapi.services.sync_service import BrsApiSyncService
+
     sync_svc = BrsApiSyncService(client=client, session=session)
 
     # NAV is a symbol-scoped endpoint. Use the dedicated sync path so the
@@ -1071,15 +1096,18 @@ async def sync_section(
             )
         try:
             report = await sync_svc.sync_nav(session, symbol.strip())
-            return ApiResponse[dict[str, Any]](success=report.success, data={
-                "endpoint": report.endpoint,
-                "section_id": section_id,
-                "success": report.success,
-                "items_count": report.items_count,
-                "duration_ms": report.duration_ms,
-                "skipped": report.skipped,
-                "error": report.error,
-            })
+            return ApiResponse[dict[str, Any]](
+                success=report.success,
+                data={
+                    "endpoint": report.endpoint,
+                    "section_id": section_id,
+                    "success": report.success,
+                    "items_count": report.items_count,
+                    "duration_ms": report.duration_ms,
+                    "skipped": report.skipped,
+                    "error": report.error,
+                },
+            )
         except Exception as exc:
             logger.exception("NAV sync failed for symbol %s", symbol)
             return ApiResponse[dict[str, Any]](
@@ -1092,18 +1120,19 @@ async def sync_section(
     # both empty) — use it whenever a symbol is given.
     if section_id == "candlestick" and symbol:
         try:
-            report = await sync_svc.sync_candlesticks(
-                session, symbol, candle_type=candle_type, count=count
+            report = await sync_svc.sync_candlesticks(session, symbol, candle_type=candle_type, count=count)
+            return ApiResponse[dict[str, Any]](
+                success=report.success,
+                data={
+                    "endpoint": report.endpoint,
+                    "section_id": section_id,
+                    "success": report.success,
+                    "items_count": report.items_count,
+                    "duration_ms": report.duration_ms,
+                    "skipped": report.skipped,
+                    "error": report.error,
+                },
             )
-            return ApiResponse[dict[str, Any]](success=report.success, data={
-                "endpoint": report.endpoint,
-                "section_id": section_id,
-                "success": report.success,
-                "items_count": report.items_count,
-                "duration_ms": report.duration_ms,
-                "skipped": report.skipped,
-                "error": report.error,
-            })
         except Exception as exc:
             logger.exception("Sync failed for section %s", section_id)
             return ApiResponse[dict[str, Any]](
@@ -1123,6 +1152,7 @@ async def sync_section(
     if symbol and section_id in ("history-price", "history-real-legal", "candlestick"):
         _sym = symbol
         _orig_parser = parser_fn
+
         def _parser_with_sym(data: Any) -> list[dict[str, Any]]:
             records = _orig_parser(data)
             for r in records:
@@ -1130,6 +1160,7 @@ async def sync_section(
                 if section_id == "candlestick":
                     r["candle_type"] = candle_type
             return records
+
         parser_fn = _parser_with_sym
 
     try:
@@ -1142,15 +1173,18 @@ async def sync_section(
             session=session,
         )
 
-        return ApiResponse[dict[str, Any]](success=report.success, data={
-            "endpoint": report.endpoint,
-            "section_id": section_id,
-            "success": report.success,
-            "items_count": report.items_count,
-            "duration_ms": report.duration_ms,
-            "skipped": report.skipped,
-            "error": report.error,
-        })
+        return ApiResponse[dict[str, Any]](
+            success=report.success,
+            data={
+                "endpoint": report.endpoint,
+                "section_id": section_id,
+                "success": report.success,
+                "items_count": report.items_count,
+                "duration_ms": report.duration_ms,
+                "skipped": report.skipped,
+                "error": report.error,
+            },
+        )
     except Exception as exc:
         logger.exception("Sync failed for section %s", section_id)
         return ApiResponse[dict[str, Any]](
@@ -1211,7 +1245,11 @@ async def download_section(
 
         if format == "csv":
             if not data:
-                return Response(content="", media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}.csv"})
+                return Response(
+                    content="",
+                    media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={filename}.csv"},
+                )
             output = io.StringIO()
             writer = csv.DictWriter(output, fieldnames=data[0].keys())
             writer.writeheader()
@@ -1254,14 +1292,35 @@ async def download_section(
 
     if format == "csv":
         if not data:
-            return Response(content="", media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}.csv"})
-        output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=data[0].keys())
-        writer.writeheader()
-        writer.writerows(data)
-        content = output.getvalue()
-        return Response(
-            content=content,
+            return Response(
+                content="",
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={filename}.csv"},
+            )
+
+        # Stream the CSV to the client instead of building the whole string in
+        # memory. Exports can be tens of MB; StringIO + getvalue() held the
+        # full payload in the request's memory until the response flushed.
+        async def _csv_iter() -> AsyncIterator[bytes]:
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=data[0].keys())
+            writer.writeheader()
+            yield buf.getvalue().encode("utf-8-sig")
+            buf.seek(0)
+            buf.truncate()
+            for row in data:
+                writer.writerow(row)
+                # Flush every 1000 rows so very large exports don't grow buf.
+                if buf.tell() > 65536:
+                    yield buf.getvalue().encode("utf-8-sig")
+                    buf.seek(0)
+                    buf.truncate()
+            tail = buf.getvalue()
+            if tail:
+                yield tail.encode("utf-8-sig")
+
+        return StreamingResponse(
+            _csv_iter(),
             media_type="text/csv; charset=utf-8-sig",
             headers={"Content-Disposition": f"attachment; filename={filename}.csv"},
         )
@@ -1313,15 +1372,17 @@ async def daily_usage_report(
 
     items: list[dict[str, Any]] = []
     for r in rows:
-        items.append({
-            "usage_date": r.usage_date,
-            "request_count": r.request_count or 0,
-            "daily_limit": r.daily_limit,
-            "blocked_count": r.blocked_count or 0,
-            "blocked_at": r.blocked_at.isoformat() if r.blocked_at else None,
-            "last_request_at": r.last_request_at.isoformat() if r.last_request_at else None,
-            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
-        })
+        items.append(
+            {
+                "usage_date": r.usage_date,
+                "request_count": r.request_count or 0,
+                "daily_limit": r.daily_limit,
+                "blocked_count": r.blocked_count or 0,
+                "blocked_at": r.blocked_at.isoformat() if r.blocked_at else None,
+                "last_request_at": r.last_request_at.isoformat() if r.last_request_at else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+        )
 
     summary: dict[str, Any] = {}
     if items:
@@ -1342,12 +1403,15 @@ async def daily_usage_report(
     except Exception as exc:
         logger.debug("BrsApi daily usage: live governor stats unavailable (%s)", exc)
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "days": items,
-        "summary": summary,
-        "live": live,
-        "query_days": days,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "days": items,
+            "summary": summary,
+            "live": live,
+            "query_days": days,
+        },
+    )
 
 
 @router.post(
@@ -1397,7 +1461,9 @@ async def list_symbol_details(
     page_size: int = Query(50, ge=1, le=500, description="Items per page"),
     q: str | None = Query(None, description="Search by symbol or company name"),
     market: str | None = Query(None, description="Filter by market (e.g. بورس / فرابورس)"),
-    sort_by: str = Query("updated_at", description="Sort field: updated_at | symbol | price_last | market_value | trade_value"),
+    sort_by: str = Query(
+        "updated_at", description="Sort field: updated_at | symbol | price_last | market_value | trade_value"
+    ),
     order: str = Query("desc", description="Sort order: asc | desc"),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
@@ -1536,31 +1602,39 @@ async def sync_nav_all(
                 success_count += 1
             else:
                 fail_count += 1
-            results.append({
-                "symbol": symbol,
-                "success": report.success,
-                "items_count": report.items_count,
-                "duration_ms": report.duration_ms,
-                "error": report.error,
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "success": report.success,
+                    "items_count": report.items_count,
+                    "duration_ms": report.duration_ms,
+                    "error": report.error,
+                }
+            )
             if (i + 1) % 10 == 0:
-                logger.info("NAV sync progress: %d/%d symbols (%d ok, %d fail)",
-                           i + 1, len(symbols), success_count, fail_count)
+                logger.info(
+                    "NAV sync progress: %d/%d symbols (%d ok, %d fail)", i + 1, len(symbols), success_count, fail_count
+                )
         except Exception as exc:
             fail_count += 1
-            results.append({
-                "symbol": symbol,
-                "success": False,
-                "error": str(exc),
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "success": False,
+                    "error": str(exc),
+                }
+            )
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "total": len(symbols),
-        "success_count": success_count,
-        "fail_count": fail_count,
-        "total_duration_ms": round(total_duration_ms, 1),
-        "results": results,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "total": len(symbols),
+            "success_count": success_count,
+            "fail_count": fail_count,
+            "total_duration_ms": round(total_duration_ms, 1),
+            "results": results,
+        },
+    )
 
 
 @router.post("/manage/sync-top-symbols", summary="Sync Symbol.php for top N symbols")
@@ -1583,14 +1657,15 @@ async def sync_top_symbols(
     # 1. Get top symbols by trade value from snapshots
     try:
         stmt = (
-            select(SymbolSnapshotModel.symbol)
-            .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
-            .limit(limit)
+            select(SymbolSnapshotModel.symbol).order_by(SymbolSnapshotModel.trade_value.desc().nullslast()).limit(limit)
         )
         result = await session.execute(stmt)
         symbols = [row[0] for row in result if row[0]]
     except Exception as exc:
-        return ApiResponse[dict[str, Any]](success=False, data={"error": f"Failed to query symbols: {exc}"})
+        logger.warning("brsapi symbols query failed: %s", exc, exc_info=True)
+        return ApiResponse[dict[str, Any]](
+            success=False, data={"error": _safe_error_message(exc, default_message="Failed to query symbols")}
+        )
 
     if not symbols:
         return ApiResponse[dict[str, Any]](success=False, data={"error": "No symbols found in database"})
@@ -1611,28 +1686,35 @@ async def sync_top_symbols(
                 success_count += 1
             else:
                 fail_count += 1
-            results.append({
-                "symbol": symbol,
-                "success": report.success,
-                "items_count": report.items_count,
-                "duration_ms": report.duration_ms,
-                "error": report.error,
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "success": report.success,
+                    "items_count": report.items_count,
+                    "duration_ms": report.duration_ms,
+                    "error": report.error,
+                }
+            )
         except Exception as exc:
             fail_count += 1
-            results.append({
-                "symbol": symbol,
-                "success": False,
-                "error": str(exc),
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "success": False,
+                    "error": str(exc),
+                }
+            )
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "total": len(symbols),
-        "success_count": success_count,
-        "fail_count": fail_count,
-        "total_duration_ms": round(total_duration_ms, 1),
-        "results": results,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "total": len(symbols),
+            "success_count": success_count,
+            "fail_count": fail_count,
+            "total_duration_ms": round(total_duration_ms, 1),
+            "results": results,
+        },
+    )
 
 
 @router.post("/manage/sync-all-history", summary="Sync history for ALL symbols")
@@ -1664,7 +1746,10 @@ async def sync_all_history(
         result = await session.execute(stmt)
         symbols = [row[0] for row in result if row[0]]
     except Exception as exc:
-        return ApiResponse[dict[str, Any]](success=False, data={"error": f"Failed to query symbols: {exc}"})
+        logger.warning("brsapi symbols query failed: %s", exc, exc_info=True)
+        return ApiResponse[dict[str, Any]](
+            success=False, data={"error": _safe_error_message(exc, default_message="Failed to query symbols")}
+        )
 
     if not symbols:
         return ApiResponse[dict[str, Any]](success=False, data={"error": "No symbols found"})
@@ -1684,31 +1769,38 @@ async def sync_all_history(
                 success_count += 1
             else:
                 fail_count += 1
-            results.append({
-                "symbol": symbol,
-                "success": report.success,
-                "items_count": report.items_count,
-                "duration_ms": report.duration_ms,
-                "error": report.error,
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "success": report.success,
+                    "items_count": report.items_count,
+                    "duration_ms": report.duration_ms,
+                    "error": report.error,
+                }
+            )
             # Log progress every 10 symbols
             if (i + 1) % 10 == 0:
                 logger.info("History sync progress: %d/%d symbols", i + 1, len(symbols))
         except Exception as exc:
             fail_count += 1
-            results.append({
-                "symbol": symbol,
-                "success": False,
-                "error": str(exc),
-            })
+            results.append(
+                {
+                    "symbol": symbol,
+                    "success": False,
+                    "error": str(exc),
+                }
+            )
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "total": len(symbols),
-        "success_count": success_count,
-        "fail_count": fail_count,
-        "total_duration_ms": round(total_duration_ms, 1),
-        "results": results,
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "total": len(symbols),
+            "success_count": success_count,
+            "fail_count": fail_count,
+            "total_duration_ms": round(total_duration_ms, 1),
+            "results": results,
+        },
+    )
 
 
 # ── Manual full-market candlestick backfill (admin-triggered) ────────
@@ -1718,7 +1810,7 @@ async def sync_all_history(
 # (default) is assumed — enough for the admin panel.
 
 _CANDLE_BACKFILL_STATE: dict[str, Any] = {
-    "status": "idle",          # idle | running | done | cancelled | error
+    "status": "idle",  # idle | running | done | cancelled | error
     "started_at": None,
     "finished_at": None,
     "total_symbols": 0,
@@ -1822,33 +1914,41 @@ async def sync_all_candlesticks(
     global _candle_backfill_task
 
     if _CANDLE_BACKFILL_STATE["status"] == "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "started": False,
-            "status": "running",
-            "message": "یک بکفیل در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "started": False,
+                "status": "running",
+                "message": "یک بکفیل در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+            },
+        )
 
-    _CANDLE_BACKFILL_STATE.update({
-        "status": "running",
-        "started_at": datetime.now().isoformat(),
-        "finished_at": None,
-        "total_symbols": 0,
-        "processed": 0,
-        "ok": 0,
-        "fail": 0,
-        "items": 0,
-        "current_symbol": None,
-        "cancel_requested": False,
-        "message": "در حال راه‌اندازی...",
-        "error": None,
-    })
+    _CANDLE_BACKFILL_STATE.update(
+        {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "finished_at": None,
+            "total_symbols": 0,
+            "processed": 0,
+            "ok": 0,
+            "fail": 0,
+            "items": 0,
+            "current_symbol": None,
+            "cancel_requested": False,
+            "message": "در حال راه‌اندازی...",
+            "error": None,
+        }
+    )
     _candle_backfill_task = asyncio.create_task(_run_candle_backfill(max_symbols, allow_weekend))
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "started": True,
-        "status": "running",
-        "max_symbols": max_symbols if max_symbols > 0 else "all",
-        "message": "بکفیل کندل همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "started": True,
+            "status": "running",
+            "max_symbols": max_symbols if max_symbols > 0 else "all",
+            "message": "بکفیل کندل همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+        },
+    )
 
 
 @router.get("/manage/sync-all-candlesticks/status", summary="Status of the manual candlestick backfill")
@@ -1861,15 +1961,21 @@ async def sync_all_candlesticks_status() -> ApiResponse[dict[str, Any]]:
 async def cancel_sync_all_candlesticks() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _CANDLE_BACKFILL_STATE["status"] != "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "cancelled": False,
-            "message": "هیچ بکفیلی در حال اجرا نیست",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "cancelled": False,
+                "message": "هیچ بکفیلی در حال اجرا نیست",
+            },
+        )
     _CANDLE_BACKFILL_STATE["cancel_requested"] = True
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "cancelled": True,
-        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "cancelled": True,
+            "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+        },
+    )
 
 
 # ── Manual full-market shareholder backfill (admin-triggered) ────────
@@ -1878,7 +1984,7 @@ async def cancel_sync_all_candlesticks() -> ApiResponse[dict[str, Any]]:
 # background task whose live state is polled by the manage UI.
 
 _SHAREHOLDER_BACKFILL_STATE: dict[str, Any] = {
-    "status": "idle",          # idle | running | done | cancelled | error
+    "status": "idle",  # idle | running | done | cancelled | error
     "started_at": None,
     "finished_at": None,
     "total_symbols": 0,
@@ -1960,35 +2066,41 @@ async def sync_all_shareholders(
     global _shareholder_backfill_task
 
     if _SHAREHOLDER_BACKFILL_STATE["status"] == "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "started": False,
-            "status": "running",
-            "message": "یک بکفیل سهامداران در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "started": False,
+                "status": "running",
+                "message": "یک بکفیل سهامداران در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+            },
+        )
 
-    _SHAREHOLDER_BACKFILL_STATE.update({
-        "status": "running",
-        "started_at": datetime.now().isoformat(),
-        "finished_at": None,
-        "total_symbols": 0,
-        "processed": 0,
-        "ok": 0,
-        "fail": 0,
-        "items": 0,
-        "current_symbol": None,
-        "cancel_requested": False,
-        "message": "در حال راه‌اندازی...",
-        "error": None,
-    })
-    _shareholder_backfill_task = asyncio.create_task(
-        _run_shareholder_backfill(max_symbols, allow_weekend)
+    _SHAREHOLDER_BACKFILL_STATE.update(
+        {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "finished_at": None,
+            "total_symbols": 0,
+            "processed": 0,
+            "ok": 0,
+            "fail": 0,
+            "items": 0,
+            "current_symbol": None,
+            "cancel_requested": False,
+            "message": "در حال راه‌اندازی...",
+            "error": None,
+        }
     )
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "started": True,
-        "status": "running",
-        "max_symbols": max_symbols if max_symbols > 0 else "all",
-        "message": "بکفیل سهامداران همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
-    })
+    _shareholder_backfill_task = asyncio.create_task(_run_shareholder_backfill(max_symbols, allow_weekend))
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "started": True,
+            "status": "running",
+            "max_symbols": max_symbols if max_symbols > 0 else "all",
+            "message": "بکفیل سهامداران همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+        },
+    )
 
 
 @router.get("/manage/sync-all-shareholders/status", summary="Status of the manual shareholder backfill")
@@ -2001,15 +2113,21 @@ async def sync_all_shareholders_status() -> ApiResponse[dict[str, Any]]:
 async def cancel_sync_all_shareholders() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _SHAREHOLDER_BACKFILL_STATE["status"] != "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "cancelled": False,
-            "message": "هیچ بکفیلی در حال اجرا نیست",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "cancelled": False,
+                "message": "هیچ بکفیلی در حال اجرا نیست",
+            },
+        )
     _SHAREHOLDER_BACKFILL_STATE["cancel_requested"] = True
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "cancelled": True,
-        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "cancelled": True,
+            "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+        },
+    )
 
 
 # ── Manual full-market history backfills (admin-triggered) ──────────
@@ -2021,7 +2139,7 @@ async def cancel_sync_all_shareholders() -> ApiResponse[dict[str, Any]]:
 def _make_backfill_state() -> dict[str, Any]:
     """Fresh idle state for a manual full-market backfill."""
     return {
-        "status": "idle",      # idle | running | done | cancelled | error
+        "status": "idle",  # idle | running | done | cancelled | error
         "started_at": None,
         "finished_at": None,
         "total_symbols": 0,
@@ -2138,35 +2256,41 @@ async def sync_all_history_price(
     global _history_price_backfill_task
 
     if _HISTORY_PRICE_BACKFILL_STATE["status"] == "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "started": False,
-            "status": "running",
-            "message": "یک بکفیل تاریخچه قیمت در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "started": False,
+                "status": "running",
+                "message": "یک بکفیل تاریخچه قیمت در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+            },
+        )
 
-    _HISTORY_PRICE_BACKFILL_STATE.update({
-        "status": "running",
-        "started_at": datetime.now().isoformat(),
-        "finished_at": None,
-        "total_symbols": 0,
-        "processed": 0,
-        "ok": 0,
-        "fail": 0,
-        "items": 0,
-        "current_symbol": None,
-        "cancel_requested": False,
-        "message": "در حال راه‌اندازی...",
-        "error": None,
-    })
-    _history_price_backfill_task = asyncio.create_task(
-        _run_history_price_backfill(max_symbols, allow_weekend)
+    _HISTORY_PRICE_BACKFILL_STATE.update(
+        {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "finished_at": None,
+            "total_symbols": 0,
+            "processed": 0,
+            "ok": 0,
+            "fail": 0,
+            "items": 0,
+            "current_symbol": None,
+            "cancel_requested": False,
+            "message": "در حال راه‌اندازی...",
+            "error": None,
+        }
     )
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "started": True,
-        "status": "running",
-        "max_symbols": max_symbols if max_symbols > 0 else "all",
-        "message": "بکفیل تاریخچه قیمت همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
-    })
+    _history_price_backfill_task = asyncio.create_task(_run_history_price_backfill(max_symbols, allow_weekend))
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "started": True,
+            "status": "running",
+            "max_symbols": max_symbols if max_symbols > 0 else "all",
+            "message": "بکفیل تاریخچه قیمت همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+        },
+    )
 
 
 @router.get("/manage/sync-all-history-price/status", summary="Status of the manual history-price backfill")
@@ -2179,15 +2303,21 @@ async def sync_all_history_price_status() -> ApiResponse[dict[str, Any]]:
 async def cancel_sync_all_history_price() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _HISTORY_PRICE_BACKFILL_STATE["status"] != "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "cancelled": False,
-            "message": "هیچ بکفیلی در حال اجرا نیست",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "cancelled": False,
+                "message": "هیچ بکفیلی در حال اجرا نیست",
+            },
+        )
     _HISTORY_PRICE_BACKFILL_STATE["cancel_requested"] = True
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "cancelled": True,
-        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "cancelled": True,
+            "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+        },
+    )
 
 
 @router.post(
@@ -2208,35 +2338,43 @@ async def sync_all_history_real_legal(
     global _history_real_legal_backfill_task
 
     if _HISTORY_REAL_LEGAL_BACKFILL_STATE["status"] == "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "started": False,
-            "status": "running",
-            "message": "یک بکفیل حقیقی/حقوقی در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "started": False,
+                "status": "running",
+                "message": "یک بکفیل حقیقی/حقوقی در حال اجراست — پس از اتمام آن دوباره تلاش کنید",
+            },
+        )
 
-    _HISTORY_REAL_LEGAL_BACKFILL_STATE.update({
-        "status": "running",
-        "started_at": datetime.now().isoformat(),
-        "finished_at": None,
-        "total_symbols": 0,
-        "processed": 0,
-        "ok": 0,
-        "fail": 0,
-        "items": 0,
-        "current_symbol": None,
-        "cancel_requested": False,
-        "message": "در حال راه‌اندازی...",
-        "error": None,
-    })
+    _HISTORY_REAL_LEGAL_BACKFILL_STATE.update(
+        {
+            "status": "running",
+            "started_at": datetime.now().isoformat(),
+            "finished_at": None,
+            "total_symbols": 0,
+            "processed": 0,
+            "ok": 0,
+            "fail": 0,
+            "items": 0,
+            "current_symbol": None,
+            "cancel_requested": False,
+            "message": "در حال راه‌اندازی...",
+            "error": None,
+        }
+    )
     _history_real_legal_backfill_task = asyncio.create_task(
         _run_history_real_legal_backfill(max_symbols, allow_weekend)
     )
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "started": True,
-        "status": "running",
-        "max_symbols": max_symbols if max_symbols > 0 else "all",
-        "message": "بکفیل حقیقی/حقوقی همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "started": True,
+            "status": "running",
+            "max_symbols": max_symbols if max_symbols > 0 else "all",
+            "message": "بکفیل حقیقی/حقوقی همه نمادها شروع شد — پیشرفت را از همین صفحه پیگیری کنید",
+        },
+    )
 
 
 @router.get("/manage/sync-all-history-real-legal/status", summary="Status of the manual history real/legal backfill")
@@ -2249,15 +2387,21 @@ async def sync_all_history_real_legal_status() -> ApiResponse[dict[str, Any]]:
 async def cancel_sync_all_history_real_legal() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _HISTORY_REAL_LEGAL_BACKFILL_STATE["status"] != "running":
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "cancelled": False,
-            "message": "هیچ بکفیلی در حال اجرا نیست",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "cancelled": False,
+                "message": "هیچ بکفیلی در حال اجرا نیست",
+            },
+        )
     _HISTORY_REAL_LEGAL_BACKFILL_STATE["cancel_requested"] = True
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "cancelled": True,
-        "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "cancelled": True,
+            "message": "لغو درخواست شد — پس از نماد جاری متوقف می‌شود",
+        },
+    )
 
 
 @router.post("/manage/test-connection", summary="Test BrsApi API key and connectivity")
@@ -2276,12 +2420,15 @@ async def test_brsapi_connection() -> ApiResponse[dict[str, Any]]:
     key = _brsapi_settings.api_key
     masked = _mask_api_key(key)
     if not key:
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "configured": False,
-            "key": masked,
-            "reachable": False,
-            "message": "کلید API تنظیم نشده است — BRSAPI_API_KEY را در فایل .env قرار دهید",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "configured": False,
+                "key": masked,
+                "reachable": False,
+                "message": "کلید API تنظیم نشده است — BRSAPI_API_KEY را در فایل .env قرار دهید",
+            },
+        )
 
     try:
         client = await get_client()
@@ -2290,34 +2437,43 @@ async def test_brsapi_connection() -> ApiResponse[dict[str, Any]]:
         elapsed_ms = round((_time.monotonic() - start) * 1000, 1)
 
         if not result.success:
-            return ApiResponse[dict[str, Any]](success=False, data={
-                "configured": True,
-                "key": masked,
-                "reachable": False,
-                "http_status": None,
-                "elapsed_ms": elapsed_ms,
-                "message": f"اتصال برقرار نشد: {result.error}",
-            })
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data={
+                    "configured": True,
+                    "key": masked,
+                    "reachable": False,
+                    "http_status": None,
+                    "elapsed_ms": elapsed_ms,
+                    "message": f"اتصال برقرار نشد: {result.error}",
+                },
+            )
 
         resp = result.value
         count = _count_payload(resp.data)
-        return ApiResponse[dict[str, Any]](success=True, data={
-            "configured": True,
-            "key": masked,
-            "reachable": True,
-            "http_status": resp.status_code,
-            "elapsed_ms": elapsed_ms,
-            "symbols_count": count,
-            "message": f"اتصال موفق — {count} نماد از AllSymbols دریافت شد",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={
+                "configured": True,
+                "key": masked,
+                "reachable": True,
+                "http_status": resp.status_code,
+                "elapsed_ms": elapsed_ms,
+                "symbols_count": count,
+                "message": f"اتصال موفق — {count} نماد از AllSymbols دریافت شد",
+            },
+        )
     except Exception as exc:
         logger.exception("BrsApi connection test failed")
-        return ApiResponse[dict[str, Any]](success=False, data={
-            "configured": True,
-            "key": masked,
-            "reachable": False,
-            "message": f"خطا در تست اتصال: {exc}",
-        })
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={
+                "configured": True,
+                "key": masked,
+                "reachable": False,
+                "message": f"خطا در تست اتصال: {exc}",
+            },
+        )
 
 
 @router.get("/manage/sync-stats", summary="Per-endpoint sync status dashboard")
@@ -2360,13 +2516,16 @@ async def sync_stats(
     endpoint_to_section: dict[str, dict[str, Any]] = {}
     for section_id, cfg in SECTIONS.items():
         ep = cfg["endpoint"].path
-        endpoint_to_section.setdefault(ep, {
-            "section_id": section_id,
-            "name": cfg["name"],
-            "name_en": cfg["name_en"],
-            "icon": cfg["icon"],
-            "category": cfg["category"],
-        })
+        endpoint_to_section.setdefault(
+            ep,
+            {
+                "section_id": section_id,
+                "name": cfg["name"],
+                "name_en": cfg["name_en"],
+                "icon": cfg["icon"],
+                "category": cfg["category"],
+            },
+        )
 
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -2375,34 +2534,38 @@ async def sync_stats(
     for ep, stat in stats_by_endpoint.items():
         meta = endpoint_to_section.get(ep, {})
         seen.add(ep)
-        result.append({
-            **stat,
-            "section_id": meta.get("section_id"),
-            "name": meta.get("name"),
-            "name_en": meta.get("name_en"),
-            "icon": meta.get("icon"),
-            "category": meta.get("category", "other"),
-        })
+        result.append(
+            {
+                **stat,
+                "section_id": meta.get("section_id"),
+                "name": meta.get("name"),
+                "name_en": meta.get("name_en"),
+                "icon": meta.get("icon"),
+                "category": meta.get("category", "other"),
+            }
+        )
 
     # Then, output registered sections that have never produced a sync log.
     for ep, meta in endpoint_to_section.items():
         if ep in seen:
             continue
-        result.append({
-            "endpoint": ep,
-            "section_id": meta["section_id"],
-            "name": meta["name"],
-            "name_en": meta["name_en"],
-            "icon": meta["icon"],
-            "category": meta["category"],
-            "last_success_at": None,
-            "last_run_at": None,
-            "error_rate": 0.0,
-            "avg_duration_ms": 0.0,
-            "total_runs": 0,
-            "success_count": 0,
-            "error_count": 0,
-        })
+        result.append(
+            {
+                "endpoint": ep,
+                "section_id": meta["section_id"],
+                "name": meta["name"],
+                "name_en": meta["name_en"],
+                "icon": meta["icon"],
+                "category": meta["category"],
+                "last_success_at": None,
+                "last_run_at": None,
+                "error_rate": 0.0,
+                "avg_duration_ms": 0.0,
+                "total_runs": 0,
+                "success_count": 0,
+                "error_count": 0,
+            }
+        )
 
     # Overall summary
     now = datetime.now()
@@ -2410,23 +2573,27 @@ async def sync_stats(
     total_errors = sum(s["error_count"] for s in result)
     never_synced = sum(1 for s in result if s["total_runs"] == 0)
     stale_count = sum(
-        1 for s in result
-        if s["last_success_at"] is None or
-        (now - datetime.fromisoformat(s["last_success_at"])).total_seconds() > 24 * 3600
+        1
+        for s in result
+        if s["last_success_at"] is None
+        or (now - datetime.fromisoformat(s["last_success_at"])).total_seconds() > 24 * 3600
     )
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "window_days": window_days,
-        "endpoints": result,
-        "summary": {
-            "total_endpoints": len(result),
-            "total_runs": total_runs,
-            "total_errors": total_errors,
-            "never_synced": never_synced,
-            "stale_endpoints": stale_count,
-            "overall_error_rate": round((total_errors / total_runs) * 100, 2) if total_runs else 0.0,
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "window_days": window_days,
+            "endpoints": result,
+            "summary": {
+                "total_endpoints": len(result),
+                "total_runs": total_runs,
+                "total_errors": total_errors,
+                "never_synced": never_synced,
+                "stale_endpoints": stale_count,
+                "overall_error_rate": round((total_errors / total_runs) * 100, 2) if total_runs else 0.0,
+            },
         },
-    })
+    )
 
 
 # Frontend sync-dashboard keys → (SECTIONS id, default max-age in minutes).
@@ -2437,16 +2604,16 @@ async def sync_stats(
 # payload, so they share one sync-log endpoint key — their freshness values
 # will always be identical (correct: a single fetch refreshes both).
 _SYNC_STATUS_SECTIONS: dict[str, tuple[str, int]] = {
-    "symbols":     ("all-symbols", 10),
+    "symbols": ("all-symbols", 10),
     "commodities": ("commodity", 10),
-    "gold_coin":   ("gold-coin", 10),
-    "currency":    ("currency", 10),
-    "crypto":      ("crypto", 10),
-    "index":       ("index-tse", 10),
+    "gold_coin": ("gold-coin", 10),
+    "currency": ("currency", 10),
+    "crypto": ("crypto", 10),
+    "index": ("index-tse", 10),
     "ime_futures": ("ime-futures", 30),
     "ime_options": ("ime-options", 30),
-    "options":     ("option", 30),
-    "codal":       ("codal", 60),
+    "options": ("option", 30),
+    "codal": ("codal", 60),
 }
 
 
@@ -2465,10 +2632,9 @@ async def sync_status(
     # Row estimates from pg_stat for fast approximate counts
     pg_stat_counts: dict[str, int] = {}
     try:
-        pg_result = await session.execute(text(
-            "SELECT relname, n_live_tup FROM pg_stat_user_tables "
-            "WHERE schemaname = 'public'"
-        ))
+        pg_result = await session.execute(
+            text("SELECT relname, n_live_tup FROM pg_stat_user_tables WHERE schemaname = 'public'")
+        )
         for row in pg_result:
             pg_stat_counts[row[0]] = row[1] or 0
     except Exception:
@@ -2505,9 +2671,7 @@ async def sync_status(
             last = await sync_repo.last_sync(cfg["endpoint"].path, max_age_seconds=999999999)
             if last and last.completed_at:
                 entry["last_fetched"] = last.completed_at.isoformat()
-                entry["age_minutes"] = round(
-                    max(0.0, (datetime.now() - last.completed_at).total_seconds() / 60), 1
-                )
+                entry["age_minutes"] = round(max(0.0, (datetime.now() - last.completed_at).total_seconds() / 60), 1)
         except Exception as exc:
             logger.warning("sync_status failed for %s: %s", section_id, exc)
             entry["status"] = "error"
@@ -2554,16 +2718,18 @@ async def sync_history(
     items: list[dict[str, Any]] = []
     for r in rows:
         ts = r.started_at or r.completed_at
-        items.append({
-            "time": ts.isoformat() if ts else None,
-            "endpoint": r.endpoint,
-            "category": r.category,
-            "status": r.status,
-            "items_count": r.items_count,
-            "duration_ms": r.duration_ms,
-            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
-            "error_message": r.error_message,
-        })
+        items.append(
+            {
+                "time": ts.isoformat() if ts else None,
+                "endpoint": r.endpoint,
+                "category": r.category,
+                "status": r.status,
+                "items_count": r.items_count,
+                "duration_ms": r.duration_ms,
+                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                "error_message": r.error_message,
+            }
+        )
 
     return ApiResponse[list[dict[str, Any]]](success=True, data=items)
 
@@ -2659,8 +2825,7 @@ async def nav_sync_status(
         err_rows = (await session.execute(err_stmt)).scalars().all()
         sync_stats["recent_errors"] = [
             {
-                "at": (r.completed_at or r.started_at).isoformat()
-                if (r.completed_at or r.started_at) else None,
+                "at": (r.completed_at or r.started_at).isoformat() if (r.completed_at or r.started_at) else None,
                 "message": (r.error_message or "")[:200],
             }
             for r in err_rows
@@ -2681,26 +2846,27 @@ async def nav_sync_status(
         coverage["total_fund_symbols"] = len(fund_syms)
         coverage["missing"] = max(0, len(fund_syms) - distinct_symbols)
         if fund_syms:
-            coverage["coverage_pct"] = round(
-                (distinct_symbols / len(fund_syms)) * 100, 1
-            )
+            coverage["coverage_pct"] = round((distinct_symbols / len(fund_syms)) * 100, 1)
     except Exception as exc:
         logger.warning("nav-sync-status coverage query failed: %s", exc)
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "endpoint": nav_path,
-        "data": {
-            "total_records": total_records,
-            "distinct_symbols": distinct_symbols,
-            "latest_date": latest_date,
-            "today_jalali": today_jalali,
-            "today_record_count": len(today_symbols),
-            "today_symbols": today_symbols,
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "endpoint": nav_path,
+            "data": {
+                "total_records": total_records,
+                "distinct_symbols": distinct_symbols,
+                "latest_date": latest_date,
+                "today_jalali": today_jalali,
+                "today_record_count": len(today_symbols),
+                "today_symbols": today_symbols,
+            },
+            "sync": sync_stats,
+            "coverage": coverage,
+            "window_days": days,
         },
-        "sync": sync_stats,
-        "coverage": coverage,
-        "window_days": days,
-    })
+    )
 
 
 @router.get("/manage/last-update/{section_id}", summary="Last update time for a section")
@@ -2719,13 +2885,16 @@ async def section_last_update(
     if not last:
         return ApiResponse[dict[str, Any] | None](success=True, data=None)
 
-    return ApiResponse[dict[str, Any] | None](success=True, data={
-        "status": last.status,
-        "items_count": last.items_count,
-        "duration_ms": last.duration_ms,
-        "completed_at": str(last.completed_at) if last.completed_at else None,
-        "error_message": last.error_message,
-    })
+    return ApiResponse[dict[str, Any] | None](
+        success=True,
+        data={
+            "status": last.status,
+            "items_count": last.items_count,
+            "duration_ms": last.duration_ms,
+            "completed_at": str(last.completed_at) if last.completed_at else None,
+            "error_message": last.error_message,
+        },
+    )
 
 
 # ── History Fetch from BrsApi (Crypto / Gold / Currency) ──────────────
@@ -2777,18 +2946,26 @@ async def sync_crypto_history(
     fail = sum(1 for r in reports if not r.success)
     total_ms = sum(r.duration_ms for r in reports)
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "total_symbols": len(reports),
-        "success": success,
-        "failed": fail,
-        "total_rows": total_rows,
-        "duration_ms": round(total_ms, 1),
-        "results": [
-            {"symbol": r.symbol, "rows": r.record_count, "success": r.success,
-             "error": r.error, "duration_ms": round(r.duration_ms, 1)}
-            for r in reports[:50]
-        ],
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "total_symbols": len(reports),
+            "success": success,
+            "failed": fail,
+            "total_rows": total_rows,
+            "duration_ms": round(total_ms, 1),
+            "results": [
+                {
+                    "symbol": r.symbol,
+                    "rows": r.record_count,
+                    "success": r.success,
+                    "error": r.error,
+                    "duration_ms": round(r.duration_ms, 1),
+                }
+                for r in reports[:50]
+            ],
+        },
+    )
 
 
 @router.post("/manage/sync-gold-currency-history", summary="Fetch gold/currency history from BrsApi")
@@ -2807,18 +2984,26 @@ async def sync_gold_currency_history(
     fail = sum(1 for r in reports if not r.success)
     total_ms = sum(r.duration_ms for r in reports)
 
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "total_symbols": len(reports),
-        "success": success,
-        "failed": fail,
-        "total_rows": total_rows,
-        "duration_ms": round(total_ms, 1),
-        "results": [
-            {"symbol": r.symbol, "rows": r.record_count, "success": r.success,
-             "error": r.error, "duration_ms": round(r.duration_ms, 1)}
-            for r in reports[:50]
-        ],
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "total_symbols": len(reports),
+            "success": success,
+            "failed": fail,
+            "total_rows": total_rows,
+            "duration_ms": round(total_ms, 1),
+            "results": [
+                {
+                    "symbol": r.symbol,
+                    "rows": r.record_count,
+                    "success": r.success,
+                    "error": r.error,
+                    "duration_ms": round(r.duration_ms, 1),
+                }
+                for r in reports[:50]
+            ],
+        },
+    )
 
 
 @router.post("/manage/import-json-history", summary="Import JSON files into history tables")
@@ -2842,15 +3027,37 @@ async def import_json_history(
     CURRENCY_TABLE = "brsapi_gold_currency_pro_daily_history"
 
     GOLD_SYMBOLS = {
-        "IR_GOLD_18K", "IR_GOLD_24K", "IR_GOLD_MELTED",
-        "IR_COIN_1G", "IR_COIN_BAHAR", "IR_COIN_EMAMI",
-        "IR_COIN_HALF", "IR_COIN_QUARTER",
+        "IR_GOLD_18K",
+        "IR_GOLD_24K",
+        "IR_GOLD_MELTED",
+        "IR_COIN_1G",
+        "IR_COIN_BAHAR",
+        "IR_COIN_EMAMI",
+        "IR_COIN_HALF",
+        "IR_COIN_QUARTER",
     }
-    GOLD_SYMBOLS.update({f"IR_PCOIN_{s}" for s in [
-        "1-1G", "1-2G", "1-3G", "1-4G", "1-5G",
-        "100MG", "1G", "200MG", "300MG", "400MG",
-        "500MG", "600MG", "700MG", "800MG", "900MG",
-    ]})
+    GOLD_SYMBOLS.update(
+        {
+            f"IR_PCOIN_{s}"
+            for s in [
+                "1-1G",
+                "1-2G",
+                "1-3G",
+                "1-4G",
+                "1-5G",
+                "100MG",
+                "1G",
+                "200MG",
+                "300MG",
+                "400MG",
+                "500MG",
+                "600MG",
+                "700MG",
+                "800MG",
+                "900MG",
+            ]
+        }
+    )
 
     def _num(v):
         if v is None:
@@ -2888,21 +3095,27 @@ async def import_json_history(
                 continue
             try:
                 if table == CRYPTO_TABLE:
-                    await session.execute(text(f"""
+                    await session.execute(
+                        text(f"""
                         INSERT INTO {table} (symbol, date, price_open, price_high, price_low, price_close, volume)
                         VALUES (:sym, :date, :o, :h, :l, :c, :v)
                         ON CONFLICT (symbol, date) DO UPDATE SET
                             price_open = EXCLUDED.price_open, price_high = EXCLUDED.price_high,
                             price_low = EXCLUDED.price_low, price_close = EXCLUDED.price_close, volume = EXCLUDED.volume
-                    """), {"sym": symbol, "date": date, "o": o, "h": h, "l": lo, "c": c, "v": v})
+                    """),
+                        {"sym": symbol, "date": date, "o": o, "h": h, "l": lo, "c": c, "v": v},
+                    )
                 else:
-                    await session.execute(text(f"""
+                    await session.execute(
+                        text(f"""
                         INSERT INTO {table} (symbol, date, price_open, price_high, price_low, price_close)
                         VALUES (:sym, :date, :o, :h, :l, :c)
                         ON CONFLICT (symbol, date) DO UPDATE SET
                             price_open = EXCLUDED.price_open, price_high = EXCLUDED.price_high,
                             price_low = EXCLUDED.price_low, price_close = EXCLUDED.price_close
-                    """), {"sym": symbol, "date": date, "o": o, "h": h, "l": lo, "c": c})
+                    """),
+                        {"sym": symbol, "date": date, "o": o, "h": h, "l": lo, "c": c},
+                    )
                 inserted += 1
             except Exception:
                 skipped += 1
@@ -2926,12 +3139,15 @@ async def import_json_history(
             files_count += 1
 
     elapsed = _time.time() - t0
-    return ApiResponse[dict[str, Any]](success=True, data={
-        "total_inserted": total_inserted,
-        "total_skipped": total_skipped,
-        "files_imported": files_count,
-        "duration_s": round(elapsed, 1),
-    })
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "total_inserted": total_inserted,
+            "total_skipped": total_skipped,
+            "files_imported": files_count,
+            "duration_s": round(elapsed, 1),
+        },
+    )
 
 
 @router.get("/codal/{symbol}", summary="Codal financial data for a symbol")
@@ -2946,24 +3162,38 @@ async def get_codal_data(
 
     # 1. Audit summary (financial metrics)
     try:
-        r = await session.execute(text("""
+        r = await session.execute(
+            text("""
             SELECT revenue, net_profit, total_assets, total_equity, eps,
                    roe, roa, gross_margin, net_margin, current_ratio,
                    debt_to_equity, asset_turnover, revenue_growth, net_profit_growth,
                    health_score, health_classification, forensic_risk,
                    earnings_quality_score, analysis_status
             FROM codal_audit_summary WHERE symbol = :sym LIMIT 1
-        """), {"sym": symbol})
+        """),
+            {"sym": symbol},
+        )
         row = r.fetchone()
         if row:
             result["audit"] = {
-                "revenue": row[0], "net_profit": row[1], "total_assets": row[2],
-                "total_equity": row[3], "eps": row[4], "roe": row[5], "roa": row[6],
-                "gross_margin": row[7], "net_margin": row[8], "current_ratio": row[9],
-                "debt_to_equity": row[10], "asset_turnover": row[11],
-                "revenue_growth": row[12], "net_profit_growth": row[13],
-                "health_score": row[14], "health_classification": row[15],
-                "forensic_risk": row[16], "earnings_quality_score": row[17],
+                "revenue": row[0],
+                "net_profit": row[1],
+                "total_assets": row[2],
+                "total_equity": row[3],
+                "eps": row[4],
+                "roe": row[5],
+                "roa": row[6],
+                "gross_margin": row[7],
+                "net_margin": row[8],
+                "current_ratio": row[9],
+                "debt_to_equity": row[10],
+                "asset_turnover": row[11],
+                "revenue_growth": row[12],
+                "net_profit_growth": row[13],
+                "health_score": row[14],
+                "health_classification": row[15],
+                "forensic_risk": row[16],
+                "earnings_quality_score": row[17],
                 "analysis_status": row[18],
             }
     except Exception:
@@ -2971,34 +3201,46 @@ async def get_codal_data(
 
     # 2. Latest financial statement (parsed_data)
     try:
-        r = await session.execute(text("""
+        r = await session.execute(
+            text("""
             SELECT title, report_type, parsed_data, imported_at
             FROM codal_financial_statements WHERE symbol = :sym
             ORDER BY imported_at DESC LIMIT 1
-        """), {"sym": symbol})
+        """),
+            {"sym": symbol},
+        )
         row = r.fetchone()
         if row:
             parsed = row[2]
             if isinstance(parsed, str):
                 parsed = _json.loads(parsed)
             result["financial"] = {
-                "title": row[0], "report_type": row[1],
-                "parsed_data": parsed, "date": safe_row_str(row, idx=3, default=None),
+                "title": row[0],
+                "report_type": row[1],
+                "parsed_data": parsed,
+                "date": safe_row_str(row, idx=3, default=None),
             }
     except Exception:
         result["financial"] = None
 
     # 3. Recent announcements
     try:
-        r = await session.execute(text("""
+        r = await session.execute(
+            text("""
             SELECT company_name, report_type, period, audit_status, publish_date, summary, attachment_url
             FROM codal_reports WHERE symbol = :sym
             ORDER BY publish_date DESC LIMIT 10
-        """), {"sym": symbol})
+        """),
+            {"sym": symbol},
+        )
         result["announcements"] = [
             {
-                "company": row[0], "type": row[1], "period": row[2],
-                "audit": row[3], "date": row[4], "summary": row[5],
+                "company": row[0],
+                "type": row[1],
+                "period": row[2],
+                "audit": row[3],
+                "date": row[4],
+                "summary": row[5],
                 "url": row[6],
             }
             for row in r.fetchall()
@@ -3008,11 +3250,14 @@ async def get_codal_data(
 
     # 4. Report type counts
     try:
-        r = await session.execute(text("""
+        r = await session.execute(
+            text("""
             SELECT report_type, COUNT(*) as cnt
             FROM codal_reports WHERE symbol = :sym
             GROUP BY report_type ORDER BY cnt DESC
-        """), {"sym": symbol})
+        """),
+            {"sym": symbol},
+        )
         result["report_types"] = {row[0]: row[1] for row in r.fetchall()}
     except Exception:
         result["report_types"] = {}
@@ -3025,14 +3270,15 @@ async def codal_list(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """List all symbols with their codal health score."""
-    r = await session.execute(text("""
+    r = await session.execute(
+        text("""
         SELECT symbol, health_score, health_classification, revenue, roe, net_margin
         FROM codal_audit_summary
         ORDER BY health_score DESC NULLS LAST
-    """))
+    """)
+    )
     items = [
-        {"symbol": row[0], "health": row[1], "class": row[2],
-         "revenue": row[3], "roe": row[4], "margin": row[5]}
+        {"symbol": row[0], "health": row[1], "class": row[2], "revenue": row[3], "roe": row[4], "margin": row[5]}
         for row in r.fetchall()
     ]
     return ApiResponse[dict[str, Any]](success=True, data={"symbols": items, "total": len(items)})
