@@ -834,7 +834,7 @@ async def get_migration_status(
                         "row_count": 0,
                         "last_updated": None,
                         "status": "missing",
-                        "error": str(exc)[:100],
+                        "error": _safe_error_message(exc)[:100],
                     }
                 )
 

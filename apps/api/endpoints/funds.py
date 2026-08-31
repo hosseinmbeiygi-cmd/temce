@@ -971,7 +971,7 @@ async def fund_overview(
             return ApiResponse(success=True, data=data)
         except Exception as exc:
             logger.exception("Fund overview failed")
-            return ApiResponse(success=False, data={}, error={"message": str(exc)})
+            return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
 
 
 @router.get("/nav-history", summary="تاریخچه NAV گروهی چند صندوق (برای اسپارکلاین‌ها)")

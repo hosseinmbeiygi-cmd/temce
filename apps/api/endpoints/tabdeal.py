@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
+from apps.api.error_handlers import safe_error_message
 from core.config import settings
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
@@ -48,7 +49,7 @@ async def tabdeal_ping() -> ApiResponse[dict]:
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal ping failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -61,7 +62,7 @@ async def tabdeal_time() -> ApiResponse[dict]:
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal server time failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -80,7 +81,7 @@ async def tabdeal_markets(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal markets query failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
 
 
 @router.get("/depth/{symbol}", summary="Tabdeal order book")
@@ -91,7 +92,7 @@ async def tabdeal_depth(symbol: str, limit: int = Query(100, ge=1, le=5000)) -> 
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal depth query failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -104,7 +105,7 @@ async def tabdeal_public_trades(symbol: str, limit: int = Query(50, ge=1, le=100
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal public trades failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -122,7 +123,7 @@ async def sync_tabdeal_markets(session: AsyncSession = Depends(get_db_session)) 
         return ApiResponse(success=True, data={"synced_markets": count})
     except Exception as exc:
         logger.exception("Tabdeal sync markets failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await svc.client.close()
 
@@ -139,7 +140,7 @@ async def sync_tabdeal_orders(
         return ApiResponse(success=True, data={"synced_orders": count})
     except Exception as exc:
         logger.exception("Tabdeal sync orders failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await svc.client.close()
 
@@ -157,7 +158,7 @@ async def sync_tabdeal_trades(
         return ApiResponse(success=True, data={"synced_trades": count})
     except Exception as exc:
         logger.exception("Tabdeal sync trades failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await svc.client.close()
 
@@ -170,7 +171,7 @@ async def sync_tabdeal_account(session: AsyncSession = Depends(get_db_session)) 
         return ApiResponse(success=True, data={"status": "synced", "balances": len(data.get("balances", []))})
     except Exception as exc:
         logger.exception("Tabdeal sync account failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await svc.client.close()
 
@@ -187,7 +188,7 @@ async def sync_tabdeal_fapi_orders(
         return ApiResponse(success=True, data={"synced_orders": count})
     except Exception as exc:
         logger.exception("Tabdeal sync fapi orders failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await svc.client.close()
 
@@ -211,7 +212,7 @@ async def get_tabdeal_orders(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get orders failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
 
 
 @router.get("/trades", summary="Tabdeal trades from DB")
@@ -227,7 +228,7 @@ async def get_tabdeal_trades(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get trades failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
 
 
 @router.get("/account", summary="Tabdeal account snapshot from DB")
@@ -240,7 +241,7 @@ async def get_tabdeal_account(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get account failed")
-        return ApiResponse(success=False, data=None, error=str(exc))
+        return ApiResponse(success=False, data=None, error=safe_error_message(exc))
 
 
 @router.get("/balances", summary="Tabdeal balances from DB")
@@ -253,7 +254,7 @@ async def get_tabdeal_balances(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get balances failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -269,7 +270,7 @@ async def live_tabdeal_account() -> ApiResponse[dict]:
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live account failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -284,7 +285,7 @@ async def live_tabdeal_open_orders(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live open orders failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -302,7 +303,7 @@ async def live_tabdeal_my_trades(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live my trades failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -317,7 +318,7 @@ async def live_tabdeal_fapi_positions(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live fapi positions failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -330,7 +331,7 @@ async def live_tabdeal_fapi_account() -> ApiResponse[dict]:
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live fapi account failed")
-        return ApiResponse(success=False, data={}, error=str(exc))
+        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
     finally:
         await client.close()
 
@@ -343,6 +344,6 @@ async def live_tabdeal_fapi_balance() -> ApiResponse[list]:
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live fapi balance failed")
-        return ApiResponse(success=False, data=[], error=str(exc))
+        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
     finally:
         await client.close()

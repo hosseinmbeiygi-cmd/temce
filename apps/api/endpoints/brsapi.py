@@ -46,7 +46,7 @@ async def brsapi_health(
         logger.exception("BrsApi health check failed")
         return ApiResponse[dict[str, Any]](
             success=False,
-            data={"status": "error", "message": str(exc)},
+            data={"status": "error", "message": _safe_error_message(exc)},
         )
 
 
@@ -68,7 +68,7 @@ async def get_commodity_prices(
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to fetch commodity prices")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -85,7 +85,7 @@ async def get_commodity_categories(
         return ApiResponse[list[dict[str, Any]]](success=True, data=categories)
     except Exception as exc:
         logger.exception("Failed to fetch commodity categories")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
 
 
 # ── Cryptocurrency ────────────────────────────────────────────────
@@ -110,7 +110,7 @@ async def get_crypto_prices(
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to fetch crypto prices")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
 
 
 @router.get(
@@ -127,7 +127,7 @@ async def get_top_crypto(
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to fetch top crypto")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
 
 
 # ── Gold & Coins ──────────────────────────────────────────────────
@@ -147,7 +147,7 @@ async def get_gold_coin_prices(
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to fetch gold/coin prices")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
 
 
 # gold-24h endpoint removed — data source no longer synced.
@@ -171,7 +171,7 @@ async def get_currency_prices(
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to fetch currency prices")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
 
 
 # currency-24h endpoint removed — data source no longer synced.
@@ -346,7 +346,7 @@ async def get_historical_daily(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=limit, total_pages=0),
-            error={"message": str(exc)},
+            error={"message": _safe_error_message(exc)},
         )
 
 
@@ -469,7 +469,7 @@ async def get_codal_announcements(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=page_size, total_pages=1),
-            error={"message": str(exc)},
+            error={"message": _safe_error_message(exc)},
         )
 
 
@@ -592,7 +592,7 @@ async def get_codal_announcements_lazy(
 
     except Exception as exc:
         logger.exception("Failed to fetch lazy codal announcements for %s", symbol)
-        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
+        return ApiResponse[dict[str, Any]](success=False, error={"message": _safe_error_message(exc)})
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1112,7 +1112,7 @@ async def sync_section(
             logger.exception("NAV sync failed for symbol %s", symbol)
             return ApiResponse[dict[str, Any]](
                 success=False,
-                data={"section_id": section_id, "success": False, "items_count": 0, "error": str(exc)},
+                data={"section_id": section_id, "success": False, "items_count": 0, "error": _safe_error_message(exc)},
             )
 
     # Candlestick has a dedicated convenience method that attaches
@@ -1137,7 +1137,7 @@ async def sync_section(
             logger.exception("Sync failed for section %s", section_id)
             return ApiResponse[dict[str, Any]](
                 success=False,
-                data={"section_id": section_id, "error": str(exc)},
+                data={"section_id": section_id, "error": _safe_error_message(exc)},
             )
 
     params: dict[str, str] = dict(cfg.get("default_params") or {})
@@ -1367,7 +1367,7 @@ async def daily_usage_report(
         logger.exception("BrsApi daily usage query failed")
         return ApiResponse[dict[str, Any]](
             success=False,
-            data={"days": [], "summary": {}, "live": None, "error": str(exc)},
+            data={"days": [], "summary": {}, "live": None, "error": _safe_error_message(exc)},
         )
 
     items: list[dict[str, Any]] = []
@@ -1429,7 +1429,7 @@ async def flush_usage_recorder() -> ApiResponse[dict[str, Any]]:
         return ApiResponse[dict[str, Any]](success=True, data=result)
     except Exception as exc:
         logger.exception("BrsApi usage recorder flush failed")
-        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
+        return ApiResponse[dict[str, Any]](success=False, error={"message": _safe_error_message(exc)})
 
 
 # ── Symbol Details (brsapi_symbol_details) ────────────────────────
@@ -1527,7 +1527,7 @@ async def list_symbol_details(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult[dict[str, Any]](items=[], total=0, page=1, page_size=page_size, total_pages=1),
-            error={"message": str(exc)},
+            error={"message": _safe_error_message(exc)},
         )
 
 
@@ -1561,7 +1561,7 @@ async def get_symbol_detail(
         return ApiResponse[dict[str, Any]](success=True, data=_symbol_detail_dict(row))
     except Exception as exc:
         logger.exception("Failed to fetch symbol detail for %s", symbol)
-        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
+        return ApiResponse[dict[str, Any]](success=False, error={"message": _safe_error_message(exc)})
 
 
 # ETF symbol list moved to brsapi/constants.py so it can be reused
@@ -1621,7 +1621,7 @@ async def sync_nav_all(
                 {
                     "symbol": symbol,
                     "success": False,
-                    "error": str(exc),
+                    "error": _safe_error_message(exc),
                 }
             )
 
@@ -1701,7 +1701,7 @@ async def sync_top_symbols(
                 {
                     "symbol": symbol,
                     "success": False,
-                    "error": str(exc),
+                    "error": _safe_error_message(exc),
                 }
             )
 
@@ -1787,7 +1787,7 @@ async def sync_all_history(
                 {
                     "symbol": symbol,
                     "success": False,
-                    "error": str(exc),
+                    "error": _safe_error_message(exc),
                 }
             )
 
@@ -1885,7 +1885,7 @@ async def _run_candle_backfill(max_symbols: int, allow_weekend: bool) -> None:
     except Exception as exc:
         logger.exception("Manual candlestick backfill failed")
         state["status"] = "error"
-        state["error"] = str(exc)
+        state["error"] = _safe_error_message(exc)
     finally:
         state["finished_at"] = datetime.now().isoformat()
         if state["status"] == "running":
@@ -2037,7 +2037,7 @@ async def _run_shareholder_backfill(max_symbols: int, allow_weekend: bool) -> No
     except Exception as exc:
         logger.exception("Manual shareholder backfill failed")
         state["status"] = "error"
-        state["error"] = str(exc)
+        state["error"] = _safe_error_message(exc)
     finally:
         state["finished_at"] = datetime.now().isoformat()
         if state["status"] == "running":
@@ -2193,7 +2193,7 @@ async def _run_history_price_backfill(max_symbols: int, allow_weekend: bool) -> 
     except Exception as exc:
         logger.exception("Manual history-price backfill failed")
         state["status"] = "error"
-        state["error"] = str(exc)
+        state["error"] = _safe_error_message(exc)
     finally:
         state["finished_at"] = datetime.now().isoformat()
         if state["status"] == "running":
@@ -2230,7 +2230,7 @@ async def _run_history_real_legal_backfill(max_symbols: int, allow_weekend: bool
     except Exception as exc:
         logger.exception("Manual history-real-legal backfill failed")
         state["status"] = "error"
-        state["error"] = str(exc)
+        state["error"] = _safe_error_message(exc)
     finally:
         state["finished_at"] = datetime.now().isoformat()
         if state["status"] == "running":
@@ -2675,7 +2675,7 @@ async def sync_status(
         except Exception as exc:
             logger.warning("sync_status failed for %s: %s", section_id, exc)
             entry["status"] = "error"
-            entry["error"] = str(exc)
+            entry["error"] = _safe_error_message(exc)
             result[key] = entry
             continue
 

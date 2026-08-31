@@ -40,7 +40,11 @@ def _calc_moving_averages(closes: list[float]) -> dict[str, float | None]:
     sma20 = sum(closes[-20:]) / min(len(closes[-20:]), 20) if len(closes) >= 20 else None
     sma50 = sum(closes[-50:]) / min(len(closes[-50:]), 50) if len(closes) >= 50 else None
     sma200 = sum(closes[-200:]) / min(len(closes[-200:]), 200) if len(closes) >= 200 else None
-    return {"sma_20": round(sma20) if sma20 else None, "sma_50": round(sma50) if sma50 else None, "sma_200": round(sma200) if sma200 else None}
+    return {
+        "sma_20": round(sma20) if sma20 else None,
+        "sma_50": round(sma50) if sma50 else None,
+        "sma_200": round(sma200) if sma200 else None,
+    }
 
 
 def _calc_rsi(closes: list[float], period: int = 14) -> float | None:
@@ -74,7 +78,12 @@ def _calc_macd(closes: list[float]) -> dict[str, Any]:
         signal_type = "sell"
     else:
         signal_type = "neutral"
-    return {"macd": round(macd_line, 1), "signal": round(signal_line, 1), "histogram": round(macd_line - signal_line, 1), "signal_type": signal_type}
+    return {
+        "macd": round(macd_line, 1),
+        "signal": round(signal_line, 1),
+        "histogram": round(macd_line - signal_line, 1),
+        "signal_type": signal_type,
+    }
 
 
 def _ema(data: list[float], period: int) -> list[float]:
@@ -203,7 +212,11 @@ def _volume_analysis(history: list[dict[str, Any]]) -> dict[str, Any]:
         return {"avg_volume": 0, "last_volume": 0, "volume_ratio": 0}
     avg_vol = sum(volumes) / len(volumes)
     last_vol = volumes[-1]
-    return {"avg_volume": round(avg_vol), "last_volume": last_vol, "volume_ratio": round(last_vol / avg_vol, 2) if avg_vol > 0 else 0}
+    return {
+        "avg_volume": round(avg_vol),
+        "last_volume": last_vol,
+        "volume_ratio": round(last_vol / avg_vol, 2) if avg_vol > 0 else 0,
+    }
 
 
 @router.get("/{symbol}/comprehensive-analysis")
@@ -314,8 +327,10 @@ async def comprehensive_analysis(
         rsi = _calc_rsi(closes)
         macd = _calc_macd(closes)
         bb = _calc_bollinger(closes)
-        fib = _calc_fibonacci(max(highs[-60:]) if len(highs) >= 60 else max(highs) or current_price,
-                              min(lows[-60:]) if len(lows) >= 60 else min(lows) or current_price)
+        fib = _calc_fibonacci(
+            max(highs[-60:]) if len(highs) >= 60 else max(highs) or current_price,
+            min(lows[-60:]) if len(lows) >= 60 else min(lows) or current_price,
+        )
         vol = _volume_analysis(history)
         trend = _assess_trend(closes)
 
@@ -351,8 +366,7 @@ async def comprehensive_analysis(
             "total_trade_volume": total_trade_volume,
             "holders_count": len(holders) if holders else 0,
             "top_holders": [
-                {"name": h.get("shareholder_name", ""), "pct": h.get("percent", 0)}
-                for h in (holders or [])[:5]
+                {"name": h.get("shareholder_name", ""), "pct": h.get("percent", 0)} for h in (holders or [])[:5]
             ],
         }
 
@@ -382,7 +396,9 @@ async def comprehensive_analysis(
         if current_price <= sr.get("support1", current_price):
             catalysts["negative_risks"].append("قیمت در نزدیکی حمایت — ریسک شکست")
         if price_change_pct < -5:
-            catalysts["negative_risks"].append(f"کاهش شدید قیمت ({abs(round(price_change_pct, 1))}%) در آخرین روز معاملاتی")
+            catalysts["negative_risks"].append(
+                f"کاهش شدید قیمت ({abs(round(price_change_pct, 1))}%) در آخرین روز معاملاتی"
+            )
         if pe > 0 and group_pe > 0 and pe > group_pe * 1.3:
             catalysts["negative_risks"].append(f"P/E سهم ({pe}) بالاتر از میانگین صنعت ({group_pe})")
         if pe > 0 and group_pe > 0 and pe < group_pe * 0.7:
@@ -393,7 +409,9 @@ async def comprehensive_analysis(
             catalysts["negative_risks"].append(f"شناوری پایین ({free_float}%) — نقدشوندگی محدود")
 
         # ── 7. SCENARIOS & RISK MANAGEMENT ──
-        scenarios = _generate_scenarios(current_price, sr.get("support1", current_price), sr.get("resistance1", current_price), rsi)
+        scenarios = _generate_scenarios(
+            current_price, sr.get("support1", current_price), sr.get("resistance1", current_price), rsi
+        )
 
         # ── Dashboard Summary ──
         signal = "buy" if rsi and rsi < 30 else "sell" if rsi and rsi > 70 else "hold"
@@ -403,7 +421,9 @@ async def comprehensive_analysis(
         dashboard = {
             "signal": signal,
             "fair_value": valuation.get("estimated_fair_value", 0),
-            "fair_value_vs_price_pct": round((valuation.get("estimated_fair_value", 0) / current_price - 1) * 100, 1) if current_price > 0 and valuation.get("estimated_fair_value", 0) > 0 else 0,
+            "fair_value_vs_price_pct": round((valuation.get("estimated_fair_value", 0) / current_price - 1) * 100, 1)
+            if current_price > 0 and valuation.get("estimated_fair_value", 0) > 0
+            else 0,
             "best_catalyst": catalysts["positive_signals"][0] if catalysts["positive_signals"] else "—",
             "worst_risk": catalysts["negative_risks"][0] if catalysts["negative_risks"] else "—",
             "stop_loss": scenarios["risk_management"]["stop_loss"],
@@ -430,4 +450,4 @@ async def comprehensive_analysis(
         }
     except Exception as exc:
         logger.exception("Comprehensive analysis failed for %s", symbol)
-        return {"success": False, "error": {"message": str(exc)}}
+        return {"success": False, "error": {"message": safe_error_message(exc)}}

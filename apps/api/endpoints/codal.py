@@ -82,9 +82,6 @@ def _to_report_response(item: Any) -> CodalReportResponse:
 router = APIRouter()
 
 
-
-
-
 @router.get("")
 async def list_disclosures(
     search: CodalSearchRequest = Depends(),
@@ -113,7 +110,9 @@ async def list_disclosures(
         return ApiResponse[CodalListResponse](
             success=False,
             data=CodalListResponse(items=[], total=0, page=1, page_size=50),
-            error={"message": "Failed to fetch Codal data — please ensure brsapi_codal_announcements table is populated"},
+            error={
+                "message": "Failed to fetch Codal data — please ensure brsapi_codal_announcements table is populated"
+            },
         )
 
 
@@ -152,46 +151,58 @@ async def brsapi_search_announcements(
 
     try:
         # Count
-        count_r = await session.execute(text(f"""
+        count_r = await session.execute(
+            text(f"""
             SELECT COUNT(*) FROM codal_reports WHERE {where}
-        """), params)
+        """),
+            params,
+        )
         total = count_r.scalar() or 0
 
         # Fetch page
-        rows_r = await session.execute(text(f"""
+        rows_r = await session.execute(
+            text(f"""
             SELECT symbol, company_name, report_type, period, audit_status,
                    publish_date, summary, attachment_url
             FROM codal_reports WHERE {where}
             ORDER BY publish_date DESC
             LIMIT {limit} OFFSET {offset}
-        """), params)
+        """),
+            params,
+        )
 
         announcements = []
         for row in rows_r.fetchall():
-            announcements.append({
-                "l18": row[0], "l30": safe_row_str(row, idx=1),
-                "title": safe_row_str(row, idx=6) or safe_row_str(row, idx=2),
-                "code": safe_row_str(row, idx=2),
-                "date_title": safe_row_str(row, idx=5),
-                "date_send": safe_row_str(row, idx=5),
-                "time_send": "",
-                "date_publish": safe_row_str(row, idx=5),
-                "time_publish": "",
-                "link": safe_row_str(row, idx=7),
-                "link_pdf": "",
-                "link_excel": "",
-                "link_attachment": safe_row_str(row, idx=7),
-                "audit_status": safe_row_str(row, idx=4),
-            })
+            announcements.append(
+                {
+                    "l18": row[0],
+                    "l30": safe_row_str(row, idx=1),
+                    "title": safe_row_str(row, idx=6) or safe_row_str(row, idx=2),
+                    "code": safe_row_str(row, idx=2),
+                    "date_title": safe_row_str(row, idx=5),
+                    "date_send": safe_row_str(row, idx=5),
+                    "time_send": "",
+                    "date_publish": safe_row_str(row, idx=5),
+                    "time_publish": "",
+                    "link": safe_row_str(row, idx=7),
+                    "link_pdf": "",
+                    "link_excel": "",
+                    "link_attachment": safe_row_str(row, idx=7),
+                    "audit_status": safe_row_str(row, idx=4),
+                }
+            )
 
-        return ApiResponse[dict[str, Any]](success=True, data={
-            "count_announcement": total,
-            "count_page": (total + limit - 1) // limit,
-            "announcement": announcements,
-        })
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={
+                "count_announcement": total,
+                "count_page": (total + limit - 1) // limit,
+                "announcement": announcements,
+            },
+        )
     except Exception as exc:
         logger.exception("Codal search failed")
-        return ApiResponse[dict[str, Any]](success=False, error={"message": str(exc)})
+        return ApiResponse[dict[str, Any]](success=False, error={"message": safe_error_message(exc)})
 
 
 @router.get("/announcements")
@@ -232,7 +243,7 @@ async def search_announcements(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=False,
             data=PaginatedResult(items=[], total=0, page=1, page_size=page_size, total_pages=1),
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -308,17 +319,22 @@ async def financial_reports(
         from models.codal_financial import CodalFinancialStatementModel
 
         rows = (
-            await session.execute(
-                select(CodalFinancialStatementModel)
-                .where(CodalFinancialStatementModel.symbol == code)
-                .order_by(CodalFinancialStatementModel.report_date.desc())
-                .limit(8)
+            (
+                await session.execute(
+                    select(CodalFinancialStatementModel)
+                    .where(CodalFinancialStatementModel.symbol == code)
+                    .order_by(CodalFinancialStatementModel.report_date.desc())
+                    .limit(8)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         quarters: list[dict[str, Any]] = []
         for r in rows:
             pd = r.parsed_data or {}
+
             # extract key P&L items from parsed Excel data (Persian labels)
             def _get(data: dict[str, Any], *labels: str) -> float:
                 for lbl in labels:
@@ -329,16 +345,18 @@ async def financial_reports(
                             continue
                 return 0.0
 
-            quarters.append({
-                "period": str(r.report_date or r.report_type or ""),
-                "report_type": r.report_type or "",
-                "revenue": _get(pd, "فروش", "درآمد فروش", "درآمد عملیاتی"),
-                "cost": _get(pd, "بهای تمام شده", "بهای تمام شده کالای فروش رفته"),
-                "gross_profit": _get(pd, "سود ناخالص", "سود (زیان) ناخالص"),
-                "operating_profit": _get(pd, "سود عملیاتی", "سود (زیان) عملیاتی"),
-                "net_profit": _get(pd, "سود خالص", "سود (زیان) خالص", "سود (زیان) ویژه"),
-                "eps": _get(pd, "سود هر سهم", "سود (زیان) هر سهم"),
-            })
+            quarters.append(
+                {
+                    "period": str(r.report_date or r.report_type or ""),
+                    "report_type": r.report_type or "",
+                    "revenue": _get(pd, "فروش", "درآمد فروش", "درآمد عملیاتی"),
+                    "cost": _get(pd, "بهای تمام شده", "بهای تمام شده کالای فروش رفته"),
+                    "gross_profit": _get(pd, "سود ناخالص", "سود (زیان) ناخالص"),
+                    "operating_profit": _get(pd, "سود عملیاتی", "سود (زیان) عملیاتی"),
+                    "net_profit": _get(pd, "سود خالص", "سود (زیان) خالص", "سود (زیان) ویژه"),
+                    "eps": _get(pd, "سود هر سهم", "سود (زیان) هر سهم"),
+                }
+            )
 
         return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": quarters})
     except Exception:
@@ -358,28 +376,34 @@ async def dividend_history(
         from models.option import CorporateActionModel
 
         rows = (
-            await session.execute(
-                select(CorporateActionModel)
-                .where(
-                    CorporateActionModel.symbol == code,
-                    CorporateActionModel.action_type == "dividend",
+            (
+                await session.execute(
+                    select(CorporateActionModel)
+                    .where(
+                        CorporateActionModel.symbol == code,
+                        CorporateActionModel.action_type == "dividend",
+                    )
+                    .order_by(CorporateActionModel.ex_date.desc())
+                    .limit(20)
                 )
-                .order_by(CorporateActionModel.ex_date.desc())
-                .limit(20)
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         dividends = []
         for r in rows:
             params = r.params or {}
             cps = params.get("dividend") if isinstance(params, dict) else None
-            dividends.append({
-                "date": str(r.ex_date) if r.ex_date else "",
-                "cash_per_share": float(cps or 0),
-                "total_payout": float(cps or 0) * 0,  # shares unknown here — left 0
-                "type": "نقدی",
-                "meeting": str(r.raw_text or "")[:80],
-            })
+            dividends.append(
+                {
+                    "date": str(r.ex_date) if r.ex_date else "",
+                    "cash_per_share": float(cps or 0),
+                    "total_payout": float(cps or 0) * 0,  # shares unknown here — left 0
+                    "type": "نقدی",
+                    "meeting": str(r.raw_text or "")[:80],
+                }
+            )
         return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "dividends": dividends})
     except Exception:
         logger.exception("Failed to load dividends for %s", code)
@@ -434,10 +458,10 @@ async def codal_analysis(
         from models.codal import CodalAuditSummaryModel
 
         row = (
-            await session.execute(
-                select(CodalAuditSummaryModel).where(CodalAuditSummaryModel.symbol == code)
-            )
-        ).scalars().first()
+            (await session.execute(select(CodalAuditSummaryModel).where(CodalAuditSummaryModel.symbol == code)))
+            .scalars()
+            .first()
+        )
         if row:
             audit = {
                 "roe_pct": (row.roe or 0) * 100 if row.roe else 0,
@@ -482,8 +506,13 @@ async def codal_analysis(
     top_pct = max((h.get("percent") or 0) for h in holders) if holders else 0
 
     price_vs_low_pct = (
-        ((price_last - (snap.get("price_min") or 0)) / max((snap.get("price_max") or price_last) - (snap.get("price_min") or 0), 1) * 100)
-        if price_last else 0
+        (
+            (price_last - (snap.get("price_min") or 0))
+            / max((snap.get("price_max") or price_last) - (snap.get("price_min") or 0), 1)
+            * 100
+        )
+        if price_last
+        else 0
     )
     volume_vs_base = (snap.get("trade_volume") or 0) / max(snap.get("base_volume") or 1, 1)
 

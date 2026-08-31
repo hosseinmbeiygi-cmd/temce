@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
+from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -60,11 +61,11 @@ async def populate_profiles(
         )
     except Exception as exc:
         logger.exception("Populate profiles failed: %s", exc)
-        _last_run["last_error"] = str(exc)
+        _last_run["last_error"] = safe_error_message(exc)
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"summary": {"total": 0, "created": 0, "updated": 0, "skipped": 0}},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -97,7 +98,7 @@ async def populate_symbol(
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"symbol": symbol, "status": "error"},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -132,11 +133,11 @@ async def run_cycle(
         )
     except Exception as exc:
         logger.exception("Run cycle failed: %s", exc)
-        _last_run["last_error"] = str(exc)
+        _last_run["last_error"] = safe_error_message(exc)
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"buy_signals_count": 0, "buy_signals": []},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -157,31 +158,54 @@ async def screener110_status() -> ApiResponse[dict[str, Any]]:
 async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict[str, Any]]:
     try:
         from sqlalchemy import text
+
         # --- 1. Profile stats ---
-        p_sql = text("SELECT COUNT(*) as total_profiles, COUNT(eps_current) FILTER (WHERE eps_current IS NOT NULL AND eps_current > 0) as with_eps, COUNT(net_operating_profit) FILTER (WHERE net_operating_profit IS NOT NULL AND net_operating_profit > 0) as with_profit, COUNT(gross_margin) FILTER (WHERE gross_margin IS NOT NULL AND gross_margin > 0) as with_margin, COUNT(accumulated_loss) FILTER (WHERE accumulated_loss IS NOT NULL AND accumulated_loss > 0) as with_loss, COUNT(registered_capital) FILTER (WHERE registered_capital IS NOT NULL AND registered_capital > 0) as with_capital, COALESCE(AVG(eps_current),0) as avg_eps, COALESCE(AVG(gross_margin),0) as avg_gross_margin FROM screener_profiles")
+        p_sql = text(
+            "SELECT COUNT(*) as total_profiles, COUNT(eps_current) FILTER (WHERE eps_current IS NOT NULL AND eps_current > 0) as with_eps, COUNT(net_operating_profit) FILTER (WHERE net_operating_profit IS NOT NULL AND net_operating_profit > 0) as with_profit, COUNT(gross_margin) FILTER (WHERE gross_margin IS NOT NULL AND gross_margin > 0) as with_margin, COUNT(accumulated_loss) FILTER (WHERE accumulated_loss IS NOT NULL AND accumulated_loss > 0) as with_loss, COUNT(registered_capital) FILTER (WHERE registered_capital IS NOT NULL AND registered_capital > 0) as with_capital, COALESCE(AVG(eps_current),0) as avg_eps, COALESCE(AVG(gross_margin),0) as avg_gross_margin FROM screener_profiles"
+        )
         r1 = await session.execute(p_sql)
         ps = dict(r1.fetchone()._mapping)
         # --- 2. Signal stats ---
-        s_sql = text("SELECT COUNT(*) as total_signals, COUNT(*) FILTER (WHERE decision = :b) as buy_count, COUNT(*) FILTER (WHERE decision = :nb) as dont_buy_count, COUNT(*) FILTER (WHERE decision = :rk) as risk_reject_count, COUNT(*) FILTER (WHERE decision = :sr) as score_reject_count, COALESCE(AVG(final_score),0) as avg_final_score, COALESCE(MAX(final_score),0) as max_final_score, COUNT(*) FILTER (WHERE outcome_correct = TRUE) as correct_outcomes, COUNT(*) FILTER (WHERE outcome_correct IS NOT NULL) as tracked_outcomes FROM screener_signals")
+        s_sql = text(
+            "SELECT COUNT(*) as total_signals, COUNT(*) FILTER (WHERE decision = :b) as buy_count, COUNT(*) FILTER (WHERE decision = :nb) as dont_buy_count, COUNT(*) FILTER (WHERE decision = :rk) as risk_reject_count, COUNT(*) FILTER (WHERE decision = :sr) as score_reject_count, COALESCE(AVG(final_score),0) as avg_final_score, COALESCE(MAX(final_score),0) as max_final_score, COUNT(*) FILTER (WHERE outcome_correct = TRUE) as correct_outcomes, COUNT(*) FILTER (WHERE outcome_correct IS NOT NULL) as tracked_outcomes FROM screener_signals"
+        )
         r2 = await session.execute(s_sql, {"b": "خرید", "nb": "نخرید", "rk": "رد_ریسک", "sr": "رد_نمره"})
         ss = dict(r2.fetchone()._mapping)
         # --- 3. Score distribution ---
-        d_sql = text("SELECT CASE WHEN final_score >= 80 THEN '80-100' WHEN final_score >= 60 THEN '60-80' WHEN final_score >= 40 THEN '40-60' WHEN final_score >= 20 THEN '20-40' WHEN final_score >= 0 THEN '0-20' ELSE 'no_score' END as bucket, COUNT(*) as cnt FROM screener_signals GROUP BY bucket ORDER BY bucket DESC")
+        d_sql = text(
+            "SELECT CASE WHEN final_score >= 80 THEN '80-100' WHEN final_score >= 60 THEN '60-80' WHEN final_score >= 40 THEN '40-60' WHEN final_score >= 20 THEN '20-40' WHEN final_score >= 0 THEN '0-20' ELSE 'no_score' END as bucket, COUNT(*) as cnt FROM screener_signals GROUP BY bucket ORDER BY bucket DESC"
+        )
         r3 = await session.execute(d_sql)
         distribution = [dict(r._mapping) for r in r3.fetchall()]
         # --- 4. Recent signals ---
-        r4_sql = text("SELECT symbol, final_score, decision, current_price, stop_loss_price, generated_at, score_fundamental, score_valuation, score_institutional, score_technical, score_macro FROM screener_signals ORDER BY generated_at DESC LIMIT 20")
+        r4_sql = text(
+            "SELECT symbol, final_score, decision, current_price, stop_loss_price, generated_at, score_fundamental, score_valuation, score_institutional, score_technical, score_macro FROM screener_signals ORDER BY generated_at DESC LIMIT 20"
+        )
         r4 = await session.execute(r4_sql)
         recent_signals = [dict(r._mapping) for r in r4.fetchall()]
         # --- 5. Top industries ---
-        r5_sql = text("SELECT industry, COUNT(*) as cnt FROM screener_profiles WHERE industry IS NOT NULL AND industry != '' GROUP BY industry ORDER BY cnt DESC LIMIT 10")
+        r5_sql = text(
+            "SELECT industry, COUNT(*) as cnt FROM screener_profiles WHERE industry IS NOT NULL AND industry != '' GROUP BY industry ORDER BY cnt DESC LIMIT 10"
+        )
         r5 = await session.execute(r5_sql)
         top_industries = [dict(r._mapping) for r in r5.fetchall()]
-        data = {"profiles": ps, "signals": ss, "score_distribution": distribution, "recent_signals": recent_signals, "top_industries": top_industries, "system": {"last_populate": _last_run.get("last_populate"), "last_cycle": _last_run.get("last_cycle"), "last_buy_signals": _last_run.get("last_buy_signals", 0), "last_error": _last_run.get("last_error")}}
+        data = {
+            "profiles": ps,
+            "signals": ss,
+            "score_distribution": distribution,
+            "recent_signals": recent_signals,
+            "top_industries": top_industries,
+            "system": {
+                "last_populate": _last_run.get("last_populate"),
+                "last_cycle": _last_run.get("last_cycle"),
+                "last_buy_signals": _last_run.get("last_buy_signals", 0),
+                "last_error": _last_run.get("last_error"),
+            },
+        }
         return ApiResponse[dict[str, Any]](success=True, data=data)
     except Exception as exc:
         logger.exception("Monitor endpoint failed: %s", exc)
-        return ApiResponse[dict[str, Any]](success=False, data={}, error={"message": str(exc)})
+        return ApiResponse[dict[str, Any]](success=False, data={}, error={"message": safe_error_message(exc)})
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -210,7 +234,7 @@ async def screener110_ai_market_report(
         return ApiResponse[dict[str, Any]](
             success=False,
             data={},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -247,7 +271,7 @@ async def screener110_ai_report(
         return ApiResponse[dict[str, Any]](
             success=False,
             data={},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -291,5 +315,5 @@ async def screener110_top_buys(
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"count": 0, "items": []},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )

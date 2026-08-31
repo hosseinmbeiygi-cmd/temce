@@ -43,17 +43,19 @@ def _detect_anomalies(
             if abs(z_price) > price_threshold:
                 anomaly_type = "price_spike_up" if z_price > 0 else "price_spike_down"
                 severity = "high" if abs(z_price) > price_threshold * 1.5 else "medium"
-                anomalies.append({
-                    "symbol": symbol,
-                    "type": anomaly_type,
-                    "severity": severity,
-                    "date": dt,
-                    "value": price,
-                    "expected": round(mean_p, 2),
-                    "z_score": round(z_price, 2),
-                    "volume": int(vol) if vol else 0,
-                    "description": f"قیمت {int(price):,} — {abs(z_price):.1f}σ انحراف از میانگین {int(mean_p):,}",
-                })
+                anomalies.append(
+                    {
+                        "symbol": symbol,
+                        "type": anomaly_type,
+                        "severity": severity,
+                        "date": dt,
+                        "value": price,
+                        "expected": round(mean_p, 2),
+                        "z_score": round(z_price, 2),
+                        "volume": int(vol) if vol else 0,
+                        "description": f"قیمت {int(price):,} — {abs(z_price):.1f}σ انحراف از میانگین {int(mean_p):,}",
+                    }
+                )
 
     # ── Volume anomalies ──
     if len(volumes) >= 20 and any(v > 0 for v in volumes):
@@ -67,17 +69,19 @@ def _detect_anomalies(
                         continue
                     z_vol = (float(vol) - mean_v) / stdev_v
                     if z_vol > volume_threshold:
-                        anomalies.append({
-                            "symbol": symbol,
-                            "type": "volume_spike",
-                            "severity": "high" if z_vol > volume_threshold * 1.5 else "medium",
-                            "date": dt,
-                            "value": float(vol),
-                            "expected": round(mean_v, 0),
-                            "z_score": round(z_vol, 2),
-                            "price": price,
-                            "description": f"حجم {int(vol):,} — {z_vol:.1f}σ بالاتر از میانگین {int(mean_v):,}",
-                        })
+                        anomalies.append(
+                            {
+                                "symbol": symbol,
+                                "type": "volume_spike",
+                                "severity": "high" if z_vol > volume_threshold * 1.5 else "medium",
+                                "date": dt,
+                                "value": float(vol),
+                                "expected": round(mean_v, 0),
+                                "z_score": round(z_vol, 2),
+                                "price": price,
+                                "description": f"حجم {int(vol):,} — {z_vol:.1f}σ بالاتر از میانگین {int(mean_v):,}",
+                            }
+                        )
 
     return anomalies
 
@@ -94,7 +98,8 @@ async def get_anomalies(
         end_dt = date.today()
         start_dt = end_dt - timedelta(days=limit * 2)
 
-        result = await session.execute(text("""
+        result = await session.execute(
+            text("""
             SELECT symbol, COUNT(*) as cnt
             FROM quotes
             WHERE date >= :start AND price_close IS NOT NULL AND price_close > 0
@@ -102,7 +107,9 @@ async def get_anomalies(
             HAVING COUNT(*) >= 20
             ORDER BY cnt DESC
             LIMIT 50
-        """), {"start": start_dt.isoformat()})
+        """),
+            {"start": start_dt.isoformat()},
+        )
         symbols = [row[0] for row in result.fetchall()]
 
         all_anomalies: list[dict[str, Any]] = []
@@ -112,12 +119,15 @@ async def get_anomalies(
 
         for symbol in symbols:
             try:
-                rows_result = await session.execute(text("""
+                rows_result = await session.execute(
+                    text("""
                     SELECT price_close, volume, date
                     FROM quotes
                     WHERE symbol = :sym AND date >= :start AND price_close IS NOT NULL AND price_close > 0
                     ORDER BY date ASC
-                """), {"sym": symbol, "start": start_dt.isoformat()})
+                """),
+                    {"sym": symbol, "start": start_dt.isoformat()},
+                )
                 rows = rows_result.fetchall()
 
                 if not rows:
@@ -153,28 +163,31 @@ async def get_anomalies(
         price_count = sum(1 for a in all_anomalies if a["type"] == "price_spike_up" or a["type"] == "price_spike_down")
         volume_count = sum(1 for a in all_anomalies if a["type"] == "volume_spike")
 
-        return ApiResponse[dict[str, Any]](success=True, data={
-            "items": all_anomalies,
-            "total": len(all_anomalies),
-            "summary": {
-                "total_symbols_scanned": total_symbols,
-                "symbols_with_data": symbols_with_data,
-                "symbols_with_anomalies": symbols_with_anomalies,
-                "high_severity": high_count,
-                "medium_severity": medium_count,
-                "price_anomalies": price_count,
-                "volume_anomalies": volume_count,
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={
+                "items": all_anomalies,
+                "total": len(all_anomalies),
+                "summary": {
+                    "total_symbols_scanned": total_symbols,
+                    "symbols_with_data": symbols_with_data,
+                    "symbols_with_anomalies": symbols_with_anomalies,
+                    "high_severity": high_count,
+                    "medium_severity": medium_count,
+                    "price_anomalies": price_count,
+                    "volume_anomalies": volume_count,
+                },
+                "config": {
+                    "price_threshold": price_threshold,
+                    "volume_threshold": volume_threshold,
+                    "lookback_days": limit,
+                },
             },
-            "config": {
-                "price_threshold": price_threshold,
-                "volume_threshold": volume_threshold,
-                "lookback_days": limit,
-            },
-        })
+        )
     except Exception as exc:
         logger.exception("Anomaly detection failed")
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"items": [], "total": 0, "summary": {}},
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )

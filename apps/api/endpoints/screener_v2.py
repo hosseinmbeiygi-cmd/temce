@@ -244,7 +244,7 @@ async def screener_v2(
 
     except Exception as exc:
         logger.exception("Screener V2 failed: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": safe_error_message(exc)})
 
 
 @router.post(
@@ -452,7 +452,7 @@ async def screener_v2_filter(
 
     except Exception as exc:
         logger.exception("Screener V2 filter failed: %s", exc)
-        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": safe_error_message(exc)})
 
 
 @router.get(
@@ -540,7 +540,7 @@ async def compare_symbols(
 
     except Exception as exc:
         logger.exception("Compare symbols failed: %s", exc)
-        return ApiResponse(success=False, data={"items": []}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"items": []}, error={"message": safe_error_message(exc)})
 
 
 @router.get(
@@ -622,4 +622,4 @@ async def sector_analysis(
 
     except Exception as exc:
         logger.exception("Sector analysis failed: %s", exc)
-        return ApiResponse(success=False, data={"sectors": []}, error={"message": str(exc)})
+        return ApiResponse(success=False, data={"sectors": []}, error={"message": safe_error_message(exc)})

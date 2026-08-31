@@ -23,6 +23,20 @@ def _is_dev() -> bool:
     return settings.environment == "development" or getattr(settings, "is_development", False)
 
 
+def safe_error_message(exc: BaseException, *, default_message: str = "Internal error") -> str:
+    """Return a non-leaking message string for a caught exception.
+
+    Preserves the historical ``{"message": <str>}`` response shape so existing
+    clients see no breaking change. In production ``str(exc)`` is suppressed
+    and a generic message is returned (the full exception is still logged via
+    ``logger.exception`` by the caller). In development ``str(exc)`` is
+    included for debugging.
+    """
+    if _is_dev():
+        return str(exc) or default_message
+    return default_message
+
+
 def error_payload(
     *,
     message: str,

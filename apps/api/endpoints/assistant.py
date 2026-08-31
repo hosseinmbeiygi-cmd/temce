@@ -112,11 +112,11 @@ async def assistant_execute(
                 text=f"⚠️ {exc}",
                 type="error",
             ),
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
     except Exception as exc:
         logger.exception("Assistant execute error")
-        error_msg = str(exc)
+        error_msg = safe_error_message(exc)
         if "connection" in error_msg.lower() or "database" in error_msg.lower():
             user_text = "⚠️ خطا در اتصال به پایگاه داده. لطفاً مطمئن شوید PostgreSQL در حال اجراست."
         elif "timeout" in error_msg.lower():
@@ -248,5 +248,6 @@ async def assistant_capabilities() -> ApiResponse[dict[str, Any]]:
 )
 async def query_stats() -> ApiResponse[dict[str, Any]]:
     from services.query_logger import get_query_stats
+
     stats = get_query_stats()
     return ApiResponse[dict[str, Any]](success=True, data=stats)

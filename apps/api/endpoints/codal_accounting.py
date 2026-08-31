@@ -48,7 +48,7 @@ async def accounting_symbols(
         return ApiResponse[list[dict[str, Any]]](
             success=False,
             data=[],
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -69,7 +69,7 @@ async def symbol_reports(
         return ApiResponse[list[dict[str, Any]]](
             success=False,
             data=[],
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -88,7 +88,7 @@ async def symbol_ratios(
         logger.exception("Failed to calculate ratios for %s", symbol)
         return ApiResponse[dict[str, Any]](
             success=False,
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -107,7 +107,7 @@ async def symbol_financials(
         logger.exception("Failed to get financial summary for %s", symbol)
         return ApiResponse[dict[str, Any]](
             success=False,
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -144,7 +144,7 @@ async def import_financial_data(
         logger.exception("Failed to import codal financial data")
         return ApiResponse[dict[str, Any]](
             success=False,
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -170,19 +170,21 @@ async def report_detail(
                     error={"message": "Report not found"},
                 )
             parsed = fs_parse_report(target["filepath"])
-            parsed.update({
-                "symbol": symbol,
-                "filename": filename,
-                "report_type": target["report_type"],
-                "date": target["date"],
-            })
+            parsed.update(
+                {
+                    "symbol": symbol,
+                    "filename": filename,
+                    "report_type": target["report_type"],
+                    "date": target["date"],
+                }
+            )
             return ApiResponse[dict[str, Any]](success=True, data=parsed)
         return ApiResponse[dict[str, Any]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to parse report: %s", filename)
         return ApiResponse[dict[str, Any]](
             success=False,
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
 
 
@@ -200,5 +202,5 @@ async def symbol_db_reports(
         return ApiResponse[list[dict[str, Any]]](
             success=False,
             data=[],
-            error={"message": str(exc)},
+            error={"message": safe_error_message(exc)},
         )
