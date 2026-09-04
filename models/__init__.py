@@ -4,6 +4,9 @@ from models.backtest import BacktestRunModel, BacktestTradeModel
 from models.base import Base
 from models.codal import CodalReportModel
 from models.compare import CompareResultModel
+
+# Currency service (apps/currency_service) — manual positions tracker.
+from models.currency import CurrencyManualPositionModel
 from models.fund import FundModel
 from models.indicator import IndicatorModel
 from models.instrument import InstrumentModel
