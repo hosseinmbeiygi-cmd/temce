@@ -17,12 +17,20 @@ const nextConfig: NextConfig = {
     // Server-side only: API_URL must be used in production (Docker: http://api:8000). Fallback to localhost only in dev.
     const apiUrl = process.env.API_URL || (process.env.NODE_ENV === "production" ? "http://api:8000" : "http://127.0.0.1:8000");
     const apiPrefix = process.env.API_PREFIX || process.env.NEXT_PUBLIC_API_PREFIX || "/api/v1";
+    // Standalone currency service (apps/currency_service) — must precede the
+    // catch-all rule below since Next.js evaluates rewrites in order.
+    const currencyUrl = process.env.CURRENCY_API_URL || (process.env.NODE_ENV === "production" ? "http://currency:8002" : "http://127.0.0.1:8002");
 
     if (process.env.NODE_ENV !== "production") {
       console.log(`[Next.js Rewrite] API → ${apiUrl}${apiPrefix}`);
+      console.log(`[Next.js Rewrite] Currency → ${currencyUrl}${apiPrefix}/currency`);
     }
 
     return [
+      {
+        source: `${apiPrefix}/currency/:path*`,
+        destination: `${currencyUrl}${apiPrefix}/currency/:path*`,
+      },
       {
         source: `${apiPrefix}/:path*`,
         destination: `${apiUrl}${apiPrefix}/:path*`,

@@ -1,4 +1,4 @@
-"""GET /currency/signals — current signals only."""
+"""GET /currency/signals — current signals only (served from the overview cache)."""
 
 from __future__ import annotations
 
@@ -6,27 +6,19 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from apps.currency_service.services.signal_engine import SignalEngine
+from apps.currency_service.config import settings
+from apps.currency_service.endpoints.overview import _compute_overview
+from apps.currency_service.infra.cache import cached_overview
 
 router = APIRouter()
-_engine = SignalEngine()
 
 
 @router.get("/signals")
 async def signals() -> dict[str, Any]:
-    payload = await _engine.overview()
+    full = await cached_overview(_compute_overview, ttl=settings.cache_ttl_seconds)
     return {
-        "timestamp": payload.snapshot.timestamp.isoformat(),
-        "kill_switch_active": payload.kill_switch.active,
-        "count": len(payload.signals),
-        "signals": [
-            {
-                "asset_type": s.asset_type,
-                "signal_type": s.signal_type,
-                "confidence": s.confidence,
-                "reason": s.reason,
-                "risk_level": s.risk_level,
-            }
-            for s in payload.signals
-        ],
+        "timestamp": full["timestamp"],
+        "kill_switch_active": full["kill_switch"]["active"],
+        "count": len(full["signals"]),
+        "signals": full["signals"],
     }

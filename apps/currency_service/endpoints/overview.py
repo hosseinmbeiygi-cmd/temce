@@ -6,6 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
+from apps.currency_service.config import settings
+from apps.currency_service.infra.cache import cached_overview
 from apps.currency_service.services.signal_engine import SignalEngine
 
 router = APIRouter()
@@ -60,8 +62,7 @@ def _serialize_snapshot(snap) -> dict[str, Any]:
     }
 
 
-@router.get("/overview")
-async def overview() -> dict[str, Any]:
+async def _compute_overview() -> dict[str, Any]:
     payload = await _engine.overview()
     return {
         "timestamp": payload.snapshot.timestamp.isoformat(),
@@ -94,3 +95,8 @@ async def overview() -> dict[str, Any]:
             "action": payload.kill_switch.action,
         },
     }
+
+
+@router.get("/overview")
+async def overview() -> dict[str, Any]:
+    return await cached_overview(_compute_overview, ttl=settings.cache_ttl_seconds)

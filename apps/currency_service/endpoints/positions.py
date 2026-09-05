@@ -1,7 +1,7 @@
 """CRUD endpoints for manual positions.
 
-Auth: minimal X-User-Id header (matches the spec's "manual" intent — replace
-/// with real JWT verification when apps/api auth is wired in).
+Auth: platform JWT (Bearer, shared secret with apps/api) or X-User-Id for
+local dev — see ``endpoints/auth.py``.
 """
 
 from __future__ import annotations
@@ -9,10 +9,11 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.currency_service.endpoints.auth import resolve_user
 from apps.currency_service.services.position_tracker import PositionTracker
 from apps.currency_service.services.signal_engine import SignalEngine
 from core.database import get_session
@@ -29,15 +30,6 @@ class CreatePositionRequest(BaseModel):
     note: str | None = Field(default=None, max_length=500)
 
 
-def _require_user(x_user_id: str | None = Header(default=None)) -> str:
-    if not x_user_id or not x_user_id.strip():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-User-Id header required (manual-tracker placeholder auth)",
-        )
-    return x_user_id.strip()
-
-
 def _price_map(snap) -> dict[str, float]:
     return {
         "free_sell": float(snap.free.sell_price),
@@ -48,7 +40,7 @@ def _price_map(snap) -> dict[str, float]:
 @router.post("/positions", status_code=status.HTTP_201_CREATED)
 async def create_position(
     body: CreatePositionRequest,
-    user_id: str = Depends(_require_user),
+    user_id: str = Depends(resolve_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     tracker = PositionTracker(session)
@@ -74,7 +66,7 @@ async def create_position(
 
 @router.get("/positions")
 async def list_positions(
-    user_id: str = Depends(_require_user),
+    user_id: str = Depends(resolve_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     tracker = PositionTracker(session)
@@ -105,7 +97,7 @@ async def list_positions(
 @router.delete("/positions/{position_id}")
 async def delete_position(
     position_id: int,
-    user_id: str = Depends(_require_user),
+    user_id: str = Depends(resolve_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     tracker = PositionTracker(session)
