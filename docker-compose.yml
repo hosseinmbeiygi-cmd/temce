@@ -74,6 +74,27 @@ services:
     deploy:
       replicas: 1
 
+  currency:
+    build:
+      context: .
+      dockerfile: Dockerfile.currency
+    container_name: tse_currency
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:redissecure456@redis:6379/0
+      # Live Tgju/Nobitex rates (per-venue fixture fallback on failure):
+      - CURRENCY_USE_LIVE=true
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
   frontend:
     build:
       context: ./frontend
@@ -81,10 +102,12 @@ services:
     container_name: tse_frontend
     depends_on:
       - backend
+      - currency
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
+      - CURRENCY_API_URL=http://currency:8002
     restart: always
 
 volumes:

@@ -22,7 +22,7 @@ from apps.currency_service.domain import (
     spread_pct,
     tether_arbitrage_pct,
 )
-from apps.currency_service.services.collector import FixtureCollector
+from apps.currency_service.services.collector import get_collector
 
 
 @dataclass(frozen=True)
@@ -37,8 +37,8 @@ class OverviewPayload:
 class SignalEngine:
     """Stateless orchestrator. Pass any collector."""
 
-    def __init__(self, collector: FixtureCollector | None = None) -> None:
-        self._collector = collector or FixtureCollector()
+    def __init__(self, collector=None) -> None:
+        self._collector = collector or get_collector()
 
     async def snapshot(self) -> RateSnapshot:
         return await self._collector.fetch()

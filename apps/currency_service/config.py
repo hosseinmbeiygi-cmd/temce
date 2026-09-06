@@ -18,6 +18,7 @@ class CurrencyServiceSettings(BaseSettings):
     jitter_pct: float = 0.3
     enable_alerts: bool = False  # Telegram real dispatch
     cache_ttl_seconds: int = 10
+    use_live: bool = False  # CURRENCY_USE_LIVE=true → Tgju/Nobitex (per-venue fixture fallback)
 
 
 settings = CurrencyServiceSettings()
