@@ -18,6 +18,7 @@ _require_admin = [Depends(require_any_role("admin"))]
 _require_user = [Depends(require_any_role("user", "analyst", "admin"))]
 
 _ENDPOINTS = [
+    {"path": "/ingestion", "tag": "Ingestion", "description": "Ingestion service boundary (BrsApi/CODAL) — standalone-ready"},
     {"path": "/health", "tag": "Health", "description": "Health check"},
     {
         "path": "/chat",
@@ -147,6 +148,11 @@ _ENDPOINTS = [
         "tag": "Smart Screener V2",
         "description": "Advanced analytics screener, compare & sector analysis",
     },
+    {
+        "path": "/system",
+        "tag": "System",
+        "description": "Kill switch + permission check (incident operations)",
+    },
 ]
 
 
@@ -187,6 +193,7 @@ class Router:
         from apps.api.endpoints.data_import import router as data_import_router
         from apps.api.endpoints.decision_engine import router as decision_engine_router
         from apps.api.endpoints.economic_calendar import router as economic_calendar_router
+        from apps.api.endpoints.forecast import router as forecast_router
         from apps.api.endpoints.fundamental import router as fundamental_router
         from apps.api.endpoints.funds import router as funds_router
         from apps.api.endpoints.health import router as health_router
@@ -219,11 +226,13 @@ class Router:
         from apps.api.endpoints.stock_assistant import router as stock_assistant_router
         from apps.api.endpoints.symbol_search import router as symbol_search_router
         from apps.api.endpoints.symbols import router as symbols_router
+        from apps.api.endpoints.system import router as system_router
         from apps.api.endpoints.tabdeal import router as tabdeal_router
         from apps.api.endpoints.tables import router as tables_router
         from apps.api.endpoints.tests_runner import router as tests_router
         from apps.api.endpoints.trades import router as trades_router
         from apps.api.endpoints.watchlist import router as watchlist_router
+        from apps.api.endpoints.ingestion import router as ingestion_router
         from apps.api.endpoints.websocket import router as websocket_router
 
         # Health and auth routers are intentionally unprotected
@@ -396,6 +405,12 @@ class Router:
             dependencies=_optional_auth,
         )
         router.include_router(
+            forecast_router,
+            prefix="/forecast",
+            tags=["Forecast"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
             saved_filters_router,
             prefix="/saved-filters",
             tags=["Saved Filters"],
@@ -526,5 +541,20 @@ class Router:
             websocket_router,
             prefix="/ws",
             tags=["WebSocket"],
+        )
+        # Q2 P1 — Ingestion service boundary (standalone-ready)
+        router.include_router(
+            ingestion_router,
+            prefix="/ingestion",
+            tags=["Ingestion"],
+            dependencies=_optional_auth,
+        )
+        # System administration (kill switch + permission check, §15.3 + §19.3).
+        # Auth is enforced per-endpoint via get_current_user/require_roles inside
+        # the router, so it must NOT also carry _optional_auth at mount time.
+        router.include_router(
+            system_router,
+            prefix="",
+            tags=["System"],
         )
         return router
