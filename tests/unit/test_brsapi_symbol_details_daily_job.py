@@ -15,10 +15,25 @@ the enriched ``brsapi_symbol_details`` table for the whole market (the
 9. ``run_job`` dispatches ``brsapi_symbol_details_all`` to the backfill.
 """
 
+import pytest
 from unittest.mock import AsyncMock
 
 from brsapi.jobs.registry import BRsAPI_SYNC_JOBS, BrsApiJobRegistry
 from brsapi.services.sync_service import SyncReport
+
+
+@pytest.fixture(autouse=True)
+def _no_tehran_weekend(monkeypatch):
+    """Pin the Tehran weekend guard off by default.
+
+    These tests exercise the nightly refresh logic, not the weekend guard
+    (which has its own ``allow_weekend`` test that patches
+    ``_is_tehran_weekend`` itself). Without this pin the suite fails whenever
+    it runs on a Thursday/Friday.
+    """
+    import brsapi.jobs.registry as reg_mod
+
+    monkeypatch.setattr(reg_mod, "_is_tehran_weekend", lambda: False)
 
 
 class _FakeResult:

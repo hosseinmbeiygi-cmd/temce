@@ -273,6 +273,61 @@ async def get_historical_daily(
     except Exception:
         logger.debug("HistoricalDailyModel query failed for %s — falling through to quotes table", symbol)
 
+    # ── Fallback: gold/currency daily history (BrsApi Market history import) ──
+    try:
+        from brsapi.models.commodity import (
+            GoldCoinHistoryModel,
+            GoldCurrencyProDailyHistoryModel,
+        )
+
+        for hist_model in (GoldCoinHistoryModel, GoldCurrencyProDailyHistoryModel):
+            g_conditions = [hist_model.symbol == symbol]
+            if date_start:
+                g_conditions.append(hist_model.date >= date_start)
+            if date_end:
+                g_conditions.append(hist_model.date <= date_end)
+            g_total = (
+                await session.execute(
+                    sa_select(sa_func.count()).select_from(hist_model).where(*g_conditions)
+                )
+            ).scalar() or 0
+            if g_total == 0:
+                continue
+            g_rows = (
+                await session.execute(
+                    sa_select(hist_model)
+                    .where(*g_conditions)
+                    .order_by(hist_model.date.desc())
+                    .offset(offset)
+                    .limit(limit)
+                )
+            ).scalars().all()
+            items = [
+                {
+                    "id": row.id,
+                    "symbol": row.symbol,
+                    "date": row.date,
+                    "price_open": row.price_open,
+                    "price_high": row.price_high,
+                    "price_low": row.price_low,
+                    "price_close": row.price_close,
+                }
+                for row in g_rows
+            ]
+            page_size = limit if limit > 0 else 50
+            return ApiResponse[PaginatedResult[dict[str, Any]]](
+                success=True,
+                data=PaginatedResult[dict[str, Any]](
+                    items=items,
+                    total=g_total,
+                    page=(offset // page_size) + 1,
+                    page_size=page_size,
+                    total_pages=max(1, (g_total + page_size - 1) // page_size),
+                ),
+            )
+    except Exception:
+        logger.debug("Gold/currency history query failed for %s — falling through to quotes table", symbol)
+
     # ── Fallback: core quotes table (QuoteModel) ──
     try:
         from models.quote import QuoteModel
@@ -1272,6 +1327,8 @@ async def download_section(
     # for a practical export of the most recent data, so cap the result and
     # make the cap explicit in the response filename.
     stmt = select(model)
+    if symbol and hasattr(model, "symbol"):
+        stmt = stmt.where(model.symbol == symbol)
     if hasattr(model, "created_at"):
         stmt = stmt.order_by(model.created_at.desc())
     elif hasattr(model, "fetched_at"):

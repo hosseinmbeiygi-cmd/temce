@@ -9,11 +9,26 @@ API can trigger a whole-market download from the UI:
 4. The API-key masking / payload counting helpers behave correctly.
 """
 
+import pytest
 from unittest.mock import AsyncMock
 
 from apps.api.endpoints.brsapi import _count_payload, _mask_api_key
 from brsapi.jobs.registry import BrsApiJobRegistry
 from brsapi.services.sync_service import SyncReport
+
+
+@pytest.fixture(autouse=True)
+def _no_tehran_weekend(monkeypatch):
+    """Pin the Tehran weekend guard off by default.
+
+    These tests exercise backfill logic, not the weekend guard (the
+    ``allow_weekend`` test patches ``_is_tehran_weekend`` itself, overriding
+    this fixture). Without this pin the suite fails whenever it runs on a
+    Thursday/Friday.
+    """
+    import brsapi.jobs.registry as reg_mod
+
+    monkeypatch.setattr(reg_mod, "_is_tehran_weekend", lambda: False)
 
 
 class _FakeResult:

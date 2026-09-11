@@ -9,10 +9,26 @@ and the ``_run_candlesticks_all`` orchestration:
    candle types (3=adjusted, 2=unadjusted, 1=realtime).
 """
 
+import pytest
 from unittest.mock import AsyncMock
 
 from brsapi.jobs.registry import BrsApiJobRegistry, BrsApiSyncJob
 from brsapi.services.sync_service import SyncReport
+
+
+@pytest.fixture(autouse=True)
+def _no_tehran_weekend(monkeypatch):
+    """Pin the Tehran weekend guard off by default.
+
+    These tests exercise candlestick backfill logic, not the weekend guard
+    (the dedicated weekend tests patch ``_is_tehran_weekend`` themselves,
+    overriding this fixture). Without this pin the suite fails whenever it
+    runs on a Thursday/Friday.
+    """
+    import brsapi.jobs.registry as reg_mod
+
+    monkeypatch.setattr(reg_mod, "_is_tehran_weekend", lambda: False)
+
 
 # ── Job registration ──────────────────────────────────────────────────
 

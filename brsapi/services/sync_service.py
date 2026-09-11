@@ -158,6 +158,50 @@ def _dedupe_symbols(symbols: list[str]) -> list[str]:
     return result
 
 
+# ── Fund-sector classification ───────────────────
+#
+# ``BRSAPI_ETF_SYMBOLS`` covers the curated ETFs, but snapshot sectors also
+# contain words such as «صندوق» (fund) that must not all be treated as tradable
+# funds. Insurance/pension sectors («بیمه و صندوق بازنشستگی» or «صندوق
+# بازنشستگی تکمیلی») contain «صندوق» yet are not funds and always fail the NAV
+# endpoint. Keep the classification in Python so the DB query and the offline
+# simulation share the exact same rule.
+FUND_SECTOR_MARKERS = ("\u0635\u0646\u062f\u0648\u0642", "fund", "etf")
+NON_FUND_SECTOR_MARKERS = ("\u0628\u06cc\u0645\u0647", "\u0628\u0627\u0632\u0646\u0634\u0633\u062a\u06af\u06cc")
+
+
+def is_fund_sector(sector: str | None) -> bool:
+    """Return ``True`` only for sectors that denote a tradable fund/ETF.
+
+    A sector qualifies when it contains one of :data:`FUND_SECTOR_MARKERS`
+    (``صندوق``/``fund``/``etf``) and none of the
+    :data:`NON_FUND_SECTOR_MARKERS` that describe insurance-pension products.
+    """
+    if not sector:
+        return False
+    lowered = sector.lower()
+    if any(marker in lowered for marker in NON_FUND_SECTOR_MARKERS):
+        return False
+    return any(marker in lowered for marker in FUND_SECTOR_MARKERS)
+
+
+def fund_sector_sql_condition(sector_column: Any) -> Any:
+    """Build the SQLAlchemy condition matching :func:`is_fund_sector`."""
+    from sqlalchemy import func
+
+    lowered = func.lower(sector_column)
+    matches_fund = (
+        (sector_column.ilike("%\u0635\u0646\u062f\u0648\u0642%"))
+        | lowered.like("%fund%")
+        | lowered.like("%etf%")
+    )
+    excludes_non_fund: Any = None
+    for marker in NON_FUND_SECTOR_MARKERS:
+        condition = lowered.notilike(f"%{marker}%")
+        excludes_non_fund = condition if excludes_non_fund is None else excludes_non_fund & condition
+    return matches_fund & excludes_non_fund
+
+
 # ──────────────────────────────────────────────
 #  Sync Report
 # ──────────────────────────────────────────────
@@ -704,28 +748,20 @@ class BrsApiSyncService:
         with Arabic ي) that would otherwise burn API quota and stall the run
         with HTTP 400/502 failures.
         """
-        from sqlalchemy import func, select
+        from sqlalchemy import select
 
         from brsapi.models import SymbolSnapshotModel
 
         db_symbols: list[str] = []
         try:
-            # Try to identify funds by sector name containing "صندوق" or "fund".
-            # Exclude insurance/pension sectors ("بیمه و صندوق بازنشستگی") whose
-            # name contains the word "صندوق" but which are NOT tradable ETFs —
-            # otherwise ~53 insurance symbols leak into the NAV sync list, burn
-            # API quota and always fail with HTTP 502.
-            sector_col = SymbolSnapshotModel.sector
+            # Identify funds/ETFs dynamically from the snapshot sector, using
+            # the shared classifier so insurance/pension sectors that merely
+            # mention "صندوق" (بیمه و صندوق بازنشستگی، صندوق بازنشستگی تکمیلی)
+            # are excluded and cannot leak into the NAV sync list, burn API
+            # quota and fail with HTTP 502.
             stmt = (
                 select(SymbolSnapshotModel.symbol)
-                .where(
-                    (
-                        (sector_col.ilike("%صندوق%")) |
-                        (func.lower(sector_col).like("%fund%")) |
-                        (func.lower(sector_col).like("%etf%"))
-                    )
-                    & (~sector_col.ilike("%بیمه%"))
-                )
+                .where(fund_sector_sql_condition(SymbolSnapshotModel.sector))
                 .group_by(SymbolSnapshotModel.symbol)
             )
             result = await session.execute(stmt)

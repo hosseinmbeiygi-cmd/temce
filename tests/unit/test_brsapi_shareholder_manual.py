@@ -12,6 +12,7 @@ exists for candlesticks):
 6. The status / cancel manage endpoints behave correctly.
 """
 
+import pytest
 from unittest.mock import AsyncMock
 
 from apps.api.endpoints.brsapi import (
@@ -21,6 +22,19 @@ from apps.api.endpoints.brsapi import (
 )
 from brsapi.jobs.registry import BrsApiJobRegistry
 from brsapi.services.sync_service import SyncReport
+
+
+@pytest.fixture(autouse=True)
+def _no_tehran_weekend(monkeypatch):
+    """Pin the Tehran weekend guard off by default.
+
+    These tests exercise backfill logic, not the weekend guard (which has its
+    own ``allow_weekend`` test that patches ``_is_tehran_weekend`` itself).
+    Without this pin the suite fails whenever it runs on a Thursday/Friday.
+    """
+    import brsapi.jobs.registry as reg_mod
+
+    monkeypatch.setattr(reg_mod, "_is_tehran_weekend", lambda: False)
 
 
 class _FakeResult:
