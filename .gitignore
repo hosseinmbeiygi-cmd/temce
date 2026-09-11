@@ -108,3 +108,27 @@ frontend/.tmp_routes.txt
 # Separate projects (not part of trading system)
 claw-code/
 mimicode-go/
+
+# Chrome debug profiles (automation leftovers)
+tmp-chrome-profile*/
+
+# Ad-hoc API response dumps at repo root (c3.json, com.json, f.json, ...)
+/c[0-9].json
+/com.json
+/cur.json
+/f.json
+/f[cdul].json
+/fo.json
+/ful.json
+/h[2x].json
+/[nnt].json
+/n[qps].json
+/resp.json
+/test_sections.json
+
+# Diagnostic dump files at repo root
+/_tmp_check.txt
+/*_all_codes.txt
+/ruff_*.txt
+/project_summary.txt
+/temp_*.txt
