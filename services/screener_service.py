@@ -142,7 +142,6 @@ class _CacheManager:
         }
 
 
-
 # ---------------------------------------------------------------------------
 # Filter helpers
 # ---------------------------------------------------------------------------
@@ -268,7 +267,7 @@ def build_real_quote_from_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
         "price_change_pct": float(snap.get("price_last_change_pct") or 0),
         "volume": volume,
         "value": value,
-        "trade_count": int(snap.get("trade_count") or max(1, volume // 5000)),
+        "trade_count": int(snap["trade_count"]) if snap.get("trade_count") is not None else None,
         "avg_buy": avg_buy,
         "avg_sell": avg_sell,
         "real_buy_value": real_buy_value,
@@ -334,24 +333,26 @@ def build_real_history_from_rows(
         real_buy_value = buy_real_vol * avg_price
         real_sell_value = sell_real_vol * avg_price
 
-        history.append({
-            "symbol": row.get("symbol", ""),
-            "date": dt,
-            "price_open": open_,
-            "price_close": close,
-            "price_high": high,
-            "price_low": low,
-            "price_last": last,
-            "volume": volume,
-            "value": value,
-            "trade_count": int(row.get("trade_count") or 0),
-            "avg_buy": avg_buy,
-            "avg_sell": avg_sell,
-            "real_buy_value": real_buy_value,
-            "real_sell_value": real_sell_value,
-            "real_buy_count": buy_real_cnt,
-            "real_sell_count": sell_real_cnt,
-        })
+        history.append(
+            {
+                "symbol": row.get("symbol", ""),
+                "date": dt,
+                "price_open": open_,
+                "price_close": close,
+                "price_high": high,
+                "price_low": low,
+                "price_last": last,
+                "volume": volume,
+                "value": value,
+                "trade_count": int(row["trade_count"]) if row.get("trade_count") is not None else None,
+                "avg_buy": avg_buy,
+                "avg_sell": avg_sell,
+                "real_buy_value": real_buy_value,
+                "real_sell_value": real_sell_value,
+                "real_buy_count": buy_real_cnt,
+                "real_sell_count": sell_real_cnt,
+            }
+        )
 
     # Sort oldest first
     history.sort(key=lambda h: h.get("date", ""))
@@ -372,7 +373,6 @@ _FILTER_FIELD_MAP: dict[str, str] = {
     "market": "market",
     "industry": "industry",
     "sector": "industry",
-
     # ── Smart Money composite / phase scores ──
     "smc_score": "smc_score",
     "smart_money_score": "smc_score",
@@ -383,7 +383,6 @@ _FILTER_FIELD_MAP: dict[str, str] = {
     "order_flow_score": "orderflow_score",
     "trigger_score": "trigger_score",
     "phase": "phase",
-
     # ── Price & change ──
     "last_price": "last_price",
     "price": "last_price",
@@ -399,7 +398,6 @@ _FILTER_FIELD_MAP: dict[str, str] = {
     "low": "price_min",
     "price_max": "price_max",
     "high": "price_max",
-
     # ── Volume / turnover ──
     "volume": "volume",
     "trade_volume": "volume",
@@ -409,7 +407,6 @@ _FILTER_FIELD_MAP: dict[str, str] = {
     "trade_count": "trade_count",
     "trades": "trade_count",
     "shares_count": "shares_count",
-
     # ── Fundamental ──
     "pe_ratio": "pe_ratio",
     "pe": "pe_ratio",
@@ -421,7 +418,6 @@ _FILTER_FIELD_MAP: dict[str, str] = {
     "debt_to_equity": "debt_to_equity",
     "d/e": "debt_to_equity",
     "net_margin": "net_margin",
-
     # ── V2 advanced analytics (stored in item.details by V2 engine) ──
     "rsi": "rsi",
     "rsi_14": "rsi",
@@ -476,12 +472,14 @@ def _get_filter_value(item: ScreenedSymbol, watch: dict[str, Any], field: str) -
         candidates.append(getattr(item, mapped, None))
     candidates.append(details.get(mapped))
     if isinstance(watch, dict):
-        candidates.extend([
-            watch.get(mapped),
-            watch.get(field.lower()),
-            watch.get(f"price_{field.lower()}"),
-            watch.get(f"trade_{field.lower()}"),
-        ])
+        candidates.extend(
+            [
+                watch.get(mapped),
+                watch.get(field.lower()),
+                watch.get(f"price_{field.lower()}"),
+                watch.get(f"trade_{field.lower()}"),
+            ]
+        )
 
     for val in candidates:
         if val is None:
@@ -497,7 +495,37 @@ def _get_filter_value(item: ScreenedSymbol, watch: dict[str, Any], field: str) -
                 return numeric
             return val
 
-    return None
+
+def _get_sort_value(item: ScreenedSymbol, field: str) -> float:
+    """Safe sort-key helper: returns the numeric value or 0.0 if None.
+
+    Unlike `_get_filter_value(..., {}, ...) or 0.0`, this correctly preserves
+    actual zero values (e.g. pe_ratio=0) rather than treating them as falsy.
+    """
+    if not field:
+        return 0.0
+
+    mapped = _FILTER_FIELD_MAP.get(field.lower(), field.lower())
+
+    # 1. Direct attribute on ScreenedSymbol
+    val = getattr(item, mapped, None)
+    if val is not None:
+        try:
+            return float(val) if not isinstance(val, bool) else float(int(val))
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Inside details dict
+    details = item.details or {}
+    val = details.get(mapped)
+    if val is not None:
+        try:
+            return float(val) if not isinstance(val, bool) else float(int(val))
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Fall back to 0.0 (sort-safe default)
+    return 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -539,9 +567,14 @@ class ScreenerPipeline:
         except Exception as exc:
             logger.warning("Screener engine failed for %s: %s", symbol, exc)
             return ScreenedSymbol(
-                symbol=symbol, name=name, market=market, industry=industry,
-                last_price=quote.get("price_close", 0.0), change_pct=0.0,
-                volume=int(quote.get("volume", 0)), value=float(quote.get("value", 0)),
+                symbol=symbol,
+                name=name,
+                market=market,
+                industry=industry,
+                last_price=quote.get("price_close", 0.0),
+                change_pct=0.0,
+                volume=int(quote.get("volume", 0)),
+                value=float(quote.get("value", 0)),
                 reason=f"Engine error: {exc}",
             )
 
@@ -560,7 +593,9 @@ class ScreenerPipeline:
         bp_n = features.get("bp_n", 0.0)
         nrmf_n = features.get("nrmf_n", 0.0)
         bc_n = features.get("bc_n", 0.0)
-        power_score = min(1.0, max(0.0, 0.40 * bp_n + 0.30 * nrmf_n + 0.15 * bc_n + 0.15 * scores.get("buyer_power", 0.0)))
+        power_score = min(
+            1.0, max(0.0, 0.40 * bp_n + 0.30 * nrmf_n + 0.15 * bc_n + 0.15 * scores.get("buyer_power", 0.0))
+        )
 
         rec_n = features.get("rec_n", 0.0)
         clv_n = features.get("clv_n", 0.0)
@@ -572,8 +607,17 @@ class ScreenerPipeline:
         rmr_n = features.get("rmr_n", 0.0)
         abs_score = scores.get("absorption", 0.0)
         dry_n = features.get("dry_n", 0.0)
-        orderflow_score = min(1.0, max(0.0,
-            0.30 * abs_score + 0.20 * lss_n + 0.20 * rmr_n + 0.15 * dry_n + 0.15 * scores.get("microstructure", 0.0)))
+        orderflow_score = min(
+            1.0,
+            max(
+                0.0,
+                0.30 * abs_score
+                + 0.20 * lss_n
+                + 0.20 * rmr_n
+                + 0.15 * dry_n
+                + 0.15 * scores.get("microstructure", 0.0),
+            ),
+        )
 
         br = scores.get("breakout_readiness", 0.0)
         trigger_score = min(1.0, max(0.0, 0.60 * br + 0.20 * rrs + 0.10 * abs_score + 0.10 * ess))
@@ -615,7 +659,10 @@ class ScreenerPipeline:
         details.update({k: round(v, 4) for k, v in features.items() if isinstance(v, float) and k not in details})
 
         result_obj = ScreenedSymbol(
-            symbol=symbol, name=name, market=market, industry=industry,
+            symbol=symbol,
+            name=name,
+            market=market,
+            industry=industry,
             last_price=quote.get("price_close", 0.0),
             change_pct=quote.get("price_change_pct", 0.0),
             volume=int(quote.get("volume", 0)),
@@ -626,7 +673,9 @@ class ScreenerPipeline:
             orderflow_score=round(orderflow_score, 4),
             trigger_score=round(trigger_score, 4),
             smc_score=round(smc_adjusted, 4),
-            phase=phase, reason=reason, details=details,
+            phase=phase,
+            reason=reason,
+            details=details,
         )
 
         self._score_cache.put(cache_key, result_obj)
@@ -702,7 +751,9 @@ class ScreenerService:
 
         return build_real_history_from_rows(daily_rows, rl_rows)
 
-    def _prebuild_sync(self, snap: dict[str, Any], history: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    def _prebuild_sync(
+        self, snap: dict[str, Any], history: list[dict[str, Any]]
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Build quote from snapshot (sync) + pre-fetched history."""
         quote = build_real_quote_from_snapshot(snap)
         return quote, history
@@ -730,19 +781,25 @@ class ScreenerService:
         placeholders = ", ".join([f":sym{i}" for i in range(len(symbols))])
         params = {f"sym{i}": sym for i, sym in enumerate(symbols)}
 
-        result = await self._session.execute(text(f"""
+        result = await self._session.execute(
+            text(f"""
             SELECT symbol, pe_ratio, roe, debt_to_equity, net_margin, eps
             FROM codal_financial_summary
             WHERE symbol IN ({placeholders})
-        """), params)
+        """),
+            params,
+        )
 
-        return {row[0]: {
-            "pe_ratio": safe_row_float(row, idx=1),
-            "roe": safe_row_float(row, idx=2),
-            "debt_to_equity": safe_row_float(row, idx=3),
-            "net_margin": safe_row_float(row, idx=4),
-            "eps": safe_row_float(row, idx=5),
-        } for row in result.fetchall()}
+        return {
+            row[0]: {
+                "pe_ratio": safe_row_float(row, idx=1),
+                "roe": safe_row_float(row, idx=2),
+                "debt_to_equity": safe_row_float(row, idx=3),
+                "net_margin": safe_row_float(row, idx=4),
+                "eps": safe_row_float(row, idx=5),
+            }
+            for row in result.fetchall()
+        }
 
     def _apply_fundamental_filter(
         self,
@@ -809,7 +866,8 @@ class ScreenerService:
             fundamental_data = await self._fetch_fundamental_data(all_syms)
             if fundamental_data:
                 instruments = self._apply_fundamental_filter(
-                    instruments, fundamental_data,
+                    instruments,
+                    fundamental_data,
                     max_debt_to_equity=max_debt_to_equity,
                     min_roe=min_roe,
                 )
@@ -838,16 +896,20 @@ class ScreenerService:
             results.append(item)
 
         reverse = sort_order.lower() != "asc"
-        results.sort(key=lambda r: getattr(r, sort_by, 0.0), reverse=reverse)
+        results.sort(key=lambda r: _get_sort_value(r, sort_by), reverse=reverse)
 
         total_before_pagination = len(results)
 
         for i, r in enumerate(results, 1):
             r.rank = i
 
-        if page is not None and page_size is not None:
-            offset = (page - 1) * page_size
-            results = results[offset:offset + page_size]
+        if page is not None:
+            # A page was requested: default the page size to ``limit`` so a
+            # bare ``page`` parameter still paginates instead of returning
+            # the full result set.
+            size = page_size or limit
+            offset = (page - 1) * size
+            results = results[offset : offset + size]
 
         paginated_results = results[:limit] if page is None else results
 
@@ -855,7 +917,9 @@ class ScreenerService:
             "total": total_before_pagination,
             "page": page or 1,
             "page_size": page_size or limit,
-            "total_pages": (total_before_pagination + (page_size or limit) - 1) // (page_size or limit) if page_size else 1,
+            "total_pages": (total_before_pagination + (page_size or limit) - 1) // (page_size or limit)
+            if page is not None
+            else 1,
         }
 
         return paginated_results, pagination_info
@@ -904,9 +968,18 @@ class ScreenerService:
 
             # Populate details BEFORE filtering so filters can use pe_ratio, eps, etc.
             if include_details:
-                for real_field in ("pe_ratio", "eps", "market_value", "trade_count",
-                                   "price_change_value", "price_first", "price_yesterday",
-                                   "price_min", "price_max", "shares_count"):
+                for real_field in (
+                    "pe_ratio",
+                    "eps",
+                    "market_value",
+                    "trade_count",
+                    "price_change_value",
+                    "price_first",
+                    "price_yesterday",
+                    "price_min",
+                    "price_max",
+                    "shares_count",
+                ):
                     if real_field in w and w[real_field] is not None:
                         item.details[real_field] = float(w[real_field])
 
@@ -916,7 +989,7 @@ class ScreenerService:
             all_scored.append(item)
 
         reverse = sort_order.lower() != "asc"
-        all_scored.sort(key=lambda r: getattr(r, sort_by, 0.0), reverse=reverse)
+        all_scored.sort(key=lambda r: _get_sort_value(r, sort_by), reverse=reverse)
 
         for i, r in enumerate(all_scored, 1):
             r.rank = i
@@ -925,7 +998,7 @@ class ScreenerService:
 
         if page is not None and page_size is not None:
             offset = (page - 1) * page_size
-            paginated = all_scored[offset:offset + page_size]
+            paginated = all_scored[offset : offset + page_size]
         else:
             paginated = all_scored[:limit]
 
@@ -934,7 +1007,9 @@ class ScreenerService:
         stats["total"] = total_before_pagination
         stats["page"] = page or 1
         stats["page_size"] = page_size or limit
-        stats["total_pages"] = (total_before_pagination + (page_size or limit) - 1) // (page_size or limit) if page_size else 1
+        stats["total_pages"] = (
+            (total_before_pagination + (page_size or limit) - 1) // (page_size or limit) if page_size else 1
+        )
 
         return paginated, stats
 
@@ -947,9 +1022,15 @@ class ScreenerService:
         total = len(results)
         if total == 0:
             return {
-                "total": 0, "avg_smc": 0.0, "avg_liquidity": 0.0,
-                "avg_power": 0.0, "avg_change_pct": 0.0, "high_score_count": 0,
-                "phase_distribution": {}, "top_industry": "", "top_industry_count": 0,
+                "total": 0,
+                "avg_smc": 0.0,
+                "avg_liquidity": 0.0,
+                "avg_power": 0.0,
+                "avg_change_pct": 0.0,
+                "high_score_count": 0,
+                "phase_distribution": {},
+                "top_industry": "",
+                "top_industry_count": 0,
             }
 
         avg_smc = sum(r.smc_score for r in results) / total
@@ -1011,7 +1092,9 @@ class ScreenerService:
                 continue
 
             # String operators always compare as strings
-            if operator in {"contains", "in", "not_in"} or (operator in {"eq", "neq"} and isinstance(item_val, str) and _parse_numeric(item_val) is None):
+            if operator in {"contains", "in", "not_in"} or (
+                operator in {"eq", "neq"} and isinstance(item_val, str) and _parse_numeric(item_val) is None
+            ):
                 item_str = str(item_val).lower()
                 if operator == "eq":
                     results.append(item_str == str(value).lower())

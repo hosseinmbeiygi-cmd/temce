@@ -1,11 +1,11 @@
-﻿"""Quant Signal Orchestrator â€” ties the entire signal pipeline together.
+﻿"""Quant Signal Orchestrator — ties the entire signal pipeline together.
 
 Flow:
-  1. MultiMarketSignalEngine  â†’ rule-based signals
-  2. MLSignalConnector        â†’ ML predictions per signal
-  3. SignalVotingSystem       â†’ combine rule + ML votes
-  4. ConfidenceScorer         â†’ calibrated confidence per signal
-  5. CrossMarketCorrelator    â†’ cross-market correlation signals
+  1. MultiMarketSignalEngine  → rule-based signals
+  2. MLSignalConnector        → ML predictions per signal
+  3. SignalVotingSystem       → combine rule + ML votes
+  4. ConfidenceScorer         → calibrated confidence per signal
+  5. CrossMarketCorrelator    → cross-market correlation signals
   6. Filter by confidence threshold
 
 This is the single entry-point for generating high-quality, multi-market
@@ -30,7 +30,7 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 
-# â”€â”€ Output Data Structures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Output Data Structures ────────────────────────────────────────────────────
 
 
 @dataclass
@@ -152,7 +152,7 @@ class OrchestratorReport:
         }
 
 
-# â”€â”€ Cross-Market Correlator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Cross-Market Correlator ───────────────────────────────────────────────────
 
 
 class CrossMarketCorrelator:
@@ -160,33 +160,33 @@ class CrossMarketCorrelator:
 
     Instead of counting generated signals, this correlator fetches actual
     price data for:
-      - **Stock Index**: TSE total index (Ø´Ø§Ø®Øµ Ú©Ù„) from ``brsapi_index_values``
-      - **Gold**: gold coin price (Ø³Ú©Ù‡ Ø·Ù„Ø§) from ``brsapi_gold_coin_prices``
+      - **Stock Index**: TSE total index (شاخص کل) from ``brsapi_index_values``
+      - **Gold**: gold coin price (سکه طلا) from ``brsapi_gold_coin_prices``
       - **Currency**: USD/IRR rate from ``brsapi_currency_prices``
       - **Crypto**: BTC/USD price from ``brsapi_crypto_prices``
       - **Commodity**: XAUUSD from ``brsapi_gold_currency_pro_prices``
 
     Market regime rules:
-      Gold â†‘ + Index â†“  â†’ Risk-Off  (defensive)
-      Gold â†“ + Index â†‘  â†’ Risk-On   (aggressive)
-      Gold â†‘ + Crypto â†‘ â†’ Inflation-Hedge
-      Commodity â†‘ + Cur â†“ â†’ Import-Inflation (CAUTION)
-      All â†“ â†’ Systemic-Risk (CASH)
+      Gold ↑ + Index ↓  → Risk-Off  (defensive)
+      Gold ↓ + Index ↑  → Risk-On   (aggressive)
+      Gold ↑ + Crypto ↑ → Inflation-Hedge
+      Commodity ↑ + Cur ↓ → Import-Inflation (CAUTION)
+      All ↓ → Systemic-Risk (CASH)
     """
 
-    # â”€â”€ Symbol lookup keys in each price table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Symbol lookup keys in each price table ─────────────────────────────
     _SYMBOL_KEYS: dict[str, dict[str, Any]] = {
         "stock": {
             "table": "brsapi_index_values",
             "symbol_filter": None,  # no symbol column; uses name
-            "name_filter": "Ø´Ø§Ø®Øµ Ú©Ù„",
+            "name_filter": "شاخص کل",
             "price_col": "index_value",
             "change_col": "index_change_pct",
             "is_index": True,
         },
         "gold": {
             "table": "brsapi_gold_coin_prices",
-            "symbol_filter": "Ú¯Ù„Ø¯",
+            "symbol_filter": "گلد",
             "name_filter": None,
             "price_col": "price",
             "change_col": "change_percent",
@@ -218,7 +218,7 @@ class CrossMarketCorrelator:
         },
     }
 
-    # â”€â”€ History tables for multi-period change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── History tables for multi-period change ────────────────────────────
     _HISTORY_TABLES: dict[str, str] = {
         "stock": "brsapi_index_values",
         "gold": "brsapi_gold_coin_history",
@@ -227,7 +227,7 @@ class CrossMarketCorrelator:
         "commodity": "brsapi_gold_currency_pro_daily_history",
     }
 
-    # â”€â”€ Column name for price in each history table (not all use price_close) â”€â”€
+    # ── Column name for price in each history table (not all use price_close) ──
     _HISTORY_PRICE_COL: dict[str, str] = {
         "stock": "index_value",
         "gold": "price_close",
@@ -236,10 +236,10 @@ class CrossMarketCorrelator:
         "commodity": "price_close",
     }
 
-    # â”€â”€ Regime threshold constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    _BULLISH_THRESHOLD = 0.5   # â‰¥ +0.5% â†’ bullish
-    _BEARISH_THRESHOLD = -0.3  # â‰¤ -0.3% â†’ bearish
-    _STRONG_TREND = 1.5        # â‰¥ +1.5% or â‰¤ -1.5% â†’ strong
+    # ── Regime threshold constants ────────────────────────────────────────
+    _BULLISH_THRESHOLD = 0.5   # ≥ +0.5% → bullish
+    _BEARISH_THRESHOLD = -0.3  # ≤ -0.3% → bearish
+    _STRONG_TREND = 1.5        # ≥ +1.5% or ≤ -1.5% → strong
 
     @classmethod
     async def analyze(
@@ -261,7 +261,7 @@ class CrossMarketCorrelator:
 
         return []
 
-    # â”€â”€ Real-Data Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Real-Data Analysis ─────────────────────────────────────────────────
 
     @classmethod
     async def _fetch_all_market_prices(cls) -> dict[str, dict[str, Any]]:
@@ -438,42 +438,42 @@ class CrossMarketCorrelator:
                 "source": "real_price",
             }
 
-        # 1. Gold vs Index (risk-off / risk-on) â€” the classic pair
+        # 1. Gold vs Index (risk-off / risk-on) — the classic pair
         if gold_bias["bias"] == "bullish" and stock_bias["bias"] == "bearish":
             result.append(_signal_description(
-                "Risk-Off", "Ø³Ù†Ø§Ø±ÛŒÙˆÛŒ Ø±ÛŒØ³Ú©â€ŒÚ¯Ø±ÛŒØ²ÛŒ", "DEFENSIVE",
-                f"Ø·Ù„Ø§ â†‘ ({gold_bias['change_pct']:+.1f}%) + Ø´Ø§Ø®Øµ â†“ ({stock_bias['change_pct']:+.1f}%) â€” Ø¨Ø§Ø²Ø§Ø± Ø±ÛŒØ³Ú©â€ŒÚ¯Ø±ÛŒØ². "
-                "Ù¾ÙˆØ²ÛŒØ´Ù†â€ŒÙ‡Ø§ÛŒ Ø¯ÙØ§Ø¹ÛŒ (Ø·Ù„Ø§ØŒ Ø¯Ù„Ø§Ø±ØŒ Ø§ÙˆØ±Ø§Ù‚) Ø±Ø§ Ø§ÙØ²Ø§ÛŒØ´ Ø¯Ù‡ÛŒØ¯.",
+                "Risk-Off", "سناریوی ریسک‌گریزی", "DEFENSIVE",
+                f"طلا ↑ ({gold_bias['change_pct']:+.1f}%) + شاخص ↓ ({stock_bias['change_pct']:+.1f}%) — بازار ریسک‌گریز. "
+                "پوزیشن‌های دفاعی (طلا، دلار، اوراق) را افزایش دهید.",
                 strength=0.80 if gold_bias["strength"] == "strong" or stock_bias["strength"] == "strong" else 0.65,
             ))
         elif gold_bias["bias"] == "bearish" and stock_bias["bias"] == "bullish":
             result.append(_signal_description(
-                "Risk-On", "Ø³Ù†Ø§Ø±ÛŒÙˆÛŒ Ø±ÛŒØ³Ú©â€ŒÙ¾Ø°ÛŒØ±ÛŒ", "AGGRESSIVE",
-                f"Ø·Ù„Ø§ â†“ ({gold_bias['change_pct']:+.1f}%) + Ø´Ø§Ø®Øµ â†‘ ({stock_bias['change_pct']:+.1f}%) â€” Ø¨Ø§Ø²Ø§Ø± Ø±ÛŒØ³Ú©â€ŒÙ¾Ø°ÛŒØ±. "
-                "Ù¾ÙˆØ²ÛŒØ´Ù†â€ŒÙ‡Ø§ÛŒ ØªÙ‡Ø§Ø¬Ù…ÛŒ (Ø³Ù‡Ø§Ù… Ø±Ø´Ø¯ØŒ Ú©Ø±ÛŒÙ¾ØªÙˆ) Ø±Ø§ Ø§ÙØ²Ø§ÛŒØ´ Ø¯Ù‡ÛŒØ¯.",
+                "Risk-On", "سناریوی ریسک‌پذیری", "AGGRESSIVE",
+                f"طلا ↓ ({gold_bias['change_pct']:+.1f}%) + شاخص ↑ ({stock_bias['change_pct']:+.1f}%) — بازار ریسک‌پذیر. "
+                "پوزیشن‌های تهاجمی (سهام رشد، کریپتو) را افزایش دهید.",
                 strength=0.80 if stock_bias["strength"] == "strong" else 0.65,
             ))
 
-        # 2. Gold + Crypto both up â†’ inflation hedge mode
+        # 2. Gold + Crypto both up → inflation hedge mode
         if gold_bias["bias"] == "bullish" and crypto_bias["bias"] == "bullish":
             result.append(_signal_description(
-                "Inflation-Hedge", "Ù¾ÙˆØ´Ø´ ØªÙˆØ±Ù…ÛŒ", "HEDGE",
-                f"Ø·Ù„Ø§ â†‘ ({gold_bias['change_pct']:+.1f}%) + Ø¨ÛŒØªâ€ŒÚ©ÙˆÛŒÙ† â†‘ ({crypto_bias['change_pct']:+.1f}%) â€” "
-                "Ø¯Ø§Ø±Ø§ÛŒÛŒâ€ŒÙ‡Ø§ÛŒ Ø¶Ø¯ØªÙˆØ±Ù…ÛŒ Ø¯Ø± Ù…Ø¯Ø§Ø± ØµØ¹ÙˆØ¯ÛŒ. Ø§ÙØ²Ø§ÛŒØ´ ØªØ®ØµÛŒØµ Ø¨Ù‡ Ø·Ù„Ø§ Ùˆ Ú©Ø±ÛŒÙ¾ØªÙˆ.",
+                "Inflation-Hedge", "پوشش تورمی", "HEDGE",
+                f"طلا ↑ ({gold_bias['change_pct']:+.1f}%) + بیت‌کوین ↑ ({crypto_bias['change_pct']:+.1f}%) — "
+                "دارایی‌های ضدتورمی در مدار صعودی. افزایش تخصیص به طلا و کریپتو.",
                 strength=0.70,
             ))
 
-        # 3. Commodity â†‘ + Currency (USD/IRR) â†‘ â†’ import inflation
+        # 3. Commodity ↑ + Currency (USD/IRR) ↑ → import inflation
         if commodity_bias["bias"] == "bullish" and currency_bias["bias"] == "bullish":
-            # USD/IRR â†‘ = Ø±ÛŒØ§Ù„ ØªØ¶Ø¹ÛŒÙ Ø´Ø¯Ù‡ = ØªÙˆØ±Ù… ÙˆØ§Ø±Ø¯Ø§ØªÛŒ
+            # USD/IRR ↑ = ریال تضعیف شده = تورم وارداتی
             result.append(_signal_description(
-                "Import-Inflation", "ÙØ´Ø§Ø± ØªÙˆØ±Ù…ÛŒ ÙˆØ§Ø±Ø¯Ø§ØªÛŒ", "CAUTION",
-                f"Ú©Ø§Ù„Ø§ â†‘ ({commodity_bias['change_pct']:+.1f}%) + Ø¯Ù„Ø§Ø± â†‘ ({currency_bias['change_pct']:+.1f}%) â€” "
-                "ÙØ´Ø§Ø± ØªÙˆØ±Ù…ÛŒ ÙˆØ§Ø±Ø¯Ø§ØªÛŒ. Ø§Ø­ØªÛŒØ§Ø· Ø¯Ø± Ø³Ù‡Ø§Ù… Ù…ØµØ±ÙÛŒ Ùˆ Ø§ÙØ²Ø§ÛŒØ´ Ù¾ÙˆØ²ÛŒØ´Ù†â€ŒÙ‡Ø§ÛŒ Ø¯Ù„Ø§Ø±ÛŒ.",
+                "Import-Inflation", "فشار تورمی وارداتی", "CAUTION",
+                f"کالا ↑ ({commodity_bias['change_pct']:+.1f}%) + دلار ↑ ({currency_bias['change_pct']:+.1f}%) — "
+                "فشار تورمی وارداتی. احتیاط در سهام مصرفی و افزایش پوزیشن‌های دلاری.",
                 strength=0.65,
             ))
 
-        # 4. All markets bearish â†’ systemic risk
+        # 4. All markets bearish → systemic risk
         all_bearish = all(
             b["bias"] == "bearish"
             for b in [gold_bias, stock_bias, crypto_bias, currency_bias, commodity_bias]
@@ -485,28 +485,28 @@ class CrossMarketCorrelator:
         )
         if all_bearish and bearish_count >= 4:
             result.append(_signal_description(
-                "Systemic-Risk", "Ø±ÛŒØ³Ú© Ø³ÛŒØ³ØªÙ…ÛŒ", "CASH",
-                "Ù‡Ù…Ù‡ Ø¨Ø§Ø²Ø§Ø±Ù‡Ø§ Ù†Ø²ÙˆÙ„ÛŒ â€” Ø§ÙØ²Ø§ÛŒØ´ Ù†Ù‚Ø¯ÛŒÙ†Ú¯ÛŒ Ùˆ Ú©Ø§Ù‡Ø´ Ù¾ÙˆØ²ÛŒØ´Ù†â€ŒÙ‡Ø§ÛŒ Ø¨Ø§Ø².",
+                "Systemic-Risk", "ریسک سیستمی", "CASH",
+                "همه بازارها نزولی — افزایش نقدینگی و کاهش پوزیشن‌های باز.",
                 strength=0.90,
             ))
 
-        # 5. Strong gold rally on its own â†’ safe-haven demand
+        # 5. Strong gold rally on its own → safe-haven demand
         if gold_bias["bias"] == "bullish" and gold_bias["strength"] == "strong" \
                 and stock_bias.get("bias") != "bearish":
             result.append(_signal_description(
-                "Safe-Haven", "Ù¾Ù†Ø§Ù‡Ú¯Ø§Ù‡ Ø§Ù…Ù†", "DEFENSIVE",
-                f"Ø·Ù„Ø§ â†‘ Ù‚ÙˆÛŒ ({gold_bias['change_pct']:+.1f}%) â€” ØªÙ‚Ø§Ø¶Ø§ÛŒ Ù¾Ù†Ø§Ù‡Ú¯Ø§Ù‡ Ø§Ù…Ù†. "
-                "Ú©Ø§Ù‡Ø´ ÙˆØ²Ù† Ø³Ù‡Ø§Ù… Ùˆ Ø§ÙØ²Ø§ÛŒØ´ Ø·Ù„Ø§/Ø¯Ù„Ø§Ø±.",
+                "Safe-Haven", "پناهگاه امن", "DEFENSIVE",
+                f"طلا ↑ قوی ({gold_bias['change_pct']:+.1f}%) — تقاضای پناهگاه امن. "
+                "کاهش وزن سهام و افزایش طلا/دلار.",
                 strength=0.60,
             ))
 
-        # 6. Gold + Currency both up â†’ stagflation warning
+        # 6. Gold + Currency both up → stagflation warning
         if gold_bias["bias"] == "bullish" and currency_bias["bias"] == "bullish" \
                 and stock_bias["bias"] == "bearish":
             result.append(_signal_description(
-                "Stagflation", "Ø±Ú©ÙˆØ¯ ØªÙˆØ±Ù…ÛŒ", "CAUTION",
-                f"Ø·Ù„Ø§ â†‘ ({gold_bias['change_pct']:+.1f}%) + Ø¯Ù„Ø§Ø± â†‘ ({currency_bias['change_pct']:+.1f}%) + Ø´Ø§Ø®Øµ â†“ "
-                f"({stock_bias['change_pct']:+.1f}%) â€” Ù†Ø´Ø§Ù†Ù‡â€ŒÙ‡Ø§ÛŒ Ø±Ú©ÙˆØ¯ ØªÙˆØ±Ù…ÛŒ. Ø§Ø³ØªØ±Ø§ØªÚ˜ÛŒ ØªØ¯Ø§ÙØ¹ÛŒ.",
+                "Stagflation", "رکود تورمی", "CAUTION",
+                f"طلا ↑ ({gold_bias['change_pct']:+.1f}%) + دلار ↑ ({currency_bias['change_pct']:+.1f}%) + شاخص ↓ "
+                f"({stock_bias['change_pct']:+.1f}%) — نشانه‌های رکود تورمی. استراتژی تدافعی.",
                 strength=0.85,
             ))
 
@@ -514,7 +514,7 @@ class CrossMarketCorrelator:
         result.append({
             "name": "Market-Regime",
             "signal": "INFO",
-            "description": "Ø®Ù„Ø§ØµÙ‡ Ø±Ú˜ÛŒÙ… Ø¨Ø§Ø²Ø§Ø± Ø¨Ø± Ø§Ø³Ø§Ø³ Ù‚ÛŒÙ…Øªâ€ŒÙ‡Ø§ÛŒ ÙˆØ§Ù‚Ø¹ÛŒ",
+            "description": "خلاصه رژیم بازار بر اساس قیمت‌های واقعی",
             "strength": 0.0,
             "source": "real_price",
             "markets": {
@@ -528,7 +528,7 @@ class CrossMarketCorrelator:
 
         return result
 
-    # â”€â”€ Signal-Only Fallback (original logic) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Signal-Only Fallback (original logic) ─────────────────────────────
 
     @staticmethod
     def _analyze_signals_only(
@@ -562,22 +562,22 @@ class CrossMarketCorrelator:
         if gold_bias["bias"] == "bullish" and stock_bias["bias"] == "bearish":
             result.append({
                 "name": "Risk-Off", "signal": "DEFENSIVE", "source": "signal_count",
-                "description": "Ø·Ù„Ø§ â†‘ + Ø³Ù‡Ø§Ù… â†“ â€” Ø¨Ø§Ø²Ø§Ø± Ø±ÛŒØ³Ú©â€ŒÚ¯Ø±ÛŒØ².", "strength": 0.8,
+                "description": "طلا ↑ + سهام ↓ — بازار ریسک‌گریز.", "strength": 0.8,
             })
         elif gold_bias["bias"] == "bearish" and stock_bias["bias"] == "bullish":
             result.append({
                 "name": "Risk-On", "signal": "AGGRESSIVE", "source": "signal_count",
-                "description": "Ø·Ù„Ø§ â†“ + Ø³Ù‡Ø§Ù… â†‘ â€” Ø¨Ø§Ø²Ø§Ø± Ø±ÛŒØ³Ú©â€ŒÙ¾Ø°ÛŒØ±.", "strength": 0.8,
+                "description": "طلا ↓ + سهام ↑ — بازار ریسک‌پذیر.", "strength": 0.8,
             })
         if gold_bias["bias"] == "bullish" and crypto_bias["bias"] == "bullish":
             result.append({
                 "name": "Inflation-Hedge", "signal": "HEDGE", "source": "signal_count",
-                "description": "Ø·Ù„Ø§ â†‘ + Ø±Ù…Ø²Ø§Ø±Ø² â†‘ â€” Ù¾ÙˆØ´Ø´ ØªÙˆØ±Ù…ÛŒ.", "strength": 0.7,
+                "description": "طلا ↑ + رمزارز ↑ — پوشش تورمی.", "strength": 0.7,
             })
         if commodity_bias["bias"] == "bullish" and currency_bias["bias"] == "bearish":
             result.append({
                 "name": "Import-Inflation", "signal": "CAUTION", "source": "signal_count",
-                "description": "Ú©Ø§Ù„Ø§ â†‘ + Ø§Ø±Ø² â†“ â€” ÙØ´Ø§Ø± ØªÙˆØ±Ù…ÛŒ ÙˆØ§Ø±Ø¯Ø§ØªÛŒ.", "strength": 0.65,
+                "description": "کالا ↑ + ارز ↓ — فشار تورمی وارداتی.", "strength": 0.65,
             })
         all_bearish = all(
             b["bias"] == "bearish" for b in [gold_bias, stock_bias, crypto_bias, currency_bias, commodity_bias]
@@ -586,12 +586,12 @@ class CrossMarketCorrelator:
         if all_bearish and len([b for b in [gold_bias, stock_bias, crypto_bias, currency_bias, commodity_bias] if b["total"] > 0]) >= 3:
             result.append({
                 "name": "Systemic-Risk", "signal": "CASH", "source": "signal_count",
-                "description": "Ù‡Ù…Ù‡ Ø¨Ø§Ø²Ø§Ø±Ù‡Ø§ Ù†Ø²ÙˆÙ„ÛŒ â€” Ø±ÛŒØ³Ú© Ø³ÛŒØ³ØªÙ…ÛŒ.", "strength": 0.9,
+                "description": "همه بازارها نزولی — ریسک سیستمی.", "strength": 0.9,
             })
 
         result.append({
             "name": "Market-Biases", "signal": "INFO", "source": "signal_count",
-            "description": "Ø®Ù„Ø§ØµÙ‡ ÙˆØ¶Ø¹ÛŒØª Ø¨Ø§Ø²Ø§Ø±Ù‡Ø§ Ø¨Ø± Ø§Ø³Ø§Ø³ Ø³ÛŒÚ¯Ù†Ø§Ù„â€ŒÙ‡Ø§", "strength": 0.0,
+            "description": "خلاصه وضعیت بازارها بر اساس سیگنال‌ها", "strength": 0.0,
             "biases": {
                 "stock": stock_bias, "gold": gold_bias, "crypto": crypto_bias,
                 "currency": currency_bias, "commodity": commodity_bias,
@@ -600,7 +600,7 @@ class CrossMarketCorrelator:
         return result
 
 
-# â”€â”€ Orchestrator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Orchestrator ──────────────────────────────────────────────────────────────
 
 
 class QuantSignalOrchestrator:
@@ -613,7 +613,7 @@ class QuantSignalOrchestrator:
             min_confidence=0.4,
             use_ml=True,
         )
-        # report.to_dict() â†’ JSON-ready output
+        # report.to_dict() → JSON-ready output
     """
 
     def __init__(self, session: Any = None) -> None:
@@ -638,14 +638,14 @@ class QuantSignalOrchestrator:
         Before generating signals, ensures that all required DB tables exist
         (calibration_models, signal_accuracy) to prevent silent failures.
         """
-        # â”€â”€ Ensure required tables exist (fix #8: cold-start table checks) â”€â”€
+        # ── Ensure required tables exist (fix #8: cold-start table checks) ──
         await self._ensure_db_tables()
 
         from services.multi_market_signal_engine import MultiMarketSignalEngine
 
         engine = MultiMarketSignalEngine(session=self._session)
 
-        # â”€â”€ Stage 1: Generate rule-based signals â”€â”€
+        # ── Stage 1: Generate rule-based signals ──
         _t0 = time.monotonic()
         raw_signals, gen_reports = await engine.generate_all(
             market_filter=market_filter,
@@ -677,14 +677,14 @@ class QuantSignalOrchestrator:
                 generated_at=datetime.now(UTC).isoformat(),
             )
 
-        # â”€â”€ Stage 2: ML predictions â”€â”€
+        # ── Stage 2: ML predictions ──
         ml_predictions: dict[str, dict[str, Any]] = {}
         _t1 = time.monotonic()
         if use_ml:
             ml_predictions = await self._get_ml_predictions(raw_signals)
         logger.info("[pipeline] stage2 ml: %.2fs, %d preds", time.monotonic() - _t1, len(ml_predictions))
 
-        # â”€â”€ Stage 3: Voting â”€â”€
+        # ── Stage 3: Voting ──
         enriched: list[EnrichedSignal] = []
         _t2 = time.monotonic()
         if use_voting and use_ml:
@@ -693,15 +693,15 @@ class QuantSignalOrchestrator:
             enriched = self._basic_enrich(raw_signals)
         logger.info("[pipeline] stage3 voting: %.2fs, %d enriched", time.monotonic() - _t2, len(enriched))
 
-        # â”€â”€ Stage 3.5: Probability calibration (calibrated win probabilities) â”€â”€
+        # ── Stage 3.5: Probability calibration (calibrated win probabilities) ──
         _t3 = time.monotonic()
         if use_probability_calibration:
             enriched = await self._apply_probability_calibration(enriched)
         logger.info("[pipeline] stage3.5 prob-calib: %.2fs", time.monotonic() - _t3)
 
-        # â”€â”€ Stage 3.6: Candidate cap â”€â”€
+        # ── Stage 3.6: Candidate cap ──
         # The remaining stages (confidence calibration + 10-gate decision engine)
-        # open a DB session per signal â€” running them on every raw candidate
+        # open a DB session per signal — running them on every raw candidate
         # (500+ for the dashboard) turns a request into a multi-minute job.
         # The final output only keeps `limit` signals anyway, so keep only the
         # strongest candidates here (diversity is re-applied downstream).
@@ -710,28 +710,28 @@ class QuantSignalOrchestrator:
             enriched = enriched[:120]
             logger.info("[pipeline] stage3.6 capped candidates to %d", len(enriched))
 
-        # â”€â”€ Stage 4: Confidence calibration (multi-factor confidence scoring) â”€â”€
+        # ── Stage 4: Confidence calibration (multi-factor confidence scoring) ──
         _t4 = time.monotonic()
         if use_confidence_calibration:
             enriched = await self._apply_confidence_calibration(enriched)
         logger.info("[pipeline] stage4 conf-calib: %.2fs", time.monotonic() - _t4)
 
-        # â”€â”€ Stage 4.5: Signal decision engine (10-gate pipeline) â”€â”€
+        # ── Stage 4.5: Signal decision engine (10-gate pipeline) ──
         rejected: list[EnrichedSignal] = []
         _t5 = time.monotonic()
         if use_decision_engine:
             enriched, rejected = await self._apply_signal_decision(enriched)
         logger.info("[pipeline] stage4.5 decision: %.2fs, released=%d rejected=%d", time.monotonic() - _t5, len(enriched), len(rejected))
 
-        # â”€â”€ Stage 5: Cross-market correlation (only on released signals) â”€â”€
+        # ── Stage 5: Cross-market correlation (only on released signals) ──
         _t6 = time.monotonic()
         cross_market = await CrossMarketCorrelator.analyze(enriched)
         logger.info("[pipeline] stage5 cross-market: %.2fs", time.monotonic() - _t6)
 
-        # â”€â”€ Stage 6: Filter by confidence â”€â”€
+        # ── Stage 6: Filter by confidence ──
         enriched = [s for s in enriched if s.confidence >= min_confidence]
 
-        # â”€â”€ Stage 6.1: Per-market quota to ensure diversity â”€â”€
+        # ── Stage 6.1: Per-market quota to ensure diversity ──
         market_quota = max(5, limit // 4)  # at least 5 per market, up to 25%
         by_market_enriched: dict[str, list[EnrichedSignal]] = {}
         for s in enriched:
@@ -746,12 +746,12 @@ class QuantSignalOrchestrator:
         enriched.sort(key=lambda s: s.boosted_score, reverse=True)
         enriched = enriched[:limit]
 
-        # â”€â”€ Stage 6.5: Persist to DB for future outcome evaluation â”€â”€
+        # ── Stage 6.5: Persist to DB for future outcome evaluation ──
         _t7 = time.monotonic()
         await self._persist_pending_signals(enriched)
         logger.info("[pipeline] stage6.5 persist: %.2fs", time.monotonic() - _t7)
 
-        # â”€â”€ Summary â”€â”€
+        # ── Summary ──
         buy_count = sum(1 for s in enriched if s.direction == "buy")
         sell_count = sum(1 for s in enriched if s.direction == "sell")
         hold_count = sum(1 for s in enriched if s.direction in ("hold", "wait"))
@@ -791,10 +791,10 @@ class QuantSignalOrchestrator:
             g = s.decision_grade or "UNGRADED"
             grade_dist[g] = grade_dist.get(g, 0) + 1
 
-        # â”€â”€ Accuracy snapshot â”€â”€
+        # ── Accuracy snapshot ──
         accuracy_snapshot = await self._get_accuracy_snapshot()
 
-        # â”€â”€ Stage 7: Record past outcomes + auto-retrain if accuracy low â”€â”€
+        # ── Stage 7: Record past outcomes + auto-retrain if accuracy low ──
         retrain_reports, fresh_accuracy = await self._record_outcomes_and_retrain(accuracy_snapshot)
         if fresh_accuracy:
             accuracy_snapshot = fresh_accuracy
@@ -834,7 +834,7 @@ class QuantSignalOrchestrator:
             generated_at=datetime.now(UTC).isoformat(),
         )
 
-    # â”€â”€ ML Predictions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── ML Predictions ──────────────────────────────────────────────────────
 
     async def _get_ml_predictions(
         self, signals: list[Any],
@@ -864,7 +864,7 @@ class QuantSignalOrchestrator:
                     closes = hist.get("closes", [])
 
                     if len(closes) < 5:
-                        # Not enough history for meaningful ML â€” skip
+                        # Not enough history for meaningful ML — skip
                         continue
 
                     price_data = {
@@ -960,7 +960,7 @@ class QuantSignalOrchestrator:
 
         return result
 
-    # â”€â”€ Voting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Voting ───────────────────────────────────────────────────────────────
 
     async def _apply_voting(
         self,
@@ -1031,12 +1031,12 @@ class QuantSignalOrchestrator:
                     created_at=sig.created_at,
                 ))
             except Exception as e:
-                logger.debug("Voting failed for %s: %s â€” falling back to rule-based", sig.symbol, e)
+                logger.debug("Voting failed for %s: %s — falling back to rule-based", sig.symbol, e)
                 enriched.append(self._basic_enrich_single(sig))
 
         return enriched
 
-    # â”€â”€ Confidence Calibration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Confidence Calibration ───────────────────────────────────────────────
 
     async def _apply_confidence_calibration(
         self, signals: list[EnrichedSignal],
@@ -1076,7 +1076,7 @@ class QuantSignalOrchestrator:
             logger.warning("Confidence calibration batch failed: %s", e)
             return signals
 
-    # â”€â”€ Probability Calibration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Probability Calibration ───────────────────────────────────────────
 
     async def _apply_probability_calibration(
         self, signals: list[EnrichedSignal],
@@ -1126,7 +1126,7 @@ class QuantSignalOrchestrator:
             logger.warning("Probability calibration batch failed: %s", e)
             return signals
 
-    # â”€â”€ Signal Decision Engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Signal Decision Engine ──────────────────────────────────────────────
 
     async def _apply_signal_decision(
         self, signals: list[EnrichedSignal],
@@ -1167,7 +1167,7 @@ class QuantSignalOrchestrator:
 
                     # Compute volatility_regime from change_pct (not hardcoded)
                     abs_change = abs(sig.change_pct) / 100.0
-                    vol_regime = min(1.0, abs_change * 5)  # 0-20% change â†’ 0-1.0 volatility
+                    vol_regime = min(1.0, abs_change * 5)  # 0-20% change → 0-1.0 volatility
 
                     # Compute data quality score from available signal fields
                     available_fields = 0
@@ -1178,7 +1178,7 @@ class QuantSignalOrchestrator:
                         available_fields += 1
                     if sig.confidence is not None:
                         available_fields += 1
-                    if sig.score is not None:
+                    if sig.rule_score is not None:
                         available_fields += 1
                     dqs = compute_data_quality_score(
                         total_fields=total_expected,
@@ -1244,7 +1244,7 @@ class QuantSignalOrchestrator:
                         released.append(sig)
 
                 except Exception as inner_e:
-                    logger.debug("Decision engine failed for %s: %s â€” rejecting signal", sig.symbol, inner_e)
+                    logger.debug("Decision engine failed for %s: %s — rejecting signal", sig.symbol, inner_e)
                     sig.decision_verdict = "reject"
                     sig.decision_grade = "REJECTED_ON_ERROR"
                     rejected.append(sig)
@@ -1258,16 +1258,16 @@ class QuantSignalOrchestrator:
             return released, rejected
 
         except Exception as e:
-            logger.warning("Signal decision batch failed: %s â€” rejecting all signals", e)
+            logger.warning("Signal decision batch failed: %s — rejecting all signals", e)
             for sig in signals:
                 sig.decision_verdict = "reject"
                 sig.decision_grade = "REJECTED_ON_ERROR"
             return [], signals
 
-    # â”€â”€ Basic Enrich (no ML) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Basic Enrich (no ML) ────────────────────────────────────────────────
 
     def _basic_enrich(self, signals: list[Any]) -> list[EnrichedSignal]:
-        """Enrich signals without ML/voting â€” just wrap in EnrichedSignal."""
+        """Enrich signals without ML/voting — just wrap in EnrichedSignal."""
         return [self._basic_enrich_single(s) for s in signals]
 
     def _basic_enrich_single(self, sig: Any) -> EnrichedSignal:
@@ -1301,7 +1301,7 @@ class QuantSignalOrchestrator:
             created_at=sig.created_at,
         )
 
-    # â”€â”€ Smart Money Analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Smart Money Analysis ──────────────────────────────────────────────
 
     async def _fetch_smart_money_analyses(
         self, signals: list[Any],
@@ -1333,7 +1333,7 @@ class QuantSignalOrchestrator:
 
             # IMPORTANT: each concurrent task gets its OWN AsyncSession.
             # A single AsyncSession must not be shared across concurrent
-            # coroutines â€” SQLAlchemy raises IllegalStateChangeError
+            # coroutines — SQLAlchemy raises IllegalStateChangeError
             # ("Method 'close()' can't be called here") and the request hangs.
             sem = asyncio.Semaphore(5)
 
@@ -1370,23 +1370,23 @@ class QuantSignalOrchestrator:
 
         return result
 
-    # â”€â”€ Parsing Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Parsing Helpers ─────────────────────────────────────────────────────
 
     @staticmethod
     def _parse_risk_reward(rr_str: str) -> float:
-        """Parse risk/reward string like '2.5', '1:2.5', 'Û± Ø¨Ù‡ Û±.Û³' to float."""
+        """Parse risk/reward string like '2.5', '1:2.5', '۱ به ۱.۳' to float."""
         if not rr_str:
             return 0.0
-        _PERSIAN_DIGITS = str.maketrans("Û°Û±Û²Û³Û´ÛµÛ¶Û·Û¸Û¹", "0123456789")
+        _PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
         normalized = rr_str.translate(_PERSIAN_DIGITS)
         # Try direct parse
         try:
             return float(normalized)
         except ValueError:
             pass
-        # Try format like '1:2.5' or '1 Ø¨Ù‡ 2.5' or '1:3'
-        if ":" in normalized or " Ø¨Ù‡ " in normalized:
-            sep = ":" if ":" in normalized else " Ø¨Ù‡ "
+        # Try format like '1:2.5' or '1 به 2.5' or '1:3'
+        if ":" in normalized or " به " in normalized:
+            sep = ":" if ":" in normalized else " به "
             parts = normalized.split(sep)
             if len(parts) == 2:
                 try:
@@ -1407,7 +1407,7 @@ class QuantSignalOrchestrator:
     @staticmethod
     def _normalize_digits(s: str) -> str:
         """Normalize Persian/Arabic digits to ASCII."""
-        return s.translate(str.maketrans("Û°Û±Û²Û³Û´ÛµÛ¶Û·Û¸Û¹", "0123456789"))
+        return s.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
 
     @staticmethod
     def _parse_stop_loss_pct(sl_str: str, price: float) -> float:
@@ -1427,7 +1427,7 @@ class QuantSignalOrchestrator:
                 pct = abs(val - price) / max(price, 0.001)
                 if 0.001 <= pct <= 0.5:  # 0.1% to 50%
                     return pct
-                if 0.5 < pct <= 5:  # 50% to 500% â€” likely wrong, use default
+                if 0.5 < pct <= 5:  # 50% to 500% — likely wrong, use default
                     return 0.05
             except (ValueError, IndexError):
                 pass
@@ -1454,7 +1454,7 @@ class QuantSignalOrchestrator:
                     return pct
             except (ValueError, IndexError):
                 pass
-        return 0.0    # â”€â”€ DB Table Checks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        return 0.0    # ── DB Table Checks ──────────────────────────────────────────────────
 
     @staticmethod
     async def _ensure_db_tables() -> None:
@@ -1467,7 +1467,7 @@ class QuantSignalOrchestrator:
             from core.database import async_session_factory
 
             if async_session_factory is None:
-                logger.warning("No DB available â€” skipping table creation checks")
+                logger.warning("No DB available — skipping table creation checks")
                 return
 
             async with async_session_factory() as session:
@@ -1550,7 +1550,7 @@ class QuantSignalOrchestrator:
         except Exception as e:
             logger.warning("Failed to ensure DB tables: %s", e)
 
-    # â”€â”€ Feedback Loop: Outcome Recording + Auto-Retrain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Feedback Loop: Outcome Recording + Auto-Retrain ───────────────────
 
     # In-memory tracker for scheduled retrains (avoids querying non-existent table)
     _last_scheduled_retrain: float | None = None
@@ -1566,14 +1566,14 @@ class QuantSignalOrchestrator:
         """Evaluate past signals, record outcomes, and auto-retrain if accuracy drops.
 
         This closes the feedback loop:
-          persist â†’ wait for prediction period â†’ evaluate â†’ record â†’ check accuracy â†’ retrain
+          persist → wait for prediction period → evaluate → record → check accuracy → retrain
 
         Returns list of retrain reports (empty if no retrain was needed).
         """
         retrain_reports: list[dict[str, Any]] = []
 
         try:
-            # 0. Throttle the whole feedback loop â€” evaluating + retraining is
+            # 0. Throttle the whole feedback loop — evaluating + retraining is
             #    heavy and would otherwise run on every single request. Run at
             #    most once per 6 hours (this is fine: signals need >= 5 days
             #    before their outcome can even be evaluated). The very first
@@ -1605,7 +1605,7 @@ class QuantSignalOrchestrator:
                 if acc < ACCURACY_THRESHOLD:
                     low_accuracy_markets.append(market)
                     logger.warning(
-                        "Market '%s' accuracy %.1f%% below threshold %.1f%% â€” triggering retrain",
+                        "Market '%s' accuracy %.1f%% below threshold %.1f%% — triggering retrain",
                         market, acc, ACCURACY_THRESHOLD,
                     )
 
@@ -1667,7 +1667,7 @@ class QuantSignalOrchestrator:
         ``/multi-market-signals/retrain`` endpoint and scheduler job.
         """
         if QuantSignalOrchestrator._last_scheduled_retrain is None:
-            return False  # never retrained â€” don't block first request
+            return False  # never retrained — don't block first request
         seconds_since = time.time() - QuantSignalOrchestrator._last_scheduled_retrain
         return seconds_since >= 7 * 24 * 3600
 
@@ -1688,7 +1688,7 @@ class QuantSignalOrchestrator:
             async with async_session_factory() as session:
                 # Dedupe guard: the pipeline runs repeatedly (every cache TTL /
                 # background rebuild), so the same signal would otherwise be
-                # inserted thousands of times under new ids â€” flooding the
+                # inserted thousands of times under new ids — flooding the
                 # table and skewing accuracy stats with copies of one signal.
                 # Only one PENDING (unevaluated) row is kept per
                 # (symbol, market, direction, timeframe); once it is evaluated
@@ -1704,7 +1704,7 @@ class QuantSignalOrchestrator:
 
                 for sig in signals:
                     try:
-                        # Skip hold/wait â€” they have no tradable outcome and
+                        # Skip hold/wait — they have no tradable outcome and
                         # only pollute the accuracy table (e.g. IME 100% acc
                         # from 875 holds).
                         if sig.direction in ("hold", "wait"):
@@ -1930,7 +1930,7 @@ class QuantSignalOrchestrator:
         return {}
 
 
-# â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Singleton ─────────────────────────────────────────────────────────────────
 
 _orchestrator: QuantSignalOrchestrator | None = None
 
