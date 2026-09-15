@@ -293,7 +293,11 @@ class TestApplySignalDecision:
 
     @pytest.mark.asyncio
     async def test_graceful_degradation_on_engine_failure(self):
-        """When decision engine fails on a signal, keep it as release with grade UNGATED."""
+        """Engine failure on one signal → fail-closed: reject with REJECTED_ON_ERROR.
+
+        Deliberately fail-closed (AUDIT_REPORT.md fix #1): in a trading system
+        releasing an unvetted signal on error is a financial risk.
+        """
         orchestrator = QuantSignalOrchestrator()
         sig = _make_enriched_signal()
         with patch("services.signal_decision_engine.SignalDecisionEngine") as mock_cls:
@@ -307,14 +311,14 @@ class TestApplySignalDecision:
             released, rejected = await orchestrator._apply_signal_decision(
                 [sig]
             )
-        assert len(released) == 1
-        assert len(rejected) == 0
-        assert released[0].decision_verdict == "release"
-        assert released[0].decision_grade == "UNGATED"
+        assert len(released) == 0
+        assert len(rejected) == 1
+        assert rejected[0].decision_verdict == "reject"
+        assert rejected[0].decision_grade == "REJECTED_ON_ERROR"
 
     @pytest.mark.asyncio
     async def test_graceful_degradation_on_batch_failure(self):
-        """When the entire decision engine initialization fails, release all signals."""
+        """Batch-level engine init failure → fail-closed: reject all signals."""
         orchestrator = QuantSignalOrchestrator()
         sig = _make_enriched_signal()
         with patch(
@@ -324,7 +328,7 @@ class TestApplySignalDecision:
             released, rejected = await orchestrator._apply_signal_decision(
                 [sig]
             )
-        assert len(released) == 1
-        assert len(rejected) == 0
-        assert released[0].decision_verdict == "release"
-        assert released[0].decision_grade == "UNGATED"
+        assert len(released) == 0
+        assert len(rejected) == 1
+        assert rejected[0].decision_verdict == "reject"
+        assert rejected[0].decision_grade == "REJECTED_ON_ERROR"

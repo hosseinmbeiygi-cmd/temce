@@ -505,6 +505,8 @@ class BrsApiBudgetGovernor:
 
     async def _enforce_5min(self, fail_fast: bool) -> None:
         """Shared sliding 5-min window (Redis backend only)."""
+        from brsapi.rate_limiter import RateLimitExhaustedError
+
         if self._backend != "redis" or self._redis is None:
             return  # the in-process limiter enforces its own window
         key = f"{self._redis_prefix}:5min"
@@ -516,8 +518,6 @@ class BrsApiBudgetGovernor:
                 if count < self._five_min_limit:
                     return
                 if fail_fast:
-                    from brsapi.rate_limiter import RateLimitExhaustedError
-
                     raise RateLimitExhaustedError(
                         f"BrsApi 5-min window full ({count}/{self._five_min_limit}) — "
                         "request rejected to protect the key"

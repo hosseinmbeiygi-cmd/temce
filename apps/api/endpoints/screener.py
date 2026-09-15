@@ -5,8 +5,11 @@ import json
 import time
 from typing import Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.dependencies import get_db_session
+from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
 from schemas.api.screener_filter import (
@@ -38,6 +41,11 @@ def _validate_sort_by(sort_by: str) -> str:
     if sort_by not in VALID_SORT_COLUMNS:
         return "smc_score"  # default
     return sort_by
+
+
+def _validate_sort_order(sort_order: str) -> str:
+    """Whitelist sort direction. Anything invalid falls back to desc."""
+    return "asc" if isinstance(sort_order, str) and sort_order.lower() == "asc" else "desc"
 
 
 # ── Rate limiting (per-IP, sliding window) ──
@@ -76,25 +84,17 @@ def _cache_set(key: str, val: Any) -> None:
         del _CACHE[oldest]
 
 
-async def _fetch_screen_data(limit: int = 200) -> tuple[list[dict[str, Any]], list[dict[str, Any]], Any]:
-    """Fetch instruments + market_watch from BrsApi with fallback.
-
-    Returns (instruments, market_watch, session) — session is kept open
-    so ScreenerService can query historical tables.
-    """
+async def _fetch_screen_data_with_session(
+    session: AsyncSession,
+    limit: int = 200,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Load market data using an externally-managed session."""
     from brsapi.services.query_service import BrsApiQueryService
-    from core.database import get_session
     from services.market_watch_helper import fetch_market_watch
 
-    session = None
+    svc = BrsApiQueryService(session=session)
+    return await fetch_market_watch(svc, limit=limit)
 
-    async for sess in get_session():
-        session = sess
-        svc = BrsApiQueryService(session=sess)
-        instruments, market_watch = await fetch_market_watch(svc, limit=limit)
-        break
-
-    return instruments, market_watch, session
 
 
 @router.get(
@@ -111,6 +111,7 @@ async def screener(
     page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: int | None = Query(None, ge=1, le=200, description="Page size"),
     request: Request = None,
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Run the 5-phase Smart Money screener over real market data."""
     # Rate limiting
@@ -126,14 +127,19 @@ async def screener(
     # Validate sort_by
     sort_by = _validate_sort_by(sort_by)
 
-    cache_key = hashlib.md5(f"screen:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()).hexdigest()
+    sort_order = _validate_sort_order(sort_order)
+
+    cache_key = hashlib.md5(
+        f"screen:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode(),
+        usedforsecurity=False,
+    ).hexdigest()
     cached = _cache_get(cache_key)
     if cached is not None:
         return ApiResponse[dict[str, Any]](success=True, data=cached)
 
     try:
-        # ── 1. Fetch market data + keep DB session open ──
-        instruments, market_watch, session = await _fetch_screen_data(limit=min(200, limit * 4))
+        # ── 1. Fetch market data (session is managed by the FastAPI dependency) ──
+        instruments, market_watch = await _fetch_screen_data_with_session(session, limit=min(200, limit * 4))
 
         if not instruments:
             logger.warning("Screener: no market data available (DB may be empty or not synced)")
@@ -145,6 +151,7 @@ async def screener(
 
         # ── 2. Run screener pipeline with real data ──
         from services.screener_service import ScreenerService
+
         svc = ScreenerService(session=session, history_limit=60)
         results, pagination_info = await svc.screen(
             instruments=instruments,
@@ -178,7 +185,7 @@ async def screener(
         return ApiResponse[dict[str, Any]](
             success=False,
             data={"items": [], "total": 0},
-            error={"message": f"Screener pipeline error: {exc}"},
+            error={"message": safe_error_message(exc, default_message="Screener pipeline error")},
         )
 
 
@@ -190,6 +197,7 @@ async def screener(
 async def screener_filter(
     body: ScreenerFilterRequest,
     request: Request = None,
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[ScreenerFilterResponse]:
     """Run the screener pipeline and apply user-defined filters on real data."""
     # Rate limiting
@@ -205,15 +213,29 @@ async def screener_filter(
     # Validate sort_by
     body.sort_by = _validate_sort_by(body.sort_by)
 
-    filters_key = hashlib.md5(json.dumps([{"field": f.field, "operator": f.operator, "value": f.value, "value_to": f.value_to} for f in body.filters], default=str).encode()).hexdigest()
-    cache_key = hashlib.md5(f"filter:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()).hexdigest()
+    body.sort_order = _validate_sort_order(body.sort_order)
+
+    filters_key = hashlib.md5(
+        json.dumps(
+            [
+                {"field": f.field, "operator": f.operator, "value": f.value, "value_to": f.value_to}
+                for f in body.filters
+            ],
+            default=str,
+        ).encode(),
+        usedforsecurity=False,
+    ).hexdigest()
+    cache_key = hashlib.md5(
+        f"filter:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}:{body.include_details}".encode(),
+        usedforsecurity=False,
+    ).hexdigest()
     cached = _cache_get(cache_key)
     if cached is not None:
         return ApiResponse[ScreenerFilterResponse](success=True, data=cached)
 
     try:
-        # ── 1. Fetch market data + keep DB session open ──
-        instruments, market_watch, session = await _fetch_screen_data(limit=min(200, body.limit * 4))
+        # ── 1. Fetch market data (session is managed by the FastAPI dependency) ──
+        instruments, market_watch = await _fetch_screen_data_with_session(session, limit=min(200, body.limit * 4))
 
         if not instruments:
             logger.warning("Screener filter: no market data available")
@@ -233,6 +255,7 @@ async def screener_filter(
 
         # ── 3. Run pipeline with real data ──
         from services.screener_service import ScreenerService
+
         svc = ScreenerService(session=session, history_limit=60)
         results, stats_raw = await svc.screen_with_filters(
             instruments=instruments,
@@ -321,5 +344,5 @@ async def screener_filter(
         return ApiResponse[ScreenerFilterResponse](
             success=False,
             data=ScreenerFilterResponse(items=[], total=0),
-            error={"message": f"Screener filter error: {exc}"},
+            error={"message": safe_error_message(exc, default_message="Screener filter error")},
         )

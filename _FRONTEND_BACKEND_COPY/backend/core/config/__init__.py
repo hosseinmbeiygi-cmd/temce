@@ -1,0 +1,315 @@
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        populate_by_name=True,
+        extra="ignore",
+    )
+
+    app_name: str = "iran-market-platform"
+    debug: bool = False
+    environment: str = Field(default="development", alias="ENV")
+
+    server_host: str = "0.0.0.0"
+    server_port: int = 8000
+    workers: int = 1
+
+    database_url: str = Field(default="postgresql+asyncpg://market:market@localhost:5432/market", alias="DATABASE_URL")
+    database_pool_size: int = 20
+    database_max_overflow: int = 30
+    database_echo: bool = False
+
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_default_ttl: int = 300
+
+    log_level: str = "INFO"
+    log_format: str = "json"
+    log_file: str | None = None
+
+    api_prefix: str = "/api/v1"
+    api_title: str = "Iran Market Platform API"
+    api_version: str = "0.1.0"
+    api_max_page_size: int = Field(default=1000, ge=1, le=10_000)
+    # Funds merged-list cache TTL (seconds). The brsapi_symbol_snapshots
+    # latest-per-symbol query is expensive; this keeps the /funds endpoints
+    # snappy while staying within a few sync intervals.
+    fund_cache_ttl_seconds: float = Field(default=120.0, ge=1.0)
+    # Smart Screener V2 per-IP rate limit. The endpoint hits expensive
+    # scoring pipelines; the cap prevents a single client from monopolising
+    # the worker pool.
+    screener_v2_rate_window_seconds: int = Field(default=60, ge=1)
+    screener_v2_rate_max: int = Field(default=30, ge=1)
+    # Safe-by-default: restricted to the documented local dev origin.
+    # Set CORS_ORIGINS explicitly for other origins (e.g. ["https://yourdomain.com"]).
+    cors_origins: list[str] = Field(default=["http://localhost:3000"], alias="CORS_ORIGINS")
+
+    secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
+    access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = 30
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    bcrypt_rounds: int = 12
+    max_login_attempts: int = 5
+    lockout_minutes: int = 15
+    session_timeout_minutes: int = 30
+    enable_csrf: bool = True
+
+    # httpOnly refresh-token cookie (auth): keeps the long-lived token out of
+    # localStorage/JS so XSS cannot exfiltrate it.
+    auth_cookie_name: str = Field(default="im_refresh", alias="AUTH_COOKIE_NAME")
+    auth_cookie_secure: bool = Field(default=False, alias="AUTH_COOKIE_SECURE")
+    auth_cookie_domain: str = Field(default="", alias="AUTH_COOKIE_DOMAIN")
+    auth_cookie_samesite: str = Field(default="lax", alias="AUTH_COOKIE_SAMESITE")
+    # Defense-in-depth: strip markup/control characters from JSON request
+    # bodies before handlers see them (see InputSanitizationMiddleware).
+    enable_input_sanitization: bool = True
+    api_key_header: str = "X-API-Key"
+
+    # Only auto-create tables when explicitly enabled (dev mode without running
+    # alembic). Production must use Alembic migrations — never create_all.
+    database_auto_create_tables: bool = False
+
+    data_dir: str = str(Path.cwd() / "data")
+    storage_backend: str = "local"
+    s3_bucket: str | None = None
+
+    provider_default_timeout: int = 30
+    provider_max_retries: int = 3
+    provider_rate_limit_per_minute: int = 300  # Personal system: generous default
+
+    # Per-endpoint rate limits: {"path_pattern": "max_requests_per_minute"}
+    # These override the default provider_rate_limit_per_minute for specific endpoints.
+    # Example: {"/api/v1/signals": 10, "/api/v1/backtests/run": 5, "/api/v1/ml/train": 2}
+    endpoint_rate_limits: dict[str, int] = Field(
+        default_factory=lambda: {
+            # ── Signals & Recommendations ──
+            "/api/v1/signals": 10,
+            "/api/v1/signal-insights": 10,
+            "/api/v1/signal-insights/generate": 5,
+            # ── Backtesting (expensive) ──
+            "/api/v1/backtests/run": 5,
+            "/api/v1/backtests/generate": 5,
+            "/api/v1/backtests/cascade": 2,
+            "/api/v1/backtests/adaptive": 2,
+            # ── ML (expensive) ──
+            "/api/v1/ml/train": 2,
+            "/api/v1/ml/predict": 20,
+            "/api/v1/ml/evaluate": 5,
+            # ── Portfolios & Alerts ──
+            "/api/v1/portfolios": 30,
+            "/api/v1/alerts": 30,
+            "/api/v1/watchlist": 60,
+            # ── Screener ──
+            "/api/v1/screener-v2": 20,
+            "/api/v1/screener-v2/run": 5,
+            "/api/v1/screener110": 20,
+            # ── Chat & Assistant ──
+            "/api/v1/chat": 20,
+            "/api/v1/stock-assistant": 15,
+            "/api/v1/assistant": 15,
+            "/api/v1/compose": 10,
+            # ── Data Import (expensive) ──
+            "/api/v1/data-import": 5,
+            "/api/v1/data-import/sync": 2,
+            # ── Auth (strict) ──
+            "/api/v1/auth/login": 10,
+            "/api/v1/auth/register": 5,
+            "/api/v1/auth/change-password": 5,
+            "/api/v1/auth/refresh": 30,
+            # ── Read-only (generous) ──
+            "/api/v1/heatmap": 60,
+            "/api/v1/news": 60,
+            "/api/v1/codal": 30,
+            "/api/v1/economic-calendar": 30,
+            "/api/v1/macro": 30,
+            "/api/v1/decision-engine": 30,
+            "/api/v1/recommendations": 30,
+            "/api/v1/funds": 30,
+            "/api/v1/bourse": 30,
+            "/api/v1/futures": 30,
+            "/api/v1/commodity": 30,
+            "/api/v1/crypto": 30,
+        },
+        description="Per-endpoint rate limits (requests per minute)",
+    )
+
+    # Rate limit response headers
+    rate_limit_include_headers: bool = True  # Add X-RateLimit-* headers to responses
+
+    tsetmc_base_url: str = "https://tsetmc.com"
+
+    tsetmc_api_key: str = ""
+    tsetmc_ws_url: str | None = None
+    codal_base_url: str = "https://codal.ir"
+    codal_api_key: str = ""
+    codal_excel_dir: str = Field(default="", alias="CODAL_EXCEL_DIR")
+    fipiran_api_key: str = ""
+
+    ml_model_dir: str = str(Path.cwd() / "data" / "models")
+    ml_default_batch_size: int = 2048
+    ml_device: str = "cpu"
+    ml_random_seed: int = 42
+    ml_experiment_tracker_uri: str | None = None
+
+    backtest_default_capital: float = 1_000_000_000
+    backtest_default_commission_pct: float = 0.0035
+    backtest_default_slippage_bps: float = 10.0
+
+    monitoring_enabled: bool = True
+    metrics_path: str = "/metrics"
+    otlp_endpoint: str | None = None
+    sentry_dsn: str | None = None
+
+    # Centralized log aggregation (Redis Streams). Enable in multi-service
+    # deployments where a collector (Loki/Vector) tails the stream.
+    log_aggregation_enabled: bool = False
+    log_aggregation_source: str = "api"
+
+    jobs_max_concurrent: int = 4
+    jobs_default_timeout_minutes: int = 30
+    scheduler_timezone: str = "Asia/Tehran"
+
+    # ── Distributed job queue (Redis) ────────────────────────────────────
+    # When enabled, the scheduler only *pushes* jobs to a Redis queue and
+    # dedicated worker replicas consume + execute them (required for
+    # multi-replica Docker Swarm deployments so a job never runs twice).
+    # In development (single process) keep this OFF so the scheduler runs
+    # jobs in-process — see docs/job-queue.md.
+    job_queue_enabled: bool = Field(default=False, alias="JOB_QUEUE_ENABLED")
+    job_queue_name: str = Field(default="job:queue", alias="JOB_QUEUE_NAME")
+    # Shared secret workers use to authenticate queue messages. When empty a
+    # per-process random token is used (dev fallback only — set it in prod).
+    job_queue_token: str = Field(default="", alias="JOB_QUEUE_TOKEN")
+    # TTL (seconds) for the distributed per-job lock taken by the consumer.
+    job_queue_lock_ttl: int = Field(default=300, alias="JOB_QUEUE_LOCK_TTL")
+    # Failed jobs are re-pushed to the *main* queue (attempt counter incremented)
+    # until max_retries, then moved to the dead-letter list for manual review.
+    job_queue_dead_letter: str = Field(default="job:dead", alias="JOB_QUEUE_DEAD_LETTER")
+    job_queue_consumer_timeout: int = Field(default=1, alias="JOB_QUEUE_CONSUMER_TIMEOUT")
+    # Lease for a worker's processing list. After expiry, a new consumer can
+    # safely recover messages left behind by a crashed worker.
+    job_queue_lease_seconds: int = Field(default=600, alias="JOB_QUEUE_LEASE_SECONDS")
+
+    # Telegram notifications (optional)
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
+    @field_validator("ml_device")
+    @classmethod
+    def validate_ml_device(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"cpu", "mps"} and not normalized.startswith("cuda"):
+            raise ValueError("ML_DEVICE must be cpu, mps, or cuda[:index]")
+        return normalized
+
+    @field_validator("auth_cookie_samesite")
+    @classmethod
+    def validate_auth_cookie_samesite(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"lax", "strict", "none"}:
+            raise ValueError("AUTH_COOKIE_SAMESITE must be lax, strict, or none")
+        return normalized
+
+    @field_validator("auth_cookie_secure", mode="after")
+    @classmethod
+    def validate_cookie_secure_for_samesite(cls, value: bool, info) -> bool:  # type: ignore[no-untyped-def]
+        # SameSite=None requires Secure per spec; Lax/Strict may be Secure or not
+        # depending on deployment, but None without Secure is always rejected by browsers.
+        samesite = (info.data.get("auth_cookie_samesite") or "lax").lower() if isinstance(info.data, dict) else "lax"
+        if samesite == "none" and not value:
+            raise ValueError("AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true")
+        return value
+
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def validate_jwt_algorithm(cls, value: str) -> str:
+        if value.strip().lower() == "none":
+            raise ValueError("JWT_ALGORITHM=none is not allowed")
+        return value
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
+
+    @property
+    def is_development(self) -> bool:
+        return self.environment == "development"
+
+    def validate_production(self) -> None:
+        if not self.is_production:
+            return
+        errors: list[str] = []
+        warnings: list[str] = []
+        if not self.secret_key.strip() or self.secret_key in (
+            "change-me-in-production",
+            "change-me-in-production-use-strong-random-key",
+        ):
+            errors.append("SECRET_KEY must be changed from default in production")
+        if len(self.secret_key) < 32:
+            errors.append("SECRET_KEY must be >=32 chars in production")
+        if self.cors_origins == ["*"] or "*" in self.cors_origins:
+            errors.append("CORS_ORIGINS must be restricted in production (found '*')")
+        if self.database_url.startswith("sqlite"):
+            errors.append("SQLite cannot be used in production")
+        if not self.auth_cookie_secure:
+            errors.append("AUTH_COOKIE_SECURE must be true in production (refresh cookie would travel over plain HTTP)")
+        if self.otlp_endpoint is None:
+            warnings.append("OTLP_ENDPOINT not set — observability will be blind in prod")
+        # Vault / secret backend check (Q1 P0)
+        import os as _os
+
+        has_vault = bool(_os.environ.get("VAULT_ADDR") and _os.environ.get("VAULT_TOKEN"))
+        has_env_secret = bool(_os.environ.get("SECRET_KEY") or _os.environ.get("SECRET_SECRET_KEY"))
+        if not has_vault and not has_env_secret and self.secret_key == "change-me-in-production":
+            errors.append("No Vault/KMS configured and SECRET_KEY is default — set VAULT_ADDR/VAULT_TOKEN or SECRET_KEY")
+        if self.job_queue_enabled and not self.job_queue_token:
+            warnings.append("JOB_QUEUE_TOKEN empty while JOB_QUEUE_ENABLED=true — workers use random token (dev only)")
+        # Surface warnings but don't fail
+        if warnings:
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "Production warnings:\n" + "\n".join(f"  ! {w}" for w in warnings)
+            )
+        if errors:
+            raise RuntimeError("Production config validation failed:\n" + "\n".join(f"  - {e}" for e in errors))
+
+    @property
+    def database_url_async(self) -> str:
+        if self.database_url.startswith("sqlite"):
+            return self.database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+        if "postgres" in self.database_url:
+            # Already has a driver suffix like +asyncpg or +psycopg2
+            if "+" in self.database_url.split("://", 1)[0]:
+                return self.database_url
+            return self.database_url.replace("://", "+asyncpg://", 1)
+        return self.database_url
+
+    @property
+    def data_path(self) -> Path:
+        p = Path(self.data_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def ml_model_path(self) -> Path:
+        p = Path(self.ml_model_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

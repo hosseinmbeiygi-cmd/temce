@@ -10,6 +10,15 @@ from repositories.base_repository import InMemoryRepository
 from repositories.db_base import DbRepository
 
 
+def _finglish_candidates(query: str) -> list[str]:
+    # Finglish (Latin→Persian) match candidates; domain owns the logic so this
+    # repository never imports the services layer (ADR-0001 layering fix).
+    from domain.instruments.symbol_catalog import _CATALOG, _TRANSLIT_REGEXES
+    from domain.instruments.symbol_finglish import finglish_symbol_candidates
+
+    return finglish_symbol_candidates(_CATALOG, _TRANSLIT_REGEXES, query)
+
+
 class InstrumentRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
@@ -56,11 +65,9 @@ class InstrumentRepository:
         if self._db:
             return await self._db.search(query, page, page_size)
         # In-memory fallback (no session): plain substring + Finglish match.
-        from services.symbol_catalog import finglish_symbol_candidates
-
         q = query.lower()
         matches = [inst for inst in self._mem._store.values() if q in inst.symbol.lower() or q in inst.name.lower()]  # type: ignore
-        extra = finglish_symbol_candidates(query)
+        extra = _finglish_candidates(query)
         if extra:
             known = {m.symbol for m in matches}
             for inst in self._mem._store.values():  # type: ignore
@@ -110,13 +117,11 @@ class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
         return Result.ok(self._to_domain(row))
 
     async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[Instrument]]:
-        from services.symbol_catalog import finglish_symbol_candidates
-
         q = f"%{query.lower()}%"
         # Plain substring match on symbol/name + Finglish: a Latin query like
         # ``folad`` must also find the Persian symbol ``فولاد`` in PostgreSQL.
         predicate = or_(InstrumentModel.symbol.ilike(q), InstrumentModel.name.ilike(q))
-        extra = finglish_symbol_candidates(query)
+        extra = _finglish_candidates(query)
         if extra:
             predicate = or_(predicate, InstrumentModel.symbol.in_(extra))
         from sqlalchemy import func as sa_func
@@ -221,4 +226,3 @@ class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
             created_at=domain.created_at,
             updated_at=domain.updated_at,
         )
-

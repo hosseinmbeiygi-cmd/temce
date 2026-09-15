@@ -32,6 +32,11 @@ class Screener110RunCycleJob(BaseJob):
         total_capital = context.get_param("total_capital", 1_000_000_000)
 
         try:
+            # NOTE: do NOT return inside this `async for` loop —
+            # `get_session()` commits only when the generator is resumed
+            # after the yield, so an early return silently rolls back the
+            # whole cycle. Build the result and return it after the loop.
+            result: JobResult | None = None
             async for session in get_session():
                 from services.screener110_service import Screener110Service
 
@@ -48,7 +53,7 @@ class Screener110RunCycleJob(BaseJob):
                     len(buy_signals), decisions,
                 )
 
-                return JobResult.success_result(
+                result = JobResult.success_result(
                     job_name=self._name,
                     data={
                         "buy_signals_count": len(buy_signals),
@@ -67,7 +72,9 @@ class Screener110RunCycleJob(BaseJob):
                     message=f"Cycle complete: {len(buy_signals)} buy signals",
                 )
 
-            return JobResult.failure("Could not obtain DB session", job_name=self._name)
+            if result is None:
+                return JobResult.failure("Could not obtain DB session", job_name=self._name)
+            return result
 
         except Exception as e:
             logger.exception("Screener110RunCycleJob failed: %s", e)

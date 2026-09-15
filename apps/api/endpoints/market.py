@@ -315,3 +315,124 @@ async def market_treemap(
             data={"children": []},
             error={"message": str(exc)},
         )
+
+
+@router.get(
+    "/flow-summary",
+    summary="Real/legal money-flow summary",
+    description="Market-wide net real (حقیقی) vs legal (حقوقی) flow for today plus "
+    "buy/sell queue counts, from the latest brsapi_symbol_snapshots.",
+)
+async def market_flow_summary(
+    limit: int = Query(500, ge=50, le=2000),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[dict[str, Any]]:
+    """Aggregate today's real/legal net flow from live snapshots.
+
+    Real net ≈ (buy_real_volume − sell_real_volume) × price_last; same for
+    legal. Queue counts are symbols whose top bid/ask volume exceeds the
+    day's traded volume (proxy for صف خرید/فروش).
+    """
+    try:
+        snapshots = await brsapi.get_enriched_snapshots(limit=limit)
+        real_net = 0.0
+        legal_net = 0.0
+        queue_buy = 0
+        queue_sell = 0
+        for s in snapshots:
+            price = s.get("price_last") or 0
+            brv = s.get("buy_real_volume") or 0
+            srv = s.get("sell_real_volume") or 0
+            blv = s.get("buy_legal_volume") or 0
+            slv = s.get("sell_legal_volume") or 0
+            real_net += (brv - srv) * price
+            legal_net += (blv - slv) * price
+            bid_v = s.get("bid_volume_1") or 0
+            ask_v = s.get("ask_volume_1") or 0
+            vol = s.get("trade_volume") or 0
+            if vol > 0 and bid_v > vol:
+                queue_buy += 1
+            if vol > 0 and ask_v > vol:
+                queue_sell += 1
+        return ApiResponse[dict[str, Any]](
+            success=True,
+            data={
+                "real_net_b": round(real_net / 1e9, 1),
+                "legal_net_b": round(legal_net / 1e9, 1),
+                "queue_buy": queue_buy,
+                "queue_sell": queue_sell,
+            },
+        )
+    except Exception as exc:
+        logger.exception("Market flow summary failed")
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data={},
+            error={"message": str(exc)},
+        )
+
+
+@router.get(
+    "/flow-history",
+    summary="Per-symbol real/legal net flow (top symbols)",
+    description="Latest-day net real vs legal value per symbol from "
+    "brsapi_historical_real_legal, in billion toman — strongest movers first.",
+)
+async def market_flow_history(
+    limit: int = Query(8, ge=3, le=20),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    """Top symbols by |net real flow| for the latest synced date."""
+    try:
+        from sqlalchemy import func, select
+
+        from brsapi.models.tsetmc import HistoricalRealLegalModel
+
+        latest_date = (
+            await brsapi.session.execute(select(func.max(HistoricalRealLegalModel.date)))
+        ).scalar_one_or_none()
+        if not latest_date:
+            return ApiResponse[dict[str, Any] | list[dict[str, Any]]](success=True, data=[])  # type: ignore[arg-type]
+
+        stmt = (
+            select(HistoricalRealLegalModel)
+            .where(HistoricalRealLegalModel.date == latest_date)
+        )
+        rows = (await brsapi.session.execute(stmt)).scalars().all()
+
+        flows: list[dict[str, Any]] = []
+        for r in rows:
+            real_net = (r.buy_real_value or 0) - (r.sell_real_value or 0)
+            legal_net = (r.buy_legal_value or 0) - (r.sell_legal_value or 0)
+            if real_net == 0 and legal_net == 0:
+                continue
+            flows.append({
+                "symbol": r.symbol,
+                "real_net_b": round(real_net / 1e9, 1),
+                "legal_net_b": round(legal_net / 1e9, 1),
+            })
+        flows.sort(key=lambda x: abs(x["real_net_b"]), reverse=True)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=flows[:limit])
+    except Exception as exc:
+        logger.exception("Market flow history failed")
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+
+
+@router.get(
+    "/index-history/{name}",
+    summary="Index value history",
+    description="Latest N index values for one index (e.g. شاخص کل) — intraday "
+    "snapshots taken by the BrsApi sync, oldest-first, for area charts.",
+)
+async def market_index_history(
+    name: str = Path(..., description="Index name, e.g. شاخص کل"),
+    limit: int = Query(60, ge=10, le=300),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    try:
+        rows = await brsapi.get_index_history(name, limit=limit)
+        rows.reverse()  # oldest-first for charting
+        return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+    except Exception as exc:
+        logger.exception("Index history failed for %s", name)
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})

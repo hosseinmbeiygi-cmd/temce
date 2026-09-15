@@ -34,8 +34,8 @@ class TestBucketForScore:
         assert ProbabilityCalibrator._bucket_for_score(0.72) == "0.70-0.75"
 
     def test_below_lowest_bucket(self):
-        """Score 0.3 falls below 0.50 → goes to '0.00-0.50' bucket."""
-        assert ProbabilityCalibrator._bucket_for_score(0.3) == "0.00-0.50"
+        """Score 0.3 falls into the 0.30-0.35 bucket (fine-grained 0.05 grid)."""
+        assert ProbabilityCalibrator._bucket_for_score(0.3) == "0.30-0.35"
 
     def test_above_highest_bucket(self):
         """Score 0.98 falls into 0.95-1.00."""
@@ -50,9 +50,9 @@ class TestBucketForScore:
         assert ProbabilityCalibrator._bucket_for_score(0.599) == "0.55-0.60"
 
     def test_low_below_50(self):
-        assert ProbabilityCalibrator._bucket_for_score(0.0) == "0.00-0.50"
-        assert ProbabilityCalibrator._bucket_for_score(0.45) == "0.00-0.50"
-        assert ProbabilityCalibrator._bucket_for_score(0.499) == "0.00-0.50"
+        assert ProbabilityCalibrator._bucket_for_score(0.0) == "0.00-0.05"
+        assert ProbabilityCalibrator._bucket_for_score(0.45) == "0.45-0.50"
+        assert ProbabilityCalibrator._bucket_for_score(0.499) == "0.45-0.50"
 
     def test_high_values(self):
         assert ProbabilityCalibrator._bucket_for_score(0.85) == "0.85-0.90"
@@ -160,21 +160,8 @@ class TestProbabilityCalibratorInit:
         assert calibrator.MIN_SIGNALS_PER_BUCKET == 30
 
     def test_bucket_edges_match_defaults(self):
-        """Verify DEFAULT_BUCKETS has expected values."""
-        expected = [
-            0.0,
-            0.50,
-            0.55,
-            0.60,
-            0.65,
-            0.70,
-            0.75,
-            0.80,
-            0.85,
-            0.90,
-            0.95,
-            1.0,
-        ]
+        """Verify DEFAULT_BUCKETS is a uniform 0.05 grid (fine-grained buckets)."""
+        expected = [round(0.05 * i, 2) for i in range(21)]
         assert expected == ProbabilityCalibrator.DEFAULT_BUCKETS
 
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useIndexIntraday } from "@/hooks/useMarketData";
 import { INDEX_INTRADAY } from "@/lib/market-mock";
 import { fmtInt } from "@/lib/market-format";
 import { cn } from "@/lib/cn";
@@ -21,16 +22,20 @@ function compact(v: number): string {
 
 export default function TrendChart() {
   const [range, setRange] = useState(0);
-  const first = INDEX_INTRADAY[0].value;
-  const last = INDEX_INTRADAY[INDEX_INTRADAY.length - 1].value;
+  const live = useIndexIntraday(range);
+  const series = live.length >= 2 ? live : INDEX_INTRADAY;
+  const isLive = live.length >= 2;
+  const first = series[0].value;
+  const last = series[series.length - 1].value;
   const delta = ((last - first) / first) * 100;
 
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section className="hero-ring rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={TrendingUp}
+        tone="up"
         title="روند شاخص کل — امروز"
-        subtitle="حرکت شاخص کل بورس در ساعات معاملاتی"
+        subtitle={isLive ? "حرکت شاخص کل بورس در ساعات معاملاتی — داده زنده" : "حرکت شاخص کل بورس در ساعات معاملاتی — داده نمونه (سرویس زنده در دسترس نیست)"}
         action={
           <div className="flex items-center gap-1 rounded-xl border border-line bg-soft p-1">
             {RANGES.map((r, i) => (
@@ -53,7 +58,7 @@ export default function TrendChart() {
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_260px]">
         <div className="h-52 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={INDEX_INTRADAY} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={series} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="idxArea" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--primary-600)" stopOpacity={0.32} />
@@ -108,13 +113,13 @@ export default function TrendChart() {
             <div className="rounded-xl bg-card p-2.5">
               <p className="text-[9.5px] text-ink-3">بیشترین</p>
               <p dir="ltr" className="mt-0.5 font-mono text-[12px] font-bold tabular-nums text-ink">
-                {fmtInt(Math.max(...INDEX_INTRADAY.map((p) => p.value)))}
+                {fmtInt(Math.max(...series.map((p) => p.value)))}
               </p>
             </div>
             <div className="rounded-xl bg-card p-2.5">
               <p className="text-[9.5px] text-ink-3">کمترین</p>
               <p dir="ltr" className="mt-0.5 font-mono text-[12px] font-bold tabular-nums text-ink">
-                {fmtInt(Math.min(...INDEX_INTRADAY.map((p) => p.value)))}
+                {fmtInt(Math.min(...series.map((p) => p.value)))}
               </p>
             </div>
           </div>

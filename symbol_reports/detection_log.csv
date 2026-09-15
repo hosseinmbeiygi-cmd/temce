@@ -1,0 +1,80 @@
+﻿نام_فایل,ستون_انتخابی,نوع_محتوای_تشخیص_داده_شده,مسیر_تشخیص,درجه_اطمینان,نوع_محتوا_فایل,توضیح
+candlesticks (نوع ۳ - تعدیل‌شده),gregorian_date,date,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۳ - تعدیل‌شده),close,close,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۳ - تعدیل‌شده),open,open,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۳ - تعدیل‌شده),high,high,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۳ - تعدیل‌شده),low,low,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۳ - تعدیل‌شده),volume,volume,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۳ - تعدیل‌شده),symbol,symbol,نام‌محور,بالا,قیمت روزانه,سری روزانه تعدیل‌شده
+candlesticks (نوع ۲ - اسمی),gregorian_date,date,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+candlesticks (نوع ۲ - اسمی),close,close,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+candlesticks (نوع ۲ - اسمی),open,open,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+candlesticks (نوع ۲ - اسمی),high,high,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+candlesticks (نوع ۲ - اسمی),low,low,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+candlesticks (نوع ۲ - اسمی),volume,volume,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+candlesticks (نوع ۲ - اسمی),symbol,symbol,نام‌محور,بالا,قیمت روزانه,سری روزانه اسمی
+quotes,gregorian_date,date,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,price_close,close,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,price_open,open,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,price_high,high,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,price_low,low,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,volume,volume,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,value,value,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,symbol,symbol,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,time,time,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+quotes,trade_count,count,نام‌محور,بالا,قیمت روزانه/درون‌روز,اسنپ‌شات‌های روزانه اخیر
+brsapi_symbol_details,date,date,نام‌محور,بالا,وضعیت نماد,شناسنامه و آخرین وضعیت
+brsapi_symbol_details,price_close,close,نام‌محور,بالا,وضعیت نماد,شناسنامه و آخرین وضعیت
+brsapi_symbol_details,symbol,symbol,نام‌محور,بالا,وضعیت نماد,شناسنامه و آخرین وضعیت
+brsapi_symbol_details,shares_count,volume,آماری,پایین,وضعیت نماد,بزرگ‌ترین مقیاس میانگین
+brsapi_historical_real_legal,date,date,نام‌محور,بالا,حقیقی/حقوقی,تابلوی حقیقی/حقوقی روزانه
+brsapi_historical_real_legal,symbol,symbol,نام‌محور,بالا,حقیقی/حقوقی,تابلوی حقیقی/حقوقی روزانه
+brsapi_historical_real_legal,buy_real_value,buy_real_value,نام‌محور,بالا,حقیقی/حقوقی,تابلوی حقیقی/حقوقی روزانه
+brsapi_historical_real_legal,sell_real_value,sell_real_value,نام‌محور,بالا,حقیقی/حقوقی,تابلوی حقیقی/حقوقی روزانه
+brsapi_historical_real_legal,buy_real_value,high,آماری,متوسط,حقیقی/حقوقی,خوشه قیمتی همبستگی>0.85
+brsapi_historical_real_legal,sell_real_value,close,آماری,متوسط,حقیقی/حقوقی,خوشه قیمتی همبستگی>0.85
+brsapi_historical_real_legal,buy_real_volume,open,آماری,متوسط,حقیقی/حقوقی,خوشه قیمتی همبستگی>0.85
+brsapi_historical_real_legal,sell_real_volume,low,آماری,متوسط,حقیقی/حقوقی,خوشه قیمتی همبستگی>0.85
+brsapi_historical_real_legal,sell_real_count,volume,آماری,پایین,حقیقی/حقوقی,بزرگ‌ترین مقیاس میانگین
+brsapi_shareholder_records,date,date,نام‌محور,بالا,سهامداران,سهامداران
+brsapi_shareholder_records,volume,volume,نام‌محور,بالا,سهامداران,سهامداران
+brsapi_shareholder_records,symbol,symbol,نام‌محور,بالا,سهامداران,سهامداران
+brsapi_codal_announcements,symbol,symbol,نام‌محور,بالا,اخبار/اطلاعیه,اطلاعیه‌های کدال
+brsapi_codal_announcements,symbol,date,آماری,متوسط,اخبار/اطلاعیه,نرخ تبدیل 1.00
+brsapi_nav_records,date,date,نام‌محور,بالا,NAV صندوق,NAV صندوق‌ها
+brsapi_nav_records,symbol,symbol,نام‌محور,بالا,NAV صندوق,NAV صندوق‌ها
+brsapi_nav_records,time,time,نام‌محور,بالا,NAV صندوق,NAV صندوق‌ها
+brsapi_nav_records,nav_issue,nav_issue,نام‌محور,بالا,NAV صندوق,NAV صندوق‌ها
+brsapi_nav_records,nav_redemption,nav_redemption,نام‌محور,بالا,NAV صندوق,NAV صندوق‌ها
+brsapi_nav_records,nav_issue,high,آماری,متوسط,NAV صندوق,خوشه قیمتی همبستگی>0.85
+brsapi_nav_records,nav_redemption,close,آماری,متوسط,NAV صندوق,خوشه قیمتی همبستگی>0.85
+screener_profiles,symbol,symbol,نام‌محور,بالا,بنیادی,پروفایل بنیادی
+screener_profiles,symbol,date,آماری,متوسط,بنیادی,نرخ تبدیل 1.00
+screener_profiles,current_price,high,آماری,متوسط,بنیادی,خوشه قیمتی همبستگی>0.85
+screener_profiles,eps_current,close,آماری,متوسط,بنیادی,خوشه قیمتی همبستگی>0.85
+screener_profiles,registered_capital,volume,آماری,پایین,بنیادی,بزرگ‌ترین مقیاس میانگین
+brsapi_symbol_snapshots,price_last,close,نام‌محور,بالا,درون‌روز,سفارش‌بوک لحظه‌ای
+brsapi_symbol_snapshots,symbol,symbol,نام‌محور,بالا,درون‌روز,سفارش‌بوک لحظه‌ای
+brsapi_symbol_snapshots,time,time,نام‌محور,بالا,درون‌روز,سفارش‌بوک لحظه‌ای
+brsapi_symbol_snapshots,symbol,date,آماری,متوسط,درون‌روز,نرخ تبدیل 1.00
+brsapi_symbol_snapshots,price_last,high,آماری,متوسط,درون‌روز,خوشه قیمتی همبستگی>0.85
+brsapi_symbol_snapshots,bid_price_1,open,آماری,متوسط,درون‌روز,خوشه قیمتی همبستگی>0.85
+brsapi_symbol_snapshots,ask_price_1,low,آماری,متوسط,درون‌روز,خوشه قیمتی همبستگی>0.85
+brsapi_symbol_snapshots,bid_volume_1,volume,آماری,پایین,درون‌روز,بزرگ‌ترین مقیاس میانگین
+XAUUSD_history.json (سری روزانه OHLC),date,date,نام‌محور,بالا,طلا/ارز/سکه,طلا/ارز/سکه
+XAUUSD_history.json (سری روزانه OHLC),close,close,نام‌محور,بالا,طلا/ارز/سکه,طلا/ارز/سکه
+XAUUSD_history.json (سری روزانه OHLC),open,open,نام‌محور,بالا,طلا/ارز/سکه,طلا/ارز/سکه
+XAUUSD_history.json (سری روزانه OHLC),high,high,نام‌محور,بالا,طلا/ارز/سکه,طلا/ارز/سکه
+XAUUSD_history.json (سری روزانه OHLC),low,low,نام‌محور,بالا,طلا/ارز/سکه,طلا/ارز/سکه
+BTC_history.json (سری روزانه OHLC),date,date,نام‌محور,بالا,کریپتو,کریپتو
+BTC_history.json (سری روزانه OHLC),close,close,نام‌محور,بالا,کریپتو,کریپتو
+BTC_history.json (سری روزانه OHLC),open,open,نام‌محور,بالا,کریپتو,کریپتو
+BTC_history.json (سری روزانه OHLC),high,high,نام‌محور,بالا,کریپتو,کریپتو
+BTC_history.json (سری روزانه OHLC),low,low,نام‌محور,بالا,کریپتو,کریپتو
+BTC_history.json (سری روزانه OHLC),volume,volume,نام‌محور,بالا,کریپتو,کریپتو
+آلتون.csv.gz (تیک درون‌روز صندوق),volume,volume,نام‌محور,بالا,درون‌روز,درون‌روز
+آلتون.csv.gz (تیک درون‌روز صندوق),time,time,نام‌محور,بالا,درون‌روز,درون‌روز
+آلتون.csv.gz (تیک درون‌روز صندوق),time,date,آماری,متوسط,درون‌روز,نرخ تبدیل 1.00
+آلتون.csv.gz (تیک درون‌روز صندوق),time,symbol,آماری,متوسط,درون‌روز,نسبت یکتا 0.46
+اهرم_codal.json (اطلاعیه‌های کدال),l18,date,آماری,متوسط,اخبار/اطلاعیه,نرخ تبدیل 1.00
+اهرم_codal.json (اطلاعیه‌های کدال),l18,symbol,آماری,متوسط,اخبار/اطلاعیه,نسبت یکتا 0.14

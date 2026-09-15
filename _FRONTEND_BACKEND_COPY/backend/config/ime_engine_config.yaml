@@ -1,0 +1,52 @@
+# =============================================================================
+# IME Decision-Support Engine — Central Config (Single Source of Truth)
+# =============================================================================
+# منبع واحد حقیقت برای تمام آستانه‌های سند معماری v5.0 (پیوست ه).
+# هر تغییر باید هم‌زمان در این فایل و در سیستم پیکربندی زنده اعمال و در
+# لاگ ممیزی ثبت شود تا سند و کد هرگز از هم واگرا نشوند.
+#
+# scope: قیمت‌گذاری Tier1/Tier2، کارخانه سیگنال، سایزینگ، نظارت، DR
+# =============================================================================
+
+config_version: "1.0.0"
+engine: "ime_decision_support"
+
+data:
+  staleness_threshold_seconds: 10        # REJECTED_DATA_STALE — سند §4.2
+  delivery_risk_window_days: 3           # REJECTED_DELIVERY_RISK — سند §4.2
+  depth_erosion_factor: 0.30             # فرسایش عمق — سند §2.2/§4.2
+
+iv:
+  search_bounds: [0.01, 5.0]             # ۱٪ تا ۵۰۰٪ سالانه — سند §3.2
+  convergence_tolerance: 0.001           # واحد قیمت — سند §3.2
+  max_iterations: 100                    # سند §3.2
+
+surface:
+  min_valid_points: 3                    # حداقل Strike معتبر برای Cubic Spline
+
+sabr:                                    # Tier 2 — مشروط به کفایت داده، سند §3.2
+  min_strikes_per_maturity: 5
+  min_active_maturities: 2
+  calibration_rmse_threshold: 0.02
+  stability_window_days: 20
+
+cointegration:                           # Tier 2 — سند §3.4
+  min_series_length: 250
+
+signal_factory:                          # سند §4.4 / §4.3
+  calendar_arb_ratio_threshold: 0.95
+  iv_rank_threshold: 0.80
+  iv_to_rv_ratio_threshold: 1.3
+  slippage_to_gross_edge_max_ratio: 0.50
+
+sizing:                                  # سند §5.2 / §5.3
+  half_kelly_min_sample_size: 100
+  daily_loss_cap_reduction_trigger: 0.50
+
+drift:                                   # سند §8
+  model_drift_sigma_threshold: 2.0
+  model_drift_window_trades: 10
+
+disaster_recovery:                       # سند §15.2
+  rto_minutes: 15
+  rpo_minutes: 5

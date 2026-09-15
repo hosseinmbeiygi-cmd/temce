@@ -22,30 +22,16 @@ logger = get_logger(__name__)
 
 # ── Known fund symbols (from _SAMPLE_FUNDS) ──
 
-KNOWN_FUND_SYMBOLS: list[str] = [
-    "آگاس", "آسامید", "آکاریز", "آکشاورز", "اسپید", "اشتیاق", "اطلس", "افتم",
-    "اقبال", "الماس", "امید", "امین", "انرژی", "ایثار", "ایرانیان",
-    "باپویا", "بدرخش", "باهنر", "باور", "برکت", "بسامان", "بهینه",
-    "پارسیان", "پدیده", "پیشگامان", "پویا",
-    "تابان", "تاپ", "تدبیر", "توسعه", "ثابت",
-    "جامان", "جاوید", "حافظ", "خبرگان", "خرد",
-    "دانش", "دلیران", "رادین", "رازی", "رفاه",
-    "سپهر", "ستاره", "سدید", "سرآمد", "سرمد", "شفا", "صبا", "صنعت",
-    "طلوع", "عقیق", "فردا", "فیروزه", "ققنوس",
-    "کارآفرین", "کامران", "کیوان", "گنجینه",
-    "مبین", "مثقال", "محصول", "مهر",
-    "نادر", "ناهید", "نخل", "نیک", "وفاق", "همراه", "یسنا",
-    "گهر", "زرفام", "نیرو", "دماوند", "البرز", "آذین", "بامداد", "بهار", "پارمیدا",
-]
+from domain.instruments.symbol_catalog import KNOWN_FUND_SYMBOLS  # noqa: F401 — re-exported for API compat
 
 # ── Market hours (Tehran time) ──
 
-MARKET_OPEN = time(8, 45)   # 08:45 Tehran
+MARKET_OPEN = time(8, 45)  # 08:45 Tehran
 MARKET_CLOSE = time(12, 30)  # 12:30 Tehran
 
 # ── Concurrency ──
 
-MAX_CONCURRENT = 5           # Max concurrent API calls to BrsApi (rate-limit safety)
+MAX_CONCURRENT = 5  # Max concurrent API calls to BrsApi (rate-limit safety)
 DELAY_BETWEEN_SYMBOLS = 1.5  # Seconds between each symbol to avoid rate-limit bursts
 
 
@@ -55,6 +41,7 @@ DELAY_BETWEEN_SYMBOLS = 1.5  # Seconds between each symbol to avoid rate-limit b
 @dataclass
 class SyncResult:
     """Result of syncing a single fund."""
+
     symbol: str
     success: bool
     error: str | None = None
@@ -64,6 +51,7 @@ class SyncResult:
 @dataclass
 class SyncReport:
     """Report of a full sync cycle."""
+
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     total: int = 0
     success: int = 0
@@ -136,8 +124,10 @@ class FundSyncService:
             elapsed = (asyncio.get_event_loop().time() - start) * 1000
             if "error" in result:
                 return SyncResult(
-                    symbol=symbol, success=False,
-                    error=result["error"], duration_ms=elapsed,
+                    symbol=symbol,
+                    success=False,
+                    error=result["error"],
+                    duration_ms=elapsed,
                 )
             return SyncResult(symbol=symbol, success=True, duration_ms=elapsed)
         except Exception as e:
@@ -151,8 +141,10 @@ class FundSyncService:
             elapsed = (asyncio.get_event_loop().time() - start) * 1000
             logger.exception("Failed to sync fund %s", symbol)
             return SyncResult(
-                symbol=symbol, success=False,
-                error=str(e)[:200], duration_ms=elapsed,
+                symbol=symbol,
+                success=False,
+                error=str(e)[:200],
+                duration_ms=elapsed,
             )
 
     # ── Internal ───────────────────────────────────────────────────
@@ -182,11 +174,13 @@ class FundSyncService:
                 report.success += 1
             else:
                 report.failed += 1
-                report.errors.append({
-                    "symbol": result.symbol,
-                    "error": result.error,
-                    "duration_ms": result.duration_ms,
-                })
+                report.errors.append(
+                    {
+                        "symbol": result.symbol,
+                        "error": result.error,
+                        "duration_ms": result.duration_ms,
+                    }
+                )
 
         report.duration_ms = (asyncio.get_event_loop().time() - start) * 1000
         logger.info("Fund sync complete: %s", report.summary)
@@ -199,6 +193,7 @@ class FundSyncService:
 def _is_market_open() -> bool:
     """Check if Tehran market is currently in trading hours."""
     import pytz
+
     tehran_tz = pytz.timezone("Asia/Tehran")
     now = datetime.now(tehran_tz).time()
     return MARKET_OPEN <= now <= MARKET_CLOSE
@@ -207,6 +202,7 @@ def _is_market_open() -> bool:
 def _next_market_open_delay() -> float:
     """Seconds until the next market open."""
     import pytz
+
     tehran_tz = pytz.timezone("Asia/Tehran")
     now = datetime.now(tehran_tz)
     today_open = now.replace(hour=MARKET_OPEN.hour, minute=MARKET_OPEN.minute, second=0, microsecond=0)
@@ -214,6 +210,7 @@ def _next_market_open_delay() -> float:
         return (today_open - now).total_seconds()
     # Next day
     import datetime as dt
+
     tomorrow = now + dt.timedelta(days=1)
     tomorrow_open = tomorrow.replace(hour=MARKET_OPEN.hour, minute=MARKET_OPEN.minute, second=0, microsecond=0)
     return (tomorrow_open - now).total_seconds()

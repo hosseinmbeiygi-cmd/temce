@@ -23,7 +23,7 @@ from jobs.definitions.fund_jobs import FundsSyncJob
 from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, HealthCheckJob
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
 from jobs.definitions.market_data_jobs import HistoricalDataJob, QuoteIngestionJob, RealtimeQuoteJob
-from jobs.definitions.ml_jobs import BatchInferenceJob, ModelEvaluationJob, ModelTrainingJob
+from jobs.definitions.ml_jobs import BatchInferenceJob, MlArtifactLifecycleJob, ModelEvaluationJob, ModelTrainingJob
 from jobs.definitions.news_jobs import NewsIngestionJob, NewsSentimentJob
 from jobs.definitions.paper_trading_job import PaperTradingJob
 from jobs.definitions.recommendation_jobs import RecommendationEvaluationJob, RecommendationGenerationJob
@@ -83,6 +83,7 @@ __all__ = [
     "ModelTrainingJob",
     "BatchInferenceJob",
     "ModelEvaluationJob",
+    "MlArtifactLifecycleJob",
     "BacktestExecutionJob",
     "BacktestOptimizationJob",
     "CodalAttachmentDownloadJob",

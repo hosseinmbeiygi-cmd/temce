@@ -7,7 +7,7 @@ import type { TickerItem } from "@/lib/market-mock";
 import { useMarketSession, useTickerItems } from "@/hooks/useMarketData";
 import { cn } from "@/lib/cn";
 import { fmtInt, fmtPct } from "@/lib/market-format";
-import { TrendArrow } from "@/components/dashboard/primitives";
+import { Flash, TrendArrow } from "@/components/dashboard/primitives";
 
 /** Format remaining ms as HH:MM:SS (Latin digits, mono, dir=ltr). */
 function fmtCountdown(msLeft: number): string {
@@ -27,9 +27,11 @@ function TickerChip({ symbol, price, changePct }: TickerItem) {
       className="group mx-1 flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors duration-150 hover:bg-soft"
     >
       <span className="text-[12px] font-bold text-ink">{symbol}</span>
-      <span dir="ltr" className="font-mono text-[11px] tabular-nums text-ink-2">
-        {fmtInt(price)}
-      </span>
+      <Flash value={price}>
+        <span dir="ltr" className="font-mono text-[11px] tabular-nums text-ink-2">
+          {fmtInt(price)}
+        </span>
+      </Flash>
       <span
         dir="ltr"
         className={cn(
@@ -54,7 +56,6 @@ export default function TickerBar() {
   // Client-only countdown: keep Date.now() out of render by storing it in state
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(0);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt client time after mount
   useEffect(() => {
     setMounted(true);
     setNow(Date.now());

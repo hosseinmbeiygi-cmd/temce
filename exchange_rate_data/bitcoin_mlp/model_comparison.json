@@ -1,0 +1,42 @@
+[
+  {
+    "name": "MLP-Small",
+    "mae": 5190.56,
+    "rmse": 6893.44,
+    "mape": 5.73,
+    "r2": 0.870308,
+    "dir_acc": 50.87,
+    "train_time": 5.2,
+    "n_iter": 96
+  },
+  {
+    "name": "MLP-Medium",
+    "mae": 8274.21,
+    "rmse": 9741.3,
+    "mape": 9.39,
+    "r2": 0.741015,
+    "dir_acc": 49.02,
+    "train_time": 5.5,
+    "n_iter": 47
+  },
+  {
+    "name": "MLP-Large",
+    "mae": 8271.36,
+    "rmse": 9764.07,
+    "mape": 9.19,
+    "r2": 0.739803,
+    "dir_acc": 51.45,
+    "train_time": 11.8,
+    "n_iter": 48
+  },
+  {
+    "name": "MLP-Deep",
+    "mae": 6692.52,
+    "rmse": 8163.77,
+    "mape": 7.36,
+    "r2": 0.818104,
+    "dir_acc": 51.1,
+    "train_time": 7.8,
+    "n_iter": 82
+  }
+]

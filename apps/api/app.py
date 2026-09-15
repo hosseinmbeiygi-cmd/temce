@@ -862,6 +862,18 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.exception("RealtimeService startup failed — WebSocket broadcasting disabled")
 
+    # ── Start the Armor precompute event subscriber ──
+    # Cross-process Celery workers publish contract events to Redis
+    # (armor:events); without this hook they would only be consumed once the
+    # first dashboard WebSocket client connects.
+    try:
+        from api.ws_manager import get_armor_ws_manager
+
+        await get_armor_ws_manager().start_subscriber()
+        logger.info("Armor precompute event subscriber started (channel: armor:events)")
+    except Exception:
+        logger.warning("Armor precompute event subscriber failed to start", exc_info=True)
+
     # ── Hourly orchestrator cron (signal generation + outcome tracking + auto-retrain) ──
     _track_background_task(_orchestrator_hourly_cron(), "orchestrator-hourly-cron")
     logger.info("Orchestrator hourly cron started — generating signals every 3600s")
@@ -890,6 +902,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # Stop producers before closing their DB/Redis dependencies. This also
     # handles CancelledError explicitly through gather(return_exceptions=True).
     await _stop_background_tasks()
+    with suppress(Exception):
+        from api.ws_manager import get_armor_ws_manager
+
+        await get_armor_ws_manager().shutdown()
     with suppress(Exception):
         if scheduler_app is not None:
             scheduler_app.scheduler.shutdown(wait=False)

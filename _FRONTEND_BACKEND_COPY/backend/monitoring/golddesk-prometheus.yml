@@ -1,0 +1,20 @@
+# Prometheus scrape config for GoldDesk
+# Add to prometheus.yml
+
+scrape_configs:
+  - job_name: "golddesk-api"
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["backend:8000"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: "(.*):.*"
+        replacement: "$1"
+
+  - job_name: "golddesk-worker"
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["golddesk-worker:9090"]

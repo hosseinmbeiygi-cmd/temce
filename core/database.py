@@ -15,6 +15,10 @@ logger = get_logger(__name__)
 engine: Any = None
 async_session_factory: async_sessionmaker[AsyncSession] | None = None
 
+# Read-replica (Q2 P1) — optional, used by read-only endpoints
+replica_engine: Any = None
+replica_session_factory: async_sessionmaker[AsyncSession] | None = None
+
 
 def _get_pool_config(url: str | None = None) -> dict[str, Any]:
     use_url = url or settings.database_url
@@ -101,6 +105,25 @@ async def init_database() -> None:
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
 
+    # Q2 P1: optional read-replica
+    global replica_engine, replica_session_factory
+    replica_url = settings.database_replica_url_async
+    if settings.database_replica_enabled and replica_url:
+        try:
+            replica_engine = create_async_engine(
+                replica_url, echo=settings.database_echo, **_get_pool_config(replica_url)
+            )
+            async with replica_engine.begin() as conn:
+                await conn.execute(text("SELECT 1"))
+            replica_session_factory = async_sessionmaker(
+                replica_engine, class_=AsyncSession, expire_on_commit=False
+            )
+            logger.info("Read-replica connected: %s", replica_url.split("@")[-1] if "@" in replica_url else replica_url)
+        except Exception as exc:
+            logger.warning("Read-replica unavailable, falling back to primary: %s", exc)
+            replica_engine = None
+            replica_session_factory = None
+
     # Auto-create tables only when explicitly enabled (SQLite dev mode).
     # Production uses Alembic migrations — running ``create_all`` on
     # PostgreSQL would race with (and bypass) the migration history.
@@ -111,16 +134,27 @@ async def init_database() -> None:
     logger.info("Database connected: %s", url.split("@")[-1] if "@" in url else url)
 
 
+async def get_replica_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield a replica session if available, else primary. For read-only endpoints."""
+    factory = replica_session_factory if replica_session_factory is not None else async_session_factory
+    if factory is None:
+        raise RuntimeError("Database not initialized")
+    async with factory() as session:
+        yield session
+
+
 async def close_database() -> None:
-    global engine, async_session_factory
-    if engine is not None:
-        try:
-            await engine.dispose()
-        except Exception:
-            pass
-        finally:
-            engine = None
-            async_session_factory = None
+    global engine, async_session_factory, replica_engine, replica_session_factory
+    for eng in (engine, replica_engine):
+        if eng is not None:
+            try:
+                await eng.dispose()
+            except Exception:
+                pass
+    engine = None
+    async_session_factory = None
+    replica_engine = None
+    replica_session_factory = None
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

@@ -1,0 +1,274 @@
+# Smart Money Engine Configuration
+# Version: 2.0.0
+# Profile: default
+
+engine:
+  version: "2.0.0"
+  profile: "default"
+  analysis_mode: "full"  # full | partial (partial skips layers with insufficient data)
+
+# ---------------------------------------------------------------------------
+# Layer Weights — each layer's internal composition weights
+# ---------------------------------------------------------------------------
+layer_weights:
+  price_volume:
+    pvs:
+      rvol_n: 0.20
+      vtr_n: 0.20
+      clv_n: 0.15
+      rec_n: 0.15
+      ipe_n: 0.15
+      lf_n: 0.15
+
+  absorption:
+    abs:
+      dps_n: 0.35
+      lss_n: 0.20
+      rmr_n: 0.25
+      rec: 0.20
+
+  ownership:
+    fls:
+      bp_n: 0.20
+      nrmf_n: 0.18
+      bc_n: 0.14
+      se_n: 0.14
+      fd: 0.16
+      cross_bp_nrmf: 0.18  # (bp_n + nrmf_n) / 2
+
+  compression:
+    ess:
+      rc: 0.22
+      atrc: 0.22
+      rc2: 0.20  # duplicate weight on rc (original formula)
+      vvd: 0.20
+      rc3: 0.16  # triplicate weight on rc (original formula)
+
+  relative_strength:
+    rrs:
+      rsi3_n: 0.22
+      rsi5_n: 0.22
+      rsi10_n: 0.18
+      rss_n: 0.18
+      rds_n: 0.10
+      rsi3_n2: 0.10  # duplicate (original formula)
+
+  breakout:
+    brs:
+      rp_n: 0.20
+      btf_n: 0.18
+      pt: 0.18
+      ipe_n: 0.20
+      bcp: 0.24
+
+  buyer_power:
+    bps:
+      rbp_n: 0.25
+      z_rbp_n: 0.20
+      z_vr_n: 0.15
+      z_pc_n: 0.15
+      z_nrmf_n: 0.15
+      z_am_n: 0.10
+
+  microstructure:
+    mcs:
+      vpin_n: 0.25
+      abs_n: 0.22
+      dpsv_n: 0.18
+      dry_n: 0.18
+      sa_n: 0.17
+
+  breakout_quality:
+    bqs:
+      rp_n: 0.18
+      z_vol_n: 0.14
+      clv_n: 0.12
+      eff_n: 0.10
+      btf_n: 0.10
+      pt_n: 0.10
+      pt2_n: 0.08
+      accept_n: 0.08
+      bcp: 0.10
+
+# ---------------------------------------------------------------------------
+# Composite Score Weights — how layers combine into composite scores
+# ---------------------------------------------------------------------------
+composite_weights:
+  accumulation:
+    pvs: 0.22
+    bp_n: 0.18
+    nrmf_n: 0.16
+    bc_n: 0.12
+    dps_n: 0.12
+    rmr_n: 0.10
+    rrs: 0.10
+
+  absorption_final:
+    abs: 0.45
+    pvs: 0.20
+    rmr_n: 0.15
+    lss_n: 0.10
+    rec_n: 0.10
+
+  float_lock:
+    fls: 0.40
+    ess: 0.25
+    ahm_n: 0.20
+    rrs: 0.15
+
+  breakout_readiness:
+    brs: 0.45
+    ess: 0.20
+    rrs: 0.15
+    abs: 0.10
+    fls: 0.10
+
+  smc:
+    acc: 0.28
+    abs_final: 0.27
+    fl: 0.20
+    br: 0.25
+
+# ---------------------------------------------------------------------------
+# Penalty Weights
+# ---------------------------------------------------------------------------
+penalties:
+  distribution_risk:
+    clv_n: 0.40
+    lf_n: 0.30
+    bp_n: 0.30
+
+  fake_breakout_risk:
+    rvol_n: 0.35
+    rrs: 0.25
+    pt: 0.20
+    bcp: 0.20
+
+  dead_compression:
+    ess: 0.40
+    rrs_inv: 0.30  # (1 - rrs)
+    nrmf_n_inv: 0.30  # (1 - nrmf_n)
+
+  smc_adjustment:
+    dr: 0.15
+    fbr: 0.10
+    dc: 0.08
+
+# ---------------------------------------------------------------------------
+# Phase Classification Rules
+# ---------------------------------------------------------------------------
+phases:
+  confirmed_smart_money:
+    priority: 1
+    label: "تأیید پول هوشمند"
+    conditions:
+      smc: { op: ">", value: 0.75 }
+      abs_final: { op: ">", value: 0.65 }
+      fl: { op: ">", value: 0.60 }
+      br: { op: ">", value: 0.65 }
+    logic: "all"
+
+  breakout_ready:
+    priority: 2
+    label: "آماده شکست"
+    conditions:
+      br: { op: ">", value: 0.72 }
+      rp_n: { op: ">", value: 0.75 }
+      ess: { op: ">", value: 0.60 }
+    logic: "all"
+
+  float_lock:
+    priority: 3
+    label: "قفل شناوری"
+    conditions:
+      fl: { op: ">", value: 0.70 }
+      ess: { op: ">", value: 0.65 }
+      rrs: { op: ">", value: 0.55 }
+    logic: "all"
+
+  active_absorption:
+    priority: 4
+    label: "جذب عرضه فعال"
+    conditions:
+      abs_final: { op: ">", value: 0.70 }
+      rmr_n: { op: ">", value: 0.60 }
+      dps_n: { op: ">", value: 0.65 }
+    logic: "all"
+
+  early_accumulation:
+    priority: 5
+    label: "تجمع اولیه"
+    conditions:
+      acc: { op: ">", value: 0.65 }
+      abs_final: { op: ">", value: 0.55 }
+      fl: { op: "<", value: 0.55 }
+      br: { op: "<", value: 0.55 }
+    logic: "all"
+
+  neutral:
+    priority: 99
+    label: "خنثی"
+    conditions: {}
+    logic: "all"
+
+# ---------------------------------------------------------------------------
+# Data Quality Gate
+# ---------------------------------------------------------------------------
+data_quality:
+  min_history_days: 5
+  max_price_change_pct: 20.0      # reject if daily change > 20%
+  min_volume: 0                    # reject zero-volume
+  min_value: 0                     # reject zero-value
+  max_stale_days: 5                # data older than 5 days is stale
+  outlier_zscore_threshold: 3.5    # reject features beyond 3.5 sigma
+
+# ---------------------------------------------------------------------------
+# Normalizer Ranges — clip ranges for MinMax normalization
+# ---------------------------------------------------------------------------
+normalizer_ranges:
+  rvol: [0.8, 2.5]
+  vtr: [0.8, 2.5]
+  dps: [20.0, 300.0]
+  rmr: [-0.02, 0.03]
+  bp: [0.8, 3.0]
+  nrmf: [-0.2, 0.4]
+  bc: [1.0, 3.0]
+  se: [0.5, 2.0]
+  ipe: [1.0, 10.0]
+  lf: [-0.01, 0.02]
+  rp: [0.95, 1.0]
+  btf: [1.0, 5.0]
+  pt: [0.5, 3.0]
+  vpin: [0.1, 0.6]
+  abs_refined: [0.8, 3.0]
+  dry: [0.5, 3.0]
+  z_rbp: [1.5, 4.0]
+  z_vr: [1.5, 4.0]
+  z_pc: [1.5, 4.0]
+  z_nrmf: [1.0, 3.0]
+  z_am: [-0.5, 2.0]
+  z_vol: [0.5, 3.0]
+  eff: [0.005, 0.03]
+  pt2: [0.5, 3.0]
+
+# ---------------------------------------------------------------------------
+# Cache Settings
+# ---------------------------------------------------------------------------
+cache:
+  score_ttl: 30          # seconds
+  prebuilt_ttl: 20       # seconds
+  api_ttl: 60            # seconds
+  max_score_cache: 500
+  max_api_cache: 50
+  event_invalidation: true   # invalidate on market events
+
+# ---------------------------------------------------------------------------
+# Normalizer Lookback Windows
+# ---------------------------------------------------------------------------
+lookback:
+  short: 5
+  medium: 10
+  long: 20
+  very_long: 60         # Level 18: Extended window for long-term patterns
+  ahm_window: 5         # Absorption History Memory window
+  zscore_window: 40     # Level 11: Extended window for stable Z-Score calculation

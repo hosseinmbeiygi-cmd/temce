@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import base64
 import io
-import logging
 import os
 import platform
 from typing import Any
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ChartGenerator:
@@ -35,6 +36,7 @@ class ChartGenerator:
         """Try to import matplotlib (cross-platform)."""
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.font_manager as fm
             import matplotlib.pyplot as plt
@@ -95,9 +97,7 @@ class ChartGenerator:
 
         return None
 
-    def generate_comparison_chart(
-        self, symbols: list[str], scores_dict: dict[str, dict[str, float]]
-    ) -> dict[str, Any]:
+    def generate_comparison_chart(self, symbols: list[str], scores_dict: dict[str, dict[str, float]]) -> dict[str, Any]:
         """Generate comparison chart for multiple symbols.
 
         Returns dict with base64 image or text-based chart fallback.
@@ -129,10 +129,7 @@ class ChartGenerator:
         # Chart 1: SMC Scores (bar chart)
         ax1 = axes[0]
         scores = [scores_dict[s].get("smc_score", 0) for s in symbols]
-        bars = ax1.bar(
-            symbols, scores,
-            color=["#4CAF50" if s > 0.5 else "#FFC107" for s in scores]
-        )
+        bars = ax1.bar(symbols, scores, color=["#4CAF50" if s > 0.5 else "#FFC107" for s in scores])
         ax1.set_title("SMC Score Comparison", fontsize=12, fontweight="bold")
         ax1.set_ylabel("Score", fontsize=10)
         ax1.set_ylim(0, 1)
@@ -143,7 +140,10 @@ class ChartGenerator:
             ax1.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.02,
-                f"{score:.2f}", ha="center", va="bottom", fontsize=9
+                f"{score:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=9,
             )
 
         # Chart 2: Sub-scores (grouped bar)
@@ -181,9 +181,7 @@ class ChartGenerator:
             "height": 500,
         }
 
-    def _generate_text_chart(
-        self, symbols: list[str], scores_dict: dict[str, dict[str, float]]
-    ) -> dict[str, Any]:
+    def _generate_text_chart(self, symbols: list[str], scores_dict: dict[str, dict[str, float]]) -> dict[str, Any]:
         """Generate text-based chart (fallback)."""
         lines = ["📊 **Score Comparison (Text Chart)**", ""]
 
@@ -218,8 +216,7 @@ class ChartGenerator:
         }
 
     def generate_text_chart(
-        self, symbols: list[str], score_key: str = "smc_score",
-        scores_dict: dict[str, dict[str, float]] | None = None
+        self, symbols: list[str], score_key: str = "smc_score", scores_dict: dict[str, dict[str, float]] | None = None
     ) -> str:
         """Generate a simple text-based bar chart."""
         if scores_dict is None:

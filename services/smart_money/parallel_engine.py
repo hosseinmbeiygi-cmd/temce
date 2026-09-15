@@ -10,20 +10,21 @@ This module wraps the existing ScoringEngine and provides:
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from core.logging import get_logger
 from services.smart_money.scoring_engine import ScoringEngine
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
 class ScreeningResult:
     """Result of screening a single symbol."""
+
     symbol: str
     score: dict[str, Any]
     elapsed_ms: float
@@ -33,6 +34,7 @@ class ScreeningResult:
 @dataclass
 class BatchResult:
     """Result of a batch screening operation."""
+
     results: list[ScreeningResult]
     total_symbols: int
     successful: int
@@ -87,7 +89,11 @@ class ParallelScoringEngine:
                 result = await asyncio.wait_for(
                     asyncio.to_thread(
                         self._engine.analyze,
-                        quote, history, trades, index_history, sector_history,
+                        quote,
+                        history,
+                        trades,
+                        index_history,
+                        sector_history,
                     ),
                     timeout=self._timeout_per_symbol_ms / 1000.0,
                 )
@@ -178,7 +184,7 @@ class ParallelScoringEngine:
         """
         all_results: list[ScreeningResult] = []
         for i in range(0, len(symbols), chunk_size):
-            chunk = symbols[i:i + chunk_size]
+            chunk = symbols[i : i + chunk_size]
             batch = await self.batch_analyze(chunk, progress_callback)
             all_results.extend(batch.results)
         return all_results

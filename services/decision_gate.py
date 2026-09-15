@@ -29,12 +29,13 @@ Usage
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ── Cached regime data (per-market, refreshed every 5 min) ──────────────────
 _cached_market_state: dict[str, _MarketState] = {}
@@ -160,8 +161,12 @@ class SmartDecisionGate:
         override.details["reasons"] = reasons
         logger.debug(
             "DecisionGate(%s/%s): ignore_ml=%s ml_boost=%.1f vol=%.2f surge=%s",
-            symbol, market, override.ignore_ml, override.ml_boost_multiplier,
-            vol_regime, volume_surge,
+            symbol,
+            market,
+            override.ignore_ml,
+            override.ml_boost_multiplier,
+            vol_regime,
+            volume_surge,
         )
         return override
 
@@ -212,9 +217,7 @@ class SmartDecisionGate:
 
             # Use the most recent row for regime, but sum the 3 rows for
             # the cumulative 3-day change.
-            three_d_change = sum(
-                float(row[0]) for row in rows if row[0] is not None
-            )
+            three_d_change = sum(float(row[0]) for row in rows if row[0] is not None)
 
             abs_change = abs(three_d_change)
             if abs_change >= 1.5:
@@ -240,7 +243,9 @@ class SmartDecisionGate:
     # ── Volume-ratio fetcher ───────────────────────────────────────────────
 
     async def _fetch_volume_ratio(
-        self, symbol: str, market: str,
+        self,
+        symbol: str,
+        market: str,
     ) -> float:
         """Fetch volume ratio: today / 20-day average.
 

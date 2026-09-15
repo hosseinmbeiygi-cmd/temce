@@ -158,14 +158,46 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
     """
     S, K, T, r, q, sigma = params.S, params.K, params.T, params.r, params.q, params.sigma
 
-    if T <= 0 or sigma <= 0:
-        intrinsic = max(0.0, S - K) if params.option_type == "call" else max(0.0, K - S)
-        return OptionPrice(
-            model=PRICING_MODEL_BLACK_SCHOLES,
-            price=intrinsic,
-            intrinsic_value=intrinsic,
-            parameters={"model": "commodity_bs", "q": q, "asset_class": params.asset_class.value},
-        )
+    # Guard invalid / degenerate inputs before any log()/sqrt() so Greeks never hit
+    # inf/nan and JSON serializers downstream stay healthy.
+    if params.futures_price is not None:
+        # Black-76 path: underlying is a futures price.
+        if T <= 0 or sigma <= 0 or params.futures_price <= 0 or K <= 0:
+            return OptionPrice(
+                model=PRICING_MODEL_BLACK_SCHOLES,
+                price=0.0,
+                intrinsic_value=0.0,
+                parameters={
+                    "model": "commodity_bs",
+                    "error": "invalid_inputs",
+                    "asset_class": params.asset_class.value,
+                    "futures_price": params.futures_price,
+                    "S": S,
+                    "K": K,
+                    "T": T,
+                    "r": r,
+                    "sigma": sigma,
+                },
+            )
+    else:
+        # Black-Scholes-Merton with dividend yield q.
+        if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+            return OptionPrice(
+                model=PRICING_MODEL_BLACK_SCHOLES,
+                price=0.0,
+                intrinsic_value=0.0,
+                parameters={
+                    "model": "commodity_bs",
+                    "error": "invalid_inputs",
+                    "asset_class": params.asset_class.value,
+                    "futures_price": params.futures_price,
+                    "S": S,
+                    "K": K,
+                    "T": T,
+                    "r": r,
+                    "sigma": sigma,
+                },
+            )
 
     # Choose model
     if params.futures_price is not None:
@@ -255,7 +287,7 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
     )
 
 
-def implied_volatility_commodity(
+def implied_vol_commodity_option(
     market_price: float,
     S: float,
     K: float,
@@ -268,6 +300,11 @@ def implied_volatility_commodity(
     tol: float = 1e-6,
 ) -> float:
     """Newton-Raphson implied volatility for commodity options with q."""
+    # Guard degenerate / invalid inputs: Newton-Raphson would divide by zero
+    # (sigma*sqrt(T) in d1) or walk off to inf/nan.
+    if S <= 0 or K <= 0 or T <= 0 or initial_guess <= 0:
+        return float(initial_guess)
+
     sigma = initial_guess
     price_fn = commodity_bs_call if option_type == "call" else commodity_bs_put
 

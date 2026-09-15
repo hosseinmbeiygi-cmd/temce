@@ -337,6 +337,42 @@ async def get_all_symbols(session: Any, limit: int | None = None) -> list[str]:
     return [row[0] for row in result if row[0]]
 
 
+async def get_fund_symbols(session: Any, limit: int | None = None) -> list[str]:
+    """Return only fund/ETF symbols.
+
+    ``/Tsetmc/Nav.php`` is a fund-scoped endpoint: it answers HTTP 502 for
+    anything that is not a fund/ETF, so NAV must never be requested for the
+    full symbol universe. Reuses the shared sector classifier and the
+    duplicate-name fold from ``BrsApiSyncService`` so insurance/pension
+    sectors that merely contain «صندوق» are excluded and TSETMC numeric-suffix
+    twins (``ابتکار2``) never reach the API as a guaranteed failure.
+    """
+    from sqlalchemy import select
+
+    from brsapi.services.sync_service import (
+        canonical_nav_symbol,
+        fund_sector_sql_condition,
+    )
+
+    stmt = (
+        select(SymbolSnapshotModel.symbol)
+        .where(fund_sector_sql_condition(SymbolSnapshotModel.sector))
+        .group_by(SymbolSnapshotModel.symbol)
+    )
+    if limit:
+        stmt = stmt.limit(limit)
+    result = await session.execute(stmt)
+    symbols = [row[0] for row in result.fetchall() if row[0]]
+
+    known = set(symbols)
+    canonical: list[str] = []
+    for symbol in symbols:
+        base = canonical_nav_symbol(symbol, known)
+        if base not in canonical:
+            canonical.append(base)
+    return canonical
+
+
 async def get_existing_history_dates(session: Any, symbol: str) -> set[str]:
     from sqlalchemy import select
     stmt = select(HistoricalDailyModel.date).where(HistoricalDailyModel.symbol == symbol)
@@ -797,10 +833,16 @@ class BrsApiFullUpdater:
                         len(symbols), self._rate_limiter.daily.remaining_today)
 
             if "nav" in tables:
-                await self._sync_for_symbols(
-                    session, symbols, BrsApiEndpoints.NAV,
-                    TsetmcParser.parse_nav, NavRecordModel,
-                    "NAV", {"l18": ""}, limit_symbols=min(200, self._rate_limiter.daily.remaining_today // 2))
+                # NAV is fund-only: requesting it for the whole symbol universe
+                # only produces HTTP 502 churn. Query the fund/ETF symbols.
+                nav_symbols = await get_fund_symbols(session)
+                if not nav_symbols:
+                    logger.warning("⚠️  No fund symbols found. Skipping NAV sync.")
+                else:
+                    await self._sync_for_symbols(
+                        session, nav_symbols, BrsApiEndpoints.NAV,
+                        TsetmcParser.parse_nav, NavRecordModel,
+                        "NAV", {"l18": ""}, limit_symbols=min(200, self._rate_limiter.daily.remaining_today // 2))
 
             if "symbols" in tables:
                 await self._sync_for_symbols(

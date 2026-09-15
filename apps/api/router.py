@@ -194,8 +194,10 @@ class Router:
         from apps.api.endpoints.decision_engine import router as decision_engine_router
         from apps.api.endpoints.economic_calendar import router as economic_calendar_router
         from apps.api.endpoints.forecast import router as forecast_router
+        from apps.api.endpoints.forecast_engine import router as forecast_engine_router
         from apps.api.endpoints.fundamental import router as fundamental_router
         from apps.api.endpoints.funds import router as funds_router
+        from apps.api.endpoints.funds_v2 import router as funds_v2_router
         from apps.api.endpoints.health import router as health_router
         from apps.api.endpoints.indicators import router as indicators_router
         from apps.api.endpoints.jobs import router as jobs_router
@@ -405,9 +407,21 @@ class Router:
             dependencies=_optional_auth,
         )
         router.include_router(
+            funds_v2_router,
+            prefix="/funds/v2",
+            tags=["Funds V2"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
             forecast_router,
             prefix="/forecast",
             tags=["Forecast"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            forecast_engine_router,
+            prefix="/forecast-engine",
+            tags=["Forecast Engine"],
             dependencies=_optional_auth,
         )
         router.include_router(
@@ -542,11 +556,42 @@ class Router:
             prefix="/ws",
             tags=["WebSocket"],
         )
+        # Armor Precompute WS (separate from market WS) — /ws/precompute
+        from apps.api.endpoints.precompute_ws import router as precompute_ws_router
+
+        router.include_router(
+            precompute_ws_router,
+            prefix="/ws",
+            tags=["Armor WS"],
+        )
         # Q2 P1 — Ingestion service boundary (standalone-ready)
         router.include_router(
             ingestion_router,
             prefix="/ingestion",
             tags=["Ingestion"],
+            dependencies=_optional_auth,
+        )
+        # Armor Dashboard — API for the Armor Dashboard (celery + next.js stack)
+        from apps.api.endpoints.precompute import dashboard_router as armor_dashboard_router
+        from apps.api.endpoints.precompute import router as precompute_router
+        from apps.api.endpoints.precompute import symbols_router as armor_symbols_router
+
+        router.include_router(
+            precompute_router,
+            prefix="/precompute",
+            tags=["Armor Precompute"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            armor_dashboard_router,
+            prefix="/dashboard",
+            tags=["Armor Dashboard"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            armor_symbols_router,
+            prefix="/symbols",
+            tags=["Armor Symbols"],
             dependencies=_optional_auth,
         )
         # System administration (kill switch + permission check, §15.3 + §19.3).

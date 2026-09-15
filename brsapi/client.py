@@ -334,9 +334,25 @@ class BrsApiClient:
                     # few seconds; without this the whole backfill aborts.
                     retry_after = self._parse_retry_after(resp)
                     last_error = f"HTTP {resp.status_code} – retry after {retry_after}s"
-                    logger.warning("%s (attempt %d/%d)", last_error, attempt + 1, self._max_retries)
-                    await asyncio.sleep(retry_after)
-                    continue
+                    if attempt < self._max_retries:
+                        logger.warning(
+                            "%s (attempt %d/%d) - retrying in %.1fs",
+                            last_error,
+                            attempt + 1,
+                            self._max_retries + 1,
+                            retry_after,
+                        )
+                        await asyncio.sleep(retry_after)
+                        continue
+                    # Last attempt already spent - sleeping here would only stall
+                    # the caller before the same failure is returned.
+                    logger.warning(
+                        "%s (attempt %d/%d) - no retries left",
+                        last_error,
+                        attempt + 1,
+                        self._max_retries + 1,
+                    )
+                    break
 
                 # Other HTTP error
                 last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -346,7 +362,12 @@ class BrsApiClient:
                 last_error = "timeout"
                 if attempt < self._max_retries:
                     delay = min(self._backoff_base ** (attempt + 1), self._backoff_max)
-                    logger.warning("Timeout (attempt %d/%d) – retrying in %.1fs", attempt + 1, self._max_retries, delay)
+                    logger.warning(
+                        "Timeout (attempt %d/%d) – retrying in %.1fs",
+                        attempt + 1,
+                        self._max_retries + 1,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
                     continue
                 return Result.fail(f"Request timeout after {self._max_retries} retries")
@@ -355,7 +376,13 @@ class BrsApiClient:
                 last_error = _redact_sensitive_text(str(exc))
                 if attempt < self._max_retries:
                     delay = min(self._backoff_base ** (attempt + 1), self._backoff_max)
-                    logger.warning("RequestError (attempt %d/%d): %s – retrying in %.1fs", attempt + 1, self._max_retries, exc, delay)
+                    logger.warning(
+                        "RequestError (attempt %d/%d): %s – retrying in %.1fs",
+                        attempt + 1,
+                        self._max_retries + 1,
+                        exc,
+                        delay,
+                    )
                     await asyncio.sleep(delay)
                     continue
                 return Result.fail(f"RequestError: {_redact_sensitive_text(str(exc))}")

@@ -84,6 +84,12 @@ class ModelArtifactMeta:
     feature_names: list[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     stage: str = "development"
+    # M1: content-addressable provenance
+    artifact_hash: str = ""
+    file_size_bytes: int = 0
+    dataset_hash: str = ""
+    python_version: str = ""
+    library_versions: dict[str, str] = field(default_factory=dict)
 
     @property
     def is_production(self) -> bool:

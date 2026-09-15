@@ -105,6 +105,23 @@ async def test_504_is_retried() -> None:
 
 
 @pytest.mark.asyncio
+async def test_502_exhausted_logs_full_attempt_count_and_skips_last_sleep(caplog) -> None:
+    """The last attempt must not sleep, and the log must not read ``4/3``."""
+    client = _make_client()
+    responses = [_FakeResp(502)] * 4
+    client._client.get = AsyncMock(side_effect=responses)
+    sleep_mock = AsyncMock()
+    with patch("asyncio.sleep", new=sleep_mock), caplog.at_level("WARNING"):
+        result = await client.fetch(_FakeEndpoints.endpoint())
+
+    assert result.success is False
+    # 1 attempt + 3 retries: sleep only *between* attempts (3x), never after
+    # the final failure where the caller gets the result immediately.
+    assert sleep_mock.await_count == 3
+    assert "attempt 4/4" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_401_is_not_retried() -> None:
     """Non-retryable errors should fail fast (no extra attempts)."""
     client = _make_client()

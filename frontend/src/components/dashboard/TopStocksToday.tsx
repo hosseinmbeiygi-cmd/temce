@@ -13,6 +13,7 @@ export default function TopStocksToday() {
     <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={Trophy}
+        tone="up"
         title="بهترین‌های بازار امروز"
         subtitle="برترین نمادهای سهام از نظر رشد قیمت"
         action={

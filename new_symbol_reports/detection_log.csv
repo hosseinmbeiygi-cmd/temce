@@ -1,0 +1,180 @@
+﻿نام فایل,ستون انتخابی,نوع محتوای تشخیص‌داده‌شده,مسیر تشخیص,درجه اطمینان,نوع محتوا فایل,توضیح
+history_data/AED_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2248 روزه از 1397/01/28 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/AFN_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2329 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/AMD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2025 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/AUD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3581 روزه از 1393/04/30 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/AZN_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2538 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/BHD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2672 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/CAD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3412 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/CHF_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3328 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/CNY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2969 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/EUR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 4075 روزه از 1391/04/08 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/GBP_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3698 روزه از 1391/06/12 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/GEL_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2588 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/INR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2506 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/IQD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2257 روزه از 1394/05/09 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/IR_COIN_1G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3181 روزه از 1392/05/01 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_COIN_BAHAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 4193 روزه از 1390/10/01 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_COIN_EMAMI_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 4830 روزه از 1389/01/15 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_COIN_HALF_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 4191 روزه از 1390/10/01 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_COIN_QUARTER_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 4113 روزه از 1390/10/01 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_GOLD_18K_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3990 روزه از 1392/01/27 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_GOLD_24K_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2733 روزه از 1393/02/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_GOLD_MELTED_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2398 روزه از 1396/12/27 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_1-1G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 955 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_1-2G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 955 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_1-3G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 954 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_1-4G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 957 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_1-5G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 960 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_100MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 959 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_1G_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 958 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_200MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 962 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_300MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 959 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_400MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 959 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_500MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 958 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_600MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 959 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_700MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 959 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_800MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 959 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/IR_PCOIN_900MG_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 958 روزه از 1398/12/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/JPY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2309 روزه از 1393/04/31 تا 1405/04/31؛ واحد تشخیص: ریال
+history_data/KWD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2727 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/MYR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2925 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_AED_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2107 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_AUD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1249 روزه از 1400/09/09 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_BHD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1478 روزه از 1400/02/22 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_CAD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1241 روزه از 1400/12/28 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_CHF_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1392 روزه از 1400/06/17 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_CNY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2098 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_DKK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1478 روزه از 1400/02/22 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_EUR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2092 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_GBP_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1246 روزه از 1400/03/24 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_INR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2016 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/NIMA_JPY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1496 روزه از 1397/08/07 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_KRW_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1560 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_KWD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1478 روزه از 1400/02/22 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_NOK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1243 روزه از 1400/08/24 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_OMR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1479 روزه از 1399/10/13 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_PKR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1478 روزه از 1400/02/22 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_QAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 628 روزه از 1403/03/06 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_RUB_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1615 روزه از 1397/08/14 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/NIMA_SAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 628 روزه از 1403/03/06 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_SEK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1243 روزه از 1400/08/24 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_TRY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1637 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/NIMA_USD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2038 روزه از 1397/08/02 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/OMR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2669 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/PKR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2307 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/QAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2631 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/RUB_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2499 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/SANA_AED_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1966 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_AUD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1958 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_BHD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1437 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_CAD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1982 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_CHF_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1794 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_CNY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1847 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_DKK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1670 روزه از 1397/08/06 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_EUR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1989 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_GBP_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1974 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_INR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1611 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/SANA_JPY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1456 روزه از 1397/08/07 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_KRW_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1353 روزه از 1397/11/10 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_KWD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1541 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_NOK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1638 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_OMR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1847 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_PKR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1455 روزه از 1397/08/12 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_QAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 502 روزه از 1403/03/06 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_RUB_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1621 روزه از 1397/08/09 تا 1404/10/20؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/SANA_SAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 502 روزه از 1403/03/06 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_SEK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1939 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_TRY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1983 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SANA_USD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1990 روزه از 1397/08/02 تا 1404/10/20؛ واحد تشخیص: ریال
+history_data/SAR_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2857 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/SEK_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3324 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/SYP_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 1938 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+history_data/THB_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 2584 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/TRY_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 3345 روزه از 1393/04/31 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/USD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 4791 روزه از 1390/09/06 تا 1405/05/01؛ واحد تشخیص: ریال
+history_data/XAUUSD_history.json,date/open/high/low/close,قیمت روزانه OHLC,نام‌محور,بالا,قیمت روزانه,سری 14186 روزه از 1348/10/15 تا 1405/05/01؛ واحد تشخیص: نامشخص(احتمالاً تومان)
+t.bin,date/time/price/change_percent,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,XAGUSD: 2150 تیک در ۳۹ روز؛ واحد دلار
+t.bin,date/time/price/change_percent,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,XAUUSD: 2150 تیک در ۳۹ روز؛ واحد دلار
+t.bin,date/time/price/change_percent,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,XPDUSD: 2150 تیک در ۳۹ روز؛ واحد دلار
+t.bin,date/time/price/change_percent,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,XPTUSD: 2150 تیک در ۳۹ روز؛ واحد دلار
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,آلتون: 6679 تیک یک جلسه (1405-05-12)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,آوند: 85001 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,آوند4: 1 تیک یک جلسه (1405-06-02)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,آگاس: 1868 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اطلس: 9857 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اعتماد: 26744 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اعتماد4: 38 تیک یک جلسه (1405-05-14)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,افران: 132606 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,افران4: 3 تیک یک جلسه (1405-06-01)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اهرم: 3487 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اوصتا: 312 تیک یک جلسه ()
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اونیکس: 7424 تیک یک جلسه (1405-05-14)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,اونیکس4: 1 تیک یک جلسه (1405-05-27)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,بذر: 12 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,تابش: 3431 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,تداوم: 22829 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,تداوم4: 2 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,ثبات: 2232 تیک یک جلسه (1405-05-12)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,جواهر: 5200 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,دارا یکم: 1606 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,زروان: 4887 تیک یک جلسه (1405-06-09)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,سپر: 25082 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,سپر4: 66 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,سپیدما: 134 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,سپیدما4: 2 تیک یک جلسه (1405-06-03)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,طلا: 98189 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,عیار: 676077 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,فردا: 4650 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,فردا4: 1 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,فیروزا: 42264 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,فیروزا4: 2 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,لبخند: 130112 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,لبخند4: 1 تیک یک جلسه (1405-06-01)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,مثقال: 82587 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,ناب: 2895 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,پاسارگاد: 105014 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,پاسارگاد4: 1 تیک یک جلسه (1405-06-01)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,پالایش: 14417 تیک یک جلسه (1405-05-12)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کارا: 75116 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کارا4: 1 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کاریس: 450 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کارین: 376 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کارین4: 1 تیک یک جلسه (1405-06-09)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کهربا: 48148 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کیان: 92352 تیک یک جلسه (1405-05-18)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,کیان4: 4 تیک یک جلسه (1405-05-12)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,گنج: 15063 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,گوهر: 10732 تیک یک جلسه (1405-06-07)
+top50_funds_intraday,time/price/volume/canceled,قیمت درون‌روز/لحظه‌ای,نام‌محور,بالا,قیمت درون‌روز,یاقوت: 349044 تیک یک جلسه (1405-05-18)
+data/codal_attachments/codal/خاذین/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,خاذین: دوره منتهی به 1405/03/31 در مقابل 1404/03/31
+data/codal_attachments/codal/سفارس/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,سفارس: دوره منتهی به 1405/02/31 در مقابل 1404/02/31
+data/codal_attachments/codal/فارس/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,فارس: دوره منتهی به 1405/02/31 در مقابل 1404/02/31
+data/codal_attachments/codal/وبهمن/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,وبهمن: دوره منتهی به 1405/03/31 در مقابل 1404/03/31
+data/codal_attachments/codal/وکار/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,وکار: دوره منتهی به 1404/12/29 در مقابل 1403/12/30
+data/codal_attachments/codal/وگنجینه ایرانیان/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,وگنجینه ایرانیان: دوره منتهی به 1405/03/31 در مقابل 1404/03/31
+data/codal_attachments/codal/پارسان/ن-۱۰_excel.xlsx,درآمد عملیاتی/سود ناخالص/عملیاتی/خالص/EPS/دارایی/بدهی/حقوق مالکانه,صورت سودوزیان و ترازنامه,نام‌محور,بالا,صورت مالی میان‌دوره/سالیانه,پارسان: دوره منتهی به 1404/12/29 در مقابل 1403/12/30
+codal/آواک/ن-۲۶_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,شفاف سازی در خصوص شایعه، خبر یا گزارش منتشر شده به استناد ما
+codal/خاذین/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/خاذین/ن-۳۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/دزاگرس/ن-۴۲_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/سخزر/ن-۳۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/سفارس/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/شبهرن/ن-۵۲_html.html,اسامی سهامداران/تعداد سهام/درصد مالکیت,سود تقسیمی/مجامع,نام‌محور,متوسط,اطلاعیه کدال,تصمیمات مجمع عمومی عادی سالیانه صاحبان سهام برای سال (دوره) 
+codal/شلیا/ن-۲۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/فارس/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/فیروزا/2_html.html,متن اظهارنظر,سود تقسیمی/مجامع,نام‌محور,متوسط,اطلاعیه کدال,آگهی دعوت به مجمع صندوق سرمایه گذاری زمان و محل برگزاری مجمع
+codal/قیستو/ن-۸۵_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/نگین/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/هلد پایندگان/ن-۳۱_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/وبهمن/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/وتوشه/ن-۵۱_html.html,اسامی سهامداران/تعداد سهام/درصد مالکیت,سود تقسیمی/مجامع,نام‌محور,متوسط,اطلاعیه کدال,خلاصه تصمیمات مجمع عمومي عادي بطور فوق العاده صاحبان سهام بر
+codal/وپسا/ن-۵۲_html.html,اسامی سهامداران/تعداد سهام/درصد مالکیت,سود تقسیمی/مجامع,نام‌محور,متوسط,اطلاعیه کدال,تصمیمات مجمع عمومی عادی سالیانه صاحبان سهام برای سال (دوره) 
+codal/وکار/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/وکار/ن-۱۱_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/وگنجینه ایرانیان/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/پارسان/ن-۱۰_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/پاکشو/ن-۴۲_html.html,متن اظهارنظر,حسابرسی,نام‌محور,متوسط,اطلاعیه کدال,
+codal/خاذین/ن-۳۰_excel.xlsx,نام محصول/تعداد فروش/مبلغ فروش,گزارش فعالیت ماهانه,نام‌محور,بالا,فعالیت ماهانه,مجموع فروش استخراج نشد
+codal/سخزر/ن-۳۰_excel.xlsx,نام محصول/تعداد فروش/مبلغ فروش,گزارش فعالیت ماهانه,نام‌محور,بالا,فعالیت ماهانه,مجموع فروش استخراج نشد
+codal/هلد پایندگان/ن-۳۱_excel.xlsx,نام شرکت/تعداد سهام/بهای تمام شده/ارزش بازار,داده پرتفوی هلدینگ,نام‌محور,بالا,پرتفوی هلدینگ,14 شرکت پرتفویی

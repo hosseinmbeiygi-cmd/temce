@@ -10,6 +10,7 @@ import Skeleton from "@/components/Skeleton";
 import { Card } from "@/components/ui/Card";
 import { apiGet, apiPost } from "@/lib/api";
 import FundChecklistPanel from "@/components/FundChecklistPanel";
+import FundAnalyticsPanel from "@/components/FundAnalyticsPanel";
 import type { FundChecklistSymbolDetailLike } from "@/lib/fund-checklist-real";
 import { toast } from "sonner";
 import type { Fund } from "../page";
@@ -379,6 +380,11 @@ export default function FundDetailPage() {
               </div>
             </Card>
           )}
+
+          {/* ── Enterprise Analytics (v2 — ۸ تب تحلیلی) ── */}
+          <div className="mt-5">
+            <FundAnalyticsPanel symbol={symbol} fundName={detail?.name} />
+          </div>
 
           <div className="mt-5">
             <FundChecklistPanel fund={detail} symbolDetail={symbolDetail} />

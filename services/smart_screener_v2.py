@@ -12,20 +12,21 @@ This module provides:
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.logging import get_logger
 from services.smart_money.advanced_analytics import AdvancedAnalysis, AdvancedAnalyticsEngine
 from services.smart_money.scoring_engine import ScoringEngine
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
 class ScreenerConfig:
     """Configuration for the enhanced screener."""
+
     # Scoring weights
     smart_money_weight: float = 0.4
     technical_weight: float = 0.3
@@ -58,6 +59,7 @@ class ScreenerConfig:
 @dataclass
 class EnhancedScreenedSymbol:
     """Enhanced screening result with advanced analytics."""
+
     # Basic info
     symbol: str
     name: str
@@ -127,6 +129,7 @@ class EnhancedScreenedSymbol:
 @dataclass
 class SectorAnalysis:
     """Sector rotation analysis result."""
+
     sector: str
     relative_strength: float  # vs market
     momentum: float  # short-term vs long-term
@@ -360,10 +363,10 @@ class SmartScreenerV2:
         risk_adjustment = 1.0 - (risk_score * 0.3)  # Penalize high risk
 
         raw = (
-            smc_score * cfg.smart_money_weight +
-            technical_score * cfg.technical_weight +
-            momentum_score * cfg.momentum_weight +
-            (1 - risk_score) * cfg.fundamental_weight
+            smc_score * cfg.smart_money_weight
+            + technical_score * cfg.technical_weight
+            + momentum_score * cfg.momentum_weight
+            + (1 - risk_score) * cfg.fundamental_weight
         )
 
         return max(-1.0, min(1.0, raw * risk_adjustment))
@@ -417,6 +420,7 @@ class SmartScreenerV2:
         min_score: float = 0.0,
         market: str | None = None,
         filters: list[dict[str, Any]] | None = None,
+        filter_logic: str = "and",
     ) -> tuple[list[EnhancedScreenedSymbol], dict[str, Any]]:
         """Batch analyze multiple symbols.
 
@@ -430,6 +434,7 @@ class SmartScreenerV2:
             min_score: Minimum composite score filter
             market: Optional market filter
             filters: Optional list of filter criteria dicts
+            filter_logic: 'and' (all filters must match) or 'or' (any filter can match)
         """
         watch_map = {w.get("symbol", ""): w for w in market_watch}
         results = []
@@ -470,7 +475,7 @@ class SmartScreenerV2:
             )
 
             # Apply client-side filters for advanced fields
-            if filters and not self._apply_client_filters(result, filters):
+            if filters and not self._apply_client_filters(result, filters, filter_logic):
                 continue
 
             if result.composite_score >= min_score:
@@ -493,13 +498,25 @@ class SmartScreenerV2:
         return paginated, stats
 
     @staticmethod
-    def _apply_client_filters(result: EnhancedScreenedSymbol, filters: list[dict[str, Any]]) -> bool:
-        """Apply filters to an already-analyzed symbol result."""
+    def _apply_client_filters(
+        result: EnhancedScreenedSymbol,
+        filters: list[dict[str, Any]],
+        filter_logic: str = "and",
+    ) -> bool:
+        """Apply filters to an already-analyzed symbol result.
+
+        Args:
+            result: The analyzed symbol result.
+            filters: List of filter criteria dicts.
+            filter_logic: 'and' (all must match) or 'or' (any can match).
+        """
+        matches: list[bool] = []
         for f in filters:
             field = f.get("field", "")
             operator = f.get("operator", "gte")
             value = f.get("value")
             if value is None:
+                matches.append(True)
                 continue
 
             # Get field value from the result object
@@ -507,7 +524,8 @@ class SmartScreenerV2:
             if r_val is None:
                 r_val = result.details.get(field)
             if r_val is None:
-                return False
+                matches.append(False)
+                continue
 
             try:
                 r_val = float(r_val)
@@ -517,32 +535,68 @@ class SmartScreenerV2:
                 r_str = str(r_val).lower()
                 v_str = str(value).lower()
                 if operator == "eq":
-                    if r_str != v_str:
-                        return False
+                    matches.append(r_str == v_str)
                 elif operator == "neq":
-                    if r_str == v_str:
-                        return False
+                    matches.append(r_str != v_str)
                 elif operator == "contains":
-                    if v_str not in r_str:
-                        return False
+                    matches.append(v_str in r_str)
+                elif operator == "in":
+                    values_list = [v.strip().lower() for v in v_str.split(",") if v.strip()]
+                    matches.append(r_str in values_list)
+                elif operator == "not_in":
+                    values_list = [v.strip().lower() for v in v_str.split(",") if v.strip()]
+                    matches.append(r_str not in values_list)
+                else:
+                    matches.append(False)
                 continue
 
-            if operator == "gte" and r_val < value or operator == "lte" and r_val > value or operator == "gt" and r_val <= value or operator == "lt" and r_val >= value or operator == "eq" and abs(r_val - value) > max(value * 0.01, 0.001):
-                return False
+            if operator == "gte":
+                matches.append(r_val >= value)
+            elif operator == "lte":
+                matches.append(r_val <= value)
+            elif operator == "gt":
+                matches.append(r_val > value)
+            elif operator == "lt":
+                matches.append(r_val < value)
+            elif operator == "eq":
+                tolerance = max(abs(value) * 0.01, 0.001)
+                matches.append(abs(r_val - value) <= tolerance)
+            elif operator == "neq":
+                tolerance = max(abs(value) * 0.01, 0.001)
+                matches.append(abs(r_val - value) > tolerance)
             elif operator == "between":
-                v_to = float(f.get("value_to", 0))
-                if r_val < value or r_val > v_to:
-                    return False
+                value_to = f.get("value_to")
+                if value_to is not None:
+                    try:
+                        num_value_to = float(value_to)
+                        matches.append(value <= r_val <= num_value_to)
+                    except (TypeError, ValueError):
+                        matches.append(False)
+                else:
+                    matches.append(False)
+            else:
+                matches.append(False)
 
-        return True
+        if not matches:
+            return True  # No filters means pass
+        if filter_logic == "or":
+            return any(matches)
+        return all(matches)
 
-    def _compute_stats(self, paginated: list[EnhancedScreenedSymbol], all_results: list[EnhancedScreenedSymbol]) -> dict[str, Any]:
+    def _compute_stats(
+        self, paginated: list[EnhancedScreenedSymbol], all_results: list[EnhancedScreenedSymbol]
+    ) -> dict[str, Any]:
         """Compute aggregate statistics."""
         if not all_results:
             return {
-                "total": 0, "avg_composite": 0, "avg_technical": 0,
-                "avg_momentum": 0, "avg_risk": 0, "signal_distribution": {},
-                "sector_distribution": {}, "trend_distribution": {},
+                "total": 0,
+                "avg_composite": 0,
+                "avg_technical": 0,
+                "avg_momentum": 0,
+                "avg_risk": 0,
+                "signal_distribution": {},
+                "sector_distribution": {},
+                "trend_distribution": {},
                 "volatility_distribution": {},
             }
 

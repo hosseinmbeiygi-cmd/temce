@@ -466,14 +466,11 @@ class TestBlockG:
     """Block G: همه مقادیر صفر بجز market_regime=50 و تشخیص تقویمی."""
 
     def test_all_events_zero_by_default(self, engine: FeatureEngine):
+        # Current block G only computes calendar features (event data sources
+        # not implemented yet — see _compute_block_g docstring); corporate
+        # event keys were removed in commit e311199.
         block = engine._compute_block_g()
-        event_keys = [
-            "ceo_change_success", "ceo_change_fail", "agm_proximity",
-            "capital_inc_cash", "capital_inc_reval", "price_liberation",
-            "gov_support", "heavy_legal_case", "telegram_hype",
-            "political_tension", "political_relief", "feedstock_meeting",
-            "big_ipo", "sector_outflow", "sector_inflow", "market_index_3m",
-        ]
+        event_keys = ["agm_proximity", "market_index_3m"]
         for key in event_keys:
             assert block[key] == 0.0, f"{key} should be 0.0"
 
@@ -688,18 +685,18 @@ class TestScoringHelpers:
         assert score > 65  # 50 + 5 (low spread) + 15 (regime)
 
     def test_score_event_positive(self):
-        """رویدادهای مثبت فعال → +15 به ازای هر کدام."""
+        """رویدادهای تقویمی فعال → +10 به ازای هر کدام."""
         score = FeatureEngine._score_event({
-            "ceo_change_success": 1.0, "capital_inc_cash": 1.0, "gov_support": 1.0,
+            "end_of_month": 1.0, "pre_holiday": 1.0, "agm_proximity": 1.0,
         })
-        assert score == 95  # 50 + 3*15
+        assert score == 80  # 50 + 3*10
 
     def test_score_event_negative(self):
-        """رویدادهای منفی فعال → -20 به ازای هر کدام."""
+        """بدون رویداد فعال → خنثی 50؛ مقادیر ناشناخته نادیده گرفته می‌شوند."""
         score = FeatureEngine._score_event({
-            "ceo_change_fail": 1.0, "heavy_legal_case": 1.0,
+            "end_of_month": 0.0, "pre_holiday": 0.0, "unknown_event": 1.0,
         })
-        assert score == 10  # 50 - 2*20
+        assert score == 50
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -754,8 +751,12 @@ class TestTechnicalHelpers:
         assert signal in (-1.0, 0.0, 1.0)
 
     def test_compute_macd_bearish(self):
-        """26+ closes کاهشی → MACD < signal → -1.0."""
-        closes = [float(130 - i) for i in range(30)]
+        """شتاب کاهشی (سرعت افت در حال افزایش) → MACD < signal → -1.0.
+
+        نکته: در افت خطی ثابت، MACD به مقدار ثابت همگرا می‌شود و
+        جهتش بر اساس نویز تعیین می‌شود؛ افت شتاب‌دار جهت واقعی منفی می‌دهد.
+        """
+        closes = [float(130 - i * i / 10) for i in range(40)]
         signal = FeatureEngine._compute_macd_signal(closes)
         assert signal == -1.0
 

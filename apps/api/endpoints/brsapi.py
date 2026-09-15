@@ -22,7 +22,6 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_db_session
-from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from brsapi.services.query_service import BrsApiQueryService
 from core.db_utils import safe_row_str
 from core.result import PaginatedResult
@@ -1621,77 +1620,31 @@ async def get_symbol_detail(
         return ApiResponse[dict[str, Any]](success=False, error={"message": _safe_error_message(exc)})
 
 
-# ETF symbol list moved to brsapi/constants.py so it can be reused
-# by the sync service without depending on the API layer.
 @router.post("/manage/sync-nav-all", summary="Batch sync NAV for all ETF funds")
 async def sync_nav_all(
     max_symbols: int = Query(0, ge=0, le=500, description="Max symbols to sync (0 = all ETFs)"),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """
-    Batch-sync NAV (Net Asset Value) for all ETF fund symbols.
+    Batch-sync NAV (Net Asset Value) for all fund/ETF symbols.
 
-    Iterates through the known ETF symbol list, fetches NAV data from
-    BrsApi for each, and stores the results. Uses rate limiting to
-    stay within BrsApi's per-minute limits (6 req/min for NAV endpoint).
+    Delegates to ``BrsApiSyncService.sync_nav_all`` so the fund list is
+    discovered dynamically from the DB (sector-aware, insurance/pension
+    sectors excluded) instead of a hardcoded symbol list. The service also
+    dedupes symbols and skips funds that already hold today's NAV, then
+    fetches the rest from BrsApi respecting the per-minute rate limit
+    (6 req/min for the NAV endpoint).
     """
-    import asyncio as _asyncio
+    from dataclasses import asdict
 
     client = await get_client()
     from brsapi.services.sync_service import BrsApiSyncService
 
     sync_svc = BrsApiSyncService(client=client, session=session)
 
-    symbols = BRSAPI_ETF_SYMBOLS[:max_symbols] if max_symbols > 0 else BRSAPI_ETF_SYMBOLS
+    report = await sync_svc.sync_nav_all(session, max_symbols=max_symbols)
 
-    results: list[dict[str, Any]] = []
-    success_count = 0
-    fail_count = 0
-    total_duration_ms = 0.0
-
-    for i, symbol in enumerate(symbols):
-        # Rate limit: NAV = 6 req/min → wait 11s between requests
-        await _asyncio.sleep(11)
-        try:
-            report = await sync_svc.sync_nav(session, symbol)
-            total_duration_ms += report.duration_ms
-            if report.success:
-                success_count += 1
-            else:
-                fail_count += 1
-            results.append(
-                {
-                    "symbol": symbol,
-                    "success": report.success,
-                    "items_count": report.items_count,
-                    "duration_ms": report.duration_ms,
-                    "error": report.error,
-                }
-            )
-            if (i + 1) % 10 == 0:
-                logger.info(
-                    "NAV sync progress: %d/%d symbols (%d ok, %d fail)", i + 1, len(symbols), success_count, fail_count
-                )
-        except Exception as exc:
-            fail_count += 1
-            results.append(
-                {
-                    "symbol": symbol,
-                    "success": False,
-                    "error": _safe_error_message(exc),
-                }
-            )
-
-    return ApiResponse[dict[str, Any]](
-        success=True,
-        data={
-            "total": len(symbols),
-            "success_count": success_count,
-            "fail_count": fail_count,
-            "total_duration_ms": round(total_duration_ms, 1),
-            "results": results,
-        },
-    )
+    return ApiResponse[dict[str, Any]](success=report.success, data=asdict(report))
 
 
 @router.post("/manage/sync-top-symbols", summary="Sync Symbol.php for top N symbols")

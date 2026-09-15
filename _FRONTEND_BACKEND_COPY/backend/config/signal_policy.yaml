@@ -1,0 +1,346 @@
+# =============================================================================
+# Signal Policy Configuration — v1.0.0
+# =============================================================================
+# This file defines the decision thresholds for the 10-gate SignalDecisionEngine.
+# Each market section overrides the global defaults for that market type.
+#
+# Markets: stock, gold, crypto, currency, commodity, option, ime
+# Profiles: default_conservative, default_aggressive, per-market profiles
+#
+# The policy_version and policy_name are at the root level.
+# Market-specific overrides go under their market key.
+# =============================================================================
+
+policy_version: "1.0.0"
+policy_name: "default_conservative"
+
+# ── Global Defaults ──────────────────────────────────────────────────────────
+# Applied to ALL markets. Individual markets can override specific fields below.
+# ─────────────────────────────────────────────────────────────────────────────
+
+data:
+  min_data_quality: 0.80
+  max_missing_fields: 3
+
+model:
+  min_models_available: 1
+  max_disagreement: 0.60
+
+probability:
+  base_threshold: 0.42
+  margin:
+    minimum: 0.08
+    watchlist: 0.03
+  volatility_penalty: 0.03
+  liquidity_penalty: 0.02
+  drift_penalty: 0.02
+
+regime:
+  blocked_regimes: ["CRISIS"]
+  warn_regimes: ["HIGH_VOLATILITY", "UNKNOWN"]
+
+ensemble:
+  minimum_active_models: 1
+  minimum_agreeing_models: 1
+  conflict_block: true
+
+liquidity:
+  minimum_score: 0.50
+  minimum_fill_probability: 0.50
+  minimum_avg_volume: 0
+
+risk_reward:
+  minimum_trade: 0.5
+  minimum_watchlist: 0.3
+
+expectancy:
+  minimum_net_expectancy_r: -0.50
+  costs_pct: 0.003  # 0.3% per trade (commission + slippage)
+
+portfolio:
+  max_open_risk_pct: 0.25
+  max_correlated_exposure_pct: 0.40
+
+execution:
+  min_spread_pct: 0.0
+  require_market_open: true
+
+grades:
+  a_plus:
+    min_probability: 0.55
+    min_rr: 2.0
+    min_expectancy: 0.10
+    all_pass_required: false
+  a:
+    min_probability: 0.50
+    min_rr: 1.5
+    min_expectancy: 0.05
+    max_warnings: 2
+  b:
+    min_probability: 0.45
+    min_rr: 1.0
+    min_expectancy: -0.01
+    max_warnings: 3
+  watchlist:
+    min_probability: 0.40
+    min_rr: 0.0
+    min_expectancy: -0.20
+
+# =============================================================================
+# Market-Specific Overrides
+# =============================================================================
+# Each market section deep-merges into the global defaults.
+# You only need to specify the fields that differ from global defaults.
+# =============================================================================
+
+# ── Stock Market (TSE / Iran Fara Bourse) ──────────────────────────────────
+stock:
+  policy_name: "stock_medium"
+  policy_version: "1.0.0"
+
+  probability:
+    base_threshold: 0.42
+    volatility_penalty: 0.03
+    drift_penalty: 0.02
+
+  liquidity:
+    minimum_score: 0.40           # Good liquidity for top symbols
+    minimum_fill_probability: 0.50
+
+  risk_reward:
+    minimum_trade: 0.5            # Lower to accept more rule-based signals
+    minimum_watchlist: 0.3
+
+  expectancy:
+    minimum_net_expectancy_r: -0.50
+    costs_pct: 0.005              # 0.5% (higher commission + tax in TSE)
+
+  portfolio:
+    max_open_risk_pct: 0.20       # Stricter — correlated stock risks
+    max_correlated_exposure_pct: 0.30
+
+  grades:
+    a_plus:
+      min_probability: 0.50
+      min_rr: 1.5
+      min_expectancy: 0.0
+    a:
+      min_probability: 0.45
+      min_rr: 1.0
+      min_expectancy: -0.10
+      max_warnings: 3
+    b:
+      min_probability: 0.40
+      min_rr: 0.5
+      min_expectancy: -0.30
+      max_warnings: 5
+    watchlist:
+      min_probability: 0.30
+      min_rr: 0.0
+      min_expectancy: -1.0
+
+  data:
+    min_data_quality: 0.85        # Stocks need better data quality
+
+# ── Gold Market (Gold coins, gold bars) ────────────────────────────────────
+gold:
+  policy_name: "gold_conservative"
+  policy_version: "1.0.0"
+
+  probability:
+    base_threshold: 0.42          # Gold has stable trends
+    volatility_penalty: 0.02
+    liquidity_penalty: 0.01
+
+  liquidity:
+    minimum_score: 0.40           # Gold is generally liquid
+    minimum_fill_probability: 0.55
+
+  risk_reward:
+    minimum_trade: 0.5
+    minimum_watchlist: 0.3
+
+  expectancy:
+    minimum_net_expectancy_r: -0.50
+    costs_pct: 0.002              # 0.2% — lower costs for gold
+
+  portfolio:
+    max_open_risk_pct: 0.30       # Gold is a good diversifier
+    max_correlated_exposure_pct: 0.50
+
+  regime:
+    blocked_regimes: ["CRISIS"]
+    warn_regimes: ["HIGH_VOLATILITY"]
+
+  grades:
+    a_plus:
+      min_probability: 0.55
+      min_rr: 1.5
+      min_expectancy: 0.08
+    a:
+      min_probability: 0.50
+      min_rr: 1.2
+      min_expectancy: 0.05
+
+# ── Crypto Market ──────────────────────────────────────────────────────────
+crypto:
+  policy_name: "crypto_aggressive"
+  policy_version: "1.0.0"
+
+  probability:
+    base_threshold: 0.44          # Slightly higher due to volatility
+    margin:
+      minimum: 0.08
+      watchlist: 0.04
+    volatility_penalty: 0.04
+    liquidity_penalty: 0.03
+    drift_penalty: 0.03
+
+  liquidity:
+    minimum_score: 0.55           # Major pairs are liquid, altcoins less so
+    minimum_fill_probability: 0.60
+
+  risk_reward:
+    minimum_trade: 1.5            # Need higher RR to compensate for volatility
+    minimum_watchlist: 0.8
+
+  expectancy:
+    minimum_net_expectancy_r: -0.50
+    costs_pct: 0.001              # 0.1% — low exchange fees
+
+  portfolio:
+    max_open_risk_pct: 0.15       # Stricter — crypto is volatile
+    max_correlated_exposure_pct: 0.25
+
+  regime:
+    blocked_regimes: ["CRISIS"]
+    warn_regimes: ["HIGH_VOLATILITY"]
+
+  ensemble:
+    minimum_active_models: 1
+    minimum_agreeing_models: 1
+    conflict_block: true          # Always require model agreement for crypto
+
+  grades:
+    a_plus:
+      min_probability: 0.55
+      min_rr: 2.0
+      min_expectancy: 0.10
+    a:
+      min_probability: 0.50
+      min_rr: 1.5
+      min_expectancy: 0.05
+      max_warnings: 2
+    b:
+      min_probability: 0.45
+      min_rr: 1.0
+      min_expectancy: -0.01
+      max_warnings: 2
+
+# ── Currency Market (USD/IRR, EUR/IRR, etc.) ──────────────────────────────
+currency:
+  policy_name: "currency_conservative"
+  policy_version: "1.0.0"
+
+  probability:
+    base_threshold: 0.40          # Lower — currency has strong trends
+    margin:
+      minimum: 0.06
+      watchlist: 0.03
+    volatility_penalty: 0.03
+    drift_penalty: 0.02
+
+  liquidity:
+    minimum_score: 0.35           # Currency is very liquid in Iran
+    minimum_fill_probability: 0.50
+
+  risk_reward:
+    minimum_trade: 1.0
+    minimum_watchlist: 0.4        # Lower threshold for watchlist
+
+  expectancy:
+    minimum_net_expectancy_r: -0.50
+    costs_pct: 0.002              # 0.2% — spread-based costs
+
+  portfolio:
+    max_open_risk_pct: 0.30
+    max_correlated_exposure_pct: 0.50
+
+  regime:
+    blocked_regimes: ["CRISIS"]
+    warn_regimes: ["HIGH_VOLATILITY"]
+
+  grades:
+    a_plus:
+      min_probability: 0.55
+      min_rr: 1.5
+      min_expectancy: 0.08
+    a:
+      min_probability: 0.50
+      min_rr: 1.0
+      min_expectancy: 0.05
+
+# ── Commodity Market ───────────────────────────────────────────────────────
+commodity:
+  policy_name: "commodity_medium"
+  policy_version: "1.0.0"
+
+  probability:
+    base_threshold: 0.42
+    volatility_penalty: 0.03
+    liquidity_penalty: 0.02
+
+  liquidity:
+    minimum_score: 0.45
+    minimum_fill_probability: 0.50
+
+  risk_reward:
+    minimum_trade: 0.3
+    minimum_watchlist: 0.2
+
+  expectancy:
+    minimum_net_expectancy_r: -0.50
+    costs_pct: 0.003
+
+  grades:
+    a_plus:
+      min_probability: 0.55
+      min_rr: 1.5
+      min_expectancy: 0.08
+
+# ── Options Market ─────────────────────────────────────────────────────────
+option:
+  policy_name: "option_conservative"
+  policy_version: "1.0.0"
+
+  probability:
+    base_threshold: 0.44
+    volatility_penalty: 0.04
+    drift_penalty: 0.02
+
+  liquidity:
+    minimum_score: 0.50
+    minimum_fill_probability: 0.50
+
+  risk_reward:
+    minimum_trade: 0.5            # Options need reasonable RR
+    minimum_watchlist: 0.3
+
+  expectancy:
+    minimum_net_expectancy_r: -0.50
+    costs_pct: 0.010              # 1.0% — higher spread + commission
+
+  portfolio:
+    max_open_risk_pct: 0.10       # Very strict — options can gap
+    max_correlated_exposure_pct: 0.20
+
+  grades:
+    a_plus:
+      min_probability: 0.55
+      min_rr: 2.5
+      min_expectancy: 0.15
+    a:
+      min_probability: 0.50
+      min_rr: 2.0
+      min_expectancy: 0.10
+      max_warnings: 2

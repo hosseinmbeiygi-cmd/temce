@@ -37,6 +37,19 @@ def safe_error_message(exc: BaseException, *, default_message: str = "Internal e
     return default_message
 
 
+def safe_error_detail(message: str | None, *, default_message: str = "Internal error") -> str:
+    """Same non-leaking contract as :func:`safe_error_message`, for plain strings.
+
+    Service layers commonly return ``Result.fail(str(exc))``; echoing
+    ``result.error`` straight into an API response re-introduces the internal
+    detail that ``safe_error_message`` was meant to suppress. Keep the full
+    text in development, return ``default_message`` in production.
+    """
+    if _is_dev():
+        return message or default_message
+    return default_message
+
+
 def error_payload(
     *,
     message: str,

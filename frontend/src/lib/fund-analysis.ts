@@ -48,6 +48,14 @@ export interface Fund {
   symbol: string;
   name: string;
   isin: string;
+  // Mirrors frontend/src/app/funds/page.tsx Fund (fields consumed by the fund
+  // components). Kept optional here so non-API constructors/tests stay valid.
+  fund_type?: string;
+  market?: "tse" | "ime" | string;
+  data_source?: string;
+  snapshot_date?: string;
+  nav_source?: string;
+  nav_date?: string;
   nav: number;
   nav_change: number;
   nav_change_pct: number;

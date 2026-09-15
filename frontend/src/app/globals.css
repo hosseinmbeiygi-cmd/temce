@@ -98,6 +98,12 @@
   --warn: #d97706;
   --ring: #263654;
   --glow: rgba(30, 58, 138, 0.07);
+  --aurora-1: rgba(59, 130, 246, 0.09);
+  --aurora-2: rgba(124, 58, 237, 0.07);
+  --aurora-3: rgba(14, 165, 233, 0.06);
+  --card-top-light: rgba(15, 23, 42, 0.05);
+  --shimmer-highlight: rgba(15, 23, 42, 0.06);
+  --dot-glow: rgba(22, 163, 74, 0.35);
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05);
   --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 12px 32px rgba(15, 23, 42, 0.1);
 
@@ -160,6 +166,12 @@ body.dark-theme {
   --warn: #f59e0b;
   --ring: #a3b7d2;
   --glow: rgba(148, 163, 184, 0.06);
+  --aurora-1: rgba(56, 130, 246, 0.13);
+  --aurora-2: rgba(139, 92, 246, 0.11);
+  --aurora-3: rgba(34, 211, 238, 0.07);
+  --card-top-light: rgba(148, 163, 184, 0.18);
+  --shimmer-highlight: rgba(148, 163, 184, 0.09);
+  --dot-glow: rgba(34, 197, 94, 0.45);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.3);
   --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.45);
 
@@ -204,6 +216,12 @@ body {
 ::selection {
   background: var(--accent-primary);
   color: white;
+}
+
+body.dark-theme ::selection,
+[data-theme="dark"] ::selection {
+  background: var(--accent-primary);
+  color: #0b1220;
 }
 
 /* ── Background Effects ─────────────────── */
@@ -272,16 +290,30 @@ body.dark-theme .bg-grid {
 .dash-field::after {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -18%;
   z-index: -2;
   pointer-events: none;
-  background: radial-gradient(ellipse 120% 60% at 50% -12%, var(--glow), transparent 62%);
+  /* Ambient aurora — three soft color fields drifting on the compositor
+     (transform only → GPU, zero repaint) behind the whole shell. */
+  background:
+    radial-gradient(46rem 32rem at 86% -12%, var(--aurora-1), transparent 66%),
+    radial-gradient(38rem 28rem at 6% 14%, var(--aurora-2), transparent 66%),
+    radial-gradient(44rem 30rem at 50% 112%, var(--aurora-3), transparent 66%),
+    radial-gradient(ellipse 120% 60% at 50% -12%, var(--glow), transparent 62%);
+  animation: auroraDrift 38s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes auroraDrift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-2.2%, 1.6%, 0) scale(1.05); }
 }
 
 /* ── Accessible focus ring (navy system) ── */
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ring) 18%, transparent);
 }
 
 /* ── Respect reduced motion ── */
@@ -466,6 +498,21 @@ body.dark-theme .nav-tab.active {
 
 .card:hover {
   border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Subtle top-edge light — gives flat cards a physical "lit from above" feel */
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--card-top-light), transparent);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .card::before {
@@ -1685,30 +1732,50 @@ body.dark-theme .feature-icon { background: rgba(0, 245, 212, 0.1); }
 }
 
 /* ── Scrollbar ──────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 106, 146, 0.35) transparent;
+}
+
+body.dark-theme,
+[data-theme="dark"] {
+  scrollbar-color: rgba(163, 183, 210, 0.28) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 9px;
+  height: 9px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-body.dark-theme ::-webkit-scrollbar-track {
-  background: rgba(5, 14, 26, 0.2);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(8, 145, 178, 0.2);
-  border-radius: 5px;
+  background: rgba(77, 106, 146, 0.3);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
-body.dark-theme ::-webkit-scrollbar-thumb {
-  background: rgba(0, 245, 212, 0.2);
+body.dark-theme ::-webkit-scrollbar-thumb,
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(163, 183, 210, 0.26);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(8, 145, 178, 0.4);
+  background: rgba(51, 72, 107, 0.55);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(163, 183, 210, 0.45);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 /* ── Animations ─────────────────────────── */
@@ -1753,12 +1820,13 @@ body.dark-theme ::-webkit-scrollbar-thumb {
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow-card);
-  transition: all 0.3s ease;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .glass-card:hover {
   border-color: var(--line-strong);
   box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
 }
 
 body.dark-theme .glass-card:hover {
@@ -1787,4 +1855,121 @@ body.dark-theme .glass-card:hover {
   direction: ltr;
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Design-system utilities v2 (polish + efficiency)
+   ════════════════════════════════════════════════════════════ */
+
+/* Hairline accent — 1px gradient line to close off bars/headers elegantly */
+.hairline-gradient {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-strong) 18%,
+    var(--line-strong) 82%,
+    transparent
+  );
+}
+
+/* Skeleton shimmer sweep (background-position on a small layer → cheap) */
+@keyframes shimmerSweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    100deg,
+    transparent 35%,
+    var(--shimmer-highlight) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: shimmerSweep 1.6s ease-in-out infinite;
+}
+
+/* Page enter — CSS-only route transition (template remount replays it).
+   Deliberately not JS/framer: zero hydration cost on every navigation. */
+@keyframes pageRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: pageRise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Opt-in render hint for long below-the-fold sections:
+   add class="cv-auto" on a wrapper to skip offscreen paint/layout work. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}
+
+/* Soft glow dot for live/status indicators */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--dot-glow); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+
+.glow-dot {
+  animation: glowPulse 2.2s ease-in-out infinite;
+}
+
+/* ── Live price flash — brief tint when a streamed value changes ── */
+@keyframes flashUp {
+  0% { background-color: color-mix(in srgb, var(--up) 26%, transparent); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flashDown {
+  0% { background-color: color-mix(in srgb, var(--down) 26%, transparent); }
+  100% { background-color: transparent; }
+}
+
+.flash-up { animation: flashUp 0.9s ease-out; }
+.flash-down { animation: flashDown 0.9s ease-out; }
+
+/* ── Premium accents ── */
+
+/* Animated gradient ring — frames the hero chart like a lit bezel.
+   XOR-mask trick: only the 1px padding paints, the fill stays transparent. */
+.hero-ring {
+  position: relative;
+}
+.hero-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    115deg,
+    rgba(51, 72, 107, 0) 8%,
+    rgba(51, 72, 107, 0.45) 35%,
+    rgba(124, 58, 237, 0.35) 62%,
+    rgba(8, 145, 178, 0.25) 85%,
+    rgba(51, 72, 107, 0) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Gradient headline (light+dark safe — uses the theme accent ramp) */
+.hero-title {
+  background: linear-gradient(
+    120deg,
+    var(--ink) 20%,
+    var(--accent-secondary) 55%,
+    var(--accent-tertiary) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }

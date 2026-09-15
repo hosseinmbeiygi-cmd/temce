@@ -1,0 +1,280 @@
+
+---------
+Contracts
+---------
+
+Analyzed 1062 files, 5292 dependencies.
+---------------------------------------
+
+services/repositories must not import logging directly (use core.logging) KEPT (6 ignored imports)
+ml must not import HTTP layer or endpoints BROKEN
+Repositories must not import services layer KEPT
+services must import sqlalchemy only via repositories or core.database BROKEN (63 ignored imports)
+
+Contracts: 2 kept, 2 broken.
+
+
+----------------
+Broken contracts
+----------------
+
+ml must not import HTTP layer or endpoints
+------------------------------------------
+
+apps.api.endpoints is not allowed to import ml:
+
+- apps.api.endpoints.backtests (l.790, l.826)
+  & apps.api.endpoints.scanner -> services.mass_scanner_service (l.12)
+  services.mass_scanner_service -> services.backtest_service (l.435)
+  services.backtest_service -> ml.artifacts (l.731)
+                               & ml.features.price_features (l.17)
+                               & ml.features.technical_features (l.18)
+                               & ml.models.registry (l.19)
+                               & ml.types (l.20)
+
+- apps.api.endpoints.ml -> ml.global_registry (l.151)
+
+- apps.api.endpoints.alerts (l.6)
+  & apps.api.endpoints.analysis (l.10)
+  & apps.api.endpoints.assistant (l.15)
+  & apps.api.endpoints.auth (l.7)
+  & apps.api.endpoints.backtests (l.12)
+  & apps.api.endpoints.brsapi (l.24)
+  & apps.api.endpoints.chat (l.14)
+  & apps.api.endpoints.codal (l.13)
+  & apps.api.endpoints.codal_accounting (l.7)
+  & apps.api.endpoints.comprehensive_analysis (l.9)
+  & apps.api.endpoints.decision_engine (l.34)
+  & apps.api.endpoints.fundamental (l.5)
+  & apps.api.endpoints.funds (l.32)
+  & apps.api.endpoints.gold (l.23)
+  & apps.api.endpoints.ime (l.15)
+  & apps.api.endpoints.indicators (l.7)
+  & apps.api.endpoints.macro (l.7)
+  & apps.api.endpoints.market (l.7)
+  & apps.api.endpoints.market_dashboard (l.10)
+  & apps.api.endpoints.market_info (l.7)
+  & apps.api.endpoints.market_insights (l.12)
+  & apps.api.endpoints.market_watch (l.10)
+  & apps.api.endpoints.ml (l.18)
+  & apps.api.endpoints.news (l.11)
+  & apps.api.endpoints.orderbooks (l.7)
+  & apps.api.endpoints.paper_trading (l.19)
+  & apps.api.endpoints.portfolios (l.7)
+  & apps.api.endpoints.proposals (l.16)
+  & apps.api.endpoints.queue_analysis (l.19)
+  & apps.api.endpoints.quotes (l.9)
+  & apps.api.endpoints.recommendations (l.7)
+  & apps.api.endpoints.reports (l.7)
+  & apps.api.endpoints.saved_filters (l.13)
+  & apps.api.endpoints.screener (l.11)
+  & apps.api.endpoints.screener110 (l.18)
+  & apps.api.endpoints.signals (l.7)
+  & apps.api.endpoints.smart_money (l.7)
+  & apps.api.endpoints.stock_assistant (l.14)
+  & apps.api.endpoints.symbols (l.8)
+  & apps.api.endpoints.system (l.22)
+  & apps.api.endpoints.tabdeal (l.15)
+  & apps.api.endpoints.trades (l.7)
+  & apps.api.endpoints.watchlist -> apps.api.dependencies (l.9)
+  apps.api.dependencies -> services.backtest_service (l.157)
+  services.backtest_service -> ml.artifacts (l.731)
+                               & ml.features.price_features (l.17)
+                               & ml.features.technical_features (l.18)
+                               & ml.models.registry (l.19)
+                               & ml.types (l.20)
+
+- apps.api.endpoints.multi_market_signals (l.347)
+  & apps.api.endpoints.signal_insights -> services.auto_retrain_pipeline 
+(l.361)
+  services.auto_retrain_pipeline -> services.ml_signal_connector (l.22)
+  services.ml_signal_connector -> ml.artifacts (l.457)
+                                  & ml.model_loader (l.17)
+                                  & ml.models.registry (l.18)
+
+- apps.api.endpoints.ml -> ml.model_loader (l.637)
+
+- apps.api.endpoints.signal_insights -> services.walk_forward_validator (l.178)
+  services.walk_forward_validator -> ml.models.registry (l.16)
+                                     & ml.types (l.17)
+
+- apps.api.endpoints.ml -> services.training_service (l.438, l.488)
+  services.training_service -> ml.artifacts (l.21)
+                               & ml.evaluation.metrics (l.22)
+                               & ml.features.price_features (l.23)
+                               & ml.features.technical_features (l.24)
+                               & ml.model_loader (l.261)
+                               & ml.models.registry (l.25)
+                               & ml.models.shallow.linear_models (l.17)
+                               & ml.models.shallow.tree_models (l.18)
+                               & ml.training.trainer (l.270)
+                               & ml.types (l.26)
+
+- apps.api.endpoints.signal_insights -> services.signal_feature_pipeline 
+(l.177)
+  services.signal_feature_pipeline -> ml.types (l.22)
+
+- apps.api.endpoints.multi_market_signals -> services.quant_signal_orchestrator
+(l.94, l.188, l.391)
+  services.quant_signal_orchestrator -> services.ml_signal_connector (l.932, 
+l.1068)
+  services.ml_signal_connector -> ml.artifacts (l.457)
+                                  & ml.model_loader (l.17)
+                                  & ml.models.registry (l.18)
+
+- apps.api.endpoints.compose -> services.compose_service (l.12)
+  services.compose_service -> services.backtest_service (l.69)
+  services.backtest_service -> ml.artifacts (l.731)
+                               & ml.features.price_features (l.17)
+                               & ml.features.technical_features (l.18)
+                               & ml.models.registry (l.19)
+                               & ml.types (l.20)
+
+- apps.api.endpoints.ml -> services.inference_service (l.23)
+  services.inference_service -> ml.artifacts (l.19)
+                                & ml.features.price_features (l.20)
+                                & ml.features.technical_features (l.21)
+                                & ml.models.registry (l.22)
+                                & ml.models.shallow.linear_models (l.15)
+                                & ml.models.shallow.tree_models (l.16)
+                                & ml.types (l.23)
+
+- apps.api.endpoints.alerts (l.6)
+  & apps.api.endpoints.analysis (l.10)
+  & apps.api.endpoints.assistant (l.15)
+  & apps.api.endpoints.auth (l.7)
+  & apps.api.endpoints.backtests (l.12)
+  & apps.api.endpoints.brsapi (l.24)
+  & apps.api.endpoints.chat (l.14)
+  & apps.api.endpoints.codal (l.13)
+  & apps.api.endpoints.codal_accounting (l.7)
+  & apps.api.endpoints.comprehensive_analysis (l.9)
+  & apps.api.endpoints.decision_engine (l.34)
+  & apps.api.endpoints.fundamental (l.5)
+  & apps.api.endpoints.funds (l.32)
+  & apps.api.endpoints.gold (l.23)
+  & apps.api.endpoints.ime (l.15)
+  & apps.api.endpoints.indicators (l.7)
+  & apps.api.endpoints.macro (l.7)
+  & apps.api.endpoints.market (l.7)
+  & apps.api.endpoints.market_dashboard (l.10)
+  & apps.api.endpoints.market_info (l.7)
+  & apps.api.endpoints.market_insights (l.12)
+  & apps.api.endpoints.market_watch (l.10)
+  & apps.api.endpoints.ml (l.18)
+  & apps.api.endpoints.news (l.11)
+  & apps.api.endpoints.orderbooks (l.7)
+  & apps.api.endpoints.paper_trading (l.19)
+  & apps.api.endpoints.portfolios (l.7)
+  & apps.api.endpoints.proposals (l.16)
+  & apps.api.endpoints.queue_analysis (l.19)
+  & apps.api.endpoints.quotes (l.9)
+  & apps.api.endpoints.recommendations (l.7)
+  & apps.api.endpoints.reports (l.7)
+  & apps.api.endpoints.saved_filters (l.13)
+  & apps.api.endpoints.screener (l.11)
+  & apps.api.endpoints.screener110 (l.18)
+  & apps.api.endpoints.signals (l.7)
+  & apps.api.endpoints.smart_money (l.7)
+  & apps.api.endpoints.stock_assistant (l.14)
+  & apps.api.endpoints.symbols (l.8)
+  & apps.api.endpoints.system (l.22)
+  & apps.api.endpoints.tabdeal (l.15)
+  & apps.api.endpoints.trades (l.7)
+  & apps.api.endpoints.watchlist -> apps.api.dependencies (l.9)
+  apps.api.dependencies -> services.inference_service (l.165)
+  services.inference_service -> ml.artifacts (l.19)
+                                & ml.features.price_features (l.20)
+                                & ml.features.technical_features (l.21)
+                                & ml.models.registry (l.22)
+                                & ml.models.shallow.linear_models (l.15)
+                                & ml.models.shallow.tree_models (l.16)
+                                & ml.types (l.23)
+
+- apps.api.endpoints.ml -> services.global_training_service (l.168, l.191, 
+l.206, l.437, l.487)
+  services.global_training_service -> services.training_service (l.9)
+  services.training_service -> ml.artifacts (l.21)
+                               & ml.evaluation.metrics (l.22)
+                               & ml.features.price_features (l.23)
+                               & ml.features.technical_features (l.24)
+                               & ml.model_loader (l.261)
+                               & ml.models.registry (l.25)
+                               & ml.models.shallow.linear_models (l.17)
+                               & ml.models.shallow.tree_models (l.18)
+                               & ml.training.trainer (l.270)
+                               & ml.types (l.26)
+
+- apps.api.endpoints.news -> apps.api.app (l.344)
+  apps.api.app -> ml.model_loader (l.554)
+                  & ml.models (l.30)
+
+- apps.api.endpoints.assistant (l.25)
+  & apps.api.endpoints.backtests -> services.backtest_service (l.29, l.1233, 
+l.1275)
+  services.backtest_service -> ml.artifacts (l.731)
+                               & ml.features.price_features (l.17)
+                               & ml.features.technical_features (l.18)
+                               & ml.models.registry (l.19)
+                               & ml.types (l.20)
+
+
+services must import sqlalchemy only via repositories or core.database
+----------------------------------------------------------------------
+
+services is not allowed to import sqlalchemy:
+
+-   services.analytics_service -> repositories.indicator_repository (l.11)
+    repositories.indicator_repository -> sqlalchemy (l.3)
+
+-   services.backtest_service -> repositories.backtest_repository (l.21)
+    repositories.backtest_repository -> sqlalchemy (l.5, l.6, l.126)
+
+-   services.chat.chat_engine -> apps.api.dependencies (l.1150, l.1242, l.1394)
+    apps.api.dependencies -> sqlalchemy (l.7)
+
+-   services.chat.chat_engine -> apps.api.endpoints.funds (l.1151, l.1243, 
+l.1395)
+    apps.api.endpoints.funds -> sqlalchemy (l.29, l.30, l.632, l.633, l.1138, 
+l.1236, l.1413)
+
+-   services.codal_import_service -> repositories.codal_repository (l.21)
+    repositories.codal_repository -> sqlalchemy (l.11, l.12, l.106, l.136)
+
+-   services.compose_service -> repositories.generated_strategy_repository 
+(l.130)
+    repositories.generated_strategy_repository -> sqlalchemy (l.8, l.9, l.10)
+
+-   services.fund_service -> repositories.fund_repository (l.25)
+    repositories.fund_repository -> sqlalchemy (l.12, l.13, l.161, l.182, l.205, 
+l.212)
+
+-   services.gold.position_service -> sqlalchemy (l.7, l.8)
+
+-   services.market_service -> repositories.instrument_repository (l.11)
+    repositories.instrument_repository -> sqlalchemy (l.3, l.4, l.127, l.153)
+
+-   services.market_service -> repositories.quote_repository (l.12)
+    repositories.quote_repository -> sqlalchemy (l.6, l.7, l.163, l.164)
+
+-   services.news_service -> repositories.news_repository (l.11)
+    repositories.news_repository -> sqlalchemy (l.6, l.7, l.8)
+
+-   services.portfolio_service -> repositories.portfolio_repository (l.8)
+    repositories.portfolio_repository -> sqlalchemy (l.5, l.6)
+
+-   services.recommendation_service -> repositories.recommendation_repository 
+(l.12)
+    repositories.recommendation_repository -> sqlalchemy (l.3)
+
+-   services.signal_decision_engine -> core.database (l.1010)
+    core.database -> sqlalchemy (l.7, l.8, l.23)
+
+-   services.signal_service -> repositories.signal_repository (l.12)
+    repositories.signal_repository -> sqlalchemy (l.3, l.4, l.86)
+
+-   services.training_service -> repositories.quote_repository (l.27)
+    repositories.quote_repository -> repositories.db_base (l.13)
+    repositories.db_base -> sqlalchemy (l.5, l.6, l.7)
+
+

@@ -1,0 +1,65 @@
+== files scanned: 670 importers ==
+
+== TOP 30 FAN-IN (most depended-upon internal modules) ==
+ 360  core.logging
+  94  core.result
+  90  domain.common.base_entity
+  63  schemas.common.responses
+  62  core.database
+  44  apps.api.dependencies
+  37  ml.types
+  36  core.config
+  32  core.ids
+  27  domain.common.enum_types
+  26  jobs.job_context
+  25  jobs.job_result
+  24  jobs.base_job
+  22  core.db_utils
+  19  core.paths
+  18  core.exceptions
+  17  repositories.base_repository
+  16  core.cache
+  15  repositories.db_base
+  12  repositories.instrument_repository
+  12  domain.indicators.definitions
+  11  ml.models.registry
+  11  ml.models.base
+  10  brsapi.client
+  10  services.smart_money.normalizer
+   9  services.backtest_service
+   8  brsapi.services.query_service
+   8  repositories.quote_repository
+   8  brsapi.config
+   8  core.indicators
+
+== TOP 30 FAN-OUT (most tangled importers) ==
+  65  apps.api.router
+  44  apps.api.dependencies
+  32  services.codal_analysis.service
+  29  apps.api.app
+  28  services.backtest_service
+  23  apps.api.endpoints.backtests
+  23  apps.api.endpoints.brsapi
+  20  jobs.definitions
+  18  services.chat.chat_engine
+  17  apps.api.endpoints.codal
+  16  services.smart_money
+  16  ml.models
+  15  services.quant_signal_orchestrator
+  15  services.report_service
+  14  apps.api.endpoints.funds
+  14  apps.api.endpoints.ml
+  14  services.user_service
+  14  services.chat
+  14  services.smart_money.scoring_engine
+  13  apps.api.endpoints.signal_insights
+  13  services.inference_service
+  13  services.training_service
+  12  services
+  12  services.quantitative
+  12  jobs.definitions.sync_jobs
+  11  domain.indicators.registry
+  10  apps.api.endpoints.assistant
+  10  apps.api.endpoints.auth
+  10  apps.api.endpoints.news
+  10  services.compose_service

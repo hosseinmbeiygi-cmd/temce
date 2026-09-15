@@ -1,0 +1,240 @@
+'use client';
+import { useEffect, useRef, useState, useMemo } from 'react';
+
+interface MarketPrice {
+  symbol: string;
+  price: number;
+  change?: number;
+  change_percent?: number;
+  volume?: number;
+  timestamp?: number;
+}
+
+interface UseMarketWebSocketReturn {
+  prices: Map<string, MarketPrice>;
+  connected: boolean;
+  error: string | null;
+  latencyMs: number | null;
+}
+
+export interface SymbolPriceUpdate {
+  symbol: string;
+  price?: number;
+  price_change_pct?: number;
+  change_pct?: number;
+  change?: number;
+  change_percent?: number;
+  volume?: number;
+  value?: number;
+  timestamp?: number;
+}
+
+function _getWsUrl(): string {
+  if (typeof window === 'undefined') return 'ws://localhost:8000/api/v1/ws/market';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  // If NEXT_PUBLIC_API_URL is absolute (http://host:8000/api/v1), derive WS from it.
+  if (apiUrl.startsWith('http://') || apiUrl.startsWith('https://')) {
+    try {
+      const u = new URL(apiUrl);
+      const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      // apiUrl is expected to end with /api/v1 (or /api/v1/); keep that prefix.
+      const basePath = u.pathname.replace(/\/$/, '') || '/api/v1';
+      return `${wsProto}//${u.host}${basePath}/ws/market`;
+    } catch {
+      // fall through to host:8000 fallback
+    }
+  }
+  // Default dev fallback: Next.js rewrites proxy HTTP but NOT WebSocket, so
+  // connecting WS to window.location.host (Next.js on :3000) always closes
+  // with 1006. Connect directly to the API on :8000 instead.
+  const host = window.location.hostname || 'localhost';
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProto}//${host}:8000/api/v1/ws/market`;
+}
+
+const MAX_RECONNECT_DELAY = 30000;
+const BASE_RECONNECT_DELAY = 1000;
+
+export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn {
+  const [prices, setPrices] = useState<Map<string, MarketPrice>>(new Map());
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pingSentAtRef = useRef<number | null>(null);
+  const reconnectDelayRef = useRef(BASE_RECONNECT_DELAY);
+  const symbolsRef = useRef(symbols);
+
+  // Keep the latest subscribed symbols available to socket handlers.
+  // (Synced in an effect so we never write to a ref during render.)
+  useEffect(() => {
+    symbolsRef.current = symbols;
+  }, [symbols]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    function closeSocket() {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (pingTimerRef.current) {
+        clearInterval(pingTimerRef.current);
+        pingTimerRef.current = null;
+      }
+      pingSentAtRef.current = null;
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (!ws) return;
+      // Detach message/error/close handlers so a stale socket can never touch
+      // state. `onopen` stays attached so a socket that was closed while still
+      // CONNECTING (e.g. React StrictMode dev remount) is detected in onopen
+      // and shut down there — calling close() on a CONNECTING socket makes the
+      // browser log "WebSocket is closed before the connection is established".
+      ws.onmessage = null;
+      ws.onerror = null;
+      ws.onclose = null;
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CLOSING) {
+        ws.close();
+      }
+    }
+
+    function scheduleReconnect() {
+      reconnectDelayRef.current = Math.min(
+        reconnectDelayRef.current * 2,
+        MAX_RECONNECT_DELAY
+      );
+      reconnectTimerRef.current = setTimeout(() => {
+        if (!disposed) connect();
+      }, reconnectDelayRef.current);
+    }
+
+    function connect() {
+      closeSocket();
+
+      try {
+        // Resolve the URL at connection time so SSR does not freeze the
+        // browser URL to localhost when the app is deployed behind a proxy.
+        const ws = new WebSocket(_getWsUrl());
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          // Stale socket from a previous effect run (React StrictMode in dev):
+          // the handshake completed after it was abandoned, so shut it down
+          // silently without touching state.
+          if (wsRef.current !== ws) {
+            ws.close();
+            return;
+          }
+          setConnected(true);
+          setError(null);
+          setLatencyMs(null);
+          reconnectDelayRef.current = BASE_RECONNECT_DELAY;
+
+          // Subscribe to requested symbols
+          ws.send(JSON.stringify({
+            action: 'subscribe',
+            symbols: symbolsRef.current,
+          }));
+
+          const sendPing = () => {
+            if (ws.readyState !== WebSocket.OPEN) return;
+            const sentAt = Date.now();
+            pingSentAtRef.current = sentAt;
+            ws.send(JSON.stringify({ action: 'ping', client_ts: sentAt }));
+          };
+          sendPing();
+          pingTimerRef.current = setInterval(sendPing, 5000);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data?.action === 'pong') {
+              const sentAt = Number(data.client_ts ?? pingSentAtRef.current);
+              if (Number.isFinite(sentAt) && sentAt > 0) {
+                setLatencyMs(Math.max(0, Date.now() - sentAt));
+              }
+            }
+            const updates: MarketPrice[] = Array.isArray(data) ? data : data.prices || [data];
+
+            setPrices((prev) => {
+              const next = new Map(prev);
+              for (const update of updates) {
+                if (update.symbol) {
+                  next.set(update.symbol, {
+                    ...next.get(update.symbol),
+                    ...update,
+                    timestamp: Date.now(),
+                  });
+                }
+              }
+              return next;
+            });
+          } catch {
+            // Ignore malformed messages
+          }
+        };
+
+        ws.onclose = () => {
+          setConnected(false);
+          setPrices(new Map());
+          setLatencyMs(null);
+          // Exponential backoff reconnect
+          scheduleReconnect();
+        };
+
+        ws.onerror = () => {
+          setError('WebSocket connection error');
+        };
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to connect');
+        // Schedule reconnect
+        scheduleReconnect();
+      }
+    }
+
+    connect();
+    return () => {
+      disposed = true;
+      closeSocket();
+    };
+  }, []);
+
+  return { prices, connected, error, latencyMs };
+}
+
+/**
+ * Convenience hook that returns live prices as a plain object keyed by symbol,
+ * plus connection state. Used by the ticker tape and other lightweight widgets
+ * that want to merge WS updates into rendered cells.
+ */
+export function useSymbolPrices(symbols: string[]): {
+  prices: Record<string, SymbolPriceUpdate>;
+  connected: boolean;
+} {
+  const { prices, connected } = useMarketWebSocket(symbols);
+
+  const pricesObj = useMemo(() => {
+    const out: Record<string, SymbolPriceUpdate> = {};
+    prices.forEach((p, symbol) => {
+      out[symbol] = {
+        symbol,
+        price: p.price,
+        price_change_pct: p.change_percent ?? p.change ?? 0,
+        change_pct: p.change_percent ?? p.change ?? 0,
+        change: p.change,
+        change_percent: p.change_percent,
+        volume: p.volume,
+        timestamp: p.timestamp,
+      };
+    });
+    return out;
+  }, [prices]);
+
+  return { prices: pricesObj, connected };
+}

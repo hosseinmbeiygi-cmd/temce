@@ -1,0 +1,15 @@
+# Macroeconomic Constants — مقادیر ثابت کلان
+# These values are used by FeatureEngine for feature computation.
+# Update this file periodically to reflect current market conditions.
+
+macroeconomics:
+  base_fx_current: 28500.0       # نرخ ارز مبنا (تومان)
+  base_fx_prior: 24500.0         # نرخ ارز مبنا سال قبل (تومان)
+  bank_interest_rate: 22.5       # نرخ سود بانکی (%)
+  bond_yield: 28.0               # بازده اوراق (%)
+  inflation_rate: 35.0           # نرخ تورم (%)
+  usd_nima: 44500.0              # دلار نیما (تومان)
+  usd_free: 59500.0              # دلار آزاد (تومان)
+
+portfolio:
+  investable_capital: 500000000  # سرمایه کل برای position sizing (تومان)

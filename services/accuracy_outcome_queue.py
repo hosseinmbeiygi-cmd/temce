@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import logging
 from collections import deque
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 DEFAULT_MAXSIZE = 10_000
 DEFAULT_FLUSH_BATCH = 200
@@ -129,7 +130,8 @@ class AccuracyOutcomeQueue:
             _inc_metric("accuracy_tracking_flush_failed_total")
             logger.error(
                 "Accuracy outcome flush failed for %d items (re-queued): %s",
-                len(batch), exc,
+                len(batch),
+                exc,
             )
             return 0
 

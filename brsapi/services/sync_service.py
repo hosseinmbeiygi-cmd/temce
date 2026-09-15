@@ -15,6 +15,7 @@ Supports dedup: skips re-fetching if a recent sync already exists.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -158,6 +159,47 @@ def _dedupe_symbols(symbols: list[str]) -> list[str]:
     return result
 
 
+#: TSETMC appends a digit to instruments that share an 18-char name
+#: (``ابتکار`` / ``ابتکار2`` / ``اعتماد4``). The NAV endpoint only knows the
+#: base name: ``ابتکار`` answers HTTP 200 while ``ابتکار2`` answers
+#: ``HTTP 502 upstream_error`` ("پارامترهای نادرست"), which the client retries
+#: 4× (~40s) before failing.
+_TRAILING_DIGITS = re.compile(r"[0-9]+\s*$")
+
+
+def canonical_nav_symbol(symbol: str, known: set[str]) -> str:
+    """Map a TSETMC duplicate-name symbol onto its NAV symbol.
+
+    Fund/ETF instruments whose 18-char name collides with another instrument
+    get a numeric suffix from TSETMC (``ابتکار2``, ``آتیه ملت4``, ``آسا2``).
+    The NAV source is keyed on the *base* name, so the suffixed twin is always
+    a guaranteed failure.
+
+    Measured against the live DB + BrsApi on 1405-06-23:
+
+    * 232 of the 577 fund-sector snapshot symbols carry a trailing digit
+      (171 × ``2``, 60 × ``4``, 1 × ``1``);
+    * 229 of those 232 resolve to a base symbol with an *identical* fund name
+      (the other two, ``پالایش2``/``پالایش4``, are the ``سهام``/``بخشی`` unit
+      classes of the same ``صندوق پالایشی یکم``), i.e. they are name-collision
+      twins rather than different funds;
+    * none of the 323 symbols already stored in ``brsapi_nav_records`` has a
+      trailing digit;
+    * probing the endpoint: ``ابتکار``/``آسا``/``آتیه ملت`` → HTTP 200 with
+      real payloads, while ``ابتکار2``/``آسا2``/``آتیه ملت4`` → HTTP 502.
+
+    The base is only used when it is itself in ``known`` (the symbols of the
+    current batch), so a symbol is never invented: ``آتی1`` has no plain row in
+    the DB and is therefore fetched (and fails) as-is.
+    """
+    if not symbol:
+        return symbol
+    stripped = _TRAILING_DIGITS.sub("", symbol).strip()
+    if stripped and stripped != symbol and stripped in known:
+        return stripped
+    return symbol
+
+
 # ── Fund-sector classification ───────────────────
 #
 # ``BRSAPI_ETF_SYMBOLS`` covers the curated ETFs, but snapshot sectors also
@@ -215,8 +257,18 @@ class SyncReport:
     items_count: int = 0
     duration_ms: float = 0.0
     error: str | None = None
-    skipped: bool = False       # True when dedup prevented a fetch
+    skipped: bool = False       # True when dedup prevented a fetch or a write
     failed_symbols: list[str] = field(default_factory=list)  # Symbols that failed during batch sync
+    # Batch-only breakdown of the "nothing was written" outcomes. ``success``
+    # stays True for these (the fetch itself worked), but they must be
+    # distinguishable from a run that actually stored rows — otherwise a
+    # source that only serves stale/empty payloads looks like a healthy sync.
+    skipped_symbols: list[str] = field(default_factory=list)  # already had today's NAV
+    no_data_symbols: list[str] = field(default_factory=list)  # fetched OK, source returned nothing new
+    # TSETMC duplicate-name twins (``ابتکار2``) folded onto their base symbol
+    # (``ابتکار``) before any API call. They are not failures: the NAV source
+    # only knows the base name.
+    normalized_symbols: list[str] = field(default_factory=list)  # mapped onto a base symbol
 
 
 # ──────────────────────────────────────────────
@@ -608,6 +660,7 @@ class BrsApiSyncService:
         session: AsyncSession,
         symbols: list[str] | None = None,
         sleep_seconds: float = 11.0,
+        max_symbols: int | None = None,
     ) -> SyncReport:
         """
         Sync NAV for a list of ETF/fund symbols sequentially.
@@ -616,12 +669,19 @@ class BrsApiSyncService:
         DB query (no API call, no sleep), so the second daily run is nearly
         free and interrupted runs resume naturally.
 
+        Symbols are deduped and TSETMC name-collision twins (``ابتکار2``,
+        ``آتیه ملت4``) are folded onto their base symbol (see
+        :func:`canonical_nav_symbol`) so the ~40% of fund-sector snapshot
+        symbols that are aliases never reach the API as a guaranteed HTTP 502.
+
         Args:
             session: Database session.
             symbols: List of symbols to sync. If None, queries the DB for
                 symbols whose sector contains "صندوق" or "fund".
             sleep_seconds: Delay between requests to respect the NAV endpoint
                 rate limit (1 req / 10s → default 11s).
+            max_symbols: Cap the number of symbols processed in this run.
+                ``None`` or a non-positive value means "no limit".
         """
         import jdatetime
         from sqlalchemy import select
@@ -642,6 +702,31 @@ class BrsApiSyncService:
 
         symbols = _dedupe_symbols(symbols)
 
+        # Fold TSETMC duplicate-name twins (``ابتکار2``) onto their base symbol
+        # (``ابتکار``) before spending quota: the NAV source only knows the base
+        # name, so every suffixed twin is a guaranteed HTTP 502 (~40s with
+        # retries). Kept out of ``failed_symbols`` because nothing failed — the
+        # symbol is an alias of one we do fetch.
+        known_symbols = set(symbols)
+        normalized_symbols: list[str] = []
+        canonical: list[str] = []
+        for symbol in symbols:
+            base = canonical_nav_symbol(symbol, known_symbols)
+            if base != symbol:
+                normalized_symbols.append(symbol)
+            canonical.append(base)
+        if normalized_symbols:
+            symbols = _dedupe_symbols(canonical)
+            logger.info(
+                "NAV sync: folded %d duplicate-name symbol(s) onto their base (%d unique left)",
+                len(normalized_symbols),
+                len(symbols),
+            )
+
+        # Optional per-run cap (used by the on-demand management endpoint).
+        if max_symbols is not None and max_symbols > 0:
+            symbols = symbols[:max_symbols]
+
         # Fast path: drop symbols that already hold today's NAV in one query.
         # sync_nav would skip them anyway, but doing it here avoids the 11s
         # sleep per skipped symbol — a second daily run then finishes in ~1s.
@@ -656,6 +741,7 @@ class BrsApiSyncService:
         except Exception:
             logger.warning("Could not pre-filter today's NAV symbols", exc_info=True)
             done = set()
+        skipped_symbols: list[str] = [s for s in symbols if s in done]
         todo = [s for s in symbols if s not in done]
 
         start_time = time.monotonic()
@@ -663,6 +749,8 @@ class BrsApiSyncService:
         fail_count = 0
         total_items = 0
         failed_symbols: list[str] = []
+        no_data_symbols: list[str] = []
+        stored_symbols = 0
 
         if not todo:
             logger.info("NAV sync: all %d symbols already have today's NAV — skipped", len(symbols))
@@ -671,6 +759,8 @@ class BrsApiSyncService:
                 success=True,
                 items_count=0,
                 skipped=True,
+                skipped_symbols=skipped_symbols,
+                normalized_symbols=normalized_symbols,
                 duration_ms=(time.monotonic() - start_time) * 1000,
             )
 
@@ -694,6 +784,19 @@ class BrsApiSyncService:
                 if report.success:
                     success_count += 1
                     total_items += report.items_count
+                    if report.skipped:
+                        # sync_nav re-checks and can still skip (e.g. the
+                        # fast-path query above failed, or today's NAV was
+                        # written by a concurrent run).
+                        skipped_symbols.append(symbol)
+                    elif report.items_count == 0:
+                        # Fetch succeeded but the source returned nothing new
+                        # (it may still be serving yesterday's NAV). ``success``
+                        # stays True but the symbol is flagged so an empty run
+                        # is not mistaken for real data.
+                        no_data_symbols.append(symbol)
+                    else:
+                        stored_symbols += 1
                 else:
                     fail_count += 1
                     failed_symbols.append(symbol)
@@ -724,6 +827,15 @@ class BrsApiSyncService:
             suffix = f" and {len(failed_symbols) - 10} more" if len(failed_symbols) > 10 else ""
             error = f"{fail_count} symbols failed: {', '.join(shown)}{suffix}"
 
+        logger.info(
+            "NAV sync done: %d new rows (%d symbols stored, %d no-data, %d skipped, %d failed)",
+            total_items,
+            stored_symbols,
+            len(no_data_symbols),
+            len(skipped_symbols),
+            len(failed_symbols),
+        )
+
         return SyncReport(
             endpoint=BrsApiEndpoints.NAV.path,
             success=success,
@@ -731,6 +843,9 @@ class BrsApiSyncService:
             duration_ms=duration_ms,
             error=error,
             failed_symbols=failed_symbols,
+            skipped_symbols=skipped_symbols,
+            no_data_symbols=no_data_symbols,
+            normalized_symbols=normalized_symbols,
         )
 
     async def _get_fund_symbols(self, session: AsyncSession) -> list[str]:

@@ -1,7 +1,7 @@
 {
-  "ready": false,
-  "last_status": 0,
-  "last_checked": "2026-08-18T05:08:26.978458+00:00",
-  "last_detail": "request error: [Errno 11001] getaddrinfo failed",
+  "ready": true,
+  "last_status": 200,
+  "last_checked": "2026-09-13T04:55:43.530514+00:00",
+  "last_detail": "AllSymbols OK",
   "notified": true
 }

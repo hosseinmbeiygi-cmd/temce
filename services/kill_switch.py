@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Redis keys — single source of truth across processes
 _REDIS_KEY = "system:kill_switch:state"
@@ -182,16 +183,31 @@ class KillSwitch:
         await self._append_event(KillSwitchEvent(event="activated", actor=by, reason=reason))
         return state
 
-    async def revive(self, by: str) -> KillState:
-        """Deactivate. سند §19.3 step 3: requires joint approval of «تیم فنی»
-        and «کارشناس کمّی». We log the actor and reason; the API layer is
-        responsible for enforcing dual approval.
+    async def revive(self, by: str, approver_roles: list[str] | None = None) -> KillState:
+        """Deactivate. سند §19.3 step 3 + §14.2: requires joint approval of
+        two distinct roles (typically «تیم فنی» and «کارشناس کمّی»).
+
+        If ``approver_roles`` is provided, we run the segregation-of-duties
+        check and refuse to revive unless it passes. Pass ``None`` to skip
+        the check (caller is responsible — useful for one-off admin tasks).
         """
+        if approver_roles is not None:
+            from core.security.ime_rbac import dual_approval_check
+
+            ok, reason_msg = dual_approval_check(approver_roles, "kill_switch:revive")
+            if not ok:
+                raise PermissionError(f"kill_switch.revive refused: {reason_msg} (سند §19.3 + §14.2)")
         state = KillState(killed=False, by=by, reason="revived", at=time.time())
         await self._write_redis(state)
         async with _LOCAL_LOCK:
             _LOCAL_STATE.update({"killed": False, "by": by, "reason": "revived", "at": state.at})
-        await self._append_event(KillSwitchEvent(event="deactivated", actor=by, reason="revived"))
+        await self._append_event(
+            KillSwitchEvent(
+                event="deactivated",
+                actor=by,
+                reason=f"revived with approvers={approver_roles}" if approver_roles else "revived",
+            )
+        )
         return state
 
 

@@ -1,0 +1,1294 @@
+diff --git a/apps/api/endpoints/screener.py b/apps/api/endpoints/screener.py
+index 28989a9..bab8ae7 100644
+--- a/apps/api/endpoints/screener.py
++++ b/apps/api/endpoints/screener.py
+@@ -5,8 +5,11 @@ import json
+ import time
+ from typing import Any
+ 
+-from fastapi import APIRouter, Query, Request
++from fastapi import APIRouter, Depends, Query, Request
++from sqlalchemy.ext.asyncio import AsyncSession
+ 
++from apps.api.dependencies import get_db_session
++from apps.api.error_handlers import safe_error_message
+ from core.logging import get_logger
+ from core.rate_limit import get_rate_limiter
+ from schemas.api.screener_filter import (
+@@ -40,6 +43,11 @@ def _validate_sort_by(sort_by: str) -> str:
+     return sort_by
+ 
+ 
++def _validate_sort_order(sort_order: str) -> str:
++    """Whitelist sort direction. Anything invalid falls back to desc."""
++    return "asc" if isinstance(sort_order, str) and sort_order.lower() == "asc" else "desc"
++
++
+ # ── Rate limiting (per-IP, sliding window) ──
+ # Uses the shared core RateLimiter instead of a duplicated in-memory window.
+ _RATE_LIMIT_WINDOW = 60  # seconds
+@@ -76,25 +84,17 @@ def _cache_set(key: str, val: Any) -> None:
+         del _CACHE[oldest]
+ 
+ 
+-async def _fetch_screen_data(limit: int = 200) -> tuple[list[dict[str, Any]], list[dict[str, Any]], Any]:
+-    """Fetch instruments + market_watch from BrsApi with fallback.
+-
+-    Returns (instruments, market_watch, session) — session is kept open
+-    so ScreenerService can query historical tables.
+-    """
++async def _fetch_screen_data_with_session(
++    session: AsyncSession,
++    limit: int = 200,
++) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
++    """Load market data using an externally-managed session."""
+     from brsapi.services.query_service import BrsApiQueryService
+-    from core.database import get_session
+     from services.market_watch_helper import fetch_market_watch
+ 
+-    session = None
+-
+-    async for sess in get_session():
+-        session = sess
+-        svc = BrsApiQueryService(session=sess)
+-        instruments, market_watch = await fetch_market_watch(svc, limit=limit)
+-        break
++    svc = BrsApiQueryService(session=session)
++    return await fetch_market_watch(svc, limit=limit)
+ 
+-    return instruments, market_watch, session
+ 
+ 
+ @router.get(
+@@ -111,6 +111,7 @@ async def screener(
+     page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
+     page_size: int | None = Query(None, ge=1, le=200, description="Page size"),
+     request: Request = None,
++    session: AsyncSession = Depends(get_db_session),
+ ) -> ApiResponse[dict[str, Any]]:
+     """Run the 5-phase Smart Money screener over real market data."""
+     # Rate limiting
+@@ -126,14 +127,19 @@ async def screener(
+     # Validate sort_by
+     sort_by = _validate_sort_by(sort_by)
+ 
+-    cache_key = hashlib.md5(f"screen:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()).hexdigest()
++    sort_order = _validate_sort_order(sort_order)
++
++    cache_key = hashlib.md5(
++        f"screen:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode(),
++        usedforsecurity=False,
++    ).hexdigest()
+     cached = _cache_get(cache_key)
+     if cached is not None:
+         return ApiResponse[dict[str, Any]](success=True, data=cached)
+ 
+     try:
+-        # ── 1. Fetch market data + keep DB session open ──
+-        instruments, market_watch, session = await _fetch_screen_data(limit=min(200, limit * 4))
++        # ── 1. Fetch market data (session is managed by the FastAPI dependency) ──
++        instruments, market_watch = await _fetch_screen_data_with_session(session, limit=min(200, limit * 4))
+ 
+         if not instruments:
+             logger.warning("Screener: no market data available (DB may be empty or not synced)")
+@@ -145,6 +151,7 @@ async def screener(
+ 
+         # ── 2. Run screener pipeline with real data ──
+         from services.screener_service import ScreenerService
++
+         svc = ScreenerService(session=session, history_limit=60)
+         results, pagination_info = await svc.screen(
+             instruments=instruments,
+@@ -178,7 +185,7 @@ async def screener(
+         return ApiResponse[dict[str, Any]](
+             success=False,
+             data={"items": [], "total": 0},
+-            error={"message": f"Screener pipeline error: {exc}"},
++            error={"message": safe_error_message(exc, default_message="Screener pipeline error")},
+         )
+ 
+ 
+@@ -190,6 +197,7 @@ async def screener(
+ async def screener_filter(
+     body: ScreenerFilterRequest,
+     request: Request = None,
++    session: AsyncSession = Depends(get_db_session),
+ ) -> ApiResponse[ScreenerFilterResponse]:
+     """Run the screener pipeline and apply user-defined filters on real data."""
+     # Rate limiting
+@@ -205,15 +213,29 @@ async def screener_filter(
+     # Validate sort_by
+     body.sort_by = _validate_sort_by(body.sort_by)
+ 
+-    filters_key = hashlib.md5(json.dumps([{"field": f.field, "operator": f.operator, "value": f.value, "value_to": f.value_to} for f in body.filters], default=str).encode()).hexdigest()
+-    cache_key = hashlib.md5(f"filter:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()).hexdigest()
++    body.sort_order = _validate_sort_order(body.sort_order)
++
++    filters_key = hashlib.md5(
++        json.dumps(
++            [
++                {"field": f.field, "operator": f.operator, "value": f.value, "value_to": f.value_to}
++                for f in body.filters
++            ],
++            default=str,
++        ).encode(),
++        usedforsecurity=False,
++    ).hexdigest()
++    cache_key = hashlib.md5(
++        f"filter:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}:{body.include_details}".encode(),
++        usedforsecurity=False,
++    ).hexdigest()
+     cached = _cache_get(cache_key)
+     if cached is not None:
+         return ApiResponse[ScreenerFilterResponse](success=True, data=cached)
+ 
+     try:
+-        # ── 1. Fetch market data + keep DB session open ──
+-        instruments, market_watch, session = await _fetch_screen_data(limit=min(200, body.limit * 4))
++        # ── 1. Fetch market data (session is managed by the FastAPI dependency) ──
++        instruments, market_watch = await _fetch_screen_data_with_session(session, limit=min(200, body.limit * 4))
+ 
+         if not instruments:
+             logger.warning("Screener filter: no market data available")
+@@ -233,6 +255,7 @@ async def screener_filter(
+ 
+         # ── 3. Run pipeline with real data ──
+         from services.screener_service import ScreenerService
++
+         svc = ScreenerService(session=session, history_limit=60)
+         results, stats_raw = await svc.screen_with_filters(
+             instruments=instruments,
+@@ -321,5 +344,5 @@ async def screener_filter(
+         return ApiResponse[ScreenerFilterResponse](
+             success=False,
+             data=ScreenerFilterResponse(items=[], total=0),
+-            error={"message": f"Screener filter error: {exc}"},
++            error={"message": safe_error_message(exc, default_message="Screener filter error")},
+         )
+diff --git a/apps/api/endpoints/screener110.py b/apps/api/endpoints/screener110.py
+index d17a8d5..eee92d3 100644
+--- a/apps/api/endpoints/screener110.py
++++ b/apps/api/endpoints/screener110.py
+@@ -12,7 +12,7 @@ from __future__ import annotations
+ from datetime import datetime
+ from typing import Any
+ 
+-from fastapi import APIRouter, Depends
++from fastapi import APIRouter, Depends, Path, Query
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+ from apps.api.dependencies import get_db_session
+@@ -75,7 +75,7 @@ async def populate_profiles(
+     description="Populate or update screener_profiles for a single symbol",
+ )
+ async def populate_symbol(
+-    symbol: str,
++    symbol: str = Path(..., min_length=1, max_length=20),
+     session: AsyncSession = Depends(get_db_session),
+ ) -> ApiResponse[dict[str, Any]]:
+     """پر کردن پروفایل یک نماد خاص."""
+@@ -219,7 +219,7 @@ async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -
+     description="Generates an AI-style Persian report of the whole market from the latest run-cycle signals",
+ )
+ async def screener110_ai_market_report(
+-    limit: int = 25,
++    limit: int = Query(25, ge=1, le=100),
+     session: AsyncSession = Depends(get_db_session),
+ ) -> ApiResponse[dict[str, Any]]:
+     """گزارش کامل هوش مصنوعی از وضعیت بازار."""
+@@ -248,7 +248,7 @@ async def screener110_ai_market_report(
+     ),
+ )
+ async def screener110_ai_report(
+-    symbol: str,
++    symbol: str = Path(..., min_length=1, max_length=20),
+     session: AsyncSession = Depends(get_db_session),
+ ) -> ApiResponse[dict[str, Any]]:
+     """گزارش کامل هوش مصنوعی برای یک نماد."""
+@@ -281,7 +281,7 @@ async def screener110_ai_report(
+     description="Returns the strongest buy signals from the most recent run-cycle, with a short AI explanation",
+ )
+ async def screener110_top_buys(
+-    limit: int = 10,
++    limit: int = Query(10, ge=1, le=100),
+     session: AsyncSession = Depends(get_db_session),
+ ) -> ApiResponse[dict[str, Any]]:
+     """برترین سیگنال‌های خرید از آخرین اجرای مدل."""
+diff --git a/apps/api/endpoints/screener_v2.py b/apps/api/endpoints/screener_v2.py
+index a53dd3c..696d3a0 100644
+--- a/apps/api/endpoints/screener_v2.py
++++ b/apps/api/endpoints/screener_v2.py
+@@ -5,11 +5,13 @@ from __future__ import annotations
+ import hashlib
+ import json
+ import time
++from contextlib import aclosing
+ from typing import Any
+ 
+ from fastapi import APIRouter, Query, Request
+ from pydantic import BaseModel, Field
+ 
++from apps.api.error_handlers import safe_error_message
+ from core.config import settings
+ from core.logging import get_logger
+ from core.rate_limit import get_rate_limiter
+@@ -95,6 +97,11 @@ def _validate_sort_by(sort_by: str) -> str:
+     return sort_by
+ 
+ 
++def _validate_sort_order(sort_order: str) -> str:
++    """Whitelist sort direction. Anything invalid falls back to desc."""
++    return "asc" if isinstance(sort_order, str) and sort_order.lower() == "asc" else "desc"
++
++
+ async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+     """Fetch BrsApi snapshots and convert them to screener inputs.
+ 
+@@ -106,10 +113,14 @@ async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[
+     from core.database import get_session
+     from services.market_watch_helper import fetch_market_watch
+ 
+-    async for sess in get_session():
+-        svc = BrsApiQueryService(session=sess)
+-        instruments, market_watch = await fetch_market_watch(svc, limit=limit)
+-        return instruments, market_watch
++    # ``get_session()`` is an async generator; ``aclosing`` guarantees the DB
++    # session is closed deterministically even though we return from inside
++    # the loop (relying on GC finalisation leaks the connection under load).
++    async with aclosing(get_session()) as sessions:
++        async for sess in sessions:
++            svc = BrsApiQueryService(session=sess)
++            instruments, market_watch = await fetch_market_watch(svc, limit=limit)
++            return instruments, market_watch
+ 
+     return [], []
+ 
+@@ -160,9 +171,11 @@ async def screener_v2(
+         return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": "Rate limit exceeded"})
+ 
+     sort_by = _validate_sort_by(sort_by)
++    sort_order = _validate_sort_order(sort_order)
+ 
+     cache_key = hashlib.md5(
+-        f"v2:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()
++        f"v2:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode(),
++        usedforsecurity=False,
+     ).hexdigest()
+     cached = _cache_get(cache_key)
+     if cached:
+@@ -263,10 +276,12 @@ async def screener_v2_filter(
+         return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": "Rate limit exceeded"})
+ 
+     body.sort_by = _validate_sort_by(body.sort_by)
++    body.sort_order = _validate_sort_order(body.sort_order)
+ 
+-    filters_key = hashlib.md5(json.dumps(body.filters, default=str).encode()).hexdigest()
++    filters_key = hashlib.md5(json.dumps(body.filters, default=str).encode(), usedforsecurity=False).hexdigest()
+     cache_key = hashlib.md5(
+-        f"v2f:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()
++        f"v2f:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode(),
++        usedforsecurity=False,
+     ).hexdigest()
+     cached = _cache_get(cache_key)
+     if cached:
+@@ -478,65 +493,65 @@ async def compare_symbols(
+         from brsapi.services.query_service import BrsApiQueryService
+         from core.database import get_session
+ 
+-        async for sess in get_session():
+-            svc = BrsApiQueryService(session=sess)
+-            snapshots = await svc.get_enriched_snapshots(limit=500)
+-            snap_map = {s.get("symbol"): s for s in snapshots if s.get("symbol") in symbol_list}
+-
+-            from services.smart_screener_v2 import SmartScreenerV2
+-
+-            screener = SmartScreenerV2()
+-
+-            results = []
+-            for sym in symbol_list:
+-                s = snap_map.get(sym)
+-                if not s:
+-                    continue
+-                quote = {
+-                    "symbol": sym,
+-                    "price_close": s.get("price_close", 0),
+-                    "price_last": s.get("price_last", 0),
+-                    "price_change_pct": s.get("price_last_change_pct", 0),
+-                    "volume": s.get("trade_volume", 0),
+-                    "value": s.get("trade_value", 0),
+-                    "pe_ratio": s.get("pe_ratio"),
+-                    "eps": s.get("eps"),
+-                    "market_value": s.get("market_value"),
+-                }
+-                result = screener.analyze_symbol(
+-                    sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, []
+-                )
+-                results.append(
+-                    {
+-                        "symbol": result.symbol,
+-                        "name": result.name,
+-                        "industry": result.industry,
+-                        "last_price": result.last_price,
+-                        "change_pct": result.change_pct,
+-                        "composite_score": round(result.composite_score, 4),
+-                        "composite_signal": result.composite_signal,
+-                        "smc_score": round(result.smc_score, 4),
+-                        "technical_score": round(result.technical_score, 4),
+-                        "momentum_score": round(result.momentum_score, 4),
+-                        "risk_score": round(result.risk_score, 4),
+-                        "rsi": round(result.rsi, 2),
+-                        "macd_histogram": round(result.macd_histogram, 4),
+-                        "trend_direction": result.trend_direction,
+-                        "trend_strength": round(result.trend_strength, 4),
+-                        "volatility_regime": result.volatility_regime,
+-                        "pattern_signal": result.pattern_signal,
+-                        "pattern_confidence": round(result.pattern_confidence, 4),
+-                        "support_level": result.support_level,
+-                        "resistance_level": result.resistance_level,
+-                        "distance_to_support": result.distance_to_support,
+-                        "distance_to_resistance": result.distance_to_resistance,
+-                        "volume_trend": result.volume_trend,
+-                        "pe_ratio": result.pe_ratio,
+-                    }
+-                )
++        async with aclosing(get_session()) as _sessions:
++            async for sess in _sessions:
++                svc = BrsApiQueryService(session=sess)
++                snapshots = await svc.get_enriched_snapshots(limit=500)
++                snap_map = {s.get("symbol"): s for s in snapshots if s.get("symbol") in symbol_list}
++
++                from services.smart_screener_v2 import SmartScreenerV2
++
++                screener = SmartScreenerV2()
+ 
+-            return ApiResponse(success=True, data={"items": results})
+-            break
++                results = []
++                for sym in symbol_list:
++                    s = snap_map.get(sym)
++                    if not s:
++                        continue
++                    quote = {
++                        "symbol": sym,
++                        "price_close": s.get("price_close", 0),
++                        "price_last": s.get("price_last", 0),
++                        "price_change_pct": s.get("price_last_change_pct", 0),
++                        "volume": s.get("trade_volume", 0),
++                        "value": s.get("trade_value", 0),
++                        "pe_ratio": s.get("pe_ratio"),
++                        "eps": s.get("eps"),
++                        "market_value": s.get("market_value"),
++                    }
++                    result = screener.analyze_symbol(
++                        sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, []
++                    )
++                    results.append(
++                        {
++                            "symbol": result.symbol,
++                            "name": result.name,
++                            "industry": result.industry,
++                            "last_price": result.last_price,
++                            "change_pct": result.change_pct,
++                            "composite_score": round(result.composite_score, 4),
++                            "composite_signal": result.composite_signal,
++                            "smc_score": round(result.smc_score, 4),
++                            "technical_score": round(result.technical_score, 4),
++                            "momentum_score": round(result.momentum_score, 4),
++                            "risk_score": round(result.risk_score, 4),
++                            "rsi": round(result.rsi, 2),
++                            "macd_histogram": round(result.macd_histogram, 4),
++                            "trend_direction": result.trend_direction,
++                            "trend_strength": round(result.trend_strength, 4),
++                            "volatility_regime": result.volatility_regime,
++                            "pattern_signal": result.pattern_signal,
++                            "pattern_confidence": round(result.pattern_confidence, 4),
++                            "support_level": result.support_level,
++                            "resistance_level": result.resistance_level,
++                            "distance_to_support": result.distance_to_support,
++                            "distance_to_resistance": result.distance_to_resistance,
++                            "volume_trend": result.volume_trend,
++                            "pe_ratio": result.pe_ratio,
++                        }
++                    )
++
++                return ApiResponse(success=True, data={"items": results})
+ 
+     except Exception as exc:
+         logger.exception("Compare symbols failed: %s", exc)
+@@ -566,59 +581,59 @@ async def sector_analysis(
+         from brsapi.services.query_service import BrsApiQueryService
+         from core.database import get_session
+ 
+-        async for sess in get_session():
+-            svc = BrsApiQueryService(session=sess)
+-            snapshots = await svc.get_enriched_snapshots(limit=500)
+-
+-            sector_data: dict[str, dict] = {}
+-            for s in snapshots:
+-                sector = s.get("sector", "نامشخص")
+-                if not sector:
+-                    sector = "نامشخص"
+-                if sector not in sector_data:
+-                    sector_data[sector] = {
+-                        "symbols": 0,
+-                        "total_change": 0,
+-                        "total_volume": 0,
+-                        "up_count": 0,
+-                        "total_market_value": 0,
+-                    }
+-                sector_data[sector]["symbols"] += 1
+-                sector_data[sector]["total_change"] += float(s.get("price_last_change_pct", 0) or 0)
+-                sector_data[sector]["total_volume"] += int(s.get("trade_volume", 0) or 0)
+-                if float(s.get("price_last_change_pct", 0) or 0) > 0:
+-                    sector_data[sector]["up_count"] += 1
+-                sector_data[sector]["total_market_value"] += float(s.get("market_value", 0) or 0)
+-
+-            sectors = []
+-            for name, data in sector_data.items():
+-                count = data["symbols"]
+-                avg_change = data["total_change"] / count if count else 0
+-                breadth = data["up_count"] / count if count else 0
+-                sectors.append(
+-                    {
+-                        "sector": name,
+-                        "symbol_count": count,
+-                        "avg_change_pct": round(avg_change, 2),
+-                        "total_volume": data["total_volume"],
+-                        "breadth": round(breadth, 4),
+-                        "total_market_value": data["total_market_value"],
+-                        "signal": "strong_buy"
+-                        if avg_change > 3 and breadth > 0.7
+-                        else "buy"
+-                        if avg_change > 1 and breadth > 0.55
+-                        else "sell"
+-                        if avg_change < -3 and breadth < 0.3
+-                        else "neutral",
+-                    }
+-                )
+-
+-            sectors.sort(key=lambda x: x["avg_change_pct"], reverse=True)
+-
+-            data = {"sectors": sectors, "total_sectors": len(sectors)}
+-            _cache_set(cache_key, data)
+-            return ApiResponse(success=True, data=data)
+-            break
++        async with aclosing(get_session()) as _sessions:
++            async for sess in _sessions:
++                svc = BrsApiQueryService(session=sess)
++                snapshots = await svc.get_enriched_snapshots(limit=500)
++
++                sector_data: dict[str, dict] = {}
++                for s in snapshots:
++                    sector = s.get("sector", "نامشخص")
++                    if not sector:
++                        sector = "نامشخص"
++                    if sector not in sector_data:
++                        sector_data[sector] = {
++                            "symbols": 0,
++                            "total_change": 0,
++                            "total_volume": 0,
++                            "up_count": 0,
++                            "total_market_value": 0,
++                        }
++                    sector_data[sector]["symbols"] += 1
++                    sector_data[sector]["total_change"] += float(s.get("price_last_change_pct", 0) or 0)
++                    sector_data[sector]["total_volume"] += int(s.get("trade_volume", 0) or 0)
++                    if float(s.get("price_last_change_pct", 0) or 0) > 0:
++                        sector_data[sector]["up_count"] += 1
++                    sector_data[sector]["total_market_value"] += float(s.get("market_value", 0) or 0)
++
++                sectors = []
++                for name, data in sector_data.items():
++                    count = data["symbols"]
++                    avg_change = data["total_change"] / count if count else 0
++                    breadth = data["up_count"] / count if count else 0
++                    sectors.append(
++                        {
++                            "sector": name,
++                            "symbol_count": count,
++                            "avg_change_pct": round(avg_change, 2),
++                            "total_volume": data["total_volume"],
++                            "breadth": round(breadth, 4),
++                            "total_market_value": data["total_market_value"],
++                            "signal": "strong_buy"
++                            if avg_change > 3 and breadth > 0.7
++                            else "buy"
++                            if avg_change > 1 and breadth > 0.55
++                            else "sell"
++                            if avg_change < -3 and breadth < 0.3
++                            else "neutral",
++                        }
++                    )
++
++                sectors.sort(key=lambda x: x["avg_change_pct"], reverse=True)
++
++                data = {"sectors": sectors, "total_sectors": len(sectors)}
++                _cache_set(cache_key, data)
++                return ApiResponse(success=True, data=data)
+ 
+     except Exception as exc:
+         logger.exception("Sector analysis failed: %s", exc)
+diff --git a/apps/api/endpoints/signal_insights.py b/apps/api/endpoints/signal_insights.py
+index 02f39be..e6c5c72 100644
+--- a/apps/api/endpoints/signal_insights.py
++++ b/apps/api/endpoints/signal_insights.py
+@@ -16,8 +16,9 @@ from __future__ import annotations
+ from datetime import datetime
+ from typing import Any
+ 
+-from fastapi import APIRouter, Query
++from fastapi import APIRouter, Path, Query
+ 
++from apps.api.error_handlers import safe_error_detail, safe_error_message
+ from core.logging import get_logger
+ from schemas.common.responses import ApiResponse
+ 
+@@ -43,7 +44,7 @@ async def get_signal_accuracy(
+         )
+ 
+         if not result.success:
+-            return ApiResponse(success=False, data=None, error={"message": result.error or "Unknown error"})
++            return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Unknown error")})
+ 
+         return ApiResponse(
+             success=True,
+@@ -59,13 +60,13 @@ async def get_signal_accuracy(
+         )
+     except Exception as e:
+         logger.exception("Signal accuracy endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.get("/accuracy/symbol/{symbol}", summary="Signal accuracy by symbol",
+             description="Get detailed accuracy metrics for a specific symbol")
+ async def get_symbol_accuracy(
+-    symbol: str,
++    symbol: str = Path(..., min_length=1, max_length=20),
+     days: int = Query(90, ge=1, le=365),
+ ) -> ApiResponse[dict[str, Any]]:
+     try:
+@@ -75,12 +76,12 @@ async def get_symbol_accuracy(
+         result = await tracker.get_accuracy_by_symbol(symbol=symbol, days=days)
+ 
+         if not result.success:
+-            return ApiResponse(success=False, data=None, error={"message": result.error or "Unknown error"})
++            return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Unknown error")})
+ 
+         return ApiResponse(success=True, data=result.value)
+     except Exception as e:
+         logger.exception("Symbol accuracy endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.post("/backtest", summary="Backtest signals",
+@@ -123,7 +124,7 @@ async def backtest_signals(
+         )
+ 
+         if not result.success:
+-            return ApiResponse(success=False, data=None, error={"message": result.error or "Backtest failed"})
++            return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Backtest failed")})
+ 
+         return ApiResponse(
+             success=True,
+@@ -136,7 +137,7 @@ async def backtest_signals(
+         )
+     except Exception as e:
+         logger.exception("Backtest endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.get("/walk-forward", summary="Walk-forward validation",
+@@ -228,7 +229,7 @@ async def get_walk_forward(
+             )
+ 
+             if not result.success:
+-                return ApiResponse(success=False, data=None, error={"message": result.error or "Validation failed"})
++                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Validation failed")})
+ 
+             return ApiResponse(
+                 success=True,
+@@ -241,7 +242,7 @@ async def get_walk_forward(
+ 
+     except Exception as e:
+         logger.exception("Walk-forward endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.get("/ensemble", summary="Ensemble optimization",
+@@ -257,7 +258,7 @@ async def get_ensemble_optimization(
+         if market == "all":
+             result = await optimizer.optimize_all_markets()
+             if not result.success:
+-                return ApiResponse(success=False, data=None, error={"message": result.error or "Optimization failed"})
++                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Optimization failed")})
+             return ApiResponse(
+                 success=True,
+                 data={
+@@ -270,7 +271,7 @@ async def get_ensemble_optimization(
+         else:
+             result = await optimizer.optimize(market)
+             if not result.success:
+-                return ApiResponse(success=False, data=None, error={"message": result.error or "Optimization failed"})
++                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Optimization failed")})
+             return ApiResponse(
+                 success=True,
+                 data={
+@@ -280,7 +281,7 @@ async def get_ensemble_optimization(
+             )
+     except Exception as e:
+         logger.exception("Ensemble optimization endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.get("/confidence", summary="Confidence scoring breakdown",
+@@ -316,7 +317,7 @@ async def get_confidence_scoring(
+         )
+     except Exception as e:
+         logger.exception("Confidence scoring endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.post("/retrain", summary="Trigger model retrain",
+@@ -333,7 +334,7 @@ async def trigger_retrain(
+         if market == "all":
+             result = await pipeline.retrain_all_markets(force=force)
+             if not result.success:
+-                return ApiResponse(success=False, data=None, error={"message": result.error or "Retrain failed"})
++                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Retrain failed")})
+             return ApiResponse(
+                 success=True,
+                 data={
+@@ -345,7 +346,7 @@ async def trigger_retrain(
+         else:
+             result = await pipeline.check_and_retrain(market=market, force=force)
+             if not result.success:
+-                return ApiResponse(success=False, data=None, error={"message": result.error or "Retrain failed"})
++                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Retrain failed")})
+             return ApiResponse(
+                 success=True,
+                 data={
+@@ -355,7 +356,7 @@ async def trigger_retrain(
+             )
+     except Exception as e:
+         logger.exception("Retrain endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.get("/multi-timeframe", summary="Multi-timeframe confirmation",
+@@ -386,7 +387,7 @@ async def get_multi_timeframe_confirmation(
+         )
+     except Exception as e:
+         logger.exception("Multi-timeframe endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+ 
+ 
+ @router.get("/risk-filter", summary="Risk-adjusted signal filter",
+@@ -425,4 +426,4 @@ async def get_risk_filter(
+         )
+     except Exception as e:
+         logger.exception("Risk filter endpoint failed")
+-        return ApiResponse(success=False, data=None, error={"message": str(e)})
++        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
+diff --git a/apps/api/error_handlers.py b/apps/api/error_handlers.py
+index bd2dc7d..7d1d111 100644
+--- a/apps/api/error_handlers.py
++++ b/apps/api/error_handlers.py
+@@ -37,6 +37,19 @@ def safe_error_message(exc: BaseException, *, default_message: str = "Internal e
+     return default_message
+ 
+ 
++def safe_error_detail(message: str | None, *, default_message: str = "Internal error") -> str:
++    """Same non-leaking contract as :func:`safe_error_message`, for plain strings.
++
++    Service layers commonly return ``Result.fail(str(exc))``; echoing
++    ``result.error`` straight into an API response re-introduces the internal
++    detail that ``safe_error_message`` was meant to suppress. Keep the full
++    text in development, return ``default_message`` in production.
++    """
++    if _is_dev():
++        return message or default_message
++    return default_message
++
++
+ def error_payload(
+     *,
+     message: str,
+diff --git a/jobs/definitions/screener_jobs.py b/jobs/definitions/screener_jobs.py
+index 298ee5b..9690d4d 100644
+--- a/jobs/definitions/screener_jobs.py
++++ b/jobs/definitions/screener_jobs.py
+@@ -32,6 +32,11 @@ class Screener110RunCycleJob(BaseJob):
+         total_capital = context.get_param("total_capital", 1_000_000_000)
+ 
+         try:
++            # NOTE: do NOT return inside this `async for` loop —
++            # `get_session()` commits only when the generator is resumed
++            # after the yield, so an early return silently rolls back the
++            # whole cycle. Build the result and return it after the loop.
++            result: JobResult | None = None
+             async for session in get_session():
+                 from services.screener110_service import Screener110Service
+ 
+@@ -48,7 +53,7 @@ class Screener110RunCycleJob(BaseJob):
+                     len(buy_signals), decisions,
+                 )
+ 
+-                return JobResult.success_result(
++                result = JobResult.success_result(
+                     job_name=self._name,
+                     data={
+                         "buy_signals_count": len(buy_signals),
+@@ -67,7 +72,9 @@ class Screener110RunCycleJob(BaseJob):
+                     message=f"Cycle complete: {len(buy_signals)} buy signals",
+                 )
+ 
+-            return JobResult.failure("Could not obtain DB session", job_name=self._name)
++            if result is None:
++                return JobResult.failure("Could not obtain DB session", job_name=self._name)
++            return result
+ 
+         except Exception as e:
+             logger.exception("Screener110RunCycleJob failed: %s", e)
+diff --git a/services/ml_signal_connector.py b/services/ml_signal_connector.py
+index 452716b..eea74d1 100644
+--- a/services/ml_signal_connector.py
++++ b/services/ml_signal_connector.py
+@@ -406,25 +406,32 @@ class MLSignalConnector:
+         0.50. Replaces the legacy hard-coded 0.55 (root cause of stale
+         37.7% voting accuracy per quant-signal-goal-assessment).
+         """
++        from contextlib import aclosing
++
+         from sqlalchemy import text
+ 
+         from core.database import get_session
+ 
+         row = None
+         try:
+-            async with get_session() as session:
+-                row = (
+-                    await session.execute(
+-                        text("""
+-                        SELECT COUNT(*) AS n,
+-                               COALESCE(AVG(CASE WHEN direction_correct THEN 1.0 ELSE 0.0 END), 0) AS acc
+-                        FROM signal_accuracy
+-                        WHERE market = :market
+-                          AND direction_correct IS NOT NULL
+-                    """),
+-                        {"market": market},
+-                    )
+-                ).first()
++            # `get_session()` is an async generator (FastAPI-style dependency),
++            # not an async context manager. `async with` raised TypeError, which
++            # the except below swallowed, silently disabling DB-backed accuracy
++            # (always fell back to the 0.50 bootstrap prior).
++            async with aclosing(get_session()) as _sessions:
++                async for session in _sessions:
++                    row = (
++                        await session.execute(
++                            text("""
++                            SELECT COUNT(*) AS n,
++                                   COALESCE(AVG(CASE WHEN direction_correct THEN 1.0 ELSE 0.0 END), 0) AS acc
++                            FROM signal_accuracy
++                            WHERE market = :market
++                              AND direction_correct IS NOT NULL
++                        """),
++                            {"market": market},
++                        )
++                    ).first()
+         except Exception as exc:
+             logger.warning("get_accuracy_by_market(%s) DB query failed: %s — using bootstrap", market, exc)
+ 
+diff --git a/tests/unit/test_ml_signal_connector.py b/tests/unit/test_ml_signal_connector.py
+index da35902..ae799bc 100644
+--- a/tests/unit/test_ml_signal_connector.py
++++ b/tests/unit/test_ml_signal_connector.py
+@@ -26,6 +26,16 @@ def _bare_connector() -> MLSignalConnector:
+     return c
+ 
+ 
++def _fake_get_session(mock_session):
++    """Fake for ``core.database.get_session`` — a real async generator."""
++
++    async def _gen():
++        yield mock_session
++
++    return _gen
++
++
++
+ class TestGetAccuracyByMarket:
+     async def test_uses_db_when_samples_sufficient(self):
+         c = _bare_connector()
+@@ -33,9 +43,7 @@ class TestGetAccuracyByMarket:
+         row = SimpleNamespace(n=200, acc=0.62)
+         mock_session = AsyncMock()
+         mock_session.execute.return_value.first = MagicMock(return_value=row)
+-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+-        mock_session.__aexit__ = AsyncMock(return_value=False)
+-        with patch("core.database.get_session", return_value=mock_session):
++        with patch("core.database.get_session", _fake_get_session(mock_session)):
+             result = await c.get_accuracy_by_market("stock", min_samples=30)
+         assert result == pytest.approx(0.62, abs=1e-6)
+ 
+@@ -45,9 +53,7 @@ class TestGetAccuracyByMarket:
+         row = SimpleNamespace(n=10, acc=0.9)
+         mock_session = AsyncMock()
+         mock_session.execute.return_value.first = MagicMock(return_value=row)
+-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+-        mock_session.__aexit__ = AsyncMock(return_value=False)
+-        with patch("core.database.get_session", return_value=mock_session):
++        with patch("core.database.get_session", _fake_get_session(mock_session)):
+             result = await c.get_accuracy_by_market("stock", min_samples=30)
+         assert result == pytest.approx(0.6, abs=1e-6)
+ 
+@@ -56,9 +62,7 @@ class TestGetAccuracyByMarket:
+         row = SimpleNamespace(n=0, acc=0)
+         mock_session = AsyncMock()
+         mock_session.execute.return_value.first = MagicMock(return_value=row)
+-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+-        mock_session.__aexit__ = AsyncMock(return_value=False)
+-        with patch("core.database.get_session", return_value=mock_session):
++        with patch("core.database.get_session", _fake_get_session(mock_session)):
+             result = await c.get_accuracy_by_market("forex", min_samples=30)
+         assert result == 0.50
+ 
+@@ -73,9 +77,7 @@ class TestGetAccuracyByMarket:
+         row = SimpleNamespace(n=100, acc=1.5)  # pathological
+         mock_session = AsyncMock()
+         mock_session.execute.return_value.first = MagicMock(return_value=row)
+-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+-        mock_session.__aexit__ = AsyncMock(return_value=False)
+-        with patch("core.database.get_session", return_value=mock_session):
++        with patch("core.database.get_session", _fake_get_session(mock_session)):
+             result = await c.get_accuracy_by_market("stock", min_samples=30)
+         # The DB average is a float; we don't clamp here but verify the value
+         # is in a sane range (>= 0). Clamping belongs to the consumer.
++++ b/tests/unit/test_screener_audit_fixes.py
+@@ -0,0 +1,345 @@
++"""Regression tests for the screener audit fixes (2026-09).
++
++Covers:
++  1. ``get_session()`` is an async generator — FastAPI endpoint session
++     management must go through the ``get_db_session`` dependency, and the
++     screener110 job must fully consume the generator so its commit runs
++     (early ``return`` inside ``async for`` silently rolls back the cycle).
++  2. ``apps/api/endpoints/screener_v2.py`` must import ``safe_error_message``
++     (it used to be trapped inside the module docstring → NameError in every
++     error path).
++  3. Production error responses must not leak ``str(exc)`` internals.
++  4. ``sort_order`` is whitelisted at the API edge.
++  5. Screener ``reason`` strings are valid Persian (no cp1252 mojibake).
++  6. ``page`` without ``page_size`` still paginates (limit honored).
++"""
++
++from __future__ import annotations
++
++import asyncio
++import inspect
++from unittest.mock import AsyncMock, MagicMock, patch
++
++import pytest
++
++from apps.api.endpoints import screener as screener_ep
++from apps.api.endpoints import screener_v2 as screener_v2_ep
++from services.screener_service import ScreenedSymbol, ScreenerPipeline, ScreenerService
++
++
++# ── 1. Job commit regression ─────────────────────────────────────────────
++class TestScreenerJobsCommitRegression:
++    """``Screener110RunCycleJob`` must not return inside ``async for``."""
++
++    def test_job_consumes_get_session_to_commit(self, tmp_path) -> None:
++        from jobs.definitions.screener_jobs import Screener110RunCycleJob
++        from jobs.job_context import JobContext
++
++        commit_log: list[str] = []
++
++        async def fake_get_session():
++            session = AsyncMock(name="db-session")
++            try:
++                yield session
++                commit_log.append("commit")  # ← skipped if caller returns early
++            except Exception:
++                commit_log.append("rollback")
++                raise
++            finally:
++                commit_log.append("close")
++
++        svc = MagicMock()
++        svc.run_full_cycle = AsyncMock(return_value=[{"symbol": "TEST", "decision": "خرید", "final_score": 85.0, "current_price": 100}])
++        svc_cls = MagicMock(return_value=svc)
++
++        context = JobContext(job_id="test-1", job_name="screener110_run_cycle", params={})
++        job = Screener110RunCycleJob(name="screener110_run_cycle")
++
++        with (
++            patch("core.database.get_session", fake_get_session),
++            patch("services.screener110_service.Screener110Service", svc_cls),
++        ):
++            result = asyncio.run(job.execute(context))
++
++        assert result.success is True
++        assert commit_log == ["commit", "close"], (
++            f"job abandoned the session generator before commit: {commit_log}"
++        )
++
++    def test_ml_signal_connector_session_pattern(self) -> None:
++        """``get_accuracy_by_market`` must consume ``get_session()`` with async for."""
++        import services.ml_signal_connector as msc
++
++        src = inspect.getsource(msc)
++        assert "async with get_session() as" not in src, (
++            "async with on an async generator raises TypeError; use async for / aclosing"
++        )
++
++
++# ── 2. screener_v2 safe_error_message ───────────────────────────────────
++class TestScreenerV2ErrorHelper:
++    def test_helper_defined(self) -> None:
++        assert callable(getattr(screener_v2_ep, "safe_error_message", None)), (
++            "screener_v2 used safe_error_message without importing it (NameError in error paths)"
++        )
++
++    def test_helper_returns_default_in_production(self) -> None:
++        with patch("core.config.settings.environment", "production"):
++            msg = screener_v2_ep.safe_error_message(ValueError("select * from secret_table"), default_message="fallback")
++        assert msg == "fallback"
++
++    def test_helper_detail_in_development(self) -> None:
++        with patch("core.config.settings.environment", "development"):
++            msg = screener_v2_ep.safe_error_message(ValueError("boom"), default_message="fallback")
++        assert msg == "boom"
++
++    def test_endpoint_error_path_no_nameerror(self) -> None:
++        """A failing V2 request must return ApiResponse, not NameError."""
++        from fastapi import FastAPI
++        from httpx import ASGITransport, AsyncClient
++
++        app = FastAPI()
++        app.include_router(screener_v2_ep.router, prefix="/screener-v2")
++
++        async def _run() -> dict:
++            transport = ASGITransport(app=app)
++            async with AsyncClient(transport=transport, base_url="http://test") as client:
++                with (
++                    patch("core.config.settings.environment", "production"),
++                    patch.object(screener_v2_ep, "_check_rate_limit", return_value=True),
++                    patch.object(screener_v2_ep, "_cache_get", return_value=None),
++                    patch.object(
++                        screener_v2_ep,
++                        "_fetch_v2_market_data",
++                        side_effect=RuntimeError("secret-connection-string"),
++                    ),
++                ):
++                    r = await client.get("/screener-v2")
++            return r
++
++        resp = asyncio.run(_run())
++        assert resp.status_code == 200
++        body = resp.json()
++        assert body["success"] is False
++        assert "secret-connection-string" not in str(body)  # production default
++
++
++# ── 3. Session management in screener endpoints ──────────────────────────
++class TestScreenerEndpointSessionManagement:
++    def test_screener_endpoint_uses_depends(self) -> None:
++        sig = inspect.signature(screener_ep.screener)
++        assert "session" in sig.parameters, "screener endpoint must get its session via Depends"
++
++    def test_no_async_with_on_get_session(self) -> None:
++        import apps.api.endpoints.screener as m
++
++        src = inspect.getsource(m)
++        assert "async with get_session()" not in src
++
++    def test_screener_filter_endpoint_uses_depends(self) -> None:
++        sig = inspect.signature(screener_ep.screener_filter)
++        assert "session" in sig.parameters
++
++
++# ── 4. sort_order whitelist ──────────────────────────────────────────────
++class TestSortOrderValidation:
++    @pytest.mark.parametrize(
++        ("raw", "expected"),
++        [("asc", "asc"), ("ASC", "asc"), ("desc", "desc"), ("", "desc"), ("bogus", "desc")],
++    )
++    def test_validate_sort_order(self, raw: str, expected: str) -> None:
++        assert screener_ep._validate_sort_order(raw) == expected
++
++
++# ── 6. screener110 limit validation (Medium patch) ───────────────────────
++class TestScreener110LimitValidation:
++    @staticmethod
++    def _bounds(fn):
++        import inspect
++
++        default = inspect.signature(fn).parameters["limit"].default
++        metadata = getattr(default, "metadata", None)
++        assert metadata is not None, "limit must be a validated Query param"
++        ge = le = None
++        for m in metadata:
++            if hasattr(m, "ge"):
++                ge = m.ge
++            if hasattr(m, "le"):
++                le = m.le
++        return ge, le
++
++    def test_top_buys_limit_bounds(self) -> None:
++        from apps.api.endpoints import screener110 as ep
++
++        ge, le = self._bounds(ep.screener110_top_buys)
++        assert (ge, le) == (1, 100)
++
++    def test_market_report_limit_bounds(self) -> None:
++        from apps.api.endpoints import screener110 as ep
++
++        ge, le = self._bounds(ep.screener110_ai_market_report)
++        assert (ge, le) == (1, 100)
++
++
++# ── 7. dead code removal (Low patch) ─────────────────────────────────────
++class TestSortValueNoDeadCode:
++    def test_get_sort_value_returns_zero_for_unknown(self) -> None:
++        from services.screener_service import ScreenedSymbol, _get_sort_value
++
++        item = ScreenedSymbol(
++            symbol="T", name="T", market="M", industry="I",
++            last_price=1, change_pct=0, volume=0, value=0,
++        )
++        assert _get_sort_value(item, "nonexistent_field") == 0.0
++
++
++# ── 5. Persian reason strings (mojibake regression) ──────────────────────
++class TestReasonStringsPersian:
++    def test_reasons_not_mojibake(self) -> None:
++        pipeline = ScreenerPipeline()
++        quote = {
++            "symbol": "TEST",
++            "price_close": 1000,
++            "price_last": 1000,
++            "price_change_pct": 1.0,
++            "volume": 100000,
++            "value": 1e8,
++        }
++        history = [
++            {
++                "symbol": "TEST",
++                "date": f"2026-08-{d:02d}",
++                "price_close": 1000,
++                "price_open": 990,
++                "price_high": 1010,
++                "price_low": 980,
++                "volume": 100000,
++                "value": 1e8,
++                "real_buy_value": 6e7,
++                "real_sell_value": 2e7,
++            }
++            for d in range(1, 21)
++        ]
++        result = pipeline.run("TEST", "Test Co", "BOURS", "STEEL", quote, history)
++        # either ASCII-free Persian text or empty — never cp1252 mojibake
++        bad_markers = ("Ù†", "Ø¨", "ÛŒ", "â")
++        assert not any(m in result.reason for m in bad_markers), result.reason
++
++
++# ── 6. pagination edge: page without page_size ───────────────────────────
++class TestScreenPaginationEdge:
++    async def test_page_without_page_size_paginates(self) -> None:
++        svc = ScreenerService(session=None)
++        svc._prebuild = AsyncMock(return_value=({"price_close": 100, "price_change_pct": 0}, []))
++
++        def _fake_run(symbol: str, **kwargs) -> ScreenedSymbol:
++            # stable distinct scores so ordering is deterministic
++            score = ord(symbol[-1]) / 1000.0
++            return ScreenedSymbol(
++                symbol=symbol,
++                name=symbol,
++                market="BOURS",
++                industry="I",
++                last_price=100.0,
++                change_pct=0.0,
++                volume=1,
++                value=1.0,
++                smc_score=score,
++            )
++
++        svc._pipeline.run = MagicMock(side_effect=_fake_run)
++
++        instruments = [{"symbol": f"SYM{c}", "name": c, "market": "BOURS", "industry": "I"} for c in "ABCDE"]
++        watch = [{"symbol": f"SYM{c}", "market": "BOURS"} for c in "ABCDE"]
++
++        results, pag = await svc.screen(
++            instruments=instruments,
++            market_watch=watch,
++            sort_by="smc_score",
++            sort_order="desc",
++            limit=2,
++            page=2,
++        )
++
++        assert pag["total"] == 5
++        assert len(results) == 2, f"limit ignored with bare page: {[r.symbol for r in results]}"
++        assert [r.symbol for r in results] == ["SYMC", "SYMB"]
++
++
++# ── 8. symbol path-param bounds (reflected-input hardening) ──────────────
++class TestSymbolPathBounds:
++    """``models/screener.py`` stores symbols as ``String(20)``; the endpoints
++    echoed unbounded path input into error messages."""
++
++    @staticmethod
++    def _client(router, prefix: str):
++        from fastapi import FastAPI
++        from httpx import ASGITransport, AsyncClient
++
++        from apps.api.dependencies import get_db_session
++
++        app = FastAPI()
++        app.include_router(router, prefix=prefix)
++
++        async def _fake_db():
++            yield AsyncMock(name="db-session")
++
++        app.dependency_overrides[get_db_session] = _fake_db
++        return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
++
++    def test_report_rejects_overlong_symbol(self) -> None:
++        from apps.api.endpoints import screener110 as ep
++
++        long_symbol = "X" * 400
++        async def _run() -> int:
++            async with self._client(ep.router, "/screener110") as client:
++                r = await client.get(f"/screener110/report/{long_symbol}")
++                return r.status_code
++
++        assert asyncio.run(_run()) == 422
++
++    def test_populate_rejects_overlong_symbol(self) -> None:
++        from apps.api.endpoints import screener110 as ep
++
++        async def _run() -> int:
++            async with self._client(ep.router, "/screener110") as client:
++                r = await client.post(f"/screener110/populate/{'X' * 400}")
++                return r.status_code
++
++        assert asyncio.run(_run()) == 422
++
++    def test_accuracy_by_symbol_rejects_overlong(self) -> None:
++        from apps.api.endpoints import signal_insights as ep
++
++        async def _run() -> int:
++            async with self._client(ep.router, "/signal-insights") as client:
++                r = await client.get(f"/signal-insights/accuracy/symbol/{'X' * 400}")
++                return r.status_code
++
++        assert asyncio.run(_run()) == 422
++
++
++# ── 9. indirect leaks via Result.error passthrough ───────────────────────
++class TestSafeErrorDetail:
++    def test_production_suppresses_result_error(self) -> None:
++        from apps.api.error_handlers import safe_error_detail
++
++        with patch("core.config.settings.environment", "production"):
++            out = safe_error_detail(
++                "connection to localhost:5432 refused", default_message="Backtest failed"
++            )
++        assert out == "Backtest failed"
++
++    def test_development_keeps_detail(self) -> None:
++        from apps.api.error_handlers import safe_error_detail
++
++        with patch("core.config.settings.environment", "development"):
++            assert safe_error_detail("boom", default_message="x") == "boom"
++
++    def test_signal_insights_uses_safe_detail(self) -> None:
++        import inspect
++
++        from apps.api.endpoints import signal_insights as ep
++
++        src = inspect.getsource(ep)
++        assert "result.error or " not in src, "Result.error must not be echoed unfiltered"
++++ b/migrations/versions/0049_screener_profile_filter_columns.py
+@@ -0,0 +1,71 @@
++"""Add computed filter columns f77–f84 to screener_profiles.
++
++The ORM model (``models/screener.py`` → ``ScreenerProfile``) declares the
++auto-computed filter columns (ستون‌های ۷۷–۸۴) but migration 0008 never created
++them, and the AI report service reads them via ``profile.get("f77_...")`` —
++they were silently absent (the "فیلترهای محاسباتی فعال" section never fired).
++
++Additive + idempotent: every column is added only if missing, with the same
++``server_default="0"`` the model declares.
++
++Revision ID: 0049
++Revises: 0048
++"""
++
++from __future__ import annotations
++
++import sqlalchemy as sa
++from alembic import op
++
++revision: str = "0049"
++down_revision: str | None = "0048"
++branch_labels: str | None = None
++depends_on: str | None = None
++
++_FILTER_COLUMNS: list[tuple[str, str]] = [
++    ("f77_dollar_eps_growth", "نرخ رشد دلاری EPS > ۱۵٪ — ستون ۷۷"),
++    ("f78_real_eps_growth", "نرخ رشد واقعی EPS > ۱۵٪ — ستون ۷۸"),
++    ("f79_pe_ratio_ok", "ضریب P/E < ۱.۲ — ستون ۷۹"),
++    ("f80_yield_gt_bank", "بازده سهام > نرخ سود بانکی — ستون ۸۰"),
++    ("f81_inst_ratio_ok", "نسبت خرید خالص حقوقی > ۵٪ شناور — ستون ۸۱"),
++    ("f82_volume_spike", "جهش حجمی > ۳ برابر میانگین — ستون ۸۲"),
++    ("f83_liquidity_ok", "نقدشوندگی > ۰.۵٪ شناور در روز — ستون ۸۳"),
++    ("f84_loss_ratio_ok", "نسبت زیان انباشته به سرمایه < ۵۰٪ — ستون ۸۴"),
++]
++
++
++def upgrade() -> None:
++    conn = op.get_bind()
++    existing = {
++        row[0]
++        for row in conn.execute(
++            sa.text(
++                "SELECT column_name FROM information_schema.columns "
++                "WHERE table_name = 'screener_profiles'"
++            )
++        )
++    }
++    for name, comment in _FILTER_COLUMNS:
++        if name in existing:
++            continue
++        op.add_column(
++            "screener_profiles",
++            sa.Column(name, sa.Integer(), nullable=True, server_default="0", comment=comment),
++        )
++
++
++def downgrade() -> None:
++    conn = op.get_bind()
++    existing = {
++        row[0]
++        for row in conn.execute(
++            sa.text(
++                "SELECT column_name FROM information_schema.columns "
++                "WHERE table_name = 'screener_profiles'"
++            )
++        )
++    }
++    for name, _comment in reversed(_FILTER_COLUMNS):
++        if name not in existing:
++            continue
++        op.drop_column("screener_profiles", name)

@@ -24,6 +24,16 @@ export const SECURITY_HEADERS: Record<string, string> = {
 export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "im_refresh";
 
 /**
+ * Dev-only CSP relaxation. `next dev` compiles client chunks with
+ * eval-source-map, so without 'unsafe-eval' the entire client bundle is
+ * blocked → no hydration on ANY route → React Query never runs. The live
+ * market WebSocket also dials :8000 cross-origin in dev, which
+ * `connect-src 'self'` would drop. Production keeps the strict header.
+ */
+const DEV_CSP =
+  "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss: http://127.0.0.1:8000 http://localhost:8000";
+
+/**
  * Routes that require a session.
  *
  * The middleware can only verify presence of the refresh cookie — the access
@@ -80,8 +90,9 @@ function isProtectedPath(pathname: string): boolean {
 }
 
 function applySecurityHeaders(response: NextResponse): void {
+  const dev = process.env.NODE_ENV !== "production";
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    response.headers.set(key, value);
+    response.headers.set(key, key === "Content-Security-Policy" && dev ? DEV_CSP : value);
   }
 }
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
@@ -75,7 +75,7 @@ async def populate_profiles(
     description="Populate or update screener_profiles for a single symbol",
 )
 async def populate_symbol(
-    symbol: str,
+    symbol: str = Path(..., min_length=1, max_length=20),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """پر کردن پروفایل یک نماد خاص."""
@@ -219,7 +219,7 @@ async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -
     description="Generates an AI-style Persian report of the whole market from the latest run-cycle signals",
 )
 async def screener110_ai_market_report(
-    limit: int = 25,
+    limit: int = Query(25, ge=1, le=100),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """گزارش کامل هوش مصنوعی از وضعیت بازار."""
@@ -248,7 +248,7 @@ async def screener110_ai_market_report(
     ),
 )
 async def screener110_ai_report(
-    symbol: str,
+    symbol: str = Path(..., min_length=1, max_length=20),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """گزارش کامل هوش مصنوعی برای یک نماد."""
@@ -281,7 +281,7 @@ async def screener110_ai_report(
     description="Returns the strongest buy signals from the most recent run-cycle, with a short AI explanation",
 )
 async def screener110_top_buys(
-    limit: int = 10,
+    limit: int = Query(10, ge=1, le=100),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """برترین سیگنال‌های خرید از آخرین اجرای مدل."""

@@ -1,0 +1,3580 @@
+{
+ "apps.admin.app": [
+  "apps.admin.router",
+  "core.config",
+  "core.database",
+  "core.logging"
+ ],
+ "apps.admin.dashboard": [
+  "backtesting.strategies.registry",
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "ml.global_registry",
+  "services.history_backfill_service"
+ ],
+ "apps.admin.health": [
+  "brsapi.client",
+  "core.cache",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.admin.router": [
+  "apps.admin.audit",
+  "apps.admin.backtests",
+  "apps.admin.dashboard",
+  "apps.admin.health",
+  "apps.admin.jobs",
+  "apps.admin.models",
+  "apps.admin.providers"
+ ],
+ "apps.analytics_worker": [
+  "apps.analytics_worker.app"
+ ],
+ "apps.analytics_worker.app": [
+  "core.logging"
+ ],
+ "apps.api": [
+  "apps.api.router"
+ ],
+ "apps.api.app": [
+  "apps.api.dependencies",
+  "apps.api.endpoints.decision_engine",
+  "apps.api.endpoints.multi_market_signals",
+  "apps.api.error_handlers",
+  "apps.api.metrics",
+  "apps.api.middleware",
+  "apps.api.router",
+  "apps.scheduler.app",
+  "brsapi.client",
+  "brsapi.rate_limiter",
+  "brsapi.services.query_service",
+  "brsapi.services.sync_service",
+  "brsapi.usage_recorder",
+  "core.cache",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "integrations.notifications.telegram_sender",
+  "jobs.locking",
+  "ml.model_loader",
+  "ml.models",
+  "schemas.common.responses",
+  "services.accuracy_outcome_queue",
+  "services.fund_service",
+  "services.fund_sync_service",
+  "services.news_ingestion",
+  "services.quant_signal_orchestrator",
+  "services.realtime_service",
+  "services.screener_service"
+ ],
+ "apps.api.auth": [
+  "core.config",
+  "core.logging",
+  "core.security.tokens"
+ ],
+ "apps.api.dependencies": [
+  "brsapi.client",
+  "brsapi.services.query_service",
+  "core.database",
+  "core.enums.rbac",
+  "core.logging",
+  "core.security.tokens",
+  "repositories.backtest_repository",
+  "repositories.instrument_repository",
+  "repositories.ml_repository",
+  "repositories.quote_repository",
+  "services.analytics_service",
+  "services.backtest_service",
+  "services.block_trade_detector",
+  "services.codal_financial_import_service",
+  "services.codal_financial_service",
+  "services.codal_service",
+  "services.fake_queue_detector",
+  "services.gap_prediction",
+  "services.gold.live_service",
+  "services.gold.position_service",
+  "services.hidden_accumulation",
+  "services.historical_level_analyzer",
+  "services.inference_service",
+  "services.instrument_import_service",
+  "services.iran_fear_greed_index",
+  "services.macro_service",
+  "services.manipulation_detector",
+  "services.market_health_index",
+  "services.market_service",
+  "services.multi_market_signal_engine",
+  "services.news_service",
+  "services.orderbook_service",
+  "services.portfolio_service",
+  "services.quote_service",
+  "services.real_return_calculator",
+  "services.recommendation_service",
+  "services.report_service",
+  "services.screener_service",
+  "services.signal_performance_tracker",
+  "services.signal_service",
+  "services.smart_money_service",
+  "services.symbol_service",
+  "services.trade_service",
+  "services.watchlist_service"
+ ],
+ "apps.api.endpoints.alerts": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.api.alerts",
+  "schemas.common.responses",
+  "services.alert_service"
+ ],
+ "apps.api.endpoints.alpha": [
+  "core.database",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.analysis": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.anomalies": [
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.assistant": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.alert_service",
+  "services.backtest_service",
+  "services.market_service",
+  "services.query_logger",
+  "services.screener_service",
+  "services.unified_assistant_service",
+  "services.watchlist_service"
+ ],
+ "apps.api.endpoints.auth": [
+  "apps.api.dependencies",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "core.rate_limit",
+  "core.security.tokens",
+  "models.user",
+  "schemas.api.auth",
+  "schemas.common.responses",
+  "services.user_service"
+ ],
+ "apps.api.endpoints.backtests": [
+  "apps.api.dependencies",
+  "apps.api.endpoints.backtest_requests",
+  "apps.api.pagination",
+  "backtesting.engine.broker",
+  "backtesting.engine.portfolio_simulator",
+  "backtesting.metrics.deflated_sharpe",
+  "backtesting.optimization.monte_carlo",
+  "backtesting.optimization.walk_forward",
+  "backtesting.portfolio.allocator",
+  "backtesting.portfolio.rebalancer",
+  "backtesting.strategies.registry",
+  "core.database",
+  "core.ids",
+  "core.logging",
+  "models.compare",
+  "models.generated_strategy",
+  "schemas.api.backtest",
+  "schemas.common.responses",
+  "services.adaptive_engine",
+  "services.backtest_service",
+  "services.cascade_engine",
+  "services.mass_scanner_service",
+  "services.strategy_generator"
+ ],
+ "apps.api.endpoints.brsapi": [
+  "apps.api.dependencies",
+  "brsapi.budget",
+  "brsapi.client",
+  "brsapi.config",
+  "brsapi.jobs.registry",
+  "brsapi.models",
+  "brsapi.models.base",
+  "brsapi.models.codal",
+  "brsapi.models.commodity",
+  "brsapi.models.tsetmc",
+  "brsapi.parsers",
+  "brsapi.repositories",
+  "brsapi.services.history_fetch_service",
+  "brsapi.services.query_service",
+  "brsapi.services.sync_service",
+  "brsapi.usage_recorder",
+  "core.config",
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "core.result",
+  "models.quote",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.chat": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.chat.chat_engine",
+  "services.screener_service",
+  "services.smart_money_service",
+  "services.stock_assistant_service",
+  "services.unified_assistant_service"
+ ],
+ "apps.api.endpoints.codal": [
+  "apps.api.dependencies",
+  "brsapi.models.codal",
+  "core.database",
+  "core.db_utils",
+  "core.exceptions",
+  "core.logging",
+  "core.result",
+  "models.codal",
+  "models.codal_financial",
+  "models.option",
+  "repositories.codal_repository",
+  "repositories.instrument_repository",
+  "schemas.api.codal",
+  "schemas.common.responses",
+  "services.codal_attachment_service",
+  "services.codal_import_service",
+  "services.codal_service"
+ ],
+ "apps.api.endpoints.codal_accounting": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.codal_accounting_service",
+  "services.codal_financial_import_service",
+  "services.codal_financial_service"
+ ],
+ "apps.api.endpoints.codal_audit": [
+  "core.database"
+ ],
+ "apps.api.endpoints.codal_professional": [
+  "core.logging",
+  "schemas.api.codal_analysis",
+  "schemas.common.responses",
+  "services.codal_analysis.service"
+ ],
+ "apps.api.endpoints.compose": [
+  "backtesting.composer.indicator_registry",
+  "schemas.common.responses",
+  "services.compose_service"
+ ],
+ "apps.api.endpoints.comprehensive_analysis": [
+  "apps.api.dependencies",
+  "core.logging"
+ ],
+ "apps.api.endpoints.data_import": [
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.decision_engine": [
+  "apps.api.dependencies",
+  "core.config",
+  "core.logging",
+  "models.decision_engine",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.economic_calendar": [
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.forecast": [
+  "schemas.common.responses",
+  "src.forecasting.service"
+ ],
+ "apps.api.endpoints.forecast_engine": [
+  "schemas.common.responses",
+  "src.forecast_engine.exceptions",
+  "src.forecast_engine.forecasting_service",
+  "src.forecast_engine.redis_adapter",
+  "src.forecast_engine.safe_forecast",
+  "src.forecast_engine.symbol_registry"
+ ],
+ "apps.api.endpoints.fundamental": [
+  "apps.api.dependencies",
+  "schemas.common.responses",
+  "services.fundamental_service"
+ ],
+ "apps.api.endpoints.funds": [
+  "apps.api.dependencies",
+  "brsapi.constants",
+  "brsapi.models.ime",
+  "brsapi.models.tsetmc",
+  "brsapi.services.query_service",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "models.fund",
+  "schemas.common.responses",
+  "services.fund_scoring",
+  "services.fund_service",
+  "services.fund_sync_service",
+  "services.materialized_view_service"
+ ],
+ "apps.api.endpoints.gold": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.time",
+  "schemas.api.gold",
+  "schemas.common.responses",
+  "services.gold"
+ ],
+ "apps.api.endpoints.health": [
+  "brsapi.client",
+  "core.cache",
+  "core.database",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.indicators": [
+  "apps.api.dependencies",
+  "schemas.common.responses",
+  "services.analytics_service"
+ ],
+ "apps.api.endpoints.jobs": [
+  "brsapi.jobs.registry",
+  "core.cache",
+  "core.config",
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "jobs.queue_consumer",
+  "jobs.replay",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.macro": [
+  "apps.api.dependencies",
+  "core.result",
+  "schemas.common.responses",
+  "services.macro_service"
+ ],
+ "apps.api.endpoints.market": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses",
+  "services.market_service"
+ ],
+ "apps.api.endpoints.market_dashboard": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.market_service",
+  "services.screener_service",
+  "services.smart_money.scoring_engine"
+ ],
+ "apps.api.endpoints.market_info": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.market_insights": [
+  "apps.api.dependencies",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.market_watch": [
+  "apps.api.dependencies",
+  "core.db_utils",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.ml": [
+  "apps.api.dependencies",
+  "core.logging",
+  "ml.global_registry",
+  "ml.model_loader",
+  "models.ml",
+  "repositories.instrument_repository",
+  "repositories.ml_repository",
+  "repositories.prediction_repository",
+  "repositories.quote_repository",
+  "schemas.api.ml",
+  "schemas.common.responses",
+  "services.global_training_service",
+  "services.inference_service",
+  "services.training_service"
+ ],
+ "apps.api.endpoints.monitoring": [
+  "apps.api.metrics",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.multi_market_signals": [
+  "core.logging",
+  "schemas.common.responses",
+  "services.auto_retrain_pipeline",
+  "services.quant_signal_orchestrator",
+  "services.signal_accuracy_tracker",
+  "services.signal_circuit_breaker"
+ ],
+ "apps.api.endpoints.news": [
+  "apps.api.app",
+  "apps.api.dependencies",
+  "core.database",
+  "core.logging",
+  "core.result",
+  "domain.news.news_item",
+  "schemas.api.news",
+  "schemas.common.responses",
+  "services.news_ingestion",
+  "services.news_service"
+ ],
+ "apps.api.endpoints.options": [
+  "core.database",
+  "domain.options.pricing",
+  "schemas.common.responses",
+  "services.options_analytics",
+  "services.options_reference",
+  "services.options_service"
+ ],
+ "apps.api.endpoints.orderbooks": [
+  "apps.api.dependencies",
+  "core.result",
+  "schemas.common.responses",
+  "services.orderbook_service"
+ ],
+ "apps.api.endpoints.paper_trading": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses",
+  "services.paper_trading_service"
+ ],
+ "apps.api.endpoints.portfolios": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.api.portfolios",
+  "schemas.common.responses",
+  "services.portfolio_service"
+ ],
+ "apps.api.endpoints.proposals": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses",
+  "services.proposal_service"
+ ],
+ "apps.api.endpoints.queue_analysis": [
+  "apps.api.dependencies",
+  "core.logging",
+  "services.queue_analysis_service"
+ ],
+ "apps.api.endpoints.quotes": [
+  "apps.api.dependencies",
+  "core.database",
+  "repositories.instrument_repository",
+  "repositories.quote_repository",
+  "schemas.common.responses",
+  "services.quote_import_service",
+  "services.quote_service"
+ ],
+ "apps.api.endpoints.recommendations": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses",
+  "services.recommendation_service"
+ ],
+ "apps.api.endpoints.reports": [
+  "apps.api.dependencies",
+  "schemas.common.responses",
+  "services.report_service"
+ ],
+ "apps.api.endpoints.risk": [
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.saved_filters": [
+  "apps.api.dependencies",
+  "core.database",
+  "core.logging",
+  "models.saved_filter",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.scanner": [
+  "core.logging",
+  "schemas.common.responses",
+  "services.mass_scanner_service"
+ ],
+ "apps.api.endpoints.screener": [
+  "brsapi.services.query_service",
+  "core.database",
+  "core.logging",
+  "core.rate_limit",
+  "schemas.api.screener_filter",
+  "schemas.common.responses",
+  "services.market_watch_helper",
+  "services.screener_service"
+ ],
+ "apps.api.endpoints.screener110": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.populate_profiles_service",
+  "services.screener110_service",
+  "services.screener_ai_report_service"
+ ],
+ "apps.api.endpoints.screener_v2": [
+  "brsapi.services.query_service",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "core.rate_limit",
+  "schemas.common.responses",
+  "services.market_watch_helper",
+  "services.smart_screener_v2"
+ ],
+ "apps.api.endpoints.sentiment": [
+  "core.logging",
+  "schemas.common.responses",
+  "services.persian_sentiment_service"
+ ],
+ "apps.api.endpoints.signal_insights": [
+  "core.database",
+  "core.logging",
+  "schemas.common.responses",
+  "services.auto_retrain_pipeline",
+  "services.confidence_scorer",
+  "services.ensemble_optimizer",
+  "services.multi_market_signal_engine",
+  "services.multi_timeframe_confirmer",
+  "services.risk_adjusted_filter",
+  "services.signal_accuracy_tracker",
+  "services.signal_backtest_engine",
+  "services.signal_feature_pipeline",
+  "services.walk_forward_validator"
+ ],
+ "apps.api.endpoints.signals": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses",
+  "services.signal_service"
+ ],
+ "apps.api.endpoints.smart_money": [
+  "apps.api.dependencies",
+  "schemas.common.responses",
+  "services.smart_money_service"
+ ],
+ "apps.api.endpoints.stock_assistant": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.stock_assistant_service",
+  "services.unified_assistant_service"
+ ],
+ "apps.api.endpoints.symbol_search": [
+  "core.logging",
+  "schemas.common.responses",
+  "services.symbol_catalog"
+ ],
+ "apps.api.endpoints.symbols": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.result",
+  "schemas.common.responses",
+  "services.instrument_import_service",
+  "services.symbol_service"
+ ],
+ "apps.api.endpoints.system": [
+  "apps.api.dependencies",
+  "core.logging",
+  "core.security.ime_rbac",
+  "services.kill_switch"
+ ],
+ "apps.api.endpoints.tabdeal": [
+  "apps.api.dependencies",
+  "core.config",
+  "core.logging",
+  "schemas.common.responses",
+  "tabdeal.client",
+  "tabdeal.service"
+ ],
+ "apps.api.endpoints.tables": [
+  "core.database",
+  "core.logging",
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.tests_runner": [
+  "schemas.common.responses"
+ ],
+ "apps.api.endpoints.trades": [
+  "apps.api.dependencies",
+  "core.result",
+  "schemas.common.responses",
+  "services.trade_service"
+ ],
+ "apps.api.endpoints.watchlist": [
+  "apps.api.dependencies",
+  "core.logging",
+  "schemas.common.responses",
+  "services.watchlist_service"
+ ],
+ "apps.api.endpoints.websocket": [
+  "core.config",
+  "core.logging",
+  "services.realtime_service"
+ ],
+ "apps.api.error_handlers": [
+  "core.config",
+  "core.exceptions",
+  "core.logging"
+ ],
+ "apps.api.metrics": [
+  "core.logging",
+  "integrations.observability.prometheus_exporter"
+ ],
+ "apps.api.middleware": [
+  "core.config",
+  "core.logging",
+  "core.rate_limit",
+  "core.security.sanitizers",
+  "core.security.tokens"
+ ],
+ "apps.api.router": [
+  "apps.admin.dashboard",
+  "apps.api.dependencies",
+  "apps.api.endpoints.alerts",
+  "apps.api.endpoints.alpha",
+  "apps.api.endpoints.analysis",
+  "apps.api.endpoints.anomalies",
+  "apps.api.endpoints.assistant",
+  "apps.api.endpoints.auth",
+  "apps.api.endpoints.backtests",
+  "apps.api.endpoints.brsapi",
+  "apps.api.endpoints.chat",
+  "apps.api.endpoints.codal",
+  "apps.api.endpoints.codal_accounting",
+  "apps.api.endpoints.codal_audit",
+  "apps.api.endpoints.codal_professional",
+  "apps.api.endpoints.compose",
+  "apps.api.endpoints.data_import",
+  "apps.api.endpoints.decision_engine",
+  "apps.api.endpoints.economic_calendar",
+  "apps.api.endpoints.forecast",
+  "apps.api.endpoints.fundamental",
+  "apps.api.endpoints.funds",
+  "apps.api.endpoints.gold",
+  "apps.api.endpoints.health",
+  "apps.api.endpoints.ime",
+  "apps.api.endpoints.indicators",
+  "apps.api.endpoints.jobs",
+  "apps.api.endpoints.macro",
+  "apps.api.endpoints.market",
+  "apps.api.endpoints.market_dashboard",
+  "apps.api.endpoints.market_info",
+  "apps.api.endpoints.market_insights",
+  "apps.api.endpoints.market_watch",
+  "apps.api.endpoints.ml",
+  "apps.api.endpoints.monitoring",
+  "apps.api.endpoints.multi_market_signals",
+  "apps.api.endpoints.news",
+  "apps.api.endpoints.options",
+  "apps.api.endpoints.orderbooks",
+  "apps.api.endpoints.paper_trading",
+  "apps.api.endpoints.portfolios",
+  "apps.api.endpoints.proposals",
+  "apps.api.endpoints.queue_analysis",
+  "apps.api.endpoints.quotes",
+  "apps.api.endpoints.recommendations",
+  "apps.api.endpoints.reports",
+  "apps.api.endpoints.risk",
+  "apps.api.endpoints.saved_filters",
+  "apps.api.endpoints.screener",
+  "apps.api.endpoints.screener110",
+  "apps.api.endpoints.screener_v2",
+  "apps.api.endpoints.signal_insights",
+  "apps.api.endpoints.signals",
+  "apps.api.endpoints.smart_money",
+  "apps.api.endpoints.stock_assistant",
+  "apps.api.endpoints.symbol_search",
+  "apps.api.endpoints.symbols",
+  "apps.api.endpoints.system",
+  "apps.api.endpoints.tabdeal",
+  "apps.api.endpoints.tables",
+  "apps.api.endpoints.trades",
+  "apps.api.endpoints.watchlist",
+  "apps.api.endpoints.websocket",
+  "apps.funds.router",
+  "schemas.common.responses"
+ ],
+ "apps.backtest_worker": [
+  "apps.backtest_worker.app"
+ ],
+ "apps.backtest_worker.app": [
+  "core.logging"
+ ],
+ "apps.cli.main": [
+  "apps.cli.commands",
+  "apps.cli.formatters",
+  "core.logging",
+  "jobs.job_dispatcher"
+ ],
+ "apps.currency_service.app": [
+  "apps.currency_service.config",
+  "apps.currency_service.router",
+  "core.config",
+  "core.database",
+  "core.logging"
+ ],
+ "apps.currency_service.endpoints.auth": [
+  "core.logging",
+  "core.security.tokens"
+ ],
+ "apps.currency_service.endpoints.health": [
+  "core.database",
+  "core.logging"
+ ],
+ "apps.currency_service.endpoints.overview": [
+  "apps.currency_service.config",
+  "apps.currency_service.infra.cache",
+  "apps.currency_service.services.signal_engine"
+ ],
+ "apps.currency_service.endpoints.positions": [
+  "apps.currency_service.endpoints.auth",
+  "apps.currency_service.services.position_tracker",
+  "apps.currency_service.services.signal_engine",
+  "core.database"
+ ],
+ "apps.currency_service.endpoints.signals": [
+  "apps.currency_service.config",
+  "apps.currency_service.endpoints.overview",
+  "apps.currency_service.infra.cache"
+ ],
+ "apps.currency_service.infra.cache": [
+  "core.cache",
+  "core.logging"
+ ],
+ "apps.currency_service.infra.collectors": [
+  "apps.currency_service.domain.entities",
+  "apps.currency_service.infra.fixtures",
+  "core.logging"
+ ],
+ "apps.currency_service.infra.fixtures": [
+  "apps.currency_service.domain.entities"
+ ],
+ "apps.currency_service.main": [
+  "apps.currency_service.config"
+ ],
+ "apps.currency_service.router": [
+  "apps.currency_service.endpoints.health",
+  "apps.currency_service.endpoints.overview",
+  "apps.currency_service.endpoints.positions",
+  "apps.currency_service.endpoints.signals"
+ ],
+ "apps.currency_service.services.alert_dispatcher": [
+  "apps.currency_service.config",
+  "apps.currency_service.domain"
+ ],
+ "apps.currency_service.services.collector": [
+  "apps.currency_service.config",
+  "apps.currency_service.domain.entities",
+  "apps.currency_service.infra.collectors",
+  "apps.currency_service.infra.fixtures"
+ ],
+ "apps.currency_service.services.position_tracker": [
+  "apps.currency_service.domain",
+  "models.currency"
+ ],
+ "apps.currency_service.services.signal_engine": [
+  "apps.currency_service.domain",
+  "apps.currency_service.services.collector"
+ ],
+ "apps.decision_engine.app": [
+  "apps.api.endpoints.decision_engine",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "models.decision_engine"
+ ],
+ "apps.funds.api": [
+  "schemas",
+  "services"
+ ],
+ "apps.funds.db": [
+  "models",
+  "services"
+ ],
+ "apps.gateway": [
+  "apps.gateway.app"
+ ],
+ "apps.gateway.app": [
+  "core.config",
+  "core.logging"
+ ],
+ "apps.ingestion_worker": [
+  "apps.ingestion_worker.app"
+ ],
+ "apps.ingestion_worker.app": [
+  "core.logging"
+ ],
+ "apps.ml_worker": [
+  "apps.ml_worker.app"
+ ],
+ "apps.ml_worker.app": [
+  "core.logging"
+ ],
+ "apps.scheduler": [
+  "apps.scheduler.app"
+ ],
+ "apps.scheduler.__main__": [
+  "apps.scheduler.app",
+  "core.logging"
+ ],
+ "apps.scheduler.app": [
+  "brsapi.jobs.registry",
+  "core.cache",
+  "core.config",
+  "core.logging",
+  "jobs",
+  "jobs.job_dispatcher",
+  "jobs.queue_publisher",
+  "jobs.registry"
+ ],
+ "apps.strategy_worker": [
+  "apps.strategy_worker.app"
+ ],
+ "apps.worker": [
+  "apps.worker.app"
+ ],
+ "apps.worker.__main__": [
+  "apps.worker.app",
+  "core.logging"
+ ],
+ "apps.worker.app": [
+  "apps.worker.consumer",
+  "apps.worker.error_policy",
+  "core.cache",
+  "core.logging"
+ ],
+ "apps.worker.consumer": [
+  "core.logging",
+  "jobs.queue_consumer"
+ ],
+ "apps.worker.error_policy": [
+  "core.logging"
+ ],
+ "core": [
+  "core.config",
+  "core.exceptions",
+  "core.logging"
+ ],
+ "core.cache": [
+  "core.config",
+  "core.logging"
+ ],
+ "core.cache_manager": [
+  "core.config",
+  "core.logging"
+ ],
+ "core.circuit_breaker": [
+  "core.logging"
+ ],
+ "core.concurrency.batching": [
+  "core.logging"
+ ],
+ "core.concurrency.queues": [
+  "core.logging"
+ ],
+ "core.concurrency.schedulers": [
+  "core.logging"
+ ],
+ "core.concurrency.semaphores": [
+  "core.logging"
+ ],
+ "core.concurrency.task_groups": [
+  "core.logging"
+ ],
+ "core.concurrency.worker_pool": [
+  "core.logging"
+ ],
+ "core.config.environments": [
+  "core.config"
+ ],
+ "core.database": [
+  "core.config",
+  "core.logging",
+  "models",
+  "models.base"
+ ],
+ "core.dependency_injection": [
+  "core.logging"
+ ],
+ "core.dependency_injection.container": [
+  "core.logging"
+ ],
+ "core.dependency_injection.factories": [
+  "core.logging"
+ ],
+ "core.dependency_injection.registries": [
+  "core.logging"
+ ],
+ "core.event_bus": [
+  "core.events",
+  "core.logging"
+ ],
+ "core.exceptions.api": [
+  "core.exceptions"
+ ],
+ "core.exceptions.app": [
+  "core.exceptions"
+ ],
+ "core.exceptions.auth": [
+  "core.exceptions"
+ ],
+ "core.exceptions.backtest": [
+  "core.exceptions"
+ ],
+ "core.exceptions.base": [
+  "core.exceptions"
+ ],
+ "core.exceptions.ml": [
+  "core.exceptions"
+ ],
+ "core.exceptions.provider": [
+  "core.exceptions"
+ ],
+ "core.exceptions.rate_limit": [
+  "core.exceptions"
+ ],
+ "core.exceptions.scheduler": [
+  "core.exceptions"
+ ],
+ "core.exceptions.storage": [
+  "core.exceptions"
+ ],
+ "core.exceptions.validation": [
+  "core.exceptions"
+ ],
+ "core.feature_flags.evaluators": [
+  "core.config",
+  "core.context",
+  "core.logging"
+ ],
+ "core.feature_flags.flags": [
+  "core.feature_flags"
+ ],
+ "core.feature_flags.manager": [
+  "core.feature_flags",
+  "core.feature_flags.flags",
+  "core.logging"
+ ],
+ "core.health": [
+  "core.constants"
+ ],
+ "core.health.heartbeat": [
+  "core.logging"
+ ],
+ "core.health.liveness": [
+  "core.constants",
+  "core.health"
+ ],
+ "core.health.monitor": [
+  "core.constants",
+  "core.health",
+  "core.logging"
+ ],
+ "core.health.provider_health": [
+  "core.constants",
+  "core.health",
+  "core.logging"
+ ],
+ "core.health.readiness": [
+  "core.constants",
+  "core.health"
+ ],
+ "core.health.scoring": [
+  "core.constants",
+  "core.health"
+ ],
+ "core.health.system_health": [
+  "core.constants",
+  "core.health",
+  "core.logging"
+ ],
+ "core.json.decoding": [
+  "core.logging",
+  "core.paths"
+ ],
+ "core.json.encoding": [
+  "core.paths"
+ ],
+ "core.json.serializers": [
+  "core.json"
+ ],
+ "core.logging": [
+  "core.config",
+  "integrations.observability.log_aggregator"
+ ],
+ "core.logging.audit_logging": [
+  "core.logging"
+ ],
+ "core.logging.context": [
+  "core.logging"
+ ],
+ "core.logging.correlation": [
+  "core.context",
+  "core.logging"
+ ],
+ "core.logging.formatters": [
+  "core.context"
+ ],
+ "core.logging.request_logging": [
+  "core.context",
+  "core.logging"
+ ],
+ "core.logging.setup": [
+  "core.logging"
+ ],
+ "core.paths": [
+  "core.config",
+  "core.logging"
+ ],
+ "core.rate_limit": [
+  "core.rate_limit.limiter",
+  "core.rate_limit.tokens"
+ ],
+ "core.rate_limit.adaptive": [
+  "core.logging"
+ ],
+ "core.rate_limit.budget_manager": [
+  "core.logging"
+ ],
+ "core.rate_limit.limiter": [
+  "core.cache",
+  "core.logging"
+ ],
+ "core.rate_limit.tokens": [
+  "core.logging"
+ ],
+ "core.rate_limit.windows": [
+  "core.logging"
+ ],
+ "core.resilience": [
+  "core.logging"
+ ],
+ "core.resilience.circuit_breaker": [
+  "core.logging"
+ ],
+ "core.resilience.degradation": [
+  "core.logging"
+ ],
+ "core.resilience.failover": [
+  "core.logging"
+ ],
+ "core.resilience.fallback": [
+  "core.logging"
+ ],
+ "core.resilience.incident_policy": [
+  "core.logging"
+ ],
+ "core.result": [
+  "core.typing"
+ ],
+ "core.retry": [
+  "core.logging"
+ ],
+ "core.retry.helpers": [
+  "core.logging",
+  "core.retry.backoff"
+ ],
+ "core.retry.policies": [
+  "core.retry"
+ ],
+ "core.retry.wrappers": [
+  "core.logging",
+  "core.retry.policies"
+ ],
+ "core.security": [
+  "core.config",
+  "core.security.hashing",
+  "core.security.secrets",
+  "core.security.tokens"
+ ],
+ "core.security.hashing": [
+  "core.paths"
+ ],
+ "core.security.secrets": [
+  "core.logging"
+ ],
+ "core.security.tokens": [
+  "core.cache",
+  "core.config",
+  "core.exceptions",
+  "core.logging"
+ ],
+ "core.time": [
+  "core.constants.markets"
+ ],
+ "core.time.calendar_utils": [
+  "core.constants.markets"
+ ],
+ "core.time.market_sessions": [
+  "core.constants.markets",
+  "core.time"
+ ],
+ "core.validation": [
+  "core.exceptions"
+ ],
+ "core.validation.dates": [
+  "core.validation"
+ ],
+ "core.validation.files": [
+  "core.paths"
+ ],
+ "core.validation.payloads": [
+  "core.exceptions"
+ ],
+ "core.validation.symbols": [
+  "core.validation"
+ ],
+ "domain": [
+  "domain.common.base_entity",
+  "domain.common.enum_types",
+  "domain.common.value_object"
+ ],
+ "domain.alerts": [
+  "domain.alerts.channels",
+  "domain.alerts.entities",
+  "domain.alerts.triggers"
+ ],
+ "domain.alerts.channels": [
+  "domain.common.base_entity"
+ ],
+ "domain.alerts.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.alerts.rules": [
+  "domain.alerts.entities"
+ ],
+ "domain.alerts.triggers": [
+  "domain.common.base_entity"
+ ],
+ "domain.analytics": [
+  "domain.analytics.indicator",
+  "domain.analytics.recommendation",
+  "domain.analytics.signal"
+ ],
+ "domain.analytics.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.analytics.factors": [
+  "domain.common.base_entity"
+ ],
+ "domain.analytics.indicator": [
+  "domain.common.base_entity"
+ ],
+ "domain.analytics.ranking": [
+  "domain.common.base_entity"
+ ],
+ "domain.analytics.recommendation": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.analytics.scoring": [
+  "domain.common.base_entity"
+ ],
+ "domain.analytics.signal": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.audit": [
+  "domain.audit.actions",
+  "domain.audit.actors",
+  "domain.audit.contexts",
+  "domain.audit.entities"
+ ],
+ "domain.audit.actors": [
+  "domain.common.base_entity"
+ ],
+ "domain.audit.contexts": [
+  "domain.common.base_entity"
+ ],
+ "domain.audit.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.audit.rules": [
+  "domain.audit.entities"
+ ],
+ "domain.backtest": [
+  "domain.backtest.entities",
+  "domain.backtest.metrics",
+  "domain.backtest.runs"
+ ],
+ "domain.backtest.entities": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.backtest.rules": [
+  "domain.backtest.entities"
+ ],
+ "domain.backtest.trades": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.bonds": [
+  "domain.bonds.duration",
+  "domain.bonds.entities",
+  "domain.bonds.yield_curve"
+ ],
+ "domain.bonds.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.bonds.yield_curve": [
+  "domain.common.base_entity"
+ ],
+ "domain.calendar.trading_calendar": [
+  "core.time"
+ ],
+ "domain.codal": [
+  "domain.codal.attachment",
+  "domain.codal.disclosure"
+ ],
+ "domain.codal.attachment": [
+  "domain.common.base_entity"
+ ],
+ "domain.codal.attachments": [
+  "domain.common.base_entity"
+ ],
+ "domain.codal.disclosure": [
+  "domain.common.base_entity"
+ ],
+ "domain.codal.disclosures": [
+  "domain.common.base_entity"
+ ],
+ "domain.codal.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.codal.statements": [
+  "domain.common.base_entity"
+ ],
+ "domain.commodities": [
+  "domain.commodities.classifications",
+  "domain.commodities.contracts",
+  "domain.commodities.entities"
+ ],
+ "domain.commodities.contracts": [
+  "domain.common.base_entity"
+ ],
+ "domain.commodities.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.common": [
+  "domain.common.base_entity",
+  "domain.common.domain_error",
+  "domain.common.enum_types",
+  "domain.common.value_object"
+ ],
+ "domain.common.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.common.rules": [
+  "domain.common.domain_error"
+ ],
+ "domain.common.value_objects": [
+  "domain.common.value_object"
+ ],
+ "domain.decision_engine_v5.trading": [
+  "models"
+ ],
+ "domain.energy": [
+  "domain.energy.contracts",
+  "domain.energy.entities",
+  "domain.energy.sessions"
+ ],
+ "domain.energy.contracts": [
+  "domain.common.base_entity"
+ ],
+ "domain.energy.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.energy.rules": [
+  "domain.energy.entities",
+  "domain.energy.sessions"
+ ],
+ "domain.energy.sessions": [
+  "domain.common.base_entity"
+ ],
+ "domain.funds": [
+  "domain.funds.classifications",
+  "domain.funds.entities",
+  "domain.funds.nav"
+ ],
+ "domain.funds.aum_snapshot": [
+  "domain.common.base_entity"
+ ],
+ "domain.funds.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.funds.nav": [
+  "domain.common.base_entity"
+ ],
+ "domain.funds.return_snapshot": [
+  "domain.common.base_entity"
+ ],
+ "domain.fx": [
+  "domain.fx.conversions",
+  "domain.fx.entities",
+  "domain.fx.pairs"
+ ],
+ "domain.fx.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.indicators": [
+  "domain.indicators.definitions",
+  "domain.indicators.entities",
+  "domain.indicators.parameters",
+  "domain.indicators.registry"
+ ],
+ "domain.indicators.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.indicators.registry": [
+  "domain.indicators.registry.commodity",
+  "domain.indicators.registry.common",
+  "domain.indicators.registry.debt",
+  "domain.indicators.registry.derivatives",
+  "domain.indicators.registry.energy",
+  "domain.indicators.registry.fund",
+  "domain.indicators.registry.intermarket",
+  "domain.indicators.registry.microstructure",
+  "domain.indicators.registry.scoring",
+  "domain.indicators.registry.statistical",
+  "domain.indicators.registry.stock"
+ ],
+ "domain.indicators.registry.commodity": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.common": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.debt": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.derivatives": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.energy": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.fund": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.intermarket": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.microstructure": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.scoring": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.statistical": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.registry.stock": [
+  "domain.indicators.definitions"
+ ],
+ "domain.indicators.rules": [
+  "domain.indicators.parameters"
+ ],
+ "domain.indicators.values": [
+  "domain.common.base_entity"
+ ],
+ "domain.indices": [
+  "domain.indices.breadth",
+  "domain.indices.compositions",
+  "domain.indices.entities"
+ ],
+ "domain.indices.compositions": [
+  "domain.common.base_entity"
+ ],
+ "domain.indices.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.instruments": [
+  "domain.instruments.instrument",
+  "domain.instruments.market",
+  "domain.instruments.sector"
+ ],
+ "domain.instruments.aliases": [
+  "domain.common.base_entity"
+ ],
+ "domain.instruments.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.instruments.events": [
+  "domain.common.events"
+ ],
+ "domain.instruments.instrument": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.instruments.listing_rules": [
+  "domain.common.enum_types"
+ ],
+ "domain.instruments.market": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.instruments.rules": [
+  "domain.common.enum_types",
+  "domain.instruments.enums"
+ ],
+ "domain.instruments.sector": [
+  "domain.common.base_entity"
+ ],
+ "domain.instruments.services": [
+  "domain.common.enum_types"
+ ],
+ "domain.instruments.value_objects": [
+  "domain.common.value_object"
+ ],
+ "domain.macro": [
+  "domain.macro.macro_series"
+ ],
+ "domain.macro.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.macro.macro_series": [
+  "domain.common.base_entity"
+ ],
+ "domain.macro.regimes": [
+  "domain.common.base_entity"
+ ],
+ "domain.macro.series": [
+  "domain.common.base_entity"
+ ],
+ "domain.market_data": [
+  "domain.market_data.corporate_action",
+  "domain.market_data.orderbook",
+  "domain.market_data.quote",
+  "domain.market_data.trade"
+ ],
+ "domain.market_data.corporate_action": [
+  "domain.common.base_entity"
+ ],
+ "domain.market_data.orderbook": [
+  "domain.common.base_entity"
+ ],
+ "domain.market_data.quote": [
+  "domain.common.base_entity"
+ ],
+ "domain.market_data.trade": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.markets": [
+  "domain.markets.classifications",
+  "domain.markets.entities",
+  "domain.markets.sessions"
+ ],
+ "domain.markets.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.markets.rules": [
+  "domain.markets.entities"
+ ],
+ "domain.metals": [
+  "domain.metals.entities",
+  "domain.metals.futures",
+  "domain.metals.spot"
+ ],
+ "domain.metals.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.metals.futures": [
+  "domain.common.base_entity"
+ ],
+ "domain.metals.spot": [
+  "domain.common.base_entity"
+ ],
+ "domain.ml": [
+  "domain.ml.entities",
+  "domain.ml.feature_sets",
+  "domain.ml.predictions",
+  "domain.ml.training_runs"
+ ],
+ "domain.ml.entities": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.ml.feature_sets": [
+  "domain.common.base_entity"
+ ],
+ "domain.ml.predictions": [
+  "domain.common.base_entity"
+ ],
+ "domain.ml.rules": [
+  "domain.common.enum_types"
+ ],
+ "domain.news": [
+  "domain.news.news_item"
+ ],
+ "domain.news.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.news.mappings": [
+  "domain.common.base_entity"
+ ],
+ "domain.news.news_item": [
+  "domain.common.base_entity"
+ ],
+ "domain.news.sentiment": [
+  "domain.common.base_entity"
+ ],
+ "domain.news.sources": [
+  "domain.common.base_entity"
+ ],
+ "domain.options": [
+  "domain.options.entities",
+  "domain.options.greeks",
+  "domain.options.pricing",
+  "domain.options.volatility"
+ ],
+ "domain.options.commodity_pricing": [
+  "domain.options.pricing"
+ ],
+ "domain.options.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.options.heston_model": [
+  "domain.options.pricing"
+ ],
+ "domain.options.tree_pricing": [
+  "domain.options.pricing"
+ ],
+ "domain.options.volatility": [
+  "domain.common.base_entity"
+ ],
+ "domain.orderbook": [
+  "domain.orderbook.entities",
+  "domain.orderbook.events",
+  "domain.orderbook.levels"
+ ],
+ "domain.orderbook.entities": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.orderbook.events": [
+  "domain.common.events"
+ ],
+ "domain.orderbook.rules": [
+  "domain.common.enum_types"
+ ],
+ "domain.portfolios": [
+  "domain.portfolios.portfolio",
+  "domain.portfolios.position"
+ ],
+ "domain.portfolios.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.portfolios.exposures": [
+  "domain.common.base_entity"
+ ],
+ "domain.portfolios.performance": [
+  "domain.common.base_entity"
+ ],
+ "domain.portfolios.portfolio": [
+  "domain.common.base_entity"
+ ],
+ "domain.portfolios.position": [
+  "domain.common.base_entity"
+ ],
+ "domain.portfolios.positions": [
+  "domain.common.base_entity"
+ ],
+ "domain.portfolios.rules": [
+  "domain.portfolios.entities",
+  "domain.portfolios.portfolio"
+ ],
+ "domain.quotes": [
+  "domain.quotes.entities",
+  "domain.quotes.snapshots",
+  "domain.quotes.value_objects"
+ ],
+ "domain.quotes.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.quotes.events": [
+  "domain.common.events"
+ ],
+ "domain.quotes.snapshots": [
+  "domain.common.base_entity"
+ ],
+ "domain.quotes.value_objects": [
+  "domain.common.value_object"
+ ],
+ "domain.recommendations": [
+  "domain.analytics.recommendation",
+  "domain.recommendations.decisions",
+  "domain.recommendations.entities",
+  "domain.recommendations.explanations",
+  "domain.recommendations.risk_labels"
+ ],
+ "domain.recommendations.entities": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.recommendations.rules": [
+  "domain.common.enum_types"
+ ],
+ "domain.screening": [
+  "domain.screening.filters",
+  "domain.screening.presets",
+  "domain.screening.ranking"
+ ],
+ "domain.screening.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.screening.presets": [
+  "domain.common.base_entity"
+ ],
+ "domain.screening.rules": [
+  "domain.screening.filters"
+ ],
+ "domain.signals": [
+  "domain.signals.confidence",
+  "domain.signals.entities",
+  "domain.signals.reasons",
+  "domain.signals.strength"
+ ],
+ "domain.signals.entities": [
+  "domain.common.base_entity",
+  "domain.common.enum_types"
+ ],
+ "domain.signals.rules": [
+  "domain.common.enum_types"
+ ],
+ "domain.trades": [
+  "domain.trades.entities",
+  "domain.trades.events",
+  "domain.trades.ticks"
+ ],
+ "domain.trades.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.trades.events": [
+  "domain.common.events"
+ ],
+ "domain.trades.ticks": [
+  "domain.common.base_entity"
+ ],
+ "domain.watchlists": [
+  "domain.watchlists.entities",
+  "domain.watchlists.memberships",
+  "domain.watchlists.tags"
+ ],
+ "domain.watchlists.entities": [
+  "domain.common.base_entity"
+ ],
+ "domain.watchlists.memberships": [
+  "domain.common.base_entity"
+ ],
+ "domain.watchlists.tags": [
+  "domain.common.base_entity"
+ ],
+ "ingestion.fx.quality_gate": [
+  "brsapi.models.commodity",
+  "core.logging"
+ ],
+ "ingestion.gold.quality_gate": [
+  "brsapi.models.commodity",
+  "core.logging"
+ ],
+ "ingestion.http_client": [
+  "config",
+  "core.logging"
+ ],
+ "ingestion.identity": [
+  "core.logging"
+ ],
+ "ingestion.lake": [
+  "core.config",
+  "core.logging",
+  "ingestion.config"
+ ],
+ "ingestion.library_sources.universal_collector": [
+  "core.logging",
+  "ingestion.library_sources.base_adapter"
+ ],
+ "ingestion.main": [
+  "config",
+  "core.logging",
+  "ingestion.db.session",
+  "storage",
+  "storage.dedup"
+ ],
+ "ingestion.parser.library_parsers": [
+  "core.db_utils",
+  "core.logging"
+ ],
+ "ingestion.parser.tsetmc_parsers": [
+  "core.logging"
+ ],
+ "ingestion.replay": [
+  "core.logging"
+ ],
+ "ingestion.retry": [
+  "core.logging"
+ ],
+ "ingestion.scheduler": [
+  "config",
+  "core.logging"
+ ],
+ "ingestion.sources.codal": [
+  "core.logging",
+  "ingestion.http_client"
+ ],
+ "ingestion.sources.crypto": [
+  "core.logging"
+ ],
+ "ingestion.sources.derivatives": [
+  "core.logging",
+  "ingestion.http_client"
+ ],
+ "ingestion.sources.energy": [
+  "core.logging",
+  "ingestion.http_client"
+ ],
+ "ingestion.sources.global_markets": [
+  "core.logging"
+ ],
+ "ingestion.sources.ifb": [
+  "core.logging",
+  "ingestion.http_client"
+ ],
+ "ingestion.sources.library_sources": [
+  "core.logging",
+  "ingestion.http_client"
+ ],
+ "ingestion.sources.tsetmc": [
+  "core.logging",
+  "ingestion.http_client"
+ ],
+ "ingestion.storage": [
+  "core.logging"
+ ],
+ "ingestion.storage.dedup": [
+  "core.logging"
+ ],
+ "ingestion.worker": [
+  "config",
+  "core.logging",
+  "storage.dedup"
+ ],
+ "jobs": [
+  "jobs.base_job",
+  "jobs.deduplication",
+  "jobs.job_context",
+  "jobs.job_dispatcher",
+  "jobs.job_registry",
+  "jobs.job_result",
+  "jobs.locking",
+  "jobs.retry_policy"
+ ],
+ "jobs.backtest_run": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.base_job": [
+  "core.logging",
+  "jobs.job_context",
+  "jobs.job_result"
+ ],
+ "jobs.cleanup": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.codal_sync": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.deduplication": [
+  "core.logging"
+ ],
+ "jobs.definitions": [
+  "jobs.definitions.alert_jobs",
+  "jobs.definitions.analytics_jobs",
+  "jobs.definitions.backtest_jobs",
+  "jobs.definitions.brsapi_jobs",
+  "jobs.definitions.brsapi_ready_check_job",
+  "jobs.definitions.codal_jobs",
+  "jobs.definitions.feature_store_jobs",
+  "jobs.definitions.fund_jobs",
+  "jobs.definitions.housekeeping_jobs",
+  "jobs.definitions.macro_jobs",
+  "jobs.definitions.market_data_jobs",
+  "jobs.definitions.ml_jobs",
+  "jobs.definitions.news_jobs",
+  "jobs.definitions.paper_trading_job",
+  "jobs.definitions.recommendation_jobs",
+  "jobs.definitions.reference_jobs",
+  "jobs.definitions.screener_jobs",
+  "jobs.definitions.signal_jobs",
+  "jobs.definitions.sync_jobs",
+  "services.history_backfill_service"
+ ],
+ "jobs.definitions.alert_jobs": [
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "models.alert",
+  "services.alert_service",
+  "services.stock_assistant_service"
+ ],
+ "jobs.definitions.analytics_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.analytics_service"
+ ],
+ "jobs.definitions.backtest_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.backtest_service"
+ ],
+ "jobs.definitions.brsapi_jobs": [
+  "brsapi.client",
+  "brsapi.config",
+  "brsapi.models",
+  "brsapi.parsers",
+  "brsapi.services.sync_service",
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result"
+ ],
+ "jobs.definitions.brsapi_ready_check_job": [
+  "brsapi.readiness",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result"
+ ],
+ "jobs.definitions.codal_jobs": [
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.codal_attachment_service",
+  "services.codal_service"
+ ],
+ "jobs.definitions.feature_store_jobs": [
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "scripts.build_feature_store",
+  "scripts.build_screener_scores"
+ ],
+ "jobs.definitions.fund_jobs": [
+  "brsapi.services.query_service",
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.fund_service",
+  "services.fund_sync_service"
+ ],
+ "jobs.definitions.housekeeping_jobs": [
+  "core.cache",
+  "core.logging",
+  "integrations.filesystems.local_storage",
+  "integrations.filesystems.retention_manager",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.materialized_view_service"
+ ],
+ "jobs.definitions.macro_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.macro_service"
+ ],
+ "jobs.definitions.market_data_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.quote_service"
+ ],
+ "jobs.definitions.ml_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "ml.model_loader",
+  "services.inference_service",
+  "services.training_service"
+ ],
+ "jobs.definitions.news_jobs": [
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.news_ingestion"
+ ],
+ "jobs.definitions.paper_trading_job": [
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.paper_trading_service",
+  "services.quant_signal_orchestrator"
+ ],
+ "jobs.definitions.recommendation_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.recommendation_service"
+ ],
+ "jobs.definitions.reference_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.symbol_service"
+ ],
+ "jobs.definitions.screener_jobs": [
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.screener110_service"
+ ],
+ "jobs.definitions.signal_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.signal_service"
+ ],
+ "jobs.definitions.sync_jobs": [
+  "brsapi.client",
+  "brsapi.config",
+  "brsapi.models",
+  "brsapi.parsers",
+  "brsapi.services.sync_service",
+  "core.database",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "jobs.market_hours",
+  "services.news_ingestion"
+ ],
+ "jobs.fund_sync": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.job_dispatcher": [
+  "core.ids",
+  "core.logging",
+  "jobs.deduplication",
+  "jobs.job_context",
+  "jobs.job_registry",
+  "jobs.job_result",
+  "jobs.locking",
+  "jobs.registry",
+  "jobs.retry_policy"
+ ],
+ "jobs.job_registry": [
+  "core.logging",
+  "jobs.base_job"
+ ],
+ "jobs.locking": [
+  "core.cache",
+  "core.logging"
+ ],
+ "jobs.macro_sync": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.market_data_jobs": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.quote_service"
+ ],
+ "jobs.market_hours": [
+  "core.logging"
+ ],
+ "jobs.market_sync": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.model_retraining": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.model_training": [
+  "core.logging",
+  "core.result",
+  "ml.model_loader"
+ ],
+ "jobs.news_sync": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.queue_consumer": [
+  "core.cache",
+  "core.config",
+  "core.logging",
+  "jobs.job_context",
+  "jobs.job_dispatcher"
+ ],
+ "jobs.queue_publisher": [
+  "core.cache",
+  "core.config",
+  "core.ids",
+  "core.logging"
+ ],
+ "jobs.reconciliation": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.registry": [
+  "jobs.job_registry"
+ ],
+ "jobs.replay": [
+  "core.time.timezone"
+ ],
+ "jobs.reports_publish": [
+  "core.logging",
+  "core.result"
+ ],
+ "jobs.retry_policy": [
+  "core.logging"
+ ],
+ "jobs.risk_monitor": [
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result",
+  "services.live_risk_monitor"
+ ],
+ "jobs.scheduler": [
+  "core.logging"
+ ],
+ "jobs.signal_generation": [
+  "core.logging",
+  "core.result"
+ ],
+ "ml": [
+  "ml.contracts",
+  "ml.registry",
+  "ml.types"
+ ],
+ "ml.artifacts": [
+  "core.config",
+  "core.logging",
+  "core.paths",
+  "ml.types"
+ ],
+ "ml.contracts": [
+  "ml.types"
+ ],
+ "ml.datasets": [
+  "ml.datasets.augmentation",
+  "ml.datasets.base",
+  "ml.datasets.builders",
+  "ml.datasets.cache",
+  "ml.datasets.labeling",
+  "ml.datasets.loaders",
+  "ml.datasets.registry",
+  "ml.datasets.sampling",
+  "ml.datasets.splitting",
+  "ml.datasets.validation"
+ ],
+ "ml.datasets.base": [
+  "ml.types"
+ ],
+ "ml.datasets.builders": [
+  "ml.datasets.base",
+  "ml.datasets.labeling",
+  "ml.datasets.loaders",
+  "ml.datasets.splitting",
+  "ml.types"
+ ],
+ "ml.datasets.cache": [
+  "core.logging"
+ ],
+ "ml.datasets.labeling": [
+  "ml.types"
+ ],
+ "ml.datasets.loaders": [
+  "core.logging",
+  "core.result"
+ ],
+ "ml.datasets.registry": [
+  "core.logging"
+ ],
+ "ml.datasets.sampling": [
+  "ml.types"
+ ],
+ "ml.datasets.splitting": [
+  "ml.types"
+ ],
+ "ml.datasets.validation": [
+  "core.result"
+ ],
+ "ml.evaluation": [
+  "ml.evaluation.benchmark",
+  "ml.evaluation.classification_report",
+  "ml.evaluation.comparison",
+  "ml.evaluation.confusion_matrix",
+  "ml.evaluation.cross_validation",
+  "ml.evaluation.metrics",
+  "ml.evaluation.regression_metrics",
+  "ml.evaluation.roc",
+  "ml.evaluation.stability"
+ ],
+ "ml.evaluation.cross_validation": [
+  "core.result"
+ ],
+ "ml.experiments": [
+  "core.logging"
+ ],
+ "ml.features": [
+  "ml.features.cross_sectional_features",
+  "ml.features.fundamental_features",
+  "ml.features.macro_features",
+  "ml.features.news_features",
+  "ml.features.normalization",
+  "ml.features.price_features",
+  "ml.features.selection",
+  "ml.features.store",
+  "ml.features.technical_features",
+  "ml.features.volume_features"
+ ],
+ "ml.features.base": [
+  "ml.types"
+ ],
+ "ml.features.candlestick_features": [
+  "core.logging",
+  "ml.features.base",
+  "ml.types"
+ ],
+ "ml.features.microstructure_features": [
+  "ml.features.base",
+  "ml.types"
+ ],
+ "ml.features.price_features": [
+  "ml.features.base",
+  "ml.types"
+ ],
+ "ml.features.sequence_window": [
+  "core.logging"
+ ],
+ "ml.features.store": [
+  "core.logging",
+  "core.paths"
+ ],
+ "ml.features.technical_features": [
+  "core.logging",
+  "ml.features.base",
+  "ml.types"
+ ],
+ "ml.features.trade_features": [
+  "ml.features.base",
+  "ml.types"
+ ],
+ "ml.features.volume_features": [
+  "core.logging",
+  "ml.features.base",
+  "ml.types"
+ ],
+ "ml.global_registry": [
+  "ml.model_registry"
+ ],
+ "ml.inference": [
+  "ml.inference.batch_predictor",
+  "ml.inference.cache",
+  "ml.inference.drift_detector",
+  "ml.inference.label_encoder",
+  "ml.inference.logger",
+  "ml.inference.pipeline",
+  "ml.inference.predictor",
+  "ml.inference.threshold_optimizer",
+  "ml.inference.validator"
+ ],
+ "ml.inference.logger": [
+  "core.logging"
+ ],
+ "ml.inference.predictor": [
+  "core.logging",
+  "core.result",
+  "ml.artifacts",
+  "ml.types"
+ ],
+ "ml.model_loader": [
+  "core.paths"
+ ],
+ "ml.models": [
+  "ml.global_registry",
+  "ml.models.base",
+  "ml.models.checkpointer",
+  "ml.models.deep.cnn",
+  "ml.models.deep.gru",
+  "ml.models.deep.lstm",
+  "ml.models.deep.transformer",
+  "ml.models.ensembler",
+  "ml.models.explainer",
+  "ml.models.interpreter",
+  "ml.models.registry",
+  "ml.models.serializer",
+  "ml.models.shallow.linear_models",
+  "ml.models.shallow.tree_models",
+  "ml.models.sweeper",
+  "ml.models.versioning"
+ ],
+ "ml.models.base": [
+  "ml.types"
+ ],
+ "ml.models.checkpointer": [
+  "core.paths"
+ ],
+ "ml.models.deep": [
+  "ml.models.deep.attention",
+  "ml.models.deep.autoencoder",
+  "ml.models.deep.base_deep",
+  "ml.models.deep.cnn",
+  "ml.models.deep.gru",
+  "ml.models.deep.lstm",
+  "ml.models.deep.rnn",
+  "ml.models.deep.tcn",
+  "ml.models.deep.transformer"
+ ],
+ "ml.models.deep.base_deep": [
+  "core.logging",
+  "core.paths",
+  "ml.models.base",
+  "ml.types"
+ ],
+ "ml.models.deep.cnn": [
+  "core.logging",
+  "ml.models.deep.base_deep",
+  "ml.types"
+ ],
+ "ml.models.deep.gru": [
+  "core.logging",
+  "ml.models.deep.base_deep",
+  "ml.types"
+ ],
+ "ml.models.deep.lstm": [
+  "core.logging",
+  "ml.models.deep.base_deep",
+  "ml.types"
+ ],
+ "ml.models.deep.transformer": [
+  "core.logging",
+  "ml.models.deep.base_deep",
+  "ml.types"
+ ],
+ "ml.models.ensemble": [
+  "ml.models.ensemble.bagging",
+  "ml.models.ensemble.base_ensemble",
+  "ml.models.ensemble.blending",
+  "ml.models.ensemble.boosting",
+  "ml.models.ensemble.cascade",
+  "ml.models.ensemble.mixture_of_experts",
+  "ml.models.ensemble.stacking",
+  "ml.models.ensemble.voting",
+  "ml.models.ensemble.weighted_average"
+ ],
+ "ml.models.ensemble.base_ensemble": [
+  "core.logging",
+  "core.paths",
+  "ml.models.base",
+  "ml.types"
+ ],
+ "ml.models.ensemble.blending": [
+  "core.logging",
+  "core.paths",
+  "ml.models.base",
+  "ml.models.ensemble.base_ensemble",
+  "ml.types"
+ ],
+ "ml.models.ensemble.stacking": [
+  "core.logging",
+  "core.paths",
+  "ml.models.base",
+  "ml.models.ensemble.base_ensemble",
+  "ml.types"
+ ],
+ "ml.models.ensemble.voting": [
+  "core.logging",
+  "ml.models.ensemble.base_ensemble",
+  "ml.types"
+ ],
+ "ml.models.registry": [
+  "core.logging",
+  "ml.models.base"
+ ],
+ "ml.models.serializer": [
+  "core.logging",
+  "core.paths"
+ ],
+ "ml.models.shallow": [
+  "ml.models.shallow.bayesian_models",
+  "ml.models.shallow.calibration",
+  "ml.models.shallow.ensemble_shallow",
+  "ml.models.shallow.knn_models",
+  "ml.models.shallow.linear_models",
+  "ml.models.shallow.neural_net_shallow",
+  "ml.models.shallow.regularization",
+  "ml.models.shallow.svm_models",
+  "ml.models.shallow.tree_models"
+ ],
+ "ml.models.shallow.advanced_models": [
+  "core.paths",
+  "ml.models.base",
+  "ml.models.registry",
+  "ml.types"
+ ],
+ "ml.models.shallow.boosting_models": [
+  "core.paths",
+  "ml.models.base",
+  "ml.models.registry",
+  "ml.types"
+ ],
+ "ml.models.shallow.linear_models": [
+  "core.paths",
+  "ml.models.base",
+  "ml.models.registry",
+  "ml.types"
+ ],
+ "ml.models.shallow.tree_models": [
+  "core.paths",
+  "ml.models.base",
+  "ml.models.registry",
+  "ml.types"
+ ],
+ "ml.policies": [
+  "core.logging"
+ ],
+ "ml.registry": [
+  "core.logging",
+  "ml.types"
+ ],
+ "ml.train_weight_optimizer": [
+  "core.database",
+  "core.logging",
+  "ml.weight_validator"
+ ],
+ "ml.training": [
+  "ml.training.callbacks",
+  "ml.training.cv_trainer",
+  "ml.training.dataloader",
+  "ml.training.distributed",
+  "ml.training.early_stopping",
+  "ml.training.hyperparameter_tuning",
+  "ml.training.losses",
+  "ml.training.lr_scheduler",
+  "ml.training.optimizer",
+  "ml.training.trainer"
+ ],
+ "ml.training.trainer": [
+  "core.logging",
+  "core.result",
+  "ml.evaluation.metrics",
+  "ml.models.base",
+  "ml.models.registry",
+  "ml.types"
+ ],
+ "ml.weight_validator": [
+  "backtesting.experiment.purged_walk_forward",
+  "core.logging"
+ ],
+ "repositories.alert_repository": [
+  "core.result",
+  "domain.alerts.entities",
+  "domain.common.base_entity",
+  "models.alert",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.backtest_repository": [
+  "core.result",
+  "domain.backtest.entities",
+  "domain.backtest.trades",
+  "domain.common.enum_types",
+  "models.backtest",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.base_repository": [
+  "core.logging",
+  "core.result"
+ ],
+ "repositories.codal_repository": [
+  "core.result",
+  "domain.codal.disclosure",
+  "models.codal",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.db_base": [
+  "core.ids",
+  "core.logging",
+  "core.result"
+ ],
+ "repositories.fund_repository": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.funds.entities",
+  "models.fund",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.generated_strategy_repository": [
+  "core.result",
+  "models.generated_strategy"
+ ],
+ "repositories.indicator_repository": [
+  "core.result",
+  "domain.analytics.indicator",
+  "repositories.base_repository"
+ ],
+ "repositories.instrument_repository": [
+  "core.result",
+  "domain.common.enum_types",
+  "domain.instruments.instrument",
+  "models.instrument",
+  "repositories.base_repository",
+  "repositories.db_base",
+  "services.symbol_catalog"
+ ],
+ "repositories.macro_repository": [
+  "core.result",
+  "domain.macro.entities",
+  "models.macro",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.market_repository": [
+  "core.result",
+  "domain.common.base_entity",
+  "models.market",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.ml_repository": [
+  "core.result",
+  "domain.common.base_entity",
+  "domain.common.enum_types",
+  "domain.ml.entities",
+  "models.ml",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.news_repository": [
+  "core.result",
+  "domain.news.news_item",
+  "models.news",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.orderbook_repository": [
+  "core.result",
+  "domain.orderbook.entities",
+  "models.orderbook",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.portfolio_repository": [
+  "core.result",
+  "domain.portfolios.portfolio",
+  "models.portfolio",
+  "repositories.db_base"
+ ],
+ "repositories.prediction_repository": [
+  "core.ids",
+  "core.result",
+  "models.ml"
+ ],
+ "repositories.quote_repository": [
+  "core.result",
+  "domain.market_data.quote",
+  "models.quote",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.recommendation_repository": [
+  "core.result",
+  "domain.analytics.recommendation",
+  "repositories.base_repository"
+ ],
+ "repositories.signal_repository": [
+  "core.result",
+  "domain.analytics.signal",
+  "domain.common.enum_types",
+  "models.signal",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.trade_repository": [
+  "core.result",
+  "domain.common.base_entity",
+  "models.trade",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "repositories.user_repository": [
+  "core.result",
+  "domain.common.base_entity",
+  "models.user",
+  "repositories.base_repository",
+  "repositories.db_base"
+ ],
+ "services": [
+  "services.analytics_service",
+  "services.backtest_service",
+  "services.codal_service",
+  "services.inference_service",
+  "services.market_service",
+  "services.news_service",
+  "services.quote_service",
+  "services.recommendation_service",
+  "services.report_service",
+  "services.signal_service",
+  "services.symbol_service",
+  "services.training_service"
+ ],
+ "services.accuracy_outcome_queue": [
+  "apps.api.metrics",
+  "core.database",
+  "core.ids"
+ ],
+ "services.adaptive_engine": [
+  "core.indicators",
+  "core.logging"
+ ],
+ "services.alert_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "integrations.notifications.telegram_sender",
+  "models.alert"
+ ],
+ "services.analytics_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.analytics.indicator",
+  "repositories.indicator_repository"
+ ],
+ "services.auto_retrain_pipeline": [
+  "core.database",
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "services.ml_signal_connector",
+  "services.signal_accuracy_tracker",
+  "services.signal_feature_pipeline"
+ ],
+ "services.backtest_framework": [
+  "core.logging"
+ ],
+ "services.backtest_service": [
+  "backtesting.data_quality.tick_validator",
+  "backtesting.engine.adv",
+  "backtesting.engine.broker",
+  "backtesting.engine.simulator",
+  "backtesting.metrics.drawdown_metrics",
+  "backtesting.metrics.return_metrics",
+  "backtesting.metrics.risk_free_rate",
+  "backtesting.metrics.risk_metrics",
+  "backtesting.metrics.trade_metrics",
+  "backtesting.risk.stop_loss",
+  "backtesting.risk.take_profit",
+  "backtesting.strategies.base",
+  "backtesting.strategies.registry",
+  "backtesting.types",
+  "core.config",
+  "core.database",
+  "core.db_utils",
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.backtest.entities",
+  "ml.artifacts",
+  "ml.features.price_features",
+  "ml.features.technical_features",
+  "ml.models.registry",
+  "ml.types",
+  "repositories.backtest_repository",
+  "schemas.api.backtest"
+ ],
+ "services.block_trade_detector": [
+  "core.logging"
+ ],
+ "services.cascade_engine": [
+  "backtesting.engine.simulator",
+  "backtesting.strategies.registry",
+  "core.logging",
+  "core.result",
+  "services.backtest_service"
+ ],
+ "services.chat": [
+  "services.chat.chart_generator",
+  "services.chat.chat_engine",
+  "services.chat.comparison_engine",
+  "services.chat.compound_splitter",
+  "services.chat.dialog_manager",
+  "services.chat.entity_extractor",
+  "services.chat.intent_classifier",
+  "services.chat.learning_engine",
+  "services.chat.news_analyzer",
+  "services.chat.news_fetcher",
+  "services.chat.news_integration",
+  "services.chat.personalizer",
+  "services.chat.sentiment_analyzer",
+  "services.chat.suggestion_engine"
+ ],
+ "services.chat.chat_engine": [
+  "apps.api.dependencies",
+  "apps.api.endpoints.funds",
+  "core.logging",
+  "services.chat.chart_generator",
+  "services.chat.comparison_engine",
+  "services.chat.compound_splitter",
+  "services.chat.dialog_manager",
+  "services.chat.entity_extractor",
+  "services.chat.intent_classifier",
+  "services.chat.learning_engine",
+  "services.chat.news_integration",
+  "services.chat.personalizer",
+  "services.chat.sentiment_analyzer",
+  "services.chat.suggestion_engine",
+  "services.fund_explainer",
+  "services.fund_scoring",
+  "services.fund_service",
+  "services.screener_ai_report_service"
+ ],
+ "services.chat.comparison_engine": [
+  "services.chat.chart_generator",
+  "services.chat.news_integration"
+ ],
+ "services.chat.entity_extractor": [
+  "core.logging"
+ ],
+ "services.chat.intent_classifier": [
+  "core.logging"
+ ],
+ "services.chat.news_fetcher": [
+  "core.logging"
+ ],
+ "services.chat.news_integration": [
+  "services.chat.news_analyzer",
+  "services.chat.news_fetcher"
+ ],
+ "services.chat.suggestion_engine": [
+  "services.chat.dialog_manager",
+  "services.chat.personalizer"
+ ],
+ "services.codal_accounting_service": [
+  "core.config",
+  "core.logging"
+ ],
+ "services.codal_analysis.account_mapper": [
+  "core.logging"
+ ],
+ "services.codal_analysis.amendment_tracker": [
+  "core.logging"
+ ],
+ "services.codal_analysis.analysis_engine": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_confirmations": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_control_testing": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_documentation": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_estimates": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_evidence": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_fraud": [
+  "core.logging",
+  "services.codal_analysis.analysis_engine"
+ ],
+ "services.codal_analysis.audit_governance_communication": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_materiality": [
+  "core.logging",
+  "services.codal_analysis.analysis_engine"
+ ],
+ "services.codal_analysis.audit_misstatement": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_opinion": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_planning": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_quality_control": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_related_parties": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_representations": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_risk_assessment": [
+  "core.logging",
+  "services.codal_analysis.analysis_engine"
+ ],
+ "services.codal_analysis.audit_sampling": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_specific_evidence": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_subsequent_events": [
+  "core.logging"
+ ],
+ "services.codal_analysis.audit_workflow": [
+  "core.logging",
+  "services.codal_analysis.analysis_engine"
+ ],
+ "services.codal_analysis.benchmark": [
+  "core.logging",
+  "services.codal_analysis.analysis_engine"
+ ],
+ "services.codal_analysis.forensic": [
+  "core.logging"
+ ],
+ "services.codal_analysis.ifrs_compliance": [
+  "core.logging"
+ ],
+ "services.codal_analysis.judgment_simulator": [
+  "core.logging"
+ ],
+ "services.codal_analysis.lineage": [
+  "core.logging"
+ ],
+ "services.codal_analysis.nlp_analyzer": [
+  "core.logging"
+ ],
+ "services.codal_analysis.point_in_time": [
+  "core.logging"
+ ],
+ "services.codal_analysis.report_generator": [
+  "core.logging",
+  "services.codal_analysis.analysis_engine",
+  "services.codal_analysis.benchmark",
+  "services.codal_analysis.scoring"
+ ],
+ "services.codal_analysis.scoring": [
+  "services.codal_analysis.analysis_engine"
+ ],
+ "services.codal_analysis.semantic_mapper": [
+  "core.logging",
+  "services.codal_analysis.account_mapper"
+ ],
+ "services.codal_analysis.service": [
+  "core.logging",
+  "services.codal_accounting_service",
+  "services.codal_analysis.account_mapper",
+  "services.codal_analysis.analysis_engine",
+  "services.codal_analysis.audit_confirmations",
+  "services.codal_analysis.audit_control_testing",
+  "services.codal_analysis.audit_documentation",
+  "services.codal_analysis.audit_estimates",
+  "services.codal_analysis.audit_evidence",
+  "services.codal_analysis.audit_fraud",
+  "services.codal_analysis.audit_governance_communication",
+  "services.codal_analysis.audit_materiality",
+  "services.codal_analysis.audit_misstatement",
+  "services.codal_analysis.audit_opinion",
+  "services.codal_analysis.audit_planning",
+  "services.codal_analysis.audit_quality_control",
+  "services.codal_analysis.audit_related_parties",
+  "services.codal_analysis.audit_representations",
+  "services.codal_analysis.audit_risk_assessment",
+  "services.codal_analysis.audit_sampling",
+  "services.codal_analysis.audit_specific_evidence",
+  "services.codal_analysis.audit_subsequent_events",
+  "services.codal_analysis.audit_workflow",
+  "services.codal_analysis.benchmark",
+  "services.codal_analysis.forensic",
+  "services.codal_analysis.ifrs_compliance",
+  "services.codal_analysis.judgment_simulator",
+  "services.codal_analysis.nlp_analyzer",
+  "services.codal_analysis.report_generator",
+  "services.codal_analysis.scoring",
+  "services.codal_analysis.semantic_mapper",
+  "services.codal_analysis.validation"
+ ],
+ "services.codal_analysis.validation": [
+  "core.logging"
+ ],
+ "services.codal_attachment_service": [
+  "brsapi.models.codal",
+  "core.exceptions",
+  "core.logging",
+  "core.paths",
+  "integrations.filesystems.s3_compatible_storage"
+ ],
+ "services.codal_download_service": [
+  "core.db_utils",
+  "core.fix_network",
+  "core.ids",
+  "core.logging",
+  "core.paths",
+  "models.codal_financial",
+  "services.codal_accounting_service",
+  "services.codal_financial_import_service"
+ ],
+ "services.codal_financial_import_service": [
+  "core.ids",
+  "core.logging",
+  "models.codal_financial",
+  "services.codal_accounting_service"
+ ],
+ "services.codal_financial_service": [
+  "core.logging",
+  "models.codal_financial",
+  "services.codal_accounting_service"
+ ],
+ "services.codal_import_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.codal.disclosure",
+  "repositories.codal_repository",
+  "repositories.instrument_repository",
+  "services.csv_utils"
+ ],
+ "services.codal_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.codal.disclosure",
+  "repositories.codal_repository"
+ ],
+ "services.compose_service": [
+  "backtesting.composer.phase_runner",
+  "backtesting.composer.pre_filter",
+  "backtesting.composer.quality_filter",
+  "backtesting.composer.strategy_composer",
+  "core.database",
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "repositories.generated_strategy_repository",
+  "services.backtest_service"
+ ],
+ "services.confidence_scorer": [
+  "core.calibration_bootstrap",
+  "core.database",
+  "core.db_utils",
+  "core.indicators",
+  "core.logging"
+ ],
+ "services.data_mesh": [
+  "core.logging"
+ ],
+ "services.diagnostics_runner": [
+  "backtesting.engine.backtest_engine",
+  "backtesting.strategies.registry",
+  "core.database",
+  "core.logging",
+  "models.instrument",
+  "models.market_data",
+  "models.ml"
+ ],
+ "services.dynamic_weighting": [
+  "core.logging",
+  "services.screener110_service"
+ ],
+ "services.ensemble_engine": [
+  "core.logging"
+ ],
+ "services.ensemble_optimizer": [
+  "core.database",
+  "core.logging",
+  "core.result"
+ ],
+ "services.event_backtest": [
+  "core.logging"
+ ],
+ "services.fake_queue_detector": [
+  "core.logging"
+ ],
+ "services.feature_engine": [
+  "core.indicators",
+  "core.logging"
+ ],
+ "services.fund_explainer": [
+  "core.logging",
+  "services.fund_scoring"
+ ],
+ "services.fund_service": [
+  "core.logging",
+  "core.result",
+  "domain.funds.entities",
+  "domain.funds.nav",
+  "repositories.base_repository",
+  "repositories.fund_repository"
+ ],
+ "services.fund_sync_service": [
+  "core.logging"
+ ],
+ "services.fundamental_service": [
+  "core.logging",
+  "core.result"
+ ],
+ "services.gap_prediction": [
+  "core.logging"
+ ],
+ "services.global_training_service": [
+  "services.training_service"
+ ],
+ "services.gold": [
+  "services.gold.arbitrage",
+  "services.gold.calculator",
+  "services.gold.futures_risk",
+  "services.gold.kill_switch",
+  "services.gold.live_service",
+  "services.gold.position_service"
+ ],
+ "services.gold.live_service": [
+  "brsapi.services.query_service",
+  "core.logging",
+  "core.time"
+ ],
+ "services.gold.position_service": [
+  "core.ids",
+  "core.logging",
+  "core.time",
+  "models.gold",
+  "services.gold.futures_risk"
+ ],
+ "services.hidden_accumulation": [
+  "core.db_utils",
+  "core.logging"
+ ],
+ "services.historical_data_service": [
+  "core.logging",
+  "core.result"
+ ],
+ "services.historical_level_analyzer": [
+  "core.db_utils",
+  "core.logging"
+ ],
+ "services.history_backfill_service": [
+  "brsapi.client",
+  "brsapi.services.sync_service",
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "jobs.base_job",
+  "jobs.job_context",
+  "jobs.job_result"
+ ],
+ "services.ime_signal_adapter": [
+  "services.ime_signal_factory",
+  "services.kill_switch"
+ ],
+ "services.ime_signal_factory": [
+  "core.config.ime_engine",
+  "services.kill_switch"
+ ],
+ "services.ime_slippage_simulator": [
+  "services.ime_signal_factory"
+ ],
+ "services.inference_service": [
+  "core.logging",
+  "core.result",
+  "ml.artifacts",
+  "ml.features.price_features",
+  "ml.features.technical_features",
+  "ml.models.registry",
+  "ml.models.shallow.linear_models",
+  "ml.models.shallow.tree_models",
+  "ml.types",
+  "models.ml",
+  "repositories.quote_repository",
+  "services.global_training_service",
+  "services.training_service"
+ ],
+ "services.instrument_import_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.common.enum_types",
+  "domain.instruments.instrument",
+  "repositories.instrument_repository"
+ ],
+ "services.instrument_service": [
+  "core.logging",
+  "core.result",
+  "repositories.instrument_repository"
+ ],
+ "services.iran_fear_greed_index": [
+  "core.logging"
+ ],
+ "services.job_service": [
+  "core.logging",
+  "core.result"
+ ],
+ "services.kill_switch": [
+  "core.cache_manager",
+  "core.security.ime_rbac"
+ ],
+ "services.live_risk_monitor": [
+  "core.database",
+  "core.logging",
+  "integrations.notifications",
+  "models.portfolio",
+  "repositories.portfolio_repository"
+ ],
+ "services.macro_service": [
+  "brsapi.config",
+  "brsapi.parsers",
+  "core.logging",
+  "core.result"
+ ],
+ "services.manipulation_detector": [
+  "core.logging"
+ ],
+ "services.market_cache": [
+  "core.cache_manager",
+  "core.logging"
+ ],
+ "services.market_health_index": [
+  "core.logging"
+ ],
+ "services.market_service": [
+  "brsapi.config",
+  "brsapi.models.tsetmc",
+  "brsapi.parsers",
+  "brsapi.repositories",
+  "core.database",
+  "core.logging",
+  "core.result",
+  "domain.market_data.quote",
+  "repositories.instrument_repository",
+  "repositories.quote_repository"
+ ],
+ "services.market_watch_helper": [
+  "core.logging"
+ ],
+ "services.mass_scanner_service": [
+  "backtesting.composer.indicator_registry",
+  "backtesting.engine.simulator",
+  "backtesting.strategies.signal_strategy",
+  "core.database",
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "services.backtest_service"
+ ],
+ "services.materialized_view_service": [
+  "core.database",
+  "core.logging"
+ ],
+ "services.ml_signal_connector": [
+  "core.database",
+  "core.indicators",
+  "core.logging",
+  "core.result",
+  "ml.artifacts",
+  "ml.model_loader",
+  "ml.models.registry",
+  "services.signal_feature_pipeline",
+  "services.walk_forward_validator"
+ ],
+ "services.monitoring_service": [
+  "core.logging",
+  "core.result",
+  "monitoring.health",
+  "repositories.instrument_repository",
+  "services.tsetmc_client"
+ ],
+ "services.multi_market_signal_engine": [
+  "brsapi.models.commodity",
+  "brsapi.models.crypto",
+  "brsapi.models.ime",
+  "brsapi.models.tsetmc",
+  "core.database",
+  "core.indicators",
+  "core.logging",
+  "models.codal"
+ ],
+ "services.multi_timeframe_confirmer": [
+  "core.database",
+  "core.logging",
+  "services.multi_market_signal_engine"
+ ],
+ "services.news_dedup": [
+  "core.logging"
+ ],
+ "services.news_filter": [
+  "core.logging"
+ ],
+ "services.news_ingestion": [
+  "core.ids",
+  "core.logging",
+  "domain.news.news_item",
+  "providers.news.domestic.rss_domestic_provider",
+  "providers.news.parser",
+  "providers.news.sentiment.classifier",
+  "services.news_dedup",
+  "services.news_filter",
+  "services.news_service"
+ ],
+ "services.news_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.news.news_item",
+  "repositories.news_repository"
+ ],
+ "services.options_analytics": [
+  "core.logging",
+  "domain.options.pricing"
+ ],
+ "services.options_service": [
+  "core.logging"
+ ],
+ "services.orderbook_service": [
+  "brsapi.config",
+  "brsapi.parsers",
+  "core.logging",
+  "core.result"
+ ],
+ "services.paper_trading_service": [
+  "backtesting.analytics.significance",
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "core.time",
+  "models.paper_trading"
+ ],
+ "services.persian_sentiment_service": [
+  "core.logging"
+ ],
+ "services.populate_profiles_service": [
+  "core.logging",
+  "models.screener"
+ ],
+ "services.portfolio_service": [
+  "core.ids",
+  "core.result",
+  "domain.portfolios.portfolio",
+  "repositories.portfolio_repository"
+ ],
+ "services.probability_calibrator": [
+  "core.calibration_bootstrap",
+  "core.database",
+  "core.db_utils",
+  "core.logging"
+ ],
+ "services.proposal_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "models.approval_gateway"
+ ],
+ "services.quant_signal_orchestrator": [
+  "core.database",
+  "core.db_utils",
+  "core.ids",
+  "core.indicators",
+  "core.logging",
+  "services.auto_retrain_pipeline",
+  "services.confidence_scorer",
+  "services.ml_signal_connector",
+  "services.multi_market_signal_engine",
+  "services.probability_calibrator",
+  "services.signal_accuracy_tracker",
+  "services.signal_decision_engine",
+  "services.signal_feature_pipeline",
+  "services.signal_voting_system",
+  "services.smart_money_service"
+ ],
+ "services.quantitative": [
+  "services.quantitative.bonds",
+  "services.quantitative.commodity",
+  "services.quantitative.derivatives",
+  "services.quantitative.energy",
+  "services.quantitative.funds",
+  "services.quantitative.general",
+  "services.quantitative.intermarket",
+  "services.quantitative.microstructure",
+  "services.quantitative.normalizer",
+  "services.quantitative.scoring",
+  "services.quantitative.statistical",
+  "services.quantitative.stocks"
+ ],
+ "services.query_logger": [
+  "core.logging"
+ ],
+ "services.queue_analysis_service": [
+  "core.logging",
+  "models.queue_analysis",
+  "services.queue_analysis"
+ ],
+ "services.quote_import_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.market_data.quote",
+  "repositories.instrument_repository",
+  "repositories.quote_repository",
+  "services.csv_utils"
+ ],
+ "services.quote_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.market_data.quote",
+  "repositories.instrument_repository",
+  "repositories.quote_repository",
+  "services.tsetmc_client"
+ ],
+ "services.real_return_calculator": [
+  "core.db_utils",
+  "core.logging"
+ ],
+ "services.realtime_quote_service": [
+  "core.logging",
+  "core.result"
+ ],
+ "services.realtime_service": [
+  "core.cache",
+  "core.logging"
+ ],
+ "services.recommendation_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.analytics.recommendation",
+  "domain.common.enum_types",
+  "repositories.recommendation_repository"
+ ],
+ "services.report_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "reports.builders.backtest_report_builder",
+  "reports.builders.market_report_builder",
+  "reports.builders.portfolio_report_builder",
+  "reports.builders.symbol_report_builder",
+  "reports.exporters.csv_exporter",
+  "reports.exporters.html_exporter",
+  "reports.exporters.json_exporter",
+  "repositories.portfolio_repository",
+  "services.analytics_service",
+  "services.market_service",
+  "services.quote_service",
+  "services.symbol_service"
+ ],
+ "services.risk_adjusted_filter": [
+  "core.database",
+  "core.logging"
+ ],
+ "services.screener110_service": [
+  "core.indicators",
+  "core.logging",
+  "models.screener"
+ ],
+ "services.screener_ai_report_service": [
+  "core.database",
+  "core.logging",
+  "services.screener110_service"
+ ],
+ "services.screener_service": [
+  "core.db_utils",
+  "services.smart_money.scoring_engine"
+ ],
+ "services.signal_accuracy_tracker": [
+  "apps.api.metrics",
+  "core.config",
+  "core.database",
+  "core.logging",
+  "core.result",
+  "services.accuracy_outcome_queue"
+ ],
+ "services.signal_backtest_engine": [
+  "core.database",
+  "core.db_utils",
+  "core.logging",
+  "core.result",
+  "services.signal_accuracy_tracker"
+ ],
+ "services.signal_circuit_breaker": [
+  "core.cache"
+ ],
+ "services.signal_decision_engine": [
+  "core.database",
+  "core.logging",
+  "services.decision_gate"
+ ],
+ "services.signal_feature_pipeline": [
+  "core.indicators",
+  "core.logging",
+  "ml.types"
+ ],
+ "services.signal_performance_tracker": [
+  "core.logging"
+ ],
+ "services.signal_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.analytics.signal",
+  "domain.common.enum_types",
+  "repositories.signal_repository",
+  "services.multi_market_signal_engine"
+ ],
+ "services.signal_voting_system": [
+  "core.logging",
+  "services.ml_signal_connector",
+  "services.multi_market_signal_engine"
+ ],
+ "services.smart_money": [
+  "services.smart_money.confidence",
+  "services.smart_money.config_loader",
+  "services.smart_money.data_quality",
+  "services.smart_money.feature_store",
+  "services.smart_money.layer1_price_volume",
+  "services.smart_money.layer2_absorption",
+  "services.smart_money.layer3_ownership",
+  "services.smart_money.layer4_compression",
+  "services.smart_money.layer5_relative_strength",
+  "services.smart_money.layer6_breakout",
+  "services.smart_money.layer7_buyer_power",
+  "services.smart_money.layer8_microstructure",
+  "services.smart_money.layer9_breakout_quality",
+  "services.smart_money.normalizer",
+  "services.smart_money.resilience",
+  "services.smart_money.scoring_engine"
+ ],
+ "services.smart_money.config_loader": [
+  "core.logging"
+ ],
+ "services.smart_money.data_quality": [
+  "core.logging"
+ ],
+ "services.smart_money.feature_store": [
+  "core.logging"
+ ],
+ "services.smart_money.layer1_price_volume": [
+  "core.logging",
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer2_absorption": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer3_ownership": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer4_compression": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer5_relative_strength": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer6_breakout": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer7_buyer_power": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer8_microstructure": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.layer9_breakout_quality": [
+  "services.smart_money.normalizer"
+ ],
+ "services.smart_money.parallel_engine": [
+  "services.smart_money.scoring_engine"
+ ],
+ "services.smart_money.phase_alerts": [
+  "core.logging"
+ ],
+ "services.smart_money.resilience": [
+  "core.logging"
+ ],
+ "services.smart_money.scoring_engine": [
+  "services.screener_service",
+  "services.smart_money.confidence",
+  "services.smart_money.config_loader",
+  "services.smart_money.data_quality",
+  "services.smart_money.feature_store",
+  "services.smart_money.layer1_price_volume",
+  "services.smart_money.layer2_absorption",
+  "services.smart_money.layer3_ownership",
+  "services.smart_money.layer4_compression",
+  "services.smart_money.layer5_relative_strength",
+  "services.smart_money.layer6_breakout",
+  "services.smart_money.layer7_buyer_power",
+  "services.smart_money.layer8_microstructure",
+  "services.smart_money.layer9_breakout_quality"
+ ],
+ "services.smart_money_service": [
+  "core.logging",
+  "core.result",
+  "services.smart_money.scoring_engine"
+ ],
+ "services.smart_screener_v2": [
+  "services.smart_money.advanced_analytics",
+  "services.smart_money.scoring_engine"
+ ],
+ "services.statistical_acceptance_gate": [
+  "core.config.ime_engine"
+ ],
+ "services.stock_assistant_service": [
+  "backtesting.strategies.registry",
+  "core.db_utils",
+  "core.logging"
+ ],
+ "services.strategy_generator": [
+  "backtesting.engine.simulator",
+  "backtesting.strategies.registry",
+  "core.database",
+  "core.logging",
+  "core.result",
+  "services.backtest_service"
+ ],
+ "services.symbol_catalog": [
+  "brsapi.constants",
+  "core.logging",
+  "services.fund_sync_service",
+  "services.watchlist_service"
+ ],
+ "services.symbol_detail_service": [
+  "brsapi.client",
+  "brsapi.config",
+  "brsapi.parsers.tsetmc",
+  "core.db_utils",
+  "core.logging"
+ ],
+ "services.symbol_service": [
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "domain.instruments.instrument",
+  "repositories.instrument_repository"
+ ],
+ "services.sync_master_service": [
+  "brsapi.client",
+  "brsapi.models",
+  "brsapi.services.sync_service",
+  "core.fix_network",
+  "core.logging",
+  "scripts.full_populate_profiles",
+  "scripts.update_free_float",
+  "services.codal_download_service"
+ ],
+ "services.trade_service": [
+  "brsapi.config",
+  "brsapi.models",
+  "brsapi.parsers",
+  "brsapi.repositories",
+  "core.database",
+  "core.logging",
+  "core.result"
+ ],
+ "services.training_service": [
+  "core.logging",
+  "core.result",
+  "ml.artifacts",
+  "ml.evaluation.metrics",
+  "ml.features.price_features",
+  "ml.features.technical_features",
+  "ml.model_loader",
+  "ml.models.registry",
+  "ml.models.shallow.linear_models",
+  "ml.models.shallow.tree_models",
+  "ml.training.trainer",
+  "ml.types",
+  "repositories.quote_repository"
+ ],
+ "services.tsetmc_client": [
+  "core.config",
+  "core.result"
+ ],
+ "services.unified_assistant_service": [
+  "core.logging",
+  "services.market_watch_helper",
+  "services.query_logger",
+  "services.screener_ai_report_service",
+  "services.stock_assistant_service"
+ ],
+ "services.user_service": [
+  "core.cache",
+  "core.enums.rbac",
+  "core.ids",
+  "core.logging",
+  "core.result",
+  "core.security",
+  "core.security.secrets",
+  "core.security.tokens",
+  "core.security.totp",
+  "integrations.notifications.email_sender",
+  "integrations.notifications.sms_sender",
+  "integrations.notifications.telegram_sender",
+  "models.login_history",
+  "models.user"
+ ],
+ "services.vault_service": [
+  "core.logging"
+ ],
+ "services.walk_forward_validator": [
+  "core.logging",
+  "core.result",
+  "ml.models.registry",
+  "ml.types",
+  "services.signal_feature_pipeline",
+  "services.statistical_acceptance_gate"
+ ],
+ "services.watchlist_service": [
+  "core.db_utils",
+  "core.logging",
+  "core.result",
+  "services.symbol_catalog"
+ ]
+}

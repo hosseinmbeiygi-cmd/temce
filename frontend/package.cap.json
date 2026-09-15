@@ -1,0 +1,23 @@
+{
+  "name": "golddesk-mobile",
+  "version": "2.0.0",
+  "description": "GoldDesk native mobile app (iOS + Android) — built with Capacitor",
+  "main": "capacitor.config.ts",
+  "scripts": {
+    "build:android": "cap add android && cap sync && cap open android",
+    "build:ios": "cap add ios && cap sync && cap open ios",
+    "sync": "cap sync"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^5.7.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/ios": "^5.7.0",
+    "@capacitor/splash-screen": "^5.0.7",
+    "@capacitor/push-notifications": "^5.0.7",
+    "@capacitor/app": "^5.0.7",
+    "@capacitor/haptics": "^5.0.7",
+    "@capacitor/keyboard": "^5.0.7",
+    "@capacitor/status-bar": "^5.0.7"
+  }
+}

@@ -1,0 +1,3 @@
+from backtesting.analytics.correlation import CorrelationResult, compute_correlation
+from backtesting.analytics.phase_exit_criteria import ALL_PHASES, PhaseCriterion, PhaseExitResult, evaluate_phase
+from backtesting.analytics.significance_tests import bootstrap_expectancy, sign_test, wilcoxon_signed_rank

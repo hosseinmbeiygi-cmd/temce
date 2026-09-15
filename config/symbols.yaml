@@ -1,0 +1,64 @@
+# Canonical symbol registry — single source of truth for gold/FX
+# برای جلوگیری از باگ واحد (ریال/تومان) و نام پراکنده نماد
+symbols:
+  gold_18k:
+    source_symbol: "gold_18k"
+    source: "brsapi"
+    asset_type: "local_gold"
+    currency: "IRR"
+    unit: "gram"
+    purity: 0.75
+    trading_calendar: "iran"
+    description: "طلای 18 عیار داخلی (هر گرم)"
+
+  gold_24k:
+    source_symbol: "gold_24k"
+    source: "brsapi"
+    asset_type: "local_gold"
+    currency: "IRR"
+    unit: "gram"
+    purity: 0.999
+    trading_calendar: "iran"
+
+  ir_coin_emami:
+    source_symbol: "ir_coin_emami"
+    source: "brsapi"
+    asset_type: "local_coin"
+    currency: "IRR"
+    unit: "coin"
+    trading_calendar: "iran"
+
+  usd_irr_free:
+    source_symbol: "usd"
+    source: "brsapi"
+    asset_type: "local_fx"
+    currency: "IRR"
+    unit: "currency"
+    trading_calendar: "iran"
+
+  eur_irr:
+    source_symbol: "eur"
+    source: "brsapi"
+    asset_type: "local_fx"
+    currency: "IRR"
+    unit: "currency"
+    trading_calendar: "iran"
+
+  xau_usd:
+    source_symbol: "GC=F"
+    source: "yfinance"
+    asset_type: "global_gold"
+    currency: "USD"
+    unit: "troy_ounce"
+    trading_calendar: "global"
+
+  dxy:
+    source_symbol: "DX-Y.NYB"
+    source: "yfinance"
+    asset_type: "global_index"
+    currency: "USD"
+    unit: "index"
+    trading_calendar: "global"
+
+# Horizons supported (direct multi-horizon, نه recursive 365 روزه)
+horizons: [1, 3, 7, 14, 30, 90]

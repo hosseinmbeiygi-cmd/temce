@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import DashboardPage from "@/app/page";
 
@@ -7,8 +7,8 @@ import DashboardPage from "@/app/page";
 // The page is a composition shell: it renders DashboardShell + dashboard
 // sections. Those modules pull in next/navigation, recharts and data hooks
 // that are out of scope for this test (and are covered by their own suites),
-// so we mock them and test the page's own logic — the header, the ready gate
-// (skeleton → sections) and that every section mounts — deterministically.
+// so we mock them and test the page's own logic — the header and that every
+// section mounts — deterministically.
 
 // Fixes `Error: invariant expected app router to be mounted` — TopNavbar (via
 // DashboardShell) uses next/navigation hooks without a router context.
@@ -31,13 +31,10 @@ vi.mock("@/components/layout/DashboardShell", () => ({
   default: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/components/layout/DashboardSkeleton", () => ({
-  default: () => <div data-testid="dashboard-skeleton" />,
-}));
-
-// Every dashboard section is stubbed to a marker div. The page mounts them all
-// inside the ready gate — asserting each marker proves the full section set is
-// wired up without dragging charts / data hooks into this test.
+// Every dashboard section is stubbed to a marker div. Asserting each marker
+// proves the full section set is wired up without dragging charts / data
+// hooks into this test. The three recharts widgets load via next/dynamic, so
+// their stubs resolve synchronously through the dynamic import mock below.
 vi.mock("@/components/dashboard/NewsStrip", () => ({
   default: () => <div data-testid="section-NewsStrip" />,
 }));
@@ -105,42 +102,31 @@ const SECTION_TESTIDS = [
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe("DashboardPage", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("renders the page header immediately and shows the skeleton while loading", () => {
+  it("renders the page header immediately", () => {
     render(<DashboardPage />);
 
     expect(screen.getByText("داشبورد بازار سرمایه")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
-    // Sections are gated behind the ready timer — not mounted yet.
-    expect(screen.queryByTestId("section-NewsStrip")).not.toBeInTheDocument();
+    expect(screen.getByText(/نمای زنده قیمت‌ها/)).toBeInTheDocument();
   });
 
-  it("mounts the dashboard sections once the ready gate passes", () => {
+  it("mounts the static dashboard sections on first render", () => {
     render(<DashboardPage />);
 
-    act(() => {
-      vi.advanceTimersByTime(700); // ready timer is 620ms
-    });
-
-    expect(screen.queryByTestId("dashboard-skeleton")).not.toBeInTheDocument();
     expect(screen.getByTestId("section-NewsStrip")).toBeInTheDocument();
     expect(screen.getByTestId("section-QuoteCards")).toBeInTheDocument();
+    expect(screen.getByTestId("section-GlobalMarkets")).toBeInTheDocument();
+    expect(screen.getByTestId("section-IndexCards")).toBeInTheDocument();
     expect(screen.getByTestId("section-TopStocksToday")).toBeInTheDocument();
+    expect(screen.getByTestId("section-MarketMap")).toBeInTheDocument();
   });
 
-  it("mounts every dashboard section after ready without crashing", () => {
+  it("mounts every dashboard section, including lazy-loaded charts", async () => {
     render(<DashboardPage />);
 
-    act(() => {
-      vi.advanceTimersByTime(700);
-    });
+    // The recharts widgets stream in via next/dynamic — await them.
+    expect(await screen.findByTestId("section-TrendChart")).toBeInTheDocument();
+    expect(await screen.findByTestId("section-TripleChartsGroup")).toBeInTheDocument();
+    expect(await screen.findByTestId("section-AssetAllocationPie")).toBeInTheDocument();
 
     for (const testid of SECTION_TESTIDS) {
       expect(screen.getByTestId(testid)).toBeInTheDocument();

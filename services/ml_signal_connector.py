@@ -406,25 +406,32 @@ class MLSignalConnector:
         0.50. Replaces the legacy hard-coded 0.55 (root cause of stale
         37.7% voting accuracy per quant-signal-goal-assessment).
         """
+        from contextlib import aclosing
+
         from sqlalchemy import text
 
         from core.database import get_session
 
         row = None
         try:
-            async with get_session() as session:
-                row = (
-                    await session.execute(
-                        text("""
-                        SELECT COUNT(*) AS n,
-                               COALESCE(AVG(CASE WHEN direction_correct THEN 1.0 ELSE 0.0 END), 0) AS acc
-                        FROM signal_accuracy
-                        WHERE market = :market
-                          AND direction_correct IS NOT NULL
-                    """),
-                        {"market": market},
-                    )
-                ).first()
+            # `get_session()` is an async generator (FastAPI-style dependency),
+            # not an async context manager. `async with` raised TypeError, which
+            # the except below swallowed, silently disabling DB-backed accuracy
+            # (always fell back to the 0.50 bootstrap prior).
+            async with aclosing(get_session()) as _sessions:
+                async for session in _sessions:
+                    row = (
+                        await session.execute(
+                            text("""
+                            SELECT COUNT(*) AS n,
+                                   COALESCE(AVG(CASE WHEN direction_correct THEN 1.0 ELSE 0.0 END), 0) AS acc
+                            FROM signal_accuracy
+                            WHERE market = :market
+                              AND direction_correct IS NOT NULL
+                        """),
+                            {"market": market},
+                        )
+                    ).first()
         except Exception as exc:
             logger.warning("get_accuracy_by_market(%s) DB query failed: %s — using bootstrap", market, exc)
 

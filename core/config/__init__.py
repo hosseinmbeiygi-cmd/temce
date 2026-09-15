@@ -25,9 +25,12 @@ class Settings(BaseSettings):
     workers: int = 1
 
     database_url: str = Field(default="postgresql+asyncpg://market:market@localhost:5432/market", alias="DATABASE_URL")
+    database_replica_url: str | None = Field(default=None, alias="DATABASE_REPLICA_URL")
     database_pool_size: int = 20
     database_max_overflow: int = 30
     database_echo: bool = False
+    # If true, read-only endpoints (screener, analytics, funds overview) use replica
+    database_replica_enabled: bool = Field(default=False, alias="DATABASE_REPLICA_ENABLED")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     redis_default_ttl: int = 300
@@ -174,9 +177,17 @@ class Settings(BaseSettings):
     log_aggregation_enabled: bool = False
     log_aggregation_source: str = "api"
 
+    # Ingestion service boundary (Q2 P1)
+    ingestion_enabled: bool = Field(default=True, alias="INGESTION_ENABLED")
+    ingestion_api_prefix: str = Field(default="/api/v1/ingestion", alias="INGESTION_API_PREFIX")
+    ingestion_max_concurrent: int = Field(default=3, alias="INGESTION_MAX_CONCURRENT")
+
     jobs_max_concurrent: int = 4
     jobs_default_timeout_minutes: int = 30
     scheduler_timezone: str = "Asia/Tehran"
+    # Dead-letter alerting (Q2 P1): if job:dead length exceeds this, Telegram fires
+    dl_alert_threshold: int = Field(default=50, alias="DL_ALERT_THRESHOLD")
+    dl_alert_cooldown_seconds: int = Field(default=3600, alias="DL_ALERT_COOLDOWN_SECONDS")
 
     # ── Distributed job queue (Redis) ────────────────────────────────────
     # When enabled, the scheduler only *pushes* jobs to a Redis queue and
@@ -260,6 +271,15 @@ class Settings(BaseSettings):
             errors.append("OTLP_ENDPOINT should be configured for observability in production")
         if errors:
             raise RuntimeError("Production config validation failed:\n" + "\n".join(f"  - {e}" for e in errors))
+
+    @property
+    def database_replica_url_async(self) -> str | None:
+        if not self.database_replica_url:
+            return None
+        url = self.database_replica_url
+        if "postgres" in url and "+" not in url.split("://", 1)[0]:
+            return url.replace("://", "+asyncpg://", 1)
+        return url
 
     @property
     def database_url_async(self) -> str:

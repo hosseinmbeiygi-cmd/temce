@@ -85,10 +85,13 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy -r requirements.txt
+          pip install ruff mypy -r requirements.txt -r requirements-dev.txt
 
       - name: Lint Python with ruff
         run: ruff check . --output-format=github
+
+      - name: Import contracts (advisory — Phase 0, ADR-0001)
+        run: lint-imports --config .importlinter || echo "::warning::import contract violations present (baseline tracked in ADR-0001); hard-fail lands in Phase 1"
 
       - name: Typecheck Python with mypy
         run: mypy apps core domain services --ignore-missing-imports || true
@@ -154,6 +157,9 @@ jobs:
 
       - name: Check Mermaid diagram syntax
         run: python scripts/check_mermaid_blocks.py
+
+      - name: Production config gate (prod-check)
+        run: ENV=production SECRET_KEY=ci-test-key-with-32-chars-minimum-xxxx CORS_ORIGINS='["https://example.com"]' DATABASE_URL=postgresql://market:market@localhost:5432/market_test AUTH_COOKIE_SECURE=true OTLP_ENDPOINT=http://otel:4318 python -c "from core.config import settings; settings.environment='production'; settings.validate_production(); print('prod-check OK')"
 
   # ── Backend Tests ─────────────────────────────────────────
   test:
@@ -222,6 +228,18 @@ jobs:
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
+
+      # Real-broker Celery chain (precompute pipeline). Skips automatically
+      # when the Redis service is unreachable; requires the celery package
+      # from requirements.txt and spawns a real worker subprocess (solo pool).
+      - name: Celery chain integration (real broker)
+        run: |
+          pytest tests/integration/test_celery_chain_broker.py \
+            --timeout=300 \
+            -v
+        env:
+          REDIS_URL: redis://localhost:6379/0
+          ENV: test
 
   # ── Docker Build & Push (main only) ───────────────────────
   build:

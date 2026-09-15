@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from contextlib import aclosing
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from apps.api.error_handlers import safe_error_message
 from core.config import settings
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
@@ -95,6 +97,11 @@ def _validate_sort_by(sort_by: str) -> str:
     return sort_by
 
 
+def _validate_sort_order(sort_order: str) -> str:
+    """Whitelist sort direction. Anything invalid falls back to desc."""
+    return "asc" if isinstance(sort_order, str) and sort_order.lower() == "asc" else "desc"
+
+
 async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Fetch BrsApi snapshots and convert them to screener inputs.
 
@@ -106,10 +113,14 @@ async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[
     from core.database import get_session
     from services.market_watch_helper import fetch_market_watch
 
-    async for sess in get_session():
-        svc = BrsApiQueryService(session=sess)
-        instruments, market_watch = await fetch_market_watch(svc, limit=limit)
-        return instruments, market_watch
+    # ``get_session()`` is an async generator; ``aclosing`` guarantees the DB
+    # session is closed deterministically even though we return from inside
+    # the loop (relying on GC finalisation leaks the connection under load).
+    async with aclosing(get_session()) as sessions:
+        async for sess in sessions:
+            svc = BrsApiQueryService(session=sess)
+            instruments, market_watch = await fetch_market_watch(svc, limit=limit)
+            return instruments, market_watch
 
     return [], []
 
@@ -160,9 +171,11 @@ async def screener_v2(
         return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": "Rate limit exceeded"})
 
     sort_by = _validate_sort_by(sort_by)
+    sort_order = _validate_sort_order(sort_order)
 
     cache_key = hashlib.md5(
-        f"v2:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode()
+        f"v2:{sort_by}:{sort_order}:{limit}:{min_score}:{market}:{page}:{page_size}".encode(),
+        usedforsecurity=False,
     ).hexdigest()
     cached = _cache_get(cache_key)
     if cached:
@@ -263,10 +276,12 @@ async def screener_v2_filter(
         return ApiResponse(success=False, data={"items": [], "total": 0}, error={"message": "Rate limit exceeded"})
 
     body.sort_by = _validate_sort_by(body.sort_by)
+    body.sort_order = _validate_sort_order(body.sort_order)
 
-    filters_key = hashlib.md5(json.dumps(body.filters, default=str).encode()).hexdigest()
+    filters_key = hashlib.md5(json.dumps(body.filters, default=str).encode(), usedforsecurity=False).hexdigest()
     cache_key = hashlib.md5(
-        f"v2f:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode()
+        f"v2f:{body.sort_by}:{body.sort_order}:{body.limit}:{body.min_score}:{body.market}:{filters_key}:{body.logic}".encode(),
+        usedforsecurity=False,
     ).hexdigest()
     cached = _cache_get(cache_key)
     if cached:
@@ -478,65 +493,65 @@ async def compare_symbols(
         from brsapi.services.query_service import BrsApiQueryService
         from core.database import get_session
 
-        async for sess in get_session():
-            svc = BrsApiQueryService(session=sess)
-            snapshots = await svc.get_enriched_snapshots(limit=500)
-            snap_map = {s.get("symbol"): s for s in snapshots if s.get("symbol") in symbol_list}
+        async with aclosing(get_session()) as _sessions:
+            async for sess in _sessions:
+                svc = BrsApiQueryService(session=sess)
+                snapshots = await svc.get_enriched_snapshots(limit=500)
+                snap_map = {s.get("symbol"): s for s in snapshots if s.get("symbol") in symbol_list}
 
-            from services.smart_screener_v2 import SmartScreenerV2
+                from services.smart_screener_v2 import SmartScreenerV2
 
-            screener = SmartScreenerV2()
+                screener = SmartScreenerV2()
 
-            results = []
-            for sym in symbol_list:
-                s = snap_map.get(sym)
-                if not s:
-                    continue
-                quote = {
-                    "symbol": sym,
-                    "price_close": s.get("price_close", 0),
-                    "price_last": s.get("price_last", 0),
-                    "price_change_pct": s.get("price_last_change_pct", 0),
-                    "volume": s.get("trade_volume", 0),
-                    "value": s.get("trade_value", 0),
-                    "pe_ratio": s.get("pe_ratio"),
-                    "eps": s.get("eps"),
-                    "market_value": s.get("market_value"),
-                }
-                result = screener.analyze_symbol(
-                    sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, []
-                )
-                results.append(
-                    {
-                        "symbol": result.symbol,
-                        "name": result.name,
-                        "industry": result.industry,
-                        "last_price": result.last_price,
-                        "change_pct": result.change_pct,
-                        "composite_score": round(result.composite_score, 4),
-                        "composite_signal": result.composite_signal,
-                        "smc_score": round(result.smc_score, 4),
-                        "technical_score": round(result.technical_score, 4),
-                        "momentum_score": round(result.momentum_score, 4),
-                        "risk_score": round(result.risk_score, 4),
-                        "rsi": round(result.rsi, 2),
-                        "macd_histogram": round(result.macd_histogram, 4),
-                        "trend_direction": result.trend_direction,
-                        "trend_strength": round(result.trend_strength, 4),
-                        "volatility_regime": result.volatility_regime,
-                        "pattern_signal": result.pattern_signal,
-                        "pattern_confidence": round(result.pattern_confidence, 4),
-                        "support_level": result.support_level,
-                        "resistance_level": result.resistance_level,
-                        "distance_to_support": result.distance_to_support,
-                        "distance_to_resistance": result.distance_to_resistance,
-                        "volume_trend": result.volume_trend,
-                        "pe_ratio": result.pe_ratio,
+                results = []
+                for sym in symbol_list:
+                    s = snap_map.get(sym)
+                    if not s:
+                        continue
+                    quote = {
+                        "symbol": sym,
+                        "price_close": s.get("price_close", 0),
+                        "price_last": s.get("price_last", 0),
+                        "price_change_pct": s.get("price_last_change_pct", 0),
+                        "volume": s.get("trade_volume", 0),
+                        "value": s.get("trade_value", 0),
+                        "pe_ratio": s.get("pe_ratio"),
+                        "eps": s.get("eps"),
+                        "market_value": s.get("market_value"),
                     }
-                )
+                    result = screener.analyze_symbol(
+                        sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, []
+                    )
+                    results.append(
+                        {
+                            "symbol": result.symbol,
+                            "name": result.name,
+                            "industry": result.industry,
+                            "last_price": result.last_price,
+                            "change_pct": result.change_pct,
+                            "composite_score": round(result.composite_score, 4),
+                            "composite_signal": result.composite_signal,
+                            "smc_score": round(result.smc_score, 4),
+                            "technical_score": round(result.technical_score, 4),
+                            "momentum_score": round(result.momentum_score, 4),
+                            "risk_score": round(result.risk_score, 4),
+                            "rsi": round(result.rsi, 2),
+                            "macd_histogram": round(result.macd_histogram, 4),
+                            "trend_direction": result.trend_direction,
+                            "trend_strength": round(result.trend_strength, 4),
+                            "volatility_regime": result.volatility_regime,
+                            "pattern_signal": result.pattern_signal,
+                            "pattern_confidence": round(result.pattern_confidence, 4),
+                            "support_level": result.support_level,
+                            "resistance_level": result.resistance_level,
+                            "distance_to_support": result.distance_to_support,
+                            "distance_to_resistance": result.distance_to_resistance,
+                            "volume_trend": result.volume_trend,
+                            "pe_ratio": result.pe_ratio,
+                        }
+                    )
 
-            return ApiResponse(success=True, data={"items": results})
-            break
+                return ApiResponse(success=True, data={"items": results})
 
     except Exception as exc:
         logger.exception("Compare symbols failed: %s", exc)
@@ -566,59 +581,59 @@ async def sector_analysis(
         from brsapi.services.query_service import BrsApiQueryService
         from core.database import get_session
 
-        async for sess in get_session():
-            svc = BrsApiQueryService(session=sess)
-            snapshots = await svc.get_enriched_snapshots(limit=500)
+        async with aclosing(get_session()) as _sessions:
+            async for sess in _sessions:
+                svc = BrsApiQueryService(session=sess)
+                snapshots = await svc.get_enriched_snapshots(limit=500)
 
-            sector_data: dict[str, dict] = {}
-            for s in snapshots:
-                sector = s.get("sector", "نامشخص")
-                if not sector:
-                    sector = "نامشخص"
-                if sector not in sector_data:
-                    sector_data[sector] = {
-                        "symbols": 0,
-                        "total_change": 0,
-                        "total_volume": 0,
-                        "up_count": 0,
-                        "total_market_value": 0,
-                    }
-                sector_data[sector]["symbols"] += 1
-                sector_data[sector]["total_change"] += float(s.get("price_last_change_pct", 0) or 0)
-                sector_data[sector]["total_volume"] += int(s.get("trade_volume", 0) or 0)
-                if float(s.get("price_last_change_pct", 0) or 0) > 0:
-                    sector_data[sector]["up_count"] += 1
-                sector_data[sector]["total_market_value"] += float(s.get("market_value", 0) or 0)
+                sector_data: dict[str, dict] = {}
+                for s in snapshots:
+                    sector = s.get("sector", "نامشخص")
+                    if not sector:
+                        sector = "نامشخص"
+                    if sector not in sector_data:
+                        sector_data[sector] = {
+                            "symbols": 0,
+                            "total_change": 0,
+                            "total_volume": 0,
+                            "up_count": 0,
+                            "total_market_value": 0,
+                        }
+                    sector_data[sector]["symbols"] += 1
+                    sector_data[sector]["total_change"] += float(s.get("price_last_change_pct", 0) or 0)
+                    sector_data[sector]["total_volume"] += int(s.get("trade_volume", 0) or 0)
+                    if float(s.get("price_last_change_pct", 0) or 0) > 0:
+                        sector_data[sector]["up_count"] += 1
+                    sector_data[sector]["total_market_value"] += float(s.get("market_value", 0) or 0)
 
-            sectors = []
-            for name, data in sector_data.items():
-                count = data["symbols"]
-                avg_change = data["total_change"] / count if count else 0
-                breadth = data["up_count"] / count if count else 0
-                sectors.append(
-                    {
-                        "sector": name,
-                        "symbol_count": count,
-                        "avg_change_pct": round(avg_change, 2),
-                        "total_volume": data["total_volume"],
-                        "breadth": round(breadth, 4),
-                        "total_market_value": data["total_market_value"],
-                        "signal": "strong_buy"
-                        if avg_change > 3 and breadth > 0.7
-                        else "buy"
-                        if avg_change > 1 and breadth > 0.55
-                        else "sell"
-                        if avg_change < -3 and breadth < 0.3
-                        else "neutral",
-                    }
-                )
+                sectors = []
+                for name, data in sector_data.items():
+                    count = data["symbols"]
+                    avg_change = data["total_change"] / count if count else 0
+                    breadth = data["up_count"] / count if count else 0
+                    sectors.append(
+                        {
+                            "sector": name,
+                            "symbol_count": count,
+                            "avg_change_pct": round(avg_change, 2),
+                            "total_volume": data["total_volume"],
+                            "breadth": round(breadth, 4),
+                            "total_market_value": data["total_market_value"],
+                            "signal": "strong_buy"
+                            if avg_change > 3 and breadth > 0.7
+                            else "buy"
+                            if avg_change > 1 and breadth > 0.55
+                            else "sell"
+                            if avg_change < -3 and breadth < 0.3
+                            else "neutral",
+                        }
+                    )
 
-            sectors.sort(key=lambda x: x["avg_change_pct"], reverse=True)
+                sectors.sort(key=lambda x: x["avg_change_pct"], reverse=True)
 
-            data = {"sectors": sectors, "total_sectors": len(sectors)}
-            _cache_set(cache_key, data)
-            return ApiResponse(success=True, data=data)
-            break
+                data = {"sectors": sectors, "total_sectors": len(sectors)}
+                _cache_set(cache_key, data)
+                return ApiResponse(success=True, data=data)
 
     except Exception as exc:
         logger.exception("Sector analysis failed: %s", exc)

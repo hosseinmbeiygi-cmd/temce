@@ -1,0 +1,45 @@
+{
+  "name": "GoldDesk — تحلیل طلا",
+  "short_name": "GoldDesk",
+  "description": "تحلیل و پایش شخصی بازار طلا، سکه، و ارز ایران",
+  "start_url": "/gold",
+  "scope": "/gold",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait-primary",
+  "lang": "fa",
+  "dir": "rtl",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/golddesk-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/golddesk-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "داشبورد",
+      "url": "/gold",
+      "icons": [{ "src": "/icons/golddesk-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Portfolio",
+      "url": "/gold/portfolio",
+      "icons": [{ "src": "/icons/golddesk-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "دستیار",
+      "url": "/gold/chat",
+      "icons": [{ "src": "/icons/golddesk-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

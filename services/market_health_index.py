@@ -22,11 +22,22 @@ Data sources:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _utc_day_cutoff() -> datetime:
+    """UTC midnight of the current day as a tz-aware datetime.
+
+    Snapshot aggregates must only read the current day's sync cycles:
+    fetched_at is TIMESTAMPTZ (asyncpg needs a datetime, not a string —
+    same constraint documented in services/iran_fear_greed_index.py).
+    """
+    return datetime.combine(datetime.now(UTC).date(), datetime.min.time(), tzinfo=UTC)
 
 
 @dataclass
@@ -127,15 +138,26 @@ class MarketHealthIndex:
 
         from sqlalchemy import text
 
+        # Only today's rows, latest snapshot per symbol — the table keeps one
+        # row per symbol per 2-minute sync cycle; without the cutoff+dedupe
+        # the sums cover every cycle since table creation (twin fix in
+        # services/iran_fear_greed_index.py).
         result = await self._session.execute(text("""
             SELECT
                 SUM(buy_real_volume) as total_real_buy,
                 SUM(sell_real_volume) as total_real_sell,
                 SUM(buy_legal_volume) as total_legal_buy,
                 SUM(sell_legal_volume) as total_legal_sell
-            FROM brsapi_symbol_snapshots
-            WHERE trade_volume > 0
-        """))
+            FROM (
+                SELECT DISTINCT ON (symbol)
+                    symbol, buy_real_volume, sell_real_volume,
+                    buy_legal_volume, sell_legal_volume
+                FROM brsapi_symbol_snapshots
+                WHERE trade_volume > 0
+                  AND fetched_at >= :cutoff_today
+                ORDER BY symbol, fetched_at DESC
+            ) latest
+        """), {"cutoff_today": _utc_day_cutoff()})
 
         row = result.fetchone()
         if not row or not row[0]:
@@ -172,14 +194,21 @@ class MarketHealthIndex:
         from sqlalchemy import text
 
         # Get average change by symbol group (approximate sectors)
+        # Latest snapshot per symbol, today only (see _calc_real_legal_flow).
         result = await self._session.execute(text("""
             SELECT
                 AVG(CASE WHEN trade_value > 10000000000 THEN price_last_change_pct ELSE NULL END) as large_cap_avg,
                 AVG(CASE WHEN trade_value BETWEEN 1000000000 AND 10000000000 THEN price_last_change_pct ELSE NULL END) as mid_cap_avg,
                 AVG(CASE WHEN trade_value < 1000000000 THEN price_last_change_pct ELSE NULL END) as small_cap_avg
-            FROM brsapi_symbol_snapshots
-            WHERE price_last > 0 AND trade_value > 0
-        """))
+            FROM (
+                SELECT DISTINCT ON (symbol)
+                    symbol, price_last_change_pct, trade_value
+                FROM brsapi_symbol_snapshots
+                WHERE price_last > 0 AND trade_value > 0
+                  AND fetched_at >= :cutoff_today
+                ORDER BY symbol, fetched_at DESC
+            ) latest
+        """), {"cutoff_today": _utc_day_cutoff()})
 
         row = result.fetchone()
         if not row:
@@ -215,13 +244,20 @@ class MarketHealthIndex:
 
         from sqlalchemy import text
 
+        # Latest snapshot per symbol, today only (see _calc_real_legal_flow).
         result = await self._session.execute(text("""
             SELECT
                 COUNT(*) as total_trades,
                 SUM(CASE WHEN trade_value > 5000000000 THEN 1 ELSE 0 END) as block_trades
-            FROM brsapi_symbol_snapshots
-            WHERE trade_value > 0
-        """))
+            FROM (
+                SELECT DISTINCT ON (symbol)
+                    symbol, trade_value
+                FROM brsapi_symbol_snapshots
+                WHERE trade_value > 0
+                  AND fetched_at >= :cutoff_today
+                ORDER BY symbol, fetched_at DESC
+            ) latest
+        """), {"cutoff_today": _utc_day_cutoff()})
 
         row = result.fetchone()
         if not row or not row[0]:
@@ -254,15 +290,22 @@ class MarketHealthIndex:
         if self._session is None:
             return 50.0
 
-        # Simplified: use price consistency as proxy
+        # Simplified: use price consistency as proxy.
+        # Latest snapshot per symbol, today only (see _calc_real_legal_flow).
         from sqlalchemy import text
 
         result = await self._session.execute(text("""
             SELECT
                 AVG(ABS(price_last - price_first) / price_first * 100) as avg_intraday_range
-            FROM brsapi_symbol_snapshots
-            WHERE price_first > 0 AND price_last > 0
-        """))
+            FROM (
+                SELECT DISTINCT ON (symbol)
+                    symbol, price_last, price_first
+                FROM brsapi_symbol_snapshots
+                WHERE price_first > 0 AND price_last > 0
+                  AND fetched_at >= :cutoff_today
+                ORDER BY symbol, fetched_at DESC
+            ) latest
+        """), {"cutoff_today": _utc_day_cutoff()})
 
         row = result.fetchone()
         if not row or not row[0]:

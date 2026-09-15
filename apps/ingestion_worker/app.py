@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import asyncio
 
+from core.config import settings
 from core.logging import get_logger
+
+from ingestion.market_scan_service import MarketScanService
 
 logger = get_logger(__name__)
 
 
 class IngestionWorkerApp:
     def __init__(self) -> None:
-        self._running = False
+        self._service = MarketScanService()
 
     async def start(self) -> None:
-        self._running = True
         logger.info("Ingestion worker started")
-        while self._running:
-            await asyncio.sleep(10)
+        await self._service.start()
+        await self._service.run()
 
-    def stop(self) -> None:
-        self._running = False
+    async def stop(self) -> None:
+        await self._service.stop()
+        logger.info("Ingestion worker stopped")
+
+    async def status(self) -> dict:
+        return await self._service.status()
+

@@ -26,6 +26,16 @@ def _bare_connector() -> MLSignalConnector:
     return c
 
 
+def _fake_get_session(mock_session):
+    """Fake for ``core.database.get_session`` — a real async generator."""
+
+    async def _gen():
+        yield mock_session
+
+    return _gen
+
+
+
 class TestGetAccuracyByMarket:
     async def test_uses_db_when_samples_sufficient(self):
         c = _bare_connector()
@@ -33,9 +43,7 @@ class TestGetAccuracyByMarket:
         row = SimpleNamespace(n=200, acc=0.62)
         mock_session = AsyncMock()
         mock_session.execute.return_value.first = MagicMock(return_value=row)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        with patch("core.database.get_session", return_value=mock_session):
+        with patch("core.database.get_session", _fake_get_session(mock_session)):
             result = await c.get_accuracy_by_market("stock", min_samples=30)
         assert result == pytest.approx(0.62, abs=1e-6)
 
@@ -45,9 +53,7 @@ class TestGetAccuracyByMarket:
         row = SimpleNamespace(n=10, acc=0.9)
         mock_session = AsyncMock()
         mock_session.execute.return_value.first = MagicMock(return_value=row)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        with patch("core.database.get_session", return_value=mock_session):
+        with patch("core.database.get_session", _fake_get_session(mock_session)):
             result = await c.get_accuracy_by_market("stock", min_samples=30)
         assert result == pytest.approx(0.6, abs=1e-6)
 
@@ -56,9 +62,7 @@ class TestGetAccuracyByMarket:
         row = SimpleNamespace(n=0, acc=0)
         mock_session = AsyncMock()
         mock_session.execute.return_value.first = MagicMock(return_value=row)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        with patch("core.database.get_session", return_value=mock_session):
+        with patch("core.database.get_session", _fake_get_session(mock_session)):
             result = await c.get_accuracy_by_market("forex", min_samples=30)
         assert result == 0.50
 
@@ -73,9 +77,7 @@ class TestGetAccuracyByMarket:
         row = SimpleNamespace(n=100, acc=1.5)  # pathological
         mock_session = AsyncMock()
         mock_session.execute.return_value.first = MagicMock(return_value=row)
-        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session.__aexit__ = AsyncMock(return_value=False)
-        with patch("core.database.get_session", return_value=mock_session):
+        with patch("core.database.get_session", _fake_get_session(mock_session)):
             result = await c.get_accuracy_by_market("stock", min_samples=30)
         # The DB average is a float; we don't clamp here but verify the value
         # is in a sane range (>= 0). Clamping belongs to the consumer.

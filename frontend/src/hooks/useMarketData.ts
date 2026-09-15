@@ -7,7 +7,6 @@ import {
   INDICES,
   NEWS,
   QUOTES,
-  TICKER_ITEMS,
   TOP_PERFORMERS,
   TOP_STOCKS_TODAY,
   VALUE_VOLUME,
@@ -20,6 +19,57 @@ import {
   type TopStock,
   getMarketSession,
 } from "@/lib/market-mock";
+
+/** Minimal shapes for the new live hooks (kept local to avoid mock coupling). */
+export interface FlowRow {
+  symbol: string;
+  realNet: number;
+  legalNet: number;
+}
+
+export interface ImpactRow {
+  symbol: string;
+  name: string;
+  impact: number;
+}
+
+export interface SectorCell {
+  name: string;
+  changePct: number;
+  count: number;
+}
+
+export interface IntradayPoint {
+  time: string;
+  value: number;
+}
+
+export interface GlobalQuote {
+  id: string;
+  title: string;
+  subtitle: string;
+  price: number;
+  unit: string;
+  changePct: number;
+  spark: number[];
+}
+
+export interface FlowSummary {
+  realNetB: number;
+  legalNetB: number;
+  queueBuy: number;
+  queueSell: number;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string; // ISO YYYY-MM-DD
+  time?: string;
+  country?: string;
+  category?: string;
+  importance?: number;
+}
 
 /**
  * Live market data layer — fetches the real backend endpoints and falls back
@@ -231,7 +281,8 @@ export function useTickerItems(): TickerItem[] {
     );
     if (mapped.length > 0) return mapped;
   }
-  return TICKER_ITEMS;
+  // بدون داده واقعی، تیکر خالی می‌ماند — هرگز مقادیر نمونه نمایش داده نمی‌شود.
+  return [];
 }
 
 /** Live indices — شاخص کل / هم‌وزن / فرابورس / … from /market/indices. */
@@ -448,4 +499,220 @@ export function useTopPerformers(): TopStock[] {
     if (mapped.length > 0) return mapped;
   }
   return TOP_PERFORMERS;
+}
+
+// ── New live hooks (dashboard wiring) ─────────────────────────────────
+
+function sparkFromSeries(values: number[], n = 7): number[] {
+  if (values.length === 0) return [];
+  if (values.length <= n) return values;
+  const step = (values.length - 1) / (n - 1);
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(values[Math.round(i * step)]);
+  return out;
+}
+
+/** Live global markets (S&P / gold oz / brent / BTC) from BrsApi sections. */
+export function useGlobalMarkets(): GlobalQuote[] {
+  const { data } = useQuery({
+    queryKey: ["live-global-markets"],
+    queryFn: async (): Promise<GlobalQuote[]> => {
+      try {
+        const [comRes, btcRes] = await Promise.all([
+          apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/commodities"),
+          apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/crypto?limit=50&sort_by=rank"),
+        ]);
+        const commodities = extractArray<Record<string, unknown>>(comRes);
+        const cryptos = extractArray<Record<string, unknown>>(btcRes);
+        const find = (rows: Array<Record<string, unknown>>, keys: string[]) =>
+          rows.find((r) => {
+            const sym = String(r.symbol ?? "").toUpperCase();
+            const name = String(r.name ?? "");
+            return keys.some((k) => sym.includes(k) || name.includes(k));
+          });
+        const quotes: GlobalQuote[] = [];
+        const push = (id: string, title: string, subtitle: string, unit: string, row?: Record<string, unknown>) => {
+          if (!row) return;
+          const price = Number(row.price ?? row.price_usd ?? 0);
+          const changePct = Number(row.change_percent ?? row.changePct ?? 0);
+          if (!price) return;
+          quotes.push({ id, title, subtitle, price, unit, changePct, spark: sparkFromChange(changePct) });
+        };
+        const goldOz = find(commodities, ["GOLD", "XAU"]);
+        const brent = find(commodities, ["BRENT", "OIL", "WTI"]);
+        const btc = find(cryptos, ["BTC", "BITCOIN"]);
+        push("gold-oz", "انس طلا", "کامکس", "دلار", goldOz);
+        push("brent", "نفت برنت", "ICE", "دلار", brent);
+        push("btc", "بیت‌کوین", "رمزارز", "دلار", btc);
+        if (quotes.length > 0) return quotes;
+      } catch {
+        /* fall through to empty */
+      }
+      return [];
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+  return data ?? [];
+}
+
+/** Live شاخص کل intraday / multi-day history from brsapi_index_values. */
+export function useIndexIntraday(rangeIdx = 0): IntradayPoint[] {
+  const { data } = useQuery({
+    queryKey: ["live-index-intraday", rangeIdx],
+    queryFn: async (): Promise<IntradayPoint[]> => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>(
+          "/market/index-history/%D8%B4%D8%A7%D8%AE%D8%B5%20%DA%A9%D9%84?limit=60"
+        );
+        const rows = extractArray<Record<string, unknown>>(res);
+        const points = rows
+          .map((r) => ({
+            time: String(r.fetched_at ?? r.created_at ?? "").slice(11, 16) || "—",
+            value: Number(r.index_value ?? 0),
+          }))
+          .filter((p) => p.value > 0);
+        if (points.length >= 2) return points;
+      } catch {
+        /* fall through to empty */
+      }
+      return [];
+    },
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+  return data ?? [];
+}
+
+/** Live sector map from /market/treemap (stocks view aggregates by sector). */
+export function useSectorMap(): SectorCell[] {
+  const { data } = useQuery({
+    queryKey: ["live-sector-map"],
+    queryFn: async (): Promise<SectorCell[]> => {
+      try {
+        const res = await apiGet<{ success: boolean; data: { children?: Array<{ name: string; children?: Array<{ change: number }> }> } }>(
+          "/market/treemap?limit=2000"
+        );
+        const sectors = res?.data?.children ?? [];
+        const cells = sectors
+          .map((s) => ({
+            name: s.name,
+            count: s.children?.length ?? 0,
+            changePct:
+              s.children && s.children.length > 0
+                ? s.children.reduce((acc, c) => acc + (Number(c.change) || 0), 0) / s.children.length
+                : 0,
+          }))
+          .filter((c) => c.count > 0)
+          .sort((a, b) => b.changePct - a.changePct)
+          .slice(0, 20);
+        if (cells.length > 0) return cells;
+      } catch {
+        /* fall through to empty */
+      }
+      return [];
+    },
+    refetchInterval: 180_000,
+    staleTime: 90_000,
+  });
+  return data ?? [];
+}
+
+/** Live per-symbol real/legal net flow (top movers) for OwnershipChange. */
+export function useOwnershipFlows(): FlowRow[] {
+  const { data } = useQuery({
+    queryKey: ["live-ownership-flows"],
+    queryFn: async (): Promise<FlowRow[]> => {
+      try {
+        const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; real_net_b: number; legal_net_b: number }> }>(
+          "/market/flow-history?limit=8"
+        );
+        const rows = extractArray<{ symbol: string; real_net_b: number; legal_net_b: number }>(res);
+        const mapped = rows.map((r) => ({ symbol: r.symbol, name: r.symbol, realNet: r.real_net_b, legalNet: r.legal_net_b }));
+        if (mapped.length > 0) return mapped;
+      } catch {
+        /* fall through to empty */
+      }
+      return [];
+    },
+    refetchInterval: 180_000,
+    staleTime: 90_000,
+  });
+  return data ?? [];
+}
+
+/** Live market-wide real/legal totals + queue counts for LiquidityBlocks / MarketOverview. */
+export function useFlowSummary(): FlowSummary | null {
+  const { data } = useQuery({
+    queryKey: ["live-flow-summary"],
+    queryFn: async (): Promise<FlowSummary | null> => {
+      try {
+        const res = await apiGet<{ success: boolean; data: { real_net_b: number; legal_net_b: number; queue_buy: number; queue_sell: number } }>(
+          "/market/flow-summary"
+        );
+        const d = res?.data;
+        if (d && typeof d.real_net_b === "number") {
+          return { realNetB: d.real_net_b, legalNetB: d.legal_net_b, queueBuy: d.queue_buy, queueSell: d.queue_sell };
+        }
+      } catch {
+        /* fall through to null */
+      }
+      return null;
+    },
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+  return data ?? null;
+}
+
+/**
+ * Live index-impact approximation from the enriched heatmap: the symbols
+ * with the largest absolute (change_pct × market cap proxy) split into
+ * positive/negative leaders. True TSE index contribution needs the official
+ * weights feed; this is the best available real-data proxy.
+ */
+export function useIndexImpacts(): { positive: ImpactRow[]; negative: ImpactRow[] } {
+  const cells = useEnrichedHeatmap();
+  if (cells.length === 0) return { positive: [], negative: [] };
+  const scored = cells
+    .map((c) => ({
+      symbol: c.symbol,
+      name: c.name ?? c.symbol,
+      impact: (c.change || 0) * Math.log10(1 + (c.value || 0) / 1e9),
+    }))
+    .sort((a, b) => b.impact - a.impact);
+  const positive = scored.filter((r) => r.impact > 0).slice(0, 5);
+  const negative = scored.filter((r) => r.impact < 0).slice(-5).reverse();
+  return { positive, negative };
+}
+
+/** Live economic/market events from /economic-calendar (upcoming 14 days). */
+export function useMarketEvents(): CalendarEvent[] {
+  const { data } = useQuery({
+    queryKey: ["live-market-events"],
+    queryFn: async (): Promise<CalendarEvent[]> => {
+      try {
+        const res = await apiGet<{ success: boolean; data: { events?: Array<Record<string, unknown>> } | Array<Record<string, unknown>> }>(
+          "/economic-calendar?min_importance=1"
+        );
+        const raw = Array.isArray(res?.data) ? res.data : (res?.data?.events ?? []);
+        const events = (raw as Array<Record<string, unknown>>).map((e, i) => ({
+          id: String(e.id ?? `ev-${i}`),
+          title: String(e.title ?? ""),
+          date: String(e.date ?? ""),
+          time: e.time ? String(e.time) : undefined,
+          country: e.country ? String(e.country) : undefined,
+          category: e.category ? String(e.category) : undefined,
+          importance: typeof e.importance === "number" ? e.importance : undefined,
+        }));
+        if (events.length > 0) return events.slice(0, 8);
+      } catch {
+        /* fall through to empty */
+      }
+      return [];
+    },
+    refetchInterval: 600_000,
+    staleTime: 300_000,
+  });
+  return data ?? [];
 }

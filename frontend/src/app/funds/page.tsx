@@ -8,6 +8,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import FundNavMiniChart, { type FundNavPoint } from "@/components/FundNavMiniChart";
 import FundCompareModal from "@/components/FundCompareModal";
+import FundDiscoveryBanner from "@/components/FundDiscoveryBanner";
 import { apiGet } from "@/lib/api";
 
 // ── Types (هماهنگ با API واقعی /funds) ─────────────────────────────────────
@@ -246,6 +247,9 @@ function FundsPageContent() {
 
   return (
     <AppLayout title="🏦 صندوق‌های سرمایه‌گذاری" subtitle="صندوق‌های بورس تهران و بورس کالا — داده واقعی">
+      {/* ── Discovery / Sync status (غیرمسدودکننده) ── */}
+      <FundDiscoveryBanner />
+
       {/* ── Stats cards ── */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">

@@ -1,9 +1,50 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Minus, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { fmtPct } from "@/lib/market-format";
+
+/* ── Live flash — brief tint when a streamed number changes ── */
+
+/**
+ * Wraps a price readout; whenever `value` moves the wrapper remounts (key
+ * bump) so the flash-up/flash-down CSS animation replays. State-based diff
+ * (no ref reads in render — the react-hooks/refs rule forbids the render-phase
+ * ref pattern). One extra render per change only, and none when idle.
+ */
+export function Flash({
+  value,
+  className,
+  children,
+}: {
+  value: number;
+  className?: string;
+  children: ReactNode;
+}) {
+  // [previous value, flash direction, mount key]
+  const [[prev, dir, tick], setDiff] = useState<[number, "up" | "down" | null, number]>([
+    value,
+    null,
+    0,
+  ]);
+  if (value !== prev) {
+    setDiff([value, value > prev ? "up" : "down", tick + 1]);
+  }
+  return (
+    <span
+      key={tick}
+      className={cn(
+        "inline-block rounded-md px-0.5",
+        dir === "up" && "flash-up",
+        dir === "down" && "flash-down",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
 
 /* ── Section header ─────────────────────────────────────────── */
 
@@ -12,19 +53,30 @@ export function SectionHeader({
   title,
   subtitle,
   action,
+  tone,
   className,
 }: {
   icon?: LucideIcon;
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  /** Tints the icon chip (e.g. "up", "down", "warn", "primary"). */
+  tone?: "up" | "down" | "warn" | "primary";
   className?: string;
 }) {
   return (
     <div className={cn("flex items-start justify-between gap-3", className)}>
       <div className="flex items-center gap-2.5 min-w-0">
         {Icon && (
-          <span className="grid size-8 shrink-0 place-items-center rounded-xl border border-line bg-soft text-ink-2">
+          <span
+            className={cn(
+              "grid size-8 shrink-0 place-items-center rounded-xl border",
+              (!tone || tone === "primary") && "border-primary-600/20 bg-primary-600/10 text-primary-700 dark:border-brand-300/20 dark:bg-brand-300/10 dark:text-brand-200",
+              tone === "up" && "border-up/20 bg-up/10 text-up",
+              tone === "down" && "border-down/20 bg-down/10 text-down",
+              tone === "warn" && "border-warn/25 bg-warn/10 text-warn",
+            )}
+          >
             <Icon className="size-4" aria-hidden />
           </span>
         )}

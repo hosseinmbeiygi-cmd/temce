@@ -17,13 +17,13 @@ DB; persistence is the caller's job.
 
 from __future__ import annotations
 
-import logging
 import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from core.logging import get_logger
 from services.ime_signal_factory import (
     MarketState,
     PricingCandidate,
@@ -34,7 +34,7 @@ from services.ime_signal_factory import (
     process_candidate,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Only option / ime markets flow through the IME factory
 IME_MARKETS = frozenset({"option", "ime"})

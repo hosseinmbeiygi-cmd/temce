@@ -48,7 +48,7 @@ export function IconButton({
       aria-label={label}
       title={label}
       className={cn(
-        "grid size-9 cursor-pointer place-items-center rounded-xl border border-white/10 bg-white/5 text-brand-100 transition-all duration-150 hover:bg-white/10 hover:text-white",
+        "grid size-9 cursor-pointer place-items-center rounded-xl border border-white/10 bg-white/5 text-brand-100 transition-all duration-150 hover:border-white/20 hover:bg-white/10 hover:text-white active:scale-95",
         active && "bg-white/12 text-white",
         className,
       )}
@@ -95,6 +95,8 @@ function MegaPanel({
       style={{ width: `calc(${cols} * 212px + 40px)` }}
       role="menu"
     >
+      {/* luminous top hairline */}
+      <span aria-hidden className="block h-px w-full bg-gradient-to-l from-transparent via-brand-300/50 to-transparent" />
       <div
         className="grid gap-1 p-4"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
@@ -316,9 +318,9 @@ export default function TopNavbar() {
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-brand-950/95 backdrop-blur supports-[backdrop-filter]:bg-brand-950/85">
       <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 lg:px-5">
         {/* Brand */}
-        <Link href="/" className="flex shrink-0 cursor-pointer items-center gap-2.5" aria-label="بازار — داشبورد">
-          <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-[0_4px_14px_rgba(51,72,107,0.45)]">
-            <CandlestickChart className="size-5" aria-hidden />
+        <Link href="/" className="group flex shrink-0 cursor-pointer items-center gap-2.5" aria-label="بازار — داشبورد">
+          <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-800 text-white shadow-[0_4px_14px_rgba(51,72,107,0.45)] ring-1 ring-white/15 transition-all duration-200 group-hover:shadow-[0_4px_20px_rgba(93,124,169,0.55)] group-hover:ring-white/25">
+            <CandlestickChart className="size-5 transition-transform duration-200 group-hover:scale-110" aria-hidden />
           </span>
           <span className="hidden leading-tight sm:block">
             <span className="block text-[15px] font-black text-white">بازار سرمایه</span>
@@ -352,8 +354,10 @@ export default function TopNavbar() {
                   aria-expanded={open}
                   aria-haspopup="menu"
                   className={cn(
-                    "relative flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold transition-colors duration-150",
-                    active ? "bg-white/12 text-white" : "text-brand-100 hover:bg-white/8 hover:text-white",
+                    "relative flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[13px] font-semibold transition-all duration-150",
+                    active
+                      ? "bg-gradient-to-b from-white/16 to-white/7 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+                      : "text-brand-100 hover:bg-white/8 hover:text-white",
                   )}
                 >
                   {!compact && <item.icon className="size-4" aria-hidden />}
@@ -364,7 +368,12 @@ export default function TopNavbar() {
                       aria-hidden
                     />
                   )}
-                  {active && <span className="absolute inset-x-2 -bottom-[3px] h-0.5 rounded-full bg-brand-200" />}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-x-2 -bottom-[3px] h-0.5 rounded-full bg-gradient-to-l from-brand-300 via-white to-brand-300 shadow-[0_0_10px_rgba(163,183,210,0.55)]"
+                    />
+                  )}
                 </Link>
                 <AnimatePresence>
                   {open && item.groups && (

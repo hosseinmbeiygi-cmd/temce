@@ -401,7 +401,18 @@ class SyncNavAllJob(BaseJob):
                 return JobResult.failure("Could not obtain DB session", job_name=self._name)
 
             if report.items_count == 0 and not report.error:
-                logger.warning("SyncNavAllJob: no fund symbols discovered and no NAV data synced")
+                if report.skipped and report.skipped_symbols:
+                    logger.info(
+                        "SyncNavAllJob: all %d fund symbols already have today's NAV - nothing to sync",
+                        len(report.skipped_symbols),
+                    )
+                elif report.no_data_symbols:
+                    logger.warning(
+                        "SyncNavAllJob: fetched %d symbols but BrsApi returned no new NAV rows",
+                        len(report.no_data_symbols),
+                    )
+                else:
+                    logger.warning("SyncNavAllJob: no fund symbols discovered and no NAV data synced")
 
             return JobResult.success_result(
                 job_name=self._name,
@@ -411,6 +422,9 @@ class SyncNavAllJob(BaseJob):
                     "duration_ms": report.duration_ms,
                     "error": report.error,
                     "failed_symbols": report.failed_symbols,
+                    "skipped_symbols": report.skipped_symbols,
+                    "no_data_symbols": report.no_data_symbols,
+                    "normalized_symbols": report.normalized_symbols,
                 },
             )
         except Exception as e:

@@ -6,6 +6,7 @@ brsapi_symbol_snapshots + brsapi_symbol_details so every symbol is supported.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from core.db_utils import safe_row_str
@@ -14,13 +15,13 @@ from core.result import Result
 
 logger = get_logger(__name__)
 
+# Enrichment only needs the latest live snapshot per symbol; bound the scan
+# to recent sync cycles instead of every 2-minute cycle since table creation.
+_SNAPSHOT_CUTOFF_MINUTES = 30
+
 # ── Default popular symbols (shown when watchlist is empty) ──
 
-DEFAULT_SYMBOLS: list[str] = [
-    "فولاد", "فملی", "شپنا", "شبندر", "خودرو",
-    "شتران", "وبملت", "کگل", "فخوز", "پارسان",
-    "خساپا", "فایرا", "ذوب", "کمند", "آگاس",
-]
+from domain.instruments.symbol_catalog import DEFAULT_SYMBOLS  # noqa: F401 — re-exported for API compat
 
 
 class WatchlistService:
@@ -34,7 +35,9 @@ class WatchlistService:
 
     async def _ensure_table(self) -> None:
         from sqlalchemy import text
-        await self._session.execute(text("""
+
+        await self._session.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS watchlist (
                 id SERIAL PRIMARY KEY,
                 symbol VARCHAR(50) NOT NULL UNIQUE,
@@ -43,7 +46,8 @@ class WatchlistService:
                 sort_order INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT NOW()
             )
-        """))
+        """)
+        )
         await self._session.commit()
 
     async def _ensure_defaults(self) -> None:
@@ -58,10 +62,13 @@ class WatchlistService:
         logger.info("Watchlist empty — seeding %d default symbols", len(DEFAULT_SYMBOLS))
         for i, sym in enumerate(DEFAULT_SYMBOLS):
             try:
-                await self._session.execute(text(
-                    "INSERT INTO watchlist (symbol, name, note, sort_order) "
-                    "VALUES (:s, '', '', :o) ON CONFLICT (symbol) DO NOTHING"
-                ), {"s": sym, "o": i + 1})
+                await self._session.execute(
+                    text(
+                        "INSERT INTO watchlist (symbol, name, note, sort_order) "
+                        "VALUES (:s, '', '', :o) ON CONFLICT (symbol) DO NOTHING"
+                    ),
+                    {"s": sym, "o": i + 1},
+                )
             except Exception:
                 logger.debug("Failed to seed default symbol %s", sym)
         await self._session.commit()
@@ -76,8 +83,10 @@ class WatchlistService:
         if not self._session:
             return {}
 
+        cutoff = datetime.now(UTC) - timedelta(minutes=_SNAPSHOT_CUTOFF_MINUTES)
         try:
-            result = await self._session.execute(text("""
+            result = await self._session.execute(
+                text("""
                 SELECT DISTINCT ON (s.symbol)
                     s.symbol,
                     s.name,
@@ -106,14 +115,18 @@ class WatchlistService:
                     ON s.ins_id = d.ins_id
                     OR (s.ins_id IS NULL AND s.symbol = d.symbol)
                 WHERE s.symbol IS NOT NULL AND s.symbol != ''
-                ORDER BY s.symbol, s.trade_value DESC NULLS LAST
-            """))
+                  AND s.fetched_at >= :cutoff
+                ORDER BY s.symbol, s.fetched_at DESC
+            """),
+                {"cutoff": cutoff},
+            )
             rows = result.fetchall()
         except Exception:
             # Fallback: snapshot-only query without JOIN
             logger.warning("Enriched JOIN failed — falling back to snapshots only", exc_info=True)
             try:
-                result = await self._session.execute(text("""
+                result = await self._session.execute(
+                    text("""
                     SELECT DISTINCT ON (symbol)
                         symbol, name, price_last, price_last_change_pct,
                         price_yesterday, trade_volume, trade_value, trade_count,
@@ -123,8 +136,11 @@ class WatchlistService:
                         sell_real_volume, sell_legal_volume, time
                     FROM brsapi_symbol_snapshots
                     WHERE symbol IS NOT NULL AND symbol != ''
-                    ORDER BY symbol, trade_value DESC NULLS LAST
-                """))
+                      AND fetched_at >= :cutoff
+                    ORDER BY symbol, fetched_at DESC
+                """),
+                    {"cutoff": cutoff},
+                )
                 rows = result.fetchall()
             except Exception:
                 logger.exception("Failed to load symbols for watchlist enrichment")
@@ -138,21 +154,21 @@ class WatchlistService:
             symbols_map[sym] = {
                 "symbol": sym,
                 "name": safe_row_str(row, idx=1),
-                "price": row[2],                # price_last
-                "change": row[3],               # price_last_change_pct
-                "price_yesterday": row[4],      # price_yesterday
-                "volume": row[5],               # trade_volume
-                "value": row[6],                # trade_value
-                "trade_count": row[7],          # trade_count
-                "eps": row[8],                  # eps
-                "peRatio": row[9],              # pe_ratio
-                "sector": row[10],              # sector
+                "price": row[2],  # price_last
+                "change": row[3],  # price_last_change_pct
+                "price_yesterday": row[4],  # price_yesterday
+                "volume": row[5],  # trade_volume
+                "value": row[6],  # trade_value
+                "trade_count": row[7],  # trade_count
+                "eps": row[8],  # eps
+                "peRatio": row[9],  # pe_ratio
+                "sector": row[10],  # sector
                 "priceLowestAllowed": row[11],  # from symbol_details
-                "priceHighestAllowed": row[12], # from symbol_details
-                "freeFloatPct": row[13],        # from symbol_details
-                "groupPeRatio": row[14],        # from symbol_details
-                "psRatio": row[15],             # from symbol_details
-                "state": row[16],               # from symbol_details
+                "priceHighestAllowed": row[12],  # from symbol_details
+                "freeFloatPct": row[13],  # from symbol_details
+                "groupPeRatio": row[14],  # from symbol_details
+                "psRatio": row[15],  # from symbol_details
+                "state": row[16],  # from symbol_details
                 "buyRealVolume": row[17],
                 "buyLegalVolume": row[18],
                 "sellRealVolume": row[19],
@@ -166,13 +182,16 @@ class WatchlistService:
     async def list_items(self) -> Result[list[dict[str, Any]]]:
         from sqlalchemy import text
 
-        await self._ensure_table()
-        await self._ensure_defaults()
-
-        result = await self._session.execute(text(
-            "SELECT symbol, name, note, sort_order FROM watchlist ORDER BY sort_order"
-        ))
-        rows = result.fetchall()
+        try:
+            result = await self._session.execute(
+                text("SELECT symbol, name, note, sort_order FROM watchlist ORDER BY sort_order")
+            )
+            rows = result.fetchall()
+        except Exception:
+            # Read path must stay DDL-free; self-heal only via mutation paths
+            # (add/remove) if the table is genuinely missing.
+            logger.warning("watchlist table unavailable in read path", exc_info=True)
+            return Result.ok([])
 
         if not rows:
             return Result.ok([])
@@ -194,11 +213,13 @@ class WatchlistService:
                 entry.update(snap)
             else:
                 # Symbol not in snapshots — still include it with basic info
-                entry.update({
-                    "price": None,
-                    "change": None,
-                    "sector": "",
-                })
+                entry.update(
+                    {
+                        "price": None,
+                        "change": None,
+                        "sector": "",
+                    }
+                )
             enriched.append(entry)
 
         return Result.ok(enriched)
@@ -213,9 +234,7 @@ class WatchlistService:
             return Result.fail("نماد نامعتبر است")
 
         # Check duplicate
-        existing = await self._session.execute(text(
-            "SELECT 1 FROM watchlist WHERE symbol = :s"
-        ), {"s": symbol})
+        existing = await self._session.execute(text("SELECT 1 FROM watchlist WHERE symbol = :s"), {"s": symbol})
         if existing.first():
             return Result.fail(f"نماد {symbol} قبلاً در لیست وجود دارد")
 
@@ -227,9 +246,10 @@ class WatchlistService:
         if not name:
             name = await self._resolve_symbol_name(symbol)
 
-        await self._session.execute(text(
-            "INSERT INTO watchlist (symbol, name, note, sort_order) VALUES (:s, :n, :note, :o)"
-        ), {"s": symbol, "n": name, "note": note, "o": max_order + 1})
+        await self._session.execute(
+            text("INSERT INTO watchlist (symbol, name, note, sort_order) VALUES (:s, :n, :note, :o)"),
+            {"s": symbol, "n": name, "note": note, "o": max_order + 1},
+        )
         await self._session.commit()
 
         return Result.ok({"symbol": symbol, "name": name, "order": max_order + 1})
@@ -250,13 +270,16 @@ class WatchlistService:
 
         q = query.strip()
         try:
-            result = await self._session.execute(text(
-                "SELECT DISTINCT symbol, name FROM brsapi_symbol_snapshots "
-                "WHERE (symbol ILIKE :q OR name ILIKE :q2) "
-                "AND symbol IS NOT NULL AND symbol != '' "
-                "ORDER BY trade_value DESC NULLS LAST "
-                "LIMIT 15"
-            ), {"q": f"%{q}%", "q2": f"%{q}%"})
+            result = await self._session.execute(
+                text(
+                    "SELECT DISTINCT symbol, name FROM brsapi_symbol_snapshots "
+                    "WHERE (symbol ILIKE :q OR name ILIKE :q2) "
+                    "AND symbol IS NOT NULL AND symbol != '' "
+                    "ORDER BY trade_value DESC NULLS LAST "
+                    "LIMIT 15"
+                ),
+                {"q": f"%{q}%", "q2": f"%{q}%"},
+            )
             rows = result.fetchall()
             results = [{"symbol": r[0], "name": r[1] or ""} for r in rows if r[0]]
 
@@ -265,13 +288,16 @@ class WatchlistService:
             extra = finglish_symbol_candidates(q)
             if extra:
                 known = {r["symbol"] for r in results}
-                extra_result = await self._session.execute(text(
-                    "SELECT DISTINCT symbol, name FROM brsapi_symbol_snapshots "
-                    "WHERE symbol = ANY(:symbols) "
-                    "AND symbol IS NOT NULL AND symbol != '' "
-                    "ORDER BY trade_value DESC NULLS LAST "
-                    "LIMIT 15"
-                ), {"symbols": extra})
+                extra_result = await self._session.execute(
+                    text(
+                        "SELECT DISTINCT symbol, name FROM brsapi_symbol_snapshots "
+                        "WHERE symbol = ANY(:symbols) "
+                        "AND symbol IS NOT NULL AND symbol != '' "
+                        "ORDER BY trade_value DESC NULLS LAST "
+                        "LIMIT 15"
+                    ),
+                    {"symbols": extra},
+                )
                 for row in extra_result.fetchall():
                     if row[0] and row[0] not in known:
                         results.append({"symbol": row[0], "name": row[1] or ""})
@@ -284,12 +310,13 @@ class WatchlistService:
     async def _resolve_symbol_name(self, symbol: str) -> str:
         """Quick single-symbol name lookup from snapshots."""
         from sqlalchemy import text
+
         if not self._session:
             return symbol
         try:
-            result = await self._session.execute(text(
-                "SELECT name FROM brsapi_symbol_snapshots WHERE symbol = :s LIMIT 1"
-            ), {"s": symbol})
+            result = await self._session.execute(
+                text("SELECT name FROM brsapi_symbol_snapshots WHERE symbol = :s LIMIT 1"), {"s": symbol}
+            )
             row = result.scalar_one_or_none()
             return row or symbol
         except Exception:
@@ -299,9 +326,7 @@ class WatchlistService:
         from sqlalchemy import text
 
         await self._ensure_table()
-        result = await self._session.execute(text(
-            "DELETE FROM watchlist WHERE symbol = :s"
-        ), {"s": symbol})
+        result = await self._session.execute(text("DELETE FROM watchlist WHERE symbol = :s"), {"s": symbol})
         await self._session.commit()
         if result.rowcount > 0:
             return Result.ok(True)

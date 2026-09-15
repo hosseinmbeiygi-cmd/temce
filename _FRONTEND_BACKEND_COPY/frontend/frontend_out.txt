@@ -1,0 +1,33 @@
+
+> frontend@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.2.9 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://100.127.255.253:3000
+- Environments: .env
+✓ Ready in 1873ms
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+- Experiments (use with caution):
+  · optimizePackageImports
+
+○ Compiling /brsapi ...
+ HEAD /brsapi 200 in 7.2s (next.js: 6.6s, application-code: 609ms)
+ GET /brsapi 200 in 178ms (next.js: 19ms, application-code: 159ms)
+ GET /brsapi 200 in 145ms (next.js: 8ms, application-code: 138ms)
+ GET /brsapi 200 in 181ms (next.js: 6ms, application-code: 175ms)
+ GET /brsapi 200 in 135ms (next.js: 8ms, application-code: 127ms)
+ HEAD /brsapi 200 in 226ms (next.js: 27ms, application-code: 199ms)
+ GET /brsapi 200 in 156ms (next.js: 5ms, application-code: 151ms)
+ GET /brsapi 200 in 152ms (next.js: 8ms, application-code: 144ms)
+ GET /brsapi 200 in 116ms (next.js: 5ms, application-code: 111ms)
+ GET /brsapi 200 in 715ms (next.js: 62ms, application-code: 653ms)
+ GET /brsapi 200 in 137ms (next.js: 5ms, application-code: 132ms)
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[Next.js Rewrite] API → http://localhost:8000/api/v1
+[?25h

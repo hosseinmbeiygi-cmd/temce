@@ -32,6 +32,14 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+async def get_replica_session() -> AsyncGenerator[AsyncSession, None]:
+    """Q2 P1: replica for read-only endpoints (falls back to primary)."""
+    from core.database import get_replica_session as _get_replica
+
+    async for session in _get_replica():
+        yield session
+
+
 def get_service(service_factory: Callable[..., S]) -> Callable[..., S]:
     """Generic FastAPI dependency factory for session-scoped services.
 

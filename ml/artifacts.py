@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import pickle
+import platform
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,27 @@ from core.paths import safe_resolve
 from ml.types import ModelArtifactMeta
 
 logger = get_logger(__name__)
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _collect_library_versions() -> dict[str, str]:
+    versions: dict[str, str] = {}
+    for lib in ("sklearn", "xgboost", "lightgbm", "catboost", "torch"):
+        try:
+            import importlib
+
+            mod = importlib.import_module(lib)
+            versions[lib] = getattr(mod, "__version__", "unknown")
+        except Exception:
+            pass
+    return versions
 
 
 class ArtifactManager:
@@ -29,6 +52,15 @@ class ArtifactManager:
         with open(model_file, "wb") as f:
             pickle.dump(model_obj, f)
 
+        # M1: content hash + provenance
+        try:
+            meta.artifact_hash = _sha256_file(model_file)
+            meta.file_size_bytes = model_file.stat().st_size
+        except Exception:
+            pass
+        meta.python_version = platform.python_version()
+        meta.library_versions = _collect_library_versions()
+
         meta_file = path / "metadata.json"
         with open(meta_file, "w", encoding="utf-8") as f:
             json.dump(
@@ -40,13 +72,18 @@ class ArtifactManager:
                     "feature_names": meta.feature_names,
                     "stage": meta.stage,
                     "created_at": meta.created_at.isoformat(),
+                    "artifact_hash": meta.artifact_hash,
+                    "file_size_bytes": meta.file_size_bytes,
+                    "dataset_hash": meta.dataset_hash,
+                    "python_version": meta.python_version,
+                    "library_versions": meta.library_versions,
                 },
                 f,
                 ensure_ascii=False,
                 indent=2,
             )
 
-        logger.info("Model saved to %s", path)
+        logger.info("Model saved to %s (hash=%s size=%d)", path, meta.artifact_hash[:12], meta.file_size_bytes)
         return str(path)
 
     def load_model(self, model_id: str, version: str = "latest") -> tuple[Any, ModelArtifactMeta]:

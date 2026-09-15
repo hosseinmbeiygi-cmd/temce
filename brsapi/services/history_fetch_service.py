@@ -95,10 +95,21 @@ def _fetch_crypto_symbols_sync() -> list[str]:
     return sorted(set(symbols))
 
 
+def _today_jalali() -> str:
+    """Current Tehran date as Jalali YYYY-MM-DD — replaces the old hardcoded 1405-05-01 cap."""
+    from datetime import datetime
+
+    from brsapi.budget import TEHRAN_TZ
+    from brsapi.services.sync_service import _to_jalali_date
+
+    greg = datetime.now(TEHRAN_TZ).strftime("%Y-%m-%d")
+    return _to_jalali_date(greg) or greg
+
+
 def _fetch_history_sync(
     symbol: str,
     date_start: str = "1300-01-01",
-    date_end: str = "1405-05-01",
+    date_end: str | None = None,
 ) -> list[dict[str, Any]] | None:
     """Fetch history for one symbol (sync, called in thread)."""
     params = {
@@ -106,7 +117,7 @@ def _fetch_history_sync(
         "history": 2,
         "symbol": symbol,
         "date_start": date_start,
-        "date_end": date_end,
+        "date_end": date_end or _today_jalali(),
     }
     resp = requests.get(BASE_URL, params=params, headers=HEADERS, verify=_VERIFY_SSL, timeout=180)
     resp.raise_for_status()
@@ -157,7 +168,7 @@ class HistoryFetchService:
     async def fetch_history(
         self, symbol: str,
         date_start: str = "1300-01-01",
-        date_end: str = "1405-05-01",
+        date_end: str | None = None,
     ) -> list[dict[str, Any]] | None:
         import asyncio
 
@@ -171,7 +182,8 @@ class HistoryFetchService:
         self,
         symbols: list[str] | None = None,
         limit: int = 0,
-        date_end: str = "1405-05-01",
+        date_end: str | None = None,
+        date_start: str = "1390-01-01",
     ) -> list[FetchReport]:
         from sqlalchemy import text as sql_text
 
@@ -184,7 +196,7 @@ class HistoryFetchService:
         for i, sym in enumerate(symbols):
             t0 = time.monotonic()
             try:
-                records = await self.fetch_history(sym, "1390-01-01", date_end)
+                records = await self.fetch_history(sym, date_start, date_end)
                 dur = (time.monotonic() - t0) * 1000
 
                 if not records:
@@ -242,7 +254,8 @@ class HistoryFetchService:
         self,
         symbols: list[str] | None = None,
         limit: int = 0,
-        date_end: str = "1405-05-01",
+        date_end: str | None = None,
+        date_start: str = "1300-01-01",
     ) -> list[FetchReport]:
         from sqlalchemy import text as sql_text
 
@@ -255,7 +268,7 @@ class HistoryFetchService:
         for i, sym in enumerate(symbols):
             t0 = time.monotonic()
             try:
-                records = await self.fetch_history(sym, "1300-01-01", date_end)
+                records = await self.fetch_history(sym, date_start, date_end)
                 dur = (time.monotonic() - t0) * 1000
 
                 if not records:

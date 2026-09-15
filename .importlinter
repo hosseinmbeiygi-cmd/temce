@@ -1,0 +1,63 @@
+[importlinter]
+include_external_packages = True
+root_packages =
+    apps
+    core
+    domain
+    services
+    repositories
+    ml
+    jobs
+    ingestion
+
+# ── Phase 0 (advisory): measure, don't block. ──────────────────────────
+# Flip these contracts to hard-fail in Phase 1 once counts are driven down.
+# Ponytail ceiling: whole file replaced by per-domain contracts in Phase 2.
+
+[importlinter:contract:phase0-logging]
+name = services/repositories must not import logging directly (use core.logging)
+type = forbidden
+source_modules =
+    services
+    repositories
+forbidden_modules =
+    logging
+# Transitive chains through core.logging/core.config itself are fine —
+# the rule is about *direct* stdlib logging use in app code. Phase 1 goal:
+# zero direct `import logging` under services/ (achieved 2026-09-09).
+ignore_imports =
+    core.logging -> logging
+    core.config -> logging
+    core.config.ime_engine -> logging
+    core.fix_network -> logging
+    core.logging -> core.config
+    ml.model_loader -> logging
+
+[importlinter:contract:phase0-ml-purity]
+name = ml must not import HTTP layer or endpoints
+type = independence
+modules =
+    ml
+    apps.api.endpoints
+
+[importlinter:contract:phase0-no-cross-domain-repos]
+name = Repositories must not import services layer
+type = forbidden
+source_modules =
+    repositories
+forbidden_modules =
+    services
+    apps
+
+[importlinter:contract:phase0-repositories-are-only-db-door-for-services]
+name = services must import sqlalchemy only via repositories or core.database
+type = forbidden
+source_modules =
+    services
+forbidden_modules =
+    sqlalchemy
+# Phase 0 is measurement-only: the whole contract is ignorable until Phase 1
+# drives the 65 raw-sqlalchemy imports in services/ to zero (see ADR-0001).
+# (One wildcard pair ignores every matching import chain.)
+ignore_imports =
+    services.* -> sqlalchemy

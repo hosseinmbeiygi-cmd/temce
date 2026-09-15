@@ -84,3 +84,16 @@ class ModelEvaluationJob(BaseJob):
         if result.success:
             return JobResult.success_result(job_name=self.name, data={"metrics": result.value})
         return JobResult.failure(result.error, job_name=self.name)
+
+
+class MlArtifactLifecycleJob(BaseJob):
+    """M2: prune stale ml_artifacts (keep 3 latest per algo, >90d)."""
+
+    async def execute(self, context: JobContext) -> JobResult:
+        keep = int(context.get_param("keep_latest", 3))
+        max_age = int(context.get_param("max_age_days", 90))
+        dry_run = bool(context.get_param("dry_run", False))
+        from services.ml_lifecycle_service import prune_ml_artifacts
+
+        result = prune_ml_artifacts(keep_latest=keep, max_age_days=max_age, dry_run=dry_run)
+        return JobResult.success_result(job_name=self.name, data=result)

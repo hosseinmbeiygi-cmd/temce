@@ -1,0 +1,52 @@
+================================== FAILURES ===================================
+_________________ test_classify_extremes_land_in_right_groups _________________
+
+    def test_classify_extremes_land_in_right_groups():
+        rows = [_row(f"HIGH{i}", price=1000, value=9e13, vol=9e8) for i in range(3)]
+        rows += [_row(f"LOW{i}", price=100, value=2e9, vol=2e3) for i in range(3)]
+        groups = classify_from_dicts(rows)
+>       assert all(groups[s] == SymbolGroup.A for s in ("HIGH0", "HIGH1", "HIGH2"))
+E       assert False
+E        +  where False = all(<generator object test_classify_extremes_land_in_right_groups.<locals>.<genexpr> at 0x00000212A48A58C0>)
+
+precompute\tests\test_precompute.py:58: AssertionError
+________________ test_pipeline_emits_contract_events_in_order _________________
+
+captured = ([], {'A_SYM': {'symbol': 'A_SYM', 'group': 'A', 'last_price': 1000.0, 'closing_price': 1000.0, ...}, 'BAD': {'symbol'..._price': 1000.0, ...}, 'B_SYM': {'symbol': 'B_SYM', 'group': 'B', 'last_price': 1000.0, 'closing_price': 1000.0, ...}})
+
+    def test_pipeline_emits_contract_events_in_order(captured):
+        import asyncio
+    
+        from precompute.workers.celery_tasks import dispatch_armor_pipeline_async
+    
+        events, stored = captured
+        groups = {
+            "A": [_row("A_SYM"), _row("BAD", price=0.0, fresh=False)],
+            "B": [_row("B_SYM")],
+            "C": [],
+        }
+        payload = asyncio.run(dispatch_armor_pipeline_async(groups, job_id="test-job"))
+    
+        # Terminal contract payload validates and totals add up.
+        PRECOMPUTATION_COMPLETED(**{k: payload[k] for k in PRECOMPUTATION_COMPLETED.model_fields})
+        assert payload["total"] == 3
+        assert set(stored) == {"A_SYM", "B_SYM", "BAD"}  # BAD still computed with fallbacks
+    
+        types = [t for t, _ in events]
+>       assert types.count("PRECOMPUTATION_GROUP_COMPLETED") == 3  # A, B, C
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert 0 == 3
+E        +  where 0 = <built-in method count of list object at 0x00000212A4899B80>('PRECOMPUTATION_GROUP_COMPLETED')
+E        +    where <built-in method count of list object at 0x00000212A4899B80> = [].count
+
+precompute\tests\test_precompute.py:166: AssertionError
+============================== warnings summary ===============================
+venv\Lib\site-packages\opentelemetry\util\_importlib_metadata.py:32
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\opentelemetry\util\_importlib_metadata.py:32: DeprecationWarning: SelectableGroups dict interface is deprecated. Use select.
+    return EntryPoints(ep for group_eps in eps.values() for ep in group_eps)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED precompute/tests/test_precompute.py::test_classify_extremes_land_in_right_groups
+FAILED precompute/tests/test_precompute.py::test_pipeline_emits_contract_events_in_order
+2 failed, 12 passed, 1 warning in 2.05s

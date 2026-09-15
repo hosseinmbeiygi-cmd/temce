@@ -16,8 +16,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Path, Query
 
+from apps.api.error_handlers import safe_error_detail, safe_error_message
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -43,7 +44,7 @@ async def get_signal_accuracy(
         )
 
         if not result.success:
-            return ApiResponse(success=False, data=None, error={"message": result.error or "Unknown error"})
+            return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Unknown error")})
 
         return ApiResponse(
             success=True,
@@ -59,13 +60,13 @@ async def get_signal_accuracy(
         )
     except Exception as e:
         logger.exception("Signal accuracy endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.get("/accuracy/symbol/{symbol}", summary="Signal accuracy by symbol",
             description="Get detailed accuracy metrics for a specific symbol")
 async def get_symbol_accuracy(
-    symbol: str,
+    symbol: str = Path(..., min_length=1, max_length=20),
     days: int = Query(90, ge=1, le=365),
 ) -> ApiResponse[dict[str, Any]]:
     try:
@@ -75,12 +76,12 @@ async def get_symbol_accuracy(
         result = await tracker.get_accuracy_by_symbol(symbol=symbol, days=days)
 
         if not result.success:
-            return ApiResponse(success=False, data=None, error={"message": result.error or "Unknown error"})
+            return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Unknown error")})
 
         return ApiResponse(success=True, data=result.value)
     except Exception as e:
         logger.exception("Symbol accuracy endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.post("/backtest", summary="Backtest signals",
@@ -123,7 +124,7 @@ async def backtest_signals(
         )
 
         if not result.success:
-            return ApiResponse(success=False, data=None, error={"message": result.error or "Backtest failed"})
+            return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Backtest failed")})
 
         return ApiResponse(
             success=True,
@@ -136,7 +137,7 @@ async def backtest_signals(
         )
     except Exception as e:
         logger.exception("Backtest endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.get("/walk-forward", summary="Walk-forward validation",
@@ -228,7 +229,7 @@ async def get_walk_forward(
             )
 
             if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": result.error or "Validation failed"})
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Validation failed")})
 
             return ApiResponse(
                 success=True,
@@ -241,7 +242,7 @@ async def get_walk_forward(
 
     except Exception as e:
         logger.exception("Walk-forward endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.get("/ensemble", summary="Ensemble optimization",
@@ -257,7 +258,7 @@ async def get_ensemble_optimization(
         if market == "all":
             result = await optimizer.optimize_all_markets()
             if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": result.error or "Optimization failed"})
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Optimization failed")})
             return ApiResponse(
                 success=True,
                 data={
@@ -270,7 +271,7 @@ async def get_ensemble_optimization(
         else:
             result = await optimizer.optimize(market)
             if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": result.error or "Optimization failed"})
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Optimization failed")})
             return ApiResponse(
                 success=True,
                 data={
@@ -280,7 +281,7 @@ async def get_ensemble_optimization(
             )
     except Exception as e:
         logger.exception("Ensemble optimization endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.get("/confidence", summary="Confidence scoring breakdown",
@@ -316,7 +317,7 @@ async def get_confidence_scoring(
         )
     except Exception as e:
         logger.exception("Confidence scoring endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.post("/retrain", summary="Trigger model retrain",
@@ -333,7 +334,7 @@ async def trigger_retrain(
         if market == "all":
             result = await pipeline.retrain_all_markets(force=force)
             if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": result.error or "Retrain failed"})
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Retrain failed")})
             return ApiResponse(
                 success=True,
                 data={
@@ -345,7 +346,7 @@ async def trigger_retrain(
         else:
             result = await pipeline.check_and_retrain(market=market, force=force)
             if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": result.error or "Retrain failed"})
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Retrain failed")})
             return ApiResponse(
                 success=True,
                 data={
@@ -355,7 +356,7 @@ async def trigger_retrain(
             )
     except Exception as e:
         logger.exception("Retrain endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.get("/multi-timeframe", summary="Multi-timeframe confirmation",
@@ -386,7 +387,7 @@ async def get_multi_timeframe_confirmation(
         )
     except Exception as e:
         logger.exception("Multi-timeframe endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
 
 
 @router.get("/risk-filter", summary="Risk-adjusted signal filter",
@@ -425,4 +426,4 @@ async def get_risk_filter(
         )
     except Exception as e:
         logger.exception("Risk filter endpoint failed")
-        return ApiResponse(success=False, data=None, error={"message": str(e)})
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(e)})
