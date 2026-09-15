@@ -12,6 +12,8 @@ Create Date: 2026-09-16
 """
 from __future__ import annotations
 
+import contextlib
+
 from alembic import op
 from sqlalchemy import text
 
@@ -257,11 +259,9 @@ def upgrade() -> None:
 
     # ISIN باید کلید کانونی قابل جستجو باشد (بدون unique enforcement تا داده‌های
     # موجود خالی مشکل‌ساز نشوند؛ فقط index)
-    try:
+    with contextlib.suppress(Exception):
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_funds_isin_lookup ON funds (isin)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_funds_national_id ON funds (national_id)"))
-    except Exception:
-        pass
 
     # ── ۲. جداول جدید ──
     for _name, ddl in _NEW_TABLES:
@@ -269,10 +269,8 @@ def upgrade() -> None:
 
     # ── ۳. ایندکس‌ها ──
     for _name, ddl in _NEW_INDEXES:
-        try:
-            conn.execute(text(ddl))
-        except Exception:
-            pass  # already exists
+        with contextlib.suppress(Exception):
+            conn.execute(text(ddl))  # already exists → suppressed
 
 
 def downgrade() -> None:

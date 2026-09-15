@@ -56,7 +56,7 @@ def daily_returns(nav_series: list[float]) -> list[float]:
     if len(nav_series) < 2:
         return []
     out: list[float] = []
-    for prev, cur in zip(nav_series, nav_series[1:]):
+    for prev, cur in zip(nav_series, nav_series[1:], strict=False):
         if prev and prev > 0 and cur is not None:
             out.append(cur / prev - 1.0)
     return out
@@ -143,7 +143,7 @@ def compute_alpha_beta(
         return (None, None)
     mean_f = sum(rf_rets) / len(rf_rets)
     mean_b = sum(rb_rets) / len(rb_rets)
-    cov = sum((x - mean_f) * (y - mean_b) for x, y in zip(rf_rets, rb_rets)) / max(len(rf_rets) - 1, 1)
+    cov = sum((x - mean_f) * (y - mean_b) for x, y in zip(rf_rets, rb_rets, strict=False)) / max(len(rf_rets) - 1, 1)
     var_b = sum((y - mean_b) ** 2 for y in rb_rets) / max(len(rb_rets) - 1, 1)
     beta = cov / var_b if var_b > 0 else None
     alpha_daily = mean_f - (DEFAULT_ANNUAL_RISK_FREE / 250) - (beta or 0.0) * (mean_b - DEFAULT_ANNUAL_RISK_FREE / 250)
@@ -161,6 +161,7 @@ def compute_tracking_error(fund_nav: list[float], benchmark_nav: list[float]) ->
         for f, pf, b, pb in zip(
             fund_nav[-n:], fund_nav[-n - 1 : -1] or fund_nav[-n:],
             benchmark_nav[-n:], benchmark_nav[-n - 1 : -1] or benchmark_nav[-n:],
+            strict=False,
         )
     ]
     if len(diff) < 20:
@@ -184,7 +185,7 @@ class ScoreWeights:
     liquidity_w: float = 0.20
     stability_w: float = 0.15
 
-    def normalized(self) -> "ScoreWeights":
+    def normalized(self) -> ScoreWeights:
         total = self.return_w + self.risk_w + self.liquidity_w + self.stability_w
         if total <= 0:
             return ScoreWeights(0.25, 0.25, 0.25, 0.25)
@@ -404,7 +405,7 @@ def run_backtest(
     seen_months: set[str] = set()
     days_since_last_buy = 999
 
-    for i, (d, nav) in enumerate(zip(parsed_dates, navs)):
+    for i, (d, nav) in enumerate(zip(parsed_dates, navs, strict=False)):
         buy = False
         amount = 0.0
         if strategy == "buy_hold":

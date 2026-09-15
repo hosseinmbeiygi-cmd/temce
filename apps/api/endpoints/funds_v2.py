@@ -319,7 +319,6 @@ async def _avg_daily_value(session: AsyncSession, fund_id: str) -> float | None:
 
 async def _persist_score(session: AsyncSession, fund_id: str, score: Any) -> None:
     import json as _json
-    from datetime import datetime as _dt
 
     try:
         m = score.metrics

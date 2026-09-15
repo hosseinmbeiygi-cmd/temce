@@ -13,10 +13,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -27,7 +28,6 @@ from core.config import settings
 from core.logging import get_logger
 from services.fund_api_adapter import (
     FundApiAdapter,
-    normalize_date,
 )
 
 logger = get_logger(__name__)
@@ -123,10 +123,8 @@ class DistributedMutex:
         redis = await self._get_redis()
         if redis is None:
             if self._local.locked():
-                try:
+                with contextlib.suppress(RuntimeError):
                     self._local.release()
-                except RuntimeError:
-                    pass
             return
         key = f"fund:lock:{name}"
         try:

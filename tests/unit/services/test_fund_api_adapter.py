@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import date
 
-import pytest
-
 from services.fund_api_adapter import (
     normalize_date,
     parse_gregorian,
@@ -15,7 +13,6 @@ from services.fund_api_adapter import (
     validate_portfolio_weights,
     validate_quote,
 )
-
 
 # ── Date parsing (شمسی/میلادی ساخت‌یافته) ───────────────────────────────────
 

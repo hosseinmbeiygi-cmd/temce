@@ -200,6 +200,7 @@ class Router:
         from apps.api.endpoints.funds_v2 import router as funds_v2_router
         from apps.api.endpoints.health import router as health_router
         from apps.api.endpoints.indicators import router as indicators_router
+        from apps.api.endpoints.ingestion import router as ingestion_router
         from apps.api.endpoints.jobs import router as jobs_router
         from apps.api.endpoints.macro import router as macro_router
         from apps.api.endpoints.market import router as market_router
@@ -234,7 +235,6 @@ class Router:
         from apps.api.endpoints.tests_runner import router as tests_router
         from apps.api.endpoints.trades import router as trades_router
         from apps.api.endpoints.watchlist import router as watchlist_router
-        from apps.api.endpoints.ingestion import router as ingestion_router
         from apps.api.endpoints.websocket import router as websocket_router
 
         # Health and auth routers are intentionally unprotected

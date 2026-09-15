@@ -270,14 +270,14 @@ class FundApiAdapter:
         خروجی: لیست مدل داخلی:
           {fund_id, symbol, name, isin, ins_id, market, sector, fund_type_hint}
         """
+        from sqlalchemy import select
+
         from brsapi.config import BrsApiEndpoints
+        from brsapi.models.tsetmc import SymbolSnapshotModel
         from brsapi.services.sync_service import (
             _normalize_persian,
             fund_sector_sql_condition,
         )
-        from sqlalchemy import select
-
-        from brsapi.models.tsetmc import SymbolSnapshotModel
 
         universe: dict[str, dict[str, Any]] = {}
         if self.sync_service is not None and getattr(self.sync_service, "_session", None) is not None:

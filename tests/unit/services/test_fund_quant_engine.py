@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 from datetime import date, timedelta
 
 import pytest
@@ -25,7 +24,6 @@ from services.fund_quant_engine import (
     run_backtest,
     score_fund,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
