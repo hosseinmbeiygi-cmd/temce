@@ -402,14 +402,9 @@ def run_backtest(
         parsed_dates.append(gd or date(2020, 1, 1))
 
     seen_months: set[str] = set()
-    recent_low = navs[0]
+    days_since_last_buy = 999
 
     for i, (d, nav) in enumerate(zip(parsed_dates, navs)):
-        # به‌روزرسانی کف اخیر فقط با داده گذشته
-        if strategy == "dip_buying":
-            window = navs[max(0, i - 20) : i + 1]
-            recent_low = min(window)
-
         buy = False
         amount = 0.0
         if strategy == "buy_hold":
@@ -421,10 +416,17 @@ def run_backtest(
                 seen_months.add(month_key)
                 buy, amount = True, monthly_amount
         elif strategy == "dip_buying":
-            change_from_low = (nav - recent_low) / recent_low if recent_low > 0 else 0.0
-            # سیگنال: قیمت از کف ۲۰ روزه به اندازه آستانه بازگشت کرده (تأییدیه روز جاری)
-            prev_change = (navs[i - 1] - recent_low) / recent_low if i > 0 and recent_low > 0 else 0.0
-            if change_from_low >= dip_threshold_pct / 100.0 and prev_change < dip_threshold_pct / 100.0:
+            # افت از سقف ۲۰ روزِ «گذشته» — فقط با داده تا امروز (No Look-Ahead)
+            window = navs[max(0, i - 20) : i + 1]
+            recent_high = max(window)
+            change_from_high = (nav - recent_high) / recent_high if recent_high > 0 else 0.0
+            # خرید وقتی قیمت حداقل به اندازه آستانه زیر سقف اخیر است،
+            # حداکثر هر ۵ روز معاملاتی یک بار (کنترل هزینه و درگیری سرمایه)
+            if (
+                change_from_high <= dip_threshold_pct / 100.0
+                and days_since_last_buy >= 5
+                and is_iran_trading_day(d)
+            ):
                 buy, amount = True, monthly_amount
 
         if buy and amount > 0 and nav > 0:
@@ -432,7 +434,10 @@ def run_backtest(
             bought_units = net_amount / nav
             units += bought_units
             invested += amount
+            days_since_last_buy = 0
             trades.append(BacktestTrade(date=str(dates[i]), action="buy", price=nav, units=bought_units, amount=amount))
+        else:
+            days_since_last_buy += 1
 
     if invested <= 0 or units <= 0:
         return None
