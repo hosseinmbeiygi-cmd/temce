@@ -87,7 +87,7 @@ jobs:
           cache: pip
 
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: pip-${{ env.PYTHON_VERSION }}-fund-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
@@ -162,7 +162,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: pip-${{ env.PYTHON_VERSION }}-fund-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
