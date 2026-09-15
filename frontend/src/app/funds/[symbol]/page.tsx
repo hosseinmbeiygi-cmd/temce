@@ -383,7 +383,7 @@ export default function FundDetailPage() {
 
           {/* ── Enterprise Analytics (v2 — ۸ تب تحلیلی) ── */}
           <div className="mt-5">
-            <FundAnalyticsPanel symbol={symbol} fundName={detail?.name} />
+            <FundAnalyticsPanel symbol={symbol} />
           </div>
 
           <div className="mt-5">

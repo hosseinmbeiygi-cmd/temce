@@ -183,7 +183,7 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-export default function FundAnalyticsPanel({ symbol, fundName }: { symbol: string; fundName?: string }) {
+export default function FundAnalyticsPanel({ symbol }: { symbol: string; fundName?: string }) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const fundId = `tse:${symbol}`;
 
