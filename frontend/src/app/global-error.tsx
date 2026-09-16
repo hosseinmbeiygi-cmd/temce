@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * Top-level error boundary — replaces the entire root layout when a
@@ -18,6 +19,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[GlobalErrorBoundary]", error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

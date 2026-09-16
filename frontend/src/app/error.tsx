@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * Route-level error boundary (Next.js App Router).
@@ -24,6 +25,7 @@ export default function GlobalError({
   useEffect(() => {
     // Log to the console for debugging — do not leak details to the UI.
     console.error("[ErrorBoundary]", error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

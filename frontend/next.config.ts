@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import path from "path";
 import type { NextConfig } from "next";
 
@@ -39,4 +40,19 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry webpack plugin wraps the config — disabled without an auth token
+// (release creation / source-map upload only run in CI with SENTRY_AUTH_TOKEN).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Keep local/dev builds silent and fast.
+  silent: true,
+  disableLogger: true,
+  // Source maps upload only when a token is present (CI).
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+  // Do not inject build-time teardown into every build.
+  telemetry: false,
+});
