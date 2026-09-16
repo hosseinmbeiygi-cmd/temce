@@ -171,6 +171,7 @@ class Settings(BaseSettings):
     metrics_path: str = "/metrics"
     otlp_endpoint: str | None = None
     sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.1
 
     # Centralized log aggregation (Redis Streams). Enable in multi-service
     # deployments where a collector (Loki/Vector) tails the stream.

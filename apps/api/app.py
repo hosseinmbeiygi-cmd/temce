@@ -767,6 +767,15 @@ async def _brsapi_startup_sync() -> None:
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     scheduler_app = None
     setup_logging()
+
+    # Sentry first (optional, env-guarded) so startup failures are captured too.
+    try:
+        from core.observability_sentry import init_sentry
+
+        init_sentry(settings)
+    except Exception:
+        logger.warning("Sentry init failed (optional)", exc_info=True)
+
     try:
         settings.validate_production()
     except Exception:
