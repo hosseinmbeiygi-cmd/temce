@@ -1,8 +1,8 @@
 # گزارش جلسه — امنیت، حقوقی، پاکسازی و Observability
 
 > تاریخ: ۱۶ سپتامبر ۲۰۲۶
-> دامنه: **۱۵ کامیت** روی `main` (بعد از `1797019b`) — شامل خود این گزارش
-> حجم: ۷۹+ فایل تغییر یافته، خالص: کاهش چند هزار خطی از ریپو
+> دامنه: **۱۷ کامیت** روی `main` (بعد از `1797019b`)
+> حجم: ۸۰+ فایل تغییر یافته، خالص: کاهش چند هزار خطی از ریپو
 
 ---
 
@@ -104,7 +104,39 @@
 
 ---
 
-## ۷️⃣ مستندسازی — `36df10ed`
+## ۷️⃣ اعتبارسنجی Build و اصلاح Heap — `975a77cf` + `09d94f3f`
+
+### اعتبارسنجی end-to-end با build و SSR واقعی
+
+پیاده‌سازی‌های CSP و Sentry فقط در سطح کد نماندند — با `next build` کامل و سرور `next start` واقعی اعتبارسنجی شدند:
+
+| بررسی | نتیجه |
+|-------|-------|
+| تطابق nonce هدر CSP با اسکریپت theme در یک response (`/` و `/markets`) | ✅ MATCH |
+| تازگی nonce بین requestها | ✅ |
+| redirect روت محافظت‌شده (`/admin/users`) با CSP کامل | ✅ 307 |
+| hook `onRouterTransitionStart` در باندل client | ✅ کامپایل شده |
+| **نبود placeholder DSN در باندل‌ها** (بدون DSN، باندل Sentry-free) | ✅ |
+
+### رفع هشدار build — `975a77cf`
+
+export کردن `onRouterTransitionStart = Sentry.captureRouterTransitionStart` از `instrumentation-client.ts` — هشدار `ACTION REQUIRED` بیلد را رفع و navigation tracking فرانت را فعال کرد.
+
+### wrapper دائمی heap — `09d94f3f`
+
+`next build` در فاز TypeScript-check با heap پیش‌فرض OOM می‌شد (`Committing semi space failed`). راه‌حل `NODE_OPTIONS=... npm run build` در اسکریپت فقط POSIX است و روی cmd.exe/PowerShell شکست می‌خورد — این پروژه روی ویندوز بیلد می‌شود.
+
+**راه‌حل:** `frontend/scripts/build-with-heap.js` (بدون dependency):
+
+```json
+"build": "node scripts/build-with-heap.js"
+```
+
+- اگر NODE_OPTIONS از قبل heap دارد → دست نمی‌زند (CI override)
+- وگرنه `--max-old-space-size=6144` ست می‌کند (قابل تغییر با `FRONTEND_BUILD_HEAP_MB`)
+- **اعتبارسنجی هر دو سناریو با build کامل:** بدون NODE_OPTIONS خارجی → موفق ۷۶s/۱۴۲ صفحه؛ با NODE_OPTIONS=4096 → موفق و محترم شمرده‌شده
+
+## ۸️⃣ مستندسازی — `36df10ed` + `8b2bb614`
 
 همین گزارش: `docs/SESSION_REPORT_2026-09-16.md` — جمع‌بندی تمام کارهای جلسه، سرنوشت ادعاهای دو ممیزی، و نقشه راه اقدامات بعدی.
 
@@ -131,6 +163,9 @@
 ## 📜 لیست کامل کامیت‌ها
 
 ```
+8b2bb614 docs: update session report — include report commit itself and fix commit count
+09d94f3f build(frontend): guarantee next build heap via cross-platform wrapper
+975a77cf feat(observability): add onRouterTransitionStart hook for App Router nav tracking
 36df10ed docs: add Persian session report for 2026-09-16 (security, legal, cleanup, observability)
 b07f7fb7 test(api): regression tests for forecast endpoint rate limiting
 0d8e4404 feat(observability): plumb SENTRY_DSN through compose and k8s manifests
@@ -157,4 +192,4 @@ e3e42971 chore(legal): add MIT LICENSE and reference it in pyproject metadata
 3. تصمیم معماری برای `_FRONTEND_BACKEND_COPY` (merge/حذف/archive)
 4. کاهش ۹ Dockerfile و ۵ compose به ساختار واحد + انتخاب یک استراتژی deployment
 5. فعال‌سازی Dependabot، Secret Scanning و CodeQL در تنظیمات گیت‌هاب (مشکل #۱۲)
-6. اصلاح heap build فرانت (`NODE_OPTIONS="--max-old-space-size=6144"` در اسکریپت build یا CI)
+6. ~~اصلاح heap build فرانت~~ ✅ انجام شد — `scripts/build-with-heap.js` (کامیت `09d94f3f`)
