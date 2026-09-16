@@ -141,6 +141,9 @@ class Settings(BaseSettings):
             "/api/v1/futures": 30,
             "/api/v1/commodity": 30,
             "/api/v1/crypto": 30,
+            # ── Forecast (public but DB/Redis-backed — cap anonymous abuse) ──
+            "/api/v1/forecast": 30,
+            "/api/v1/forecast-engine": 30,
         },
         description="Per-endpoint rate limits (requests per minute)",
     )
