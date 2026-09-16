@@ -18,6 +18,8 @@ env/
 # Environment
 .env
 .env.local
+.env.*
+!.env.example
 
 # OS
 .DS_Store
@@ -132,3 +134,14 @@ tmp-chrome-profile*/
 /ruff_*.txt
 /project_summary.txt
 /temp_*.txt
+
+# Security cleanup (2026-09): sensitive & unknown files
+*.bin
+/checkpoint.json
+
+# Ad-hoc temp/debug scripts at repo root
+/_*
+
+# AI coding assistant memory / plans
+.dmcode-memory.json
+.zcode/
