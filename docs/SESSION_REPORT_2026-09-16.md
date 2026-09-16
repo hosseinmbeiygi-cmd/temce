@@ -1,8 +1,8 @@
 # گزارش جلسه — امنیت، حقوقی، پاکسازی و Observability
 
 > تاریخ: ۱۶ سپتامبر ۲۰۲۶
-> دامنه: ۱۴ کامیت روی `main` (بعد از `1797019b`)
-> حجم: **۷۸ فایل، ‎+2,696 / ‎−7,125 خط** (خالص: ‎−۴,۴۲۹ خط)
+> دامنه: **۱۵ کامیت** روی `main` (بعد از `1797019b`) — شامل خود این گزارش
+> حجم: ۷۹+ فایل تغییر یافته، خالص: کاهش چند هزار خطی از ریپو
 
 ---
 
@@ -104,6 +104,12 @@
 
 ---
 
+## ۷️⃣ مستندسازی — `36df10ed`
+
+همین گزارش: `docs/SESSION_REPORT_2026-09-16.md` — جمع‌بندی تمام کارهای جلسه، سرنوشت ادعاهای دو ممیزی، و نقشه راه اقدامات بعدی.
+
+---
+
 ## 📊 جمع‌بندی ممیزی‌ها
 
 ### گزارش اول (ساختاری) — ۱۳ ادعا
@@ -125,6 +131,7 @@
 ## 📜 لیست کامل کامیت‌ها
 
 ```
+36df10ed docs: add Persian session report for 2026-09-16 (security, legal, cleanup, observability)
 b07f7fb7 test(api): regression tests for forecast endpoint rate limiting
 0d8e4404 feat(observability): plumb SENTRY_DSN through compose and k8s manifests
 f171b3eb feat(api): rate-limit public forecast endpoints (30/min per IP)
