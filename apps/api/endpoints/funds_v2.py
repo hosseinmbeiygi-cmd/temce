@@ -15,6 +15,13 @@ Endpoints:
   GET  /funds/v2/portfolio-diffs          — ورود/خروج پول صندوق به نمادها
   GET  /funds/v2/monitoring               — متریک‌های پایش (P1)
 
+پوشش ۱۰۰٪ / Zero-Config (Additive):
+  POST /funds/v2/discover                 — اجرای کشف کامل Universe (In-Page)
+  GET  /funds/v2/coverage                 — KPIهای پوشش/Freshness هر صندوق
+  GET  /funds/v2/aliases/{fund_id}        — Aliasهای نماد (تغییر نماد/ادغام)
+  GET  /funds/v2/quarantine               — داده‌های قرنطینه‌شده
+  POST /funds/v2/quarantine/{qid}/review  — علامت‌گذاری بازبینی‌شده
+
 نکته: ``fund_id`` کانونی فرمت ``tse:نماد`` یا ``ime:نماد`` دارد؛ برای
 سازگاری، نماد خام هم پذیرفته می‌شود (→ ``tse:نماد``).
 """
@@ -30,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
 from core.logging import get_logger
+from services.fund_discovery import FundDiscoveryService
 from services.fund_quant_engine import (
     ScoreWeights,
     run_all_strategies,
@@ -45,6 +53,10 @@ ENGINE_VERSION = "v2.0.0"
 
 def _get_service(session: AsyncSession = Depends(get_db_session)) -> FundReadThroughService:
     return FundReadThroughService(session=session)
+
+
+def _get_discovery(session: AsyncSession = Depends(get_db_session)) -> FundDiscoveryService:
+    return FundDiscoveryService(session=session)
 
 
 def _canonical_fund_id(raw: str) -> str:
@@ -511,4 +523,156 @@ async def get_monitoring(
             "stale_quotes": quote_stale,
             "engine_version": ENGINE_VERSION,
         },
+    }
+
+
+# ── Discovery / Coverage / Alias / Quarantine (Additive) ─────────────────────
+
+
+@router.post("/discover", summary="اجرای کشف کامل Universe (Zero-Config In-Page)")
+async def run_discovery(
+    market: str | None = Query(default=None, description="tse|ime"),
+    limit: int | None = Query(default=None, ge=1, le=3000),
+    service: FundDiscoveryService = Depends(_get_discovery),
+) -> dict[str, Any]:
+    """کل Universe را از Provider کشف، هویت‌ها را تطبیق و Idempotent ثبت می‌کند.
+
+    این Endpoint همان دکمه «همگام‌سازی بازار» صفحه صندوق‌هاست؛ خطای یک
+    صندوق بقیه را متوقف نمی‌کند (Quarantine + شمارش Conflict).
+    """
+    funds = await service.discover(market=market, limit=limit)
+    stats = service.last_stats.to_dict() if service.last_stats else {}
+    return {
+        "success": True,
+        "data": {
+            "total_discovered": len(funds),
+            "stats": stats,
+            "sample": [
+                {
+                    "fund_id": f.get("fund_id"),
+                    "symbol": f.get("symbol"),
+                    "name": f.get("name"),
+                    "market": f.get("market"),
+                }
+                for f in funds[:25]
+            ],
+        },
+    }
+
+
+@router.get("/coverage", summary="KPIهای پوشش و تازگی هر صندوق (A6)")
+async def get_coverage(
+    limit: int = Query(default=200, ge=1, le=2000),
+    include_missing: bool = Query(default=True),
+    status: str | None = Query(default=None, description="ok|partial|stale|missing"),
+    service: FundDiscoveryService = Depends(_get_discovery),
+) -> dict[str, Any]:
+    rows = await service.compute_coverage(limit=limit, include_missing=include_missing)
+    if status:
+        rows = [r for r in rows if r.get("coverage_status") == status]
+    summary: dict[str, int] = {}
+    for r in rows:
+        key = str(r.get("coverage_status"))
+        summary[key] = summary.get(key, 0) + 1
+    return {
+        "success": True,
+        "data": {"summary": summary, "count": len(rows), "items": rows},
+    }
+
+
+@router.get("/aliases/{fund_id}", summary="Aliasهای نماد یک صندوق (تغییر نماد/ادغام)")
+async def get_aliases(
+    fund_id: str,
+    service: FundReadThroughService = Depends(_get_service),
+) -> dict[str, Any]:
+    fid = _canonical_fund_id(fund_id)
+    rows = (
+        await service.session.execute(
+            text(
+                """
+                SELECT symbol, isin, national_id, source, is_active,
+                       first_seen_at, last_seen_at
+                FROM fund_symbol_aliases
+                WHERE fund_id = :fid
+                ORDER BY is_active DESC, last_seen_at DESC NULLS LAST
+                """
+            ),
+            {"fid": fid},
+        )
+    ).fetchall()
+    return {
+        "success": True,
+        "data": {
+            "fund_id": fid,
+            "aliases": [
+                {
+                    "symbol": r[0],
+                    "isin": r[1],
+                    "national_id": r[2],
+                    "source": r[3],
+                    "is_active": bool(r[4]),
+                    "first_seen_at": str(r[5]) if r[5] else None,
+                    "last_seen_at": str(r[6]) if r[6] else None,
+                }
+                for r in rows
+            ],
+        },
+    }
+
+
+@router.get("/quarantine", summary="داده‌های قرنطینه‌شده (Data Quality)")
+async def list_quarantine(
+    reviewed: bool = Query(default=False),
+    limit: int = Query(default=100, ge=1, le=500),
+    service: FundReadThroughService = Depends(_get_service),
+) -> dict[str, Any]:
+    rows = (
+        await service.session.execute(
+            text(
+                """
+                SELECT id, source_endpoint, fund_id, isin, reject_reason,
+                       reject_rule, reviewed, created_at
+                FROM fund_ingestion_quarantine
+                WHERE reviewed = :rv
+                ORDER BY created_at DESC
+                LIMIT :lim
+                """
+            ),
+            {"rv": reviewed, "lim": limit},
+        )
+    ).fetchall()
+    return {
+        "success": True,
+        "data": {
+            "count": len(rows),
+            "items": [
+                {
+                    "id": r[0],
+                    "source_endpoint": r[1],
+                    "fund_id": r[2],
+                    "isin": r[3],
+                    "reject_reason": r[4],
+                    "reject_rule": r[5],
+                    "reviewed": bool(r[6]),
+                    "created_at": str(r[7]) if r[7] else None,
+                }
+                for r in rows
+            ],
+        },
+    }
+
+
+@router.post("/quarantine/{qid}/review", summary="علامت‌گذاری رکورد قرنطینه به‌عنوان بازبینی‌شده")
+async def review_quarantine(
+    qid: int,
+    service: FundReadThroughService = Depends(_get_service),
+) -> dict[str, Any]:
+    result = await service.session.execute(
+        text("UPDATE fund_ingestion_quarantine SET reviewed = TRUE WHERE id = :id"),
+        {"id": qid},
+    )
+    await service.session.commit()
+    return {
+        "success": True,
+        "data": {"id": qid, "reviewed": True, "updated": result.rowcount or 0},
     }

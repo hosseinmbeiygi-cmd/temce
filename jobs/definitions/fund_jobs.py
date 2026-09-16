@@ -51,3 +51,41 @@ class FundsSyncJob(BaseJob):
         except Exception as e:
             logger.exception("FundsSyncJob failed")
             return JobResult.failure(str(e), job_name=self._name)
+
+
+class FundDiscoveryJob(BaseJob):
+    """🔭 Auto-Discovery کامل Universe صندوق‌ها (Zero-Config).
+
+    - بدون هیچ لیست Hardcoded؛ کل صندوق‌های بازار را از Provider کشف می‌کند.
+    - هویت کانونی (ISIN > national_id > symbol) + Alias + Capability Matrix.
+    - ممیزی در ``fund_ingestion_runs``؛ خطای یک صندوق کل اجرا را متوقف نمی‌کند.
+    """
+
+    async def execute(self, context: JobContext) -> JobResult:
+        import time
+
+        from core.database import get_session
+        from services.fund_discovery import FundDiscoveryService
+        from services.fund_read_through import FundReadThroughService
+
+        t0 = time.time()
+        session_obtained = False
+        try:
+            async for session in get_session():
+                session_obtained = True
+                # Mutex مشترک: جلوگیری از اجرای هم‌زمان کشف در چند ورکر
+                svc = FundReadThroughService(session=session)
+                async with svc._guarded("universe"):
+                    discovery = FundDiscoveryService(session, svc.adapter)
+                    funds = await discovery.discover(store_snapshot=True)
+                    stats = discovery.last_stats.to_dict() if discovery.last_stats else {}
+
+            if not session_obtained:
+                return JobResult.failure("Could not obtain DB session", job_name=self._name)
+
+            stats["duration_ms_job"] = round((time.time() - t0) * 1000, 1)
+            logger.info("FundDiscoveryJob: %d funds — %s", len(funds), stats)
+            return JobResult.success_result(job_name=self._name, data=stats)
+        except Exception as e:
+            logger.exception("FundDiscoveryJob failed")
+            return JobResult.failure(str(e), job_name=self._name)

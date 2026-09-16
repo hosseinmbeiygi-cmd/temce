@@ -18,8 +18,9 @@ from jobs.definitions.brsapi_jobs import (
 )
 from jobs.definitions.brsapi_ready_check_job import BrsApiReadyCheckJob
 from jobs.definitions.codal_jobs import CodalAttachmentDownloadJob, CodalIngestionJob, CodalSyncJob
+from jobs.definitions.enterprise_jobs import IndicatorPrecomputeJob, MonthlySalesFillJob
 from jobs.definitions.feature_store_jobs import FeatureStoreBuildJob, ScreenerDailyScoresJob
-from jobs.definitions.fund_jobs import FundsSyncJob
+from jobs.definitions.fund_jobs import FundDiscoveryJob, FundsSyncJob
 from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, HealthCheckJob
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
 from jobs.definitions.market_data_jobs import HistoricalDataJob, QuoteIngestionJob, RealtimeQuoteJob
@@ -62,6 +63,8 @@ __all__ = [
     "CodalSyncJob",
     "NewsIngestionJob",
     "NewsSentimentJob",
+    "IndicatorPrecomputeJob",
+    "MonthlySalesFillJob",
     "MacroDataJob",
     "GoldPriceJob",
     "MetalsPriceJob",
@@ -89,6 +92,7 @@ __all__ = [
     "CodalAttachmentDownloadJob",
     "PaperTradingJob",
     "FundsSyncJob",
+    "FundDiscoveryJob",
     "FeatureStoreBuildJob",
     "ScreenerDailyScoresJob",
     "DataRetentionJob",

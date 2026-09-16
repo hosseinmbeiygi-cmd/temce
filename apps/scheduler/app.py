@@ -88,6 +88,40 @@ class SchedulerApp:
         self.add_job("SyncNavAllJob", trigger="cron", hour="9,18", minute=0, max_instances=1, replace_existing=True)
         self.add_job("NewsIngestionJob", trigger="interval", minutes=10)
 
+        # ── News sentiment NLP: امتیازدهی اخبار عمومی + اختصاصی نماد ──
+        # بلافاصله بعد از هر ingestion اخبار اجرا می‌شود (idempotent — فقط ردیف‌های بدون امتیاز).
+        self.add_job(
+            "NewsSentimentJob",
+            trigger="interval",
+            minutes=10,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Enterprise Overnight Engine: precompute اندیکاتورها ──
+        # ساعات غیربازاری (۱۸:۳۰ و ۲۱:۳۰) — بازار در ۸:۴۵ باز می‌شود؛
+        # batch 400 نماد در هر run تا کل بازار در دو شبانه‌روز پوشش داده شود.
+        self.add_job(
+            "IndicatorPrecomputeJob",
+            trigger="cron",
+            hour="18,21",
+            minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Enterprise Overnight Engine: fill فروش ماهانه کدال ──
+        # اطلاعیه‌های ماهانه معمولاً اواخر ماه شمسی منتشر می‌شوند؛
+        # روزانه یک ساعت بعد از sync کدال چک می‌شود (idempotent).
+        self.add_job(
+            "MonthlySalesFillJob",
+            trigger="cron",
+            hour=3,
+            minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── Evaluate user price/volume/RSI alerts against live data ──
         # Runs every 2 minutes so alerts fire shortly after the condition holds.
         self.add_job("EvaluateAlertsJob", trigger="interval", minutes=2, max_instances=1, replace_existing=True)
@@ -108,6 +142,18 @@ class SchedulerApp:
             trigger="cron",
             hour=17,
             minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Fund auto-discovery: کل Universe صندوق‌ها (Zero-Config) ──
+        # هر روز صبح پیش از بازار + هر ۶ ساعت؛ صندوق جدید بدون تغییر کد
+        # وارد سیستم می‌شود و Backfill خودکار در JIT انجام می‌گیرد.
+        self.add_job(
+            "FundDiscoveryJob",
+            trigger="cron",
+            hour="8,14,20",
+            minute=15,
             max_instances=1,
             replace_existing=True,
         )
