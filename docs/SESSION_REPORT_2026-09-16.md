@@ -1,7 +1,7 @@
 # گزارش جلسه — امنیت، حقوقی، پاکسازی و Observability
 
 > تاریخ: ۱۶ سپتامبر ۲۰۲۶
-> دامنه: **۱۷ کامیت** روی `main` (بعد از `1797019b`)
+> دامنه: **۲۰ کامیت** روی `main` (بعد از `1797019b`)
 > حجم: ۸۰+ فایل تغییر یافته، خالص: کاهش چند هزار خطی از ریپو
 
 ---
@@ -136,7 +136,23 @@ export کردن `onRouterTransitionStart = Sentry.captureRouterTransitionStart` 
 - وگرنه `--max-old-space-size=6144` ست می‌کند (قابل تغییر با `FRONTEND_BUILD_HEAP_MB`)
 - **اعتبارسنجی هر دو سناریو با build کامل:** بدون NODE_OPTIONS خارجی → موفق ۷۶s/۱۴۲ صفحه؛ با NODE_OPTIONS=4096 → موفق و محترم شمرده‌شده
 
-## ۸️⃣ مستندسازی — `36df10ed` + `8b2bb614`
+## ۸️⃣ چرخش Secrets — `3c6103b1`
+
+اجرای گام ۱ از اقدامات بعدی (جزئیات کامل: `docs/SECRETS_ROTATION_2026-09-16.md`):
+
+- **`SECRET_KEY`:** ۶۴ کاراکتر hex تصادفی در `.env` (قبلی placeholder بود)
+- **رمز Postgres محلی:** ۲۷ کاراکتر تصادفی — هم در `.env` (سازگار در `DATABASE_URL`/`DB_PASSWORD`/`PG_PASSWORD`) هم **روی خود سرور** با `ALTER USER`
+- **docker-compose dev:** سه رمز هاردکد لو-رفته در history (`securepassword123`، `redissecure456`، `dev-shared-queue-token`) → `${DEV_*:-default}` قابل override
+
+**راستی‌آزمایی واقعی:** اتصال DB با رمز قدیمی → ALTER → اتصال با رمز جدید ✅ · `init_database()` + `SELECT 1` ✅ · JWT با کلید جدید sign/verify ✅ · توکن امضاشده با کلید قدیمی → `InvalidSignatureError` (همه توکن‌های قبلی باطل شدند — اثر موردانتظار) ✅
+
+**⚠️ اقدام دستی باقی‌مانده:** ترمینال/IDE متغیرهای process-level قدیمی تزریق می‌کند → ری‌استارت ترمینال لازم است؛ رمز production DB و `BRSAPI_API_KEY` فقط توسط مالک قابل چرخش‌اند.
+
+## ۹️⃣ پایان جلسه
+
+تمام ۲۰ کامیت روی `main` محلی‌اند (**push نشده**). همه تغییرات fund-related (سرویس‌های `fund_*`، `jobs/definitions/*`، `funds_v2.py`، کامپوننت‌ها و تست‌هایشان، `docs/funds/`) طبق تصمیم، برای جلسه بعد دست‌نخورده ماندند.
+
+## 🔟 مستندسازی — `36df10ed` + `8b2bb614`
 
 همین گزارش: `docs/SESSION_REPORT_2026-09-16.md` — جمع‌بندی تمام کارهای جلسه، سرنوشت ادعاهای دو ممیزی، و نقشه راه اقدامات بعدی.
 
@@ -163,6 +179,7 @@ export کردن `onRouterTransitionStart = Sentry.captureRouterTransitionStart` 
 ## 📜 لیست کامل کامیت‌ها
 
 ```
+3c6103b1 chore(security): rotate leaked dev credentials — compose defaults + rotation doc
 8b2bb614 docs: update session report — include report commit itself and fix commit count
 09d94f3f build(frontend): guarantee next build heap via cross-platform wrapper
 975a77cf feat(observability): add onRouterTransitionStart hook for App Router nav tracking
@@ -187,7 +204,7 @@ e3e42971 chore(legal): add MIT LICENSE and reference it in pyproject metadata
 
 ## 🚀 اقدامات پیشنهادی بعدی
 
-1. **فوری:** rotate کردن `SECRET_KEY` و credentials دیتابیس (به دلیل تاریخچه git)
+1. ~~**فوری:** rotate کردن `SECRET_KEY` و credentials دیتابیس~~ ✅ انجام شد — `3c6103b1` (باقی‌مانده دستی: رمز production DB، ری‌استارت ترمینال)
 2. پاکسازی history با `git filter-repo` (destructive — بعد از rotate)
 3. تصمیم معماری برای `_FRONTEND_BACKEND_COPY` (merge/حذف/archive)
 4. کاهش ۹ Dockerfile و ۵ compose به ساختار واحد + انتخاب یک استراتژی deployment
