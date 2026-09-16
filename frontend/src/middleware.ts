@@ -3,18 +3,35 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * Baseline security headers applied to every response.
  * Exported so tests can assert against the exact values.
+ *
+ * CSP script-src uses a nonce (`{NONCE}` placeholder — replaced per-request
+ * in middleware()) so only scripts rendered with the matching nonce execute;
+ * Next.js automatically forwards the `x-nonce` request header to its own
+ * chunks when nonce-based CSP is detected. No more 'unsafe-inline' for
+ * scripts (styles still need it — Tailwind injects inline style attributes).
  */
 export const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "SAMEORIGIN",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-DNS-Prefetch-Control": "on",
-  // CSP: allow self + unsafe-inline for theme script + data: for images; tighten in prod
+  // CSP: nonce-based scripts + data: for images; tighten in prod
   "Content-Security-Policy":
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'",
+    "default-src 'self'; script-src 'self' 'nonce-{NONCE}' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 };
+
+export const CSP_NONCE_HEADER = "x-nonce";
+
+/** Generate a fresh base64 nonce for a single request/response pair. */
+function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
 
 /**
  * The httpOnly refresh cookie set by the backend
@@ -28,10 +45,10 @@ export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "im_refresh";
  * eval-source-map, so without 'unsafe-eval' the entire client bundle is
  * blocked → no hydration on ANY route → React Query never runs. The live
  * market WebSocket also dials :8000 cross-origin in dev, which
- * `connect-src 'self'` would drop. Production keeps the strict header.
+ * `connect-src 'self'` would drop. Production keeps the strict nonce header.
  */
 const DEV_CSP =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss: http://127.0.0.1:8000 http://localhost:8000";
+  "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss: http://127.0.0.1:8000 http://localhost:8000; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
 
 /**
  * Routes that require a session.
@@ -89,10 +106,14 @@ function isProtectedPath(pathname: string): boolean {
   );
 }
 
-function applySecurityHeaders(response: NextResponse): void {
+function applySecurityHeaders(response: NextResponse, nonce?: string): void {
   const dev = process.env.NODE_ENV !== "production";
   for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-    response.headers.set(key, key === "Content-Security-Policy" && dev ? DEV_CSP : value);
+    if (key === "Content-Security-Policy") {
+      response.headers.set(key, dev ? DEV_CSP : value.replace("{NONCE}", nonce ?? ""));
+    } else {
+      response.headers.set(key, value);
+    }
   }
 }
 
@@ -102,6 +123,7 @@ function applySecurityHeaders(response: NextResponse): void {
  */
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
+  const nonce = generateNonce();
 
   // Allow public routes and static assets without auth check; protect everything else
   const isPublic = isPublicPath(pathname) || !isProtectedPath(pathname) ? isPublicPath(pathname) : false;
@@ -115,12 +137,15 @@ export function middleware(request: NextRequest): NextResponse {
     loginUrl.searchParams.set("redirect", `${pathname}${originalSearch}`);
 
     const response = NextResponse.redirect(loginUrl);
-    applySecurityHeaders(response);
+    applySecurityHeaders(response, nonce);
     return response;
   }
 
-  const response = NextResponse.next();
-  applySecurityHeaders(response);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(CSP_NONCE_HEADER, nonce);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  applySecurityHeaders(response, nonce);
   return response;
 }
 

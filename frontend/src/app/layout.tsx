@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -74,7 +76,12 @@ const THEME_SCRIPT = `
 `;
 
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Nonce generated per-request in middleware.ts and forwarded via the
+  // `x-nonce` header; the CSP script-src nonce directive matches it so only
+  // scripts carrying this nonce (like the theme bootstrap below) execute.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning
       className={`${vazirmatn.variable} ${jetbrainsMono.variable}`}>
@@ -90,7 +97,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           stored theme is applied with no flash. next/script + React 19 warns
           that inline scripts rendered on the client are never executed.
         */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="antialiased font-sans" suppressHydrationWarning>
         <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:right-2 focus:z-[100] focus:rounded-lg focus:bg-card focus:px-4 focus:py-2 focus:text-ink focus:shadow-lg">

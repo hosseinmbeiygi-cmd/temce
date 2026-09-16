@@ -8,6 +8,35 @@ import {
   config,
 } from "@/middleware";
 
+/**
+ * Production CSP uses a per-request nonce (`{NONCE}` template filled by
+ * middleware()); dev CSP is intentionally relaxed ('unsafe-eval' for
+ * next dev source maps + local websocket). Branch the assertions so each
+ * mode is checked against its own contract.
+ */
+function expectSecurityHeaders(res: Response): void {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    if (key === "Content-Security-Policy") {
+      expect(value).toContain("{NONCE}");
+      expect(value).toContain("strict-dynamic");
+      expect(value).toContain("object-src 'none'");
+
+      const actual = res.headers.get(key) ?? "";
+      const isDevCsp = actual.includes("unsafe-eval");
+      if (isDevCsp) {
+        expect(actual).toContain("connect-src 'self' ws: wss:");
+      } else {
+        expect(actual).not.toContain("{NONCE}");
+        expect(actual).not.toContain("script-src 'self' 'unsafe-inline'");
+        expect(actual).toContain("nonce-");
+        expect(actual).toContain("strict-dynamic");
+      }
+    } else {
+      expect(res.headers.get(key)).toBe(value);
+    }
+  }
+}
+
 describe("middleware", () => {
   it("returns a NextResponse with all security headers", () => {
     const req = new NextRequest("http://localhost:3000/dashboard");
@@ -15,9 +44,7 @@ describe("middleware", () => {
 
     // NextResponse.next() is a Response subclass
     expect(res).toBeInstanceOf(Response);
-    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-      expect(res.headers.get(key)).toBe(value);
-    }
+    expectSecurityHeaders(res);
   });
 
   it("never blocks a public request (pass-through)", () => {
@@ -127,8 +154,26 @@ describe("middleware", () => {
       const res = middleware(req);
 
       expect(res.status).toBe(307);
-      for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
-        expect(res.headers.get(key)).toBe(value);
+      expectSecurityHeaders(res);
+    });
+
+    it("generates a fresh nonce per request (prod CSP)", () => {
+      // Next.js types NODE_ENV as read-only; the runtime value is a normal
+      // property, so route around the type via a scoped mock of the module env.
+      const env = process.env as { NODE_ENV?: string };
+      const original = env.NODE_ENV;
+      env.NODE_ENV = "production";
+      try {
+        const a = middleware(new NextRequest("http://localhost:3000/"));
+        const b = middleware(new NextRequest("http://localhost:3000/"));
+        const cspA = a.headers.get("Content-Security-Policy") ?? "";
+        const cspB = b.headers.get("Content-Security-Policy") ?? "";
+
+        expect(cspA).toContain("script-src 'self' 'nonce-");
+        expect(cspA).toContain("strict-dynamic");
+        expect(cspA).not.toBe(cspB);
+      } finally {
+        env.NODE_ENV = original;
       }
     });
   });
