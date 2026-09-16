@@ -136,6 +136,40 @@ export کردن `onRouterTransitionStart = Sentry.captureRouterTransitionStart` 
 - وگرنه `--max-old-space-size=6144` ست می‌کند (قابل تغییر با `FRONTEND_BUILD_HEAP_MB`)
 - **اعتبارسنجی هر دو سناریو با build کامل:** بدون NODE_OPTIONS خارجی → موفق ۷۶s/۱۴۲ صفحه؛ با NODE_OPTIONS=4096 → موفق و محترم شمرده‌شده
 
+### روش تکرارپذیر اعتبارسنجی (runbook)
+
+برای بازتولید اعتبارسنجی در آینده (بعد از هر تغییر CSP/middleware/layout):
+
+```bash
+# 1) Build — wrapper خودش heap را تضمین می‌کند
+cd frontend && npm run build
+
+# 2) سرور production روی پورت موقت
+npx next start -p 3199 &
+sleep 8
+
+# 3) nonce هدر CSP و اسکریپت theme باید در «یک» response برابر باشند
+curl -s -D /tmp/h.txt http://localhost:3199/ -o /tmp/b.html
+H=$(grep -i "content-security-policy" /tmp/h.txt | grep -oE "nonce-[A-Za-z0-9+/=]+" | head -1)
+B=$(grep -oE '<script nonce="[A-Za-z0-9+/=]+"' /tmp/b.html | head -1 | grep -oE 'nonce="[^"]+' | cut -d'"' -f2)
+[ "nonce-$B" = "$H" ] && echo MATCH || echo MISMATCH
+
+# 4) تازگی nonce: دو درخواست → دو مقدار متفاوت
+curl -sI http://localhost:3199/ | grep -ioE "nonce-[A-Za-z0-9+/=]+" | head -1
+curl -sI http://localhost:3199/ | grep -ioE "nonce-[A-Za-z0-9+/=]+" | head -1
+
+# 5) روت محافظت‌شده: 307 به login با CSP کامل
+curl -sI http://localhost:3199/admin/users | grep -E "HTTP|location|content-security-policy"
+
+# 6) بهداشت باندل Sentry (بدون DSN نباید هیچ اثری باشد)
+grep -rl "sentry.io/project-id" .next/static/chunks/ && echo LEAK || echo CLEAN
+
+# 7) خاموشی سرور موقت
+ps aux | grep "next start" | grep -v grep | awk '{print $1}' | xargs -r kill
+```
+
+نتیجه اجرای این runbook در ۲۰۲۶-۰۹-۱۶: همه مراحل ✅ (جزئیات در جدول بالا).
+
 ## ۸️⃣ چرخش Secrets — `3c6103b1`
 
 اجرای گام ۱ از اقدامات بعدی (جزئیات کامل: `docs/SECRETS_ROTATION_2026-09-16.md`):
