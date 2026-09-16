@@ -6,6 +6,7 @@ from jobs.base_job import BaseJob
 from jobs.job_context import JobContext
 from jobs.job_result import JobResult
 from services.news_ingestion import NewsIngestionService
+from services.news_sentiment_pipeline import NewsSentimentPipeline
 
 logger = get_logger(__name__)
 
@@ -38,5 +39,17 @@ class NewsIngestionJob(BaseJob):
 
 
 class NewsSentimentJob(BaseJob):
+    """امتیازدهی NLP سنتیمنت اخبار — عمومی + اختصاصی نماد (تب ۶)."""
+
     async def execute(self, context: JobContext) -> JobResult:
-        return JobResult.success_result(job_name=self.name, data={"analyzed": 0})
+        batch_size = context.get_param("batch_size", 200)
+        force = bool(context.get_param("force", False))
+        session_obtained = False
+        stats: dict[str, int] = {}
+        async for session in get_session():
+            session_obtained = True
+            pipeline = NewsSentimentPipeline(session=session)
+            stats = await pipeline.run(batch_size=batch_size, force=force)
+        if not session_obtained:
+            return JobResult.failure("Could not obtain DB session", job_name=self.name)
+        return JobResult.success_result(job_name=self.name, data=stats)

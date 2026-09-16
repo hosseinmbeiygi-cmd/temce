@@ -389,8 +389,7 @@ class StockReadThroughService:
                     SELECT d.trade_date, d.price_first, d.price_max, d.price_min, d.price_last,
                            d.trade_volume, d.trade_value
                     FROM daily_history d
-                    JOIN symbols s ON s.id = d.symbol_id
-                    WHERE s.code = :sym AND d.price_last IS NOT NULL
+                    WHERE d.symbol = :sym AND d.price_last IS NOT NULL
                     ORDER BY d.trade_date DESC LIMIT :lim
                     """
                 ),
