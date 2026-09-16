@@ -13,6 +13,7 @@ Market hours:
 """
 from __future__ import annotations
 
+import contextlib
 from datetime import date, timedelta
 
 from core.time import now_tehran
@@ -93,11 +94,9 @@ class TradingCalendar:
         if HAS_JDATETIME:
             current_year = jdatetime.date.today().year
             for shamsi_month, shamsi_day in SHAMSI_HOLIDAYS:
-                try:
+                with contextlib.suppress(ValueError):
                     jd = jdatetime.date(current_year, shamsi_month, shamsi_day)
                     self.holidays.add(jd.togregorian())
-                except ValueError:
-                    pass
 
     def is_trading_day(self, d: date) -> bool:
         """Check if a date is a trading day for Iranian markets.

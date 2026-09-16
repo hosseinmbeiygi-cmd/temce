@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 from io import StringIO
 from typing import Any
@@ -35,14 +36,10 @@ class TseArchiveParser(ParserBase):
 
     def _clean_value(self, value: str) -> int | float | str:
         value = value.strip().replace(",", "")
-        try:
+        with contextlib.suppress(ValueError):
             return int(value)
-        except ValueError:
-            pass
-        try:
+        with contextlib.suppress(ValueError):
             return float(value)
-        except ValueError:
-            pass
         return value
 
     def validate(self, parsed: list[dict[str, Any]]) -> bool:

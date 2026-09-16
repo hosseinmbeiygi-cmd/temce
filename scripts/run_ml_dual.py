@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import sys
 import time
@@ -143,7 +144,7 @@ async def save_result(session_factory, result: dict, data_type: str) -> None:
 async def save_failure(session_factory, symbol: str, data_type: str,
                        model_type: str, error: str, elapsed: float) -> None:
     """Save failed training attempt using its own session."""
-    try:
+    with contextlib.suppress(Exception):
         async with session_factory() as session:
             run_id = uuid.uuid4().hex[:12]
             await session.execute(text("""
@@ -156,8 +157,6 @@ async def save_failure(session_factory, symbol: str, data_type: str,
             """), {"id": run_id, "symbol": symbol, "data_type": data_type,
                    "model_type": model_type, "error": error[:500], "elapsed": elapsed})
             await session.commit()
-    except Exception:
-        pass
 
 
 # ═══════════════════════════════════════════════════════════════

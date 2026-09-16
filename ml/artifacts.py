@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import pickle
@@ -26,13 +27,11 @@ def _sha256_file(path: Path) -> str:
 def _collect_library_versions() -> dict[str, str]:
     versions: dict[str, str] = {}
     for lib in ("sklearn", "xgboost", "lightgbm", "catboost", "torch"):
-        try:
+        with contextlib.suppress(Exception):
             import importlib
 
             mod = importlib.import_module(lib)
             versions[lib] = getattr(mod, "__version__", "unknown")
-        except Exception:
-            pass
     return versions
 
 
@@ -53,11 +52,9 @@ class ArtifactManager:
             pickle.dump(model_obj, f)
 
         # M1: content hash + provenance
-        try:
+        with contextlib.suppress(Exception):
             meta.artifact_hash = _sha256_file(model_file)
             meta.file_size_bytes = model_file.stat().st_size
-        except Exception:
-            pass
         meta.python_version = platform.python_version()
         meta.library_versions = _collect_library_versions()
 

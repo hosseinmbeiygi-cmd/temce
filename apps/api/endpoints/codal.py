@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
+from apps.api.error_handlers import safe_error_message
 from core.db_utils import safe_row_str
 from core.exceptions import NotFoundError
 from core.logging import get_logger

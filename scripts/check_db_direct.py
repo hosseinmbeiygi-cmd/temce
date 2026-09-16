@@ -3,6 +3,7 @@
 Credentials come from settings.database_url (DATABASE_URL in .env) — no
 hardcoded passwords in the script.
 """
+import contextlib
 import io
 import sys
 
@@ -55,7 +56,7 @@ for tbl in tables:
 
 # Also check column details for key trade tables
 for tbl in ["trades", "brsapi_intraday_trades", "quotes", "brsapi_historical_daily"]:
-    try:
+    with contextlib.suppress(Exception):
         cur.execute(f"""
             SELECT column_name, data_type
             FROM information_schema.columns
@@ -66,8 +67,6 @@ for tbl in ["trades", "brsapi_intraday_trades", "quotes", "brsapi_historical_dai
         print(f"\n  Columns for '{tbl}':")
         for col_name, col_type in cols:
             print(f"    - {col_name} ({col_type})")
-    except Exception:
-        pass
 
 cur.close()
 conn.close()

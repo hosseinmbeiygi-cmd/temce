@@ -20,7 +20,7 @@ loop, so a wrong attribute name would return 200 on zero rows).
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from brsapi.models.base import SyncLogModel
+from core.time import utc_now_naive
 
 
 def _db_url() -> str:
@@ -96,7 +97,7 @@ async def test_sync_history_returns_list(client: AsyncClient) -> None:
     """
     engine = create_async_engine(_db_url())
     Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    marker = f"__test_sync_history_{os.getpid()}_{datetime.now().microsecond}"
+    marker = f"__test_sync_history_{os.getpid()}_{utc_now_naive().microsecond}"
 
     async def _remove_marker_rows() -> None:
         async with Session() as session:
@@ -112,8 +113,8 @@ async def test_sync_history_returns_list(client: AsyncClient) -> None:
                     status="success",
                     items_count=42,
                     duration_ms=123.0,
-                    started_at=datetime.now() - timedelta(minutes=5),
-                    completed_at=datetime.now() - timedelta(minutes=5),
+                    started_at=utc_now_naive() - timedelta(minutes=5),
+                    completed_at=utc_now_naive() - timedelta(minutes=5),
                 )
             )
             await session.commit()

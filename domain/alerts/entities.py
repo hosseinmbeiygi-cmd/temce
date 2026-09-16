@@ -5,6 +5,7 @@ from dataclasses import field as dc_field
 from datetime import datetime
 from typing import Any
 
+from core.time import utc_now_naive
 from domain.common.base_entity import BaseEntity
 
 
@@ -64,7 +65,7 @@ class Alert(BaseEntity):
 
     def mark_triggered(self) -> None:
         self.is_triggered = True
-        self.triggered_at = datetime.now()
+        self.triggered_at = utc_now_naive()
         self.mark_updated()
 
 

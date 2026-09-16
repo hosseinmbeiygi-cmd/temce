@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from apps.api.dependencies import get_brsapi_query_service
 from core.logging import get_logger
+from core.time import utc_now_naive
 from schemas.common.responses import ApiResponse
 
 logger = get_logger(__name__)
@@ -141,7 +142,7 @@ async def analysis_overview_frontend(
             },
             recommendations=recommendations,
             market_status="open",
-            analysis_date=datetime.now().isoformat(),
+            analysis_date=utc_now_naive().isoformat(),
         ),
     )
 

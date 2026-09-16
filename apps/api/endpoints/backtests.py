@@ -20,6 +20,7 @@ from apps.api.endpoints.backtest_requests import (
 from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
 from core.ids import new_id
 from core.logging import get_logger
+from core.time import utc_now_naive
 from models.compare import CompareResultModel
 from schemas.api.backtest import BacktestRequest
 
@@ -330,7 +331,7 @@ async def save_compare_result(
         end_date=body.end_date,
         capital=body.capital,
         notes=body.get("notes", ""),
-        executed_at=datetime.now(),
+        executed_at=utc_now_naive(),
     )
     session.add(orm)
     await session.commit()
@@ -1198,7 +1199,7 @@ async def cascade_results() -> ApiResponse[dict[str, Any]]:
 
 @router.get("/cascade/combinations", summary="Calculate total combinations")
 async def cascade_combinations(
-    strategies: list[str] = Query(default=[]),
+    strategies: list[str] | None = Query(default=None),
     num_symbols: int = Query(default=1),
     use_genetic: bool = Query(default=True),
     population_size: int = Query(default=50),

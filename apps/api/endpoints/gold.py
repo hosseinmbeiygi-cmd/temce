@@ -39,6 +39,7 @@ from schemas.api.gold import (
     GoldLivePrices,
     GoldLivePricesRequest,
 )
+from schemas.api.gold.etf import ETF_UNIVERSE
 from schemas.common.responses import ApiResponse
 from services.gold import (
     FuturesRiskCalculator,

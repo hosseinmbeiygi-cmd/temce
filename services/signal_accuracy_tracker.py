@@ -6,6 +6,7 @@ and records: direction_correct, max_profit, max_loss, stop-out, target hits.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -298,11 +299,9 @@ class SignalAccuracyTracker:
     @staticmethod
     def _count_unavailable_read(reason: str = "no_database") -> None:
         """Count an unavailable accuracy read so it is never silent (audit S2)."""
-        try:
+        with contextlib.suppress(Exception):
             from apps.api.metrics import get_prometheus_exporter
 
             get_prometheus_exporter().inc(
                 "accuracy_tracking_read_unavailable_total", labels={"reason": reason}
             )
-        except Exception:  # noqa: BLE001 — metric plumbing must not break reads
-            pass

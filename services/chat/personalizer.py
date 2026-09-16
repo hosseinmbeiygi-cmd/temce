@@ -45,7 +45,7 @@ class ProfileStore:
         Uses temp-file + ``os.replace`` so a crash mid-write never corrupts
         the file.  A ``threading.Lock`` serialises concurrent callers.
         """
-        try:
+        with contextlib.suppress(Exception):
             os.makedirs(os.path.dirname(self._storage_path) or ".", exist_ok=True)
             with _WRITE_LOCK:
                 fd, tmp = tempfile.mkstemp(
@@ -60,8 +60,6 @@ class ProfileStore:
                     with contextlib.suppress(OSError):
                         os.unlink(tmp)
                     raise
-        except Exception:
-            pass
 
     def get_profile(self, user_id: str) -> dict[str, Any]:
         """Get or create a user profile."""

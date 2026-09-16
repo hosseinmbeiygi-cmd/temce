@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 import time
 import traceback
@@ -325,7 +326,7 @@ class DiagnosticsRunner:
 
             async with async_session_factory() as session:
                 # Try daily_history table first
-                try:
+                with contextlib.suppress(Exception):
                     from models.market_data import DailyHistoryModel, SymbolModel
 
                     # Resolve symbol_id
@@ -369,8 +370,6 @@ class DiagnosticsRunner:
                             }
                             for r in reversed(rows)  # chronological order
                         ]
-                except Exception:
-                    pass
 
                 # Fallback: try raw SQL on various history tables
                 for table_name in ["daily_history", "history_data", "price_history"]:
@@ -494,13 +493,11 @@ class DiagnosticsRunner:
         for i in range(1, len(bars)):
             d1_str = bars[i - 1].get("date", "")
             d2_str = bars[i].get("date", "")
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 d1 = date.fromisoformat(d1_str[:10])
                 d2 = date.fromisoformat(d2_str[:10])
                 if (d2 - d1).days > 7:
                     gap_count += 1
-            except (ValueError, TypeError):
-                pass
         if gap_count > 0:
             issues.append(f"{gap_count} date gaps > 7 days")
 
@@ -651,7 +648,7 @@ class DiagnosticsRunner:
 
             async with async_session_factory() as session:
                 # Check ml_models table
-                try:
+                with contextlib.suppress(Exception):
                     from models.ml import MlModelModel
                     # NOTE: MlModelModel has no `status` column — it carries
                     # task/framework/latest_version. Report the total count.
@@ -669,11 +666,9 @@ class DiagnosticsRunner:
                             level="INFO", category="ml", symbol="__ALL__",
                             message=f"ML models: {len(models)} registered",
                         ))
-                except Exception:
-                    pass
 
                 # Check ml_predictions for this symbol
-                try:
+                with contextlib.suppress(Exception):
                     from models.ml import MlPredictionModel
                     result = await session.execute(
                         select(MlPredictionModel.id)
@@ -685,11 +680,9 @@ class DiagnosticsRunner:
                             level="WARNING", category="ml", symbol=symbol,
                             message="No ML predictions found for symbol",
                         ))
-                except Exception:
-                    pass
 
                 # Check ml_training_runs
-                try:
+                with contextlib.suppress(Exception):
                     from sqlalchemy import func
 
                     from models.ml import MlTrainingRunModel
@@ -702,8 +695,6 @@ class DiagnosticsRunner:
                             level="INFO", category="ml", symbol="__ALL__",
                             message=f"ML training runs found: {count}",
                         ))
-                except Exception:
-                    pass
 
         except Exception as exc:
             self.result.add_finding(DiagnosticFinding(
@@ -739,18 +730,16 @@ class DiagnosticsRunner:
                     ))
 
                 # Check alerts table
-                try:
+                with contextlib.suppress(Exception):
                     result = await session.execute(text("SELECT COUNT(*) FROM alerts"))
                     count = result.scalar() or 0
                     self.result.add_finding(DiagnosticFinding(
                         level="INFO", category="system", symbol="__ALL__",
                         message=f"Active alerts: {count}",
                     ))
-                except Exception:
-                    pass
 
                 # Check backtest_runs
-                try:
+                with contextlib.suppress(Exception):
                     result = await session.execute(
                         text("SELECT COUNT(*) FROM backtest_runs")
                     )
@@ -759,8 +748,6 @@ class DiagnosticsRunner:
                         level="INFO", category="backtest", symbol="__ALL__",
                         message=f"Total backtest runs: {count}",
                     ))
-                except Exception:
-                    pass
 
         except Exception as exc:
             logger.warning("Cross-checks failed: %s", exc)

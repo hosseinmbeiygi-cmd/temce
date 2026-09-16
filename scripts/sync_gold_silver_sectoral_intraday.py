@@ -19,7 +19,7 @@ semaphore of 4 to stay well under the limit and to be polite.
 import asyncio
 import json
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import jdatetime
@@ -31,6 +31,7 @@ from brsapi.models.tsetmc import (
 )
 from brsapi.services.sync_service import BrsApiSyncService
 from core import database
+from core.time import now_tehran, now_utc
 
 REPORT = Path("data") / "top50_funds_intraday" / "sync_gss.json"
 CONCURRENCY = 4
@@ -39,7 +40,7 @@ WALKBACK_DAYS = 14
 
 def _jalali_dates_back(n: int) -> list[str]:
     out: list[str] = []
-    g = datetime.now().date()
+    g = now_tehran().date()
     for i in range(n):
         d = g - timedelta(days=i)
         j = jdatetime.date.fromgregorian(date=d)
@@ -162,7 +163,7 @@ async def main() -> None:
         still_missing = await _missing_for(s, all_syms)
 
     report = {
-        "ran_at": datetime.now().isoformat(),
+        "ran_at": now_utc().isoformat(),
         "classified": {"gold": len(gold), "silver": len(silver), "sectoral": len(sectoral)},
         "attempted": len(missing),
         "synced_ok": counters["ok"],

@@ -17,6 +17,7 @@ review (سند §19.3 step 3) can trace the timeline.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from dataclasses import dataclass, field
@@ -122,7 +123,7 @@ class KillSwitch:
             logger.debug("KillSwitch Redis write failed: %s", exc)
 
     async def _append_event(self, event: KillSwitchEvent) -> None:
-        try:
+        with contextlib.suppress(Exception):
             from core.cache_manager import get_cache_manager
 
             cm = get_cache_manager()
@@ -138,8 +139,6 @@ class KillSwitch:
                 ),
                 ttl=90 * 24 * 3600,  # 90-day retention (سند §15.1)
             )
-        except Exception:
-            pass
         logger.warning("KillSwitch %s by %s: %s", event.event, event.actor, event.reason)
 
     # ── Public API ────────────────────────────────────────────────────

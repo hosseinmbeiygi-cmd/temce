@@ -12,6 +12,7 @@ Design for < 3 hour completion:
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 from dataclasses import dataclass
@@ -582,12 +583,10 @@ class MassScannerService:
                     continue
                 pa = prices_a[-min_len:]
                 pb = prices_b[-min_len:]
-                try:
+                with contextlib.suppress(Exception):
                     corr, _ = pearsonr(pa, pb)
                     if abs(corr) >= 0.7:
                         relations.append({"a": a, "b": b, "strength": round(corr, 3), "n": min_len})
-                except Exception:
-                    pass
         return relations
 
     async def _persist_results(self, filters: dict[str, Any]) -> None:

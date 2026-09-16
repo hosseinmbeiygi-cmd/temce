@@ -15,13 +15,14 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 from services.fund_api_adapter import FundApiAdapter
 from services.fund_identity import (
     canonical_fund_id_for_symbol,
@@ -241,7 +242,7 @@ class FundDiscoveryService:
             )
             return None
 
-        now = datetime.utcnow()
+        now = utc_now_naive()
         fund_type = record.get("fund_type_hint") or record.get("fund_type") or "سهامی"
         name = record.get("name") or symbol
         is_etf = market == "tse"

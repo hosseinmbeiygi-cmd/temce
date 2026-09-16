@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Query
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 from schemas.common.responses import ApiResponse
 
 logger = get_logger(__name__)
@@ -196,7 +196,7 @@ async def get_multi_market_signals(
                     "total_signals": 0, "buy_count": 0, "sell_count": 0,
                     "hold_count": 0, "avg_confidence": 0,
                 },
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             }
 
         # Work on a COPY — the cached report is shared across requests and
@@ -344,7 +344,7 @@ async def get_signal_summary() -> ApiResponse[dict[str, Any]]:
                 "top_buys": top_buys,
                 "cross_market": data.get("cross_market", []),
                 "accuracy": data.get("accuracy", {}),
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             },
         )
     except Exception as e:

@@ -30,6 +30,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from core.time import utc_now_naive
+
 
 class Base(DeclarativeBase):
     """پایه مشترک برای همه مدل‌های صندوق‌یار."""
@@ -51,8 +53,8 @@ class Fund(Base):
     inception_date: Mapped[datetime | None] = mapped_column(DateTime)
     is_etf: Mapped[bool] = mapped_column(Boolean, default=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
     metrics: Mapped[list[FundMetric]] = relationship(back_populates="fund")
 
@@ -69,7 +71,7 @@ class ScoringConfigHistory(Base):
     type_code: Mapped[str] = mapped_column(String(4), nullable=False)
     weights_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON: {metric_key: weight}
     thresholds_json: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive)
     created_by: Mapped[str | None] = mapped_column(String(100))
     change_reason: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -205,7 +207,7 @@ class Alert(Base):
     symbol: Mapped[str | None] = mapped_column(String(20))
     event_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     payload_json: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, index=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -223,7 +225,7 @@ class DataConflict(Base):
     source_b: Mapped[str] = mapped_column(String(50), nullable=False)
     value_b: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
     winner_source: Mapped[str] = mapped_column(String(50))
-    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, index=True)
 
 
 class AdapterHealth(Base):
@@ -239,7 +241,7 @@ class AdapterHealth(Base):
     total_calls: Mapped[int] = mapped_column(Integer, default=0)
     total_errors: Mapped[int] = mapped_column(Integer, default=0)
     avg_latency_ms: Mapped[int] = mapped_column(Integer, default=0)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
 
 class FundManagerHistory(Base):
@@ -263,4 +265,4 @@ class PeerGroupOverride(Base):
     symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
     peer_type_code: Mapped[str] = mapped_column(String(4), nullable=False)
     note: Mapped[str | None] = mapped_column(Text)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)

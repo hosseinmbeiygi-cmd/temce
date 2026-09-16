@@ -18,6 +18,7 @@ Three responsibilities:
 
 from __future__ import annotations
 
+import contextlib
 from datetime import datetime
 from typing import Any
 
@@ -578,7 +579,7 @@ class PaperTradingService:
                 "option": "brsapi_historical_daily",
             }
             table = tables.get(market, "brsapi_historical_daily")
-            try:
+            with contextlib.suppress(Exception):
                 r = await self.session.execute(
                     text(
                         f"SELECT price_close FROM {table} "
@@ -590,8 +591,6 @@ class PaperTradingService:
                 row = r.fetchone()
                 if row and row[0]:
                     return float(row[0])
-            except Exception:
-                pass
             # Fallback: symbol snapshot
             r = await self.session.execute(
                 text(

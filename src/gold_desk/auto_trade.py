@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -21,6 +22,8 @@ from datetime import datetime
 from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.time import utc_now_naive
 
 from .models import GoldTradeModel
 from .portfolio import get_current_prices, get_holdings_grouped
@@ -101,7 +104,7 @@ def decide_action(
 
 async def get_config() -> AutoTradeConfig:
     """بارگذاری config از Redis یا default."""
-    try:
+    with contextlib.suppress(Exception):
         from core.cache import get_cache
 
         cache = get_cache()
@@ -109,8 +112,6 @@ async def get_config() -> AutoTradeConfig:
         if raw:
             data = json.loads(raw) if isinstance(raw, str) else raw
             return AutoTradeConfig(**data)
-    except Exception:
-        pass
     return default_config()
 
 
@@ -163,7 +164,7 @@ async def generate_signal(
         confidence=score / 100.0,
         reason=reason,
         dry_run=config.dry_run,
-        ts=datetime.utcnow(),
+        ts=utc_now_naive(),
     )
 
 

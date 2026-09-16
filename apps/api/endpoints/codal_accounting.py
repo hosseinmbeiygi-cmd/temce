@@ -8,6 +8,7 @@ from apps.api.dependencies import (
     get_codal_financial_import_service,
     get_codal_financial_service,
 )
+from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 from services.codal_accounting_service import (

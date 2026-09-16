@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -110,11 +111,10 @@ async def dashboard_overview(
                 "brsapi_option_snapshots", "brsapi_nav_records",
                 "brsapi_historical_daily", "brsapi_historical_real_legal",
             ]:
-                try:
+                # table may not exist
+                with contextlib.suppress(Exception):
                     r = await session.execute(text(f"SELECT COUNT(*) FROM {tbl}"))
                     table_rows.append({"table": tbl, "rows": r.scalar() or 0})
-                except Exception:
-                    pass  # table may not exist
 
         total_db_records = sum(r["rows"] for r in table_rows)
 

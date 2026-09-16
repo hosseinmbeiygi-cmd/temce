@@ -15,13 +15,13 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -73,7 +73,7 @@ def identity_fingerprint(
             normalize_symbol(symbol).lower(),
         ]
     )
-    return hashlib.sha1(basis.encode("utf-8")).hexdigest()[:40]
+    return hashlib.sha1(basis.encode("utf-8"), usedforsecurity=False).hexdigest()[:40]
 
 
 # ── تصمیم‌یار تطبیق (Pure / Testable) ────────────────────────────────────────
@@ -293,7 +293,7 @@ async def register_alias(
     sym = normalize_symbol(symbol)
     if not sym or not fund_id:
         return
-    now = datetime.utcnow()
+    now = utc_now_naive()
     await session.execute(
         text(
             """

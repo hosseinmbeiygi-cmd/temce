@@ -14,11 +14,12 @@ Responsibilities:
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
+from core.time import now_tehran
 from domain.funds.entities import Fund, FundHolding
 from domain.funds.nav import FundNAV
 from repositories.base_repository import InMemoryRepository
@@ -238,9 +239,9 @@ class FundService:
                 "buy_legal_volume": buy_legal,
                 "sell_real_volume": sell_real,
                 "sell_legal_volume": sell_legal,
-                "time": datetime.now().strftime("%H:%M:%S"),
+                "time": now_tehran().strftime("%H:%M:%S"),
                 "data_source": "brsapi",
-                "snapshot_date": datetime.now().strftime("%Y-%m-%d"),
+                "snapshot_date": now_tehran().strftime("%Y-%m-%d"),
             })
             fund.extra = extra
             fund.mark_updated()
@@ -276,9 +277,9 @@ class FundService:
                     "buy_legal_volume": buy_legal,
                     "sell_real_volume": sell_real,
                     "sell_legal_volume": sell_legal,
-                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "time": now_tehran().strftime("%H:%M:%S"),
                     "data_source": "brsapi",
-                    "snapshot_date": datetime.now().strftime("%Y-%m-%d"),
+                    "snapshot_date": now_tehran().strftime("%Y-%m-%d"),
                 },
             )
             result = await self.fund_repo.save(fund)

@@ -30,7 +30,14 @@ from schemas.api.markets import MarketOverview, MarketSummaryResponse
 from schemas.api.metals import MetalListResponse, MetalRequest, MetalResponse
 from schemas.api.ml import MlPredictionRequest, MlPredictionResponse, MlTrainRequest, MlTrainResponse
 from schemas.api.news import NewsListResponse, NewsRequest, NewsResponse
-from schemas.api.options import OptionListResponse, OptionRequest, OptionResponse
+from schemas.api.options import (
+    OptionListResponse,
+    OptionRequest,
+    OptionResponse,
+    PayoffCalculatorRequest,
+    PayoffLegInput,
+    PayoffPriceRange,
+)
 from schemas.api.portfolios import PortfolioCreate, PortfolioListResponse, PortfolioResponse
 from schemas.api.realtime_orderbook import OrderBookLevel, OrderBookSnapshot
 from schemas.api.realtime_quotes import QuoteStreamMessage, RealtimeQuoteResponse
@@ -114,6 +121,9 @@ __all__ = [
     "OptionRequest",
     "OptionResponse",
     "OptionListResponse",
+    "PayoffCalculatorRequest",
+    "PayoffLegInput",
+    "PayoffPriceRange",
     "PortfolioCreate",
     "PortfolioResponse",
     "PortfolioListResponse",

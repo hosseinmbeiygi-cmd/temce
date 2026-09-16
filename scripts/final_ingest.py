@@ -4,13 +4,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from core.ids import new_id
+from core.time import utc_now_naive
 from models.instrument import InstrumentModel
 from models.quote import QuoteModel
 
@@ -86,8 +86,8 @@ async def final_ingest(symbol: str, ins_code: str):
             volume=volume,
             value=value,
             trade_count=int(trade_count) if trade_count else 0,
-            date=str(date_int) if date_int else datetime.now().strftime("%Y-%m-%d"),
-            time=str(time_int) if time_int else datetime.now().strftime("%H:%M:%S"),
+            date=str(date_int) if date_int else utc_now_naive().strftime("%Y-%m-%d"),
+            time=str(time_int) if time_int else utc_now_naive().strftime("%H:%M:%S"),
             timeframe="1d",
             data_source="tsetmc"
         )

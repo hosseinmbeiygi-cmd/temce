@@ -9,6 +9,7 @@ PopulateProfilesService — پر کردن screener_profiles از داده‌ها
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from sqlalchemy import text
@@ -177,7 +178,7 @@ class PopulateProfilesService:
         # ═══════════════════════════════════════════════════════
         nima_rate = 42000.0
         free_rate = 62000.0
-        try:
+        with contextlib.suppress(Exception):
             r = await self._session.execute(text("""
                 SELECT price FROM brsapi_currency_prices
                 WHERE symbol IN ('NIMA','USD_NIMA','IRR_NIMA')
@@ -186,10 +187,8 @@ class PopulateProfilesService:
             row = r.fetchone()
             if row:
                 nima_rate = float(row[0] or 42000)
-        except Exception:
-            pass
 
-        try:
+        with contextlib.suppress(Exception):
             r = await self._session.execute(text("""
                 SELECT price FROM brsapi_currency_prices
                 WHERE symbol IN ('USD','USD_FREE','US Dollar')
@@ -198,8 +197,6 @@ class PopulateProfilesService:
             row = r.fetchone()
             if row:
                 free_rate = float(row[0] or 62000)
-        except Exception:
-            pass
 
         bank_rate = 30.0
 
@@ -210,7 +207,7 @@ class PopulateProfilesService:
         gross_margin = None
         net_operating_profit = None
 
-        try:
+        with contextlib.suppress(Exception):
             q = text("""
                 SELECT dh.price_close, dh.trade_volume, dh.trade_value,
                        dh.price_last_change_pct, dh.trade_date
@@ -233,13 +230,11 @@ class PopulateProfilesService:
                 if avg_daily_value:
                     net_operating_profit = round(avg_daily_value * 0.003 / 1e9, 4)
                     gross_margin = 20.0 if eps else None  # TODO: read from codal
-        except Exception:
-            pass
 
         # ═══════════════════════════════════════════════════════
         # 5. Real / Legal (30-day aggregates)
         # ═══════════════════════════════════════════════════════
-        try:
+        with contextlib.suppress(Exception):
             q = text("""
                 SELECT drl.legal_buy_volume, drl.legal_sell_volume,
                        drl.real_buy_volume, drl.real_sell_volume
@@ -259,8 +254,6 @@ class PopulateProfilesService:
             _inst_sell_30d = sum(
                 float(r.get("legal_sell_volume", 0) or 0) for r in legal_rows
             )
-        except Exception:
-            pass
 
         # ═══════════════════════════════════════════════════════
         # 6. Build values dict & UPSERT

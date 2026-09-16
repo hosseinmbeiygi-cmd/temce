@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends
 
 from apps.api.dependencies import get_brsapi_query_service
+from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
+from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -430,7 +431,7 @@ async def comprehensive_analysis(
             "bullish_target": scenarios["bullish"]["target_price"],
             "max_position_pct": scenarios["risk_management"]["max_position_size_pct"],
             "technical_status": f"{'اشباع فروش' if rsi and rsi < 30 else 'اشباع خرید' if rsi and rsi > 70 else 'خنثی'} | روند {trend}",
-            "analysis_date": datetime.now().isoformat(),
+            "analysis_date": utc_now_naive().isoformat(),
         }
 
         return {

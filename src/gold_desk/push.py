@@ -11,6 +11,7 @@ subscribers: subscription objects از frontend → ذخیره در Redis
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -86,7 +87,7 @@ def _generate_vapid_keys() -> tuple[str, str]:
 
 async def get_or_create_vapid_keys() -> tuple[str, str]:
     """از cache یا generate جدید."""
-    try:
+    with contextlib.suppress(Exception):
         from core.cache import get_cache
 
         cache = get_cache()
@@ -94,12 +95,10 @@ async def get_or_create_vapid_keys() -> tuple[str, str]:
         if raw:
             data = json.loads(raw) if isinstance(raw, str) else raw
             return data.get("private", ""), data.get("public", "")
-    except Exception:
-        pass
 
     priv, pub = _generate_vapid_keys()
     if priv and pub:
-        try:
+        with contextlib.suppress(Exception):
             from core.cache import get_cache
 
             cache = get_cache()
@@ -108,8 +107,6 @@ async def get_or_create_vapid_keys() -> tuple[str, str]:
                 json.dumps({"private": priv, "public": pub}),
                 ttl=None,
             )
-        except Exception:
-            pass
     return priv, pub
 
 

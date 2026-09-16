@@ -14,6 +14,7 @@ from backtesting.alpha.fast_evaluator import FastAlphaEvaluator
 from backtesting.analytics.engine import AnalyticsEngine
 from backtesting.experiment.engine import ExperimentEngine, GridSearch
 from backtesting.runner import BacktestRunner
+from core.time import now_utc
 
 
 class ExperimentStatus(StrEnum):
@@ -32,7 +33,7 @@ class ResearchJob:
     parameters: dict[str, Any] = field(default_factory=dict)
     result: dict[str, Any] | None = None
     error: str | None = None
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=now_utc)
     completed_at: datetime | None = None
 
 
@@ -98,7 +99,7 @@ class ResearchAPI:
         except Exception as e:
             job.error = str(e)
             job.status = ExperimentStatus.FAILED
-        job.completed_at = datetime.now()
+        job.completed_at = now_utc()
         return job
 
     # ── Alpha Discovery ────────────────────────────────
@@ -154,7 +155,7 @@ class ResearchAPI:
         except Exception as e:
             job.error = str(e)
             job.status = ExperimentStatus.FAILED
-        job.completed_at = datetime.now()
+        job.completed_at = now_utc()
         return job
 
     # ── Experiment Management ──────────────────────────
@@ -183,7 +184,7 @@ class ResearchAPI:
         except Exception as e:
             job.error = str(e)
             job.status = ExperimentStatus.FAILED
-        job.completed_at = datetime.now()
+        job.completed_at = now_utc()
         return job
 
     # ── Portfolio Construction ─────────────────────────
@@ -221,7 +222,7 @@ class ResearchAPI:
         except Exception as e:
             job.error = str(e)
             job.status = ExperimentStatus.FAILED
-        job.completed_at = datetime.now()
+        job.completed_at = now_utc()
         return job
 
     # ── Job Management ─────────────────────────────────

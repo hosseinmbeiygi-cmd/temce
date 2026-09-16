@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 from backtesting.data.live_data_adapter import (
     BrsApiAdapter,
@@ -26,11 +27,9 @@ class TestLiveDataAdapter:
         assert adapter is not None
 
     def test_factory_unknown_type(self):
-        try:
+        with contextlib.suppress(ValueError):
             LiveDataAdapterFactory.create("unknown")
             raise AssertionError("Should have raised ValueError")
-        except ValueError:
-            pass
 
     def test_subscribe_unsubscribe_sync(self):
         adapter = TSEWebServiceAdapter()

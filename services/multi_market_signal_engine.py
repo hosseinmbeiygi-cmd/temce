@@ -6,6 +6,7 @@ Each signal includes 6 mandatory + 5 professional fields per user spec.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -672,13 +673,11 @@ class MultiMarketSignalEngine:
 
             # Forensic risk penalty
             if forensic and str(forensic) not in ("0", "0.0", ""):
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     risk_val = float(forensic)
                     if risk_val > 0.15:
                         buy_score -= 0.10
                         reasons.append(f"ریسک تقلب بالا ({risk_val:.0%})")
-                except (ValueError, TypeError):
-                    pass
 
         # Score to direction
         if buy_score > 0.15:

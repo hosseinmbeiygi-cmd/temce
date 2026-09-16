@@ -14,19 +14,21 @@ import argparse
 import csv
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _db import psycopg2_connect  # noqa: E402
+from psycopg2 import sql  # noqa: E402
+
+from core.time import now_utc
 
 
 def export_all_to_csv(output_dir: str = "exports", batch_size: int = 10000) -> dict:
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = now_utc().strftime("%Y%m%d_%H%M%S")
     export_dir = os.path.join(output_dir, f"export_{timestamp}")
     os.makedirs(export_dir, exist_ok=True)
 
@@ -48,16 +50,16 @@ def export_all_to_csv(output_dir: str = "exports", batch_size: int = 10000) -> d
             for table in tables:
                 csv_path = os.path.join(export_dir, f"{table}.csv")
                 try:
-                    with open(csv_path, "w", newline="") as csvfile:
+                    with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
                         writer = csv.writer(csvfile)
-                        cursor.execute(f'SELECT * FROM "{table}" LIMIT 1')
+                        cursor.execute(sql.SQL('SELECT * FROM {} LIMIT 1').format(sql.Identifier(table)))
                         columns = [desc[0] for desc in cursor.description]
                         writer.writerow(columns)
 
                         offset = 0
                         while True:
                             cursor.execute(
-                                f'SELECT * FROM "{table}" LIMIT %s OFFSET %s',
+                                sql.SQL('SELECT * FROM {} LIMIT %s OFFSET %s').format(sql.Identifier(table)),
                                 (batch_size, offset),
                             )
                             records = cursor.fetchall()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from datetime import date
 
 from backtesting.engine.forex_manager import ForexManager, ForexRate
@@ -61,11 +62,9 @@ class TestForexManager:
     def test_convert_no_rate_raises(self):
 
         fm = ForexManager()
-        try:
+        with contextlib.suppress(ValueError):
             fm.convert(100, "USD", "EUR")
             raise AssertionError("Should have raised ValueError")
-        except ValueError:
-            pass
 
     def test_convert_to_base(self):
 

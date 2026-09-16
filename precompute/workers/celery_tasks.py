@@ -17,6 +17,7 @@ Decoupling (Zero Conflict Policy):
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -146,13 +147,12 @@ async def _emit(event_type: str, payload: dict) -> None:
 
     use_funnel = EMIT_MODE == "funnel" or (EMIT_MODE == "auto" and get_cache().is_connected)
     if use_funnel:
-        try:
+        with contextlib.suppress(Exception):
+            # event delivery must never break computation
             from api.ws_manager import get_armor_ws_manager
 
             await get_armor_ws_manager().broadcast_event_awaited(event_type, payload)
             return
-        except Exception:  # noqa: BLE001 — event delivery must never break computation
-            pass
     await redis_client.publish_event(event_type, payload, _config)
 
 
@@ -313,10 +313,9 @@ def finalize_precompute(self=None, prev_result: dict[str, Any] | None = None, jo
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        try:
+        with contextlib.suppress(Exception):
+            # best-effort
             asyncio.run(_emit("PRECOMPUTATION_COMPLETED", payload))
-        except Exception:  # noqa: BLE001 - best-effort
-            pass
     return payload
 
 

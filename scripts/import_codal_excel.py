@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -185,10 +186,8 @@ def _parse_xls(filepath: str) -> dict:
 
 def _load_checkpoint() -> set:
     if CHECKPOINT.exists():
-        try:
+        with contextlib.suppress(Exception):
             return set(json.loads(CHECKPOINT.read_text("utf-8")).get("done", []))
-        except Exception:
-            pass
     return set()
 
 
@@ -286,7 +285,7 @@ def run_import():
                         parsed = {"error": parsed["error"], "title": "", "financial_items": {}, "tables": [], "table_count": 0, "raw_rows_count": 0}
 
                     raw_key = f"{meta['symbol']}_{meta['report_type']}_{meta['date']}"
-                    new_id = "cfs_" + hashlib.md5(raw_key.encode()).hexdigest()[:16]
+                    new_id = "cfs_" + hashlib.md5(raw_key.encode(), usedforsecurity=False).hexdigest()[:16]
                     records.append({
                         "id": new_id,
                         "symbol": meta["symbol"],

@@ -98,9 +98,10 @@ async def open_trade(
 @router.post("/trades/{trade_id}/close", summary="بستن معامله و ثبت سود/زیان")
 async def close_trade(
     trade_id: str,
-    body: dict[str, Any] = Body(default={}),
+    body: dict[str, Any] | None = Body(default=None),
     svc: PaperTradingService = Depends(_svc),
 ) -> ApiResponse[dict[str, Any]]:
+    body = body or {}
     try:
         result = await svc.close_trade(
             trade_id=trade_id,

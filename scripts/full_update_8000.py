@@ -14,11 +14,11 @@ Usage:
 import argparse
 import asyncio
 import time
-from datetime import datetime
 
 from brsapi.budget import get_budget_governor
 from brsapi.config import get_brsapi_settings
 from brsapi.jobs.registry import BRsAPI_SYNC_JOBS, BrsApiJobRegistry
+from core.time import now_utc
 
 # Priority order: real-time first, then daily backfills
 PRIORITY_ORDER = [
@@ -93,7 +93,7 @@ async def run_full_update(limit: int = 8000, dry_run: bool = False):
     )
     print(f"  Remaining: {remaining_before}")
     print(f"  Request cap: {limit}")
-    print(f"  Time: {datetime.now().isoformat()}")
+    print(f"  Time: {now_utc().isoformat()}")
     print(f"  Backend: {stats['governor']['backend']}")
     if stats["block"]["blocked"]:
         print(f"  ⚠️ BLOCKED until {stats['block']['blocked_until']}")

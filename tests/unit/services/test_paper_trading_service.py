@@ -23,6 +23,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.result import Result
+from core.time import utc_now_naive
 from services.paper_trading_service import (
     DEFAULT_INITIAL_CAPITAL,
     MAX_HOLDING_DAYS,
@@ -81,7 +82,7 @@ def _make_trade(**overrides: Any) -> MagicMock:
         "target2_price": 5832.0,
         "quantity": 100.0,
         "capital_allocated": 500_000.0,
-        "opened_at": datetime.now() - timedelta(days=2),
+        "opened_at": utc_now_naive() - timedelta(days=2),
         "entry_notes": "entry",
         "status": "open",
         "exit_price": None,
@@ -354,7 +355,7 @@ class TestAutoCloseDueTrades:
     async def test_auto_closes_stale_max_hold_trade(self) -> None:
         """An open trade older than MAX_HOLDING_DAYS is force-closed."""
         session = _make_session()
-        stale = _make_trade(id="t3", symbol="فولاد", opened_at=datetime.now() - timedelta(days=MAX_HOLDING_DAYS + 1))
+        stale = _make_trade(id="t3", symbol="فولاد", opened_at=utc_now_naive() - timedelta(days=MAX_HOLDING_DAYS + 1))
         session.execute = AsyncMock(
             return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[stale]))))
         )

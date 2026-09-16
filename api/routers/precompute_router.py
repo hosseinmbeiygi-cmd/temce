@@ -21,6 +21,7 @@ Reuse: core.cache.get_cache(), core.logging, schemas.common.responses.ApiRespons
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from datetime import UTC, datetime
@@ -71,14 +72,6 @@ _mem_results: dict[str, dict[str, Any]] = {}
 # ── Helpers ──────────────────────────────────────────────────────
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
-
-
-def _empty_groups() -> dict[SymbolGroup, GroupProgress]:
-    return {
-        SymbolGroup.A: GroupProgress(total=0, completed=0, failed=0, status=JobStatus.PENDING),
-        SymbolGroup.B: GroupProgress(total=0, completed=0, failed=0, status=JobStatus.PENDING),
-        SymbolGroup.C: GroupProgress(total=0, completed=0, failed=0, status=JobStatus.PENDING),
-    }
 
 
 def _default_status() -> dict[str, Any]:
@@ -275,11 +268,9 @@ async def start_precompute() -> ApiResponse[dict[str, Any]]:
     raw_status = await _load_status()
 
     # Broadcast start event
-    try:
+    with contextlib.suppress(Exception):
         mgr = get_armor_ws_manager()
         await mgr.broadcast_raw("PRECOMPUTATION_STARTED", {"timestamp": _now_iso(), "dispatched": dispatched})
-    except Exception:
-        pass
 
     return ApiResponse[dict[str, Any]](
         success=True,
@@ -293,11 +284,9 @@ async def start_precompute() -> ApiResponse[dict[str, Any]]:
 async def get_precompute_status() -> ApiResponse[dict[str, Any]]:
     status = await _load_status()
     # Enrich with live connection count for the banner
-    try:
+    with contextlib.suppress(Exception):
         mgr = get_armor_ws_manager()
         status["_ws_connections"] = mgr.connection_count()
-    except Exception:
-        pass
     return ApiResponse[dict[str, Any]](success=True, data=status)
 
 
@@ -323,10 +312,8 @@ async def get_dashboard_ready() -> ApiResponse[list[dict[str, Any]]]:
             r["is_stale"] = False
 
     # Sort by armor_score desc so the most interesting hits appear first
-    try:
+    with contextlib.suppress(Exception):
         results.sort(key=lambda x: float(x.get("armor_score", 0) or 0), reverse=True)
-    except Exception:
-        pass
 
     return ApiResponse[list[dict[str, Any]]](success=True, data=results)
 
@@ -354,14 +341,12 @@ async def get_symbol_summary(
         # Try alternative key patterns (legacy)
         cache = get_cache()
         if cache.is_connected:
-            try:
+            with contextlib.suppress(Exception):
                 alt = await cache.get(f"armor:symbol:{symbol}")
                 if isinstance(alt, dict) and "symbol" in alt:
                     result = alt
                 elif isinstance(alt, str):
                     result = json.loads(alt)
-            except Exception:
-                pass
 
     if result is None:
         raise HTTPException(

@@ -6,6 +6,8 @@ so the frontend can search symbols even when the database is unreachable.
 
 from __future__ import annotations
 
+import contextlib
+
 import httpx
 
 from services import symbol_catalog
@@ -293,19 +295,15 @@ def test_fund_symbols_have_sandogh_sector() -> None:
     catalog = symbol_catalog.all_symbols()
     by_symbol = {entry["symbol"]: entry for entry in catalog}
     fund_candidates: list[str] = []
-    try:
+    with contextlib.suppress(Exception):
         from services.fund_sync_service import KNOWN_FUND_SYMBOLS
 
         fund_candidates.extend(list(KNOWN_FUND_SYMBOLS)[:5])
-    except Exception:  # noqa: BLE001
-        pass
     if not fund_candidates:
-        try:
+        with contextlib.suppress(Exception):
             from brsapi.constants import BRSAPI_ETF_SYMBOLS
 
             fund_candidates.extend(list(BRSAPI_ETF_SYMBOLS)[:5])
-        except Exception:  # noqa: BLE001
-            pass
     assert fund_candidates, "expected at least one fund/ETF symbol source to be importable"
     for sym in fund_candidates:
         entry = by_symbol.get(sym)

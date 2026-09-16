@@ -10,12 +10,14 @@ Level 61: Corporate actions awareness (split/dividend detection).
 
 from __future__ import annotations
 
+import contextlib
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -117,19 +119,17 @@ class DataQualityGate:
     def _check_staleness(self, quote: dict[str, Any], report: DataQualityReport) -> None:
         date_str = quote.get("date", "")
         if date_str:
-            try:
+            with contextlib.suppress(Exception):
                 # Try multiple date formats
                 for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%dT%H:%M:%S"):
                     try:
                         data_date = datetime.strptime(date_str, fmt)
-                        age_days = (datetime.now() - data_date).days
+                        age_days = (utc_now_naive() - data_date).days
                         if age_days > self.max_stale_days:
                             report.warnings.append(f"Stale data: {age_days} days old")
                         break
                     except ValueError:
                         continue
-            except Exception:
-                pass
 
     def _check_zero_values(self, quote: dict[str, Any], report: DataQualityReport) -> None:
         volume = quote.get("volume", 0)

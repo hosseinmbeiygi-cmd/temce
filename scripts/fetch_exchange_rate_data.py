@@ -43,6 +43,8 @@ if str(_project_root) not in sys.path:
 
 from dotenv import load_dotenv
 
+from core.time import utc_now_naive
+
 load_dotenv()
 
 # ── constants ──
@@ -105,7 +107,7 @@ def brsapi_get_history(
 ) -> list[dict]:
     """دریافت تاریخچه قیمت یک نماد از BrsApi."""
     if date_end is None:
-        date_end = datetime.now().strftime("%Y-%m-%d")
+        date_end = utc_now_naive().strftime("%Y-%m-%d")
     params = {
         "key": BRSAPI_KEY,
         "history": 2,
@@ -186,7 +188,7 @@ def yahoo_get_history(
         interval: بازه زمانی ("1d", "1wk", "1mo")
     """
     if period2 is None:
-        period2 = datetime.now().strftime("%Y-%m-%d")
+        period2 = utc_now_naive().strftime("%Y-%m-%d")
 
     # Convert to timestamps
     p1 = int(datetime.strptime(period1, "%Y-%m-%d").timestamp())

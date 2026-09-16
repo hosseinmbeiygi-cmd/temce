@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import sys
 
 from services.gold.calculator import (
@@ -49,11 +50,9 @@ def test_coin_bubble():
     assert b.signal == "BUY"
 
     # validation
-    try:
+    with contextlib.suppress(ValueError):
         calculate_coin_bubble(-1, 2500, 70_000)
         raise AssertionError("should have raised")
-    except ValueError:
-        pass
 
     print("✓ coin_bubble: 4 cases passed")
 
@@ -95,11 +94,9 @@ def test_futures_risk():
     assert r.liquidation_price == 285_000_000
 
     # leverage نامعتبر
-    try:
+    with contextlib.suppress(ValueError):
         FuturesRiskCalculator(leverage=0)
         raise AssertionError("should raise")
-    except ValueError:
-        pass
 
     print("✓ futures_risk: 4 cases passed")
 

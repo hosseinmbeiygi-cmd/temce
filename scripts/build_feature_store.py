@@ -44,6 +44,7 @@ from core import (
 )
 from core.database import get_session, init_database  # noqa: E402
 from core.logging import get_logger  # noqa: E402
+from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -141,7 +142,7 @@ class FeatureStoreBuilder:
             "score_total": features.get("final_score"),
             "final_decision": features.get("final_decision"),
             "features_json": features,
-            "calculated_at": datetime.utcnow(),
+            "calculated_at": utc_now_naive(),
         }
         # پاک‌سازی مقادیر NaN/None که قابل JSON نیستند
         row = _sanitize_row(row)
@@ -217,7 +218,7 @@ class FeatureStoreBuilder:
                         "duration_ms": round(duration_ms, 1),
                         "params_snapshot": params_snapshot,
                         "started_at": datetime.fromtimestamp(started_at),
-                        "completed_at": datetime.now(),
+                        "completed_at": utc_now_naive(),
                     },
                 )
                 await log_session.commit()

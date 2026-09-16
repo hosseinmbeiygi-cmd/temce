@@ -15,6 +15,7 @@ Decoupled: never imports precompute/api/frontend
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime, timezone, timedelta
 from typing import Any
 
@@ -104,11 +105,9 @@ async def scan_once() -> dict[str, Any]:
     is_open = _is_market_open()
     client = get_armor_client()
     # BrsApiIngestionClient needs start() before fetch
-    try:
+    with contextlib.suppress(Exception):
         if hasattr(client, "start"):
             await client.start()
-    except Exception:
-        pass
     t0 = datetime.now(UTC)
     raw_resp = await client.fetch_all_symbols()
     elapsed_ms = (datetime.now(UTC) - t0).total_seconds() * 1000

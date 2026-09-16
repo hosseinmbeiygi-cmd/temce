@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from uuid import uuid4
 
 import pytest
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.models.base import SyncLogModel
 from brsapi.repositories.base import SyncLogRepository
+from core.time import utc_now_naive
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ async def test_get_sync_stats_empty(db_session: AsyncSession, sync_log_repo: Syn
 @pytest.mark.asyncio
 async def test_get_sync_stats_calculation(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """Error rate, avg duration, and last success are calculated correctly."""
-    now = datetime.now()
+    now = utc_now_naive()
     endpoint = f"/Test/Endpoint-{uuid4()}.php"
 
     rows = [
@@ -81,7 +82,7 @@ async def test_get_sync_stats_calculation(db_session: AsyncSession, sync_log_rep
 @pytest.mark.asyncio
 async def test_get_sync_stats_time_window(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """Logs older than the window should be excluded."""
-    now = datetime.now()
+    now = utc_now_naive()
     endpoint = f"/Test/Old-{uuid4()}.php"
 
     session = sync_log_repo.session
@@ -118,7 +119,7 @@ async def test_get_sync_stats_time_window(db_session: AsyncSession, sync_log_rep
 @pytest.mark.asyncio
 async def test_get_sync_stats_per_endpoint(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """Stats are grouped per endpoint."""
-    now = datetime.now()
+    now = utc_now_naive()
 
     a_endpoint = f"A-{uuid4()}.php"
     b_endpoint = f"B-{uuid4()}.php"
@@ -156,7 +157,7 @@ async def test_get_sync_stats_per_endpoint(db_session: AsyncSession, sync_log_re
 @pytest.mark.asyncio
 async def test_get_sync_stats_filter_by_endpoint(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """Filtering by endpoint returns only that endpoint's stats."""
-    now = datetime.now()
+    now = utc_now_naive()
     session = sync_log_repo.session
     a_endpoint = f"A-{uuid4()}.php"
     b_endpoint = f"B-{uuid4()}.php"

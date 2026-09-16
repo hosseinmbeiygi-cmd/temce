@@ -14,13 +14,14 @@ No Look-Ahead: هر snapshot فقط با کندل‌های تا همان تار�
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 from models.stock_enterprise import StockIndicatorsSnapshotModel
 from services.stock_technical_engine import compute_indicator_snapshot
 
@@ -150,7 +151,7 @@ class IndicatorPrecomputeService:
         values: dict[str, object] = {
             "symbol": symbol,
             "trade_date": last_date,
-            "computed_at": datetime.utcnow(),
+            "computed_at": utc_now_naive(),
             **flat,
         }
 

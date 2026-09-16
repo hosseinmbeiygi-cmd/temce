@@ -21,7 +21,6 @@ import asyncio
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 import httpx
@@ -33,6 +32,7 @@ from core.fix_network import fix_network
 from core.ids import new_id
 from core.logging import get_logger
 from core.paths import data_path
+from core.time import utc_now_naive
 from models.codal_financial import CodalFinancialStatementModel
 from services.codal_accounting_service import _parse_filename, parse_report
 
@@ -230,7 +230,7 @@ class CodalDownloadService:
                         id=new_id("cfs"),
                         symbol=symbol,
                         report_type=fn_parsed["report_type"] if fn_parsed else "codal_download",
-                        report_date=fn_parsed["date"] if fn_parsed else datetime.now().strftime("%Y%m%d"),
+                        report_date=fn_parsed["date"] if fn_parsed else utc_now_naive().strftime("%Y%m%d"),
                         filename=fname,
                         file_path=filepath,
                         title=parsed.get("title", ""),

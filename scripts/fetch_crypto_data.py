@@ -34,6 +34,8 @@ _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+from core.time import utc_now_naive
+
 OUTPUT_DIR = _project_root / "crypto_data"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -61,7 +63,7 @@ def coindesk_historical(coin: str = "BTC", days: int = 365) -> list[dict]:
         url = "https://api.coindesk.com/v1/bpi/historical/close.json"
         params = {}
         if days:
-            end = datetime.now()
+            end = utc_now_naive()
             start = end - timedelta(days=days)
             params["start"] = start.strftime("%Y-%m-%d")
             params["end"] = end.strftime("%Y-%m-%d")
@@ -247,8 +249,8 @@ def yahoo_chart(ticker: str, col_name: str, days: int = 365) -> list[dict]:
     print(f"  [Yahoo] {ticker}...")
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-        p1 = int((datetime.now() - timedelta(days=days)).timestamp())
-        p2 = int(datetime.now().timestamp())
+        p1 = int((utc_now_naive() - timedelta(days=days)).timestamp())
+        p2 = int(utc_now_naive().timestamp())
         params = {"period1": p1, "period2": p2, "interval": "1d"}
         resp = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=60)
         resp.raise_for_status()

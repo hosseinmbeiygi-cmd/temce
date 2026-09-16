@@ -7,6 +7,7 @@ symbol → instrument resolution, and upsert-by-date for daily market-data files
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -168,15 +169,13 @@ def row_to_quote_kwargs_persian(
             continue
 
         field_type = _infer_field_type(domain_field)
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             if field_type == "int":
                 kwargs[domain_field] = int(raw_value.replace(",", "").replace("،", ""))
             elif field_type == "float":
                 kwargs[domain_field] = float(raw_value.replace(",", "").replace("،", ""))
             else:
                 kwargs[domain_field] = raw_value
-        except (ValueError, TypeError):
-            pass
 
     # Fill OHLC defaults
     close_val = kwargs.get("price_close", 0.0)
@@ -228,15 +227,13 @@ def row_to_quote_kwargs_english(
             continue
 
         field_type = _infer_field_type(domain_field)
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             if field_type == "int":
                 kwargs[domain_field] = int(raw_value.replace(",", "").replace("،", ""))
             elif field_type == "float":
                 kwargs[domain_field] = float(raw_value.replace(",", "").replace("،", ""))
             else:
                 kwargs[domain_field] = raw_value
-        except (ValueError, TypeError):
-            pass
 
     # Fill OHLC defaults
     close_val = kwargs.get("price_close", 0.0)

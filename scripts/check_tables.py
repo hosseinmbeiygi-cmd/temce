@@ -1,4 +1,5 @@
 ﻿import asyncio
+import contextlib
 import sys
 
 sys.path.insert(0, ".")
@@ -23,11 +24,9 @@ async def main():
         for t in ['brsapi_crypto_prices', 'brsapi_gold_coin_prices', 'brsapi_currency_prices',
                    'brsapi_gold_coin_history', 'brsapi_gold_currency_pro_daily_history',
                    'brsapi_historical_daily']:
-            try:
+            with contextlib.suppress(Exception):
                 r2 = await s.execute(text(f"SELECT COUNT(*) FROM {t}"))
                 cnt = r2.scalar()
                 print(f"  {t}: {cnt} rows")
-            except Exception:
-                pass
 
 asyncio.run(main())

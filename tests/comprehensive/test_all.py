@@ -1,13 +1,14 @@
 """Comprehensive 250+ test suite covering all components."""
 from __future__ import annotations
 
+import contextlib
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import dataclasses
-from datetime import date, datetime
+from datetime import date
 
 import pytest
 import pytest_asyncio
@@ -15,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 
 from apps.api.app import app
 from core.security import create_access_token
+from core.time import utc_now_naive
 
 pytest_plugins = ("pytest_asyncio",)
 
@@ -273,11 +275,9 @@ class TestNews:
 
     @pytest.mark.asyncio
     async def test_news_search_db(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/news/search?q=test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_news_search_empty_query(self, client):
@@ -286,11 +286,9 @@ class TestNews:
 
     @pytest.mark.asyncio
     async def test_news_by_symbol_db(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/news/symbol/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_news_all_categories(self, client):
@@ -306,7 +304,7 @@ class TestNews:
 
     @pytest.mark.asyncio
     async def test_news_create(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.post(
                 "/api/v1/news",
                 json={
@@ -318,8 +316,6 @@ class TestNews:
                 },
             )
             assert resp.status_code in (200, 201, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -911,52 +907,40 @@ class TestML:
 class TestMarket:
     @pytest.mark.asyncio
     async def test_overview(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/market/overview")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_gainers(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/market/gainers")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_losers(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/market/losers")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_active(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/market/active")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_gainers_with_limit(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/market/gainers?limit=5")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_market_all(self, client):
-        try:
+        with contextlib.suppress(Exception):
             for ep in ("/overview", "/gainers", "/losers", "/active"):
                 resp = await client.get(f"/api/v1/market{ep}")
                 assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -967,19 +951,15 @@ class TestMarket:
 class TestSymbols:
     @pytest.mark.asyncio
     async def test_list(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/symbols")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_search(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/symbols/search?q=test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_search_empty(self, client):
@@ -988,27 +968,21 @@ class TestSymbols:
 
     @pytest.mark.asyncio
     async def test_by_symbol(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/instruments/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_detail(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/instruments/test/detail")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_pagination(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/instruments?page=1&page_size=10")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -1019,43 +993,33 @@ class TestSymbols:
 class TestQuotes:
     @pytest.mark.asyncio
     async def test_latest(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/quotes/test/latest")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_history(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/quotes/test/history")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_history_with_dates(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/quotes/test/history?start=2025-01-01&end=2025-06-01")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_history_timeframe(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/quotes/test/history?timeframe=1d")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_create(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.post("/api/v1/quotes/test", json={"price_close": 38500, "volume": 1000000})
             assert resp.status_code in (200, 201, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -1066,74 +1030,58 @@ class TestQuotes:
 class TestOrderbooks:
     @pytest.mark.asyncio
     async def test_get(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/orderbooks/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_history(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/orderbooks/test/history")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 class TestTrades:
     @pytest.mark.asyncio
     async def test_get(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/trades/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_recent(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/trades/test/recent")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 class TestSignals:
     @pytest.mark.asyncio
     async def test_list(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/signals")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_latest(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/signals/test/latest")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_for_instrument(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/signals/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_create(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.post(
                 "/api/v1/signals/test",
                 json={"signal": "buy", "strength": 0.8, "source": "test"},
             )
             assert resp.status_code in (200, 201, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -1144,45 +1092,35 @@ class TestSignals:
 class TestRecommendations:
     @pytest.mark.asyncio
     async def test_list(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/recommendations")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_by_instrument(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/recommendations/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 class TestReports:
     @pytest.mark.asyncio
     async def test_market(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/reports/market")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_symbol(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/reports/symbol/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_backtest(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/reports/backtest/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -1193,45 +1131,35 @@ class TestReports:
 class TestSmartMoney:
     @pytest.mark.asyncio
     async def test_analyze(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/smart-money/test")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
 
 class TestMacro:
     @pytest.mark.asyncio
     async def test_list(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/macro/")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_indicator(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/macro/inflation")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_history(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/macro/inflation/history")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_dollar(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/macro/dollar")
             assert resp.status_code in (200, 404, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -1242,22 +1170,18 @@ class TestMacro:
 class TestIndicators:
     @pytest.mark.asyncio
     async def test_get(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.get("/api/v1/indicators/test/sma")
             assert resp.status_code in (200, 500)
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_create(self, client):
-        try:
+        with contextlib.suppress(Exception):
             resp = await client.post(
                 "/api/v1/indicators/test/sma",
                 json={"name": "sma", "params": {"period": 20}},
             )
             assert resp.status_code in (200, 201, 500)
-        except Exception:
-            pass
 
 
 # ==============================================================
@@ -1386,7 +1310,7 @@ class TestEngine:
     def test_equity_point(self):
         from backtesting.types import EquityPoint
 
-        ep = EquityPoint(timestamp=datetime.now(), nav=1000000, cash=500000, positions_value=500000)
+        ep = EquityPoint(timestamp=utc_now_naive(), nav=1000000, cash=500000, positions_value=500000)
         assert ep.nav == 1000000
 
     def test_order_event(self):
@@ -1406,7 +1330,7 @@ class TestEngine:
     def test_backtest_result(self):
         from backtesting.types import BacktestResult, EquityPoint
 
-        ep = EquityPoint(timestamp=datetime.now(), nav=1200000, cash=600000, positions_value=600000)
+        ep = EquityPoint(timestamp=utc_now_naive(), nav=1200000, cash=600000, positions_value=600000)
         r = BacktestResult(
             strategy_name="T",
             initial_capital=1000000,
@@ -1425,13 +1349,13 @@ class TestEngine:
 
         eps = [
             EquityPoint(
-                timestamp=datetime.now(),
+                timestamp=utc_now_naive(),
                 nav=1000000,
                 cash=500000,
                 positions_value=500000,
             ),
             EquityPoint(
-                timestamp=datetime.now(),
+                timestamp=utc_now_naive(),
                 nav=1100000,
                 cash=600000,
                 positions_value=500000,
@@ -1762,7 +1686,7 @@ class TestServices:
 
         eps = [
             EquityPoint(
-                timestamp=datetime.now(),
+                timestamp=utc_now_naive(),
                 nav=1000000,
                 cash=500000,
                 positions_value=500000,

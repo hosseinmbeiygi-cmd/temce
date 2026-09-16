@@ -198,7 +198,7 @@ class StackingEnsembleModel(BaseModel):
         models = []
 
         # XGBoost
-        try:
+        with contextlib.suppress(ImportError):
             import xgboost as xgb
             obj = "reg:squarederror" if task == "regression" else "binary:logistic"
             xgb_model = xgb.XGBRegressor(
@@ -211,11 +211,9 @@ class StackingEnsembleModel(BaseModel):
                 n_jobs=-1, verbosity=0,
             )
             models.append(("xgboost", xgb_model))
-        except ImportError:
-            pass
 
         # LightGBM
-        try:
+        with contextlib.suppress(ImportError):
             import lightgbm as lgb
             lgb_model = lgb.LGBMRegressor(
                 n_estimators=300, learning_rate=0.05, max_depth=7,
@@ -227,11 +225,9 @@ class StackingEnsembleModel(BaseModel):
                 random_state=42, n_jobs=-1, verbose=-1,
             )
             models.append(("lightgbm", lgb_model))
-        except ImportError:
-            pass
 
         # CatBoost
-        try:
+        with contextlib.suppress(ImportError):
             from catboost import CatBoostClassifier, CatBoostRegressor
             cb_model = CatBoostRegressor(
                 iterations=300, learning_rate=0.05, depth=7,
@@ -241,8 +237,6 @@ class StackingEnsembleModel(BaseModel):
                 random_seed=42, verbose=0,
             )
             models.append(("catboost", cb_model))
-        except ImportError:
-            pass
 
         return models
 
@@ -273,7 +267,7 @@ class StackingEnsembleModel(BaseModel):
             for model_idx, (name, model) in enumerate(base_models):
                 import copy
                 fold_model = copy.deepcopy(model)
-                try:
+                with contextlib.suppress(Exception):
                     if hasattr(fold_model, "fit"):
                         # Try with eval_set for early stopping
                         try:
@@ -291,8 +285,6 @@ class StackingEnsembleModel(BaseModel):
                             fold_model.fit(X_train, y_train)
                     preds = fold_model.predict(X_val)
                     oof_preds[val_idx, model_idx] = preds
-                except Exception:
-                    pass
 
         # Train meta-learner on out-of-fold predictions
         self._meta_learner = Ridge(alpha=1.0)

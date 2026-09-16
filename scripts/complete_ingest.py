@@ -4,13 +4,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from core.ids import new_id
+from core.time import utc_now_naive
 from models.instrument import InstrumentModel
 from models.quote import QuoteModel
 from services.tsetmc_client import TsetmcClient
@@ -69,8 +69,8 @@ async def fetch_and_save(symbol: str, ins_code: str):
             volume=volume,
             value=value,
             trade_count=trade_count,
-            date=datetime.now().strftime("%Y-%m-%d"),
-            time=datetime.now().strftime("%H:%M:%S"),
+            date=utc_now_naive().strftime("%Y-%m-%d"),
+            time=utc_now_naive().strftime("%H:%M:%S"),
             timeframe="1d",
             data_source="tsetmc"
         )

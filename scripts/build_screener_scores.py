@@ -37,6 +37,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: E402
 
 from core.database import get_session, init_database  # noqa: E402
 from core.logging import get_logger  # noqa: E402
+from core.time import utc_now_naive
 from services.screener110_service import BatchLoader, VectorCalculator  # noqa: E402
 
 logger = get_logger(__name__)
@@ -173,7 +174,7 @@ async def build_daily_scores(session: Any, trade_date: date) -> dict[str, Any]:
                 "duration_ms": duration_ms,
                 "params_snapshot": f"trade_date={trade_date}",
                 "started_at": datetime.fromtimestamp(started_at),
-                "completed_at": datetime.now(),
+                "completed_at": utc_now_naive(),
             },
         )
         await session.commit()

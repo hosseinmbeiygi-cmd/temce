@@ -11,6 +11,7 @@ if str(_project_root) not in sys.path:
 # --- end auto PYTHONPATH ---
 
 import asyncio
+import contextlib
 
 from core.logging import get_logger
 
@@ -47,11 +48,9 @@ async def rebuild() -> int:
 
     count = 0
     for name, group, dtype in features:
-        try:
+        with contextlib.suppress(ValueError):
             store.register_feature(name, group, dtype)
             count += 1
-        except ValueError:
-            pass
 
     logger.info("Feature store rebuilt with %d features", count)
     return count

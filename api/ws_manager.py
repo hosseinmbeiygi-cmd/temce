@@ -17,6 +17,7 @@ Reuse: pattern from apps/api/endpoints/websocket.py (market WS) + services/realt
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 import uuid
@@ -145,11 +146,9 @@ class ArmorWsManager:
         return True
 
     async def _send(self, ws: WebSocket, data: dict[str, Any]) -> None:
-        try:
-            await ws.send_text(json.dumps(data, ensure_ascii=False, default=str))
-        except Exception:
+        with contextlib.suppress(Exception):
             # Broken connection — will be pruned on next broadcast
-            pass
+            await ws.send_text(json.dumps(data, ensure_ascii=False, default=str))
 
     async def _broadcast(self, data: dict[str, Any]) -> None:
         # Dedupe: the Redis echo of our own publish arrives through the
@@ -326,16 +325,14 @@ class ArmorWsManager:
             logger.debug("Armor WS subscriber loop exited", exc_info=True)
 
     async def _load_status_snapshot(self) -> dict[str, Any] | None:
-        try:
+        with contextlib.suppress(Exception):
             from api.job_state import load_status
 
             # Shared state machine (memory fallback works without Redis too)
             status = await load_status()
             if isinstance(status, dict) and status.get("overall_status"):
                 return status
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             from core.cache import get_cache
 
             cache = get_cache()
@@ -345,8 +342,6 @@ class ArmorWsManager:
                     return raw
                 if isinstance(raw, str):
                     return json.loads(raw)
-        except Exception:
-            pass
         return None
 
     def connection_count(self) -> int:
@@ -355,17 +350,13 @@ class ArmorWsManager:
     async def shutdown(self) -> None:
         if self._subscriber_task is not None:
             self._subscriber_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._subscriber_task
-            except asyncio.CancelledError:
-                pass
             self._subscriber_task = None
         async with self._lock:
             for ws in list(self._connections):
-                try:
+                with contextlib.suppress(Exception):
                     await ws.close(code=1001)
-                except Exception:
-                    pass
             self._connections.clear()
 
 

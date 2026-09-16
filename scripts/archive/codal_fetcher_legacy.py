@@ -1,12 +1,14 @@
+import contextlib
 import json
 import os
 import time
-from datetime import datetime
 
 import requests
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from core.time import now_utc
 
 load_dotenv()
 
@@ -63,15 +65,12 @@ def save_all_data(all_data):
 def log_error(symbol, error_message):
     errors = []
     if os.path.exists(ERROR_LOG_FILE):
-        try:
-            with open(ERROR_LOG_FILE, encoding="utf-8") as f:
-                errors = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
+        with contextlib.suppress(json.JSONDecodeError, OSError), open(ERROR_LOG_FILE, encoding="utf-8") as f:
+            errors = json.load(f)
     errors.append({
         "symbol": symbol,
         "error": error_message,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": now_utc().isoformat()
     })
     with open(ERROR_LOG_FILE, "w", encoding="utf-8") as f:
         json.dump(errors, f, ensure_ascii=False, indent=2)
@@ -227,7 +226,7 @@ def main():
                     "total_announcements": total_count if total_count is not None else 0,
                     "total_pages": total_pages if total_pages is not None else 0,
                     "fetched_count": len(announcements),
-                    "fetched_at": datetime.now().isoformat(),
+                    "fetched_at": now_utc().isoformat(),
                     "announcements": announcements
                 }
                 existing_data.append(record)
@@ -243,7 +242,7 @@ def main():
                     "total_announcements": 0,
                     "total_pages": 0,
                     "fetched_count": 0,
-                    "fetched_at": datetime.now().isoformat(),
+                    "fetched_at": now_utc().isoformat(),
                     "announcements": [],
                     "error": error_msg
                 }
@@ -266,7 +265,7 @@ def main():
                 "total_announcements": 0,
                 "total_pages": 0,
                 "fetched_count": 0,
-                "fetched_at": datetime.now().isoformat(),
+                "fetched_at": now_utc().isoformat(),
                 "announcements": [],
                 "error": error_msg
             }

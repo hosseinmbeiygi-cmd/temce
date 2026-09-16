@@ -16,7 +16,7 @@ Usage:
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,7 @@ from core.indicators import (
     compute_rsi,
 )
 from core.logging import get_logger
+from core.time import now_utc, utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -135,7 +136,7 @@ class FeatureEngine:
         Returns:
             dict با کلیدهای feature key + value + metadata
         """
-        start_time = datetime.now()
+        start_time = now_utc()
         use_queue_service = queue_service or self._queue_service
 
         # ── 1. Gather raw data from DB ──
@@ -174,12 +175,12 @@ class FeatureEngine:
         features.update(block_g)
         features.update(block_h)
 
-        elapsed = (datetime.now() - start_time).total_seconds()
+        elapsed = (now_utc() - start_time).total_seconds()
 
         return {
             "symbol": symbol,
             "name": enriched.get("name", ""),
-            "computed_at": datetime.now().isoformat(),
+            "computed_at": utc_now_naive().isoformat(),
             "computation_time_ms": round(elapsed * 1000, 1),
             "total_features": len(features),
             "version": self._features_schema.get("meta", {}).get("version", "unknown"),
@@ -212,7 +213,7 @@ class FeatureEngine:
         shares_count = float(enriched.get("shares_count", 0) or 0)
         f["float_shares"] = int(shares_count * free_float_pct / 100) if free_float_pct > 0 else 0
 
-        f["update_timestamp"] = datetime.now().isoformat()
+        f["update_timestamp"] = utc_now_naive().isoformat()
         f["data_freshness_quote"] = 0  # real-time (داده تازه است)
         f["data_freshness_candle"] = 0
 

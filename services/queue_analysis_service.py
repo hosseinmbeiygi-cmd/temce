@@ -12,10 +12,11 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from core.logging import get_logger
+from core.time import now_utc, utc_now_naive
 from services.queue_analysis import (
     QueueFeatures,
     QueueHistoryEntry,
@@ -39,7 +40,7 @@ import uuid
 
 def _generate_run_id() -> str:
     """تولید run_id منحصربه‌فرد مبتنی بر timestamp."""
-    return f"queue-auto-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    return f"queue-auto-{now_utc().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
 
 class QueueAnalysisService:
@@ -276,7 +277,7 @@ class QueueAnalysisService:
 
         return {
             "total_symbols": len(queue_results),
-            "analyzed_at": datetime.now().isoformat(),
+            "analyzed_at": utc_now_naive().isoformat(),
             "summary": {
                 "buy_queues": buy_queue_count,
                 "sell_queues": sell_queue_count,
@@ -449,7 +450,7 @@ class QueueAnalysisService:
                 interpretation=result.get("interpretation"),
 
                 # ── Timing ──
-                analyzed_at=datetime.now(),
+                analyzed_at=utc_now_naive(),
             )
 
             self._db_session.add(db_row)
@@ -475,7 +476,7 @@ class QueueAnalysisService:
             "symbol": symbol,
             "name": enriched.get("name", ""),
             "market_type": market_type,
-            "analyzed_at": datetime.now().isoformat(),
+            "analyzed_at": utc_now_naive().isoformat(),
 
             # ── 5 ویژگی صف ──
             "queue_status": queue_features.queue_status.value,

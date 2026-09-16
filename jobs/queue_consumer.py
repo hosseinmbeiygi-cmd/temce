@@ -310,24 +310,20 @@ class JobQueueConsumer:
         await client.lpush(self._dead_queue, json.dumps(payload, ensure_ascii=False, default=str))
         self.dead_lettered += 1
         # Q2 P1: threshold alert (cooldown via Redis key)
-        try:
+        with suppress(Exception):
             dl_len = int(await client.llen(self._dead_queue) or 0)
             if dl_len >= settings.dl_alert_threshold:
                 cooldown_key = "alert:dl_threshold"
                 if not await client.get(cooldown_key):
                     await client.setex(cooldown_key, settings.dl_alert_cooldown_seconds, "1")
-                    try:
+                    with suppress(Exception):
                         from integrations.notifications.telegram_sender import TelegramSender
 
                         sender = TelegramSender()
                         await sender.send(
                             f"⚠️ DL queue depth {dl_len} >= {settings.dl_alert_threshold} — job {payload.get('job_name')} dead-lettered: {error[:200]}"
                         )
-                    except Exception:
-                        pass
                     logger.warning("DL threshold exceeded: %d >= %d", dl_len, settings.dl_alert_threshold)
-        except Exception:
-            pass
 
     # ── Diagnostics ───────────────────────────────────────────────────
 

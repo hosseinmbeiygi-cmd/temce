@@ -5,10 +5,10 @@ and performance metrics for monitored symbols.
 """
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from core.logging import get_logger
+from core.time import now_tehran, now_utc
 
 logger = get_logger(__name__)
 
@@ -55,7 +55,7 @@ class PhaseReportBuilder:
             "smc_score": smc_score,
             "smc_pct": round(smc_score * 100, 1),
             "scores": scores,
-            "timestamp": timestamp or datetime.now().timestamp(),
+            "timestamp": timestamp or now_utc().timestamp(),
         })
 
     def add_transition(
@@ -145,7 +145,7 @@ class PhaseReportBuilder:
 </head>
 <body>
     <h1>گزارش فازهای پول هوشمند</h1>
-    <p style="text-align: center; color: #888;">تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+    <p style="text-align: center; color: #888;">تاریخ: {now_tehran().strftime('%Y-%m-%d %H:%M')}</p>
 
     <div class="summary">
         <div class="stat-card">

@@ -5,9 +5,10 @@ Saves results to database and generates a report.
 import contextlib
 import json
 import time
-from datetime import datetime
 
 import requests
+
+from core.time import now_utc
 
 BASE_URL = "http://localhost:8000/api/v1"
 
@@ -147,12 +148,12 @@ def run_ml_inference(symbol, model_type):
 def main():
     print("=" * 80)
     print("COMPREHENSIVE BATCH: Backtest + ML for All Sectors")
-    print(f"Started: {datetime.now().isoformat()}")
+    print(f"Started: {now_utc().isoformat()}")
     print(f"Symbols: {len(SYMBOLS)}, Strategies: {len(STRATEGIES)}, ML Models: {len(ML_MODELS)}")
     print("=" * 80)
 
     all_results = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": now_utc().isoformat(),
         "symbols": [],
         "summary": {
             "total_backtests": 0,
@@ -292,7 +293,7 @@ def main():
             direction = "📈" if pred.get("predicted_change_pct", 0) > 0 else "📉"
             print(f"  {sym['symbol']:8s} | {direction} {pred.get('predicted_change_pct', 0):+.2f}% | Confidence: {pred.get('confidence', 0):.1%} | Best: {sym.get('best_model', 'N/A')}")
 
-    print(f"\nCompleted: {datetime.now().isoformat()}")
+    print(f"\nCompleted: {now_utc().isoformat()}")
 
 
 if __name__ == "__main__":

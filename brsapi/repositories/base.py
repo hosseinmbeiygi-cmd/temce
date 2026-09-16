@@ -4,6 +4,7 @@ Generic BrsApi repository with bulk-insert / upsert support and sync logging.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -216,7 +217,7 @@ class RawPayloadRepository:
             status_code=status_code,
             payload=payload,
             size_bytes=len(payload),
-            receive_time=receive_time or datetime.now(),
+            receive_time=receive_time or utc_now_naive(),
             market_time=market_time,
             response_latency_ms=response_latency_ms,
             schema_version=schema_version or self.DEFAULT_SCHEMA_VERSION,
@@ -331,12 +332,10 @@ class BulkUpsertRepository(Generic[T]):
         )
         await self.session.flush()
         # rowcount is driver-dependent (psycopg may return None); fall back to len(records) only if unavailable
-        try:
+        with contextlib.suppress(Exception):
             rc = result.rowcount  # type: ignore[attr-defined]
             if rc is not None and rc >= 0:
                 return int(rc)
-        except Exception:
-            pass
         return len(records)
 
     async def truncate(self) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 
 # تقویم بازار ایران — بدون وابستگی سنگین (jdatetime اختیاری)
@@ -25,7 +26,7 @@ def calendar_features(ts_utc: dt.datetime) -> dict:
 
 def to_jalali_str(g_date: str | dt.date | dt.datetime) -> str:
     """تبدیل تاریخ میلادی/شمسی به رشته شمسی استاندارد YYYY-MM-DD با ارقام فارسی اختیاری."""
-    try:
+    with contextlib.suppress(Exception):
         import jdatetime
 
         if isinstance(g_date, str):
@@ -46,8 +47,6 @@ def to_jalali_str(g_date: str | dt.date | dt.datetime) -> str:
         if isinstance(g_date, dt.date):
             j = jdatetime.date.fromgregorian(date=g_date)
             return j.strftime("%Y-%m-%d")
-    except Exception:
-        pass
     return str(g_date)
 
 

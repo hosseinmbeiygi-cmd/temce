@@ -1,7 +1,8 @@
 """Unit tests — v5.0 — Tiered Pricing + Signal + Validation."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from core.time import utc_now_naive
 from domain.decision_engine_v5.models import InstrumentKey, RawTick, TradeCard, TradeLeg
 from domain.decision_engine_v5.pricing_tiered import black76_price, cointegration_zscore, cost_of_carry_fair_price, sabr_gate
 from domain.decision_engine_v5.trading import check_hard_blocks, compute_net_edge, drawdown_action, fixed_fractional_size, signal_score
@@ -14,7 +15,7 @@ def test_instrument_key_str():
 
 
 def test_raw_tick_mid_guard():
-    now = datetime.utcnow()
+    now = utc_now_naive()
     tick = RawTick("k", now, now, best_bid=None, best_ask=100)
     assert tick.mid_price() is None
     tick2 = RawTick("k", now, now, best_bid=100, best_ask=102)

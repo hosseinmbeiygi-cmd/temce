@@ -12,6 +12,7 @@ TTL داینامیک: در ساعات بازار (۰۸:۴۵–۱۲:۳۵) کوت�
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from datetime import datetime
@@ -22,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
+from core.time import now_tehran, utc_now_naive
 from services.stock_signal_engine import (
     LayerInputs,
     compute_composite_signal,
@@ -78,7 +80,7 @@ def _is_market_open() -> bool:
 
         now = datetime.now(pytz.timezone("Asia/Tehran")).time()
     except Exception:
-        now = dt.datetime.now().time()
+        now = now_tehran().time()
     return dt.time(8, 45) <= now <= dt.time(12, 35)
 
 
@@ -129,7 +131,7 @@ class StockReadThroughService:
 
         if row is not None:
             age = (
-                (datetime.utcnow() - row[27]).total_seconds()
+                (utc_now_naive() - row[27]).total_seconds()
                 if row[27] is not None and isinstance(row[27], datetime)
                 else 1e18
             )
@@ -170,7 +172,7 @@ class StockReadThroughService:
         return _Release(self._mutex, name, owned=False)
 
     async def _redis_get(self, key: str) -> dict[str, Any] | None:
-        try:
+        with contextlib.suppress(Exception):
             import redis.asyncio as aioredis
 
             r = aioredis.from_url(settings.redis_url, decode_responses=True)
@@ -178,19 +180,15 @@ class StockReadThroughService:
             await r.aclose()
             if raw:
                 return json.loads(raw)
-        except Exception:
-            pass
         return None
 
     async def _redis_put(self, key: str, payload: dict[str, Any]) -> None:
-        try:
+        with contextlib.suppress(Exception):
             import redis.asyncio as aioredis
 
             r = aioredis.from_url(settings.redis_url, decode_responses=True)
             await r.setex(f"stocks:{key}", TTL_TAPE_LIVE * 2, json.dumps(payload, default=str))
             await r.aclose()
-        except Exception:
-            pass
 
     async def _fetch_and_store_tape(self, symbol: str, isin: str | None) -> dict[str, Any] | None:
         """واکشی از BrsApi (snapshot موجود — بدون call اضافه) و Upsert."""
@@ -220,7 +218,7 @@ class StockReadThroughService:
         if rows is None:
             return None
 
-        now = datetime.utcnow()
+        now = utc_now_naive()
         payload = {
             "symbol": rows[0],
             "isin": rows[1] or isin,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from core.logging import get_logger
@@ -41,14 +42,10 @@ class TseReferenceParser(ParserBase):
 
     def _clean(self, value: str) -> str | int | float:
         value = value.strip()
-        try:
+        with contextlib.suppress(ValueError):
             return int(value.replace(",", ""))
-        except ValueError:
-            pass
-        try:
+        with contextlib.suppress(ValueError):
             return float(value.replace(",", ""))
-        except ValueError:
-            pass
         return value if value else ""
 
     def validate(self, parsed: list[dict[str, Any]]) -> bool:

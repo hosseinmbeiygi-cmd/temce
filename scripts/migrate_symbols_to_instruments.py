@@ -15,11 +15,10 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from datetime import datetime
-
 from sqlalchemy import text
 
 from core.database import close_database, get_session, init_database
+from core.time import utc_now_naive
 
 
 async def migrate():
@@ -69,7 +68,7 @@ async def migrate():
                 base_volume = int(d.get("base_volume") or 0)
                 eps_val = float(d.get("eps") or 0.0)
 
-                now = datetime.now()
+                now = utc_now_naive()
 
                 try:
                     async with session.begin_nested():

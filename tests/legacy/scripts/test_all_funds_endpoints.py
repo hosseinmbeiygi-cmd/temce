@@ -3,6 +3,7 @@
 Starts the API server, hits each endpoint, validates, kills the server.
 """
 
+import contextlib
 import json
 import os
 import socket
@@ -86,14 +87,12 @@ def main() -> int:
             ok = 200 <= status < 300
             all_ok = all_ok and ok
             extra = ""
-            try:
+            with contextlib.suppress(Exception):
                 parsed = json.loads(body)
                 if isinstance(parsed, dict) and "symbols" in parsed:
                     extra = f"  symbols={len(parsed['symbols'])}"
                 elif isinstance(parsed, dict) and "items" in parsed:
                     extra = f"  items={len(parsed['items'])}"
-            except Exception:
-                pass
             print(f"  [{'OK' if ok else 'FAIL'}] {status}  {elapsed:6.2f}s  {path}{extra}")
             results.append({"path": path, "status": status, "elapsed_s": round(elapsed, 3), "ok": ok})
 

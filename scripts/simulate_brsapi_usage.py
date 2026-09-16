@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import os
 import random
 import sys
@@ -371,15 +372,13 @@ def _limit_mismatch_warning() -> str | None:
 
     # Read the .env value directly (pydantic already resolves to OS env).
     env_file_daily: str | None = None
-    try:
+    with contextlib.suppress(OSError):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(root, ".env"), encoding="utf-8") as fh:
             for line in fh:
                 if line.strip().startswith("BRSAPI_GLOBAL_DAILY_LIMIT"):
                     env_file_daily = line.split("=", 1)[1].split("#")[0].strip()
                     break
-    except OSError:
-        pass
 
     if os_daily_int > 5_000:
         return (

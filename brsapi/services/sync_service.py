@@ -15,6 +15,7 @@ Supports dedup: skips re-fetching if a recent sync already exists.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -68,6 +69,7 @@ from brsapi.repositories import (
     RawPayloadRepository,
     SyncLogRepository,
 )
+from core.time import now_tehran
 
 logger = getLogger(__name__)
 
@@ -1051,12 +1053,10 @@ class BrsApiSyncService:
         for the latest-status sync used by the daily 13:30 job and the
         manual full-market backfill.
         """
-        from datetime import datetime
-
         ins_id = await self._lookup_ins_id(session, symbol)
         # Local server date matches the DB's ``func.now()`` for ``created_at``
         # (the dual-date trigger derives gregorian/shamsi from it the same way).
-        fetch_date = datetime.now().strftime("%Y-%m-%d")
+        fetch_date = now_tehran().strftime("%Y-%m-%d")
 
         def _parse_with_ins_id(data: Any) -> list[dict[str, Any]]:
             records = TsetmcParser.parse_shareholders(data)
@@ -1570,7 +1570,7 @@ class BrsApiSyncService:
 
         missing = [s for s in symbols if s not in lookup]
         if missing:
-            try:
+            with contextlib.suppress(Exception):
                 stmt2 = (
                     select(column("symbol", String), column("id", String).label("instrument_id"))
                     .select_from(text("instruments"))
@@ -1579,8 +1579,6 @@ class BrsApiSyncService:
                 result2 = await session.execute(stmt2)
                 for row in result2:
                     lookup[row.symbol] = (None, str(row.instrument_id) if row.instrument_id else None)
-            except Exception:
-                pass
 
         for r in records:
             sym = r.get("symbol", "")

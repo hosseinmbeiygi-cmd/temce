@@ -14,6 +14,7 @@ Decoupled: never imports from precompute/api/frontend
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -32,7 +33,7 @@ def _dedup_key(symbol: str, fetched_at: str) -> str:
     # Minute bucket
     minute = fetched_at[:16]  # 2026-09-13T01:23
     raw = f"{symbol}:{minute}"
-    return f"armor:dedup:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+    return f"armor:dedup:{hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()[:12]}"
 
 
 async def store_hot(symbol: str, payload: dict[str, Any], fetched_at: str) -> bool:
@@ -167,14 +168,12 @@ async def pipeline_store(rows: list[dict[str, Any]], fetched_at: str | None = No
             # Check if deduped vs redis unavailable
             dkey = _dedup_key(sym, r["fetched_at"])
             # If redis unavailable, store_hot returns False but we still want warm
-            try:
+            with contextlib.suppress(Exception):
                 from core.cache import get_cache
 
                 if not get_cache().is_connected:
                     warm_batch.append(r)
                     hot_stored += 1  # count as hot-missed but warm will get it
-            except Exception:
-                pass
 
     warm_stored = await store_warm(warm_batch)
     logger.info("Pipeline: total=%d hot=%d warm=%d deduped=%d", total, hot_stored, warm_stored, deduped)

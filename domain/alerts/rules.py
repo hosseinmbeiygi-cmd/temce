@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from core.time import utc_now_naive
 from domain.alerts.entities import AlertRule
 
 
@@ -12,7 +13,7 @@ def is_rule_active(rule: AlertRule) -> bool:
 def is_in_cooldown(rule: AlertRule) -> bool:
     if rule.cooldown_minutes <= 0 or rule.last_triggered_at is None:
         return False
-    return datetime.now() - rule.last_triggered_at < timedelta(minutes=rule.cooldown_minutes)
+    return utc_now_naive() - rule.last_triggered_at < timedelta(minutes=rule.cooldown_minutes)
 
 
 def can_fire_alert(rule: AlertRule) -> bool:

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from core.time import utc_now_naive
 from domain.common.base_entity import BaseEntity
 from domain.common.enum_types import ModelStage
 
@@ -114,17 +115,17 @@ class TrainingRun(BaseEntity):
 
     def start(self) -> None:
         self.status = "running"
-        self.start_time = datetime.now()
+        self.start_time = utc_now_naive()
         self.mark_updated()
 
     def complete(self) -> None:
         self.status = "completed"
-        self.end_time = datetime.now()
+        self.end_time = utc_now_naive()
         self.mark_updated()
 
     def fail(self, error: str) -> None:
         self.status = "failed"
-        self.end_time = datetime.now()
+        self.end_time = utc_now_naive()
         self.error_message = error
         self.mark_updated()
 

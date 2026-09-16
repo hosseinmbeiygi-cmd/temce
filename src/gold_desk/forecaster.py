@@ -14,10 +14,11 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.time import utc_now_naive
 
 from .signal_engine import fetch_closes
 
@@ -141,7 +142,7 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
         return ForecastResult(
             symbol=symbol,
             last_price=0,
-            last_date=datetime.utcnow().strftime("%Y-%m-%d"),
+            last_date=utc_now_naive().strftime("%Y-%m-%d"),
             lookback_days=0,
             volatility_daily_pct=0,
             trend_daily_pct=0,
@@ -212,7 +213,7 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
     return ForecastResult(
         symbol=symbol,
         last_price=round(float(last), 0),
-        last_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        last_date=utc_now_naive().strftime("%Y-%m-%d"),
         lookback_days=n,
         volatility_daily_pct=round(float(vol * 100), 2),
         trend_daily_pct=round(float(trend_daily), 3),

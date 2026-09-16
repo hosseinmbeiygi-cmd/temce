@@ -20,7 +20,6 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 # Ensure project root is on sys.path so ``services`` etc. can be imported
@@ -28,6 +27,7 @@ _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
+from core.time import utc_now_naive
 
 # ── ANSI Colors (ASCII-safe, no emoji for Windows cp1252) ───────────────────
 
@@ -497,7 +497,7 @@ def _generate_mock_signals(count: int = 100) -> list[Any]:
             vote_strategy=random.choice(["weighted", "ml_weighted", "rule_only"]),
             vote_direction_scores={"buy": 0.6, "sell": 0.2, "hold": 0.2},
             source="benchmark",
-            created_at=datetime.now().isoformat(),
+            created_at=utc_now_naive().isoformat(),
         )
         signals.append(sig)
 

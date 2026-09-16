@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Integer, cast, not_, select
@@ -11,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.ids import new_id
 from core.result import PaginatedResult, Result
+from core.time import utc_now_naive
 from models.ml import MlPredictionModel
 
 
@@ -48,7 +48,7 @@ class PredictionRepository:
                     model_loaded_from=pred.get("model_loaded_from"),
                     prediction_failed=pred.get("prediction_failed", False),
                     model_id=pred.get("model_id"),
-                    executed_at=datetime.now(),
+                    executed_at=utc_now_naive(),
                 )
             )
         self.session.add_all(rows)

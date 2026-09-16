@@ -1,5 +1,6 @@
 """Check signal pipeline health: counts, accuracy, coverage."""
 import asyncio
+import contextlib
 import sys
 
 sys.path.insert(0, ".")
@@ -63,10 +64,8 @@ async def main():
         await q("signals table", "SELECT COUNT(*) FROM signals")
 
         # paper_signal_snapshots
-        try:
+        with contextlib.suppress(Exception):
             await q("paper snapshots", "SELECT COUNT(*) FROM paper_signal_snapshots")
-        except Exception:
-            pass
 
         # signal_accuracy distinct symbols
         await q(

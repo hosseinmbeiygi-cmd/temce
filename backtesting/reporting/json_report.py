@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from backtesting.reporting.equity_curve import EquityCurveReport
 from backtesting.reporting.summary_report import SummaryReport
 from backtesting.reporting.trade_log_report import TradeLogReport
 from backtesting.types import BacktestResult
 from core.paths import validate_safe_path
+from core.time import utc_now_naive
 
 
 class JSONReport:
@@ -20,7 +20,7 @@ class JSONReport:
             "summary": summary,
             "equity_curve": equity,
             "trades": trades,
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": utc_now_naive().isoformat(),
         }
         return json.dumps(report, ensure_ascii=False, indent=2)
 

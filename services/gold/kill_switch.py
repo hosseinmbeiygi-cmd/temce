@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
+from core.time import utc_now_naive
+
 VOLATILITY_THRESHOLD_PCT = 5.0  # % تغییر
 VOLATILITY_WINDOW_MINUTES = 120  # 2 ساعت
 
@@ -56,7 +58,7 @@ def evaluate_kill_switch(
         return KillSwitchEvaluation(
             status="ACTIVE",
             reason="توقف نمادهای طلا در بورس یا تعطیلی بازار",
-            triggered_at=datetime.utcnow().isoformat() + "Z",
+            triggered_at=utc_now_naive().isoformat() + "Z",
             active_rules=["systemic_freeze"],
             directive=("لغو تمامی سفارش‌های در صف، خروج از موقعیت‌های اهرمی آتی (IME)، حفظ موقعیت‌های ETF بدون اهرم."),
             metrics={"market_frozen": True},
@@ -85,7 +87,7 @@ def evaluate_kill_switch(
             f"اونس {metrics.get('oz_pct_change', 0):.2f}% | "
             f"دلار {metrics.get('usd_pct_change', 0):.2f}%"
         ),
-        triggered_at=datetime.utcnow().isoformat() + "Z",
+        triggered_at=utc_now_naive().isoformat() + "Z",
         active_rules=active,
         directive=(
             "توقف صدور سیگنال‌های خرید جدید. بازنگری پوزیشن‌های اهرمی. صندوق‌های ETF بدون اهرم قابل نگهداری هستند."
@@ -97,7 +99,7 @@ def evaluate_kill_switch(
 def _max_pct_in_window(history: list[tuple[datetime, float]], current: float, window_minutes: int) -> float:
     if not history:
         return 0.0
-    cutoff = datetime.utcnow() - timedelta(minutes=window_minutes)
+    cutoff = utc_now_naive() - timedelta(minutes=window_minutes)
     relevant = [p for t, p in history if t >= cutoff]
     if not relevant:
         return 0.0

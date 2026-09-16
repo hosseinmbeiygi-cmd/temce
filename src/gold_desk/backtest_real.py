@@ -20,6 +20,8 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.time import utc_now_naive
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,7 +59,7 @@ async def _fetch_daily_data(session: AsyncSession, symbol: str, days: int) -> li
     try:
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (utc_now_naive() - timedelta(days=days)).strftime("%Y-%m-%d")
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(

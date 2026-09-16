@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import re
 from collections import Counter
@@ -297,7 +298,7 @@ async def main() -> None:
         # hypertables: the parent's reltuples stays 0 (rows live in chunks), so
         # sum reltuples over the chunks for an accurate estimate. Gracefully
         # degrades when TimescaleDB is not installed.
-        try:
+        with contextlib.suppress(Exception):
             ht_rows = (await c.execute(text("SELECT hypertable_name FROM timescaledb_information.hypertables"))).fetchall()
             for (name,) in ht_rows:
                 if name not in tables:
@@ -317,8 +318,6 @@ async def main() -> None:
                 ).scalar()
                 if chunk_est:
                     tables[name]["est"] = int(chunk_est)
-        except Exception:
-            pass
 
         # FK relations (unique, public only)
         r = await c.execute(
@@ -359,13 +358,11 @@ async def main() -> None:
                 tables[name]["rels"].add("symbol→symbols")
 
         # dual-date source (missing on DBs before migration 0025 → degrade gracefully)
-        try:
+        with contextlib.suppress(Exception):
             r = await c.execute(text("SELECT table_name, source_column FROM dual_date_columns"))
             for name, src in r.fetchall():
                 if name in tables:
                     tables[name]["src"] = src
-        except Exception:
-            pass
 
         # sample rows (2 arbitrary rows per table, capped at 12 columns)
         for name in list(tables):
@@ -380,12 +377,10 @@ async def main() -> None:
         # full symbol list (reference table for the whole platform)
         symbol_cols: list[str] = []
         symbols_list: list[tuple] = []
-        try:
+        with contextlib.suppress(Exception):
             rr = await c.execute(text("SELECT * FROM symbols ORDER BY symbol LIMIT 3000"))
             symbol_cols = list(rr.keys())
             symbols_list = rr.fetchall()
-        except Exception:
-            pass
 
     await engine.dispose()
 

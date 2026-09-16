@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from schemas.api.options import PayoffCalculatorRequest
 from schemas.common.responses import ApiResponse
 from services.options_analytics import get_arbitrage_detector, get_portfolio_analyzer, get_volatility_analyzer
 from services.options_reference import (
@@ -145,6 +146,47 @@ async def pricing(
         "call_price": round(call_price, 2),
         "put_price": round(put_price, 2),
         "parameters": {"S": S, "K": K, "T": T, "r": r, "sigma": sigma},
+    })
+
+
+# ── Payoff engine endpoints ─────────────────────────────────────────────────────
+
+@router.post("/payoff-calculator", summary="Payoff curve, break-even points and max profit/loss")
+async def payoff_calculator(body: PayoffCalculatorRequest) -> ApiResponse[dict[str, Any]]:
+    from domain.options.payoff import (
+        OptionLeg,
+        build_payoff_curve,
+        find_break_even_points,
+        find_max_profit_loss,
+    )
+
+    try:
+        legs = [
+            OptionLeg(
+                type=leg.type,
+                action=leg.action,
+                strike=leg.strike,
+                premium=leg.premium,
+                quantity=leg.quantity,
+            )
+            for leg in body.legs
+        ]
+        price_min = body.price_range.min
+        price_max = body.price_range.max
+        price_step = body.price_range.step
+        curve = build_payoff_curve(legs, price_min, price_max, price_step, body.contract_size)
+        break_evens = find_break_even_points(legs, price_min, price_max, price_step, body.contract_size)
+        extremes = find_max_profit_loss(legs, price_min, price_max, body.contract_size)
+    except ValueError as exc:
+        return ApiResponse(success=False, error={"message": str(exc)})
+
+    return ApiResponse(success=True, data={
+        "payoffCurve": curve,
+        "breakEvenPoints": [round(point, 6) for point in break_evens],
+        "maxProfit": extremes["max_profit"],
+        "maxLoss": extremes["max_loss"],
+        "maxProfitUnbounded": extremes["max_profit_unbounded"],
+        "maxLossUnbounded": extremes["max_loss_unbounded"],
     })
 
 

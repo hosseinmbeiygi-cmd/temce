@@ -13,9 +13,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+from core.time import utc_now_naive
 
 from .auth import (
     UserContext,
@@ -171,7 +171,7 @@ async def bubble_live(
     service: FundService = Depends(_dep_service),
 ):
     items = service.bubble_snapshot()
-    return BubbleLiveResponse(items=items, ts=datetime.utcnow())
+    return BubbleLiveResponse(items=items, ts=utc_now_naive())
 
 
 @router.get("/health/sources", response_model=HealthSourcesResponse, dependencies=_public_deps)
@@ -208,5 +208,5 @@ async def create_alert(
         symbol=req.symbol,
         event_type=req.event_type,
         payload_json=None,
-        created_at=datetime.utcnow(),
+        created_at=utc_now_naive(),
     )

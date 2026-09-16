@@ -32,7 +32,7 @@ import random
 import sys
 import time
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +46,7 @@ from backtesting.composer.indicator_registry import IndicatorSpec
 from backtesting.engine.simulator import BacktestSimulator
 from backtesting.strategies.signal_strategy import SignalStrategy
 from core.logging import get_logger
+from core.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -728,7 +729,8 @@ async def persist_results(results: list[StrategyResult], batch_id: str) -> int:
         async with _db.async_session_factory() as session:
             for r in results:
                 param_hash = hashlib.md5(
-                    f"{r.entry_indicator}{r.entry_params}{r.exit_indicator}{r.exit_params}".encode()
+                    f"{r.entry_indicator}{r.entry_params}{r.exit_indicator}{r.exit_params}".encode(),
+                    usedforsecurity=False,
                 ).hexdigest()[:12]
                 sl_str = f"sl{r.stop_loss_pct}" if r.stop_loss_pct else "nosl"
                 tp_str = f"tp{r.take_profit_pct}" if r.take_profit_pct else "notp"
@@ -739,7 +741,7 @@ async def persist_results(results: list[StrategyResult], batch_id: str) -> int:
                     f"{batch_id}_{r.symbol}_{r.entry_indicator}_{r.exit_indicator}"
                     f"_{sl_str}_{tp_str}_{param_hash}"
                 )
-                sid = "gs_" + hashlib.sha1(natural_key.encode()).hexdigest()  # 3 + 40 = 43
+                sid = "gs_" + hashlib.sha1(natural_key.encode(), usedforsecurity=False).hexdigest()  # 3 + 40 = 43
 
                 # Build description JSON
                 json.dumps({
@@ -917,7 +919,7 @@ async def main() -> None:
     end = END_DATE or today
     print(f"  {len(symbols_info)} symbols | {start} → {end} | {args.capital:,.0f} IRR")
 
-    batch_id = f"irs_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    batch_id = f"irs_{now_utc().strftime('%Y%m%d_%H%M%S')}"
     all_results: list[StrategyResult] = []
     total_tested = 0
     start_time = time.time()
@@ -999,7 +1001,7 @@ async def main() -> None:
     # Save report
     report = {
         "metadata": {
-            "run_at": datetime.now().isoformat(),
+            "run_at": now_utc().isoformat(),
             "elapsed_seconds": elapsed_total,
             "symbols_tested": total_tested,
             "batch_id": batch_id,

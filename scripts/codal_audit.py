@@ -3,6 +3,7 @@ import sys
 
 sys.path.insert(0, ".")
 import asyncio
+import contextlib
 
 
 async def main():
@@ -51,7 +52,7 @@ async def main():
             print(f"  {row[0]}: {r5.scalar()} rows")
 
         # 5. Check codal_audit_summary
-        try:
+        with contextlib.suppress(Exception):
             r6 = await s.execute(text("""
                 SELECT column_name, data_type FROM information_schema.columns
                 WHERE table_name = 'codal_audit_summary' ORDER BY ordinal_position
@@ -59,11 +60,9 @@ async def main():
             print("\n=== codal_audit_summary columns ===")
             for row in r6.fetchall():
                 print(f"  {row[0]}: {row[1]}")
-        except Exception:
-            pass
 
         # 6. Check codal_financial_statements
-        try:
+        with contextlib.suppress(Exception):
             r7 = await s.execute(text("""
                 SELECT column_name, data_type FROM information_schema.columns
                 WHERE table_name = 'codal_financial_statements' ORDER BY ordinal_position
@@ -71,7 +70,5 @@ async def main():
             print("\n=== codal_financial_statements columns ===")
             for row in r7.fetchall():
                 print(f"  {row[0]}: {row[1]}")
-        except Exception:
-            pass
 
 asyncio.run(main())

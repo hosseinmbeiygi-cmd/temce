@@ -58,6 +58,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import argparse
+import contextlib
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -415,13 +416,11 @@ async def main():
             if not args.symbols_only and not args.backfill:
                 await sync_batch_endpoints(service, session, stats)
                 # Sync IME Physical (daily after market close)
-                try:
+                with contextlib.suppress(Exception):
                     print("\n  🔄 IME Physical (معاملات فیزیکی بورس کالا)...")
                     r = await service.sync_ime_physical(session)
                     stats.add(r)
                     stats.print_report(r)
-                except Exception:
-                    pass
 
             # ── Phase 2: Per-symbol sync ──
             if not args.batch_only and not args.backfill:

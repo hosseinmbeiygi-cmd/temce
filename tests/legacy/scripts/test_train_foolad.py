@@ -6,6 +6,7 @@ Bypasses the API server to test the core logic.
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 # Force UTF-8 for Persian characters
 if hasattr(sys.stdout, "reconfigure"):

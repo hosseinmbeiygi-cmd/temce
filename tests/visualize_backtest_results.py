@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -138,7 +139,7 @@ def _warn(msg: str):
 
 def try_set_persian_font() -> str | None:
     """Try to find a Persian-capable font for matplotlib."""
-    try:
+    with contextlib.suppress(Exception):
         import matplotlib.font_manager as fm
 
         preferred = ["Tahoma", "Segoe UI", "Arial", "B Nazanin", "B Yekan", "IRANSans"]
@@ -164,8 +165,6 @@ def try_set_persian_font() -> str | None:
                 ]
             ):
                 return font.name
-    except Exception:
-        pass
     return None
 
 

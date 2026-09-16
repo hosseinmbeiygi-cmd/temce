@@ -212,6 +212,7 @@ class Router:
         from apps.api.endpoints.ml import router as ml_router
         from apps.api.endpoints.multi_market_signals import router as multi_market_signals_router
         from apps.api.endpoints.news import router as news_router
+        from apps.api.endpoints.options import router as options_router
         from apps.api.endpoints.orderbooks import router as orderbooks_router
         from apps.api.endpoints.paper_trading import router as paper_trading_router
         from apps.api.endpoints.portfolios import router as portfolios_router
@@ -417,6 +418,12 @@ class Router:
             stocks_v2_router,
             prefix="/stocks/v2",
             tags=["Stocks V2"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            options_router,
+            prefix="/options",
+            tags=["Options"],
             dependencies=_optional_auth,
         )
         router.include_router(

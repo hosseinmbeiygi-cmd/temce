@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from core.time import utc_now_naive
 from src.gold_desk.macro_news import (
     MacroEvent,
     compute_macro_multiplier,
@@ -54,7 +55,7 @@ def test_compute_macro_multiplier_empty():
 
 def test_compute_macro_multiplier_recent():
     """رویداد اخیر مثبت → multiplier > 0."""
-    now = datetime.utcnow()
+    now = utc_now_naive()
     events = [
         MacroEvent(
             title="test",
@@ -72,7 +73,7 @@ def test_compute_macro_multiplier_recent():
 
 def test_compute_macro_multiplier_old_events_decay():
     """رویداد قدیمی = وزن کم."""
-    now = datetime.utcnow()
+    now = utc_now_naive()
     old = MacroEvent(
         title="old",
         source="cbi",
@@ -98,7 +99,7 @@ def test_compute_macro_multiplier_old_events_decay():
 
 def test_compute_macro_multiplier_bounds():
     """خروجی همیشه بین -1 و +1."""
-    now = datetime.utcnow()
+    now = utc_now_naive()
     extreme = [
         MacroEvent(
             title="x",

@@ -320,12 +320,10 @@ async def ensure_tables_exist(session) -> None:
 
     # Safety net: run metadata.create_all for any models that _collect_models missed
     # (e.g. GoldCurrencyProPriceModel if __table__ wasn't available at collection time)
-    try:
+    with contextlib.suppress(Exception):
         db_engine = db_module.engine or session.get_bind()
         async with db_engine.begin() as conn:
             await conn.run_sync(BrsApiBase.metadata.create_all)
-    except Exception:
-        pass  # Silent — already logged if needed above
 
 
 async def get_all_symbols(session: Any, limit: int | None = None) -> list[str]:

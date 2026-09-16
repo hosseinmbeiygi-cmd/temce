@@ -1,4 +1,5 @@
 """Temp: hit all main API endpoints (correct paths) and report status."""
+import contextlib
 import json
 import sys
 import urllib.error
@@ -107,10 +108,8 @@ def call(name, path):
             status = f"{code} {'✅' if has_data else '⚠️empty'}"
     except urllib.error.HTTPError as e:
         status = f"{e.code} ❌"
-        try:
+        with contextlib.suppress(Exception):
             status += e.read().decode("utf-8", errors="replace")[:100]
-        except Exception:
-            pass
     except Exception as e:
         status = f"❌{type(e).__name__}"
     print(f"{name:<34} {status}")

@@ -33,6 +33,7 @@ budget.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 import uuid
@@ -209,14 +210,12 @@ class BrsApiBudgetGovernor:
         if now - _LAST_REDIS_ATTEMPT_AT < _REDIS_RETRY_INTERVAL:
             return None
         # Reuse the app-wide cache client when it is already connected.
-        try:
+        with contextlib.suppress(Exception):
             from core.cache import get_cache
 
             cache = get_cache()
             if cache.is_connected and cache.client is not None:
                 return cache.client
-        except Exception:  # noqa: BLE001
-            pass
         try:
             import redis.asyncio as aioredis
 
@@ -246,12 +245,10 @@ class BrsApiBudgetGovernor:
             return
         persisted = self._persisted_daily_sync()
         if self._backend == "redis" and self._redis is not None:
-            try:
+            with contextlib.suppress(Exception):
                 val = await self._redis.get(f"{self._redis_prefix}:daily:{today}")
                 if val is not None:
                     persisted = int(val)
-            except Exception:  # noqa: BLE001
-                pass
         self._limiter._daily_count = max(self._limiter._daily_count, persisted)
         self._limiter._daily_date = today
 

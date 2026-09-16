@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -491,10 +492,8 @@ def _parse_any_date(raw: Any) -> date | None:
         return None
     s = str(raw).strip().translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
     # میلادی ISO
-    try:
+    with contextlib.suppress(ValueError):
         return datetime.strptime(s[:10], "%Y-%m-%d").date()
-    except ValueError:
-        pass
     # شمسی
     parts = s[:10].replace("/", "-").split("-")
     if len(parts) == 3:

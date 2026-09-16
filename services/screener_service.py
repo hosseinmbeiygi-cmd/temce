@@ -18,6 +18,7 @@ Data Sources (all real, no synthetic/mock data):
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections import OrderedDict
@@ -510,19 +511,15 @@ def _get_sort_value(item: ScreenedSymbol, field: str) -> float:
     # 1. Direct attribute on ScreenedSymbol
     val = getattr(item, mapped, None)
     if val is not None:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             return float(val) if not isinstance(val, bool) else float(int(val))
-        except (ValueError, TypeError):
-            pass
 
     # 2. Inside details dict
     details = item.details or {}
     val = details.get(mapped)
     if val is not None:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             return float(val) if not isinstance(val, bool) else float(int(val))
-        except (ValueError, TypeError):
-            pass
 
     # 3. Fall back to 0.0 (sort-safe default)
     return 0.0

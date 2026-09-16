@@ -11,6 +11,7 @@ no durable sink is configured.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -141,18 +142,14 @@ class MarketScanService:
             self._scanner.stop()
         if self._run_task is not None:
             self._run_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._run_task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
             self._run_task = None
         if self._client is not None and self._client_owned:
             await self._client.stop()
         if self._redis is not None and self._redis_owned:
-            try:
+            with contextlib.suppress(Exception):
                 await self._redis.aclose()
-            except Exception:  # noqa: BLE001
-                pass
             self._redis = None
         logger.info("MarketScanService stopped")
 

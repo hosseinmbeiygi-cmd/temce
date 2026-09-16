@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from core.time import utc_now_naive
 from domain.common.base_entity import BaseEntity
 
 
@@ -73,5 +74,5 @@ class AlertTrigger(BaseEntity):
 
     def fire(self) -> None:
         self.fire_count += 1
-        self.last_fired_at = datetime.now()
+        self.last_fired_at = utc_now_naive()
         self.mark_updated()

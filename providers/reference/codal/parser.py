@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 
@@ -22,11 +23,9 @@ class CodalParser(ParserBase):
                 return raw_data["items"]
             return [raw_data]
         if isinstance(raw_data, str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 data = json.loads(raw_data)
                 return self.parse(data)
-            except json.JSONDecodeError:
-                pass
         return []
 
     def parse_report_detail(self, raw: dict[str, Any]) -> dict[str, Any]:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from core.logging import get_logger
@@ -60,13 +61,11 @@ class CodalEnricher:
         return found
 
     def _extract_hour(self, published_at: Any) -> int | None:
-        try:
+        with contextlib.suppress(IndexError, ValueError):
             if hasattr(published_at, "hour"):
                 return published_at.hour
             if isinstance(published_at, str):
                 return int(published_at.split("T")[1].split(":")[0])
-        except (IndexError, ValueError):
-            pass
         return None
 
     def enrich_batch(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:

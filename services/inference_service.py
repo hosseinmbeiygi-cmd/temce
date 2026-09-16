@@ -6,6 +6,7 @@ instead of fabricated predictions.
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -311,13 +312,11 @@ class InferenceService:
 
             trained_features: list[str] = list(fm.feature_names)
             if row.parameters:
-                try:
+                with contextlib.suppress(json_lib.JSONDecodeError, TypeError):
                     params = json_lib.loads(row.parameters)
                     stored = params.get("feature_names")
                     if isinstance(stored, list) and stored:
                         trained_features = [str(s) for s in stored]
-                except (json_lib.JSONDecodeError, TypeError):
-                    pass
 
             # Wrap raw pipelines so predict(fm) works with FeatureMatrix input
             model = _PipelineAdapter(loaded, trained_features) if hasattr(loaded, "predict") else loaded
@@ -443,10 +442,10 @@ class InferenceService:
                         })
 
         # 3. Check artifact manager for saved models (filesystem fallback)
-        try:
+        with contextlib.suppress(Exception):
             for model_id in self.artifact_manager.list_models():
                 if model_id not in seen:
-                    try:
+                    with contextlib.suppress(Exception):
                         _, meta = self.artifact_manager.load_model(model_id)
                         parts = model_id.split("_", 1)
                         comparisons.append({
@@ -458,9 +457,5 @@ class InferenceService:
                             "source": "artifact",
                         })
                         seen.add(model_id)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
 
         return Result.ok(comparisons)

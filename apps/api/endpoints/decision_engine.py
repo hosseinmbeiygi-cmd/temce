@@ -812,12 +812,10 @@ async def get_migration_status(
                 )
                 last_updated = None
                 if ts_col:
-                    try:
+                    with contextlib.suppress(Exception):
                         ts_result = await session.execute(text(f"SELECT MAX({ts_col}) FROM {table_name}"))
                         ts_val = ts_result.scalar()
                         last_updated = ts_val.isoformat() if ts_val else None
-                    except Exception:
-                        pass
 
                 table_status.append(
                     {
@@ -840,7 +838,7 @@ async def get_migration_status(
 
         # ── Architecture version info ──
         arch_info = None
-        try:
+        with contextlib.suppress(Exception):
             arch_result = await session.execute(
                 select(DecisionArchitecture)
                 .where(
@@ -858,8 +856,6 @@ async def get_migration_status(
                     "created_at": arch_row.created_at.isoformat() if arch_row.created_at else None,
                     "updated_at": arch_row.updated_at.isoformat() if arch_row.updated_at else None,
                 }
-        except Exception:
-            pass
 
         # ── Build response ──
         status_data = {

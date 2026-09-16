@@ -13,7 +13,7 @@ After sync, rerun the top-50 selection and write the JSON again.
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 import jdatetime
@@ -21,6 +21,7 @@ from sqlalchemy import text
 
 from brsapi.services.sync_service import BrsApiSyncService
 from core import database
+from core.time import now_tehran
 
 OUT = Path("data") / "top50_funds_intraday.json"
 TOP_N = 50
@@ -28,7 +29,7 @@ CONCURRENCY = 4
 
 
 def _yesterday_jalali() -> str:
-    today_g = datetime.now().date()
+    today_g = now_tehran().date()
     yesterday_g = today_g - timedelta(days=1)
     j = jdatetime.date.fromgregorian(date=yesterday_g)
     return f"{j.year:04d}-{j.month:02d}-{j.day:02d}"
@@ -116,7 +117,7 @@ async def main() -> None:
     # BrsApi rejects holidays/weekends; we try up to 10 most-recent days.
     def _jalali_dates_back(n: int) -> list[str]:
         out: list[str] = []
-        g = datetime.now().date()
+        g = now_tehran().date()
         for i in range(n):
             d = g - timedelta(days=i)
             j = jdatetime.date.fromgregorian(date=d)

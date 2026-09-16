@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+
 from iran_market_data.app.parsers.html_parser import (
     extract_links,
     parse_tables_with_pandas,
@@ -33,12 +35,10 @@ class TestParseTables:
 
     def test_parse_empty_html(self) -> None:
         """Empty HTML should return empty list or raise."""
-        try:
+        with contextlib.suppress(ValueError):
             tables = parse_tables_with_pandas("<html><body></body></html>")
             assert len(tables) == 0
-        except ValueError:
             # pandas.read_html may raise for no tables
-            pass
 
 
 class TestExtractLinks:

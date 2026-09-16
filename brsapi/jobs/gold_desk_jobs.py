@@ -114,7 +114,7 @@ async def job_gold_snapshot(force: bool = False) -> None:
                                 "change_percent": asset.bubble_pct or 0,
                                 "bubble_pct": asset.bubble_pct,
                                 "fair_value": asset.fair_value,
-                                "timestamp": now.isoformat(),
+                                "timestamp": snap.snapshot_at.isoformat(),
                                 "source": "gold_snapshot",
                             },
                         )

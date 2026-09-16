@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
+
+from core.time import utc_now_naive
 
 from ..constants import (
     COLD_START_BLOCK_THRESHOLD,
@@ -209,7 +210,7 @@ def compute_all_metrics(inp: MetricsInput, weighted_keys: set[str] | None = None
         "cold_start_pct": cs_pct,
         "cold_start_labels": cold_start_labels,
         "block_scoring": block,
-        "computed_at": datetime.utcnow(),
+        "computed_at": utc_now_naive(),
     }
 
 

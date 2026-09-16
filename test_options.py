@@ -6,13 +6,15 @@
 تاریخ: ۱۴۰۴/۱۱/۰۸
 """
 
+import contextlib
 import json
 import os
 import subprocess
 import sys
 import time
 import traceback
-from datetime import datetime
+
+from core.time import now_utc
 
 # ============================================================
 # بخش ۱: مدیریت پروکسی و محیط
@@ -28,13 +30,11 @@ def clear_proxy():
     os.environ['NO_PROXY'] = '*'
 
     # غیرفعال کردن پروکسی برای urllib
-    try:
+    with contextlib.suppress(Exception):
         import urllib.request
         proxy_handler = urllib.request.ProxyHandler({})
         opener = urllib.request.build_opener(proxy_handler)
         urllib.request.install_opener(opener)
-    except Exception:
-        pass
 
     print("✅ تنظیمات پروکسی پاک شد.")
 
@@ -271,7 +271,7 @@ def main():
     # ۴. ایجاد پوشه خروجی
     output_dir = "test_results"
     os.makedirs(output_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = now_utc().strftime("%Y%m%d_%H%M%S")
 
     # ۵. تعریف تست‌ها
     tests = []

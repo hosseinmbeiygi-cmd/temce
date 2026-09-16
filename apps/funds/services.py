@@ -7,8 +7,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
+
+from core.time import utc_now_naive
 
 from .adapters.fipiran import FipiranAdapter
 from .adapters.tsetmc import TSETMCAdapter
@@ -398,7 +399,7 @@ class FundService:
             "aum_btoman": values.get("aum_btoman"),
             "p_nav_ratio": values.get("p_nav_ratio"),
             "bubble_pct": values.get("p_nav_ratio"),
-            "last_updated": datetime.utcnow(),
+            "last_updated": utc_now_naive(),
             "metrics": {
                 "values": values,
                 "cold_start_pct": metrics_result["cold_start_pct"],
@@ -549,7 +550,7 @@ class FundService:
                         "market_price": fund.get("market_price"),
                         "bubble_pct": full["bubble_pct"],
                         "peer_median_bubble": None,
-                        "ts": datetime.utcnow(),
+                        "ts": utc_now_naive(),
                     }
                 )
         # محاسبه میانه هم‌گروه
@@ -598,7 +599,7 @@ class FundService:
             "hit_rates": hit_rates,
             "calibration": calibration,
             "sample_size": n,
-            "generated_at": datetime.utcnow(),
+            "generated_at": utc_now_naive(),
         }
 
     # ── Adapter های واقعی (اختیاری — در صورتی که HTTP client باشد) ──

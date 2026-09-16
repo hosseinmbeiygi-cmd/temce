@@ -37,12 +37,10 @@ def _inc_metric(name: str, labels: dict[str, str] | None = None, value: float = 
 
     Never raises — metric plumbing must not break the outcome path.
     """
-    try:
+    with contextlib.suppress(Exception):
         from apps.api.metrics import get_prometheus_exporter
 
         get_prometheus_exporter().inc(name, labels=labels, value=value)
-    except Exception:  # noqa: BLE001
-        pass
 
 
 class AccuracyOutcomeQueue:

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 from services.codal_analysis.analysis_engine import (
     ComprehensiveAnalysis,
     DuPontAnalysis,
@@ -46,7 +46,7 @@ def generate_report(analysis: ComprehensiveAnalysis) -> AnalysisReport:
     report = AnalysisReport(
         symbol=analysis.symbol,
         fiscal_period=analysis.fiscal_period,
-        generated_at=datetime.now().isoformat(),
+        generated_at=utc_now_naive().isoformat(),
         overall_score=health.overall_score,
         classification=health.classification,
         analysis_status=analysis.analysis_status,

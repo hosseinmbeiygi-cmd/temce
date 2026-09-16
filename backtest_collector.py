@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 import subprocess
@@ -125,11 +126,8 @@ def save_symbol_data(symbol, data):
 
     existing = []
     if os.path.exists(filename):
-        try:
-            with open(filename, encoding='utf-8') as f:
-                existing = json.load(f)
-        except Exception:
-            pass
+        with contextlib.suppress(Exception), open(filename, encoding='utf-8') as f:
+            existing = json.load(f)
 
     all_data = existing + data
     seen = set()

@@ -23,7 +23,7 @@ import random
 import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +40,7 @@ from backtesting.engine.simulator import BacktestSimulator
 from backtesting.strategies.signal_strategy import SignalStrategy
 from core.db_utils import safe_row_str
 from core.logging import get_logger
+from core.time import now_utc
 from services.backtest_service import BacktestService
 from services.strategy_generator import (
     _apply_6stage_filter,
@@ -664,7 +665,7 @@ async def _persist_indicator_results(results: list[IndicatorResult]) -> None:
     try:
         async with _db.async_session_factory() as session:
             for _i, r in enumerate(results):
-                param_hash = hashlib.md5(str(sorted(r.params.items())).encode()).hexdigest()[:12]
+                param_hash = hashlib.md5(str(sorted(r.params.items())).encode(), usedforsecurity=False).hexdigest()[:12]
                 sid = f"{batch_id}_{r.symbol}_{r.indicator_id}_{param_hash}"[:50]
                 sid = sid.replace("-", "_")
                 m = r.metrics
@@ -744,7 +745,7 @@ async def _persist_phase1_results(strategies: list[dict[str, Any]], filters: dic
                 method = s.get("method", "grid_search")
                 score = s.get("score", 0)
 
-                param_hash = hashlib.md5(str(sorted(params.items())).encode()).hexdigest()[:12]
+                param_hash = hashlib.md5(str(sorted(params.items())).encode(), usedforsecurity=False).hexdigest()[:12]
                 sid = f"{batch_id}_{sym}_{strat_name}_{method}_{param_hash}"[:50]
                 sid = sid.replace("-", "_").replace(" ", "_")
 
@@ -825,7 +826,7 @@ async def main() -> None:
     print(f"Found {len(all_symbols)} symbols to test.\n")
 
     all_results: list[StrategyResult] = []
-    start_time = datetime.now()
+    start_time = now_utc()
 
     if CFG.run_phase1:
         await run_phase1_strategies(all_symbols, all_results)
@@ -833,7 +834,7 @@ async def main() -> None:
     if CFG.run_phase2:
         await run_phase2_indicators(all_symbols, all_results)
 
-    elapsed = (datetime.now() - start_time).total_seconds()
+    elapsed = (now_utc() - start_time).total_seconds()
 
     # ── Summary ──
     print("\n" + "=" * 80)
@@ -867,7 +868,7 @@ async def main() -> None:
         # Save reports
         summary_data = {
             "metadata": {
-                "run_at": datetime.now().isoformat(),
+                "run_at": now_utc().isoformat(),
                 "elapsed_seconds": elapsed,
                 "total_symbols": len(all_symbols),
                 "data_sources": CFG.data_sources,

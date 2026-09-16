@@ -7,12 +7,15 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.time import utc_now_naive
 
 
 @dataclass(frozen=True)
@@ -53,7 +56,7 @@ async def _nav_7d_ago(session: AsyncSession, symbol: str) -> float | None:
     try:
         from brsapi.models import NavRecordModel
 
-        cutoff = datetime.utcnow() - timedelta(days=7)
+        cutoff = utc_now_naive() - timedelta(days=7)
         stmt = (
             select(NavRecordModel.nav)
             .where(NavRecordModel.symbol == symbol, NavRecordModel.date <= cutoff)
@@ -115,7 +118,7 @@ async def get_fund_status(
     else:
         # تلاش برای خواندن قیمت بازار صندوق از BrsApi QueryService
         market_price = None
-        try:
+        with contextlib.suppress(Exception):
             from brsapi.services.query_service import BrsApiQueryService
 
             svc = BrsApiQueryService(session=session)
@@ -143,8 +146,6 @@ async def get_fund_status(
                 val = res.scalar()
                 if val and float(val) > 0:
                     market_price = float(val)
-        except Exception:
-            pass
         if market_price is None or market_price <= 0:
             market_price = nav
 

@@ -138,7 +138,7 @@ def save(conn, row, full):
     sym = row["symbol"]
     rt = row.get("report_type") or ""
     rd = row.get("report_date") or ""
-    cid = "cfs_" + hashlib.md5((sym + ":" + rt + ":" + rd).encode()).hexdigest()[:16]
+    cid = "cfs_" + hashlib.md5((sym + ":" + rt + ":" + rd).encode(), usedforsecurity=False).hexdigest()[:16]
     pd = json.dumps(full, ensure_ascii=False, default=str)
     tc = len(full.get("snapshot", {}))
     batch = "batch_" + str(int(time.time()))

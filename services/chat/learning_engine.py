@@ -39,7 +39,7 @@ class LearningEngine:
 
     def _load(self) -> None:
         """Load learning data from disk."""
-        try:
+        with contextlib.suppress(Exception):
             if os.path.exists(self._storage_path):
                 with open(self._storage_path, encoding="utf-8") as f:
                     loaded = json.load(f)
@@ -50,8 +50,6 @@ class LearningEngine:
                     self._data["successful_filters"] = loaded.get("successful_filters", [])
                     self._data["response_quality"] = loaded.get("response_quality", [])
                     self._data["user_preferences"] = loaded.get("user_preferences", {})
-        except Exception:
-            pass
 
     def _save(self) -> None:
         """Save learning data to disk atomically.
@@ -59,7 +57,7 @@ class LearningEngine:
         Uses temp-file + ``os.replace`` so a crash mid-write never corrupts
         the file.  A ``threading.Lock`` serialises concurrent callers.
         """
-        try:
+        with contextlib.suppress(Exception):
             os.makedirs(os.path.dirname(self._storage_path) or ".", exist_ok=True)
             data_to_save = {
                 "feedback": self._data["feedback"][-500:],
@@ -82,8 +80,6 @@ class LearningEngine:
                     with contextlib.suppress(OSError):
                         os.unlink(tmp)
                     raise
-        except Exception:
-            pass
 
     def record_feedback(
         self, user_id: str, query: str, response: str, rating: int, feedback_text: str = ""

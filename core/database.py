@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -147,10 +148,8 @@ async def close_database() -> None:
     global engine, async_session_factory, replica_engine, replica_session_factory
     for eng in (engine, replica_engine):
         if eng is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await eng.dispose()
-            except Exception:
-                pass
     engine = None
     async_session_factory = None
     replica_engine = None

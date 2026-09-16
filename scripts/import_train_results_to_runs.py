@@ -35,7 +35,7 @@ from models.ml import MlTrainingRunModel  # noqa: E402
 
 
 def _run_id(symbol: str, model: str) -> str:
-    digest = hashlib.md5(f"{symbol}|{model}".encode()).hexdigest()[:12]
+    digest = hashlib.md5(f"{symbol}|{model}".encode(), usedforsecurity=False).hexdigest()[:12]
     return f"tam_{digest}"
 
 

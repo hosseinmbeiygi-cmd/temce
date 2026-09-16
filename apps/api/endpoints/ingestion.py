@@ -12,6 +12,7 @@ service.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
@@ -57,24 +58,20 @@ async def dead_letter_summary() -> ApiResponse[dict[str, Any]]:
 
     cache = get_cache()
     dl_len = 0
-    try:
+    with contextlib.suppress(Exception):
         client = cache.client
         if client is not None:
             dl_len = int(await client.llen(settings.job_queue_dead_letter) or 0)
-    except Exception:
-        pass
 
     alerted = False
     if dl_len >= settings.dl_alert_threshold and (time.time() - _last_dl_alert) > settings.dl_alert_cooldown_seconds:
         _last_dl_alert = time.time()
-        try:
+        with contextlib.suppress(Exception):
             from integrations.notifications.telegram_sender import TelegramSender
 
             sender = TelegramSender()
             await sender.send(f"⚠️ DL queue depth {dl_len} >= {settings.dl_alert_threshold} — check workers/logs")
             alerted = True
-        except Exception:
-            pass
         logger.warning("DL threshold exceeded: %d >= %d (alerted=%s)", dl_len, settings.dl_alert_threshold, alerted)
 
     return ApiResponse(

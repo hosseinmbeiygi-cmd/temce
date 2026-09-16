@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from core.logging import get_logger
+from core.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -18,7 +19,7 @@ class AlphaSignal:
     formula: str
     values: list[float] = field(default_factory=list)
     parameters: dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=now_utc)
 
 
 class AlphaPool:

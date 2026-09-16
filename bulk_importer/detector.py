@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 OLE_MAGIC = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
@@ -95,7 +96,7 @@ def parse_filename_metadata(file_path: str | Path) -> dict[str, str | None]:
             # Remaining parts after report type are date components
             date_parts = parts[i + 1:]
             if len(date_parts) >= 3:
-                try:
+                with contextlib.suppress(ValueError, IndexError):
                     # Convert Persian digits to English
                     def persian_to_en(s: str) -> str:
                         persian_digits = "۰۱۲۳۴۵۶۷۸۹"
@@ -108,8 +109,6 @@ def parse_filename_metadata(file_path: str | Path) -> dict[str, str | None]:
                     m = persian_to_en(date_parts[1])
                     d = persian_to_en(date_parts[2])
                     result["report_date_jalali"] = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-                except (ValueError, IndexError):
-                    pass
             break
 
     return result

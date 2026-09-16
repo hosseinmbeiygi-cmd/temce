@@ -12,11 +12,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
+
+from core.time import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +96,7 @@ async def fetch_crypto_prices(usd_irt_rate: float) -> list[AssetPrice]:
                     change_24h_pct=change,
                     bubble_pct=None,
                     source="coingecko",
-                    ts=datetime.utcnow(),
+                    ts=now_utc(),
                 )
             )
         return out
@@ -162,7 +165,7 @@ def calc_bubble_from_history(prices: list[float]) -> float | None:
 
 async def get_cached_or_fetch(fetcher, *args, cache_key: str, ttl: int = CACHE_TTL, **kwargs):
     """اجرای fetcher با cache در Redis."""
-    try:
+    with contextlib.suppress(Exception):
         from core.cache import get_cache
 
         cache = get_cache()
@@ -171,12 +174,10 @@ async def get_cached_or_fetch(fetcher, *args, cache_key: str, ttl: int = CACHE_T
             import json
 
             return json.loads(raw) if isinstance(raw, str) else raw
-    except Exception:
-        pass
 
     result = await fetcher(*args, **kwargs)
     if result:
-        try:
+        with contextlib.suppress(Exception):
             import json
 
             from core.cache import get_cache
@@ -187,6 +188,4 @@ async def get_cached_or_fetch(fetcher, *args, cache_key: str, ttl: int = CACHE_T
                 json.dumps(result, default=str) if not isinstance(result, str) else result,
                 ttl=ttl,
             )
-        except Exception:
-            pass
     return result

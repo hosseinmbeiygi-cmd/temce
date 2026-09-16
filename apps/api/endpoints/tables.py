@@ -66,6 +66,8 @@ async def list_tables(
 
     tables = []
     for t in all_tables:
+        if not _SAFE_IDENTIFIER.match(t):
+            continue
         try:
             count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{t}"'))
             count = count_result.scalar() or 0

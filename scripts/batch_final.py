@@ -7,14 +7,15 @@ import sys
 sys.path.insert(0, r"C:\Users\Iran\Desktop\temce")
 
 import asyncio
+import contextlib
 import json
 import time
-from datetime import datetime
 
 import requests
 from sqlalchemy import text
 
 from core.database import get_session, init_database
+from core.time import now_utc
 
 BASE_URL = "http://localhost:8000/api/v1"
 
@@ -93,13 +94,11 @@ def run_ml_train(symbol, model_type):
     if d.get("success") and d.get("data"):
         msg = d["data"].get("message", "")
         r2 = mae = None
-        try:
+        with contextlib.suppress(Exception):
             if "R²=" in msg:
                 r2 = float(msg.split("R²=")[1].split(",")[0])
             if "MAE=" in msg:
                 mae = float(msg.split("MAE=")[1].split(")")[0])
-        except Exception:
-            pass
         return {"success": True, "run_id": d["data"].get("run_id"), "r2": r2, "mae": mae, "message": msg}
     return {"success": False, "error": d.get("error", {}).get("message", "Unknown")}
 
@@ -162,12 +161,12 @@ async def save_to_db(all_results):
 def main():
     print("=" * 80)
     print("COMPREHENSIVE BATCH: Backtest + ML for All Sectors")
-    print(f"Started: {datetime.now().isoformat()}")
+    print(f"Started: {now_utc().isoformat()}")
     print(f"Symbols: {len(SYMBOLS)}, Strategies: {len(STRATEGIES)}, ML Models: {len(ML_MODELS)}")
     print("=" * 80)
 
     all_results = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": now_utc().isoformat(),
         "symbols": [],
         "summary": {
             "total_backtests": 0, "successful_backtests": 0,
@@ -265,7 +264,7 @@ def main():
     with open("C:/Users/Iran/Desktop/temce/scripts/batch_final_results.json", "w", encoding="utf-8") as f:
         json.dump(all_results, f, ensure_ascii=False, indent=2)
     print("\nJSON saved: scripts/batch_final_results.json")
-    print(f"Completed: {datetime.now().isoformat()}")
+    print(f"Completed: {now_utc().isoformat()}")
 
 
 if __name__ == "__main__":

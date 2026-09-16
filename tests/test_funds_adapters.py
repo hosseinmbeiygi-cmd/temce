@@ -17,6 +17,7 @@ from apps.funds.resilience import (
     get_circuit_breaker,
     reset_circuit_breakers,
 )
+from core.time import utc_now_naive
 
 
 class FakeResponse:
@@ -153,12 +154,12 @@ def test_adapter_stale_flag():
     adapter.last_success = None  # هرگز sync نشده
     assert adapter._check_stale() is True
 
-    from datetime import datetime, timedelta
+    from datetime import timedelta
 
-    adapter.last_success = datetime.utcnow() - timedelta(hours=30)
+    adapter.last_success = utc_now_naive() - timedelta(hours=30)
     assert adapter._check_stale() is True
 
-    adapter.last_success = datetime.utcnow() - timedelta(hours=1)
+    adapter.last_success = utc_now_naive() - timedelta(hours=1)
     assert adapter._check_stale() is False
 
 

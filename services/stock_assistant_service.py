@@ -7,13 +7,14 @@ Adds Persian colloquial/conversational keyword support.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from core.db_utils import safe_float, safe_int
 from core.logging import get_logger
+from core.time import now_tehran, utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -757,7 +758,7 @@ class Alert:
     threshold: float
     current_value: float = 0.0
     triggered: bool = False
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    created_at: str = field(default_factory=lambda: utc_now_naive().isoformat())
 
 
 class AlertManager:
@@ -1038,7 +1039,7 @@ class ReportGenerator:
         lines = [
             "📊 گزارش روزانه بازار",
             "═" * 50,
-            f"تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"تاریخ: {now_tehran().strftime('%Y-%m-%d %H:%M')}",
             "",
             "📈 آمار کلی:",
             f"  تعداد نمادها: {count}",
@@ -1941,7 +1942,7 @@ class StockAssistantService:
 
         # If only target symbol, find similar stocks from same sector
         if target_symbol and not compare_symbols:
-            try:
+            with contextlib.suppress(Exception):
                 all_stocks = await self._get_all_stocks()
                 # Get target's sector
                 target_sector = None
@@ -1956,8 +1957,6 @@ class StockAssistantService:
                 if not compare_symbols:
                     compare_symbols = [s["symbol"] for s in all_stocks
                                        if s.get("symbol") != target_symbol][:8]
-            except Exception:
-                pass
 
         if not target_symbol:
             return {"text": "لطفاً نماد مورد نظر را مشخص کنید.\nمثال: «همبستگی فولاد خودرو» یا «نماد موج با کدام سهم همبستگی دارد»", "type": "error"}

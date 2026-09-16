@@ -17,6 +17,8 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.time import utc_now_naive
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +51,7 @@ async def _fetch_closes(session: AsyncSession, symbol: str, days: int) -> list[t
     try:
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (utc_now_naive() - timedelta(days=days)).strftime("%Y-%m-%d")
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(GoldCoinHistoryModel.symbol == symbol, GoldCoinHistoryModel.date >= cutoff)
@@ -178,8 +180,8 @@ async def detect_patterns(
     if not closes:
         return PatternReport(
             symbol=symbol,
-            period_start=datetime.utcnow(),
-            period_end=datetime.utcnow(),
+            period_start=utc_now_naive(),
+            period_end=utc_now_naive(),
             patterns=[],
             summary="داده کافی نیست",
             recommendation="صبر کنید",
@@ -211,8 +213,8 @@ async def detect_patterns(
 
     return PatternReport(
         symbol=symbol,
-        period_start=datetime.fromisoformat(closes[0][0]) if closes else datetime.utcnow(),
-        period_end=datetime.fromisoformat(closes[-1][0]) if closes else datetime.utcnow(),
+        period_start=datetime.fromisoformat(closes[0][0]) if closes else utc_now_naive(),
+        period_end=datetime.fromisoformat(closes[-1][0]) if closes else utc_now_naive(),
         patterns=patterns,
         summary=summary,
         recommendation=recommendation,

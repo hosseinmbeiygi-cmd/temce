@@ -8,6 +8,7 @@ fetched from BrsApi.ir and stored in PostgreSQL.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import io
 import json
@@ -25,6 +26,7 @@ from apps.api.dependencies import get_brsapi_query_service, get_db_session
 from brsapi.services.query_service import BrsApiQueryService
 from core.db_utils import safe_row_str
 from core.result import PaginatedResult
+from core.time import utc_now_naive
 from schemas.common.responses import ApiResponse
 
 router = APIRouter()
@@ -595,7 +597,7 @@ async def get_codal_announcements_lazy(
 
         # Fallback: try instruments table
         if not instrument_id:
-            try:
+            with contextlib.suppress(Exception):
                 from sqlalchemy import column as _c
                 from sqlalchemy import text as _t
 
@@ -603,8 +605,6 @@ async def get_codal_announcements_lazy(
                 fb_row = fb.scalar_one_or_none()
                 if fb_row:
                     instrument_id = str(fb_row)
-            except Exception:
-                pass
 
         # 4. Attach ins_id & instrument_id to each record
         for r in records:
@@ -1020,14 +1020,12 @@ async def list_sections(
 
     # Get row estimates from pg_stat for fast approximate counts
     pg_stat_counts: dict[str, int] = {}
-    try:
+    with contextlib.suppress(Exception):
         pg_result = await session.execute(
             text("SELECT relname, n_live_tup FROM pg_stat_user_tables WHERE schemaname = 'public'")
         )
         for row in pg_result:
             pg_stat_counts[row[0]] = row[1] or 0
-    except Exception:
-        pass
 
     async def build_section(section_id: str, cfg: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -1285,7 +1283,7 @@ async def download_section(
         try:
             records = cfg["parser"](result.value.data)
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Parse error: {exc}")
+            raise HTTPException(status_code=500, detail=f"Parse error: {exc}") from exc
 
         if isinstance(records, dict):
             records_list = [records] if records else []
@@ -1897,7 +1895,7 @@ async def _run_candle_backfill(max_symbols: int, allow_weekend: bool) -> None:
         state["status"] = "error"
         state["error"] = _safe_error_message(exc)
     finally:
-        state["finished_at"] = datetime.now().isoformat()
+        state["finished_at"] = utc_now_naive().isoformat()
         if state["status"] == "running":
             state["status"] = "error"
             state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
@@ -1936,7 +1934,7 @@ async def sync_all_candlesticks(
     _CANDLE_BACKFILL_STATE.update(
         {
             "status": "running",
-            "started_at": datetime.now().isoformat(),
+            "started_at": utc_now_naive().isoformat(),
             "finished_at": None,
             "total_symbols": 0,
             "processed": 0,
@@ -2049,7 +2047,7 @@ async def _run_shareholder_backfill(max_symbols: int, allow_weekend: bool) -> No
         state["status"] = "error"
         state["error"] = _safe_error_message(exc)
     finally:
-        state["finished_at"] = datetime.now().isoformat()
+        state["finished_at"] = utc_now_naive().isoformat()
         if state["status"] == "running":
             state["status"] = "error"
             state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
@@ -2088,7 +2086,7 @@ async def sync_all_shareholders(
     _SHAREHOLDER_BACKFILL_STATE.update(
         {
             "status": "running",
-            "started_at": datetime.now().isoformat(),
+            "started_at": utc_now_naive().isoformat(),
             "finished_at": None,
             "total_symbols": 0,
             "processed": 0,
@@ -2205,7 +2203,7 @@ async def _run_history_price_backfill(max_symbols: int, allow_weekend: bool) -> 
         state["status"] = "error"
         state["error"] = _safe_error_message(exc)
     finally:
-        state["finished_at"] = datetime.now().isoformat()
+        state["finished_at"] = utc_now_naive().isoformat()
         if state["status"] == "running":
             state["status"] = "error"
             state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
@@ -2242,7 +2240,7 @@ async def _run_history_real_legal_backfill(max_symbols: int, allow_weekend: bool
         state["status"] = "error"
         state["error"] = _safe_error_message(exc)
     finally:
-        state["finished_at"] = datetime.now().isoformat()
+        state["finished_at"] = utc_now_naive().isoformat()
         if state["status"] == "running":
             state["status"] = "error"
             state["error"] = state.get("error") or "بکفیل به‌طور غیرمنتظره متوقف شد"
@@ -2278,7 +2276,7 @@ async def sync_all_history_price(
     _HISTORY_PRICE_BACKFILL_STATE.update(
         {
             "status": "running",
-            "started_at": datetime.now().isoformat(),
+            "started_at": utc_now_naive().isoformat(),
             "finished_at": None,
             "total_symbols": 0,
             "processed": 0,
@@ -2360,7 +2358,7 @@ async def sync_all_history_real_legal(
     _HISTORY_REAL_LEGAL_BACKFILL_STATE.update(
         {
             "status": "running",
-            "started_at": datetime.now().isoformat(),
+            "started_at": utc_now_naive().isoformat(),
             "finished_at": None,
             "total_symbols": 0,
             "processed": 0,
@@ -2578,7 +2576,7 @@ async def sync_stats(
         )
 
     # Overall summary
-    now = datetime.now()
+    now = utc_now_naive()
     total_runs = sum(s["total_runs"] for s in result)
     total_errors = sum(s["error_count"] for s in result)
     never_synced = sum(1 for s in result if s["total_runs"] == 0)
@@ -2641,14 +2639,12 @@ async def sync_status(
 
     # Row estimates from pg_stat for fast approximate counts
     pg_stat_counts: dict[str, int] = {}
-    try:
+    with contextlib.suppress(Exception):
         pg_result = await session.execute(
             text("SELECT relname, n_live_tup FROM pg_stat_user_tables WHERE schemaname = 'public'")
         )
         for row in pg_result:
             pg_stat_counts[row[0]] = row[1] or 0
-    except Exception:
-        pass
 
     result: dict[str, Any] = {}
     for key, (section_id, max_age_minutes) in _SYNC_STATUS_SECTIONS.items():
@@ -2681,7 +2677,7 @@ async def sync_status(
             last = await sync_repo.last_sync(cfg["endpoint"].path, max_age_seconds=999999999)
             if last and last.completed_at:
                 entry["last_fetched"] = last.completed_at.isoformat()
-                entry["age_minutes"] = round(max(0.0, (datetime.now() - last.completed_at).total_seconds() / 60), 1)
+                entry["age_minutes"] = round(max(0.0, (utc_now_naive() - last.completed_at).total_seconds() / 60), 1)
         except Exception as exc:
             logger.warning("sync_status failed for %s: %s", section_id, exc)
             entry["status"] = "error"
@@ -2716,7 +2712,7 @@ async def sync_history(
 
     from brsapi.models.base import SyncLogModel
 
-    cutoff = datetime.now() - timedelta(hours=hours)
+    cutoff = utc_now_naive() - timedelta(hours=hours)
     stmt = (
         select(SyncLogModel)
         .where(SyncLogModel.completed_at >= cutoff)
@@ -2821,7 +2817,7 @@ async def nav_sync_status(
             sync_stats["avg_duration_ms"] = round(float(s.get("avg_duration_ms") or 0.0), 1)
 
         # Recent error details (the aggregator doesn't return messages).
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = utc_now_naive() - timedelta(days=days)
         err_stmt = (
             select(SyncLogModel)
             .where(

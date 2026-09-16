@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -85,7 +86,7 @@ async def toggle_scheduler_job(job_name: str) -> ApiResponse[dict[str, Any]]:
         return ApiResponse(success=True, data=result)
     except Exception as exc:
         logger.exception("Failed to toggle job '%s'", job_name)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post(
@@ -104,7 +105,7 @@ async def run_scheduler_job(job_name: str) -> ApiResponse[dict[str, Any]]:
         return ApiResponse(success=result.get("success", False), data=result)
     except Exception as exc:
         logger.exception("Failed to run job '%s'", job_name)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ──────────────────────────────────────────────
@@ -214,11 +215,9 @@ async def list_jobs(
 
         # Fetch distinct job types
         job_types: list[str] = []
-        try:
+        with contextlib.suppress(Exception):
             r = await session.execute(text(JOBS_TYPES_QUERY))
             job_types = [row[0] for row in r.fetchall()]
-        except Exception:
-            pass
 
         return ApiResponse[dict[str, Any]](success=True, data={
             "items": items,

@@ -5,6 +5,7 @@ No Redis/Celery needed: the event layer is faked by swapping
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -135,7 +136,7 @@ def captured(monkeypatch):
     monkeypatch.setattr(celery_tasks, "_get_celery_app", lambda: None)
 
     # _emit prefers the api ws_manager funnel when a loop is running.
-    try:
+    with contextlib.suppress(ImportError):
         import api.ws_manager as wsm
 
         class _FakeMgr:
@@ -143,8 +144,6 @@ def captured(monkeypatch):
                 events.append((event_type, payload))
 
         monkeypatch.setattr(wsm, "get_armor_ws_manager", lambda: _FakeMgr())
-    except ImportError:
-        pass
     return events, stored
 
 

@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -20,6 +21,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 
 import httpx
+
+from core.time import utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +109,7 @@ def estimate_impact(title: str, category: str) -> tuple[int, float]:
 
 def get_sample_events() -> list[MacroEvent]:
     """نمونه رویدادهای کلان برای شروع. در آینده با scraper جایگزین می‌شود."""
-    now = datetime.utcnow()
+    now = utc_now_naive()
     return [
         MacroEvent(
             title="نرخ تورم نقطه‌به‌نقطه مرداد: ۳۱.۲٪",
@@ -159,7 +162,7 @@ def compute_macro_multiplier(events: list[MacroEvent]) -> float:
         return 0.0
 
     # فقط رویدادهای ۳۰ روز اخیر
-    recent = [e for e in events if (datetime.utcnow() - e.published_at).days <= 30]
+    recent = [e for e in events if (utc_now_naive() - e.published_at).days <= 30]
     if not recent:
         return 0.0
 
@@ -168,7 +171,7 @@ def compute_macro_multiplier(events: list[MacroEvent]) -> float:
     weighted_score = 0.0
     for e in recent:
         # weight = confidence × decay
-        days_old = (datetime.utcnow() - e.published_at).days
+        days_old = (utc_now_naive() - e.published_at).days
         decay = 1.0 / (1 + days_old * 0.1)
         w = e.confidence * decay
         total_weight += w
@@ -209,7 +212,7 @@ async def fetch_macro_events() -> list[MacroEvent]:
 
     # seed
     events = get_sample_events()
-    try:
+    with contextlib.suppress(Exception):
         from core.cache import get_cache
 
         cache = get_cache()
@@ -218,8 +221,6 @@ async def fetch_macro_events() -> list[MacroEvent]:
             json.dumps([e.to_dict() for e in events], default=str),
             ttl=86400 * REDIS_KEY_MACRO_CACHE_DAYS,
         )
-    except Exception:
-        pass
     return events
 
 
@@ -250,7 +251,7 @@ async def scrape_cbi_news() -> list[MacroEvent]:
                                 impact_score=score,
                                 confidence=conf,
                                 explanation="استخراج خودکار از cbi.ir",
-                                published_at=datetime.utcnow(),
+                                published_at=utc_now_naive(),
                             )
                         )
     except Exception as exc:

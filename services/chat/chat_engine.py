@@ -20,6 +20,7 @@ Integrates all components:
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from core.logging import get_logger
@@ -508,7 +509,7 @@ class ChatEngine:
 
     async def _handle_analyze_all(self) -> dict[str, Any]:
         if self._stock_assistant:
-            try:
+            with contextlib.suppress(Exception):
                 result = await self._stock_assistant.process_message("تحلیل همه")
                 if result and result.get("type") != "error":
                     return {
@@ -516,8 +517,6 @@ class ChatEngine:
                         "type": "analysis",
                         "data": result.get("data"),
                     }
-            except Exception:
-                pass
         return {"text": "امکان تحلیل همه نمادها در حال حاضر وجود ندارد.", "type": "error"}
 
     async def _handle_find_best(self, user_id: str) -> dict[str, Any]:
@@ -548,7 +547,7 @@ class ChatEngine:
 
     async def _handle_find_cheap(self) -> dict[str, Any]:
         if self._stock_assistant:
-            try:
+            with contextlib.suppress(Exception):
                 result = await self._stock_assistant.process_message("سهام ارزنده")
                 if result and result.get("type") != "error":
                     return {
@@ -556,8 +555,6 @@ class ChatEngine:
                         "type": "screener",
                         "data": result.get("data"),
                     }
-            except Exception:
-                pass
         return {"text": "در حال جستجوی سهام ارزنده...", "type": "info"}
 
     async def _handle_screener(self, entities: dict[str, Any]) -> dict[str, Any]:
@@ -586,7 +583,7 @@ class ChatEngine:
                 f"{c['field'].upper()}{c['operator']}{c['value']}"
                 for c in conditions
             )
-            try:
+            with contextlib.suppress(Exception):
                 result = await self._stock_assistant.process_message(
                     f"فیلتر {filter_text}"
                 )
@@ -596,8 +593,6 @@ class ChatEngine:
                         "type": "filter",
                         "data": result.get("data"),
                     }
-            except Exception:
-                pass
 
         return {"text": "در حال اعمال فیلتر...", "type": "info"}
 
@@ -713,7 +708,7 @@ class ChatEngine:
 
         symbol = symbols[0]
         if self._watchlist_service:
-            try:
+            with contextlib.suppress(Exception):
                 result = await self._watchlist_service.add_symbol(symbol)
                 if hasattr(result, 'success') and result.success:
                     return {
@@ -721,8 +716,6 @@ class ChatEngine:
                         "type": "action",
                         "actions": [{"type": "link", "label": "👁️ دیده‌بان", "url": "/watchlist"}],
                     }
-            except Exception:
-                pass
 
         return {"text": f"⚠️ خطا در افزودن {symbol} به دیده‌بان.", "type": "error"}
 
@@ -733,21 +726,19 @@ class ChatEngine:
 
         symbol = symbols[0]
         if self._watchlist_service:
-            try:
+            with contextlib.suppress(Exception):
                 result = await self._watchlist_service.remove_symbol(symbol)
                 if hasattr(result, 'success') and result.success:
                     return {
                         "text": f"✅ **{symbol}** از دیده‌بان حذف شد.",
                         "type": "action",
                     }
-            except Exception:
-                pass
 
         return {"text": f"⚠️ خطا در حذف {symbol}.", "type": "error"}
 
     async def _handle_watchlist_list(self) -> dict[str, Any]:
         if self._watchlist_service:
-            try:
+            with contextlib.suppress(Exception):
                 result = await self._watchlist_service.list_items()
                 if hasattr(result, 'success') and result.success and result.value:
                     items = result.value
@@ -762,8 +753,6 @@ class ChatEngine:
                         "type": "watchlist",
                         "actions": [{"type": "link", "label": "👁️ دیده‌بان", "url": "/watchlist"}],
                     }
-            except Exception:
-                pass
 
         return {
             "text": "دیده‌بان شما خالی است.\nبا «اضافه فولاد به دیده‌بان» شروع کنید.",

@@ -6,11 +6,11 @@ It uses mocks (no DB needed) with controlled scenarios.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 import pytest
 
+from core.time import utc_now_naive
 from services.multi_market_signal_engine import MarketSignal
 from services.signal_voting_system import SignalVotingSystem
 
@@ -47,7 +47,7 @@ def make_signal(
         strength=strength,
         confidence=confidence,
         source=source,
-        created_at=datetime.now().isoformat(),
+        created_at=utc_now_naive().isoformat(),
     )
 
 

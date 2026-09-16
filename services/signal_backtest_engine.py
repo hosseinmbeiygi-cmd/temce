@@ -169,7 +169,7 @@ class SignalBacktestEngine:
                     target1 = None
                     target2 = None
                     stop_loss = None
-                    try:
+                    with contextlib.suppress(Exception):
                         targets_str = signal.get("targets", "")
                         if "هدف اول:" in targets_str:
                             numbers = re.findall(r"[\d,]+\.?\d*", targets_str.split("هدف اول:")[1].split("|")[0])
@@ -184,8 +184,6 @@ class SignalBacktestEngine:
                             sl_numbers = re.findall(r"[\d,]+\.?\d*", sl_str)
                             if sl_numbers:
                                 stop_loss = float(sl_numbers[0].replace(",", ""))
-                    except Exception:
-                        pass
 
                     # Evaluate
                     outcome = await self._tracker.evaluate_signal(

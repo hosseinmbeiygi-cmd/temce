@@ -12,13 +12,13 @@ weekends/holidays).
 
 import asyncio
 import json
-from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import text
 
 from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from core import database
+from core.time import now_utc
 
 OUT = Path("data") / "top50_funds_intraday.json"
 OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +31,7 @@ async def main() -> None:
     await database.init_database()
     factory = database.async_session_factory
     out: dict = {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": now_utc().isoformat(),
         "selection": "market_value",
         "criterion_top_n": TOP_N,
         "funds": [],

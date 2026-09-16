@@ -11,6 +11,7 @@ build_symbol_reports.py
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import gzip
 import json
@@ -26,6 +27,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import warnings
+
+from core.time import now_tehran
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -184,17 +187,15 @@ def clean_ohlc(df, drop_close=True):
 
 def jsonable(v):
     if v is None or isinstance(v, (str, int, float, bool)):
-        try:
+        with contextlib.suppress(Exception):
             if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
                 return None
-        except Exception:
-            pass
         return v
     if isinstance(v, dict):
         return {str(k): jsonable(x) for k, x in v.items()}
     if isinstance(v, (list, tuple, set)):
         return [jsonable(x) for x in v]
-    try:
+    with contextlib.suppress(Exception):
         import numpy as np
         if isinstance(v, (np.integer,)):
             return int(v)
@@ -202,8 +203,6 @@ def jsonable(v):
             return None if (math.isnan(float(v)) or math.isinf(float(v))) else float(v)
         if isinstance(v, (np.bool_,)):
             return bool(v)
-    except Exception:
-        pass
     try:
         return str(v)
     except Exception:
@@ -687,11 +686,8 @@ class DataHub:
     def __init__(self, conn, table_syms=None):
         self.conn = conn
         self.table_syms = table_syms or {}
-        try:
-            with conn.cursor() as c:
-                c.execute("set statement_timeout = '25000'")
-        except Exception:
-            pass
+        with contextlib.suppress(Exception), conn.cursor() as c:
+            c.execute("set statement_timeout = '25000'")
         self.details = pd.read_sql_query("select * from brsapi_symbol_details", conn)
         if "fetched_at" in self.details:
             self.details = self.details.sort_values("fetched_at")
@@ -717,7 +713,7 @@ class DataHub:
             self.user_signals = pd.DataFrame()
         # بازدهی ۱۲ماهه گروهی (یک‌بار برای کل نمادها از سری تعدیل‌شده)
         self.ret12 = {}
-        try:
+        with contextlib.suppress(Exception):
             df = pd.read_sql_query(
                 "with ranked as (select symbol, close, row_number() over (partition by symbol order by gregorian_date desc) rn "
                 "from candlesticks where candle_type='3') "
@@ -729,8 +725,6 @@ class DataHub:
                         self.ret12[r["symbol"]] = (float(r["c1"]) / float(r["c252"]) - 1) * 100
                 except Exception:
                     continue
-        except Exception:
-            pass
         # ماتریس هم‌گروهی
         pm = self.details_latest[["symbol", "sector", "market_value", "pe_ratio", "eps", "price_close"]].copy()
         scr_cols = [c for c in ["symbol", "industry", "industry_pe", "eps_current"] if c in self.screener.columns]
@@ -820,7 +814,7 @@ class DataHub:
             return any(v in s for v in variants)
 
         if has("candlesticks"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select gregorian_date, open, high, low, close, volume, candle_type "
                     "from candlesticks where symbol = any(%s) and candle_type in ('2','3') order by gregorian_date",
@@ -832,10 +826,8 @@ class DataHub:
                     df = clean_ohlc(df)
                     out["candles_adj"] = df[df["ctype"] == "3"][["date", "open", "high", "low", "close", "volume"]].drop_duplicates("date").reset_index(drop=True)
                     out["candles_raw"] = df[df["ctype"] == "2"][["date", "open", "high", "low", "close", "volume"]].drop_duplicates("date").reset_index(drop=True)
-            except Exception:
-                pass
         if has("quotes"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select gregorian_date, time, price_open, price_high, price_low, price_close, price_last, "
                     "volume, value, trade_count from quotes where symbol = any(%s) order by gregorian_date, time",
@@ -848,10 +840,8 @@ class DataHub:
                     q.loc[q["last"] <= 0, "last"] = np.nan
                     q = clean_ohlc(q, drop_close=False)
                     out["quotes"] = q[q["last"].notna()].reset_index(drop=True)
-            except Exception:
-                pass
         if has("snapshots"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select time, fetched_at, price_last, price_close, price_first, price_yesterday, price_min, price_max, "
                     "trade_count, trade_volume, trade_value, buy_real_count, sell_real_count, buy_real_volume, sell_real_volume, "
@@ -867,10 +857,8 @@ class DataHub:
                             "bid_price_1", "bid_volume_1", "bid_price_5", "bid_volume_5", "ask_price_1",
                             "ask_volume_1", "ask_price_5", "ask_volume_5", "gregorian_date"]
                     out["snapshot"] = dict(zip(cols, rows[0]))
-            except Exception:
-                pass
         if has("real_legal"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select date, buy_real_count, sell_real_count, buy_legal_count, sell_legal_count, "
                     "buy_real_volume, sell_real_volume, buy_legal_volume, sell_legal_volume, "
@@ -883,10 +871,8 @@ class DataHub:
                             "buy_real_volume", "sell_real_volume", "buy_legal_volume", "sell_legal_volume",
                             "buy_real_value", "sell_real_value", "buy_legal_value", "sell_legal_value"]
                     out["real_legal"] = pd.DataFrame(rows, columns=cols)
-            except Exception:
-                pass
         if has("shareholders"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select shareholder_name, volume, percent, change, date from brsapi_shareholder_records "
                     "where symbol = any(%s) order by date desc, percent desc limit 60",
@@ -894,10 +880,8 @@ class DataHub:
                 rows = cur.fetchall()
                 if rows:
                     out["shareholders"] = pd.DataFrame(rows, columns=["name", "volume", "percent", "change", "date"])
-            except Exception:
-                pass
         if has("announcements"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select date_publish, date_send, time_publish, title, code, link_pdf, link "
                     "from brsapi_codal_announcements where symbol = any(%s) order by date_publish desc, time_publish desc limit 15",
@@ -905,10 +889,8 @@ class DataHub:
                 rows = cur.fetchall()
                 if rows:
                     out["announcements"] = pd.DataFrame(rows, columns=["publish", "send", "time", "title", "code", "pdf", "link"])
-            except Exception:
-                pass
         if has("gold_daily"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select date, price_open, price_high, price_low, price_close, null::bigint as volume "
                     "from brsapi_gold_currency_pro_daily_history where symbol = any(%s)",
@@ -920,10 +902,8 @@ class DataHub:
                     df = df.dropna(subset=["date"])
                     df["date"] = pd.to_datetime(df["date"])
                     out["extra_daily"] = clean_ohlc(df[["date", "open", "high", "low", "close", "volume"]]).drop_duplicates("date", keep="last")
-            except Exception:
-                pass
         if has("crypto_daily"):
-            try:
+            with contextlib.suppress(Exception):
                 cur.execute(
                     "select date, price_open, price_high, price_low, price_close, volume "
                     "from brsapi_crypto_daily_history where symbol = any(%s)",
@@ -936,8 +916,6 @@ class DataHub:
                     df["date"] = pd.to_datetime(df["date"])
                     df = clean_ohlc(df[["date", "open", "high", "low", "close", "volume"]]).drop_duplicates("date", keep="last")
                     out["extra_daily"] = df if "extra_daily" not in out else pd.concat([out["extra_daily"], df])
-            except Exception:
-                pass
         return out
 
 
@@ -1069,7 +1047,7 @@ def compose_page(symbol, hub: "DataHub", sources: list, data: dict, detection_no
     price_src_note = data.get("price_note", UNKNOWN)
 
     p.p(f"> دسته دارایی: **{cat}** | منبع سری قیمت: {price_src_note} | تعداد ردیف داده روزانه معتبر: "
-        f"{fmt_num(tech.get('n_rows') if tech else None, 0)} | تولید: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        f"{fmt_num(tech.get('n_rows') if tech else None, 0)} | تولید: {now_tehran().strftime('%Y-%m-%d %H:%M')}")
     p.p()
 
     # ۱ شناسنامه
@@ -1771,11 +1749,8 @@ def main():
     }
     detection_note_short = {k: detection_note.get(v, {}) for k, v in DET_SHORT.items()}
     if not args.no_detection:
-        try:
-            with open(OUT_DIR / "detection_note_short.json", "w", encoding="utf-8") as fh:
-                json.dump(detection_note_short, fh, ensure_ascii=False)
-        except Exception:
-            pass
+        with contextlib.suppress(Exception), open(OUT_DIR / "detection_note_short.json", "w", encoding="utf-8") as fh:
+            json.dump(detection_note_short, fh, ensure_ascii=False)
 
     # --- ساخت فهرست نمادها ---
     cur = conn.cursor()
@@ -1831,14 +1806,12 @@ def main():
             symbol_sources[key]["file_ticks"] = path
             tick_files[key] = path
     tick_dates = {}
-    try:
+    with contextlib.suppress(Exception):
         summ_path = ROOT / "data" / "top50_funds_intraday" / "summary.csv"
         summ = pd.read_csv(summ_path, encoding="utf-8")
         for _, r in summ.iterrows():
             if pd.notna(r.get("last_trade_date")):
                 tick_dates[norm_symbol(r["symbol"])] = str(r["last_trade_date"])
-    except Exception:
-        pass
     print(f"[universe] {len(variants)} نماد یکتا شناسایی شد از تمام جداول و فایل‌ها", flush=True)
 
     all_keys = sorted(variants.keys())

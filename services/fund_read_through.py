@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
+from core.time import now_tehran, utc_now_naive
 from services.fund_api_adapter import (
     FundApiAdapter,
 )
@@ -65,7 +66,7 @@ def _is_market_open() -> bool:
         tehran = pytz.timezone("Asia/Tehran")
         now = datetime.now(tehran).time()
     except Exception:
-        now = dt.datetime.now().time()
+        now = now_tehran().time()
     return dt.time(8, 45) <= now <= dt.time(12, 30)
 
 
@@ -601,7 +602,7 @@ class FundReadThroughService:
                 {"fid": fund_id},
             )
         ).first()
-        now = datetime.utcnow()
+        now = utc_now_naive()
         if row is not None and row[9] is not None:
             age = (now - row[9]).total_seconds() if isinstance(row[9], datetime) else 1e18
             ttl = TTL_MARKET_QUOTE if _is_market_open() else 3600
@@ -753,6 +754,6 @@ def _hours_since_last(points: list[dict[str, Any]]) -> float:
     last = points[-1].get("date")
     try:
         d = datetime.strptime(str(last), "%Y-%m-%d")
-        return (datetime.utcnow() - d).total_seconds() / 3600.0
+        return (utc_now_naive() - d).total_seconds() / 3600.0
     except ValueError:
         return 1e18

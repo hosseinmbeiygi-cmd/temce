@@ -20,7 +20,6 @@
 import argparse
 import asyncio
 import os
-from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -65,6 +64,7 @@ from brsapi.parsers.commodity import (
 from brsapi.parsers.crypto import CryptoParser
 from brsapi.parsers.ime import ImeParser
 from brsapi.parsers.tsetmc import TsetmcParser
+from core.time import utc_now_naive
 
 # ── DB URL ──────────────────────────────────────
 # No hardcoded credentials — read from env, fall back to a credential-free URL
@@ -384,7 +384,7 @@ def main():
     args = parser.parse_args()
 
     header("BrsApi.ir - Manual Sync Tool")
-    pr(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    pr(f"  Date: {utc_now_naive().strftime('%Y-%m-%d %H:%M:%S')}")
     pr(f"  Database: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL}")
 
     if args.test:

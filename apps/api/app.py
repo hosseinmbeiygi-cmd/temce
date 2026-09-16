@@ -84,15 +84,13 @@ async def _stop_background_tasks() -> None:
 async def _rate_limit_notify(message: str) -> None:
     """Send rate limit alerts via Telegram if configured, always log."""
     logger.warning("RATE LIMIT ALERT: %s", message)
-    try:
+    with suppress(Exception):
         from integrations.notifications.telegram_sender import TelegramSender
 
         sender = TelegramSender()
         result = await sender.send(f"⚠️ <b>BrsApi Rate Limit</b>\n\n{message}")
         if not result.success:
             logger.debug("Telegram notification not sent (not configured?): %s", result.error)
-    except Exception:
-        pass
 
 
 # ── Orchestrator hourly cron state ──
@@ -171,15 +169,13 @@ async def _save_cron_state_to_store() -> None:
 async def _send_cron_alert(title: str, message: str, icon: str = "🔴") -> None:
     """Send a cron alert via Telegram (if configured) and always log."""
     logger.warning("CRON ALERT [%s]: %s", title, message)
-    try:
+    with suppress(Exception):
         from integrations.notifications.telegram_sender import TelegramSender
 
         sender = TelegramSender()
         result = await sender.send(f"{icon} <b>Cron Alert: {title}</b>\n\n{message}")
         if not result.success:
             logger.debug("Telegram alert not sent (not configured?): %s", result.error)
-    except Exception:
-        pass
 
 
 async def _check_cron_alerts() -> None:
@@ -919,13 +915,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         if scheduler_app is not None:
             scheduler_app.scheduler.shutdown(wait=False)
     with suppress(Exception):
-        try:
-            from services.realtime_service import get_realtime_service
+        from services.realtime_service import get_realtime_service
 
-            rt_service = get_realtime_service()
-            await rt_service.stop()
-        except Exception:
-            pass
+        rt_service = get_realtime_service()
+        await rt_service.stop()
     with suppress(Exception):
         await cache.close()
     with suppress(Exception):

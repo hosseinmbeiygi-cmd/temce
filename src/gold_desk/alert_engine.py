@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.time import utc_now_naive
 
 from .models import AlertEventModel, AlertRuleModel
 from .schemas import SnapshotResponse
@@ -91,7 +93,7 @@ async def evaluate_rules(session: AsyncSession, snap: SnapshotResponse) -> list[
     rules = result.scalars().all()
 
     events: list[AlertEventModel] = []
-    now = datetime.utcnow()
+    now = utc_now_naive()
 
     for rule in rules:
         value = _get_value(snap, rule.rule_type, rule.symbol)

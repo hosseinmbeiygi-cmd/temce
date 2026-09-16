@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from core.time import utc_now_naive
 from domain.options.pricing import black_scholes_call, black_scholes_price, black_scholes_put
 
 # ─── 1. Put-Call Parity (5 tests with varying r/q) ────────────────────────
@@ -77,15 +78,15 @@ def test_stale_data_rejected() -> None:
     from backtesting.data_quality.tick_validator import TickValidator
 
     validator = TickValidator(max_gap_seconds=300)
-    t1 = {"price": 100.0, "volume": 10000, "timestamp": datetime.now()}
-    t2 = {"price": 101.0, "volume": 5000, "timestamp": datetime.now() + timedelta(hours=1)}
+    t1 = {"price": 100.0, "volume": 10000, "timestamp": utc_now_naive()}
+    t2 = {"price": 101.0, "volume": 5000, "timestamp": utc_now_naive() + timedelta(hours=1)}
     report = validator.validate_trades([t1, t2])
     assert report.quality_score < 1.0
 
 
 def test_wide_spread_flagged() -> None:
     """Spread > 19% should be flagged."""
-    tick = {"price": 100.0, "volume": 10000, "bid": 80.0, "ask": 120.0, "timestamp": datetime.now()}
+    tick = {"price": 100.0, "volume": 10000, "bid": 80.0, "ask": 120.0, "timestamp": utc_now_naive()}
     spread_bps = (tick["ask"] - tick["bid"]) / tick["bid"] * 10000
     assert spread_bps > 1900  # 19%
 
@@ -95,7 +96,7 @@ def test_zero_volume_trade_flag() -> None:
     from backtesting.data_quality.tick_validator import TickValidator
 
     validator = TickValidator()
-    report = validator.validate_trades([{"price": 100.0, "volume": 0, "timestamp": datetime.now()}])
+    report = validator.validate_trades([{"price": 100.0, "volume": 0, "timestamp": utc_now_naive()}])
     assert report.n_volume_anomalies > 0
 
 
@@ -104,7 +105,7 @@ def test_division_by_zero_handling() -> None:
     from backtesting.data_quality.tick_validator import TickValidator
 
     validator = TickValidator()
-    report = validator.validate_trades([{"price": 0.0, "volume": 0, "timestamp": datetime.now()}])
+    report = validator.validate_trades([{"price": 0.0, "volume": 0, "timestamp": utc_now_naive()}])
     assert isinstance(report.quality_score, float)
 
 

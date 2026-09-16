@@ -12,6 +12,7 @@ Fallback می‌کند. منطق تصمیم‌گیری خالص (``decide_state`
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
@@ -187,7 +188,7 @@ class FundCircuitBreaker:
                 out.append(fid)
         redis = await self._get_redis()
         if redis is not None:
-            try:
+            with contextlib.suppress(Exception):
                 async for key in redis.scan_iter(match=self.KEY_PREFIX + "*", count=200):
                     try:
                         data = json.loads(await redis.get(key) or "{}")
@@ -195,8 +196,6 @@ class FundCircuitBreaker:
                             out.append(key[len(self.KEY_PREFIX):])
                     except Exception:  # noqa: BLE001
                         continue
-            except Exception:  # noqa: BLE001
-                pass
         return sorted(set(out))
 
 

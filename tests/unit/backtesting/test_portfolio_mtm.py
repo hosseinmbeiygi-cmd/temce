@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 import pytest
 
 from backtesting.engine.portfolio import PortfolioManager
 from backtesting.types import FillEvent
+from core.time import utc_now_naive
 from domain.common.enum_types import OrderSide
 
 
@@ -14,7 +13,7 @@ def _make_fill(
 ) -> FillEvent:
     side_enum = OrderSide.BUY if side == "buy" else OrderSide.SELL
     return FillEvent(
-        order_id=f"test_{datetime.now().isoformat()}",
+        order_id=f"test_{utc_now_naive().isoformat()}",
         instrument_id=instrument_id,
         side=side_enum,
         quantity=quantity,

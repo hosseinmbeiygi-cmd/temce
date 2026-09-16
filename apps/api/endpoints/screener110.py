@@ -9,7 +9,6 @@ Endpoints:
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Path, Query
@@ -18,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.dependencies import get_db_session
 from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
+from core.time import utc_now_naive
 from schemas.common.responses import ApiResponse
 
 logger = get_logger(__name__)
@@ -49,7 +49,7 @@ async def populate_profiles(
         svc = PopulateProfilesService(session)
         summary = await svc.populate_all()
 
-        _last_run["last_populate"] = datetime.now().isoformat()
+        _last_run["last_populate"] = utc_now_naive().isoformat()
         _last_run["last_error"] = None
 
         return ApiResponse[dict[str, Any]](
@@ -119,7 +119,7 @@ async def run_cycle(
         svc = Screener110Service(session, total_capital=total_capital)
         buy_signals = await svc.run_full_cycle()
 
-        _last_run["last_cycle"] = datetime.now().isoformat()
+        _last_run["last_cycle"] = utc_now_naive().isoformat()
         _last_run["last_buy_signals"] = len(buy_signals)
         _last_run["last_error"] = None
 

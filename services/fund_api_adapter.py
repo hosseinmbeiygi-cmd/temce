@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import jdatetime
@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -114,7 +115,7 @@ def _fingerprint(record: dict[str, Any]) -> str:
     raw = json.dumps(record, ensure_ascii=False, sort_keys=True, default=str)
     import hashlib
 
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:40]
+    return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:40]
 
 
 # ── Date helpers (شمسی ↔ میلادی، ساخت‌یافته) ────────────────────────────────
@@ -432,7 +433,7 @@ class FundApiAdapter:
             "trade_value": _safe_float(parsed.get("trade_value")),
             "market_value": _safe_float(parsed.get("market_value")),
             "price_change_pct": _safe_float(parsed.get("price_close_change_pct")),
-            "quoted_at": datetime.utcnow(),
+            "quoted_at": utc_now_naive(),
         }
         verdict = validate_quote(rec)
         if not verdict.ok:

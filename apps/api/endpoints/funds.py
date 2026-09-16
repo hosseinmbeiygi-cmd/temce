@@ -19,9 +19,9 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import statistics
 import time
-from datetime import datetime
 from typing import Any
 
 import jdatetime
@@ -30,12 +30,14 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_db_session
+from apps.api.error_handlers import safe_error_message
 from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from brsapi.models.ime import ImeFundModel
 from brsapi.models.tsetmc import IntradayTradeModel, NavRecordModel, SymbolSnapshotModel
 from brsapi.services.query_service import BrsApiQueryService
 from core.config import settings
 from core.logging import get_logger
+from core.time import utc_now_naive
 from models.fund import FundModel
 from schemas.common.responses import ApiResponse
 from services.fund_service import FundService
@@ -323,11 +325,10 @@ async def _load_merged_funds(session: AsyncSession) -> dict[str, dict[str, Any]]
         etf_list = list(BRSAPI_ETF_SYMBOLS)
         # Also pull any symbol that has a real NAV record — some fund symbols carry
         # a different sector label and would otherwise never surface their NAV.
-        try:
+        # nav_records unavailable — the plain ETF filter still applies
+        with contextlib.suppress(Exception):
             nav_syms = (await session.execute(select(NavRecordModel.symbol).distinct())).scalars().all()
             etf_list = list(dict.fromkeys([*etf_list, *[s for s in nav_syms if s]]))
-        except Exception:
-            pass  # nav_records unavailable — the plain ETF filter still applies
         fund_sector = "صندوق سرمایه‌گذاری قابل معامله"
         subq = (
             select(SymbolSnapshotModel.symbol, func.max(SymbolSnapshotModel.fetched_at).label("latest"))
@@ -904,7 +905,7 @@ async def _build_fund_overview(session: AsyncSession) -> dict[str, Any]:
         cashflow[period] = {t: round(v / 1e10, 2) for t, v in per_type.items()}
 
     return {
-        "updated_at": datetime.now().isoformat(),
+        "updated_at": utc_now_naive().isoformat(),
         "summary": {
             "fund_count": len(tradeable),
             "category_count": len(categories),
@@ -1395,10 +1396,8 @@ async def stream_fund_intraday(
 
     async def event_gen():
         # Initial fetch to seed last_ids (so we don't replay history).
-        try:
+        with contextlib.suppress(Exception):
             await _fetch_new()
-        except Exception:
-            pass
         sent = 0
         while sent < max_events:
             try:

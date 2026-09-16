@@ -11,6 +11,7 @@ Usage:
 """
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import os
@@ -69,7 +70,7 @@ def main() -> None:
         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
     """))
     # hypertables: parent reltuples stays 0 (rows live in chunks) -> sum chunks
-    try:
+    with contextlib.suppress(Exception):
         for (name, chunk_sum) in run(cur, """
             SELECT h.table_name, COALESCE(SUM(ch.reltuples), 0)
             FROM pg_class ch
@@ -80,8 +81,6 @@ def main() -> None:
         """):
             if chunk_sum and est_rows.get(name) == 0:
                 est_rows[name] = chunk_sum
-    except Exception:
-        pass
     for t in est_rows:
         if t.startswith("alembic_") or t.startswith("_dual_t") or t == "dual_date_columns":
             continue
@@ -200,13 +199,11 @@ def main() -> None:
         if (est_rows.get(t) or 0) > 1_000_000:
             continue
         col = cols.split(",")[0]
-        try:
+        with contextlib.suppress(psycopg2.errors.QueryCanceled):
             neg = run(cur, f'SELECT EXISTS (SELECT 1 FROM "{t}" WHERE "{col}" < 0 LIMIT 1)')[0][0]
             if neg:
                 finding("high", "data", t, f"قیمت منفی در ستون `{col}` دارد",
                         "پاکسازی/رد رکوردهای نامعتبر در ingest")
-        except psycopg2.errors.QueryCanceled:
-            pass
 
     # ══ 8. freshness: max date per time-series table ══════════════════════
     date_cols = dict(run(cur, """

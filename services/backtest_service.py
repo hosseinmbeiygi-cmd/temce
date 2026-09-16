@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 from backtesting.engine.simulator import BacktestSimulator
@@ -14,6 +14,7 @@ from core.db_utils import safe_row_str
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
+from core.time import utc_now_naive
 from ml.features.price_features import PriceFeatures
 from ml.features.technical_features import TechnicalFeatures
 from ml.models.registry import model_registry
@@ -263,7 +264,7 @@ class BacktestService:
                 equity_curve=equity_curve,
                 trades=trades_list,
                 metrics=metrics,
-                completed_at=datetime.now().isoformat(),
+                completed_at=utc_now_naive().isoformat(),
                 data_quality=data_quality_report,
                 data_source_warning="SYNTHETIC DATA USED — Results are UNRELIABLE. No real historical data available for this symbol." if is_synthetic else None,
             )

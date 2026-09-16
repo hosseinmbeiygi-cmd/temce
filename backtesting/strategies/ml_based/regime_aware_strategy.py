@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from backtesting.strategies.base import BaseStrategy
@@ -25,11 +26,9 @@ class RegimeAwareStrategy(BaseStrategy):
     def _detect_regime(self, bar: dict[str, Any]) -> str:
         if self.regime_model is not None and hasattr(self.regime_model, "predict"):
             features = [bar.get(k, 0.0) for k in ["close", "volume", "returns_20d", "volatility_20d"]]
-            try:
+            with contextlib.suppress(Exception):
                 regime = self.regime_model.predict([features])[0]
                 return {0: "bear", 1: "bull", 2: "neutral"}.get(int(regime), "neutral")
-            except Exception:
-                pass
         returns = bar.get("returns_20d", 0)
         vol = bar.get("volatility_20d", 0.02)
         if returns > 0.05 and vol < 0.03:

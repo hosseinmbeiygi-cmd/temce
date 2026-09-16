@@ -7,6 +7,7 @@ Tables:
 """
 
 import asyncio
+import contextlib
 import json
 import sys
 import time
@@ -219,11 +220,9 @@ async def main():
     async with async_session_factory() as session:
         from sqlalchemy import text
         for t in [CRYPTO_TABLE, GOLD_TABLE, CURRENCY_TABLE]:
-            try:
+            with contextlib.suppress(Exception):
                 r = await session.execute(text(f"SELECT COUNT(*) FROM {t}"))
                 print(f"  {t}: {r.scalar():,} rows")
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":

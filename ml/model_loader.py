@@ -31,6 +31,7 @@ Usage
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import logging
 import pickle
@@ -200,10 +201,8 @@ class ModelLoader:
 
         for key in keys:
             self._loaded.pop(key, None)
-            try:
+            with contextlib.suppress(AttributeError):
                 self._load_cached.cache_clear()
-            except AttributeError:
-                pass
 
         # Rebuild cache from remaining entries.
         remaining = dict(self._loaded)

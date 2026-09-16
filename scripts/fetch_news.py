@@ -31,6 +31,7 @@ from datetime import UTC, datetime, timedelta
 
 from core.database import get_session, init_database
 from core.logging import setup_logging
+from core.time import now_utc
 from services.news_ingestion import NewsIngestionService
 
 
@@ -174,7 +175,7 @@ async def main() -> int:
             keywords = service.news_filter._default_economy_keywords
 
         # Run ingestion
-        print(f"\n  [TIME]  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"\n  [TIME]  {now_utc().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"  [SOURCES]  Sources: {sources if sources else 'ALL'}")
         print(f"  [LIMIT]  Limit per feed: {args.limit}")
         if from_date:

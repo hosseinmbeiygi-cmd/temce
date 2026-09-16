@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import importlib
 import inspect
 from typing import Any
@@ -28,18 +29,16 @@ class StrategyLoader:
             self._registry[name] = cls
             return cls(**kwargs)
         except (ImportError, AttributeError, ValueError) as e:
-            raise ValueError(f"Could not load strategy '{name}': {e}")
+            raise ValueError(f"Could not load strategy '{name}': {e}") from e
 
     def discover(self, package: str = "backtesting.strategies") -> dict[str, type[BaseStrategy]]:
         discovered: dict[str, type[BaseStrategy]] = {}
-        try:
+        with contextlib.suppress(ImportError):
             module = importlib.import_module(package)
             for name, obj in inspect.getmembers(module):
                 if inspect.isclass(obj) and issubclass(obj, BaseStrategy) and obj is not BaseStrategy:
                     discovered[name] = obj
                     self._registry[name] = obj
-        except ImportError:
-            pass
         return discovered
 
     def list_strategies(self) -> list[str]:

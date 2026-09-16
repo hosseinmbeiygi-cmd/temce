@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from core.logging import get_logger
+from core.time import now_utc
 
 logger = get_logger(__name__)
 
@@ -33,7 +33,7 @@ def save_json(section_id: str, data: Any, extra: str = "") -> Path | None:
         folder.mkdir(parents=True, exist_ok=True)
         JSON_DIR.mkdir(parents=True, exist_ok=True)
 
-        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        ts = now_utc().strftime("%Y-%m-%d_%H-%M-%S")
         fname = f"{section_id}{('_' + extra) if extra else ''}_{ts}.json"
         fpath = folder / fname
         # ذخیره دسته‌بندی‌شده

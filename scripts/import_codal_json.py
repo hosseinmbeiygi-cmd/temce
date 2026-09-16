@@ -97,7 +97,7 @@ async def main() -> None:
 
         def make_id(symbol: str, date_send: str, time_send: str, code: str) -> str:
             raw = f"{symbol}|{date_send}|{time_send}|{code}"
-            h = hashlib.md5(raw.encode("utf-8")).hexdigest()[:12]
+            h = hashlib.md5(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
             return f"cod_{h}"
 
         def parse_fiscal_year(date_title: str | None) -> str:

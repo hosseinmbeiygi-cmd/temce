@@ -41,7 +41,7 @@ class Clock:
             close_t = t.replace(hour=close_h, minute=close_m, second=0)
             return open_t <= t <= close_t
         except (ValueError, AttributeError) as e:
-            raise ValueError(f"Invalid market hours format: {e}")
+            raise ValueError(f"Invalid market hours format: {e}") from e
 
     def reset(self) -> None:
         self._now = self._start

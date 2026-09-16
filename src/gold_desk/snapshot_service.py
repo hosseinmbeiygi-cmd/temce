@@ -7,6 +7,7 @@ Hard-stop با محاسبه تغییرات روزانه USD/TSE/DXY.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -134,17 +135,15 @@ async def _calc_daily_changes(session: AsyncSession, brsapi_prices: dict[str, fl
     """محاسبه تغییرات روزانه برای hard-stop (USD، TSE، DXY)."""
     changes: dict[str, float | None] = {"usd": None, "tse": None, "dxy": None}
     # USD daily change از هیستوری GoldCoinHistory یا BrsApi
-    try:
+    with contextlib.suppress(Exception):
         closes = await signal_engine.fetch_closes(session, "USD", 2)
         if len(closes) >= 2 and closes[-2] > 0:
             changes["usd"] = (closes[-1] - closes[-2]) / closes[-2] * 100.0
         elif "USD" in brsapi_prices:
             # fallback: اگر هیستوری نیست، تغییرات را None بگذار
             pass
-    except Exception:
-        pass
     # TSE: از برترین صندوق یا Index history اگر موجود باشد
-    try:
+    with contextlib.suppress(Exception):
         from brsapi.models.commodity import GoldCoinHistoryModel
         from sqlalchemy import desc, select
 
@@ -164,15 +163,11 @@ async def _calc_daily_changes(session: AsyncSession, brsapi_prices: dict[str, fl
                     break
             except Exception:
                 continue
-    except Exception:
-        pass
     # DXY: فعلاً از macro یا هیستوری ارز جهانی
-    try:
+    with contextlib.suppress(Exception):
         closes = await signal_engine.fetch_closes(session, "DXY", 2)
         if len(closes) >= 2 and closes[-2] > 0:
             changes["dxy"] = (closes[-1] - closes[-2]) / closes[-2] * 100.0
-    except Exception:
-        pass
     return changes
 
 

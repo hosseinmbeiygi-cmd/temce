@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
+from core.time import utc_now_naive
+
 logger = logging.getLogger(__name__)
 
 SALT = os.getenv("GOLD_API_TOKEN_SALT", "temce-golddesk-default-salt")
@@ -51,7 +53,7 @@ def generate_token(name: str, scopes: list[Scope]) -> tuple[str, TokenInfo]:
         token_id=token_id,
         name=name,
         scopes=list(scopes),
-        created_at=datetime.utcnow(),
+        created_at=utc_now_naive(),
         last_used_at=None,
         enabled=True,
     )
@@ -94,7 +96,7 @@ async def verify_token(token: str) -> TokenInfo | None:
             return None
         # update last_used (best effort)
         info_dict = info_to_dict(info)
-        info_dict["last_used_at"] = datetime.utcnow().isoformat()
+        info_dict["last_used_at"] = utc_now_naive().isoformat()
         await cache.set(f"{STORAGE_KEY}:hash:{token_hash}", info_dict, ttl=None)
         return info
     except Exception as exc:
@@ -160,7 +162,7 @@ def dict_to_info(d: dict) -> TokenInfo:
         token_id=d.get("token_id", ""),
         name=d.get("name", ""),
         scopes=list(d.get("scopes", ["read"])),
-        created_at=datetime.fromisoformat(d["created_at"]) if d.get("created_at") else datetime.utcnow(),
+        created_at=datetime.fromisoformat(d["created_at"]) if d.get("created_at") else utc_now_naive(),
         last_used_at=datetime.fromisoformat(d["last_used_at"]) if d.get("last_used_at") else None,
         enabled=bool(d.get("enabled", True)),
     )

@@ -162,7 +162,7 @@ def build_model_rows(descriptor: dict[str, Any]) -> tuple[dict, list[dict], list
         meta = v["metadata"]
         version_id = f"{descriptor['id']}::{v['version']}"
         if len(version_id) > 50:
-            version_id = hashlib.sha1(version_id.encode("utf-8")).hexdigest()[:40]
+            version_id = hashlib.sha1(version_id.encode("utf-8"), usedforsecurity=False).hexdigest()[:40]
 
         version_rows.append({
             "id": version_id,

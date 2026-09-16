@@ -18,6 +18,7 @@ This ensures any result can be exactly reproduced.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import platform
@@ -34,7 +35,7 @@ logger = get_logger(__name__)
 
 def _git_commit_hash() -> str:
     """Get current git commit hash if available."""
-    try:
+    with contextlib.suppress(Exception):
         import subprocess
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -42,8 +43,6 @@ def _git_commit_hash() -> str:
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except Exception:
-        pass
     return "unknown"
 
 
@@ -51,12 +50,10 @@ def _dependency_versions() -> dict[str, str]:
     """Get versions of key dependencies."""
     deps = {}
     for pkg in ["numpy", "pandas", "fastapi", "pydantic", "sqlalchemy", "redis"]:
-        try:
+        with contextlib.suppress(ImportError):
             import importlib
             mod = importlib.import_module(pkg)
             deps[pkg] = getattr(mod, "__version__", "unknown")
-        except ImportError:
-            pass
     return deps
 
 

@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from core.logging import get_logger
+from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
@@ -102,7 +103,7 @@ class NewsFetcher:
             return []
 
         news_list = []
-        cutoff = datetime.now() - timedelta(days=days_back)
+        cutoff = utc_now_naive() - timedelta(days=days_back)
 
         for source_name, rss_url in self.RSS_SOURCES.items():
             try:
@@ -136,7 +137,7 @@ class NewsFetcher:
             return []
 
         all_news = []
-        cutoff = datetime.now() - timedelta(days=days_back)
+        cutoff = utc_now_naive() - timedelta(days=days_back)
 
         for source_name, rss_url in self.RSS_SOURCES.items():
             try:

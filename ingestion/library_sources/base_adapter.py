@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from core.time import now_utc
+
 
 @dataclass
 class CollectedData:
@@ -12,7 +14,7 @@ class CollectedData:
     symbol: str
     data_type: str
     raw_data: Any
-    collected_at: datetime = field(default_factory=datetime.now)
+    collected_at: datetime = field(default_factory=now_utc)
     metadata: dict | None = None
 
 
@@ -41,7 +43,7 @@ class BaseLibraryAdapter(ABC):
 
     def handle_error(self, error: Exception, symbol: str | None = None) -> None:
         self.errors.append({
-            "timestamp": datetime.now(),
+            "timestamp": now_utc(),
             "symbol": symbol,
             "error": str(error),
         })

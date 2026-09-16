@@ -16,8 +16,9 @@ import gzip
 import json
 import statistics
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
+
+from core.time import now_utc
 
 TICKS = Path("data") / "top50_funds_intraday" / "ticks.csv.gz"
 SUMMARY = Path("data") / "top50_funds_intraday" / "summary.csv"
@@ -63,7 +64,7 @@ def main() -> None:
             summary_by_sym[row["symbol"]] = row
 
     report: dict = {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": now_utc().isoformat(),
         "funds": {},
     }
     text_lines: list[str] = []

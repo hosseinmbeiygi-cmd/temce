@@ -22,6 +22,7 @@ Skipped automatically when the Redis broker is unreachable (CI provisions a
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -96,10 +97,8 @@ class EventCapture:
         while not self._stop.is_set():
             msg = self._pubsub.get_message(timeout=0.2)
             if msg and msg.get("type") == "message":
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     self.events.append(json.loads(msg["data"]))
-                except (TypeError, ValueError):
-                    pass
 
     def __enter__(self) -> "EventCapture":
         self._thread.start()

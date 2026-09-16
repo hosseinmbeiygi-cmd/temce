@@ -25,13 +25,13 @@ import random
 import statistics
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 
+from core.time import now_utc
 from services.fund_circuit_breaker import BreakerState, decide_state  # noqa: E402
 from services.fund_discovery import (  # noqa: E402
     coverage_score,
@@ -271,7 +271,7 @@ def main() -> None:
     args = ap.parse_args()
 
     n_values = [int(x) for x in args.n.split(",") if x.strip()]
-    started = datetime.now()
+    started = now_utc()
     print(f"# Fund Load Test — mode={args.mode} n={n_values} concurrency={args.concurrency}")
     if args.mode == "sim":
         results = run_sim(n_values, args.concurrency)

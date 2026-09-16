@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import json
 from io import StringIO
@@ -52,14 +53,10 @@ class FileArchiveParser(ParserBase):
         return content
 
     def _coerce(self, value: str) -> int | float | str:
-        try:
+        with contextlib.suppress(ValueError):
             return int(value)
-        except ValueError:
-            pass
-        try:
+        with contextlib.suppress(ValueError):
             return float(value)
-        except ValueError:
-            pass
         return value
 
     def validate(self, parsed: list[dict[str, Any]]) -> bool:

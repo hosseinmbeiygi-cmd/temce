@@ -26,6 +26,7 @@ if str(_project_root) not in sys.path:
 # --- end auto PYTHONPATH ---
 
 import asyncio
+import contextlib
 import json
 import sys
 import time
@@ -150,7 +151,7 @@ async def import_file(
             total_inserted += len(batch)
         except Exception as e:
             logger.warning("  [ERR] %s batch at %d: %s", repr(symbol), i, str(e)[:150])
-            try:
+            with contextlib.suppress(Exception):
                 await session.rollback()
                 # Retry one by one
                 from sqlalchemy import text as sa_text2
@@ -167,8 +168,6 @@ async def import_file(
                         total_inserted += 1
                     except Exception as e2:
                         logger.warning("  [SKIP] %s record: %s", repr(symbol), str(e2)[:100])
-            except Exception:
-                pass
 
     logger.info("  [OK] %s: %d records", repr(symbol), total_inserted)
     stats["total_records"] += total_inserted

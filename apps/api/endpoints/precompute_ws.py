@@ -10,6 +10,8 @@ Frontend hooks: frontend/src/hooks/usePrecomputeStatus.ts connects to
 """
 from __future__ import annotations
 
+import contextlib
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from api.ws_manager import get_armor_ws_manager
@@ -37,10 +39,8 @@ async def ws_precompute(websocket: WebSocket) -> None:
             # We simply consume and optionally echo pong to keep the connection alive
             raw = await websocket.receive_text()
             if raw.strip() == '{"action":"ping"}' or '"ping"' in raw:
-                try:
+                with contextlib.suppress(Exception):
                     await websocket.send_text('{"type":"pong","ts":' + str(__import__("time").time()) + '}')
-                except Exception:
-                    pass
     except WebSocketDisconnect:
         pass
     except Exception:

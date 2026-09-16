@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from core.time import utc_now_naive
 from domain.common.base_entity import BaseEntity
 
 
@@ -47,15 +48,15 @@ class ScreenRun(BaseEntity):
 
     def start(self) -> None:
         self.status = "running"
-        self.started_at = datetime.now()
+        self.started_at = utc_now_naive()
         self.mark_updated()
 
     def complete(self) -> None:
         self.status = "completed"
-        self.completed_at = datetime.now()
+        self.completed_at = utc_now_naive()
         self.mark_updated()
 
     def fail(self) -> None:
         self.status = "failed"
-        self.completed_at = datetime.now()
+        self.completed_at = utc_now_naive()
         self.mark_updated()

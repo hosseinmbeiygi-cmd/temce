@@ -5,6 +5,7 @@ Uses requests (sync) in thread executor — mirrors the tested Python scripts ex
 
 from __future__ import annotations
 
+import contextlib
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -214,7 +215,7 @@ class HistoryFetchService:
                         v = _num(r.get("volume"))
                         if c is None or c <= 0:
                             continue
-                        try:
+                        with contextlib.suppress(Exception):
                             await self._session.execute(sql_text("""
                                 INSERT INTO brsapi_crypto_daily_history
                                     (symbol, date, price_open, price_high, price_low, price_close, volume)
@@ -227,8 +228,6 @@ class HistoryFetchService:
                                     volume = EXCLUDED.volume
                             """), {"sym": sym, "date": date, "o": o, "h": h, "low": low, "c": c, "v": v})
                             inserted += 1
-                        except Exception:
-                            pass
                     await self._session.commit()
 
                 reports.append(FetchReport(
@@ -286,7 +285,7 @@ class HistoryFetchService:
                         c = _num(r.get("close"))
                         if c is None or c <= 0:
                             continue
-                        try:
+                        with contextlib.suppress(Exception):
                             await self._session.execute(sql_text(f"""
                                 INSERT INTO {table}
                                     (symbol, date, price_open, price_high, price_low, price_close)
@@ -298,8 +297,6 @@ class HistoryFetchService:
                                     price_close = EXCLUDED.price_close
                             """), {"sym": sym, "date": date, "o": o, "h": h, "low": low, "c": c})
                             inserted += 1
-                        except Exception:
-                            pass
                     await self._session.commit()
 
                 reports.append(FetchReport(

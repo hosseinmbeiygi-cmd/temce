@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -277,12 +278,10 @@ def build_snapshot(api_base: str) -> dict[str, Any]:
 def write_snapshot(api_base: str, path: Path = ARCHIVE_PATH, replace: bool = False) -> dict[str, Any]:
     archive = _new_archive()
     if path.exists() and not replace:
-        try:
+        with contextlib.suppress(OSError, json.JSONDecodeError):
             existing = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(existing, dict):
                 archive.update(existing)
-        except (OSError, json.JSONDecodeError):
-            pass
     snapshot = build_snapshot(api_base)
     # A transport/API outage must not become a misleading historical snapshot.
     # Keep the in-memory result for diagnostics, but do not mutate the archive.

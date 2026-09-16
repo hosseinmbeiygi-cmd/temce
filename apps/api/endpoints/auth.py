@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,7 +55,7 @@ _limiter = get_rate_limiter()
 
 
 def _get_client_ip(request: Request) -> str:
-    try:
+    with contextlib.suppress(Exception):
         headers = getattr(request, "headers", None)
         if headers is not None:
             # Starlette Headers or plain dict
@@ -62,8 +64,6 @@ def _get_client_ip(request: Request) -> str:
                 first = xff.split(",")[0].strip()
                 if first:
                     return first
-    except Exception:
-        pass
     client = getattr(request, "client", None)
     if client and getattr(client, "host", None):
         return client.host

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.error_handlers import safe_error_message
 from core.database import get_session
 from core.db_utils import safe_row_str
 from core.logging import get_logger

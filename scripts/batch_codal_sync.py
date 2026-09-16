@@ -30,6 +30,7 @@ if str(_project_root) not in sys.path:
 
 import argparse
 import asyncio
+import contextlib
 import json
 import sys
 import time
@@ -75,11 +76,8 @@ def _now_str() -> str:
 def _load_checkpoint() -> dict[str, Any]:
     """Load checkpoint file — returns dict with ``completed``, ``last_symbol``, ``stats``."""
     if CHECKPOINT_FILE.exists():
-        try:
-            with open(CHECKPOINT_FILE, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
+        with contextlib.suppress(Exception), open(CHECKPOINT_FILE, encoding="utf-8") as f:
+            return json.load(f)
     return {"completed": [], "last_symbol": None, "stats": {"fetched": 0, "stored": 0, "errors": 0, "no_data": 0}}
 
 
@@ -141,7 +139,7 @@ async def _sync_one(
 
         # Fallback to instruments table
         if not instrument_id:
-            try:
+            with contextlib.suppress(Exception):
                 fb = await session.execute(
                     select(sa_column("id", String))
                     .select_from(sa_text("instruments"))
@@ -150,8 +148,6 @@ async def _sync_one(
                 fb_row = fb.scalar_one_or_none()
                 if fb_row:
                     instrument_id = str(fb_row)
-            except Exception:
-                pass
 
         # 4. Attach ids
         for r in records:

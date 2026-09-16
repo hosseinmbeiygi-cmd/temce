@@ -6,10 +6,10 @@ field, so ``sync_shareholders`` stamps every record with the fetch date
 latest-status sync path (daily 13:30 job + manual full-market backfill).
 """
 
-from datetime import datetime
 from unittest.mock import AsyncMock
 
 from brsapi.services.sync_service import BrsApiSyncService, SyncReport
+from core.time import utc_now_naive
 
 
 async def test_sync_shareholders_stamps_fetch_date():
@@ -30,7 +30,7 @@ async def test_sync_shareholders_stamps_fetch_date():
         {"id": 7, "name": "سهامدار الف", "volume": 10, "percent": 1.0, "change": 0},
     ])
     # The API payload has no date — the fetch date is stamped on every record.
-    assert records[0]["date"] == datetime.now().strftime("%Y-%m-%d")
+    assert records[0]["date"] == utc_now_naive().strftime("%Y-%m-%d")
     assert records[0]["symbol"] == "فولاد"
     assert records[0]["ins_id"] == "12345"
     svc._lookup_ins_id.assert_awaited_once()

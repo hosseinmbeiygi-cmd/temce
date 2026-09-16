@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
+
+from core.time import now_utc, utc_now_naive
 
 from ..constants import CACHE_TTL_SECONDS, STALE_THRESHOLD_HOURS
 
@@ -28,7 +31,7 @@ class SourceData:
 
     source: str
     symbol: str
-    fetched_at: datetime = field(default_factory=datetime.utcnow)
+    fetched_at: datetime = field(default_factory=utc_now_naive)
     is_stale: bool = False
     last_successful_fetch: datetime | None = None
     data: dict[str, Any] = field(default_factory=dict)
@@ -66,7 +69,7 @@ class BaseAdapter(ABC):
         if self.last_success is None:
             return True
         threshold = timedelta(hours=self.stale_threshold_hours)
-        return datetime.utcnow() - self.last_success > threshold
+        return utc_now_naive() - self.last_success > threshold
 
     async def _cache_get(self, key: str) -> SourceData | None:
         if self.cache is None:
@@ -82,10 +85,8 @@ class BaseAdapter(ABC):
     async def _cache_set(self, key: str, value: SourceData, ttl: int | None = None) -> None:
         if self.cache is None:
             return
-        try:
+        with contextlib.suppress(Exception):
             await self.cache.set(key, value, ttl or self.cache_ttl_seconds)
-        except Exception:
-            pass
 
     async def get(self, symbol: str) -> SourceData:
         """دریافت با کش + stale flag + circuit breaker."""
@@ -101,13 +102,13 @@ class BaseAdapter(ABC):
         cb = get_circuit_breaker(self.name, self.redis)
         self.total_calls += 1
         try:
-            start = datetime.utcnow()
+            start = now_utc()
             data = await cb.call(self.fetch, symbol)
-            elapsed_ms = int((datetime.utcnow() - start).total_seconds() * 1000)
+            elapsed_ms = int((now_utc() - start).total_seconds() * 1000)
             self.latency_samples.append(elapsed_ms)
             if len(self.latency_samples) > 100:
                 self.latency_samples = self.latency_samples[-100:]
-            self.last_success = datetime.utcnow()
+            self.last_success = utc_now_naive()
             self.consecutive_failures = 0
             await self._cache_set(cache_key, data)
             data.last_successful_fetch = self.last_success

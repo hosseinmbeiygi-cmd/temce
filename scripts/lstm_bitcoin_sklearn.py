@@ -399,7 +399,7 @@ def main():
         for f in forecasts:
             print(f"    {f['day']:>6d}  ${f['price']:>14,.2f}")
 
-        with open(OUTPUT_DIR / "forecast.json", "w") as fp:
+        with open(OUTPUT_DIR / "forecast.json", "w", encoding="utf-8") as fp:
             json.dump(forecasts, fp, indent=2)
         print(f"\n  💾 پیش‌بینی: {OUTPUT_DIR / 'forecast.json'}")
 

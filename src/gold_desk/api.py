@@ -17,6 +17,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
+from core.time import utc_now_naive
 
 from . import dca_planner, snapshot_service
 from .alert_engine import seed_default_rules
@@ -100,7 +101,7 @@ async def get_score_history(
     days: int = Query(7, ge=1, le=90),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = utc_now_naive() - timedelta(days=days)
     stmt = (
         select(GoldScoreHistoryModel)
         .where(GoldScoreHistoryModel.score_at >= cutoff)
@@ -126,7 +127,7 @@ async def get_snapshot_history(
     days: int = Query(7, ge=1, le=90),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = utc_now_naive() - timedelta(days=days)
     stmt = (
         select(GoldSnapshotModel)
         .where(GoldSnapshotModel.symbol == symbol, GoldSnapshotModel.snapshot_at >= cutoff)
@@ -246,7 +247,7 @@ async def list_alert_events(
     unread_only: bool = Query(False),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = utc_now_naive() - timedelta(days=days)
     stmt = select(AlertEventModel).where(AlertEventModel.sent_at >= cutoff)
     if unread_only:
         stmt = stmt.where(AlertEventModel.read_at.is_(None))
@@ -277,7 +278,7 @@ async def ack_alert(event_id: int, session: AsyncSession = Depends(get_db_sessio
     ev = (await session.execute(select(AlertEventModel).where(AlertEventModel.id == event_id))).scalars().first()
     if not ev:
         raise HTTPException(status_code=404, detail="event not found")
-    ev.read_at = datetime.utcnow()
+    ev.read_at = utc_now_naive()
     await session.commit()
     return {"success": True}
 
@@ -300,14 +301,12 @@ async def get_watchlist() -> WatchlistResponse:
     cache = get_cache()
     raw = await cache.get(REDIS_KEY_WATCHLIST)
     if raw:
-        try:
+        with contextlib.suppress(Exception):
             data = json.loads(raw) if isinstance(raw, str) else raw
             return WatchlistResponse(
                 symbols=data.get("symbols", []),
                 updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
             )
-        except Exception:
-            pass
     return WatchlistResponse(symbols=[], updated_at=None)
 
 
@@ -318,7 +317,7 @@ async def put_watchlist(payload: WatchlistResponse) -> WatchlistResponse:
     from .constants import REDIS_KEY_WATCHLIST
 
     cache = get_cache()
-    now = datetime.utcnow()
+    now = utc_now_naive()
     payload.updated_at = now
     await cache.set_persistent(
         REDIS_KEY_WATCHLIST,
@@ -901,7 +900,7 @@ async def execute_dca_tranche(
     if tranche > plan.executed_tranches + 1:
         raise HTTPException(400, "must execute in order")
     plan.executed_tranches = tranche
-    plan.updated_at = datetime.utcnow()
+    plan.updated_at = utc_now_naive()
     await session.commit()
     return {"success": True, "data": {"executed_tranches": plan.executed_tranches}}
 
@@ -1034,7 +1033,7 @@ async def post_chat(
     """پرسش از دستیار هوشمند. snapshot + portfolio + patterns به context اضافه می‌شود."""
     snap = await get_hot_snapshot()
     portfolio_data = None
-    try:
+    with contextlib.suppress(Exception):
         prices = get_current_prices(snap)
         portfolio = await get_holdings_grouped(session, prices)
         portfolio_data = {
@@ -1043,11 +1042,9 @@ async def post_chat(
             "total_pnl": portfolio.total_pnl,
             "total_pnl_pct": portfolio.total_pnl_pct,
         }
-    except Exception:
-        pass
 
     patterns_data = None
-    try:
+    with contextlib.suppress(Exception):
         report = await detect_patterns(session)
         patterns_data = {
             "patterns": [
@@ -1062,8 +1059,6 @@ async def post_chat(
             "recommendation": report.recommendation,
             "summary": report.summary,
         }
-    except Exception:
-        pass
 
     answer = await ask_gold_assistant(req.message, snap, portfolio_data, patterns_data)
     return {"success": True, "data": {"answer": answer}}
@@ -1230,7 +1225,7 @@ async def post_scrape_cbi() -> dict:
 @router.get("/crypto", summary="Cryptocurrency prices")
 async def get_crypto(force_refresh: bool = Query(False)) -> dict:
     """قیمت ارزهای دیجیتال از CoinGecko + نرخ تبدیل USD/IRT."""
-    try:
+    with contextlib.suppress(Exception):
         from core.cache import get_cache
 
         from .crypto import REDIS_KEY_CRYPTO
@@ -1243,8 +1238,6 @@ async def get_crypto(force_refresh: bool = Query(False)) -> dict:
 
                 data = json.loads(raw) if isinstance(raw, str) else raw
                 return {"success": True, "data": data}
-    except Exception:
-        pass
 
     # نیاز به USD/IRT rate از snapshot
     snap = await get_hot_snapshot()
@@ -1264,7 +1257,7 @@ async def get_crypto(force_refresh: bool = Query(False)) -> dict:
     ]
     result = {"count": len(items), "usd_irt_rate": usd_irt, "assets": items}
 
-    try:
+    with contextlib.suppress(Exception):
         import json
 
         from core.cache import get_cache
@@ -1273,8 +1266,6 @@ async def get_crypto(force_refresh: bool = Query(False)) -> dict:
 
         cache = get_cache()
         await cache.set(REDIS_KEY_CRYPTO, json.dumps(result, default=str), ttl=300)
-    except Exception:
-        pass
 
     return {"success": True, "data": result}
 

@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Query
 from pydantic import BaseModel, Field
 
+from apps.api.error_handlers import safe_error_message
 from schemas.common.responses import ApiResponse
 
 router = APIRouter()

@@ -511,8 +511,8 @@ def main():
         shares = fin['capital']['cur'] * 1e6 / 1000 if fin.get('capital') else None  # capital million rial -> shares
         def ratio(num_, den):
             return num_ / den * 100 if (num_ is not None and den not in (None, 0)) else None
-        def g(k):
-            return (fin[k]['cur'], fin[k]['prev']) if k in fin else (None, None)
+        def g(k, _fin=fin):
+            return (_fin[k]['cur'], _fin[k]['prev']) if k in _fin else (None, None)
         rev_c, rev_p = g('revenue')
         gr_c, gr_p = g('gross')
         op_c, op_p = g('operating')
@@ -525,15 +525,15 @@ def main():
         fe_c, _ = g('finexp')
         dp_c, _ = g('depr')
         eps_c, eps_p = g('eps')
-        def row_for(period, rev, gr, op, nt, eps, eq, asst, db):
+        def row_for(period, rev, gr, op, nt, eps, eq, asst, db, _ca_c=ca_c, _dc_c=dc_c, _fe_c=fe_c):
             mg = ratio(gr, rev) if gr is not None else None
             mo = ratio(op, rev) if op is not None else None
             mn = ratio(nt, rev)
             roe = ratio(nt, (eq or 0)) if eq and eq > 0 else None
             roa = ratio(nt, (asst or 0)) if asst else None
             dbr = ratio(db, asst) if db is not None and asst else None
-            cur_ratio = ca_c / dc_c if ca_c and dc_c else None
-            cov = op / abs(fe_c) if op is not None and fe_c not in (None, 0) else None
+            cur_ratio = _ca_c / _dc_c if _ca_c and _dc_c else None
+            cov = op / abs(_fe_c) if op is not None and _fe_c not in (None, 0) else None
             return [period, fmt(rev, 0), fmt(gr, 0) if gr is not None else UNK, fmt(op, 0) if op is not None else UNK,
                     fmt(nt, 0), fmt(eps, 0) if eps is not None else UNK, fmt(mg, 1) if mg is not None else UNK,
                     fmt(mo, 1) if mo is not None else UNK, fmt(mn, 1), UNK, UNK, fmt(roe, 1) if roe is not None else UNK,

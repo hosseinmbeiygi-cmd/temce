@@ -13,12 +13,15 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from core.time import now_utc
 
 from .constants import SIGNAL_LABELS_FA  # noqa: F401 (برای دسترسی ساده‌تر)
 
@@ -95,7 +98,7 @@ def issue_token(sub: str, role: str, *, ttl_minutes: int = 15) -> str:
     return f"{signing_input}.{signature}"
 
 
-_DEV_SECRET = "sandooghyar-dev-secret-do-not-use-in-prod"
+_DEV_SECRET = os.environ.get("SANDOOGHYAR_JWT_SECRET") or secrets.token_hex(32)
 
 
 def verify_token(token: str) -> UserContext | None:
@@ -200,7 +203,7 @@ class RateLimiter:
 
         Returns: (allowed, remaining)
         """
-        now = datetime.utcnow()
+        now = now_utc()
         count, start = self._buckets.get(key, (0, now))
         if (now - start).total_seconds() > window_seconds:
             count, start = 0, now
@@ -211,8 +214,8 @@ class RateLimiter:
         return True, remaining
 
     def retry_after(self, key: str) -> int:
-        _, start = self._buckets.get(key, (0, datetime.utcnow()))
-        return max(0, 60 - int((datetime.utcnow() - start).total_seconds()))
+        _, start = self._buckets.get(key, (0, now_utc()))
+        return max(0, 60 - int((now_utc() - start).total_seconds()))
 
 
 rate_limiter = RateLimiter()

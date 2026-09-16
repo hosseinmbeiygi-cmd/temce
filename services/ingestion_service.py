@@ -12,6 +12,7 @@ Provides:
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -70,12 +71,10 @@ class IngestionService:
 
         cache = get_cache()
         dl_len = 0
-        try:
+        with contextlib.suppress(Exception):
             client = cache.client
             if client is not None:
                 dl_len = await client.llen(settings.job_queue_dead_letter) or 0
-        except Exception:
-            pass
         return {
             "enabled": self._enabled,
             "max_concurrent": settings.ingestion_max_concurrent,

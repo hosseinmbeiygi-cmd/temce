@@ -98,20 +98,16 @@ async def _table_state(session: AsyncSession) -> None:
         except Exception as e:  # noqa: BLE001
             _p(f"  {table:<28s} ERR: {str(e)[:70]}")
 
-    try:
+    with contextlib.suppress(Exception):
         r = await session.execute(text(
             "SELECT count(DISTINCT symbol) FROM brsapi_symbol_snapshots"
         ))
         _p(f"  distinct snapshot symbols      = {r.scalar()}")
-    except Exception:  # noqa: BLE001
-        pass
-    try:
+    with contextlib.suppress(Exception):
         r = await session.execute(text(
             "SELECT count(DISTINCT symbol) FROM brsapi_symbol_details"
         ))
         _p(f"  distinct detail symbols        = {r.scalar()}")
-    except Exception:  # noqa: BLE001
-        pass
 
 
 async def _fetch_all_symbols(client: BrsApiClient, session: AsyncSession) -> list[str]:

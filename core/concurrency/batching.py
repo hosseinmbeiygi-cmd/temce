@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
 
@@ -30,14 +31,12 @@ class BatchProcessor:
         return await future
 
     async def _timer_loop(self) -> None:
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             while self._running or len(self._batch) > 0:
                 await asyncio.sleep(self.flush_interval)
                 async with self._lock:
                     if self._batch:
                         asyncio.create_task(self._flush())
-        except asyncio.CancelledError:
-            pass
 
     async def _flush(self) -> None:
         async with self._lock:

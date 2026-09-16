@@ -18,6 +18,7 @@ This file provides the same logic but split correctly for the gateway's prefix s
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -122,11 +123,9 @@ async def _start_precompute_impl_legacy() -> ApiResponse[dict[str, Any]]:
     )
     raw_status = json.loads(status_obj.model_dump_json())
     await _save_status(raw_status)
-    try:
+    with contextlib.suppress(Exception):
         mgr = get_armor_ws_manager()
         await mgr.broadcast_raw("PRECOMPUTATION_STARTED", {"timestamp": _now_iso(), "dispatched": dispatched})
-    except Exception:
-        pass
     return ApiResponse[dict[str, Any]](
         success=True,
         data={"status": raw_status, "dispatch": dispatch_info},
@@ -137,11 +136,9 @@ async def _start_precompute_impl_legacy() -> ApiResponse[dict[str, Any]]:
 @router.get("/status", summary="وضعیت زنده پیش‌محاسبه")
 async def get_precompute_status() -> ApiResponse[dict[str, Any]]:
     status = await _load_status()
-    try:
+    with contextlib.suppress(Exception):
         mgr = get_armor_ws_manager()
         status["_ws_connections"] = mgr.connection_count()
-    except Exception:
-        pass
     return ApiResponse[dict[str, Any]](success=True, data=status)
 
 
@@ -155,10 +152,8 @@ async def get_dashboard_ready() -> ApiResponse[list[dict[str, Any]]]:
     for r in results:
         r["_is_stale"] = _api_is_stale(r.get("expires_at"))
         r["is_stale"] = r["_is_stale"]
-    try:
+    with contextlib.suppress(Exception):
         results.sort(key=lambda x: float(x.get("armor_score", 0) or 0), reverse=True)
-    except Exception:
-        pass
     return ApiResponse[list[dict[str, Any]]](success=True, data=results)
 
 
@@ -174,14 +169,12 @@ async def get_symbol_summary(
     if result is None:
         cache = get_cache()
         if cache.is_connected:
-            try:
+            with contextlib.suppress(Exception):
                 alt = await cache.get(f"armor:symbol:{symbol}")
                 if isinstance(alt, dict) and "symbol" in alt:
                     result = alt
                 elif isinstance(alt, str):
                     result = json.loads(alt)
-            except Exception:
-                pass
     if result is None:
         raise HTTPException(
             status_code=404,

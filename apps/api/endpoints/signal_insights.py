@@ -13,13 +13,13 @@ Provides endpoints for:
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Path, Query
 
 from apps.api.error_handlers import safe_error_detail, safe_error_message
 from core.logging import get_logger
+from core.time import utc_now_naive
 from schemas.common.responses import ApiResponse
 
 logger = get_logger(__name__)
@@ -55,7 +55,7 @@ async def get_signal_accuracy(
                 "page_size": result.value.page_size,
                 "total_pages": result.value.total_pages,
                 "filters": {"market": market, "days": days},
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             },
         )
     except Exception as e:
@@ -132,7 +132,7 @@ async def backtest_signals(
                 **result.value.to_dict(),
                 "signals_tested": len(signals),
                 "filters": {"market": market, "source": source, "days_forward": days_forward},
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             },
         )
     except Exception as e:
@@ -236,7 +236,7 @@ async def get_walk_forward(
                 data={
                     **result.value.to_dict(),
                     "symbol": symbol,
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": utc_now_naive().isoformat(),
                 },
             )
 
@@ -265,7 +265,7 @@ async def get_ensemble_optimization(
                     "markets": {
                         m: e.to_dict() for m, e in result.value.items()
                     },
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": utc_now_naive().isoformat(),
                 },
             )
         else:
@@ -276,7 +276,7 @@ async def get_ensemble_optimization(
                 success=True,
                 data={
                     **result.value.to_dict(),
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": utc_now_naive().isoformat(),
                 },
             )
     except Exception as e:
@@ -312,7 +312,7 @@ async def get_confidence_scoring(
                 "symbol": symbol,
                 "market": market,
                 "direction": direction,
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             },
         )
     except Exception as e:
@@ -340,7 +340,7 @@ async def trigger_retrain(
                 data={
                     "reports": [r.to_dict() for r in result.value],
                     "total_retrained": sum(len(r.models_retrained) for r in result.value),
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": utc_now_naive().isoformat(),
                 },
             )
         else:
@@ -351,7 +351,7 @@ async def trigger_retrain(
                 success=True,
                 data={
                     **result.value.to_dict(),
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": utc_now_naive().isoformat(),
                 },
             )
     except Exception as e:
@@ -382,7 +382,7 @@ async def get_multi_timeframe_confirmation(
             success=True,
             data={
                 **result.to_dict(),
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             },
         )
     except Exception as e:
@@ -421,7 +421,7 @@ async def get_risk_filter(
             success=True,
             data={
                 **result.to_dict(),
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": utc_now_naive().isoformat(),
             },
         )
     except Exception as e:
