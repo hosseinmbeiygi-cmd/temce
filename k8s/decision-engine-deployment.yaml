@@ -126,6 +126,16 @@ spec:
                 configMapKeyRef:
                   name: decision-engine-config
                   key: REDIS_PORT
+            - name: SENTRY_DSN
+              valueFrom:
+                configMapKeyRef:
+                  name: decision-engine-config
+                  key: SENTRY_DSN
+            - name: SENTRY_TRACES_SAMPLE_RATE
+              valueFrom:
+                configMapKeyRef:
+                  name: decision-engine-config
+                  key: SENTRY_TRACES_SAMPLE_RATE
 
             # From Secret
             - name: DATABASE_PASSWORD

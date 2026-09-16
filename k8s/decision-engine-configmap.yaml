@@ -27,3 +27,9 @@ data:
   REDIS_HOST: "decision-engine-redis"
   REDIS_PORT: "6379"
   REDIS_DB: "0"
+
+  # ── Error tracking (optional) ──
+  # A Sentry DSN is a write-limited ingestion key — safe for ConfigMap.
+  # Empty/unset keeps the service Sentry-free.
+  SENTRY_DSN: ""
+  SENTRY_TRACES_SAMPLE_RATE: "0.1"

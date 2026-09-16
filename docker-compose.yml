@@ -46,6 +46,9 @@ services:
       # mode so jobs are pushed to Redis instead of running in every replica.
       - JOB_QUEUE_ENABLED=true
       - JOB_QUEUE_TOKEN=dev-shared-queue-token
+      # Optional error tracking — unset/empty keeps the app Sentry-free.
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     ports:
       - "8000:8000"
     volumes:
@@ -67,6 +70,8 @@ services:
       - REDIS_URL=redis://:redissecure456@redis:6379/0
       - JOB_QUEUE_ENABLED=true
       - JOB_QUEUE_TOKEN=dev-shared-queue-token
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - ./logs:/app/logs
     restart: always
@@ -89,6 +94,7 @@ services:
       - REDIS_URL=redis://:redissecure456@redis:6379/0
       # Live Tgju/Nobitex rates (per-venue fixture fallback on failure):
       - CURRENCY_USE_LIVE=true
+      - SENTRY_DSN=${SENTRY_DSN:-}
     ports:
       - "8002:8002"
     volumes:
@@ -108,6 +114,12 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
       - CURRENCY_API_URL=http://currency:8002
+      # Optional error tracking — unset/empty ships the bundle Sentry-free.
+      # NOTE: NEXT_PUBLIC_* vars are inlined at BUILD time; for the browser
+      # SDK pass them as build args in Dockerfile.frontend, or rely on the
+      # server/runtime init alone.
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     restart: always
 
 volumes:

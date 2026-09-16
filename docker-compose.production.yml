@@ -13,6 +13,12 @@ x-app-prod: &app-prod
     - postgres_password
     - secret_key
     - api_key
+  # Sentry reads SENTRY_DSN from .env.production (see .env.example); the
+  # explicit mapping also lets Swarm-only env injection override it:
+  #   docker stack deploy ... (env comes from env_file above)
+  environment:
+    SENTRY_DSN: ${SENTRY_DSN:-}
+    SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
 
 secrets:
   postgres_password:
@@ -157,6 +163,10 @@ services:
     restart: always
     environment:
       NEXT_PUBLIC_API_URL: http://nginx/api/v1
+      # Server-side Sentry (instrumentation.ts). Browser-side vars must be
+      # inlined at build time (build args) — see frontend/.env.sentry.example.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     networks:
       - internal
     deploy:
