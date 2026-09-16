@@ -135,6 +135,7 @@ export کردن `onRouterTransitionStart = Sentry.captureRouterTransitionStart` 
 - اگر NODE_OPTIONS از قبل heap دارد → دست نمی‌زند (CI override)
 - وگرنه `--max-old-space-size=6144` ست می‌کند (قابل تغییر با `FRONTEND_BUILD_HEAP_MB`)
 - **اعتبارسنجی هر دو سناریو با build کامل:** بدون NODE_OPTIONS خارجی → موفق ۷۶s/۱۴۲ صفحه؛ با NODE_OPTIONS=4096 → موفق و محترم شمرده‌شده
+- **مستندسازی:** `FRONTEND_BUILD_HEAP_MB` با توضیح پیش‌فرض/اولویت در `frontend/.env.sentry.example` ثبت شد (`ce2d6d2`)
 
 ### روش تکرارپذیر اعتبارسنجی (runbook)
 
