@@ -4748,7 +4748,9 @@ _مشکلی شناسایی نشد._
 
 ## 📄 مجوز
 
-MIT License — مشاهده [LICENSE](LICENSE) برای جزئیات.
+این پروژه تحت مجوز **MIT** منتشر می‌شود — مشاهده [LICENSE](LICENSE) برای جزئیات.
+
+Copyright (c) 2024-2026 Hossein Mbeiygi
 
 ---
 
