@@ -287,13 +287,15 @@ services/news_ingestion.py (NewsIngestionService.ingest)
 
 ---
 
-## 🔴 جمع‌بندی موارد نیازمند تصمیم تیم
-| # | تصمیم | گزینه‌ها | پیشنهاد |
+## 🔴 جمع‌بندی موارد نیازمند تصمیم تیم — **✅ تصمیم‌گیری‌شده (۲۰۲۶-۰۹-۱۶)**
+| # | تصمیم | گزینه‌ها | **نتیجه نهایی** |
 |---|-------|----------|---------|
-| ۱ | `published_at` string → TIMESTAMP | ستون جدید+backfill / alter با cast | ستون جدید (افزونی خالص) |
-| ۲ | مبناى جدول: news_items جدید vs توسعه news_articles | جدول جدید+sync از legacy / ستون‌های افزودنی روی legacy | جدول جدید (اصل سند) |
-| ۳ | دسته‌بندی company/companies/stock_market + فیکس باگ اعتبارسنجی | alias در نرمال‌سازی / اصلاح VALID_CATEGORIES | هر دو: فیکس باگ + alias |
-| ۴ | NER/NLP واقعی برای Tagging | rule-based فعلی + لیست DB / مدل فارسی (بودجه+infra) | فعلاً rule-based |
+| ۱ | `published_at` string → TIMESTAMP | ستون جدید+backfill / alter با cast | ✅ **ستون جدید + backfill** (تأیید کاربر) |
+| ۲ | مبناى جدول: news_items جدید vs توسعه news_articles | جدول جدید+sync از legacy / ستون‌های افزودنی روی legacy | ✅ **news_items جدید + sync یک‌طرفه از legacy + dual-write در ingestion** (تصمیم مهندسی: CREATE TABLE جدول legacy در migrations یافت نشد و گره خوردن کد جدید به schema نامعلوم ریسک دارد) |
+| ۳ | دسته‌بندی company/companies/stock_market + فیکس باگ اعتبارسنجی | alias در نرمال‌سازی / اصلاح VALID_CATEGORIES | ✅ **فیکس باگ + alias** (تأیید کاربر): VALID_CATEGORIES به companies اصلاح + alias stock_market→market در نرمال‌سازی |
+| ۴ | NER/NLP واقعی برای Tagging | rule-based فعلی + لیست DB / مدل فارسی (بودجه+infra) | فعلاً rule-based (معلق تا بودجه) |
 | ۵ | کپی‌رایت: نمایش متن کامل vs خلاصه+لینک | — (واقعیت فنی: RSS فقط description دارد) | خلاصه+لینک |
 | ۶ | UI: infinite scroll vs pagination فعلی | — | حفظ pagination در فاز ۱ |
 | ۷ | شکل صفحه‌بندی API سند vs شکل فعلی | تغییر فرانت به شکل سند / به‌روزرسانی سند به شکل فعلی | به‌روزرسانی سند (شکل فعلی) |
+
+> تصمیم‌های ۱-۳ قفل شده‌اند و مبناى پیاده‌سازی migration و فیکس‌های بعدی هستند.
