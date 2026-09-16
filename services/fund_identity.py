@@ -142,7 +142,30 @@ def decide_identity(
         matched_by = sorted(
             k for k in ("by_isin", "by_national_id", "by_alias", "by_symbol") if fund_ids.get(k) == fid
         )[0]
-        if matched_by in ("by_isin", "by_national_id") and owner is None and matches.get("by_alias") != fid:
+        # تطبیق ضعیف (Alias/Symbol) در برابر شناسه قوی ارائه‌شده → بررسی تناقض
+        stored_isin = matches.get("fund_isin")
+        stored_nid = matches.get("fund_national_id")
+        if isin and stored_isin and normalize_isin(isin) != normalize_isin(stored_isin):
+            return IdentityDecision(
+                action="conflict",
+                fund_id=None,
+                existing_symbol=matches.get("alias_symbol") or sym,
+                conflict_reason=(
+                    f"ISIN ارائه‌شده ({normalize_isin(isin)}) با ISIN ثبت‌شدهٔ صندوق "
+                    f"{fid} ({normalize_isin(stored_isin)}) مطابقت ندارد"
+                ),
+            )
+        if national_id and stored_nid and str(national_id).strip() != str(stored_nid).strip():
+            return IdentityDecision(
+                action="conflict",
+                fund_id=None,
+                existing_symbol=matches.get("alias_symbol") or sym,
+                conflict_reason=(
+                    f"شناسه ملی ارائه‌شده با شناسه ملی ثبت‌شدهٔ صندوق {fid} مطابقت ندارد"
+                ),
+            )
+        symbol_known = matches.get("by_symbol") == fid or matches.get("by_alias") == fid
+        if matched_by in ("by_isin", "by_national_id") and not symbol_known:
             # هویت کانونی قوی‌تر از نماد است؛ نماد جدید باید Alias شود
             return IdentityDecision(
                 action="symbol_changed",
@@ -153,7 +176,19 @@ def decide_identity(
         return IdentityDecision(action="same", fund_id=fid, matched_by=matched_by)
 
     if owner:
-        return IdentityDecision(action="new", fund_id=None, conflict_reason=None)
+        if isin or national_id:
+            # نماد به صندوق دیگری تعلق دارد و شناسه ارائه‌شده با آن مطابقت ندارد
+            return IdentityDecision(
+                action="conflict",
+                fund_id=None,
+                existing_symbol=sym,
+                conflict_reason=(
+                    f"نماد {sym} متعلق به {owner} است و ISIN/شناسه ملی ارائه‌شده "
+                    "با هیچ هویت ثبت‌شده‌ای مطابقت ندارد"
+                ),
+            )
+        # بدون شناسه قوی: تطبیق با نماد کافی است
+        return IdentityDecision(action="same", fund_id=owner, matched_by="symbol")
 
     return IdentityDecision(action="new", fund_id=None)
 
@@ -177,6 +212,9 @@ async def resolve_matches(
         "by_alias": None,
         "by_symbol": None,
         "symbol_owner": None,
+        "fund_isin": None,
+        "fund_national_id": None,
+        "alias_symbol": None,
     }
     if iso:
         row = (
@@ -214,6 +252,30 @@ async def resolve_matches(
     ).first()
     out["by_symbol"] = row[0] if row else None
     out["symbol_owner"] = out["by_symbol"]
+
+    # شناسه‌های ثبت‌شدهٔ صندوقِ تطبیق‌یافته (برای تشخیص تناقض ISIN/شناسه ملی)
+    candidate = (
+        out["by_isin"] or out["by_national_id"] or out["by_alias"] or out["by_symbol"]
+    )
+    if candidate:
+        meta = (
+            await session.execute(
+                text("SELECT isin, national_id FROM funds WHERE id = :fid"), {"fid": candidate}
+            )
+        ).first()
+        if meta:
+            out["fund_isin"] = meta[0] or None
+            out["fund_national_id"] = meta[1] or None
+        alias_row = (
+            await session.execute(
+                text(
+                    "SELECT symbol FROM fund_symbol_aliases WHERE fund_id = :fid "
+                    "ORDER BY last_seen_at DESC NULLS LAST LIMIT 1"
+                ),
+                {"fid": candidate},
+            )
+        ).first()
+        out["alias_symbol"] = alias_row[0] if alias_row else None
     return out
 
 

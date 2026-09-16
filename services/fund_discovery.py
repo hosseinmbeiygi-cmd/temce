@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
@@ -130,6 +130,7 @@ class FundDiscoveryService:
     ) -> None:
         self.session = session
         self.adapter = adapter or FundApiAdapter()
+        self.last_stats: DiscoveryStats | None = None
 
     # ── ۱) Discovery + Upsert ────────────────────────────────────────────
 
@@ -201,6 +202,7 @@ class FundDiscoveryService:
         stats.run_id = run_id
         await self.session.commit()
         await self._finish_run(run_id, stats, status="success")
+        self.last_stats = stats
         logger.info(
             "Discovery done: %d discovered, %d created, %d updated, %d aliases, %d conflicts (%.0fms)",
             stats.discovered, stats.created, stats.updated, stats.aliases_added,
@@ -443,8 +445,10 @@ class FundDiscoveryService:
 
         async def _set(sql: str) -> set[str]:
             try:
-                rows = (await self.session.execute(text(sql))).fetchall()
-                return {str(r[0]) for r in rows if r[0]}
+                # SAVEPOINT: نبود/خطای یک منبع، کوئری‌های بعدی را مسموم نکند
+                async with self.session.begin_nested():
+                    rows = (await self.session.execute(text(sql))).fetchall()
+                    return {str(r[0]) for r in rows if r[0]}
             except Exception:  # noqa: BLE001 — منبع ممکن است خالی/ناموجود باشد
                 return set()
 
@@ -476,39 +480,43 @@ class FundDiscoveryService:
 
     async def compute_coverage(self, *, limit: int = 500, include_missing: bool = True) -> list[dict[str, Any]]:
         """KPIهای پوشش هر صندوق از نمای ``fund_universe`` (بدون محاسبه سنگین)."""
+        cutoff = date.today() - timedelta(days=NAV_WINDOW_DAYS)
         nav_counts: dict[str, int] = {}
         try:
-            rows = (
-                await self.session.execute(
-                    text(
-                        """
-                        SELECT fund_id, COUNT(*) FROM fund_nav_history
-                        WHERE nav_date >= CURRENT_DATE - :win
-                        GROUP BY fund_id
-                        """
-                    ),
-                    {"win": NAV_WINDOW_DAYS},
-                )
-            ).fetchall()
-            nav_counts = {r[0]: int(r[1]) for r in rows}
+            # SAVEPOINT: شکست این کوئری اختیاری نباید تراکنش را آلوده کند
+            async with self.session.begin_nested():
+                rows = (
+                    await self.session.execute(
+                        text(
+                            """
+                            SELECT fund_id, COUNT(*) FROM fund_nav_history
+                            WHERE nav_date >= :cutoff
+                            GROUP BY fund_id
+                            """
+                        ),
+                        {"cutoff": cutoff},
+                    )
+                ).fetchall()
+                nav_counts = {r[0]: int(r[1]) for r in rows}
         except Exception:  # noqa: BLE001
-            pass
+            nav_counts = {}
 
         quote_ages: dict[str, float] = {}
         try:
-            rows = (
-                await self.session.execute(
-                    text(
-                        """
-                        SELECT fund_id, EXTRACT(EPOCH FROM (now() - quoted_at)) / 60.0
-                        FROM fund_market_quotes_cache
-                        """
+            async with self.session.begin_nested():
+                rows = (
+                    await self.session.execute(
+                        text(
+                            """
+                            SELECT fund_id, EXTRACT(EPOCH FROM (now() - quoted_at)) / 60.0
+                            FROM fund_market_quotes_cache
+                            """
+                        )
                     )
-                )
-            ).fetchall()
-            quote_ages = {r[0]: float(r[1]) for r in rows if r[1] is not None}
+                ).fetchall()
+                quote_ages = {r[0]: float(r[1]) for r in rows if r[1] is not None}
         except Exception:  # noqa: BLE001
-            pass
+            quote_ages = {}
 
         universe = (
             await self.session.execute(
