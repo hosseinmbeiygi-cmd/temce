@@ -7,7 +7,9 @@ services:
     environment:
       - POSTGRES_DB=tse_quant
       - POSTGRES_USER=quant_dev
-      - POSTGRES_PASSWORD=securepassword123
+      # Dev-only default; override with .env or your shell. The previous
+      # hardcoded value (securepassword123) had leaked via the git history.
+      - POSTGRES_PASSWORD=${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}
     ports:
       - "5432:5432"
     volumes:
@@ -22,7 +24,8 @@ services:
   redis:
     image: redis:7.0-alpine
     container_name: tse_redis
-    command: redis-server --appendonly yes --requirepass redissecure456
+    # Dev-only default; override with .env or your shell (leaked in history).
+    command: redis-server --appendonly yes --requirepass ${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}
     ports:
       - "6379:6379"
     volumes:
@@ -40,12 +43,12 @@ services:
       redis:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:redissecure456@redis:6379/0
+      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
       # Scheduler inside the API: in multi-replica deployments enable queue
       # mode so jobs are pushed to Redis instead of running in every replica.
       - JOB_QUEUE_ENABLED=true
-      - JOB_QUEUE_TOKEN=dev-shared-queue-token
+      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}
       # Optional error tracking — unset/empty keeps the app Sentry-free.
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
@@ -66,10 +69,10 @@ services:
       redis:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:redissecure456@redis:6379/0
+      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
       - JOB_QUEUE_ENABLED=true
-      - JOB_QUEUE_TOKEN=dev-shared-queue-token
+      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
@@ -90,8 +93,8 @@ services:
       redis:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://quant_dev:securepassword123@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:redissecure456@redis:6379/0
+      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
       # Live Tgju/Nobitex rates (per-venue fixture fallback on failure):
       - CURRENCY_USE_LIVE=true
       - SENTRY_DSN=${SENTRY_DSN:-}
