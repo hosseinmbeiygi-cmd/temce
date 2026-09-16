@@ -1,0 +1,73 @@
+{
+  "started_at": "2026-09-16T10:27:41.821860",
+  "mode": "sim",
+  "concurrency": 50,
+  "results": [
+    {
+      "n_funds": 500,
+      "identity_ops": 500,
+      "capability_ops": 500,
+      "coverage_ops": 1000,
+      "breaker_states": 500,
+      "total_ops": 2500,
+      "elapsed_ms": 21.7,
+      "ops_per_sec": 69110.0,
+      "status_distribution": {
+        "partial": 202,
+        "stale": 137,
+        "ok": 161
+      },
+      "thundering_herd": {
+        "adapter_calls": 20,
+        "expected_calls": 20,
+        "suppression_ok": true,
+        "round_latency_p50_ms": 15.9,
+        "round_latency_p95_ms": 16.94
+      }
+    },
+    {
+      "n_funds": 1000,
+      "identity_ops": 1000,
+      "capability_ops": 1000,
+      "coverage_ops": 2000,
+      "breaker_states": 1000,
+      "total_ops": 5000,
+      "elapsed_ms": 52.5,
+      "ops_per_sec": 57121.0,
+      "status_distribution": {
+        "partial": 423,
+        "stale": 295,
+        "ok": 282
+      },
+      "thundering_herd": {
+        "adapter_calls": 20,
+        "expected_calls": 20,
+        "suppression_ok": true,
+        "round_latency_p50_ms": 15.9,
+        "round_latency_p95_ms": 16.94
+      }
+    },
+    {
+      "n_funds": 2000,
+      "identity_ops": 2000,
+      "capability_ops": 2000,
+      "coverage_ops": 4000,
+      "breaker_states": 2000,
+      "total_ops": 10000,
+      "elapsed_ms": 156.5,
+      "ops_per_sec": 38343.0,
+      "status_distribution": {
+        "partial": 807,
+        "stale": 649,
+        "ok": 544
+      },
+      "thundering_herd": {
+        "adapter_calls": 20,
+        "expected_calls": 20,
+        "suppression_ok": true,
+        "round_latency_p50_ms": 15.9,
+        "round_latency_p95_ms": 16.94
+      }
+    }
+  ]
+}

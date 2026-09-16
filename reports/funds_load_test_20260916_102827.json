@@ -1,0 +1,29 @@
+{
+  "started_at": "2026-09-16T10:28:27.481275",
+  "mode": "db",
+  "concurrency": 50,
+  "results": [
+    {
+      "n_funds": 370,
+      "elapsed_sec": 4.08,
+      "funds_per_sec": 90.6,
+      "ms_per_fund": 11.0,
+      "stats": {
+        "discovered": 370,
+        "created": 0,
+        "updated": 370,
+        "aliases_added": 0,
+        "conflicts": 0,
+        "quarantined": 0,
+        "capabilities_snapshot": {
+          "has_nav": 324,
+          "has_portfolio": 0,
+          "has_market_quotes": 368,
+          "has_codal_reports": 275
+        },
+        "duration_ms": 4073.8,
+        "run_id": 31
+      }
+    }
+  ]
+}
