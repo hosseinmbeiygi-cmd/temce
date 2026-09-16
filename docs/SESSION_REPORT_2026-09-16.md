@@ -170,6 +170,13 @@ ps aux | grep "next start" | grep -v grep | awk '{print $1}' | xargs -r kill
 
 نتیجه اجرای این runbook در ۲۰۲۶-۰۹-۱۶: همه مراحل ✅ (جزئیات در جدول بالا).
 
+**اسکریپت آماده:** این runbook حالا قابل اجراست — `frontend/scripts/validate-csp.sh` (کامیت `2d1b2a55`):
+
+```bash
+# بعد از npm run build — همه بررسی‌ها با یک دستور، exit code برای CI
+bash frontend/scripts/validate-csp.sh [port]
+```
+
 ## ۸️⃣ چرخش Secrets — `3c6103b1`
 
 اجرای گام ۱ از اقدامات بعدی (جزئیات کامل: `docs/SECRETS_ROTATION_2026-09-16.md`):
