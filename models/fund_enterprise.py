@@ -222,3 +222,54 @@ class FundIngestionQuarantineModel(TimestampMixin, Base):
     reject_reason: Mapped[str] = mapped_column(String(500), nullable=False)
     reject_rule: Mapped[str | None] = mapped_column(String(100))
     reviewed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class FundSymbolAliasModel(TimestampMixin, Base):
+    """🔗 Alias نمادها — تغییر نماد/ادغام/تفکیک بدون شکستن داده تاریخی.
+
+    کلید کانونی صندوق مستقل از نماد است (ISIN > national_id > symbol)؛
+    بنابراین نماد می‌تواند تغییر کند و همه نمادهای قبلی همچنان به همان
+    ``fund_id`` کانونی Resolve می‌شوند.
+    """
+
+    __tablename__ = "fund_symbol_aliases"
+    __table_args__ = (
+        UniqueConstraint("fund_id", "symbol", name="uq_fund_alias"),
+        Index("ix_fund_alias_symbol", "symbol"),
+        Index("ix_fund_alias_isin", "isin"),
+        Index("ix_fund_alias_fund", "fund_id", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    fund_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    symbol: Mapped[str] = mapped_column(String(80), nullable=False)
+    isin: Mapped[str | None] = mapped_column(String(20))
+    national_id: Mapped[str | None] = mapped_column(String(20))
+    source: Mapped[str] = mapped_column(String(40), nullable=False, default="discovery")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class FundIngestionRunModel(TimestampMixin, Base):
+    """📝 ممیزی اجرای Discovery/Sync — Checkpoint و SLA."""
+
+    __tablename__ = "fund_ingestion_runs"
+    __table_args__ = (
+        Index("ix_fund_runs_type_started", "run_type", "started_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    run_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    discovered: Mapped[int | None] = mapped_column(Integer, default=0)
+    created_count: Mapped[int | None] = mapped_column(Integer, default=0)
+    updated_count: Mapped[int | None] = mapped_column(Integer, default=0)
+    alias_count: Mapped[int | None] = mapped_column(Integer, default=0)
+    conflict_count: Mapped[int | None] = mapped_column(Integer, default=0)
+    error_count: Mapped[int | None] = mapped_column(Integer, default=0)
+    stats_json: Mapped[str | None] = mapped_column(Text)
+    checkpoint_json: Mapped[str | None] = mapped_column(Text)
+    error_text: Mapped[str | None] = mapped_column(String(1000))

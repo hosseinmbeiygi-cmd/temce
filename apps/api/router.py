@@ -198,6 +198,7 @@ class Router:
         from apps.api.endpoints.fundamental import router as fundamental_router
         from apps.api.endpoints.funds import router as funds_router
         from apps.api.endpoints.funds_v2 import router as funds_v2_router
+        from apps.api.endpoints.stocks_v2 import router as stocks_v2_router
         from apps.api.endpoints.health import router as health_router
         from apps.api.endpoints.indicators import router as indicators_router
         from apps.api.endpoints.ingestion import router as ingestion_router
@@ -410,6 +411,12 @@ class Router:
             funds_v2_router,
             prefix="/funds/v2",
             tags=["Funds V2"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            stocks_v2_router,
+            prefix="/stocks/v2",
+            tags=["Stocks V2"],
             dependencies=_optional_auth,
         )
         router.include_router(

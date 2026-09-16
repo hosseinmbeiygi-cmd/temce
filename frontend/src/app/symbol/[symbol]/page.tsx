@@ -14,6 +14,7 @@ import { MetricBox } from "@/components/MetricBox";
 import { RealLegalCard } from "@/components/RealLegalCard";
 import { StatRow } from "@/components/StatRow";
 import AppLayout from "@/components/layout/AppLayout";
+import StockIntelligencePanel from "@/components/StockIntelligencePanel";
 import TradingViewChart from "@/components/charts/TradingViewChart";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
@@ -349,6 +350,10 @@ export default function SymbolPage() {
 
   return (
     <AppLayout title={profile?.name || decodedSymbol} subtitle={profile ? "نماد: " + decodedSymbol + " • " + profile.industry : decodedSymbol}>
+      {/* ── Enterprise Intelligence (v2 — ۹ تب نهادی) ── */}
+      <div className="mb-6">
+        <StockIntelligencePanel symbol={decodedSymbol} />
+      </div>
       <div className="max-w-7xl mx-auto space-y-5">
         {/* ------ Header Bar ------------------------------------------------------------------------------------------------------ */}
         {displayQuote ? (

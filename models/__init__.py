@@ -8,6 +8,15 @@ from models.compare import CompareResultModel
 # Currency service (apps/currency_service) — manual positions tracker.
 from models.currency import CurrencyManualPositionModel
 from models.fund import FundModel
+from models.stock_enterprise import (
+    MarketMacroIndicatorModel,
+    StockIndicatorsSnapshotModel,
+    StockLiveTapeModel,
+    StockMonthlySalesModel,
+    StockNewsSentimentModel,
+    StockOrderBookL2Model,
+    StockQuantSignalModel,
+)
 from models.fund_enterprise import (
     FundCapabilityModel,
     FundHoldingModel,

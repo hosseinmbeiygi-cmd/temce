@@ -233,75 +233,11 @@ class FundReadThroughService:
             logger.exception("Background universe rebuild failed")
 
     async def _build_and_store_universe(self) -> list[dict[str, Any]]:
-        funds = await self.adapter.fetch_universe()
-        now = datetime.utcnow()
-        for f in funds:
-            # Upsert جدول funds (فقط ستون‌های موجود + additive جدید)
-            await self.session.execute(
-                text(
-                    """
-                    INSERT INTO funds (id, symbol, name, isin, fund_type, is_etf,
-                                       trading_status, discovered_at, last_synced_at)
-                    VALUES (:id, :symbol, :name, :isin, :ftype, TRUE,
-                            'active', :now, :now)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                        name = EXCLUDED.name,
-                        isin = COALESCE(NULLIF(EXCLUDED.isin, ''), funds.isin),
-                        fund_type = COALESCE(NULLIF(EXCLUDED.fund_type, ''), funds.fund_type),
-                        is_etf = TRUE,
-                        last_synced_at = EXCLUDED.last_synced_at
-                    """
-                ),
-                {
-                    "id": f["fund_id"],
-                    "symbol": f["symbol"],
-                    "name": f["name"],
-                    "isin": f.get("isin") or "",
-                    "ftype": f.get("fund_type_hint") or "سهامی",
-                    "now": now,
-                },
-            )
-            # قابلیت‌ها
-            await self.session.execute(
-                text(
-                    """
-                    INSERT INTO fund_capabilities
-                        (fund_id, isin, has_nav, has_portfolio, is_etf,
-                         has_market_quotes, has_codal_reports, updated_at)
-                    VALUES (:fid, :isin, TRUE, FALSE, TRUE, TRUE, TRUE, :now)
-                    ON CONFLICT (fund_id) DO UPDATE SET
-                        isin = EXCLUDED.isin, updated_at = EXCLUDED.updated_at
-                    """
-                ),
-                {"fid": f["fund_id"], "isin": f.get("isin") or "", "now": now},
-            )
-        # Snapshot برای meta
-        snapshot = json.dumps(funds, ensure_ascii=False, default=str)
-        await self.session.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS fund_meta (
-                    meta_key   VARCHAR(80) PRIMARY KEY,
-                    meta_value TEXT,
-                    updated_at TIMESTAMP DEFAULT now()
-                )
-                """
-            )
-        )
-        await self.session.execute(
-            text(
-                """
-                INSERT INTO fund_meta (meta_key, meta_value, updated_at)
-                VALUES ('universe_snapshot', :v, :now)
-                ON CONFLICT (meta_key) DO UPDATE SET
-                    meta_value = EXCLUDED.meta_value, updated_at = EXCLUDED.updated_at
-                """
-            ),
-            {"v": snapshot[:5_000_000], "now": now},
-        )
-        await self.session.commit()
-        logger.info("Universe built: %d funds", len(funds))
-        return funds
+        """Delegate به موتور Discovery (هویت کانونی + Alias + Capability + ممیزی)."""
+        from services.fund_discovery import FundDiscoveryService
+
+        svc = FundDiscoveryService(self.session, self.adapter)
+        return await svc.discover(store_snapshot=True)
 
     # ════════════════════════════════════════════════════════════════
     # ۲) NAV History — پر کردن تاریخچه غایب از API
