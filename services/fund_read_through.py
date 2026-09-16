@@ -85,18 +85,32 @@ class DistributedMutex:
         self._redis: Any = None
         self._local = asyncio.Lock()
         self._token = uuid.uuid4().hex
+        # جلوگیری از Hang: در نبود Redis، تلاش اتصال کش می‌شود (هر ۳۰s یک‌بار)
+        self._redis_checked = False
+        self._redis_retry_at = 0.0
 
     async def _get_redis(self) -> Any | None:
         if self._redis is not None:
             return self._redis
+        now = time.time()
+        if self._redis_checked and now < self._redis_retry_at:
+            return None
         try:
             import redis.asyncio as aioredis
 
-            self._redis = aioredis.from_url(self._redis_url, decode_responses=True)
+            self._redis = aioredis.from_url(
+                self._redis_url,
+                decode_responses=True,
+                socket_connect_timeout=0.5,
+                socket_timeout=1.0,
+            )
             await self._redis.ping()
+            self._redis_checked = False
             return self._redis
         except Exception:
             self._redis = None
+            self._redis_checked = True
+            self._redis_retry_at = now + 30.0
             return None
 
     async def acquire(self, name: str) -> bool:
@@ -111,13 +125,18 @@ class DistributedMutex:
             return bool(got)
         except Exception:
             logger.warning("DistributedMutex Redis failure — falling back to local lock")
-            return self._local.locked() is False
+            return self._local.locked() is False and await self._local_acquire_fast()
 
     async def _local_acquire_fast(self) -> bool:
-        try:
-            return self._local.acquire_nowait()
-        except asyncio.InvalidStateError:  # type: ignore[attr-defined]
+        """Try-lock بدون انتظار روی asyncio.Lock (سازگار با Python 3.10+).
+
+        بین ``locked()`` و ``acquire()`` هیچ await دیگری نیست؛ بنابراین این
+        عملیات در حلقه رویداد اتمیک است.
+        """
+        if self._local.locked():
             return False
+        await self._local.acquire()
+        return True
 
     async def release(self, name: str) -> None:
         redis = await self._get_redis()
@@ -154,8 +173,15 @@ class FundReadThroughService:
         adapter: FundApiAdapter | None = None,
     ) -> None:
         self.session = session
-        self.adapter = adapter or FundApiAdapter()
+        # Session جاری به adapter تزریق می‌شود تا منابع DB-محور (مثل
+        # کشف صندوق‌های TSE از snapshot ها) بدون session دوم کار کنند.
+        self.adapter = adapter or FundApiAdapter(db_session=session)
+        if self.adapter.db_session is None:
+            self.adapter.db_session = session
         self._mutex = _shared_mutex
+        from services.fund_circuit_breaker import get_fund_breaker
+
+        self._breaker = get_fund_breaker()
 
     # ════════════════════════════════════════════════════════════════
     # ۱) Universe — کشف خودکار Zero-Config
@@ -197,27 +223,32 @@ class FundReadThroughService:
             built = await self._build_and_store_universe()
         return StaleResult(built, "live", "db+api", 0.0)
 
-    async def _guarded(self, name: str) -> Any:
+    @contextlib.asynccontextmanager
+    async def _guarded(self, name: str):
         """Context manager برای mutex — اگر قفل نگیرد، صبر کوتاه سپس ادامه.
 
-        از ``async with`` خارجی استفاده می‌کنیم تا حتی در خطا آزاد شود.
+        Async-context-manager واقعی؛ آزادسازی قفل حتی در صورت خطا تضمین می‌شود.
         """
         got = await self._mutex.acquire(name)
         if got:
-            return _MutexHandle(self._mutex, name)
-        # منتظر می‌مانیم (تا MUTEX_WAIT) تا سازندهٔ برنده تمام کند؛ سپس از DB می‌خوانیم
-        deadline = time.monotonic() + MUTEX_WAIT_SECONDS
-        while time.monotonic() < deadline:
-            await asyncio.sleep(0.5)
-            row = (
-                await self.session.execute(
-                    text("SELECT meta_value FROM fund_meta WHERE meta_key = :k"),
-                    {"k": name if name != "universe" else "universe_snapshot"},
-                )
-            ).first()
-            if row is not None:
-                return _NoopHandle()
-        return _MutexHandle(self._mutex, name, owned=False)
+            handle: Any = _MutexHandle(self._mutex, name)
+        else:
+            handle = _MutexHandle(self._mutex, name, owned=False)
+            # منتظر می‌مانیم (تا MUTEX_WAIT) تا سازندهٔ برنده تمام کند؛ سپس از DB می‌خوانیم
+            deadline = time.monotonic() + MUTEX_WAIT_SECONDS
+            while time.monotonic() < deadline:
+                await asyncio.sleep(0.5)
+                row = (
+                    await self.session.execute(
+                        text("SELECT meta_value FROM fund_meta WHERE meta_key = :k"),
+                        {"k": name if name != "universe" else "universe_snapshot"},
+                    )
+                ).first()
+                if row is not None:
+                    handle = _NoopHandle()
+                    break
+        async with handle:
+            yield
 
     async def _rebuild_universe_background(self) -> None:
         try:
@@ -288,10 +319,18 @@ class FundReadThroughService:
 
         # Gap filling از API (یک call برای آخرین NAV)
         symbol = fund_id.split(":", 1)[-1]
+        if not await self._breaker.allow(fund_id):
+            logger.info("Fund circuit open — NAV gap-fill skipped for %s", fund_id)
+            return StaleResult(points, "stale", "db", 0.0)
         async with self._guarded(f"nav:{fund_id}"):
-            nav = await self.adapter.fetch_nav(symbol)
+            try:
+                nav = await self.adapter.fetch_nav(symbol)
+            except Exception:
+                await self._breaker.record_failure(fund_id, "nav fetch exception")
+                raise
             if nav is not None and nav.get("nav_date") is not None:
                 await self._upsert_nav(fund_id, nav)
+                await self._breaker.record_success(fund_id)
                 point = {
                     "date": str(nav["nav_date"]),
                     "nav_issue": nav.get("nav_issue"),
@@ -303,6 +342,8 @@ class FundReadThroughService:
                 if point["date"] not in {p["date"] for p in points}:
                     points.append(point)
                     points.sort(key=lambda p: p["date"])
+            else:
+                await self._breaker.record_failure(fund_id, "nav fetch empty")
         freshness = "live" if has_today else ("estimated" if points else "stale")
         return StaleResult(points, freshness, "db+api" if points else "db", 0.0)
 
@@ -323,6 +364,8 @@ class FundReadThroughService:
                     nav_issue = EXCLUDED.nav_issue,
                     nav_redemption = EXCLUDED.nav_redemption,
                     updated_at = now()
+                WHERE fund_nav_history.nav_issue IS DISTINCT FROM EXCLUDED.nav_issue
+                   OR fund_nav_history.nav_redemption IS DISTINCT FROM EXCLUDED.nav_redemption
                 """
             ),
             {
@@ -378,10 +421,20 @@ class FundReadThroughService:
         # JIT: از کدال بیاور
         symbol = fund_id.split(":", 1)[-1]
         isin = await self._fund_isin(fund_id)
+        if not await self._breaker.allow(fund_id):
+            logger.info("Fund circuit open — holdings JIT skipped for %s", fund_id)
+            return StaleResult([], "stale", "db", 0.0)
         async with self._guarded(f"holdings:{fund_id}:{period_date}"):
-            fetched = await self.adapter.fetch_portfolio_report(isin or symbol, period_date)
+            try:
+                fetched = await self.adapter.fetch_portfolio_report(isin or symbol, period_date)
+            except Exception:
+                await self._breaker.record_failure(fund_id, "holdings fetch exception")
+                raise
             if fetched:
                 await self._upsert_holdings(fund_id, period_date, fetched)
+                await self._breaker.record_success(fund_id)
+            else:
+                await self._breaker.record_failure(fund_id, "holdings fetch empty")
         return StaleResult(fetched or [], "live" if fetched else "stale", "db+api" if fetched else "api", 0.0)
 
     async def _latest_period(self, fund_id: str) -> date | None:
@@ -424,6 +477,9 @@ class FundReadThroughService:
                         market_value = EXCLUDED.market_value,
                         weight_pct = EXCLUDED.weight_pct,
                         updated_at = now()
+                    WHERE fund_holdings.quantity IS DISTINCT FROM EXCLUDED.quantity
+                       OR fund_holdings.market_value IS DISTINCT FROM EXCLUDED.market_value
+                       OR fund_holdings.weight_pct IS DISTINCT FROM EXCLUDED.weight_pct
                     """
                 ),
                 {
@@ -552,9 +608,17 @@ class FundReadThroughService:
             if age < ttl:
                 return self._quote_dict(row)
         # Stale/Miss → JIT fetch (فقط در ساعات بازار یا اگر کش خالی)
+        if not await self._breaker.allow(fund_id):
+            logger.info("Fund circuit open — quote JIT skipped for %s", fund_id)
+            return self._quote_dict(row) if row is not None else None
         async with self._guarded(f"quote:{fund_id}"):
-            fetched = await self.adapter.fetch_market_quote(symbol)
+            try:
+                fetched = await self.adapter.fetch_market_quote(symbol)
+            except Exception:
+                await self._breaker.record_failure(fund_id, "quote fetch exception")
+                raise
             if fetched:
+                await self._breaker.record_success(fund_id)
                 await self.session.execute(
                     text(
                         """
@@ -576,6 +640,8 @@ class FundReadThroughService:
                             price_change_pct = EXCLUDED.price_change_pct,
                             quoted_at = EXCLUDED.quoted_at,
                             fetched_at = now()
+                        WHERE fund_market_quotes_cache.quoted_at IS DISTINCT FROM EXCLUDED.quoted_at
+                           OR fund_market_quotes_cache.last_price IS DISTINCT FROM EXCLUDED.last_price
                         """
                     ),
                     {
@@ -595,6 +661,7 @@ class FundReadThroughService:
                 )
                 await self.session.commit()
                 return fetched
+            await self._breaker.record_failure(fund_id, "quote fetch empty")
         return self._quote_dict(row) if row is not None else None
 
     @staticmethod

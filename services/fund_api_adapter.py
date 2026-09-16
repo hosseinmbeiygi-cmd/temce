@@ -239,6 +239,7 @@ class FundApiAdapter:
 
     client: Any = None            # brsapi.client.BrsApiClient
     sync_service: Any = None      # brsapi.services.sync_service.BrsApiSyncService
+    db_session: Any = None        # AsyncSession اختیاری برای منابع DB-محور
     quarantine: QuarantineSink = field(default_factory=QuarantineSink)
 
     # ── پایین‌دستی: کلاینت مشترک با rate-limit و resilience خودش ──
@@ -260,7 +261,15 @@ class FundApiAdapter:
             # لاگ امن: فقط نوع خطا، بدون body/key
             logger.info("Provider fetch not successful: %s", str(err)[:120])
             return None
-        return getattr(result, "data", None)
+        # Result[T] wrapper: payload واقعی در ``value`` است و خود آن هم
+        # BrsApiResponse (با فیلد data) است.
+        inner = getattr(result, "value", None)
+        if inner is None:
+            return None
+        if not getattr(inner, "success", True):
+            logger.info("Provider response flagged failed: %s", str(getattr(inner, "error", ""))[:120])
+            return None
+        return getattr(inner, "data", None)
 
     # ── ۱. Universe — کشف کل صندوق‌های بازار ──
 
@@ -280,10 +289,11 @@ class FundApiAdapter:
         )
 
         universe: dict[str, dict[str, Any]] = {}
-        if self.sync_service is not None and getattr(self.sync_service, "_session", None) is not None:
+        session = None
+        if self.db_session is not None:
+            session = self.db_session
+        elif self.sync_service is not None and getattr(self.sync_service, "_session", None) is not None:
             session = self.sync_service._session
-        else:
-            session = None
 
         # TSE ETFs — از آخرین snapshot هر نماد با sector صندوق
         if session is not None:
