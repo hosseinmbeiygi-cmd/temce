@@ -12,6 +12,7 @@ from providers.news.domestic.rss_domestic_provider import RSSDomesticProvider
 from providers.news.parser import NewsParser
 from providers.news.sentiment.classifier import SentimentClassifier
 from services.news_dedup import NewsDeduplicator
+from services.news_dual_write import NewsDualWriter, compute_dedup_hash
 from services.news_filter import NewsFilter
 from services.news_service import NewsService
 
@@ -138,12 +139,21 @@ class NewsIngestionService:
         news_filter: NewsFilter | None = None,
         sentiment_classifier: SentimentClassifier | None = None,
         session: AsyncSession | None = None,
+        dual_write_enabled: bool = True,
     ) -> None:
         self._session = session
         self.news_service = news_service or NewsService(session=session)
         self.deduplicator = deduplicator or NewsDeduplicator(ttl_seconds=86400.0)
         self.news_filter = news_filter or NewsFilter(min_content_length=30)
         self.sentiment = sentiment_classifier or SentimentClassifier()
+        # Dual-write into the new news_items schema (migration 0054). Additive:
+        # mirror failures are logged, never break the legacy save path.
+        self.dual_writer = NewsDualWriter(session=session, enabled=dual_write_enabled)
+        # Used by safe_mirror to re-issue the legacy save after a rollback
+        # (rollback discards the flushed legacy INSERT alongside the failed
+        # mirror — without re-issue the article would be lost from BOTH paths).
+        # mirror=False so the re-save cannot re-enter a failed mirror (loop).
+        self.dual_writer._reissue_legacy_save = lambda article: self._save_article(article, mirror=False)
 
     async def ingest(
         self,
@@ -333,10 +343,12 @@ class NewsIngestionService:
 
         return stats
 
-    async def _save_article(self, article: dict[str, Any]) -> None:
+    async def _save_article(self, article: dict[str, Any], *, mirror: bool = True) -> None:
         """Convert article dict to NewsItem and save via NewsService.
 
         Checks for existing articles by URL or title before saving to avoid duplicates.
+        When ``mirror`` is False the new-schema dual-write is skipped entirely —
+        used by the post-rollback re-save so a mirror failure cannot loop.
         """
         url = article.get("link") or article.get("url", "")
         title = article.get("title", "Untitled")
@@ -381,6 +393,23 @@ class NewsIngestionService:
         )
 
         await self.news_service.save(item)
+
+        if not mirror:
+            return
+
+        # ── Mirror into the new news_items schema (additive, fail-safe) ──
+        await self.dual_writer.safe_mirror(
+            article,
+            title=item.title,
+            body=item.content or None,
+            source=item.source,
+            url=url,
+            published_at=pub_date.replace(tzinfo=None) if pub_date.tzinfo else pub_date,
+            category=category,
+            is_breaking=bool(article.get("is_breaking", False)),
+            symbols=symbols,
+            dedup_hash=compute_dedup_hash(item.title, url),
+        )
 
     def _display_summary(self, stats: dict[str, Any], top_n: int = 15) -> None:
         """Print a formatted summary of the ingestion results."""
