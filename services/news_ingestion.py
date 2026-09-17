@@ -56,7 +56,23 @@ def _classify_category(raw_category: str, feed_name: str = "", title: str = "", 
 
     Uses keyword matching on the raw category, feed name, title, and description.
     Falls back to 'market' for economy-related feeds, empty string otherwise.
+
+    Aliases are normalized first so the news-module spec's ``stock_market``
+    (and the legacy singular ``company``) map onto the canonical stored
+    values (``market`` / ``companies``) — keeping the API's
+    ``VALID_CATEGORIES`` and the DB in sync.
     """
+    raw_category = raw_category.strip().lower()
+    if raw_category == "stock_market":
+        raw_category = "market"
+    elif raw_category == "company":
+        raw_category = "companies"
+
+    # An exact, already-canonical raw category is trusted as-is — keyword
+    # scoring is only a fallback for messy/missing categories.
+    if raw_category in _CATEGORY_KEYWORDS:
+        return raw_category
+
     combined = f"{raw_category} {feed_name} {title} {description}".lower()
 
     # Score each category

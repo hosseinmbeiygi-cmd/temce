@@ -20,7 +20,27 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-VALID_CATEGORIES = {"market", "company", "economic", "political", "international"}
+# Standard categories — must match the ingestion-side classification in
+# ``services/news_ingestion.py`` (``_CATEGORY_KEYWORDS``). ``companies`` is
+# plural on purpose: the RSS classifier has always emitted ``companies`` and
+# the frontend tab key is ``companies`` too. Accepting the legacy singular
+# ``company`` and the spec's ``stock_market`` keeps old clients working while
+# they migrate.
+VALID_CATEGORIES = {"market", "companies", "company", "economic", "political", "international", "stock_market"}
+
+# Canonical output category for each accepted alias (used to normalize before
+# comparing against stored items, so both spellings return the same rows).
+_CATEGORY_ALIASES = {"company": "companies", "stock_market": "market"}
+
+
+def normalize_news_category(category: str) -> str:
+    """Map a client-supplied category to the canonical stored value.
+
+    The ingestion pipeline stores ``companies`` (plural) and ``market`` — the
+    singular ``company`` and the news-module spec's ``stock_market`` are
+    aliases. Unknown values pass through unchanged so callers can decide.
+    """
+    return _CATEGORY_ALIASES.get(category, category)
 
 # Background refresh state
 _refresh_status: dict[str, Any] = {"running": False, "last_run": None, "last_result": None}
@@ -99,7 +119,7 @@ async def _get_market_news(session: AsyncSession, limit: int = 50) -> list[NewsR
 async def list_news(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1),
-    category: str | None = Query(None, description="Filter by category (market, company, economic, political, international)"),
+    category: str | None = Query(None, description="Filter by category (market, companies, economic, political, international)"),
     service: NewsService = Depends(get_news_service),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
@@ -108,8 +128,10 @@ async def list_news(
         paginated = result.value
         items = [_item_to_response(item) for item in paginated.items]
         # Apply category filter if provided (keep DB total, page may have fewer)
+        # Normalized first so the legacy ``company`` alias matches stored ``companies``.
         if category:
-            items = [item for item in items if item.category == category]
+            canonical = normalize_news_category(category)
+            items = [item for item in items if item.category == canonical]
         # Use the true DB total, not the current page size
         total = paginated.total
         total_pages = max(1, (total + page_size - 1) // page_size)
@@ -224,10 +246,11 @@ async def news_by_category(
             data=None,
             error={"message": f"Invalid category '{category}'. Valid: {', '.join(sorted(VALID_CATEGORIES))}"},
         )
+    canonical = normalize_news_category(category)
     result = await service.list_all(page, 50)
     if result.success and result.value:
         paginated = result.value
-        filtered = [i for i in paginated.items if (i.category if isinstance(i, NewsItem) else i.get("category", "")) == category]
+        filtered = [i for i in paginated.items if (i.category if isinstance(i, NewsItem) else i.get("category", "")) == canonical]
         if filtered:
             return ApiResponse[list[NewsResponse]](
                 success=True,
@@ -238,14 +261,14 @@ async def news_by_category(
             success=True,
             data=[],
         )
-    market_news = [n for n in await _get_market_news(session, 50) if n.category == category]
+    market_news = [n for n in await _get_market_news(session, 50) if n.category == canonical]
     if not market_news:
         market_news = [NewsResponse(
-            id=f"category_{category}",
-            title=f"آخرین اخبار {category}",
-            summary=f"اخبار دسته {category}",
+            id=f"category_{canonical}",
+            title=f"آخرین اخبار {canonical}",
+            summary=f"اخبار دسته {canonical}",
             source="سامانه",
-            category=category,
+            category=canonical,
             symbols=[],
             published_at="",
             sentiment="neutral",
