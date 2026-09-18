@@ -473,6 +473,7 @@ async def refresh_status() -> ApiResponse[dict[str, Any]]:
 
 @router.get("/sources/health")
 async def news_sources_health(
+    notify: bool = Query(False, description="Also fire the Telegram alert (cooldown-gated)"),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Freshness report for the news ingestion source registry.
@@ -481,10 +482,21 @@ async def news_sources_health(
     ``NEWS_SOURCE_STALE_MINUTES``), never-fetched registrations, and
     sources writing news without a registry row. ``?notify=true`` also
     fires the Telegram alert (subject to its cooldown) — the scheduled
-    path uses the job instead.
+    path uses the job instead; the response adds ``alert_fired`` when the
+    message actually went out.
     """
     from services.news_source_health import NewsSourceHealthService
 
     service = NewsSourceHealthService(session)
+    if notify:
+        # Cooldown-gated like the scheduled job; alert_fired tells the
+        # caller whether a notification actually went out this request.
+        report = await service.notify_if_degraded()
+        if report is None:
+            report = await service.health_report()
+            report["alert_fired"] = False
+        else:
+            report["alert_fired"] = True
+        return ApiResponse[dict[str, Any]](success=not report.get("error"), data=report)
     report = await service.health_report()
     return ApiResponse[dict[str, Any]](success=not report.get("error"), data=report)

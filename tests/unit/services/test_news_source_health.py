@@ -269,3 +269,41 @@ class TestHealthReportDb:
                 )
                 await session.commit()
             await eng.dispose()
+
+
+# ── endpoint: ?notify=true ────────────────────────────────────────────────
+
+
+class TestEndpointNotifyFlag:
+    @pytest.mark.asyncio
+    async def test_notify_flag_returns_alert_fired_honestly(self, monkeypatch):
+        """``?notify=true`` reports alert_fired for both alert paths."""
+        from apps.api.endpoints.news import news_sources_health
+
+        session = AsyncMock()
+        svc = MagicMock()
+        degraded = _report_template()
+        healthy = {**_report_template(), "summary": {**_report_template()["summary"], "all_ok": True}}
+
+        # The endpoint imports the class inside its body at call time, so
+        # patch it at the source module for the whole test.
+        monkeypatch.setattr(
+            "services.news_source_health.NewsSourceHealthService", lambda s: svc
+        )
+
+        # degraded + notify -> alert sent
+        svc.notify_if_degraded = AsyncMock(return_value=dict(degraded))
+        resp = await news_sources_health(notify=True, session=session)
+        assert resp.data["alert_fired"] is True
+
+        # degraded + cooldown-blocked (notify returns None) -> fall back to
+        # plain report, alert_fired False
+        svc.notify_if_degraded = AsyncMock(return_value=None)
+        svc.health_report = AsyncMock(return_value=dict(degraded))
+        resp = await news_sources_health(notify=True, session=session)
+        assert resp.data["alert_fired"] is False
+
+        # healthy + no notify -> plain report without the key
+        svc.health_report = AsyncMock(return_value=dict(healthy))
+        resp = await news_sources_health(notify=False, session=session)
+        assert "alert_fired" not in resp.data
