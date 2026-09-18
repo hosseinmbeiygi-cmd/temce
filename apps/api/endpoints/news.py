@@ -42,6 +42,45 @@ def normalize_news_category(category: str) -> str:
     """
     return _CATEGORY_ALIASES.get(category, category)
 
+
+def parse_news_date_range(
+    date_from: str | None, date_to: str | None
+) -> tuple[datetime | None, datetime | None] | None:
+    """Parse the ``?from``/``?to`` query params into aware UTC datetimes.
+
+    Accepts ISO-8601 dates and datetimes: ``2026-09-16`` (whole-day window
+    when used as ``?to``), ``2026-09-16T10:00``, ``...:00Z``, ``...+03:30``.
+    Naive values are read as UTC. Returns ``None`` when both params are
+    absent; raises ``ValueError`` with a client-friendly message on garbage
+    input (the endpoint converts that into a 400-style error payload).
+    Each bound may be given alone — the other stays unbounded.
+    """
+    # FastAPI's Query() default object leaks through when router functions
+    # are called directly (unit tests invoke them as plain coroutines) —
+    # treat any non-str value as absent, same as an omitted param.
+    date_from = date_from if isinstance(date_from, str) and date_from else None
+    date_to = date_to if isinstance(date_to, str) and date_to else None
+    if not date_from and not date_to:
+        return None
+
+    def _parse(value: str, name: str) -> datetime:
+        try:
+            dt = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {name} '{value}'. Use ISO-8601, e.g. 2026-09-16 or 2026-09-16T10:00:00Z"
+            ) from exc
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+
+    from_dt = _parse(date_from, "from") if date_from else None
+    to_dt = _parse(date_to, "to") if date_to else None
+    # A bare date passed as ?to must include that entire day.
+    if to_dt is not None and date_to is not None and len(date_to.strip()) <= 10:
+        to_dt = to_dt.replace(hour=23, minute=59, second=59)
+    return (from_dt, to_dt)
+
 # Background refresh state
 _refresh_status: dict[str, Any] = {"running": False, "last_run": None, "last_result": None}
 
@@ -120,10 +159,21 @@ async def list_news(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1),
     category: str | None = Query(None, description="Filter by category (market, companies, economic, political, international)"),
+    from_: str | None = Query(None, alias="from", description="ISO-8601 date or datetime (UTC), e.g. 2026-09-16T00:00:00Z"),
+    to: str | None = Query(None, alias="to", description="ISO-8601 date or datetime (UTC); a bare date includes the whole day"),
     service: NewsService = Depends(get_news_service),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
-    result = await service.list_all(page, page_size)
+    try:
+        date_range = parse_news_date_range(from_, to)
+    except ValueError as exc:
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=False,
+            data=None,
+            error={"message": str(exc)},
+        )
+    date_from, date_to = date_range if date_range else (None, None)
+    result = await service.list_all(page, page_size, date_from=date_from, date_to=date_to)
     if result.success and result.value and len(result.value.items) > 0:
         paginated = result.value
         items = [_item_to_response(item) for item in paginated.items]
@@ -186,9 +236,21 @@ async def create_news(
 async def search_news(
     q: str = Query(..., min_length=1),
     page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = Query(None, alias="to"),
     service: NewsService = Depends(get_news_service),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
-    result = await service.search(q, page)
+    try:
+        date_range = parse_news_date_range(from_, to)
+    except ValueError as exc:
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=False,
+            data=None,
+            error={"message": str(exc)},
+        )
+    date_from, date_to = date_range if date_range else (None, None)
+    result = await service.search(q, page, page_size, date_from=date_from, date_to=date_to)
     if result.success and result.value:
         paginated = result.value
         return ApiResponse[PaginatedResult[NewsResponse]](
@@ -212,9 +274,20 @@ async def news_by_symbol(
     symbol: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = Query(None, alias="to"),
     service: NewsService = Depends(get_news_service),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
-    result = await service.get_by_symbol(symbol, page)
+    try:
+        date_range = parse_news_date_range(from_, to)
+    except ValueError as exc:
+        return ApiResponse[PaginatedResult[NewsResponse]](
+            success=False,
+            data=None,
+            error={"message": str(exc)},
+        )
+    date_from, date_to = date_range if date_range else (None, None)
+    result = await service.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
     if result.success and result.value:
         paginated = result.value
         return ApiResponse[PaginatedResult[NewsResponse]](

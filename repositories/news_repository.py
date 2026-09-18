@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+from datetime import UTC, datetime
 
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,14 +44,27 @@ class NewsRepository:
             return await self._db.delete(id)
         return await self._mem.delete(id)
 
-    async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[NewsItem]]:
+    async def list(
+        self,
+        page: int = 1,
+        page_size: int = 100,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         if self._db:
-            return await self._db.list(page, page_size)
+            return await self._db.list(page, page_size, date_from=date_from, date_to=date_to)
         return await self._mem.list(page, page_size)
 
-    async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
+    async def search(
+        self,
+        query: str,
+        page: int = 1,
+        page_size: int = 50,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         if self._db:
-            return await self._db.search(query, page, page_size)
+            return await self._db.search(query, page, page_size, date_from=date_from, date_to=date_to)
         q = query.lower()
         matches = [n for n in self._mem._store.values() if q in n.title.lower() or q in n.content.lower()]
         total = len(matches)
@@ -67,9 +81,16 @@ class NewsRepository:
             )
         )
 
-    async def get_by_symbol(self, symbol: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
+    async def get_by_symbol(
+        self,
+        symbol: str,
+        page: int = 1,
+        page_size: int = 50,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         if self._db:
-            return await self._db.get_by_symbol(symbol, page, page_size)
+            return await self._db.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         matches = [n for n in self._mem._store.values() if symbol in n.symbols]
         total = len(matches)
         start = (page - 1) * page_size
@@ -89,6 +110,49 @@ class NewsRepository:
 class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
     model_class = NewsArticleModel
 
+    @staticmethod
+    def _naive_utc(dt: datetime) -> datetime:
+        """Normalize an aware datetime to naive UTC.
+
+        The news schema stores ``timestamp without time zone`` (UTC by
+        convention, like the rest of the codebase). asyncpg rejects tz-aware
+        datetime *parameters* against naive-timestamp columns
+        (``can't subtract offset-naive and offset-aware datetimes``), so the
+        window bounds from the API layer — which are aware by design — must
+        be converted here at the DB boundary.
+        """
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(UTC).replace(tzinfo=None)
+        return dt
+
+    @staticmethod
+    def _published_range(
+        date_from: datetime | None,
+        date_to: datetime | None,
+    ):
+        """SQLAlchemy where-clause for the ``?from``/``?to`` window.
+
+        Filters on the migration-0054 ``published_at_ts`` TIMESTAMP column
+        (falls back to ``created_at`` when the backfill has not run in this
+        environment yet). ``date_to`` is inclusive because clients naturally
+        expect ``?to=2026-09-17`` to contain that whole day; bounds are
+        normalized to naive UTC (see :meth:`_naive_utc`).
+        """
+        clauses = []
+        if date_from is not None:
+            clauses.append(
+                func.coalesce(
+                    NewsArticleModel.published_at_ts, NewsArticleModel.created_at
+                ) >= _NewsDbRepo._naive_utc(date_from)
+            )
+        if date_to is not None:
+            clauses.append(
+                func.coalesce(
+                    NewsArticleModel.published_at_ts, NewsArticleModel.created_at
+                ) <= _NewsDbRepo._naive_utc(date_to)
+            )
+        return clauses
+
     async def exists_by_url_or_title(self, url: str, title: str) -> bool:
         """Check if an article with the same URL or title already exists in DB."""
         conditions = [NewsArticleModel.title == title]
@@ -98,14 +162,23 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
-    async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[NewsItem]]:
+    async def list(
+        self,
+        page: int = 1,
+        page_size: int = 100,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         # Filter: only articles with a source (exclude legacy NULL-source ISNA articles)
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
 
         # Inner: DISTINCT ON (title) — one row per title, newest first
         inner = (
             select(NewsArticleModel)
-            .where(source_filter)
+            .where(
+                source_filter,
+                *self._published_range(date_from, date_to),
+            )
             .distinct(NewsArticleModel.title)
             .order_by(NewsArticleModel.title, desc(NewsArticleModel.published_at).nullslast())
         ).subquery()
@@ -135,10 +208,19 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
             )
         )
 
-    async def search(self, query: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
+    async def search(
+        self,
+        query: str,
+        page: int = 1,
+        page_size: int = 50,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         q = f"%{query.lower()}%"
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
         where_clause = or_(NewsArticleModel.title.ilike(q), NewsArticleModel.content.ilike(q)) & source_filter
+        for clause in self._published_range(date_from, date_to):
+            where_clause = where_clause & clause
 
         count_stmt = (
             select(func.count())
@@ -167,10 +249,19 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
             )
         )
 
-    async def get_by_symbol(self, symbol: str, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[NewsItem]]:
+    async def get_by_symbol(
+        self,
+        symbol: str,
+        page: int = 1,
+        page_size: int = 50,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         q = f"%{symbol}%"
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
         where_clause = NewsArticleModel.symbols.ilike(q) & source_filter
+        for clause in self._published_range(date_from, date_to):
+            where_clause = where_clause & clause
 
         count_stmt = (
             select(func.count())
