@@ -21,11 +21,12 @@ from jobs.definitions.codal_jobs import CodalAttachmentDownloadJob, CodalIngesti
 from jobs.definitions.enterprise_jobs import IndicatorPrecomputeJob, MonthlySalesFillJob
 from jobs.definitions.feature_store_jobs import FeatureStoreBuildJob, ScreenerDailyScoresJob
 from jobs.definitions.fund_jobs import FundDiscoveryJob, FundsSyncJob
+from jobs.definitions.fund_nav_jobs import FundNavOutboxRelayJob, FundNavReconciliationJob
 from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, HealthCheckJob
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
 from jobs.definitions.market_data_jobs import HistoricalDataJob, QuoteIngestionJob, RealtimeQuoteJob
 from jobs.definitions.ml_jobs import BatchInferenceJob, MlArtifactLifecycleJob, ModelEvaluationJob, ModelTrainingJob
-from jobs.definitions.news_jobs import NewsIngestionJob, NewsSentimentJob
+from jobs.definitions.news_jobs import NewsIngestionJob, NewsSentimentJob, NewsSourceHealthJob
 from jobs.definitions.paper_trading_job import PaperTradingJob
 from jobs.definitions.recommendation_jobs import RecommendationEvaluationJob, RecommendationGenerationJob
 from jobs.definitions.reference_jobs import AliasResolutionJob, InstrumentSyncJob
@@ -63,6 +64,7 @@ __all__ = [
     "CodalSyncJob",
     "NewsIngestionJob",
     "NewsSentimentJob",
+    "NewsSourceHealthJob",
     "IndicatorPrecomputeJob",
     "MonthlySalesFillJob",
     "MacroDataJob",
@@ -93,6 +95,8 @@ __all__ = [
     "PaperTradingJob",
     "FundsSyncJob",
     "FundDiscoveryJob",
+    "FundNavReconciliationJob",
+    "FundNavOutboxRelayJob",
     "FeatureStoreBuildJob",
     "ScreenerDailyScoresJob",
     "DataRetentionJob",

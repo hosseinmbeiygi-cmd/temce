@@ -217,6 +217,18 @@ class Settings(BaseSettings):
     # Writes ALWAYS go to both tables (legacy + dual-write) regardless of
     # this flag, so flipping it back to False is always data-safe.
     news_read_from_items: bool = Field(default=False, alias="NEWS_READ_FROM_ITEMS")
+
+    # ── News source health / dead-source alerting ──────────────────────
+    # A source is "stale" when last_fetched_at is older than this window.
+    # The ingestion cadence is 10 min, so 120 min = 12 consecutive missed
+    # runs (the spec's alert threshold). 0 disables the alert entirely.
+    news_source_stale_minutes: int = Field(default=120, alias="NEWS_SOURCE_STALE_MINUTES")
+    # Sources without any successful fetch ever (last_fetched_at IS NULL)
+    # older than this age count as "never fetched" in the health report.
+    news_source_never_fetched_hours: int = Field(default=24, alias="NEWS_SOURCE_NEVER_FETCHED_HOURS")
+    # Cooldown (seconds) between Telegram notifications for the same stale
+    # sources — mirrors the dead-letter alert pattern (queue_consumer.py).
+    news_source_alert_cooldown_seconds: int = Field(default=3600, alias="NEWS_SOURCE_ALERT_COOLDOWN_SECONDS")
     # Lease for a worker's processing list. After expiry, a new consumer can
     # safely recover messages left behind by a crashed worker.
     job_queue_lease_seconds: int = Field(default=600, alias="JOB_QUEUE_LEASE_SECONDS")

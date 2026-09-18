@@ -98,6 +98,18 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── News source health: هشدار منبع مرده (بعد از هر ingestion) ──
+        # فقط وقتی منابع stale/never-fetched/unregistered وجود دارد تلگرام می‌فرستد؛
+        # cooldown از طریق کلید Redis جلوی اسپم را می‌گیرد. خاموشی کامل:
+        # NEWS_SOURCE_STALE_MINUTES=0.
+        self.add_job(
+            "NewsSourceHealthJob",
+            trigger="interval",
+            minutes=10,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── Enterprise Overnight Engine: precompute اندیکاتورها ──
         # ساعات غیربازاری (۱۸:۳۰ و ۲۱:۳۰) — بازار در ۸:۴۵ باز می‌شود؛
         # batch 400 نماد در هر run تا کل بازار در دو شبانه‌روز پوشش داده شود.
@@ -154,6 +166,26 @@ class SchedulerApp:
             trigger="cron",
             hour="8,14,20",
             minute=15,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── NAV مستقل + تطبیق مرجع (Shadow Run) ──
+        # پس از به‌روزرسانی NAV روزانه؛ فقط محاسبه/تطبیق، بدون هیچ سفارشی.
+        self.add_job(
+            "FundNavReconciliationJob",
+            trigger="cron",
+            hour=18,
+            minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── انتشار Outbox دفتر (at-least-once) ──
+        self.add_job(
+            "FundNavOutboxRelayJob",
+            trigger="interval",
+            minutes=5,
             max_instances=1,
             replace_existing=True,
         )

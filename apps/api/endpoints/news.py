@@ -469,3 +469,22 @@ async def refresh_status() -> ApiResponse[dict[str, Any]]:
             "last_result": _refresh_status["last_result"],
         },
     )
+
+
+@router.get("/sources/health")
+async def news_sources_health(
+    session: AsyncSession = Depends(get_db_session),
+) -> ApiResponse[dict[str, Any]]:
+    """Freshness report for the news ingestion source registry.
+
+    Reports stale sources (no successful fetch within
+    ``NEWS_SOURCE_STALE_MINUTES``), never-fetched registrations, and
+    sources writing news without a registry row. ``?notify=true`` also
+    fires the Telegram alert (subject to its cooldown) — the scheduled
+    path uses the job instead.
+    """
+    from services.news_source_health import NewsSourceHealthService
+
+    service = NewsSourceHealthService(session)
+    report = await service.health_report()
+    return ApiResponse[dict[str, Any]](success=not report.get("error"), data=report)

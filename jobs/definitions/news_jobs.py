@@ -53,3 +53,37 @@ class NewsSentimentJob(BaseJob):
         if not session_obtained:
             return JobResult.failure("Could not obtain DB session", job_name=self.name)
         return JobResult.success_result(job_name=self.name, data=stats)
+
+
+class NewsSourceHealthJob(BaseJob):
+    """هشدار منبع مرده — منابع RSS با last_fetched_at قدیمی‌تر از آستانه.
+
+    Runs right after each ingestion in the scheduler; a Telegram alert
+    fires (with cooldown) only when stale/never-fetched/unregistered
+    sources exist. Disabled entirely when NEWS_SOURCE_STALE_MINUTES=0.
+    """
+
+    async def execute(self, context: JobContext) -> JobResult:
+        from core.config import settings
+        from services.news_source_health import NewsSourceHealthService
+
+        if settings.news_source_stale_minutes <= 0:
+            return JobResult.success_result(
+                job_name=self.name, data={"status": "disabled"}
+            )
+        session_obtained = False
+        alerted = False
+        summary: dict = {}
+        async for session in get_session():
+            session_obtained = True
+            service = NewsSourceHealthService(session)
+            report = await service.notify_if_degraded()
+            if report is not None:
+                alerted = True
+                summary = report.get("summary", {})
+        if not session_obtained:
+            return JobResult.failure("Could not obtain DB session", job_name=self.name)
+        return JobResult.success_result(
+            job_name=self.name,
+            data={"alerted": alerted, **summary},
+        )
