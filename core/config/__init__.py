@@ -210,6 +210,13 @@ class Settings(BaseSettings):
     # until max_retries, then moved to the dead-letter list for manual review.
     job_queue_dead_letter: str = Field(default="job:dead", alias="JOB_QUEUE_DEAD_LETTER")
     job_queue_consumer_timeout: int = Field(default=1, alias="JOB_QUEUE_CONSUMER_TIMEOUT")
+
+    # ── News module: read-path feature flag (spec NEWS_MODULE_SPEC_FILLED) ──
+    # When True, the /news read endpoints serve from the new ``news_items``
+    # schema (migration 0054) instead of the legacy ``news_articles`` table.
+    # Writes ALWAYS go to both tables (legacy + dual-write) regardless of
+    # this flag, so flipping it back to False is always data-safe.
+    news_read_from_items: bool = Field(default=False, alias="NEWS_READ_FROM_ITEMS")
     # Lease for a worker's processing list. After expiry, a new consumer can
     # safely recover messages left behind by a crashed worker.
     job_queue_lease_seconds: int = Field(default=600, alias="JOB_QUEUE_LEASE_SECONDS")

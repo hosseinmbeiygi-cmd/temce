@@ -13,6 +13,7 @@ from domain.news.news_item import NewsItem
 from models.news import NewsArticleModel
 from repositories.base_repository import InMemoryRepository
 from repositories.db_base import DbRepository
+from repositories.news_items_read_repo import NewsItemsReadRepo
 
 
 class NewsRepository:
@@ -20,6 +21,18 @@ class NewsRepository:
         self._session = session
         self._mem: InMemoryRepository[NewsItem] | None = None if session else InMemoryRepository[NewsItem]()
         self._db: _NewsDbRepo | None = None if not session else _NewsDbRepo(session)
+        # Flag-gated READ path (NEWS_READ_FROM_ITEMS): serves list/search/
+        # get_by_symbol from the new ``news_items`` schema (migration 0054).
+        # Writes ALWAYS stay on the legacy repo + dual-write regardless of
+        # the flag, so flipping it is always data-safe both ways.
+        self._items_read: "NewsItemsReadRepo | None" = (
+            NewsItemsReadRepo(session) if session and NewsItemsReadRepo.is_enabled() else None
+        )
+
+    @property
+    def reading_from_items(self) -> bool:
+        """True when reads are currently served from ``news_items``."""
+        return self._items_read is not None
 
     async def get(self, id: str) -> Result[NewsItem]:
         if self._db:
@@ -51,6 +64,8 @@ class NewsRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
+        if self._items_read:
+            return await self._items_read.list(page, page_size, date_from=date_from, date_to=date_to)
         if self._db:
             return await self._db.list(page, page_size, date_from=date_from, date_to=date_to)
         return await self._mem.list(page, page_size)
@@ -63,6 +78,8 @@ class NewsRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
+        if self._items_read:
+            return await self._items_read.search(query, page, page_size, date_from=date_from, date_to=date_to)
         if self._db:
             return await self._db.search(query, page, page_size, date_from=date_from, date_to=date_to)
         q = query.lower()
@@ -89,6 +106,8 @@ class NewsRepository:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
+        if self._items_read:
+            return await self._items_read.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         if self._db:
             return await self._db.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         matches = [n for n in self._mem._store.values() if symbol in n.symbols]
