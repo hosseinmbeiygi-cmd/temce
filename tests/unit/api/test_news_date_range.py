@@ -30,9 +30,11 @@ import pytest
 from apps.api.endpoints import news as news_endpoint
 from apps.api.endpoints.news import (
     list_news,
+    news_by_category,
     news_by_symbol,
     parse_news_date_range,
     search_news,
+    trending_news,
 )
 from core.result import PaginatedResult, Result
 from domain.news.news_item import NewsItem
@@ -240,6 +242,54 @@ class TestSearchAndSymbolDateFilter:
 
 
 # ── repo clause generation + real-DB behavior ────────────────────────────
+
+
+class TestCategoryAndTrendingDateFilter:
+    """``?from``/``?to`` on the category and trending routes."""
+
+    @pytest.mark.asyncio
+    async def test_category_filters_by_window(self):
+        items = [
+            _news_item("mkt_old", category="market", pub=datetime(2026, 1, 1, tzinfo=UTC)),
+            _news_item("mkt_in", category="market", pub=datetime(2026, 9, 10, tzinfo=UTC)),
+        ]
+        result = await news_by_category(
+            category="market", page=1,
+            from_="2026-09-01", to=None,
+            service=_stub_service(items), session=AsyncMock(),
+        )
+        assert [i.id for i in result.data] == ["mkt_in"]
+
+    @pytest.mark.asyncio
+    async def test_category_invalid_from_is_error(self):
+        result = await news_by_category(
+            category="market", page=1,
+            from_="nonsense", to=None,
+            service=AsyncMock(), session=AsyncMock(),
+        )
+        assert result.success is False
+        assert "Invalid from" in result.error["message"]
+
+    @pytest.mark.asyncio
+    async def test_trending_filters_by_window(self):
+        items = [
+            _news_item("t_old", pub=datetime(2026, 1, 1, tzinfo=UTC)),
+            _news_item("t_in", pub=datetime(2026, 9, 10, tzinfo=UTC)),
+        ]
+        result = await trending_news(
+            limit=10, from_="2026-09-01", to="2026-09-30",
+            service=_stub_service(items), session=AsyncMock(),
+        )
+        assert [i.id for i in result.data] == ["t_in"]
+
+    @pytest.mark.asyncio
+    async def test_trending_no_params_returns_unfiltered(self):
+        items = [_news_item("a"), _news_item("b")]
+        result = await trending_news(
+            limit=10, from_=None, to=None,
+            service=_stub_service(items), session=AsyncMock(),
+        )
+        assert len(result.data) == 2
 
 
 class TestPublishedRangeClauses:

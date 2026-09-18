@@ -310,6 +310,8 @@ async def news_by_symbol(
 async def news_by_category(
     category: str,
     page: int = Query(1, ge=1),
+    from_: str | None = Query(None, alias="from", description="ISO-8601 date or datetime (UTC)"),
+    to: str | None = Query(None, alias="to", description="ISO-8601 date or datetime (UTC); a bare date includes the whole day"),
     service: NewsService = Depends(get_news_service),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[list[NewsResponse]]:
@@ -319,8 +321,17 @@ async def news_by_category(
             data=None,
             error={"message": f"Invalid category '{category}'. Valid: {', '.join(sorted(VALID_CATEGORIES))}"},
         )
+    try:
+        date_range = parse_news_date_range(from_, to)
+    except ValueError as exc:
+        return ApiResponse[list[NewsResponse]](
+            success=False,
+            data=None,
+            error={"message": str(exc)},
+        )
+    date_from, date_to = date_range if date_range else (None, None)
     canonical = normalize_news_category(category)
-    result = await service.list_all(page, 50)
+    result = await service.list_all(page, 50, date_from=date_from, date_to=date_to)
     if result.success and result.value:
         paginated = result.value
         filtered = [i for i in paginated.items if (i.category if isinstance(i, NewsItem) else i.get("category", "")) == canonical]
@@ -357,10 +368,21 @@ async def news_by_category(
 @router.get("/trending")
 async def trending_news(
     limit: int = Query(10, ge=1, le=50),
+    from_: str | None = Query(None, alias="from", description="ISO-8601 date or datetime (UTC)"),
+    to: str | None = Query(None, alias="to", description="ISO-8601 date or datetime (UTC); a bare date includes the whole day"),
     service: NewsService = Depends(get_news_service),
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[list[NewsResponse]]:
-    result = await service.list_all(1, limit)
+    try:
+        date_range = parse_news_date_range(from_, to)
+    except ValueError as exc:
+        return ApiResponse[list[NewsResponse]](
+            success=False,
+            data=None,
+            error={"message": str(exc)},
+        )
+    date_from, date_to = date_range if date_range else (None, None)
+    result = await service.list_all(1, limit, date_from=date_from, date_to=date_to)
     if result.success and result.value:
         items = result.value.items
         if items:
