@@ -197,8 +197,11 @@ class Router:
         from apps.api.endpoints.forecast_engine import router as forecast_engine_router
         from apps.api.endpoints.fundamental import router as fundamental_router
         from apps.api.endpoints.funds import router as funds_router
+        from apps.api.endpoints.funds_compliance import router as funds_compliance_router
+        from apps.api.endpoints.funds_ledger import router as funds_ledger_router
+        from apps.api.endpoints.funds_nav import router as funds_nav_router
+        from apps.api.endpoints.funds_regulator import router as funds_regulator_router
         from apps.api.endpoints.funds_v2 import router as funds_v2_router
-        from apps.api.endpoints.stocks_v2 import router as stocks_v2_router
         from apps.api.endpoints.health import router as health_router
         from apps.api.endpoints.indicators import router as indicators_router
         from apps.api.endpoints.ingestion import router as ingestion_router
@@ -212,6 +215,10 @@ class Router:
         from apps.api.endpoints.ml import router as ml_router
         from apps.api.endpoints.multi_market_signals import router as multi_market_signals_router
         from apps.api.endpoints.news import router as news_router
+<<<<<<< HEAD
+=======
+        from apps.api.endpoints.news_tag_map_admin import router as news_tag_map_admin_router
+>>>>>>> ccb49b02 (feat(news): admin endpoints for tag→symbol mapping overrides (§20.7))
         from apps.api.endpoints.options import router as options_router
         from apps.api.endpoints.orderbooks import router as orderbooks_router
         from apps.api.endpoints.paper_trading import router as paper_trading_router
@@ -229,6 +236,7 @@ class Router:
         from apps.api.endpoints.signals import router as signals_router
         from apps.api.endpoints.smart_money import router as smart_money_router
         from apps.api.endpoints.stock_assistant import router as stock_assistant_router
+        from apps.api.endpoints.stocks_v2 import router as stocks_v2_router
         from apps.api.endpoints.symbol_search import router as symbol_search_router
         from apps.api.endpoints.symbols import router as symbols_router
         from apps.api.endpoints.system import router as system_router
@@ -348,6 +356,13 @@ class Router:
         router.include_router(
             news_router, prefix="/news", tags=["News"], dependencies=_optional_auth
         )
+        # News tag→symbol mapping administration (§20.7) — admin only.
+        router.include_router(
+            news_tag_map_admin_router,
+            prefix="/news-tag-map",
+            tags=["News Admin"],
+            dependencies=_require_admin,
+        )
         router.include_router(
             jobs_router, prefix="/jobs", tags=["Jobs"], dependencies=_require_admin
         )
@@ -406,6 +421,30 @@ class Router:
             funds_router,
             prefix="/funds",
             tags=["Funds"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            funds_nav_router,
+            prefix="/funds/v2/nav",
+            tags=["Funds NAV"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            funds_ledger_router,
+            prefix="/funds/v2/ledger",
+            tags=["Funds Ledger"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            funds_compliance_router,
+            prefix="/funds/v2/compliance",
+            tags=["Funds Compliance"],
+            dependencies=_optional_auth,
+        )
+        router.include_router(
+            funds_regulator_router,
+            prefix="/funds/v2/regulator",
+            tags=["Funds Regulator"],
             dependencies=_optional_auth,
         )
         router.include_router(
