@@ -18,6 +18,8 @@ from apps.api.endpoints.funds_regulator import (  # noqa: E402
     _get_engine,
     _get_ledger,
     _get_recon,
+)
+from apps.api.endpoints.funds_regulator import (  # noqa: E402
     require_regulator_admin,
 )
 from apps.api.endpoints.funds_regulator import router as funds_regulator_router  # noqa: E402
@@ -148,10 +150,17 @@ async def test_access_logs_list(client: AsyncClient) -> None:
 
 
 async def test_regulator_requires_admin_without_override() -> None:
-    """بدون احراز هویت ادمین → 401 (بدون نیاز به DB)."""
+    """The router-level admin guard fires before anything else: with no JWT
+    the request is rejected (401) without reaching services or DB — unless
+    the dependency is explicitly overridden (as the happy-path fixtures do)."""
     application = FastAPI()
     application.include_router(funds_regulator_router, prefix="/funds/v2/regulator")
+    application.dependency_overrides[_get_engine] = _fake_engine
+    application.dependency_overrides[_get_recon] = _fake_recon
+    application.dependency_overrides[_get_ledger] = _fake_ledger
+    application.dependency_overrides[_get_compliance] = _fake_compliance
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.get("/funds/v2/regulator/tse:آگاس/evidence")
     assert resp.status_code == 401
+    assert "Not authenticated" in resp.json()["detail"]

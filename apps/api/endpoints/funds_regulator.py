@@ -27,7 +27,6 @@ from services.fund_nav_engine import FundNavEngine, build_evidence_hash
 from services.fund_nav_reconciliation import FundNavReconciliationService
 
 logger = get_logger(__name__)
-router = APIRouter()
 
 
 def require_regulator_key(
@@ -59,6 +58,12 @@ def require_regulator_admin(
             status_code=403, detail="دسترسی نظارتی نیازمند نقش admin است"
         )
     return current_user
+
+
+# Regulator portal: JWT admin (+ optional REGULATOR_API_KEY). The guard is
+# enforced at the router level — without it the evidence/audit-pack bundles
+# (NAV, ledger, AML/STR data) would be publicly readable.
+router = APIRouter(dependencies=[Depends(require_regulator_admin)])
 
 
 def _canonical_fund_id(raw: str) -> str:
