@@ -35,6 +35,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
+from core.dbcompat import as_bigint_id, as_text_id
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -202,9 +203,12 @@ class NewsTagSymbolMapper:
 
     async def _symbol_of(self, resolved_type: str, resolved_id: str) -> str | None:
         table = "funds" if resolved_type == "fund" else "symbols"
-        # funds.id is VARCHAR, symbols.id is BIGINT — asyncpg requires the
-        # *native* Python type per column, SQL-side CAST is not enough.
-        param: str | int = resolved_id if resolved_type == "fund" else int(resolved_id)
+        # Trap #1 (core/dbcompat): funds.id is VARCHAR, symbols.id is BIGINT
+        # — asyncpg requires the *native* Python type per column, SQL-side
+        # CAST is not enough.
+        param: str | int = (
+            as_text_id(resolved_id) if resolved_type == "fund" else as_bigint_id(resolved_id)
+        )
         row = (
             await self.session.execute(
                 text(f"SELECT symbol FROM {table} WHERE id = :i"), {"i": param}

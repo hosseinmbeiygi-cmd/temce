@@ -8,6 +8,7 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from core.dbcompat import naive_utc
 from core.result import PaginatedResult, Result
 from domain.news.news_item import NewsItem
 from models.news import NewsArticleModel
@@ -131,18 +132,9 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
 
     @staticmethod
     def _naive_utc(dt: datetime) -> datetime:
-        """Normalize an aware datetime to naive UTC.
-
-        The news schema stores ``timestamp without time zone`` (UTC by
-        convention, like the rest of the codebase). asyncpg rejects tz-aware
-        datetime *parameters* against naive-timestamp columns
-        (``can't subtract offset-naive and offset-aware datetimes``), so the
-        window bounds from the API layer — which are aware by design — must
-        be converted here at the DB boundary.
-        """
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(UTC).replace(tzinfo=None)
-        return dt
+        """Thin wrapper over :func:`core.dbcompat.naive_utc` (trap #2:
+        asyncpg rejects aware datetimes against naive-timestamp columns)."""
+        return naive_utc(dt)
 
     @staticmethod
     def _published_range(

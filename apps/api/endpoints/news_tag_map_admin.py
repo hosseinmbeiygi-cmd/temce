@@ -26,6 +26,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session, require_roles
+from core.dbcompat import as_bigint_id, as_text_id, commit_now
 from schemas.common.responses import ApiResponse
 from services.news_tag_symbol_mapper import NewsTagSymbolMapper
 
@@ -163,25 +164,26 @@ async def set_manual_mapping(
     if resolved_id is None or str(resolved_id).strip() == "":
         raise HTTPException(status_code=422, detail="resolved_id is required")
 
-    # validate the target exists before persisting anything — asyncpg
-    # wants the native Python type per column (str for funds.id VARCHAR,
-    # int for symbols.id BIGINT; SQL-side CAST is not enough).
+    # validate the target exists before persisting anything (trap #1,
+    # core/dbcompat: native Python type per column — str for funds.id
+    # VARCHAR, int for symbols.id BIGINT).
     try:
         if resolved_type == "fund":
             target = (
                 await session.execute(
-                    text("SELECT symbol FROM funds WHERE id = :i"), {"i": str(resolved_id)}
+                    text("SELECT symbol FROM funds WHERE id = :i"),
+                    {"i": as_text_id(resolved_id)},
                 )
             ).first()
         else:
             target = (
                 await session.execute(
                     text("SELECT symbol FROM symbols WHERE id = :i"),
-                    {"i": int(resolved_id)},
+                    {"i": as_bigint_id(resolved_id)},
                 )
             ).first()
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=422, detail="resolved_id must be an integer for symbols") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     if not target:
         raise HTTPException(status_code=404, detail=f"{resolved_type} id={resolved_id} not found")
 
@@ -199,10 +201,10 @@ async def set_manual_mapping(
             "resolved_symbol": target[0],
         },
     )
-    # Commit before responding: the global get_session teardown commits
-    # after the response is sent, which lets an immediate follow-up read
-    # (admin UI list / verify) race the commit and miss the row.
-    await session.commit()
+    # Trap #3 (core/dbcompat): the global get_session teardown commits
+    # after the response is sent — an immediate follow-up read (admin UI
+    # list / verify) would race the commit and miss the row.
+    await commit_now(session)
     return ApiResponse(success=True, data=mapping, message=f"manual override set by {actor}")
 
 
@@ -233,8 +235,8 @@ async def delete_mapping(
         actor=str(user.get("sub") or "admin"),
         changes={"previous_match_type": existing[0]},
     )
-    # Same as set_manual: durable before the response, no read race.
-    await session.commit()
+    # Same as set_manual: durable before the response (trap #3).
+    await commit_now(session)
     return ApiResponse(success=True, data={"tag_value": tag, "deleted": True})
 
 

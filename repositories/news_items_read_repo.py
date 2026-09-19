@@ -30,6 +30,7 @@ from sqlalchemy import Select, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
+from core.dbcompat import naive_utc
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
 from domain.news.news_item import NewsItem
@@ -50,11 +51,8 @@ class NewsItemsReadRepo:
 
     @staticmethod
     def _naive_utc(dt: datetime) -> datetime:
-        """Aware -> naive UTC: the schema stores naive UTC timestamps and
-        asyncpg rejects aware datetime params against them."""
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(UTC).replace(tzinfo=None)
-        return dt
+        """Thin wrapper over :func:`core.dbcompat.naive_utc` (trap #2)."""
+        return naive_utc(dt)
 
     def _order_expr(self):
         return desc(func.coalesce(NewsItemModel.published_at, NewsItemModel.created_at))
