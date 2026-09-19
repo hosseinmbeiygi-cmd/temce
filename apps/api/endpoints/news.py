@@ -12,7 +12,7 @@ from apps.api.dependencies import get_db_session, get_news_service
 from core.logging import get_logger
 from core.result import PaginatedResult
 from domain.news.news_item import NewsItem
-from schemas.api.news import NewsRequest, NewsResponse
+from schemas.api.news import NewsRequest, NewsResponse, SymbolMatchMeta
 from schemas.common.responses import ApiResponse
 from services.news_service import NewsService
 
@@ -269,6 +269,22 @@ async def search_news(
     )
 
 
+async def _symbol_match_meta(session: AsyncSession | None, symbol: str, matched: list[str]) -> SymbolMatchMeta | None:
+    """Meta for /news/symbol responses: which tag values matched and the
+    persisted mappings behind them. Best-effort — meta is omitted on any
+    failure (mapping table missing, pre-0059 DB, …)."""
+    if session is None or not matched:
+        return None
+    try:
+        from services.news_tag_symbol_mapper import NewsTagSymbolMapper
+
+        maps = await NewsTagSymbolMapper(session).explain_symbol(symbol)
+        return SymbolMatchMeta(symbol=symbol, matched=matched, maps=maps)
+    except Exception:  # noqa: BLE001 — transparency only, never break the read
+        logger.debug("symbol match meta unavailable", exc_info=True)
+        return None
+
+
 @router.get("/symbol/{symbol}")
 async def news_by_symbol(
     symbol: str,
@@ -277,6 +293,7 @@ async def news_by_symbol(
     from_: str | None = Query(None, alias="from"),
     to: str | None = Query(None, alias="to"),
     service: NewsService = Depends(get_news_service),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[PaginatedResult[NewsResponse]]:
     try:
         date_range = parse_news_date_range(from_, to)
@@ -290,6 +307,8 @@ async def news_by_symbol(
     result = await service.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
     if result.success and result.value:
         paginated = result.value
+        matched = sorted({s for item in paginated.items for s in (item.symbols or [])})
+        meta = await _symbol_match_meta(session, symbol, matched)
         return ApiResponse[PaginatedResult[NewsResponse]](
             success=True,
             data=PaginatedResult(
@@ -299,6 +318,7 @@ async def news_by_symbol(
                 page_size=paginated.page_size,
                 total_pages=paginated.total_pages,
             ),
+            message=None if meta is None else meta.model_dump_json(),
         )
     return ApiResponse[PaginatedResult[NewsResponse]](
         success=True,

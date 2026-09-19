@@ -31,7 +31,7 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -288,6 +288,45 @@ class NewsTagSymbolMapper:
             )
         ).scalars().all()
         out.update(rows)
+        return out
+
+    async def explain_symbol(self, symbol: str) -> list[dict[str, Any]]:
+        """Persisted mappings whose target is ``symbol`` (any spelling).
+
+        Public read-only companion of ``tag_values_for_symbol``: returns
+        full mapping rows (tag, target symbol, match_type, confidence)
+        for API transparency (``/news?symbol=`` meta).
+        """
+        variants = sorted(_spelling_variants(symbol))
+        if not variants:
+            return []
+        rows = (
+            await self.session.execute(
+                text(
+                    """
+                    SELECT m.tag_value,
+                           COALESCE(f.symbol, s.symbol) AS resolved_symbol,
+                           m.match_type, m.confidence
+                    FROM news_tag_symbol_map m
+                    LEFT JOIN funds f ON f.id = m.resolved_id AND m.resolved_type = 'fund'
+                    LEFT JOIN symbols s ON CAST(s.id AS TEXT) = m.resolved_id AND m.resolved_type = 'symbol'
+                    WHERE (m.resolved_type = 'symbol'
+                           AND m.resolved_id IN (
+                               SELECT CAST(id AS TEXT) FROM symbols WHERE symbol IN :vs))
+                       OR (m.resolved_type = 'fund'
+                           AND m.resolved_id IN (
+                               SELECT id FROM funds WHERE symbol IN :vs))
+                    ORDER BY m.confidence DESC, m.tag_value
+                    """
+                ).bindparams(bindparam("vs", expanding=True)),
+                {"vs": variants},
+            )
+        ).mappings().all()
+        # NUMERIC → float so the rows are JSON-serializable end to end
+        out = [dict(r) for r in rows]
+        for row in out:
+            if row.get("confidence") is not None:
+                row["confidence"] = float(row["confidence"])
         return out
 
     # ── batch auto-mapping ────────────────────────────────────────────
