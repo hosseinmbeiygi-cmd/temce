@@ -110,4 +110,4 @@ news_tags.tag_value ──> NewsTagSymbolMapper ──> news_tag_symbol_map ─�
 - زنجیره fund (فایل‌های untracked ۰۰۵۵–۰۰۵۸ + endpointها) — فقط شماره‌ها برای رفع تداخل renumber شد
 - سوییچ production فلگ `NEWS_READ_FROM_ITEMS` (پیشنهاد: چند روز dual-write، بعد کاناری؛ rollback = یک env var)
 - استراتژی alias برای تیکرهای جدید: گزارش `match_type=unmapped` از `/news-tag-map` + `set_manual`
-- درس عملیاتی جلسه: سه دام تکرارشونده — **type پلی‌مورف PK**، **naive/aware datetime**، **commit-after-response** — کاندیدای الگوی مشترک در `core/`
+- درس عملیاتی جلسه: سه دام تکرارشونده — **type پلی‌مورف PK**، **naive/aware datetime**، **commit-after-response** — ✅ حالا در `core/dbcompat.py` پیاده شده (`as_bigint_id`/`as_text_id`/`naive_utc`/`commit_now`، هر کدام با امضای خطایی که جلوگیری می‌کند؛ محل‌های تکراری news به آن delegate شدند — کامیت `35de6ae1`)
