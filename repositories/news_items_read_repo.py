@@ -30,9 +30,12 @@ from sqlalchemy import Select, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
+from core.logging import get_logger
 from core.result import PaginatedResult, Result
 from domain.news.news_item import NewsItem
 from models.news_items import NewsItemModel, NewsTagModel
+
+logger = get_logger(__name__)
 
 
 class NewsItemsReadRepo:
@@ -171,14 +174,33 @@ class NewsItemsReadRepo:
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
-        """Items tagged with ``symbol`` (exact tag_value match, not LIKE —
-        the structured tags schema makes the exact match cheap and precise)."""
+        """Items tagged with ``symbol`` — matching against *every* spelling
+        variant of it (exact ``tag_value`` IN-match, not LIKE).
+
+        Variants = the canonical symbol + its Persian/Arabic spellings +
+        any persisted alias from ``news_tag_symbol_map`` (manual mappings
+        included), so ``/news/symbol/وبانك`` also returns items the tagger
+        wrote as ``وبانک``. Degrades to pure spelling variants when the
+        mapping table is absent (pre-0059 environments).
+        """
+        variants: set[str] = set()
+        try:
+            from services.news_tag_symbol_mapper import (
+                NewsTagSymbolMapper,
+                _spelling_variants,
+            )
+
+            variants |= _spelling_variants(symbol)
+            variants |= await NewsTagSymbolMapper(self.session).tag_values_for_symbol(symbol)
+        except Exception:  # noqa: BLE001 — read path must never hard-fail on mapping
+            logger.debug("tag_variant lookup failed; using spelling variants only", exc_info=True)
+            variants = {symbol}
         stmt = select(NewsItemModel).where(
             exists(
                 select(NewsTagModel.id).where(
                     NewsTagModel.news_id == NewsItemModel.id,
                     NewsTagModel.tag_type == "stock_symbol",
-                    NewsTagModel.tag_value == symbol,
+                    NewsTagModel.tag_value.in_(variants),
                 )
             )
         )
