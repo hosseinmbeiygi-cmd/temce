@@ -199,6 +199,10 @@ async def set_manual_mapping(
             "resolved_symbol": target[0],
         },
     )
+    # Commit before responding: the global get_session teardown commits
+    # after the response is sent, which lets an immediate follow-up read
+    # (admin UI list / verify) race the commit and miss the row.
+    await session.commit()
     return ApiResponse(success=True, data=mapping, message=f"manual override set by {actor}")
 
 
@@ -229,6 +233,8 @@ async def delete_mapping(
         actor=str(user.get("sub") or "admin"),
         changes={"previous_match_type": existing[0]},
     )
+    # Same as set_manual: durable before the response, no read race.
+    await session.commit()
     return ApiResponse(success=True, data={"tag_value": tag, "deleted": True})
 
 
