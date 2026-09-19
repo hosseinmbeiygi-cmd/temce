@@ -7,7 +7,7 @@
 ---
 
 ## فهرست مطالب
-۰) اصل حفظ داده | ۱) نقشه تب‌ها | ۲) مدل داده | ۳) بک‌اند و لایه تجمیع | ۴) Deduplication و Tagging | ۵) Roadmap | ۶) سوالات باز *(پاسخ داده شد)* | ۷) Wireframe | ۸) اسکیمای API | ۹) نقش‌ها و پنل مدیریت | ۱۰) Backfill | ۱۱) مانیتورینگ کیفیت داده | ۱۲) Edge Case ها | ۱۳) معماری کامپوننت | ۱۴) برنامه تست | ۱۵) واژه‌نامه | ۱۶) خط لوله خودکار | ۱۷) Rollout | ۱۸) چک‌لیست نهایی | ۱۹) خلاصه اجرایی
+۰) اصل حفظ داده | ۱) نقشه تب‌ها | ۲) مدل داده | ۳) بک‌اند و لایه تجمیع | ۴) Deduplication و Tagging | ۵) Roadmap | ۶) سوالات باز *(پاسخ داده شد)* | ۷) Wireframe | ۸) اسکیمای API | ۹) نقش‌ها و پنل مدیریت | ۱۰) Backfill | ۱۱) مانیتورینگ کیفیت داده | ۱۲) Edge Case ها | ۱۳) معماری کامپوننت | ۱۴) برنامه تست | ۱۵) واژه‌نامه | ۱۶) خط لوله خودکار | ۱۷) Rollout | ۱۸) چک‌لیست نهایی | ۱۹) خلاصه اجرایی | ۲۰) نگاشت تیکر تگ‌ها به نمادها/صندوق‌ها *(پیاده‌شده — ۲۰۲۶-۰۹-۱۹)*
 
 ---
 
@@ -146,6 +146,7 @@ services/news_ingestion.py (NewsIngestionService.ingest)
 - فاز اول سند (لیست نمادها از DB) کاملاً قابل تأمین است: جدول `symbols` (`models/market_data.py:23`) نماد+نام دارد؛ برای صندوق‌ها `funds.symbol` و `brsapi/constants.py::BRSAPI_ETF_SYMBOLS` (~۲۰۰ نماد واقعی). لیست استثنائات (بخش ۱۲) به‌صورت config/جدول اضافه می‌شود.
 - ثبت با confidence (دقیق=بالا / جزئی=متوسط) در `news_tags` جدید — ساختار فعلی `symbols` TEXT دست‌نخورده می‌ماند.
 - فاز NER: 🔴 **تصمیم تیم #۴** — پاسخ سوال باز ۳ را ببینید (زیرساخت فعلی فقط lexicon است).
+- 🔗 نگاشت املای تگ به نماد کانونی DB (عربی/فارسی، ی/ي، ک/ك): **پیاده شد** — بخش ۲۰.
 
 ---
 
@@ -210,7 +211,7 @@ services/news_ingestion.py (NewsIngestionService.ingest)
 | GET | `/news` | موجود (+ افزودن پارامترهای `source`, `from`, `to`, `tagType`, `tagValue`) |
 | POST | `/news` | موجود (سازگاری فرانت) |
 | GET | `/news/search` | موجود |
-| GET | `/news/symbol/{symbol}` | موجود — مبناى کلیک تگ نماد |
+| GET | `/news/symbol/{symbol}` | موجود — مبناى کلیک تگ نماد؛ **متادیتای تطبیق** در `message` (بخش ۲۰) |
 | GET | `/news/category/{category}` | موجود (با فیکس اعتبارسنجی) |
 | GET | `/news/trending` | موجود |
 | POST/GET | `/news/refresh(+ /status)` | موجود |
@@ -299,3 +300,50 @@ services/news_ingestion.py (NewsIngestionService.ingest)
 | ۷ | شکل صفحه‌بندی API سند vs شکل فعلی | تغییر فرانت به شکل سند / به‌روزرسانی سند به شکل فعلی | به‌روزرسانی سند (شکل فعلی) |
 
 > تصمیم‌های ۱-۳ قفل شده‌اند و مبناى پیاده‌سازی migration و فیکس‌های بعدی هستند.
+
+---
+
+## بخش ۲۰. نگاشت تیکر تگ‌ها به نمادها/صندوق‌ها — **✅ پیاده‌شده (۲۰۲۶-۰۹-۱۹)**
+
+### ۲۰.۱. مسئله
+تگ‌های خبری املای انسانی دارند (`وبانک`، `فملی`) ولی نمادهای کانونی DB با املاهای دیگر ذخیره شده‌اند (`وبانك`، `فملي` — ۴۲۶/۵۱۱ نماد شامل نویسه‌های عربی، ZWNJ و فاصله‌های متغیر). تطبیق رشته‌ای مستقیم بین تگ و `symbols.symbol`/`funds.symbol` شکست می‌خورد.
+
+### ۲۰.۲. معماری پیاده‌شده
+```
+news_tags.tag_value (وبانک، فملی، خودرو…)
+        │
+NewsTagSymbolMapper.resolve  ←  news_tag_symbol_map (migration 0059)
+        │   اولویت: manual > exact > arabic_fallback
+        ▼
+symbols / funds (نماد کانونی)
+```
+
+| جزء | فایل | نقش |
+|-----|------|-----|
+| جدول نگاشت | `migrations/versions/0059_news_tag_symbol_map.py` | `tag_value` UNIQUE → `resolved_type`/`resolved_id` + `match_type` + `confidence`؛ **`resolved_id TEXT` عمدی** چون `funds.id` VARCHAR و `symbols.id` BIGINT است |
+| سرویس | `services/news_tag_symbol_mapper.py` | نرمال‌سازی، resolve، `auto_map_all`، `set_manual`، `explain_symbol` |
+| Read path | `repositories/news_items_read_repo.py::get_by_symbol` | تطبیق روی **همه واریانت‌های املا + aliasهای persisted** — fail-open (خطای نگاشت هرگز خواندن را نمی‌شکند) |
+| شفافیت API | `GET /news/symbol/{symbol}` → فیلد `message` | JSON متادیتای `SymbolMatchMeta`: `matched` (tag_valueهای جستجوشده) + `maps` (هر نگاشت با `match_type`/`confidence`)؛ خالی → `null` |
+
+### ۲۰.۳. نرمال‌سازی فارسی (`normalize_persian`)
+قواعد به‌ترتیب اعمال: فولد عربی→فارسی (`ي→ی، ك→ک، ة→ه، أإآ→ا، ئ→ی`)، ZWNJ→**فاصله** (نه حذف — `سرمايه‌گذاري ≡ سرمایه گذاری`)، حذف نویسه‌های صفر-عرض، فروپاشی whitespace، یکسان‌سازی ارقام عربی **و فارسی** ۰-۹ به لاتین، casefold.
+
+### ۲۰.۴. ترتیب resolve و confidence
+| match_type | معیار | confidence |
+|------------|-------|------------|
+| `manual` | ردیف override دستی (`set_manual`) — هرگز توسط auto بازنویسی نمی‌شود | 1.00 |
+| `exact` | تگ نرمال‌شده = نماد کانونی (فاند اول، بعد نماد) | 0.95 |
+| `arabic_fallback` | شکل عربی‌شده برگشتی تگ (ی→ي، ک→ك) با نماد جور شد | 0.80 |
+| `unmapped` | هیچ تطابقی — برای جلوگیری از retry بی‌پایان ثبت می‌شود | 0 |
+
+### ۲۰.۵. وضعیت زنده (۲۰۲۶-۰۹-۱۹)
+کل کورپوس فعلی ۵ تگ متمایز دارد؛ **پوشش ۱۰۰٪**: `خودرو، شپنا، فولاد` = exact، `فملی→فملي` و `وبانک→وبانك` = arabic_fallback. `auto_map_all` idempotent است (manual دست‌نخورده، اجرای دوباره no-op). برای تگ‌های آینده dual-write خودکار resolve می‌کند.
+
+### ۲۰.۶. نکات فنی مقیدشده (از اجرای واقعی)
+- asyncpg برای پارامتر ستون BIGINT نوع پایتون native می‌خواهد (CAST داخل SQL کافی نیست) — تبدیل int/str در `_symbol_of`.
+- JOIN پلی‌مورف به `symbols` باید `CAST(s.id AS TEXT)` داشته باشد وگرنه `bigint = text` در سطح plan رد می‌شود.
+- `confidence` NUMERIC → تبدیل `float` در مرز مپر (Decimal غیرقابل JSON سریالایز است).
+- پارامتر انبساطی expanding bindparam برای `IN :vs` (واریانت‌های املا).
+
+### ۲۰.۷. راه توسعه بعدی
+۱) Endpoint مدیریتی برای view/override نگاشت‌ها (زیر `/api/v1/admin` با `_require_admin` — الگوی بخش ۹). ۲) نمایش `confidence`/`match_type` در UI کلیک تگ. ۳) نرمال‌سازی نیم‌فاصله در خود tagger (بخش ۴.۲) برای کاهش نیاز به alias دستی. ۴) اتصال نگاشت به صفحات `/symbol/*` و funds (Roadmap گام ۶).
