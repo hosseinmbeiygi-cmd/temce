@@ -26,7 +26,7 @@ from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob,
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
 from jobs.definitions.market_data_jobs import HistoricalDataJob, QuoteIngestionJob, RealtimeQuoteJob
 from jobs.definitions.ml_jobs import BatchInferenceJob, MlArtifactLifecycleJob, ModelEvaluationJob, ModelTrainingJob
-from jobs.definitions.news_jobs import NewsIngestionJob, NewsSentimentJob, NewsSourceHealthJob
+from jobs.definitions.news_jobs import NewsIngestionJob, NewsReadPathHalterJob, NewsSentimentJob, NewsSourceHealthJob
 from jobs.definitions.paper_trading_job import PaperTradingJob
 from jobs.definitions.recommendation_jobs import RecommendationEvaluationJob, RecommendationGenerationJob
 from jobs.definitions.reference_jobs import AliasResolutionJob, InstrumentSyncJob
@@ -65,6 +65,7 @@ __all__ = [
     "NewsIngestionJob",
     "NewsSentimentJob",
     "NewsSourceHealthJob",
+    "NewsReadPathHalterJob",
     "IndicatorPrecomputeJob",
     "MonthlySalesFillJob",
     "MacroDataJob",

@@ -47,7 +47,19 @@ class NewsItemsReadRepo:
 
     @staticmethod
     def is_enabled() -> bool:
-        return bool(getattr(settings, "news_read_from_items", False))
+        """True when the items repo may serve reads at all.
+
+        Canary-aware: the legacy boolean forces ``full``; otherwise any
+        non-``off`` ``NEWS_READ_MODE`` needs the repo (shadow probes +
+        canary slices). Refinements (Redis dial halt / canary slice /
+        auto-halt) are applied per request in ``NewsRepository._route`` —
+        a dial flipped to ``off`` there simply falls back to legacy, so
+        keeping this check settings-only is fail-open by construction
+        (and never blocks on asyncio from sync contexts).
+        """
+        if bool(getattr(settings, "news_read_from_items", False)):
+            return True
+        return str(getattr(settings, "news_read_mode", "off") or "off").strip().lower() != "off"
 
     @staticmethod
     def _naive_utc(dt: datetime) -> datetime:

@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
+
+from apps.api.dependencies import require_roles
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -520,3 +522,47 @@ async def news_sources_health(
         return ApiResponse[dict[str, Any]](success=not report.get("error"), data=report)
     report = await service.health_report()
     return ApiResponse[dict[str, Any]](success=not report.get("error"), data=report)
+
+
+@router.get("/read-path/status")
+async def news_read_path_status() -> ApiResponse[dict[str, Any]]:
+    """Canary rollout status of the ``news_items`` read path.
+
+    Effective mode (settings + Redis dial + halt flag), the current
+    parity window (served / compared / parity % / items share) and the
+    halt state. Public read — no sensitive data.
+    """
+    from services.news_read_canary import halt_status
+
+    return ApiResponse[dict[str, Any]](success=True, data=await halt_status())
+
+
+@router.post("/read-path/mode")
+async def news_read_path_set_mode(
+    mode: str = Query(..., description="off | shadow | canary | full"),
+    user: dict = Depends(require_roles("admin")),
+) -> ApiResponse[dict[str, Any]]:
+    """Operator dial for the read-path rollout (admin-only).
+
+    Writes the shared Redis key so every worker follows without a
+    deploy; moving to a non-``off`` mode clears any auto-halt. Response
+    includes the actor for the operations trail.
+    """
+    from services.news_read_canary import MODES, set_runtime_mode
+
+    normalized = mode.strip().lower()
+    if normalized not in MODES:
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data=None,
+            error={"message": f"mode must be one of {', '.join(MODES)}"},
+        )
+    await set_runtime_mode(normalized)
+    from services.news_read_canary import halt_status
+
+    status = await halt_status()
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data=status,
+        message=f"read-path mode set to {normalized} by {user.get('sub', 'admin')}",
+    )

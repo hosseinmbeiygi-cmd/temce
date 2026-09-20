@@ -218,6 +218,23 @@ class Settings(BaseSettings):
     # this flag, so flipping it back to False is always data-safe.
     news_read_from_items: bool = Field(default=False, alias="NEWS_READ_FROM_ITEMS")
 
+    # ── Canary rollout of NEWS_READ_FROM_ITEMS (docs/RUNBOOK_NEWS_READ_CANARY.md) ──
+    # ``news_read_mode`` is the rollout dial: ``off`` (legacy reads only),
+    # ``shadow`` (serve legacy, probe news_items, compare + count parity),
+    # ``canary`` (serve news_items for a deterministic fraction of
+    # requests, shadow for the rest), ``full`` (serve news_items only).
+    # The boolean ``news_read_from_items`` stays for backwards compat: it
+    # forces ``full`` when set. Auto-halt watches the parity counters.
+    news_read_mode: str = Field(default="off", alias="NEWS_READ_MODE")
+    news_read_canary_percent: int = Field(default=10, alias="NEWS_READ_CANARY_PERCENT")
+    # Parity floor (% of compared requests whose item-ids must match).
+    # Below this, the halter flips NEWS_READ_MODE back to ``off``.
+    news_read_parity_floor_percent: int = Field(default=99, alias="NEWS_READ_PARITY_FLOOR_PERCENT")
+    # Minimum compared requests in a job window before auto-halt may judge.
+    news_read_parity_min_samples: int = Field(default=50, alias="NEWS_READ_PARITY_MIN_SAMPLES")
+    # 0 disables the auto-halter (manual rollout only).
+    news_read_halt_enabled: bool = Field(default=True, alias="NEWS_READ_HALT_ENABLED")
+
     # ── News source health / dead-source alerting ──────────────────────
     # A source is "stale" when last_fetched_at is older than this window.
     # The ingestion cadence is 10 min, so 120 min = 12 consecutive missed

@@ -110,6 +110,17 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── News read-path canary halter: هر ۵ دقیقه پاریتی را می‌سنجد ──
+        # اگر تطابق legacy vs news_items زیر آستانه برود، حالت را به off
+        # برمی‌گرداند (کلید Redis مشترک). خاموشی: NEWS_READ_HALT_ENABLED=false.
+        self.add_job(
+            "NewsReadPathHalterJob",
+            trigger="interval",
+            minutes=5,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         # ── Enterprise Overnight Engine: precompute اندیکاتورها ──
         # ساعات غیربازاری (۱۸:۳۰ و ۲۱:۳۰) — بازار در ۸:۴۵ باز می‌شود؛
         # batch 400 نماد در هر run تا کل بازار در دو شبانه‌روز پوشش داده شود.

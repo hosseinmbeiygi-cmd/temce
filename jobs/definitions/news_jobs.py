@@ -87,3 +87,19 @@ class NewsSourceHealthJob(BaseJob):
             job_name=self.name,
             data={"alerted": alerted, **summary},
         )
+
+
+class NewsReadPathHalterJob(BaseJob):
+    """Auto-halt برای rollout کاناری مسیر خواندن اخبار.
+
+    هر پنجره پاریتی را می‌سنجد؛ اگر نرخ تطابق legacy vs news_items زیر
+    ``NEWS_READ_PARITY_FLOOR_PERCENT`` برود (با حداقل نمونه لازم)، حالت
+    را به ``off`` برمی‌گرداند (Redis halt key که همه workerها می‌خوانند).
+    با ``NEWS_READ_HALT_ENABLED=false`` غیرفعال می‌شود.
+    """
+
+    async def execute(self, context: JobContext) -> JobResult:
+        from services.news_read_canary import evaluate_auto_halt
+
+        result = await evaluate_auto_halt()
+        return JobResult.success_result(job_name=self.name, data=result)
