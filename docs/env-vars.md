@@ -243,6 +243,26 @@ flowchart TB
 | `TELEGRAM_BOT_TOKEN` | — | توکن ربات تلگرام (هشدارها) |
 | `TELEGRAM_CHAT_ID` | — | شناسه چت مقصد |
 
+### مسیر خواندن اخبار — rollout کاناری (به‌روزرسانی runtime با `POST /api/v1/news/read-path/mode`)
+| متغیر | پیش‌فرض | توضیح |
+|---|---|---|
+| `NEWS_READ_MODE` | `off` | پیمانه rollout: `off` \| `shadow` \| `canary` \| `full` (runbook: `docs/RUNBOOK_NEWS_READ_CANARY.md`) |
+| `NEWS_READ_FROM_ITEMS` | `false` | فلگ legacy بولی — `true` پیمانه را به‌اجبار `full` می‌برد |
+| `NEWS_READ_CANARY_PERCENT` | `10` | درصد برش hash-based در حالت `canary` (قطعی per-discriminator، بدون flicker) |
+| `NEWS_READ_PARITY_FLOOR_PERCENT` | `99` | کف پاریتی رگرسیون — عبور به پایین = auto-halt |
+| `NEWS_READ_PARITY_MIN_SAMPLES` | `50` | حداقل `compared` در پنجره قبل از قضاوت parity |
+| `NEWS_READ_HALT_ENABLED` | `true` | کلید اصلی auto-halt (هر دو پای parity و HTTP) |
+| `NEWS_READ_HTTP_ERROR_HALT_ENABLED` | `true` | پای دوم halter: halt روی نرخ خطای 5xx (parity به خطای زیرساختی نابیناست — یافته پنجره shadow ۰۹-۲۰) |
+| `NEWS_READ_HTTP_ERROR_MAX_PERCENT` | `20.0` | آستانه درصد 5xx برای halt مستقل (مستقل از گیت نمونه parity) |
+| `NEWS_READ_HTTP_ERROR_MIN_TOTAL` | `100` | حداقل `http_total` پنجره قبل از قضاوت نرخ 5xx |
+
+### سلامت منابع اخبار
+| متغیر | پیش‌فرض | توضیح |
+|---|---|---|
+| `NEWS_SOURCE_STALE_MINUTES` | `120` | منبع با `last_fetched_at` قدیمی‌تر از این = stale (کادنس ingestion ده دقیقه است) |
+| `NEWS_SOURCE_NEVER_FETCHED_HOURS` | `24` | منبع بدون هیچ fetch موفق در این بازه = هشدار |
+| `NEWS_SOURCE_ALERT_COOLDOWN_SECONDS` | `3600` | فاصله حداقل بین هشدارهای تکراری یک منبع |
+
 ---
 
 ## 🗄️ ۴. پیشوند `DB_` (`core/config/database.py`)
