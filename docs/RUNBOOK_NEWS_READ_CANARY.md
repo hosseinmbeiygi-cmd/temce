@@ -72,9 +72,25 @@ off → shadow → canary (10%) → canary (50%) → full
 
 Job زمان‌بندی‌شده (`NewsReadPathHalterJob` در scheduler) هر window را چک می‌کند:
 
-- `compared ≥ min_samples` **و** `parity_percent < floor` → ست کردن `news:read_path:halt` در Redis → همه ورکرها فوراً `off`.
+- `compared ≥ min_samples` **و** `regression_parity_percent < floor` → ست کردن `news:read_path:halt` در Redis → همه ورکرها فوراً `off`.
 - خاموشی halt: `NEWS_READ_HALT_ENABLED=false` (با احتیاط) یا `DELETE` کلید halt در Redis.
 - پس از رفع ریشه مشکل: `POST /read-path/mode?mode=<desired>` halt را پاک و مد جدید را می‌نشاند.
+
+### ۵.۱ پای دوم halter: نرخ خطای HTTP (۲۰۲۶-۰۹-۲۰)
+
+Parity نابیناست به خطاهای زیرساختی: درخواست 5xx هیچ صفحه‌ای برای مقایسه
+تولید نمی‌کند — پس burst چنددقیقه‌ای PostgreSQL OOM در پنجره shadow همین روز
+(۳۳۸ درخواست 500 در ۸ دقیقه) از دید parity **و** halter گذشت. پای دوم:
+
+- `MetricsMiddleware` هر پاسخ `/api/v1/news*` را در همان window می‌شمارد
+  (`http_total` / `http_5xx`؛ مسیر unhandled-exception هم با status فرضی 500).
+- halter مستقل از گیت parity: `http_total ≥ NEWS_READ_HTTP_ERROR_MIN_TOTAL`
+  **و** `http_5xx_percent ≥ NEWS_READ_HTTP_ERROR_MAX_PERCENT` → همان halt key.
+- متغیرها: `NEWS_READ_HTTP_ERROR_HALT_ENABLED` (پیش‌فرض true)،
+  `NEWS_READ_HTTP_ERROR_MAX_PERCENT` (پیش‌فرض ۲۰)،
+  `NEWS_READ_HTTP_ERROR_MIN_TOTAL` (پیش‌فرض ۱۰۰).
+- هر دو پای یک key مشترک دارند؛ دلیل halt در فیلد `reason` پاسخ halter job
+  و `http_5xx_percent` در `/news/read-path/status` دیده می‌شود.
 
 ## ۶. نقشه برگشت (rollback)
 

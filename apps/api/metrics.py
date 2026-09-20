@@ -57,6 +57,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         except Exception:
             exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
             exporter.inc("http_request_errors_total", labels={"method": request.method, "route": route_path})
+            await _count_news_error(route_path)
             raise
         exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
         exporter.observe(
@@ -68,4 +69,19 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             "http_responses_total",
             labels={"method": request.method, "route": route_path, "status": str(response.status_code)},
         )
+        await _count_news_error(route_path, response.status_code)
         return response
+
+
+async def _count_news_error(route_path: str, status_code: int = 500) -> None:
+    """Feed the news read-path canary's HTTP error-rate tripwire.
+
+    Default 500 covers the unhandled-exception path (no response object
+    exists). Best-effort: the canary counters must never break serving.
+    """
+    try:
+        from services.news_read_canary import record_http_outcome
+
+        await record_http_outcome(route_path, status_code)
+    except Exception:  # noqa: BLE001 — monitoring must never break serving
+        logger.debug("news read-path http accounting failed", exc_info=True)

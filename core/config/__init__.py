@@ -235,6 +235,22 @@ class Settings(BaseSettings):
     # 0 disables the auto-halter (manual rollout only).
     news_read_halt_enabled: bool = Field(default=True, alias="NEWS_READ_HALT_ENABLED")
 
+    # HTTP error-rate tripwire for the same halter: parity divergence alone
+    # cannot see infrastructure failures — e.g. the 2026-09-20 shadow window
+    # had an 8-minute Postgres OOM burst (338 HTTP 500s) that parity
+    # accounting never saw because failed requests never produce a page to
+    # compare. Counted in the SAME window as the parity counters, so the
+    # halter can trip on `5xx_rate >= percent` with at least `min_total`.
+    news_read_http_error_halt_enabled: bool = Field(
+        default=True, alias="NEWS_READ_HTTP_ERROR_HALT_ENABLED"
+    )
+    news_read_http_error_max_percent: float = Field(
+        default=20.0, alias="NEWS_READ_HTTP_ERROR_MAX_PERCENT"
+    )
+    news_read_http_error_min_total: int = Field(
+        default=100, alias="NEWS_READ_HTTP_ERROR_MIN_TOTAL"
+    )
+
     # ── News source health / dead-source alerting ──────────────────────
     # A source is "stale" when last_fetched_at is older than this window.
     # The ingestion cadence is 10 min, so 120 min = 12 consecutive missed

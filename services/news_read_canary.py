@@ -186,6 +186,7 @@ async def window_stats() -> dict[str, Any]:
     stats: dict[str, Any] = {
         "served": 0, "served_items": 0, "compared": 0,
         "parity_ok": 0, "parity_divergent": 0,
+        "http_total": 0, "http_5xx": 0,
     }
     if cache.is_connected and cache.client is not None:
         try:
@@ -213,6 +214,9 @@ async def window_stats() -> dict[str, Any]:
     )
     stats["items_share_percent"] = (
         round(stats["served_items"] * 100.0 / stats["served"], 2) if stats["served"] else 0.0
+    )
+    stats["http_5xx_percent"] = (
+        round(stats["http_5xx"] * 100.0 / stats["http_total"], 2) if stats["http_total"] else 0.0
     )
     stats["window"] = _WINDOW_TTL
     return stats
@@ -249,6 +253,33 @@ async def compare_page(
 # ── auto-halt (halter job calls this) ────────────────────────────────────
 
 
+# ── HTTP error-rate counters (same window, same TTL) ─────────────────
+
+# Counted from the MetricsMiddleware: every /news request bumps the total;
+# every >=500 response bumps the 5xx counter. This is the second leg of
+# the auto-halt — parity divergence cannot see infrastructure failures
+# because a failed request never produces a page to compare (real case:
+# 2026-09-20 shadow window, 8-min Postgres OOM burst → 338 HTTP 500s,
+# invisible to parity, invisible to the halter).
+
+
+async def record_http_outcome(path: str, status_code: int) -> None:
+    """Count one finished /news request (total + 5xx) into the window.
+
+    Called from ``MetricsMiddleware`` for ``/api/v1/news`` paths — best-
+    effort, never raises, so monitoring can never break serving.
+    """
+    # Exact prefix with boundary — /api/v1/newsarchive must NOT match.
+    if not (path == "/api/v1/news" or path.startswith("/api/v1/news/")):
+        return
+    try:
+        await _incr("http_total")
+        if status_code >= 500:
+            await _incr("http_5xx")
+    except Exception:  # noqa: BLE001 — counters are best-effort
+        logger.debug("read-path http counter failed", exc_info=True)
+
+
 async def evaluate_auto_halt() -> dict[str, Any]:
     """Check the window against the parity floor; flip the shared mode to
     ``off`` when breached. Returns a decision summary for the job result.
@@ -262,41 +293,76 @@ async def evaluate_auto_halt() -> dict[str, Any]:
     compared = stats["compared"]
     floor = settings.news_read_parity_floor_percent
     min_samples = settings.news_read_parity_min_samples
+    http_total = int(stats.get("http_total", 0))
+    http_5xx = int(stats.get("http_5xx", 0))
+    http_5xx_percent = round(http_5xx * 100.0 / http_total, 2) if http_total else 0.0
     result: dict[str, Any] = {
         "checked": True,
         "compared": compared,
         "parity_percent": stats["parity_percent"],
         "regression_parity_percent": stats.get("regression_parity_percent"),
         "floor": floor,
+        "http_total": http_total,
+        "http_5xx": http_5xx,
+        "http_5xx_percent": http_5xx_percent,
         "halted": False,
         "reason": None,
     }
     if not settings.news_read_halt_enabled:
         result["reason"] = "halt disabled"
         return result
-    if compared < min_samples:
-        result["reason"] = f"not enough samples ({compared} < {min_samples})"
-        return result
     parity = stats.get("regression_parity_percent")
-    if parity is not None and parity < floor:
-        cache = get_cache()
-        mode_before = await resolve_mode()
-        if mode_before != "off":
-            if cache.is_connected and cache.client is not None:
-                await cache.client.set(_HALT_KEY, "1")
-                await cache.client.delete(_MODE_KEY)
-            else:
-                settings.news_read_mode = "off"
-            logger.error(
-                "news read-path AUTO-HALT: parity %.2f%% < floor %d%% over %d samples "
-                "(mode %s → off). Flip back by clearing %s after the divergence is fixed.",
-                parity, floor, compared, mode_before, _HALT_KEY,
-            )
+    if compared < min_samples:
+        # Not enough parity evidence — but the HTTP tripwire below is
+        # still evaluated: a 5xx burst hits exactly when parity samples
+        # are scarce (failed requests never reach parity accounting).
+        result["reason"] = f"not enough samples ({compared} < {min_samples})"
+    elif parity is not None and parity < floor:
+        await _trip_halt(parity, floor, compared, mode_reason="parity")
+        if await resolve_mode() == "off":
             result["halted"] = True
             result["reason"] = f"parity {parity}% below floor {floor}%"
     else:
         result["reason"] = "parity within floor"
+    # Second leg — HTTP error-rate tripwire. INDEPENDENT of the parity
+    # sample gate: a burst of 5xx can hit while compared counts are still
+    # low (failed requests never reach parity accounting), so it uses its
+    # own min-total threshold.
+    if (
+        not result["halted"]
+        and settings.news_read_http_error_halt_enabled
+        and http_total >= settings.news_read_http_error_min_total
+        and http_5xx_percent >= settings.news_read_http_error_max_percent
+    ):
+        await _trip_halt(http_5xx_percent, settings.news_read_http_error_max_percent, http_total, mode_reason="http_errors")
+        if await resolve_mode() == "off":
+            result["halted"] = True
+            result["reason"] = (
+                f"http 5xx rate {http_5xx_percent}% >= {settings.news_read_http_error_max_percent}% "
+                f"({http_5xx}/{http_total})"
+            )
     return result
+
+
+async def _trip_halt(
+    observed: float, threshold: float, samples: int, *, mode_reason: str
+) -> None:
+    """Set the shared halt flag (best-effort — mirrors the original
+    inline halt block; never raises)."""
+    cache = get_cache()
+    mode_before = await resolve_mode()
+    if mode_before == "off":
+        return
+    if cache.is_connected and cache.client is not None:
+        await cache.client.set(_HALT_KEY, "1")
+        await cache.client.delete(_MODE_KEY)
+    else:
+        settings.news_read_mode = "off"
+    logger.error(
+        "news read-path AUTO-HALT (%s): %.2f%% breached threshold %.2f%% over %d samples "
+        "(mode %s → off). Flip back by clearing %s after the issue is fixed.",
+        mode_reason, observed, threshold, samples, mode_before, _HALT_KEY,
+    )
 
 
 async def set_runtime_mode(mode: str) -> None:

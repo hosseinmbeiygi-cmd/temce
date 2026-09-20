@@ -297,6 +297,109 @@ class TestAutoHalt:
         assert result["halted"] is False
         assert "not enough samples" in result["reason"]
 
+    @pytest.mark.asyncio
+    async def test_http_error_burst_halts_even_without_parity_samples(self, monkeypatch):
+        """The 2026-09-20 shadow-window blind spot: a Postgres OOM burst
+        produced 338 HTTP 500s while parity accounting sat idle (failed
+        requests never produce pages to compare). The halter must trip on
+        the HTTP error rate alone, WITHOUT meeting the parity min-samples
+        gate."""
+        from services import news_read_canary as canary
+
+        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        # zero parity traffic; 120 http outcomes, 40 of them 5xx (33% > 20%)
+        canary._mem_counters.update({"http_total": 120, "http_5xx": 40})
+
+        from core.config import settings as real_settings
+        monkeypatch.setattr(real_settings, "news_read_mode", "shadow", raising=False)
+        monkeypatch.setattr(real_settings, "news_read_halt_enabled", True, raising=False)
+        monkeypatch.setattr(real_settings, "news_read_parity_min_samples", 50, raising=False)
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_halt_enabled", True, raising=False
+        )
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_max_percent", 20.0, raising=False
+        )
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_min_total", 100, raising=False
+        )
+
+        result = await canary.evaluate_auto_halt()
+        assert result["halted"] is True
+        assert "http 5xx rate" in result["reason"]
+        assert real_settings.news_read_mode == "off"
+
+    @pytest.mark.asyncio
+    async def test_http_error_burst_below_threshold_no_halt(self, monkeypatch):
+        from services import news_read_canary as canary
+
+        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        # 200 outcomes, 4x 5xx (2% < 20%)
+        canary._mem_counters.update({"http_total": 200, "http_5xx": 4})
+        from core.config import settings as real_settings
+        monkeypatch.setattr(real_settings, "news_read_mode", "shadow", raising=False)
+        monkeypatch.setattr(real_settings, "news_read_halt_enabled", True, raising=False)
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_halt_enabled", True, raising=False
+        )
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_max_percent", 20.0, raising=False
+        )
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_min_total", 100, raising=False
+        )
+
+        result = await canary.evaluate_auto_halt()
+        assert result["halted"] is False
+        assert real_settings.news_read_mode == "shadow"
+
+    @pytest.mark.asyncio
+    async def test_http_error_disabled_never_halts(self, monkeypatch):
+        from services import news_read_canary as canary
+
+        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        canary._mem_counters.update({"http_total": 500, "http_5xx": 400})
+        from core.config import settings as real_settings
+        monkeypatch.setattr(real_settings, "news_read_mode", "shadow", raising=False)
+        monkeypatch.setattr(real_settings, "news_read_halt_enabled", True, raising=False)
+        monkeypatch.setattr(
+            real_settings, "news_read_http_error_halt_enabled", False, raising=False
+        )
+
+        result = await canary.evaluate_auto_halt()
+        assert result["halted"] is False
+        assert real_settings.news_read_mode == "shadow"
+
+
+class TestHttpOutcomeCounting:
+    @pytest.mark.asyncio
+    async def test_record_http_outcome_counts_news_only(self, monkeypatch):
+        from services import news_read_canary as canary
+
+        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        await canary.record_http_outcome("/api/v1/news", 200)
+        await canary.record_http_outcome("/api/v1/news", 500)
+        await canary.record_http_outcome("/api/v1/news/search", 503)
+        await canary.record_http_outcome("/api/v1/news/symbol/وبانك", 502)
+        # non-news paths must be ignored
+        await canary.record_http_outcome("/api/v1/quotes", 500)
+        await canary.record_http_outcome("/api/v1/newsarchive", 500)
+        counters = canary._mem_counters
+        assert counters["http_total"] == 4
+        assert counters["http_5xx"] == 3
+
+    @pytest.mark.asyncio
+    async def test_window_stats_exposes_http_fields(self, monkeypatch):
+        from services import news_read_canary as canary
+
+        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        await canary.record_http_outcome("/api/v1/news", 200)
+        await canary.record_http_outcome("/api/v1/news", 500)
+        stats = await canary.window_stats()
+        assert stats["http_total"] == 2
+        assert stats["http_5xx"] == 1
+        assert stats["http_5xx_percent"] == 50.0
+
 
 # ── halter job + admin dial endpoint ─────────────────────────────────────
 
