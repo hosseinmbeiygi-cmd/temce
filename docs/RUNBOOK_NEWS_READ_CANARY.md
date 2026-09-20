@@ -97,3 +97,24 @@ Job زمان‌بندی‌شده (`NewsReadPathHalterJob` در scheduler) هر w
 | مسیریابی | `NewsRepository._route` (list/search/get_by_symbol) | فقط read |
 | dial/halt | `POST/GET /news/read-path/{mode,status}` | status عمومی، mode فقط admin |
 | halter | `NewsReadPathHalterJob` (scheduler) | توقف خودکار |
+
+## ۸. پنجره shadow واقعی — اجرا و نتیجه (۲۰۲۶-۰۹-۲۰)
+
+پنجره یک‌ساعته روی سرور dev واقعی (uvicorn + Postgres native) با
+`python scripts/news_parity_window.py --port 3211 --minutes 60` اجرا شد.
+گزارش کامل: **`docs/NEWS_READ_CANARY_SHADOW_REPORT_2026-09-20.md`** ·
+داده خام: `reports/parity_window_run1.jsonl` (۱۰۹ نمونه status).
+
+| معیار | نتیجه |
+|-------|-------|
+| `served/compared` | 1700 / 1700 |
+| رگرسیون واقعی (`true_divergence`) | **0** ✅ |
+| divergence (همه `items_superset` = بهبود alias) | 158 (۹.۳٪، هم‌خوان با سهم روت symbol دواملیا) |
+| `regression_parity_percent` | **100.0** ✅ |
+| auto-halt | بی‌رویداد ✅ |
+
+**تصمیم:** پیمانه آماده ارتقا به `canary` روی dev است. یادداشت عملیاتی مهم:
+شمارنده‌های این ران in-memory بودند (Redis پایین) — قبل از canary در محیط
+چندورکر حتماً Redis را بالا بیاورید؛ و halter فقط divergence parity را می‌بیند،
+پس نرخ خطای HTTP (مثل burst چنددقیقه‌ای OOM که در همین پنجره ۳۳۸ درخواست شد)
+را باید جداگانه پایش کرد.
