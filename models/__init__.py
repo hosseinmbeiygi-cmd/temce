@@ -4,19 +4,11 @@ from models.backtest import BacktestRunModel, BacktestTradeModel
 from models.base import Base
 from models.codal import CodalReportModel
 from models.compare import CompareResultModel
+from models.corporate_action import CorporateActionModel, DailyAdjustFactorModel
 
 # Currency service (apps/currency_service) — manual positions tracker.
 from models.currency import CurrencyManualPositionModel
 from models.fund import FundModel
-from models.stock_enterprise import (
-    MarketMacroIndicatorModel,
-    StockIndicatorsSnapshotModel,
-    StockLiveTapeModel,
-    StockMonthlySalesModel,
-    StockNewsSentimentModel,
-    StockOrderBookL2Model,
-    StockQuantSignalModel,
-)
 from models.fund_enterprise import (
     FundCapabilityModel,
     FundHoldingModel,
@@ -26,6 +18,45 @@ from models.fund_enterprise import (
     FundPortfolioDiffModel,
     FundPortfolioReportModel,
     FundScoreHistoryModel,
+)
+from models.fund_compliance import (
+    FundAmlAlertModel,
+    FundAmlStrReportModel,
+    FundClassAllocationModel,
+    FundComplaintModel,
+    FundCsdiReconciliationBreakModel,
+    FundCsdiStatementModel,
+    FundLifecycleEventModel,
+    FundNavThresholdCalibrationModel,
+    FundProspectusVersionModel,
+    FundRelatedPartyTransactionModel,
+    FundShariaApprovalModel,
+    FundUnitClassModel,
+)
+from models.fund_governance import (
+    FundDisciplinaryCaseModel,
+    FundFofValuationModel,
+    FundGovernanceCommitteeModel,
+    FundInsurancePolicyModel,
+    FundInternalAuditReportModel,
+    FundRegulatorAccessLogModel,
+    FundTaxCalculationModel,
+)
+from models.fund_ledger import (
+    ChartOfAccountModel,
+    FundNavOutboxModel,
+    JournalEntryModel,
+    JournalLineModel,
+)
+from models.fund_nav import (
+    FundNavReconciliationBreakModel,
+    FundNavReconciliationRunModel,
+    FundNavReferenceReportModel,
+    FundNavResultModel,
+    FundNavRunModel,
+    FundNavThresholdModel,
+    FundPositionValuationModel,
+    FundUnitMovementModel,
 )
 from models.indicator import IndicatorModel
 from models.instrument import InstrumentModel
@@ -58,10 +89,20 @@ from models.paper_trading import (
     PaperTradeModel,
 )
 from models.portfolio import PortfolioModel, PortfolioPositionModel
+from models.pre_buy import PreBuyReview, PreBuySheet
 from models.provider_health import ProviderHealthHistoryModel, ProviderHealthModel
 from models.quote import QuoteModel
 from models.recommendation import RecommendationModel
 from models.screener import ScreenerProfile, ScreenerSignal, ScreenerSnapshot
 from models.signal import SignalModel
+from models.stock_enterprise import (
+    MarketMacroIndicatorModel,
+    StockIndicatorsSnapshotModel,
+    StockLiveTapeModel,
+    StockMonthlySalesModel,
+    StockNewsSentimentModel,
+    StockOrderBookL2Model,
+    StockQuantSignalModel,
+)
 from models.trade import TradeModel
 from models.user import UserModel
