@@ -177,7 +177,13 @@ async def backfill(conn: asyncpg.Connection, batch_size: int, dry_run: bool) -> 
         async with conn.transaction():
             rows = await conn.fetch(
                 """
-                SELECT a.id, a.title, a.summary, a.source, a.url,
+                SELECT a.id, a.title,
+                       -- body mirrors the FULL legacy content: the legacy
+                       -- search path matches ``content``, so a summary-
+                       -- truncated body would make canary search parity
+                       -- diverge on any keyword past char 500.
+                       COALESCE(NULLIF(a.content, ''), a.summary),
+                       a.source, a.url,
                        COALESCE(a.published_at_ts, a.created_at) AS published_at,
                        a.category, a.symbols, a.updated_at, a.created_at
                 FROM news_articles a

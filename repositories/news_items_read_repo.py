@@ -67,7 +67,21 @@ class NewsItemsReadRepo:
         return naive_utc(dt)
 
     def _order_expr(self):
-        return desc(func.coalesce(NewsItemModel.published_at, NewsItemModel.created_at))
+        """Deterministic ordering: published TIMESTAMP desc, then title desc.
+
+        The title tie-break mirrors the legacy repo exactly (titles are
+        identical across schemas by dual-write). Burst rows sharing one
+        published timestamp (a whole ingestion batch) therefore order
+        identically in both plans — required for canary parity on page
+        composition. created_at is NOT usable as a cross-schema key: the
+        legacy column comes from the domain object (python clock), the
+        new one from the DB DEFAULT (insert time) — same instant reads
+        differently in the two tables.
+        """
+        return (
+            desc(func.coalesce(NewsItemModel.published_at, NewsItemModel.created_at)),
+            desc(NewsItemModel.title),
+        )
 
     @staticmethod
     def _to_domain(item: NewsItemModel, symbols: list[str]) -> NewsItem:
@@ -128,7 +142,7 @@ class NewsItemsReadRepo:
         total = (await self.session.execute(count_stmt)).scalar() or 0
 
         result = await self.session.execute(
-            stmt.order_by(self._order_expr())
+            stmt.order_by(*self._order_expr())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )

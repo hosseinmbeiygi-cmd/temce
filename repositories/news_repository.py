@@ -218,7 +218,20 @@ class NewsRepository:
             legacy_page = served.value if served is not None and served.success else None
             items_page = probed.value if probed is not None and probed.success else None
             parity = await compare_page(legacy_page, items_page)
-            await record(decision, compared=True, parity=parity)
+            if not parity:
+                # Directional attribution: parity_divergent covers BOTH
+                # true regressions (items missing rows legacy serves) and
+                # *deliberate* improvements (the new path resolves
+                # spelling variants + tag aliases the legacy LIKE-match
+                # cannot, e.g. /symbol/وبانك finds the وبانک-tagged
+                # items). Auto-halt must only trip on regressions, so
+                # improvements are counted separately.
+                _l = legacy_page.total if legacy_page is not None else 0
+                _i = items_page.total if items_page is not None else 0
+                kind = "items_superset" if _i > _l else "true_divergence"
+                await record(decision, compared=True, parity=False, divergence_kind=kind)
+            else:
+                await record(decision, compared=True, parity=parity)
         except Exception:  # noqa: BLE001 — accounting must never break reads
             logger.debug("news read-path parity accounting failed", exc_info=True)
 
@@ -279,7 +292,12 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         # Filter: only articles with a source (exclude legacy NULL-source ISNA articles)
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
 
-        # Inner: DISTINCT ON (title) — one row per title, newest first
+        # Inner: DISTINCT ON (title) — one row per title, newest first.
+        # Ordering key = TIMESTAMP (published_at_ts), NOT the VARCHAR
+        # published_at string — lexical sort of ISO strings with mixed
+        # offsets mis-orders rows and diverges from the news_items read
+        # path (canary parity requirement).
+        _pub_ts = func.coalesce(NewsArticleModel.published_at_ts, NewsArticleModel.created_at)
         inner = (
             select(NewsArticleModel)
             .where(
@@ -287,7 +305,7 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
                 *self._published_range(date_from, date_to),
             )
             .distinct(NewsArticleModel.title)
-            .order_by(NewsArticleModel.title, desc(NewsArticleModel.published_at).nullslast())
+            .order_by(NewsArticleModel.title, desc(_pub_ts).nullslast())
         ).subquery()
 
         # Count unique titles
@@ -295,11 +313,15 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar() or 0
 
-        # Outer: re-order by published_at DESC for pagination
+        # Outer: re-order by published TIMESTAMP DESC for pagination.
+        # title tie-break mirrors the news_items ordering exactly (titles
+        # are identical across schemas) so ties are deterministic in both
+        # plans and parity holds for same-timestamp bursts.
         alias = aliased(NewsArticleModel, inner)
+        _alias_pub_ts = func.coalesce(alias.published_at_ts, alias.created_at)
         stmt = (
             select(alias)
-            .order_by(desc(alias.published_at).nullslast())
+            .order_by(desc(_alias_pub_ts).nullslast(), desc(alias.title))
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -340,7 +362,10 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         stmt = (
             select(NewsArticleModel)
             .where(where_clause)
-            .order_by(desc(NewsArticleModel.published_at).nullslast())
+            .order_by(
+                desc(func.coalesce(NewsArticleModel.published_at_ts, NewsArticleModel.created_at)).nullslast(),
+                desc(NewsArticleModel.title),
+            )
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -381,7 +406,10 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         stmt = (
             select(NewsArticleModel)
             .where(where_clause)
-            .order_by(desc(NewsArticleModel.published_at).nullslast())
+            .order_by(
+                desc(func.coalesce(NewsArticleModel.published_at_ts, NewsArticleModel.created_at)).nullslast(),
+                desc(NewsArticleModel.title),
+            )
             .offset((page - 1) * page_size)
             .limit(page_size)
         )

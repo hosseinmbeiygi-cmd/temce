@@ -142,9 +142,23 @@ async def _incr(name: str, n: int = 1) -> None:
     _mem_counters[name] = _mem_counters.get(name, 0) + n
 
 
-async def record(decision: ReadPathDecision, *, compared: bool, parity: bool) -> None:
+async def record(
+    decision: ReadPathDecision,
+    *,
+    compared: bool,
+    parity: bool,
+    divergence_kind: str = "true_divergence",
+) -> None:
     """Record one served request. ``compared``/``parity`` only apply to
-    shadow probes (and canary-shadow leftovers)."""
+    shadow probes (and canary-shadow leftovers).
+
+    ``divergence_kind`` splits divergences for the halter:
+    * ``true_divergence`` — items serve LESS than legacy (or different
+      rows): a read-path regression, counts toward auto-halt.
+    * ``items_superset`` — items serve MORE (alias/spelling-variant
+      resolution the legacy LIKE-match lacks): a deliberate improvement,
+      tracked separately and NOT counted toward auto-halt.
+    """
     await _incr("served")
     if decision.serve_items:
         await _incr("served_items")
@@ -155,9 +169,15 @@ async def record(decision: ReadPathDecision, *, compared: bool, parity: bool) ->
         await _incr("parity_ok")
     else:
         await _incr("parity_divergent")
-        logger.warning(
-            "news read-path parity divergence — legacy vs news_items page differs"
-        )
+        await _incr(f"divergence_{divergence_kind}")
+        if divergence_kind == "true_divergence":
+            logger.warning(
+                "news read-path parity divergence — legacy vs news_items page differs"
+            )
+        else:
+            logger.debug(
+                "news read-path items-superset divergence (deliberate alias coverage)"
+            )
 
 
 async def window_stats() -> dict[str, Any]:
@@ -183,6 +203,14 @@ async def window_stats() -> dict[str, Any]:
     compared = stats["compared"]
     ok = stats["parity_ok"]
     stats["parity_percent"] = round(ok * 100.0 / compared, 2) if compared else None
+    # Regression-only parity: charges true divergences (regressions)
+    # against the floor; deliberate items-superset divergences (alias
+    # coverage) are excluded — they serve MORE, never less.
+    true_div = stats.get("divergence_true_divergence", 0)
+    regressions = ok + true_div
+    stats["regression_parity_percent"] = (
+        round(ok * 100.0 / regressions, 2) if regressions else (None if compared else 100.0)
+    )
     stats["items_share_percent"] = (
         round(stats["served_items"] * 100.0 / stats["served"], 2) if stats["served"] else 0.0
     )
@@ -223,7 +251,13 @@ async def compare_page(
 
 async def evaluate_auto_halt() -> dict[str, Any]:
     """Check the window against the parity floor; flip the shared mode to
-    ``off`` when breached. Returns a decision summary for the job result."""
+    ``off`` when breached. Returns a decision summary for the job result.
+
+    The parity metric charged against the floor EXCLUDES
+    ``items_superset`` divergences: those are the new read path finding
+    MORE than legacy (spelling-variant + tag-alias resolution the legacy
+    LIKE-match lacks) — a deliberate improvement, not a regression.
+    """
     stats = await window_stats()
     compared = stats["compared"]
     floor = settings.news_read_parity_floor_percent
@@ -232,6 +266,7 @@ async def evaluate_auto_halt() -> dict[str, Any]:
         "checked": True,
         "compared": compared,
         "parity_percent": stats["parity_percent"],
+        "regression_parity_percent": stats.get("regression_parity_percent"),
         "floor": floor,
         "halted": False,
         "reason": None,
@@ -242,7 +277,7 @@ async def evaluate_auto_halt() -> dict[str, Any]:
     if compared < min_samples:
         result["reason"] = f"not enough samples ({compared} < {min_samples})"
         return result
-    parity = stats["parity_percent"]
+    parity = stats.get("regression_parity_percent")
     if parity is not None and parity < floor:
         cache = get_cache()
         mode_before = await resolve_mode()

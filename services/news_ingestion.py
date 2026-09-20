@@ -392,19 +392,27 @@ class NewsIngestionService:
             extra=article,
         )
 
-        await self.news_service.save(item)
+        save_result = await self.news_service.save(item)
 
         if not mirror:
             return
 
-        # ── Mirror into the new news_items schema (additive, fail-safe) ──
+        # published_at for the mirror must equal the legacy row's effective
+        # ordering key EXACTLY: legacy orders by COALESCE(published_at_ts,
+        # created_at) and published_at_ts is NULL for fresh rows, so the
+        # key is the DB-generated created_at (server clock, microsecond
+        # precision). The flushed ORM object carries that value back via
+        # _to_domain; the python-side item.created_at differs by
+        # milliseconds and would scramble tie order across schemas.
+        saved = save_result.value if (save_result and save_result.success) else None
+        _fallback_pub = (saved.created_at if saved is not None else None) or item.created_at
         await self.dual_writer.safe_mirror(
             article,
             title=item.title,
             body=item.content or None,
             source=item.source,
             url=url,
-            published_at=pub_date.replace(tzinfo=None) if pub_date.tzinfo else pub_date,
+            published_at=_fallback_pub,
             category=category,
             is_breaking=bool(article.get("is_breaking", False)),
             symbols=symbols,

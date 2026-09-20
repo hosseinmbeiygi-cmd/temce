@@ -187,8 +187,20 @@ class TestShadowRouting:
                 assert stats["parity_percent"] == 100.0
         finally:
             async with maker() as session:
-                await session.execute(text("DELETE FROM news_articles WHERE id LIKE :p"), {"p": f"{marker}%"})
+                # Cleanup keyed on the unique per-run marker. The items
+                # delete must run FIRST: legacy deletion is by id prefix,
+                # and a items row deleted by title keeps working even if
+                # the legacy delete above misses (marker prefix ≠ full id
+                # when legacy ids use the news_ prefix).
                 await session.execute(text("DELETE FROM news_items WHERE title LIKE :p"), {"p": f"{marker}%"})
+                await session.execute(text("DELETE FROM news_articles WHERE id LIKE :p"), {"p": f"%{marker}%"})
+                await session.commit()
+                # Safety net for older runs that leaked rows (marker is
+                # unique per run, but the 2026-09-20 shadow runs leaked
+                # three rows because cleanup matched id, not the full id).
+                await session.execute(
+                    text("DELETE FROM news_articles WHERE title LIKE 'test_canary_%' AND url LIKE 'https://x.test/test_canary_%'")
+                )
                 await session.commit()
             await eng.dispose()
 
@@ -239,7 +251,11 @@ class TestAutoHalt:
         from services import news_read_canary as canary
 
         monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
-        canary._mem_counters.update({"compared": 100, "parity_ok": 80, "parity_divergent": 20})
+        # 20 true divergences (regressions) — regression parity = 80% < 99% floor.
+        canary._mem_counters.update(
+            {"compared": 100, "parity_ok": 80, "parity_divergent": 20,
+             "divergence_true_divergence": 20}
+        )
         monkeypatch.setattr(canary, "window_stats", canary.window_stats)
 
         # no Redis → resolve_mode falls back to settings (non-off) and the
