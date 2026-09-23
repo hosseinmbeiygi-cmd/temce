@@ -11,7 +11,7 @@ def _sig():
         symbol="E2E", name="e2e", market="stock", direction="buy", timeframe="daily",
         entry_zone="z", stop_loss="95", targets="110", risk_reward="2",
         position_sizing="s", confirmation_condition="c", reason="r",
-        invalidation="i", trailing_stop="t", price=100.0, change_pct=1.0,
+        invalidation="i", trailing_stop="t", price=100.0, change_pct=7.0,
         rule_score=70.0, ml_score=0.6, boosted_score=70.0, ml_influence_pct=10.0,
         confidence=0.7, calibration_level="medium",
         vote_direction_scores={"buy": 0.7, "sell": 0.2},
@@ -24,6 +24,7 @@ def test_e2e_decision_with_real_history_lengths():
     released, rejected = asyncio.run(
         orch._apply_signal_decision([_sig()], history_lengths={"E2E": 60})
     )
+    assert len(released) > 0, "valid sample data must release at least one signal"
     assert len(released) + len(rejected) == 1
     for s in released + rejected:
         d = s.to_dict()
