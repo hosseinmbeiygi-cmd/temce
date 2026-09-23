@@ -31,7 +31,7 @@ redis[hiredis]>=5.0
 finpy-tse>=1.2
 tsetmc>=0.58
 tehran-stocks>=2.0
-tse-utils>=1.1
+tse-utils>=1.1.6
 
 # ML optional dependencies (رای نصب با pip install .[ml])
 # scikit-learn>=1.4
