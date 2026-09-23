@@ -75,7 +75,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('requirements*.txt', 'pyproject.toml') }}
@@ -127,7 +127,7 @@ jobs:
           failure-threshold: warning
 
       - name: Cache npm dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: frontend/node_modules
           key: npm-${{ env.NODE_VERSION }}-${{ hashFiles('frontend/package-lock.json') }}
