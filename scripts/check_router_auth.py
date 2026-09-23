@@ -61,12 +61,13 @@ AUTH_NAMES = {
     "require_role",
     "require_roles",
     "require_any_role",
+    "api_key_auth",
     "_check",
 }
 # Enforces auth on mutating methods only; legal only under PUBLIC_READ_PREFIXES.
 WRITE_ONLY_AUTH_NAMES = {"require_user_for_writes"}
 
-APP_LEVEL_PUBLIC = {("/health", "get"), ("/metrics", "get"), ("/", "get")}
+APP_LEVEL_PUBLIC_PATHS = {"/", "/metrics"}
 
 
 def _dep_name(dep: Any) -> str:
@@ -139,7 +140,10 @@ def audit_router() -> tuple[list[str], int]:
 
 def audit_app_file() -> tuple[list[str], int]:
     """Cover @app.<method>() routes declared straight on the FastAPI instance."""
-    tree = ast.parse(APP_FILE.read_text(encoding="utf-8"))
+    from core.config import settings
+
+    src = APP_FILE.read_text(encoding="utf-8")
+    tree = ast.parse(src)
     errors: list[str] = []
     checked = 0
     for node in ast.walk(tree):
@@ -154,17 +158,28 @@ def audit_app_file() -> tuple[list[str], int]:
             if method not in {"get", "post", "put", "patch", "delete"}:
                 continue
             checked += 1
-            path = dec.args[0].value if dec.args and isinstance(dec.args[0], ast.Constant) else "?"
-            body = ast.get_source_segment(APP_FILE.read_text(encoding="utf-8"), node) or ""
-            # also inspect the decorator's own dependencies= kwarg
+            path = _app_route_path(dec, settings.metrics_path)
+            seg = ast.get_source_segment(src, node) or ""
             kw = next((k for k in dec.keywords if k.arg == "dependencies"), None)
             if kw is not None:
-                body += ast.get_source_segment(APP_FILE.read_text(encoding="utf-8"), kw.value) or ""
-            if (method, path) in APP_LEVEL_PUBLIC:
+                seg += ast.get_source_segment(src, kw.value) or ""
+            if path in APP_LEVEL_PUBLIC_PATHS:
                 continue
-            if not any(name in body for name in AUTH_NAMES | WRITE_ONLY_AUTH_NAMES):
+            if not any(name in seg for name in AUTH_NAMES | WRITE_ONLY_AUTH_NAMES):
                 errors.append(f"app.py:{node.lineno}: {method.upper()} {path} has no auth dependency")
     return errors, checked
+
+
+def _app_route_path(dec: ast.Call, metrics_path: str) -> str:
+    """Resolve the decorator's path literal, including settings.metrics_path."""
+    if not dec.args:
+        return "?"
+    arg = dec.args[0]
+    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+        return arg.value
+    if isinstance(arg, ast.Attribute) and arg.attr == "metrics_path":
+        return metrics_path
+    return "?"
 
 
 def main() -> int:

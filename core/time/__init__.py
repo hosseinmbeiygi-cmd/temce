@@ -24,6 +24,11 @@ def now_iran() -> datetime:
     return now_tehran()
 
 
+def utc_now_iso() -> str:
+    """Return the current UTC instant as an ISO-8601 string (tz-aware)."""
+    return now_utc().isoformat()
+
+
 def utc_now_naive() -> datetime:
     """Return current UTC time without tzinfo for legacy naive DB columns.
 

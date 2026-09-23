@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
-from apps.api.dependencies import require_roles
+from apps.api.dependencies import get_current_active_user, require_roles
 from apps.api.error_handlers import register_error_handlers
 from apps.api.metrics import MetricsMiddleware, get_prometheus_exporter
 from apps.api.middleware import (
@@ -984,7 +984,7 @@ def create_app() -> FastAPI:
 
     # ── Orchestrator cron status endpoint ──
     @app.get("/api/v1/orchestrator-cron-status")
-    async def orchestrator_cron_status():
+    async def orchestrator_cron_status(_user: dict = Depends(get_current_active_user)):
         """Get the status of the hourly orchestrator cron."""
         from schemas.common.responses import ApiResponse
 
@@ -1003,7 +1003,7 @@ def create_app() -> FastAPI:
         return ApiResponse(success=True, data=data)
 
     @app.get("/api/v1/orchestrator-cron-history")
-    async def orchestrator_cron_history():
+    async def orchestrator_cron_history(_user: dict = Depends(get_current_active_user)):
         """Get the rotating history of the last 100 cron runs.
 
         Each entry: {run, timestamp, signals, accuracy, retrain_count, success, error?, source?}
@@ -1082,7 +1082,7 @@ def create_app() -> FastAPI:
 
     # ── Rate limit status endpoint ──
     @app.get("/api/v1/rate-limits")
-    async def rate_limit_status():
+    async def rate_limit_status(_user: dict = Depends(require_roles("admin"))):
         """Check BrsApi rate limit status (daily, 5min, per-endpoint)."""
         from brsapi.rate_limiter import get_rate_limiter
         from schemas.common.responses import ApiResponse
@@ -1091,7 +1091,7 @@ def create_app() -> FastAPI:
 
     # ── Cache health / stats endpoint ──
     @app.get("/api/v1/cache-stats")
-    async def cache_stats():
+    async def cache_stats(_user: dict = Depends(require_roles("admin"))):
         """Expose screener cache health metrics for the admin dashboard.
 
         Returns hit rate, eviction count, size, and TTL for both caches:
