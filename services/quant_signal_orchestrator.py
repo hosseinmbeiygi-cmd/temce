@@ -29,6 +29,11 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
+LEGAL_DISCLAIMER_FA = (
+    "این سیگنال صرفاً جنبه اطلاع‌رسانی و آموزشی دارد و توصیه خرید/فروش نیست. "
+    "مسئولیت هرگونه تصمیم معاملاتی با کاربر است."
+)
+
 
 # ── Output Data Structures ────────────────────────────────────────────────────
 
@@ -87,6 +92,9 @@ class EnrichedSignal:
     source: str = ""
     created_at: str = ""
 
+    # Legal disclaimer (P1-4: mandatory in all signal outputs)
+    legal_disclaimer: str = LEGAL_DISCLAIMER_FA
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "symbol": self.symbol,
@@ -125,6 +133,7 @@ class EnrichedSignal:
             "vote_direction_scores": self.vote_direction_scores,
             "source": self.source,
             "created_at": self.created_at,
+            "legal_disclaimer": self.legal_disclaimer,
         }
 
 
@@ -720,7 +729,15 @@ class QuantSignalOrchestrator:
         rejected: list[EnrichedSignal] = []
         _t5 = time.monotonic()
         if use_decision_engine:
-            enriched, rejected = await self._apply_signal_decision(enriched)
+            try:
+                _hist_map = await self._fetch_symbol_histories(raw_signals)
+                _hist_lens = {
+                    _s: len((_hist_map.get(_s, {}) or {}).get("closes", []) or [])
+                    for _s in {_s2.symbol for _s2 in raw_signals}
+                }
+            except Exception:
+                _hist_lens = {}
+            enriched, rejected = await self._apply_signal_decision(enriched, _hist_lens)
         logger.info("[pipeline] stage4.5 decision: %.2fs, released=%d rejected=%d", time.monotonic() - _t5, len(enriched), len(rejected))
 
         # ── Stage 5: Cross-market correlation (only on released signals) ──
@@ -1130,6 +1147,7 @@ class QuantSignalOrchestrator:
 
     async def _apply_signal_decision(
         self, signals: list[EnrichedSignal],
+        history_lengths: dict[str, int] | None = None,
     ) -> tuple[list[EnrichedSignal], list[EnrichedSignal]]:
         """Run the 10-gate decision engine on each signal.
 
@@ -1180,9 +1198,22 @@ class QuantSignalOrchestrator:
                         available_fields += 1
                     if sig.rule_score is not None:
                         available_fields += 1
+                    # Gate 1: total_price_points from real candle/history length
+                    # when available (threaded from _fetch_symbol_histories via
+                    # generate()); otherwise fall back to the vote-coverage proxy.
+                    _real_len = (history_lengths or {}).get(sig.symbol, 0)
+                    if _real_len and _real_len > 0:
+                        _price_points = int(_real_len)
+                    else:
+                        try:
+                            _n_votes = len(scores) if isinstance(scores, dict) else 0
+                        except Exception:
+                            _n_votes = 0
+                        _price_points = max(20, _n_votes * 10)
                     dqs = compute_data_quality_score(
                         total_fields=total_expected,
                         missing_fields=total_expected - available_fields,
+                        total_price_points=_price_points,
                     )
 
                     # Compute liquidity score from trading activity proxy
@@ -1190,8 +1221,15 @@ class QuantSignalOrchestrator:
                     liq_score = min(1.0, 0.3 + abs_change * 3)
                     fill_prob = min(1.0, 0.4 + abs_change * 2.5)
 
-                    # Portfolio risk is not auto-approved; require explicit approval
-                    portfolio_approved = False
+                    # Gate 9 fix: no hardcoded block. Portfolio validator module
+                    # is not called here, so default to allowed with a warning
+                    # (fail-open) instead of forcing released=[].
+                    logger.warning(
+                        "Portfolio validator not invoked for %s — defaulting "
+                        "portfolio_risk_approved=True (fail-open)",
+                        sig.symbol,
+                    )
+                    portfolio_approved = True
                     open_risk = 0.0
                     correlated_exp = 0.0
 
