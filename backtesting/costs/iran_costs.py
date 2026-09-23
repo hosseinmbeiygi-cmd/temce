@@ -18,10 +18,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-# ── Canonical Iranian market rates ──────────────────────────────────────────
-BROKER_PCT = 0.004        # 0.4% broker fee per side
-SELL_TAX_PCT = 0.005      # 0.5% tax on sell proceeds only
-CLEARING_FEE_PCT = 0.00085  # 0.085% CSD clearing fee per side
+# Rates single-sourced from the canonical module (P1-3) — no local copies.
+from domain.trading.iran_costs import (
+    BROKER_PCT,
+    CLEARING_FEE_PCT,
+    SELL_TAX_PCT,
+)
 
 
 def normalize_side(side: Any) -> str:
@@ -46,15 +48,14 @@ class IranTransactionCosts:
     min_commission: float = 0.0
 
     def buy_cost(self, price: float, quantity: int) -> float:
-        principal = price * quantity
+        principal = max(float(price), 0.0) * max(int(quantity), 0)
         broker = max(principal * self.broker_pct, self.min_commission)
         return broker + principal * self.clearing_fee_pct
 
     def sell_cost(self, price: float, quantity: int) -> float:
-        principal = price * quantity
+        principal = max(float(price), 0.0) * max(int(quantity), 0)
         broker = max(principal * self.broker_pct, self.min_commission)
-        tax = principal * self.sell_tax_pct
-        return broker + tax + principal * self.clearing_fee_pct
+        return broker + principal * self.sell_tax_pct + principal * self.clearing_fee_pct
 
     def compute(self, side: Any, price: float, quantity: int) -> float:
         """Total transaction cost for a single fill. Tax only on sell (F3)."""
