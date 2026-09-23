@@ -4,9 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Query
 
-from apps.api.dependencies import get_recommendation_service
+from apps.api.dependencies import get_current_user, get_recommendation_service
 from core.logging import get_logger
-from core.result import PaginatedResult
+from core.result import PaginatedResult, Result
+from domain.common.enum_types import RecommendationAction
 from schemas.common.responses import ApiResponse
 from services.recommendation_service import RecommendationService
 
@@ -14,14 +15,52 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
+#: What a caller may set. Previously the whole body was splatted into the domain object,
+#: so any unexpected key either raised TypeError or wrote a field no one reviewed.
+_CREATABLE = {
+    "symbol",
+    "confidence",
+    "target_price",
+    "stop_loss",
+    "rationale",
+    "strategy",
+    "risk_level",
+    "horizon",
+    "data_source",
+    "expires_at",
+}
+
 
 @router.post("", summary="Create recommendation", description="Create a new trading recommendation")
 async def create_recommendation(
     body: dict[str, Any] = Body(...),
     service: RecommendationService = Depends(get_recommendation_service),
+    current_user: dict = Depends(get_current_user),
 ) -> ApiResponse[dict[str, Any]]:
-    rest = {k: v for k, v in body.items() if k not in ("instrument_id", "action")}
-    result = await service.create(instrument_id=body.get("instrument_id", ""), action=body.get("action", ""), **rest)
+    """Recommendations are authored, not computed — so they need an author and a value type.
+
+    A BUY/SELL with a target and a stop price is the line between «تحلیل» and licensed
+    «معرفی» for SEO purposes; it cannot be writable by an anonymous request body.
+    """
+
+    try:
+        action = RecommendationAction(body.get("action", ""))
+    except ValueError:
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            error={"message": "نوع توصیه باید یکی از خرید/فروش/نگه‌دار باشد."},
+        )
+
+    kwargs = {k: v for k, v in body.items() if k in _CREATABLE}
+    if not kwargs.get("symbol"):
+        return ApiResponse[dict[str, Any]](success=False, error={"message": "نماد الزامی است."})
+
+    result: Result[Any] = await service.create(
+        instrument_id=body.get("instrument_id", ""), action=action, **kwargs
+    )
+    if result.success:
+        author = current_user.get("sub") or current_user.get("id")
+        logger.info("recommendation created by=%s %s %s", author, kwargs.get("symbol"), action.value)
     return ApiResponse[dict[str, Any]](
         success=result.success,
         data=result.value,

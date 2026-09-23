@@ -1,6 +1,9 @@
 import type { StrategyAnalysis } from './types';
 
-const nf = new Intl.NumberFormat('fa-IR');
+// Latin digits (en-US): option tables render dir="ltr" font-mono cells and
+// Persian glyphs break the tabular mono alignment — same terminal convention
+// as src/lib/market-format.ts. Persian digits belong to prose (faNum).
+const nf = new Intl.NumberFormat('en-US');
 
 export function fmt(n: number | null | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return '—';

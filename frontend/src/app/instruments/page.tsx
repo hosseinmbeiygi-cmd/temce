@@ -244,7 +244,7 @@ export default function InstrumentsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 px-3 font-mono text-surface-200">{inst.lastPrice?.toLocaleString()}</td>
+                  <td className="py-2.5 px-3 font-mono text-surface-200">{inst.lastPrice?.toLocaleString("en-US")}</td>
                   <td className={`py-2.5 px-3 font-mono ${inst.change >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>{inst.change >= 0 ? "+" : ""}{inst.change}%</td>
                   <td className="py-2.5 px-3">
                     {sparkData && sparkData.length > 1
@@ -252,9 +252,9 @@ export default function InstrumentsPage() {
                       : <span className="text-[10px] text-surface-600">—</span>
                     }
                   </td>
-                  <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.volume?.toLocaleString()}</td>
+                  <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.volume?.toLocaleString("en-US")}</td>
                   <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.peRatio > 0 ? inst.peRatio.toFixed(1) : "—"}</td>
-                  <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.eps > 0 ? inst.eps.toLocaleString() : "—"}</td>
+                  <td className="py-2.5 px-3 font-mono text-surface-400 text-xs">{inst.eps > 0 ? inst.eps.toLocaleString("en-US") : "—"}</td>
                 </tr>
                 );
               })}

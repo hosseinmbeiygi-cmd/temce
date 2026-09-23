@@ -30,7 +30,12 @@ from core.fix_network import fix_network as _fix_network
 
 _fix_network()
 
-from brsapi.budget import BrsApiBudgetGovernor, BudgetBlockedError, get_budget_governor
+from brsapi.budget import (
+    BrsApiBudgetGovernor,
+    BudgetBlockedError,
+    BudgetSoftRejectError,
+    get_budget_governor,
+)
 from brsapi.config import BrsApiEndpoints, EndpointCategory, EndpointConfig
 from brsapi.config import settings as brsapi_settings
 from brsapi.rate_limiter import RateLimiter, RateLimitExhaustedError, get_rate_limiter
@@ -226,7 +231,15 @@ class BrsApiClient:
         # replica cannot spend the same daily budget twice.
         if brsapi_settings.fail_fast_on_daily_exhausted:
             try:
-                await self._governor.check_allowed(category, endpoint.path)
+                await self._governor.check_allowed(
+                    category, endpoint.path, critical=endpoint.critical,
+                )
+            except BudgetSoftRejectError as exc:
+                logger.warning(
+                    "BrsApi budget soft ceiling — non-critical request for %s rejected",
+                    endpoint.path,
+                )
+                return Result.fail(str(exc))
             except RateLimitExhaustedError as exc:
                 logger.warning("BrsApi budget exhausted — request rejected fast")
                 return Result.fail(str(exc))
@@ -270,6 +283,7 @@ class BrsApiClient:
                 category,
                 endpoint=endpoint.path,
                 fail_fast=brsapi_settings.fail_fast_on_daily_exhausted,
+                critical=endpoint.critical,
             )
         except (RateLimitExhaustedError, BudgetBlockedError) as exc:
             return Result.fail(str(exc))

@@ -51,6 +51,13 @@ _PIPELINE_MIN_CONFIDENCE = 0.0
 # cached result.
 _pipeline_semaphore = asyncio.Semaphore(1)
 
+# While an empty-cache build (e.g. startup warm-up) is in flight, requests no
+# longer block on the whole multi-second/multi-minute pipeline: they wait this
+# grace period, then get the "building" payload below while the build keeps
+# running in the background. The NEXT poll hits a warm cache.
+_COLD_START_GRACE_SECONDS = 3.0
+_cold_start_build_task: asyncio.Task[dict[str, Any]] | None = None
+
 
 async def _build_report(key: str, factory: Any) -> dict[str, Any]:
     """Build (and store) a fresh report for ``key`` under the semaphore.
@@ -97,7 +104,11 @@ async def warm_signal_cache() -> None:
             )
             return report.to_dict()
 
-        report = await _build_report(key, _build)  # stores into _cache itself
+        # Run as the tracked cold-start task so early user requests wait the
+        # short grace period on THIS build instead of queueing a duplicate one.
+        global _cold_start_build_task
+        _cold_start_build_task = asyncio.create_task(_build_report(key, _build))
+        report = await _cold_start_build_task
         logger.info("Signal cache warmed at startup: %d signals", len(report.get("signals", [])))
     except Exception:
         logger.exception("Startup signal cache warm-up failed")
@@ -136,9 +147,24 @@ async def _get_cached_report(
             task = asyncio.create_task(_run_background_rebuild(key, factory))
             return _cache[1], task
         return _cache[1], None
-    # Empty/different key — build synchronously (the semaphore re-checks the
-    # cache, so a just-completed warm-up is reused instead of rebuilt).
-    return await _build_report(key, factory), None
+    # Empty/different key — instead of blocking the caller for the entire
+    # (tens-of-seconds) pipeline, wait a short grace period for the in-flight
+    # build (startup warm-up) to finish, then hand back a "building" payload
+    # while the build continues. First poll may be empty; the next one is warm.
+    global _cold_start_build_task
+    if _cold_start_build_task is not None and not _cold_start_build_task.done():
+        try:
+            return await asyncio.wait_for(
+                asyncio.shield(_cold_start_build_task), timeout=_COLD_START_GRACE_SECONDS
+            ), None
+        except (asyncio.TimeoutError, TimeoutError):
+            return None, None  # caller serves the "building" payload
+        except Exception:
+            logger.exception("Cold-start signal build failed; scheduling retry")
+            _cold_start_build_task = None
+    if _cold_start_build_task is None or _cold_start_build_task.done():
+        _cold_start_build_task = asyncio.create_task(_build_report(key, factory))
+    return None, None  # caller serves the "building" payload
 
 
 async def _run_background_rebuild(key: str, factory: Any) -> None:
@@ -192,6 +218,7 @@ async def get_multi_market_signals(
         if data is None:
             data = {
                 "signals": [],
+                "building": True,  # cold-start build still in flight — poll again
                 "summary": {
                     "total_signals": 0, "buy_count": 0, "sell_count": 0,
                     "hold_count": 0, "avg_confidence": 0,

@@ -39,7 +39,7 @@ function PriceRangeBar({ low, high, current }: { low?: number; high?: number; cu
   const distToCeiling = 100 - distToFloor;
   return (
     <div dir="ltr" className="flex items-center gap-1.5 w-full relative">
-      <span className="text-[10px] text-surface-500 min-w-[48px] text-left font-mono">{low.toLocaleString()}</span>
+      <span className="text-[10px] text-surface-500 min-w-[48px] text-left font-mono">{low.toLocaleString("en-US")}</span>
       <div className="flex-1 h-1 rounded bg-gradient-to-r from-red-500/30 via-purple-500/30 to-blue-500/30 relative">
         <div
           onMouseEnter={() => setHovered(true)}
@@ -63,7 +63,7 @@ function PriceRangeBar({ low, high, current }: { low?: number; high?: number; cu
           </div>
         )}
       </div>
-      <span className="text-[10px] text-surface-500 min-w-[48px] text-right font-mono">{high.toLocaleString()}</span>
+      <span className="text-[10px] text-surface-500 min-w-[48px] text-right font-mono">{high.toLocaleString("en-US")}</span>
     </div>
   );
 }
@@ -306,7 +306,7 @@ export default function WatchlistPage() {
                     {/* Price */}
                     <div className="text-left min-w-[100px]">
                       <div className={`text-base font-bold font-mono ${changeColor}`}>
-                        {item.price?.toLocaleString() ?? "—"}
+                        {item.price?.toLocaleString("en-US") ?? "—"}
                       </div>
                       {item.change != null && (
                         <div className={`flex items-center gap-0.5 text-xs font-mono ${changeColor}`}>
@@ -327,7 +327,7 @@ export default function WatchlistPage() {
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">شناور {item.freeFloatPct.toFixed(0)}%</span>
                       )}
                       {item.eps != null && item.eps !== 0 && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">EPS {item.eps.toLocaleString()}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400">EPS {item.eps.toLocaleString("en-US")}</span>
                       )}
                       {item.peRatio != null && item.peRatio !== 0 && (
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">P/E {item.peRatio.toFixed(1)}</span>

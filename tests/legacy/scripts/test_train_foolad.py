@@ -4,7 +4,6 @@ Bypasses the API server to test the core logic.
 """
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 

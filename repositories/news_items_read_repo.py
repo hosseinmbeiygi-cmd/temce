@@ -46,20 +46,34 @@ class NewsItemsReadRepo:
         self.session = session
 
     @staticmethod
-    def is_enabled() -> bool:
+    async def is_enabled() -> bool:
         """True when the items repo may serve reads at all.
 
         Canary-aware: the legacy boolean forces ``full``; otherwise any
-        non-``off`` ``NEWS_READ_MODE`` needs the repo (shadow probes +
-        canary slices). Refinements (Redis dial halt / canary slice /
-        auto-halt) are applied per request in ``NewsRepository._route`` —
-        a dial flipped to ``off`` there simply falls back to legacy, so
-        keeping this check settings-only is fail-open by construction
-        (and never blocks on asyncio from sync contexts).
+        non-``off`` mode needs the repo (shadow probes + canary slices).
+        Checks BOTH the static settings and the runtime Redis dial —
+        settings-only checks miss a dial flipped by the admin endpoint
+        after startup (NEWS_READ_MODE stays "off" while the Redis key
+        says canary). Fail-open: any Redis error returns False and reads
+        stay on legacy.
         """
         if bool(getattr(settings, "news_read_from_items", False)):
             return True
-        return str(getattr(settings, "news_read_mode", "off") or "off").strip().lower() != "off"
+        static_mode = str(getattr(settings, "news_read_mode", "off") or "off").strip().lower()
+        if static_mode != "off":
+            return True
+        from core.cache import get_cache
+
+        cache = get_cache()
+        if cache.is_connected and cache.client is not None:
+            try:
+                from services.news_read_canary import _MODE_KEY
+
+                if await cache.client.get(_MODE_KEY):
+                    return True
+            except Exception:  # noqa: BLE001 — fail-open to legacy
+                return False
+        return False
 
     @staticmethod
     def _naive_utc(dt: datetime) -> datetime:

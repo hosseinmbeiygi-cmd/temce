@@ -13,26 +13,29 @@ export interface FundChecklistFundLike {
   isin?: string;
   fund_type?: string;
   market?: string;
-  nav: number;
-  nav_change: number;
-  nav_change_pct: number;
-  price_last: number;
-  price_close: number;
-  price_yesterday: number;
-  price_max: number;
-  price_min: number;
-  trade_volume: number;
-  trade_value: number;
-  trade_count: number;
-  shares_count: number;
-  base_volume: number;
-  market_value: number;
-  buy_real_volume: number;
-  buy_legal_volume: number;
-  sell_real_volume: number;
-  sell_legal_volume: number;
+  // Nullable because the funds API reports an unread figure as null. A checklist row that
+  // reads «۰ تومان» for a NAV that was never published is worse than one that reads «—»:
+  // the sheet is the pre-buy evidence, and a zero answers the question with an absence.
+  nav: number | null;
+  nav_change: number | null;
+  nav_change_pct: number | null;
+  price_last: number | null;
+  price_close: number | null;
+  price_yesterday: number | null;
+  price_max: number | null;
+  price_min: number | null;
+  trade_volume: number | null;
+  trade_value: number | null;
+  trade_count: number | null;
+  shares_count: number | null;
+  base_volume: number | null;
+  market_value: number | null;
+  buy_real_volume: number | null;
+  buy_legal_volume: number | null;
+  sell_real_volume: number | null;
+  sell_legal_volume: number | null;
   snapshot_date?: string;
-  nav_source?: string;
+  nav_source?: string | null;
   nav_date?: string;
   time?: string;
   updated_at?: string;
@@ -138,8 +141,20 @@ export interface FundChecklistAreaSummary {
 
 type FundAnalysisScores = NonNullable<FundChecklistFundLike["analysis"]>["scores"];
 
-function n(v: number | null | undefined): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+function n(v: number | null | undefined): number | null {
+  // Unread counts stay null: the checklist renders «—» and the availability line reports the
+  // gap, instead of answering "how many buyers?" with a zero that never happened.
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** "Was this measured, and is it a positive number?" — null never counts as a reading. */
+function positive(v: number | null | undefined): boolean {
+  return typeof v === "number" && v > 0;
+}
+
+/** Difference of two possibly-unmeasured figures; unknown on either side is unknown. */
+function netOf(buy: number | null, sell: number | null): number | null {
+  return buy === null || sell === null ? null : buy - sell;
 }
 
 function text(v: string | number | null | undefined): string {
@@ -189,9 +204,15 @@ function buildContext(fund: FundChecklistFundLike, symbolDetail?: FundChecklistS
   const navHistoryFirst = navHistory[0]?.nav ?? null;
   const navHistoryLast = navHistory.length ? navHistory[navHistory.length - 1].nav : null;
   const navHistoryChangePct = navHistoryFirst && navHistoryLast ? ((navHistoryLast - navHistoryFirst) / navHistoryFirst) * 100 : null;
-  const premiumPct = fund.nav > 0 && fund.price_last > 0 ? ((fund.price_last - fund.nav) / fund.nav) * 100 : null;
-  const spreadPct = fund.price_max > 0 && fund.price_min > 0 ? ((fund.price_max - fund.price_min) / ((fund.price_max + fund.price_min) / 2)) * 100 : null;
-  const rangePct = fund.price_max > 0 && fund.price_min > 0 ? ((fund.price_max - fund.price_min) / ((fund.price_max + fund.price_min) / 2)) * 100 : null;
+  const premiumPct =
+    fund.nav !== null && fund.price_last !== null && fund.nav > 0 && fund.price_last > 0
+      ? ((fund.price_last - fund.nav) / fund.nav) * 100
+      : null;
+  const spreadPct =
+    fund.price_max !== null && fund.price_min !== null && fund.price_max > 0 && fund.price_min > 0
+      ? ((fund.price_max - fund.price_min) / ((fund.price_max + fund.price_min) / 2)) * 100
+      : null;
+  const rangePct = spreadPct;
   return {
     symbol: fund.symbol,
     name: fund.name,
@@ -290,7 +311,7 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.nav), ctx.navDate || ctx.snapshotDate, ctx.navHistoryPoints ? `${ctx.navHistoryPoints} نقطه` : null),
       source: "GET /funds/{symbol}",
       note: "NAV و تاریخچه واقعی صندوق",
-      availability: ctx.nav > 0 ? ("available" as const) : ("partial" as const),
+      availability: positive(ctx.nav) ? ("available" as const) : ("partial" as const),
       confidence: 98,
     };
   }
@@ -300,7 +321,7 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.priceLast), text(ctx.priceClose), text(ctx.priceYesterday), `${text(ctx.priceMin)} - ${text(ctx.priceMax)}`),
       source: "GET /funds/{symbol} + GET /brsapi/symbol-details/{symbol}",
       note: "قیمت و بازه معاملاتی واقعی",
-      availability: ctx.priceLast > 0 || ctx.priceClose > 0 ? ("available" as const) : ("partial" as const),
+      availability: positive(ctx.priceLast) || positive(ctx.priceClose) ? ("available" as const) : ("partial" as const),
       confidence: 92,
     };
   }
@@ -310,7 +331,7 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.tradeCount), money(ctx.tradeVolume), money(ctx.tradeValue), money(ctx.tradeVolumeAvgMonth)),
       source: "GET /funds/{symbol} + GET /brsapi/symbol-details/{symbol}",
       note: "حجم و ارزش معاملات واقعی",
-      availability: ctx.tradeVolume > 0 || ctx.tradeCount > 0 ? ("available" as const) : ("partial" as const),
+      availability: positive(ctx.tradeVolume) || positive(ctx.tradeCount) ? ("available" as const) : ("partial" as const),
       confidence: 94,
     };
   }
@@ -320,7 +341,7 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.sharesCount), text(ctx.sharesIssued), text(ctx.baseVolume), ctx.freeFloatPct != null ? pct(ctx.freeFloatPct) : null),
       source: "GET /brsapi/symbol-details/{symbol}",
       note: "عرضه و شناوری واقعی نماد",
-      availability: ctx.sharesCount > 0 || ctx.sharesIssued > 0 ? ("available" as const) : ("partial" as const),
+      availability: positive(ctx.sharesCount) || positive(ctx.sharesIssued) ? ("available" as const) : ("partial" as const),
       confidence: 90,
     };
   }
@@ -330,12 +351,12 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(
         `خرید حقیقی ${text(ctx.buyRealVolume)}`,
         `فروش حقیقی ${text(ctx.sellRealVolume)}`,
-        `خالص حقیقی ${text((ctx.buyRealVolume ?? 0) - (ctx.sellRealVolume ?? 0))}`,
-        `خالص حقوقی ${text((ctx.buyLegalVolume ?? 0) - (ctx.sellLegalVolume ?? 0))}`,
+        `خالص حقیقی ${text(netOf(ctx.buyRealVolume, ctx.sellRealVolume))}`,
+        `خالص حقوقی ${text(netOf(ctx.buyLegalVolume, ctx.sellLegalVolume))}`,
       ),
       source: "GET /funds/{symbol}",
       note: "جریان واقعی حقیقی/حقوقی",
-      availability: ctx.buyRealVolume > 0 || ctx.sellRealVolume > 0 ? ("available" as const) : ("partial" as const),
+      availability: positive(ctx.buyRealVolume) || positive(ctx.sellRealVolume) ? ("available" as const) : ("partial" as const),
       confidence: 94,
     };
   }
@@ -406,7 +427,7 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.nav), text(ctx.navHistoryPoints), ctx.analysis?.summary),
       source: "GET /funds/{symbol}",
       note: "نمای واقعی NAV و تحلیل وضعیت",
-      availability: ctx.nav > 0 ? "available" : "partial",
+      availability: positive(ctx.nav) ? "available" : "partial",
       confidence: 82,
     },
     "زیرساخت": {
@@ -427,21 +448,21 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.sharesCount), text(ctx.sharesIssued), text(ctx.baseVolume), ctx.freeFloatPct != null ? pct(ctx.freeFloatPct) : null),
       source: "GET /brsapi/symbol-details/{symbol}",
       note: "عرضه، شناوری و پایه واقعی نماد",
-      availability: ctx.sharesCount > 0 ? "available" : "partial",
+      availability: positive(ctx.sharesCount) ? "available" : "partial",
       confidence: 88,
     },
     "بازار جهانی و پیگ": {
       value: combine(ctx.premiumPct != null ? `پریمیوم ${pct(ctx.premiumPct)}` : null, text(ctx.priceLast), text(ctx.nav), text(ctx.priceMin) + " - " + text(ctx.priceMax)),
       source: "GET /funds/{symbol}",
       note: "نسبت قیمت به NAV و دامنه واقعی",
-      availability: ctx.nav > 0 ? "available" : "partial",
+      availability: positive(ctx.nav) ? "available" : "partial",
       confidence: 94,
     },
     "آنچین آنالیتیکس": {
-      value: combine(`خرید حقیقی ${text(ctx.buyRealVolume)}`, `فروش حقیقی ${text(ctx.sellRealVolume)}`, `خالص ${text((ctx.buyRealVolume ?? 0) - (ctx.sellRealVolume ?? 0))}`),
+      value: combine(`خرید حقیقی ${text(ctx.buyRealVolume)}`, `فروش حقیقی ${text(ctx.sellRealVolume)}`, `خالص ${text(netOf(ctx.buyRealVolume, ctx.sellRealVolume))}`),
       source: "GET /funds/{symbol}",
       note: "جریان واقعی به‌جای آنچین",
-      availability: ctx.buyRealVolume > 0 || ctx.sellRealVolume > 0 ? "available" : "partial",
+      availability: positive(ctx.buyRealVolume) || positive(ctx.sellRealVolume) ? "available" : "partial",
       confidence: 93,
     },
     "ریسک سیستماتیک و مقررات": {
@@ -455,7 +476,7 @@ function lookupEvidence(item: FundChecklistItem, ctx: ReturnType<typeof buildCon
       value: combine(text(ctx.tradeVolume), money(ctx.tradeValue), money(ctx.marketValue), text(ctx.tradeCount)),
       source: "GET /funds/{symbol}",
       note: "بازار/گردش واقعی صندوق",
-      availability: ctx.tradeVolume > 0 ? "available" : "partial",
+      availability: positive(ctx.tradeVolume) ? "available" : "partial",
       confidence: 90,
     },
     "هشدار سریع و بحران": {

@@ -42,15 +42,15 @@ export default function FundamentalPage() {
     { label: "نماد", value: String(d?.symbol ?? "") },
     { label: "نام شرکت", value: String(d?.company_name ?? "") },
     { label: "صنعت", value: String(d?.industry ?? "") },
-    { label: "قیمت", value: String(d?.last_price?.toLocaleString() ?? "") },
+    { label: "قیمت", value: String(d?.last_price?.toLocaleString("en-US") ?? "") },
     { label: "ارزش بازار", value: d?.market_cap ? (d.market_cap / 1e12).toFixed(2) + " تریلیون" : "" },
     { label: "P/E", value: String(d?.pe ?? ""), color: d?.pe < 8 ? "text-emerald-400" : d?.pe < 15 ? "text-amber-400" : "text-rose-400" },
     { label: "P/B", value: String(d?.pb ?? ""), color: d?.pb < 1 ? "text-emerald-400" : d?.pb < 3 ? "text-amber-400" : "text-rose-400" },
     { label: "ROE", value: d?.roe_pct ? `${d.roe_pct}%` : "", color: d?.roe_pct > 20 ? "text-emerald-400" : d?.roe_pct > 10 ? "text-amber-400" : "text-rose-400" },
     { label: "ROA", value: d?.roa_pct ? `${d.roa_pct}%` : "" },
     { label: "D/E", value: String(d?.debt_to_equity ?? ""), color: d?.debt_to_equity < 0.5 ? "text-emerald-400" : d?.debt_to_equity < 1.5 ? "text-amber-400" : "text-rose-400" },
-    { label: "EPS", value: String(d?.eps?.toLocaleString() ?? "") },
-    { label: "BVPS", value: String(d?.bvps?.toLocaleString() ?? "") },
+    { label: "EPS", value: String(d?.eps?.toLocaleString("en-US") ?? "") },
+    { label: "BVPS", value: String(d?.bvps?.toLocaleString("en-US") ?? "") },
     { label: "حاشیه سود", value: d?.net_margin_pct ? `${d.net_margin_pct}%` : "" },
     { label: "سود نقدی", value: d?.dividend_yield_pct ? `${d.dividend_yield_pct}%` : "" },
     { label: "درآمد", value: d?.revenue ? (d.revenue / 1e12).toFixed(1) + " تریلیون" : "" },
@@ -115,11 +115,11 @@ export default function FundamentalPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 bg-surface-800 rounded-lg">
                     <p className="text-xs text-gray-500">قیمت فعلی</p>
-                     <p className="text-lg font-semibold text-rose-400">{(fundData as FundamentalData).dcf?.current_price?.toLocaleString()}</p>
+                     <p className="text-lg font-semibold text-rose-400">{Number((fundData as FundamentalData).dcf?.current_price ?? 0).toLocaleString("en-US")}</p>
                   </div>
                   <div className="p-3 bg-surface-800 rounded-lg">
                     <p className="text-xs text-gray-500">قیمت منصفانه</p>
-                     <p className="text-lg font-semibold text-emerald-400">{(fundData as FundamentalData).dcf?.fair_price?.toLocaleString()}</p>
+                     <p className="text-lg font-semibold text-emerald-400">{Number((fundData as FundamentalData).dcf?.fair_price ?? 0).toLocaleString("en-US")}</p>
                   </div>
                 </div>
               </div>

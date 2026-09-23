@@ -243,7 +243,7 @@ function GoldCurrencyTab({ goldItems, currencyItems, cryptoItems }: {
 
   function formatTabPrice(item: TabItem): string {
     if ("price_usd" in item) {
-      return item.price_usd ? `$${item.price_usd.toLocaleString()}` : "—";
+      return item.price_usd ? `$${item.price_usd.toLocaleString("en-US")}` : "—";
     }
     return formatLargePrice((item as GoldCoinItem | CurrencyItem).price);
   }

@@ -82,12 +82,12 @@ function StatCard({ label, value, change, unit, color }: {
     <div className="bg-surface-800/50 rounded-xl p-4 border border-surface-700/50">
       <div className="text-xs text-surface-500 mb-1">{label}</div>
       <div className={`text-lg font-bold font-mono ${color || "text-surface-100"}`}>
-        {typeof value === "number" ? value.toLocaleString() : value}
+        {typeof value === "number" ? value.toLocaleString("en-US") : value}
         {unit && <span className="text-xs text-surface-500 mr-1">{unit}</span>}
       </div>
       {change != null && (
         <div className={`text-xs font-mono mt-0.5 ${changeColor}`}>
-          {change >= 0 ? "+" : ""}{change.toLocaleString()} ({change >= 0 ? "+" : ""}{((change / (Math.abs(value as number) || 1)) * 100).toFixed(2)}%)
+          {change >= 0 ? "+" : ""}{change.toLocaleString("en-US")} ({change >= 0 ? "+" : ""}{((change / (Math.abs(value as number) || 1)) * 100).toFixed(2)}%)
         </div>
       )}
     </div>
@@ -114,7 +114,7 @@ function FlowList({ title, items, color }: {
                 {item.symbol || item.name}
               </span>
               <span className={`font-mono font-bold ${text}`}>
-                {item.value.toLocaleString()}
+                {item.value.toLocaleString("en-US")}
               </span>
             </div>
           ))
@@ -337,7 +337,7 @@ export default function MarketWatchPage() {
                           />
                         </div>
                         <span className="text-surface-200 font-mono w-20 text-left">
-                          {item.value.toLocaleString()}
+                          {item.value.toLocaleString("en-US")}
                         </span>
                       </div>
                     );

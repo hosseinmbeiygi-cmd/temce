@@ -9,8 +9,9 @@ API can trigger a whole-market download from the UI:
 4. The API-key masking / payload counting helpers behave correctly.
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from apps.api.endpoints.brsapi import _count_payload, _mask_api_key
 from brsapi.jobs.registry import BrsApiJobRegistry

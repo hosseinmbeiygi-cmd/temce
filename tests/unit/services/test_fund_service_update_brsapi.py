@@ -438,11 +438,16 @@ class TestUpdateFromBrsapiEdgeCases:
         assert result["nav_change_pct"] == 0.0
         assert result["trade_volume"] == 0
         assert result["market_value"] == 0.0
-        assert result["base_volume"] == 0
+        # حجم مبنا the one figure that must NOT be 0 here: the snapshot never carried one.
+        assert result["base_volume"] is None
 
     @pytest.mark.asyncio
-    async def test_base_volume_is_one_percent_of_shares(self, mock_brsapi):
-        """base_volume is computed as 1% of shares_count."""
+    async def test_base_volume_is_never_synthesized_from_shares(self, mock_brsapi):
+        """حجم مبنا یک عدد اعلام‌شدهٔ بازار است، نه تابعی از تعداد واحدها.
+
+        این رفتار قبلاً «۱٪ سهام» را می‌نوشت و ۵۱۲ ردیف صندوق با یک عدد نقدشوندگی ساختگی
+        پر شده بود. اگر BrsApi حجم مبنا بدهد همان عدد می‌ماند، وگرنه None.
+        """
         mock_brsapi.get_enriched_symbol_detail.return_value = _make_enriched(
             shares_count=1_000_000,
         )
@@ -450,7 +455,15 @@ class TestUpdateFromBrsapiEdgeCases:
 
         result = await service.update_from_brsapi(symbol="BASE", brsapi=mock_brsapi)
 
-        assert result["base_volume"] == 10_000  # 1% of 1_000_000
+        assert result["base_volume"] is None
+
+        mock_brsapi.get_enriched_symbol_detail.return_value = _make_enriched(
+            shares_count=1_000_000,
+            base_volume=7_000,
+        )
+        quoted = await service.update_from_brsapi(symbol="BASE2", brsapi=mock_brsapi)
+
+        assert quoted["base_volume"] == 7_000
 
     @pytest.mark.asyncio
     async def test_persian_symbol_in_url(self, mock_brsapi):

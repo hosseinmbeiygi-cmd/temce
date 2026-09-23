@@ -38,6 +38,7 @@ __all__ = [
     "multi_market_signals_router",
     "news_router",
     "orderbooks_router",
+    "pre_buy_router",
     "portfolios_router",
     "queue_analysis_router",
     "quotes_router",

@@ -60,6 +60,9 @@ class NewsFetcher:
         self._timeout = 10.0
         self._cache: dict[str, tuple[Any, float]] = {}
         self._cache_ttl = 300  # 5 minutes
+        # Bounded: a runaway symbol/day_back combination space must not grow
+        # the dict without limit (memory-safety audit).
+        self._cache_max = 512
 
     async def fetch_news_for_symbol(self, symbol: str, days_back: int = 3) -> list[dict[str, Any]]:
         """Fetch news related to a specific symbol (async)."""
@@ -73,6 +76,10 @@ class NewsFetcher:
         all_news = await asyncio.to_thread(self._fetch_all, symbol, days_back)
 
         result = all_news[:20]
+        if len(self._cache) >= self._cache_max:
+            # Evict the oldest entries (FIFO — cache is short-TTL anyway).
+            for k in list(self._cache)[: self._cache_max // 4]:
+                self._cache.pop(k, None)
         self._cache[cache_key] = (result, time.time())
         return result
 

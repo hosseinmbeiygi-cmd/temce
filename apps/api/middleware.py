@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from core.config import settings as app_settings
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
+from core.security.saas import TIERS, get_tier_limiter, tier_subject_from_request
 from core.security.sanitizers import strip_html
 from core.security.tokens import decode_access_token, is_token_revoked
 
@@ -429,6 +430,46 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             window_seconds=self.window_seconds,
         )
 
+        # ── Tier layer (منشور بخش ۴): per-user token bucket on top of the
+        # per-IP sliding window. Authenticated users get their tier's bucket
+        # (free/pro/institutional); anonymous requests fall through to the
+        # IP window untouched.
+        tier_remaining: int | None = None
+        tier_limit: int | None = None
+        subject = tier_subject_from_request(request)
+        if subject is not None:
+            tier_name = subject.split(":", 1)[0]
+            tier = TIERS[tier_name]
+            tier_limiter = get_tier_limiter()
+            if not tier_limiter.allow(subject, tier):
+                logger.warning(
+                    "Tier limit exceeded: %s %s subject=%s tier=%s (burst=%d)",
+                    request.method,
+                    path,
+                    subject,
+                    tier.name,
+                    tier.burst,
+                )
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "success": False,
+                        "error": "Tier rate limit exceeded",
+                        "code": "TIER_RATE_LIMIT",
+                        "tier": tier.name,
+                        "limit": tier.burst,
+                        "window_seconds": round(tier.refill_seconds, 3),
+                    },
+                    headers={
+                        "Retry-After": str(max(1, int(tier.refill_seconds + 0.999))),
+                        "X-RateLimit-Limit": str(tier.burst),
+                        "X-RateLimit-Remaining": "0",
+                        "X-RateLimit-Reset": str(int(time.time()) + max(1, int(tier.refill_seconds + 0.999))),
+                    },
+                )
+            tier_remaining = tier_limiter.remaining(subject, tier)
+            tier_limit = tier.burst
+
         if not allowed:
             logger.warning(
                 "Rate limit exceeded: %s %s from %s (limit: %d/min)", request.method, path, client_ip, max_calls
@@ -454,8 +495,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Add rate limit headers to successful responses
         if app_settings.rate_limit_include_headers:
-            response.headers["X-RateLimit-Limit"] = str(max_calls)
-            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            response.headers["X-RateLimit-Limit"] = str(tier_limit if tier_limit is not None else max_calls)
+            response.headers["X-RateLimit-Remaining"] = str(
+                tier_remaining if tier_remaining is not None else remaining
+            )
             response.headers["X-RateLimit-Reset"] = str(int(time.time()) + int(self.window_seconds))
 
         return response

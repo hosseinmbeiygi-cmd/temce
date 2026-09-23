@@ -4,7 +4,7 @@ same as tests/unit/repositories/conftest.py — avoids ORM/JSONB compile issues)
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from datetime import date
+from datetime import UTC, date
 
 import pytest
 import pytest_asyncio
@@ -84,18 +84,18 @@ class TestPnL:
         assert pnl.return_pct == pytest.approx(-3.3333333333)
 
     def test_price_selection_by_asset(self) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from apps.currency_service.domain import ManualPosition
 
         prices = {"free_sell": 615_000, "usdt_sell": 620_000}
         cash = ManualPosition(
             id=1, user_id="u", asset_type="CASH_USD", entry_price=1, volume=1,
-            entry_date=date.today(), created_at=datetime.now(tz=timezone.utc),
+            entry_date=date.today(), created_at=datetime.now(tz=UTC),
         )
         usdt = ManualPosition(
             id=2, user_id="u", asset_type="USDT", entry_price=1, volume=1,
-            entry_date=date.today(), created_at=datetime.now(tz=timezone.utc),
+            entry_date=date.today(), created_at=datetime.now(tz=UTC),
         )
         assert PositionTracker.price_for(cash, prices) == 615_000
         assert PositionTracker.price_for(usdt, prices) == 620_000

@@ -482,8 +482,16 @@ export async function getDCAPlans(currentScore: number): Promise<PlanStatus[]> {
   return r.data;
 }
 
+export interface DCATranche {
+  tranche: number;
+  pct: number;
+  amount_irt: number;
+  trigger: string;
+  estimated_fee_irt: number;
+}
+
 export async function createDCAPlan(p: { name: string; total_capital_irt: number; risk_profile?: "conservative" | "balanced" | "aggressive"; current_score?: number; vehicle?: "etf" | "cert" | "melted" | "coin" }) {
-  return apiPost<{ success: boolean; data: { id: number; ladder: any[] } }>("/api/gold/portfolio/dca", p);
+  return apiPost<{ success: boolean; data: { id: number; ladder: DCATranche[] } }>("/api/gold/portfolio/dca", p);
 }
 
 export async function executeDCA(planId: number, tranche: number) {
@@ -699,8 +707,8 @@ export async function getKillSwitch(): Promise<KillSwitchResp> {
   return r.data;
 }
 
-// IME futures catalog
-export async function getIMEFutures(): Promise<any[]> {
-  const r = await apiGet<{ success: boolean; data: any[] }>("/api/v1/gold/ime/futures");
+// IME futures catalog — the backend proxies BrsApi rows verbatim, so the columns are not fixed.
+export async function getIMEFutures(): Promise<Record<string, unknown>[]> {
+  const r = await apiGet<{ success: boolean; data: Record<string, unknown>[] }>("/api/v1/gold/ime/futures");
   return r.data;
 }

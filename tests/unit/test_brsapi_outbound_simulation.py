@@ -19,13 +19,11 @@ Both scenarios are pure unit tests: no network, no event loop waiting —
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import patch
 
 import pytest
 
 from brsapi.rate_limiter import RateLimiter
-
 
 # ── helpers ───────────────────────────────────────────────────────
 
@@ -119,7 +117,7 @@ async def test_scenario_b_real_plan_blocks_long_before_10000() -> None:
     widened to 100,000 (a value no real consumer will ever hit). The
     daily cap of 4,000 must then trip on the 4,001st request.
     """
-    from brsapi.rate_limiter import DEFAULT_GLOBAL_DAILY_LIMIT, DEFAULT_GLOBAL_5MIN_LIMIT
+    from brsapi.rate_limiter import DEFAULT_GLOBAL_5MIN_LIMIT, DEFAULT_GLOBAL_DAILY_LIMIT
 
     assert DEFAULT_GLOBAL_DAILY_LIMIT == 4_000
     assert DEFAULT_GLOBAL_5MIN_LIMIT == 1_000

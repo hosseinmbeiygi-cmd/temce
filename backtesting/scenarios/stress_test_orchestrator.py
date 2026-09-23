@@ -96,7 +96,7 @@ class UnifiedStressTestOrchestrator:
 
         # Calculate worst multiplier
         mults = []
-        for k, v in scenarios.items():
+        for _k, v in scenarios.items():
             if isinstance(v, dict) and "cost_increase_pct" in v:
                 mults.append(v["cost_increase_pct"])
         report.worst_case_cost_multiplier = max(mults) if mults else 1.0

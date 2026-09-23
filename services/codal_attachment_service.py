@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import mimetypes
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,9 @@ from core.paths import data_path, safe_resolve
 logger = get_logger(__name__)
 
 DEFAULT_TIMEOUT = 60.0
+# C4: a 'downloading' row older than this is considered orphaned by a crashed
+# worker and is reclaimed to 'error' (retriable) on the next batch fetch.
+STALE_DOWNLOADING_THRESHOLD_SECONDS = 1800  # 30 minutes
 DEFAULT_CONCURRENCY = 3
 DEFAULT_DELAY_SECONDS = 1.0
 DEFAULT_CHUNK_SIZE = 8192
@@ -52,12 +55,15 @@ async def _async_file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK
 
     async def _iter():
         loop = asyncio.get_running_loop()
-        with open(path, "rb") as f:
+        f = await loop.run_in_executor(None, open, path, "rb")
+        try:
             while True:
                 chunk = await loop.run_in_executor(None, f.read, chunk_size)
                 if not chunk:
                     break
                 yield chunk
+        finally:
+            f.close()
 
     return _iter()
 
@@ -104,6 +110,7 @@ class CodalAttachmentDownloadService:
         self.concurrency = concurrency
         self.delay_seconds = delay_seconds
         self.timeout = timeout
+        self._stale_threshold = timedelta(seconds=STALE_DOWNLOADING_THRESHOLD_SECONDS)
         self._http_client: httpx.AsyncClient | None = None
         self._semaphore = asyncio.Semaphore(concurrency)
         bind = getattr(session, "bind", None)
@@ -191,7 +198,7 @@ class CodalAttachmentDownloadService:
                 announcement_id, symbol, code, attachment_type, source_url,
                 storage_type, status, created_at, updated_at
             )
-            SELECT
+            SELECT DISTINCT
                 ca.id,
                 ca.symbol,
                 ca.code,
@@ -215,6 +222,21 @@ class CodalAttachmentDownloadService:
                   WHERE ca2.announcement_id = ca.id
                     AND ca2.attachment_type = link.type
               )
+              -- C6 (audit): several link fields of one announcement often hold
+              -- the SAME url (e.g. link == link_attachment for NAV letters);
+              -- keep only the first type per url so we never download the
+              -- identical file twice.
+              AND link.type = (
+                  SELECT t.type FROM (VALUES
+                      ('pdf', ca.link_pdf),
+                      ('excel', ca.link_excel),
+                      ('attachment', ca.link_attachment),
+                      ('html', ca.link)
+                  ) AS t(type, url)
+                  WHERE t.url = link.url AND t.url IS NOT NULL AND t.url != ''
+                  ORDER BY array_position(ARRAY['pdf','excel','attachment','html'], t.type)
+                  LIMIT 1
+              )
             ORDER BY ca.id
             LIMIT :limit
             ON CONFLICT (announcement_id, attachment_type) DO NOTHING
@@ -230,6 +252,26 @@ class CodalAttachmentDownloadService:
 
     async def _fetch_pending_rows(self, limit: int) -> list[CodalAttachmentModel]:
         """Atomically lock a batch of pending rows and mark them as downloading."""
+        # C4 (audit): rows whose worker crashed mid-download stay 'downloading'
+        # forever. Reclaim them after the stale threshold so a download can be
+        # retried instead of being stuck for the life of the table.
+        stale_sql = text(
+            """
+            UPDATE brsapi_codal_attachments
+            SET status = 'error',
+                error_message = 'reclaimed: download timed out (stale downloading row)',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'downloading'
+              AND updated_at < CURRENT_TIMESTAMP - :stale
+            """
+        )
+        try:
+            await self.session.execute(stale_sql, {"stale": self._stale_threshold})
+            await self.session.commit()
+        except Exception:  # noqa: BLE001
+            await self.session.rollback()
+            logger.debug("Stale-downloading reclaim failed", exc_info=True)
+
         # Prefer atomic lock+update to prevent multiple workers picking the same row.
         lock_sql = text(
             """
@@ -320,6 +362,19 @@ class CodalAttachmentDownloadService:
                     row.content = content
                 await session.commit()
 
+                # C1 (audit): pipeline a financial-statement parse for Excel
+                # attachments so `codal_financial_statements` is populated by
+                # the ACTIVE flow (this job), not only the legacy script.
+                # Failures must never mark a successfully stored file as failed.
+                if row.attachment_type == "excel":
+                    try:
+                        await self._parse_financial_statement(row)
+                    except Exception:
+                        logger.exception(
+                            "Financial parse failed for attachment %s (file kept)",
+                            row.id,
+                        )
+
                 if self.delay_seconds > 0:
                     await asyncio.sleep(self.delay_seconds)
 
@@ -336,6 +391,27 @@ class CodalAttachmentDownloadService:
             finally:
                 if session_context is not None:
                     await session_context.__aexit__(None, None, None)
+
+    async def _parse_financial_statement(self, row: CodalAttachmentModel) -> None:
+        """Extract tables from an Excel attachment into ``codal_financial_statements``.
+
+        Reads the stored bytes (local backend) — a ``storage_type="database"``
+        row is parsed from the in-DB content. Deduplication (symbol + type +
+        date) and upsert semantics live in ``CodalFinancialImportService``.
+        """
+        from services.codal_financial_statement_import import import_statement_record
+
+        content = await self.get_attachment_content(row)
+        if not content:
+            return
+        await import_statement_record(
+            symbol=row.symbol or "",
+            announcement_id=row.announcement_id,
+            attachment_id=row.id,
+            title=row.source_url or "",
+            content=content,
+            published_at=row.downloaded_at,
+        )
 
     async def _persist(
         self,

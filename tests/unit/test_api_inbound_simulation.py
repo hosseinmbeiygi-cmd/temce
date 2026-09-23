@@ -34,7 +34,6 @@ from starlette.testclient import TestClient
 from apps.api.middleware import RateLimitMiddleware
 from core.rate_limit.limiter import get_rate_limiter
 
-
 # ── App factory ───────────────────────────────────────────────────
 
 

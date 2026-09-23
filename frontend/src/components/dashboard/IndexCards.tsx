@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { Activity } from "lucide-react";
 import { useIndices } from "@/hooks/useMarketData";
+import LiveDataBanner from "./LiveDataBanner";
 import { fmtInt } from "@/lib/market-format";
 import { cn } from "@/lib/cn";
 import { DeltaBadge, Flash, Sparkline } from "./primitives";
 
 export default function IndexCards() {
-  const INDICES = useIndices();
+  const { data: INDICES, isLive, isError, isLoading } = useIndices();
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -22,6 +23,7 @@ export default function IndexCards() {
           همه شاخص‌ها ←
         </Link>
       </div>
+      <LiveDataBanner state={{ isLive, isError, isLoading }} />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         {INDICES.map((idx) => {
           const pos = idx.changePct > 0;

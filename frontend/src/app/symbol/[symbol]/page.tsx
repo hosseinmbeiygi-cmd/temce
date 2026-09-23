@@ -11,6 +11,7 @@ import { EmptyTab } from "@/components/EmptyTab";
 import { IndicatorBox } from "@/components/IndicatorBox";
 import { InfoRow } from "@/components/InfoRow";
 import { MetricBox } from "@/components/MetricBox";
+import { PreBuyTab } from "@/components/prebuy/PreBuyTab";
 import { RealLegalCard } from "@/components/RealLegalCard";
 import { StatRow } from "@/components/StatRow";
 import AppLayout from "@/components/layout/AppLayout";
@@ -151,7 +152,7 @@ interface MajorHolder {
 }
 
 interface DividendRecord {
-  date: string; cash_per_share: number; total_payout: number; type: string; meeting: string;
+  date: string; cash_per_share: number; total_payout: number | null; type: string; meeting: string;
 }
 
 interface FinancialQuarter {
@@ -162,6 +163,7 @@ interface FinancialQuarter {
 // ------ Tabs ---------------------------------------------------------------------------------------------------------------------------------------------------------
 const TABS = [
   { key: "overview", label: "نمای کلی", icon: "📊" },
+  { key: "prebuy", label: "برگهٔ خرید", icon: "✅" },
   { key: "price", label: "قیمت و تکنیکال", icon: "📈" },
   { key: "codal", label: "گزارش‌های کدال", icon: "📋" },
   { key: "fundamental", label: "بنیادی", icon: "💰" },
@@ -194,7 +196,7 @@ function formatCurrency(val: number | null | undefined): string {
   if (Math.abs(val) >= 1e9) return (val / 1e9).toFixed(1) + "B";
   if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + "M";
   if (Math.abs(val) >= 1e3) return (val / 1e3).toFixed(0) + "K";
-  return val.toLocaleString();
+  return val.toLocaleString("en-US");
 }
 
 function formatPct(val: number | null | undefined): { text: string; color: string } {
@@ -362,7 +364,7 @@ export default function SymbolPage() {
               <SymbolSelector value={decodedSymbol} onChange={(s) => router.push(`/symbol/${s}`)} />
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl font-black text-surface-100 font-mono">{displayQuote.price_close.toLocaleString()}</span>
+                  <span className="text-3xl font-black text-surface-100 font-mono">{displayQuote.price_close.toLocaleString("en-US")}</span>
                   <span className={`text-lg font-bold font-mono ${pct.color}`}>{pct.text}</span>
                   {displayState && (
                     <span className={`text-xs font-bold px-2 py-1 rounded-lg ${stateColor}`}>{displayState}</span>
@@ -371,16 +373,16 @@ export default function SymbolPage() {
                 <div className="flex items-center gap-4 mt-1 text-xs text-surface-500">
                   <span>حجم: {formatCurrency(displayQuote.volume)}</span>
                   <span>ارزش: {formatCurrency(displayQuote.value)} ریال</span>
-                  <span>دیروز: {displayQuote.price_yesterday.toLocaleString()}</span>
+                  <span>دیروز: {displayQuote.price_yesterday.toLocaleString("en-US")}</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-6 text-sm">
               <Sparkline data={sparkData} width={150} height={40} color={displayQuote.price_change_pct >= 0 ? "#22c55e" : "#ef4444"} />
               <div className="grid grid-cols-3 gap-4 text-center">
-                <div><div className="text-xs text-surface-500">بالا</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_high.toLocaleString()}</div></div>
-                <div><div className="text-xs text-surface-500">پایین</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_low.toLocaleString()}</div></div>
-                <div><div className="text-xs text-surface-500">باز</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_open.toLocaleString()}</div></div>
+                <div><div className="text-xs text-surface-500">بالا</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_high.toLocaleString("en-US")}</div></div>
+                <div><div className="text-xs text-surface-500">پایین</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_low.toLocaleString("en-US")}</div></div>
+                <div><div className="text-xs text-surface-500">باز</div><div className="font-mono font-bold text-surface-200">{displayQuote.price_open.toLocaleString("en-US")}</div></div>
               </div>
             </div>
           </div>
@@ -407,6 +409,7 @@ export default function SymbolPage() {
 
         {/* ------ Tab Content --------------------------------------------------------------------------------------------------- */}
         {tab === "overview" && <OverviewTab profile={profile} quote={displayQuote ?? null} codal={codal} signals={signals} news={news} holders={holders} financials={financials} />}
+        {tab === "prebuy" && <PreBuyTab symbol={decodedSymbol} />}
         {tab === "price" && (displayQuote ? <PriceTab symbol={decodedSymbol} quote={displayQuote} /> : <EmptyTab message="داده‌های قیمتی برای نمایش وجود ندارد" />)}
         {tab === "codal" && <CodalTab codal={codal} brsapiCodal={brsapiCodal} symbol={decodedSymbol} />}
         {tab === "fundamental" && <FundamentalTab financials={financials} dividends={dividends} profile={profile} />}
@@ -443,9 +446,9 @@ function PriceThresholdRange({ low, high, current }: { low?: number; high?: numb
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-xs">
-        <span className="text-accent-emerald font-mono">{low.toLocaleString()}</span>
+        <span className="text-accent-emerald font-mono">{low.toLocaleString("en-US")}</span>
         <span className="text-surface-500">آستانه مجاز</span>
-        <span className="text-accent-rose font-mono">{high.toLocaleString()}</span>
+        <span className="text-accent-rose font-mono">{high.toLocaleString("en-US")}</span>
       </div>
       <div className="relative h-1.5 bg-gradient-to-r from-red-500/40 via-purple-500/40 to-blue-500/40 rounded-full" dir="ltr">
         <div className="group absolute top-1/2 -translate-y-1/2" style={{ left: `${clampedPct}%` }}>
@@ -472,7 +475,7 @@ function PriceThresholdRange({ low, high, current }: { low?: number; high?: numb
         </div>
       </div>
       <div className="text-center text-xs text-surface-500">
-        قیمت فعلی: <span className="font-mono text-surface-200">{current.toLocaleString()}</span>
+        قیمت فعلی: <span className="font-mono text-surface-200">{current.toLocaleString("en-US")}</span>
         {' '}•{' '}
         <span className={rangePct <= 25 ? "text-accent-emerald" : rangePct >= 75 ? "text-accent-rose" : "text-surface-300"}>
           {Math.round(rangePct < 50 ? rangePct : 100 - rangePct)}% فاصله از {rangePct < 50 ? "کف" : "سقف"}
@@ -524,8 +527,8 @@ function FundamentalCompareCard({ currentSymbol, currentProfile }: { currentSymb
   const metrics: { label: string; ours: string; theirs: string | null; color?: "green" | "red" }[] = [
     {
       label: "قیمت",
-      ours: currentProfile.price_last?.toLocaleString() ?? "—",
-      theirs: targetProfile?.price_last?.toLocaleString() ?? null,
+      ours: currentProfile.price_last?.toLocaleString("en-US") ?? "—",
+      theirs: targetProfile?.price_last?.toLocaleString("en-US") ?? null,
     },
     {
       label: "ارزش بازار",
@@ -540,8 +543,8 @@ function FundamentalCompareCard({ currentSymbol, currentProfile }: { currentSymb
     },
     {
       label: "EPS",
-      ours: currentProfile.eps.toLocaleString(),
-      theirs: targetProfile ? targetProfile.eps.toLocaleString() : null,
+      ours: currentProfile.eps.toLocaleString("en-US"),
+      theirs: targetProfile ? targetProfile.eps.toLocaleString("en-US") : null,
       color: currentProfile.eps > (targetProfile?.eps ?? -Infinity) ? "green" : currentProfile.eps < (targetProfile?.eps ?? Infinity) ? "red" : undefined,
     },
     {
@@ -653,7 +656,7 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
             <InfoRow label="رئیس هیئت مدیره" value={profile.board_chairman} />
             <InfoRow label="سال تأسیس" value={String(profile.established)} />
             <InfoRow label="تعداد سهام" value={formatCurrency(profile.shares_count)} />
-            <InfoRow label="حجم مبنا" value={profile.base_volume ? profile.base_volume.toLocaleString() : "-"} />
+            <InfoRow label="حجم مبنا" value={profile.base_volume ? profile.base_volume.toLocaleString("en-US") : "-"} />
             <InfoRow label="ارزش بازار" value={formatCurrency(profile.market_cap) + " ریال"} />
             {profile.free_float_pct != null && profile.free_float_pct > 0 && (
               <InfoRow label="درصد شناوری" value={`${profile.free_float_pct.toFixed(1)}%`} />
@@ -669,18 +672,18 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
       <Card title="📊 معیارهای کلیدی">
         {profile ? (
           <div className="grid grid-cols-2 gap-4 text-center">
-            <MetricBox label="EPS" value={profile.eps.toLocaleString()} unit="ریال" />
+            <MetricBox label="EPS" value={profile.eps.toLocaleString("en-US")} unit="ریال" />
             <MetricBox label="P/E" value={profile.pe.toFixed(1)} unit="×" />
             {profile.group_pe != null && profile.group_pe !== 0 && (
               <MetricBox label="P/E گروه" value={profile.group_pe.toFixed(1)} unit="×" />
             )}
             <MetricBox label="شناوری" value={profile.free_float_pct != null ? `${profile.free_float_pct.toFixed(1)}%` : "-"} unit="" />
             <MetricBox label="ارزش بازار" value={formatCurrency(profile.market_cap)} unit="ریال" />
-            <MetricBox label="قیمت پایانی" value={quote?.price_close?.toLocaleString() ?? "—"} unit="ریال" color="text-primary-300" />
+            <MetricBox label="قیمت پایانی" value={quote?.price_close?.toLocaleString("en-US") ?? "—"} unit="ریال" color="text-primary-300" />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 text-center">
-            <MetricBox label="قیمت" value={quote?.price_close?.toLocaleString() ?? "—"} unit="ریال" color="text-primary-300" />
+            <MetricBox label="قیمت" value={quote?.price_close?.toLocaleString("en-US") ?? "—"} unit="ریال" color="text-primary-300" />
             <MetricBox label="حجم" value={quote ? formatCurrency(quote.volume) : "—"} unit="سهم" />
             <MetricBox label="ارزش" value={quote ? formatCurrency(quote.value) : "—"} unit="ریال" />
             <MetricBox label="تغییر" value={`${(quote?.price_change_pct ?? 0) >= 0 ? "+" : ""}${(quote?.price_change_pct ?? 0).toFixed(2)}%`} color={(quote?.price_change_pct ?? 0) >= 0 ? "text-accent-emerald" : "text-accent-rose"} />
@@ -695,9 +698,9 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
           <StatRow icon="📡" label="سیگنال‌ها" value={signals.length + " سیگنال"} />
           <StatRow icon="📰" label="اخبار" value={news.length + " خبر"} />
           <StatRow icon="👥" label="سهامداران عمده" value={holders.length + " سهامدار"} />
-          {lastFin && <StatRow icon="💰" label="آخرین EPS" value={lastFin.eps.toLocaleString()} />}
+          {lastFin && <StatRow icon="💰" label="آخرین EPS" value={lastFin.eps.toLocaleString("en-US")} />}
           {profile?.base_volume != null && profile.base_volume > 0 && (
-            <StatRow icon="📦" label="حجم مبنا" value={profile.base_volume.toLocaleString()} />
+            <StatRow icon="📦" label="حجم مبنا" value={profile.base_volume.toLocaleString("en-US")} />
           )}
         </div>
       </Card>
@@ -711,7 +714,7 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
               <MetricBox label="P/S" value={profile.ps_ratio != null && profile.ps_ratio !== 0 ? profile.ps_ratio.toFixed(2) : "—"} unit="" />
             </div>
             <div className="grid grid-cols-2 gap-3 text-center">
-              <MetricBox label="EPS" value={profile.eps.toLocaleString()} unit="ریال" color={profile.eps >= 0 ? "text-accent-emerald" : "text-accent-rose"} />
+              <MetricBox label="EPS" value={profile.eps.toLocaleString("en-US")} unit="ریال" color={profile.eps >= 0 ? "text-accent-emerald" : "text-accent-rose"} />
               <MetricBox label="P/E گروه" value={profile.group_pe != null && profile.group_pe !== 0 ? profile.group_pe.toFixed(1) : "—"} unit="×" />
             </div>
           </div>
@@ -727,17 +730,17 @@ function OverviewTab({ profile, quote, codal, signals, news, holders, financials
           <div className="grid grid-cols-2 gap-3 mt-4 text-center">
             <div className="bg-surface-800 rounded-xl p-3">
               <p className="text-xs text-surface-500 mb-1">بالاترین قیمت روز</p>
-              <p className="font-mono font-bold text-accent-rose">{(profile.price_max ?? quote?.price_high ?? 0).toLocaleString()}</p>
+              <p className="font-mono font-bold text-accent-rose">{(profile.price_max ?? quote?.price_high ?? 0).toLocaleString("en-US")}</p>
             </div>
             <div className="bg-surface-800 rounded-xl p-3">
               <p className="text-xs text-surface-500 mb-1">پایین‌ترین قیمت روز</p>
-              <p className="font-mono font-bold text-accent-emerald">{(profile.price_min ?? quote?.price_low ?? 0).toLocaleString()}</p>
+              <p className="font-mono font-bold text-accent-emerald">{(profile.price_min ?? quote?.price_low ?? 0).toLocaleString("en-US")}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 mt-3 text-center">
             <div className="bg-surface-800 rounded-xl p-3">
               <p className="text-xs text-surface-500 mb-1">EPS</p>
-              <p className="font-mono font-bold text-primary-300">{profile.eps.toLocaleString()}</p>
+              <p className="font-mono font-bold text-primary-300">{profile.eps.toLocaleString("en-US")}</p>
               <p className="text-xs text-surface-600 mt-0.5">ریال</p>
             </div>
             <div className="bg-surface-800 rounded-xl p-3">
@@ -965,7 +968,7 @@ function PriceTab({ symbol, quote }: { symbol: string; quote: QuoteData }) {
           />
           <IndicatorBox
             label="SMA (20)"
-            value={smaLast != null ? smaLast.toLocaleString() : "—"}
+            value={smaLast != null ? smaLast.toLocaleString("en-US") : "—"}
             unit="ریال"
             type="neutral"
           />
@@ -977,15 +980,15 @@ function PriceTab({ symbol, quote }: { symbol: string; quote: QuoteData }) {
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="bg-accent-emerald/10 rounded-xl p-3">
             <p className="text-xs text-accent-emerald mb-1">حمایت ۱</p>
-            <p className="font-mono font-bold text-accent-emerald">{(quote.price_close * 0.95).toLocaleString()}</p>
+            <p className="font-mono font-bold text-accent-emerald">{(quote.price_close * 0.95).toLocaleString("en-US")}</p>
           </div>
           <div className="bg-surface-800 rounded-xl p-3">
             <p className="text-xs text-surface-500 mb-1">قیمت فعلی</p>
-            <p className="font-mono font-bold text-surface-100">{quote.price_close.toLocaleString()}</p>
+            <p className="font-mono font-bold text-surface-100">{quote.price_close.toLocaleString("en-US")}</p>
           </div>
           <div className="bg-accent-rose/10 rounded-xl p-3">
             <p className="text-xs text-accent-rose mb-1">مقاومت ۱</p>
-            <p className="font-mono font-bold text-accent-rose">{(quote.price_close * 1.05).toLocaleString()}</p>
+            <p className="font-mono font-bold text-accent-rose">{(quote.price_close * 1.05).toLocaleString("en-US")}</p>
           </div>
         </div>
       </Card>
@@ -1192,7 +1195,7 @@ function FundamentalTab({ financials, dividends, profile }: { financials: Financ
                     <td className="py-2.5 px-3 font-mono text-accent-emerald">{formatCurrency(q.gross_profit)}</td>
                     <td className="py-2.5 px-3 font-mono text-accent-emerald">{formatCurrency(q.operating_profit)}</td>
                     <td className="py-2.5 px-3 font-mono font-bold text-accent-emerald">{formatCurrency(q.net_profit)}</td>
-                    <td className="py-2.5 px-3 font-mono text-primary-300">{q.eps.toLocaleString()}</td>
+                    <td className="py-2.5 px-3 font-mono text-primary-300">{q.eps.toLocaleString("en-US")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1218,7 +1221,7 @@ function FundamentalTab({ financials, dividends, profile }: { financials: Financ
                 {dividends.map((d) => (
                   <tr key={d.date} className="border-b border-surface-800/50 hover:bg-white/5">
                     <td className="py-2.5 px-3 font-mono text-surface-300">{d.date}</td>
-                    <td className="py-2.5 px-3 font-mono text-accent-emerald font-bold">{d.cash_per_share.toLocaleString()}</td>
+                    <td className="py-2.5 px-3 font-mono text-accent-emerald font-bold">{d.cash_per_share.toLocaleString("en-US")}</td>
                     <td className="py-2.5 px-3 font-mono text-surface-200">{formatCurrency(d.total_payout)}</td>
                     <td className="py-2.5 px-3">{d.type}</td>
                     <td className="py-2.5 px-3 text-xs text-surface-400">{d.meeting}</td>
@@ -1343,8 +1346,8 @@ function HoldersTab({ holders, insider }: { holders: MajorHolder[]; insider: Ins
                         {t.type === "buy" ? "خرید" : "فروش"}
                       </span>
                     </td>
-                    <td className="py-2 px-2 font-mono text-surface-200">{t.volume.toLocaleString()}</td>
-                    <td className="py-2 px-2 font-mono text-surface-200">{t.price.toLocaleString()}</td>
+                    <td className="py-2 px-2 font-mono text-surface-200">{t.volume.toLocaleString("en-US")}</td>
+                    <td className="py-2 px-2 font-mono text-surface-200">{t.price.toLocaleString("en-US")}</td>
                     <td className="py-2 px-2 font-mono text-surface-200">{formatCurrency(t.value)}</td>
                   </tr>
                 ))}
@@ -1377,7 +1380,7 @@ function TradesTab({ trades, symbol }: { trades: IntradayTrade[]; symbol: string
       {trades.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="glass-card p-3 text-center">
-            <p className="text-lg font-bold text-surface-100">{trades.length.toLocaleString()}</p>
+            <p className="text-lg font-bold text-surface-100">{trades.length.toLocaleString("en-US")}</p>
             <p className="text-[10px] text-surface-500">کل معاملات</p>
           </div>
           <div className="glass-card p-3 text-center">
@@ -1424,9 +1427,9 @@ function TradesTab({ trades, symbol }: { trades: IntradayTrade[]; symbol: string
                       <tr key={t.id ?? i} className="border-b border-surface-800/50 hover:bg-white/5">
                         <td className="py-2 px-2 font-mono text-surface-500 text-xs">{rowIdx}</td>
                         <td className="py-2 px-2 font-mono text-surface-200 text-xs">{t.time || "-"}</td>
-                        <td className="py-2 px-2 font-mono text-surface-200">{t.price.toLocaleString()}</td>
-                        <td className="py-2 px-2 font-mono text-surface-200">{t.volume.toLocaleString()}</td>
-                        <td className="py-2 px-2 font-mono text-surface-200">{tradeValue.toLocaleString()}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200">{t.price.toLocaleString("en-US")}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200">{t.volume.toLocaleString("en-US")}</td>
+                        <td className="py-2 px-2 font-mono text-surface-200">{tradeValue.toLocaleString("en-US")}</td>
                         <td className="py-2 px-2">
                           {t.canceled
                             ? <span className="text-xs px-1.5 py-0.5 rounded bg-accent-rose/15 text-accent-rose">لغو شده</span>

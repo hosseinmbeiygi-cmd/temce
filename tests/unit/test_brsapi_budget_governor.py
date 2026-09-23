@@ -25,7 +25,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import brsapi.client as client_mod
-from brsapi.budget import BrsApiBudgetGovernor, BudgetBlockedError
+from brsapi.budget import BrsApiBudgetGovernor, BudgetBlockedError, BudgetSoftRejectError
+from brsapi.config import EndpointConfig
 from brsapi.rate_limiter import RateLimiter, RateLimitExhaustedError
 
 
@@ -324,6 +325,7 @@ class _FakeEndpoint:
     path = "/Test/Endpoint.php"
     category = type("Cat", (), {"value": "tsetmc"})()
     default_params = {}
+    critical = False
 
 
 async def test_client_302_arms_cooldown_second_fetch_rejects_without_http() -> None:
@@ -375,3 +377,88 @@ async def test_client_200_clears_block_after_cooldown() -> None:
         r = await client.fetch(_FakeEndpoint())
     assert r.success is True
     assert (await client._governor.stats())["block"]["blocked"] is False
+
+
+# ── Tiered budget defence: warn at 85%, shed non-critical from 95% ───────────
+
+
+def _tiered(tmp_path, **kwargs: Any) -> BrsApiBudgetGovernor:
+    """Governor over a file backend with a 20-request daily budget."""
+    return BrsApiBudgetGovernor(
+        rate_limiter=_limiter(100),
+        daily_limit=kwargs.pop("daily_limit", 20),
+        state_file=tmp_path / "budget_state.json",
+        **kwargs,
+    )
+
+
+async def test_budget_warns_once_at_warn_threshold(tmp_path, caplog) -> None:
+    """Crossing ``warn_pct`` logs exactly one warning and still allows traffic."""
+    caplog.set_level("WARNING", logger="brsapi.budget")
+    g = _tiered(tmp_path, warn_pct=85, soft_reject_pct=95)
+
+    for _ in range(16):                       # 80% — below the warning line
+        await g.acquire("tsetmc")
+    assert not [r for r in caplog.records if "budget at" in r.message]
+
+    await g.acquire("tsetmc")                 # 17/20 = 85%
+    await g.acquire("tsetmc")                 # 18/20 = 90%
+    warnings = [r for r in caplog.records if "budget at" in r.message]
+    assert len(warnings) == 1, "the budget warning must not repeat per request"
+    assert "85%" in warnings[0].message
+
+
+async def test_non_critical_rejected_at_soft_ceiling_but_critical_passes(tmp_path) -> None:
+    """Past ``soft_reject_pct`` only critical endpoints may still spend quota."""
+    g = _tiered(tmp_path, warn_pct=85, soft_reject_pct=95)
+    for _ in range(19):                       # 19/20 = 95%
+        await g.acquire("tsetmc", critical=True)
+
+    with pytest.raises(BudgetSoftRejectError, match="non-critical"):
+        await g.acquire("tsetmc", endpoint="/Tsetmc/AllSymbols.php")
+    with pytest.raises(BudgetSoftRejectError, match="non-critical"):
+        await g.check_allowed("tsetmc", "/Tsetmc/AllSymbols.php")
+
+    # The same slot is still open for the same-day market record.
+    await g.acquire("tsetmc", endpoint="/Tsetmc/History.php", critical=True)
+    assert (await g.stats())["global"]["daily_count"] == 20
+
+
+async def test_full_budget_still_reports_exhaustion_not_soft_reject(tmp_path) -> None:
+    """At 100% the error is the pre-existing exhaustion — criticality is moot."""
+    g = _tiered(tmp_path, warn_pct=85, soft_reject_pct=95)
+    for _ in range(20):
+        await g.acquire("tsetmc", critical=True)
+
+    for call in (lambda: g.check_allowed("tsetmc", critical=True),
+                 lambda: g.acquire("tsetmc", critical=True)):
+        with pytest.raises(RateLimitExhaustedError, match="daily budget exhausted") as exc:
+            await call()
+        assert not isinstance(exc.value, BudgetSoftRejectError)
+
+
+async def test_soft_reject_does_not_consume_budget(tmp_path) -> None:
+    """A shed request must not spend quota — that would make the ceiling move."""
+    g = _tiered(tmp_path, warn_pct=85, soft_reject_pct=95)
+    for _ in range(19):
+        await g.acquire("tsetmc", critical=True)
+
+    before = (await g.stats())["global"]["daily_count"]
+    for _ in range(5):
+        with pytest.raises(BudgetSoftRejectError):
+            await g.acquire("tsetmc")
+    assert (await g.stats())["global"]["daily_count"] == before
+
+
+async def test_endpoints_default_to_non_critical_except_the_daily_record() -> None:
+    """Only the same-day TSETMC backbone is flagged critical."""
+    from brsapi.config import BrsApiEndpoints
+
+    critical = {
+        name for name, value in vars(BrsApiEndpoints).items()
+        if isinstance(value, EndpointConfig) and value.critical
+    }
+    assert critical == {
+        "SYMBOL_DETAIL", "NAV", "TRANSACTION",
+        "HISTORY_PRICE", "HISTORY_REALLEGAL", "CANDLESTICK",
+    }

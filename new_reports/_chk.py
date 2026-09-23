@@ -1,4 +1,8 @@
-import glob, os, etl
+import glob
+import os
+
+import etl
+
 cdir = "data/codal_attachments/codal"
 for comp in ["خاذین", "سخزر"]:
     for p in glob.glob(cdir + "/" + comp + "/*_excel.xlsx"):

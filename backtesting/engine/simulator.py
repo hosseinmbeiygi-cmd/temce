@@ -156,8 +156,14 @@ class BacktestSimulator:
         initial_capital: float = 1_000_000_000,
         data: list[dict[str, Any]] | None = None,
     ) -> Result[BacktestResult]:
-        """Async wrapper around sync run — for API endpoints only."""
-        return self.run(strategy, initial_capital, data)
+        """Offload the synchronous core loop to a worker thread.
+
+        The simulation is CPU-bound and can run for seconds; awaiting it
+        directly would block the event loop and stall every other request.
+        """
+        import asyncio
+
+        return await asyncio.to_thread(self.run, strategy, initial_capital, data)
 
     @staticmethod
     async def run_parallel(

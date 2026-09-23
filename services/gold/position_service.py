@@ -51,7 +51,6 @@ class GoldFuturesPositionService:
         notes: str | None = None,
     ) -> dict[str, Any]:
         calc = FuturesRiskCalculator(leverage=leverage)
-        contract_value = calc.contract_value(entry_price, quantity)
         init_margin = calc.initial_margin(entry_price, quantity)
         maint_margin = calc.maintenance_margin(entry_price, quantity)
         liq = calc.liquidation_price(entry_price, position_type.upper())  # type: ignore[arg-type]

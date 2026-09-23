@@ -126,12 +126,18 @@ export default function CorrelationsPage() {
     queryKey: ["correlations"],
     queryFn: async () => {
       try {
-        const r = await apiGet<{ data: CorrelationCategory[] }>("/analysis/correlations");
-        if (r?.data?.length) return r.data as CorrelationCategory[];
+        // Real computed correlations (backend /analysis/correlations);
+        // static demo list is only a last-resort fallback.
+        const r = await apiGet<{ success?: boolean; data?: { categories?: CorrelationCategory[] } | CorrelationCategory[] }>(
+          "/analysis/correlations"
+        );
+        const payload = r?.data;
+        const list = Array.isArray(payload) ? payload : payload?.categories;
+        if (list?.length) return list as CorrelationCategory[];
       } catch {}
       return MOCK_CATEGORIES;
     },
-    staleTime: 120000,
+    staleTime: 300000,
   });
 
   const displayCategories = categories?.map((cat) => {

@@ -55,11 +55,11 @@ def treynor_mazuy_timing(
     sum_x1 = sum(x1)
     sum_x2 = sum(x2)
     sum_y = sum(y)
-    sum_x1x1 = sum(a * b for a, b in zip(x1, x1))
-    sum_x1x2 = sum(a * b for a, b in zip(x1, x2))
-    sum_x1y = sum(a * b for a, b in zip(x1, y))
-    sum_x2x2 = sum(a * b for a, b in zip(x2, x2))
-    sum_x2y = sum(a * b for a, b in zip(x2, y))
+    sum_x1x1 = sum(a * b for a, b in zip(x1, x1, strict=False))
+    sum_x1x2 = sum(a * b for a, b in zip(x1, x2, strict=False))
+    sum_x1y = sum(a * b for a, b in zip(x1, y, strict=False))
+    sum_x2x2 = sum(a * b for a, b in zip(x2, x2, strict=False))
+    sum_x2y = sum(a * b for a, b in zip(x2, y, strict=False))
 
     det = sum_x1x1 * sum_x2x2 - sum_x1x2 * sum_x1x2
     if det == 0:
@@ -122,9 +122,8 @@ def compute_layer4(
     }
 
     if portfolio_weights and daily_volume_per_stock and len(portfolio_weights) == len(daily_volume_per_stock):
-        redemption = redemption_rate or 0.0
         impact = 0.0
-        for w, vol in zip(portfolio_weights, daily_volume_per_stock):
+        for w, vol in zip(portfolio_weights, daily_volume_per_stock, strict=False):
             if vol > 0:
                 days_to_liquidate = w / vol
                 impact += (market_impact_coef or 0.5) * (days_to_liquidate**0.5) * w

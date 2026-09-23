@@ -1,5 +1,10 @@
 """ETL: load all raw input tables (price history, tick data, codal financials)."""
-import json, re, os, glob, gzip, csv, io
+import csv
+import glob
+import gzip
+import json
+import os
+import re
 import statistics as st
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

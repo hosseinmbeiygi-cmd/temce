@@ -9,7 +9,6 @@ from __future__ import annotations
 import contextlib
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -26,6 +25,7 @@ from brsapi.models.crypto import CryptoDailyHistoryModel, CryptoPriceModel
 from brsapi.models.ime import ImeFutureModel
 from brsapi.models.tsetmc import HistoricalDailyModel, OptionSnapshotModel, SymbolSnapshotModel
 from core.logging import get_logger
+from core.time import utc_now_naive
 from models.codal import CodalAuditSummaryModel
 
 logger = get_logger(__name__)
@@ -82,7 +82,7 @@ class MarketSignal:
             "stop_loss": _extract_price(self.stop_loss),
             "take_profit": _extract_price(self.targets),
             "confidence": round(self.confidence, 4),
-            "timestamp": self.created_at or datetime.now().isoformat(),
+            "timestamp": self.created_at or utc_now_naive().isoformat(),
         }
 
 
@@ -578,7 +578,7 @@ class MultiMarketSignalEngine:
             reason=f"تغییر {change_pct:+.1f}٪ | حجم: {value / 1e9:.1f} میلیارد ریال",
             price=price, change_pct=change_pct,
             score=max(0, min(100, 50 + change_pct * 5)), strength=strength, confidence=0.3,
-            source="snapshot_analysis", created_at=datetime.now().isoformat(),
+            source="snapshot_analysis", created_at=utc_now_naive().isoformat(),
         )
 
     def _compute_stock_signal(
@@ -731,7 +731,7 @@ class MultiMarketSignalEngine:
 
         confidence = 0.3 + strength * 0.4 + (0.1 if len(reasons) > 2 else 0)
 
-        now = datetime.now()
+        now = utc_now_naive()
         return MarketSignal(
             symbol=sym, name=name, market="stock",
             direction=direction, timeframe=tf_name,
@@ -925,7 +925,7 @@ class MultiMarketSignalEngine:
                         score=max(0, min(100, 50 + (chg_pct or 0) * 5)),
                         strength=strength, confidence=0.4,
                         source="gold_24h_analysis",
-                        created_at=datetime.now().isoformat(),
+                        created_at=utc_now_naive().isoformat(),
                     ))
 
         except Exception as e:
@@ -1045,7 +1045,7 @@ class MultiMarketSignalEngine:
                         score=max(0, min(100, 50 + (chg_pct or 0) * 5)),
                         strength=strength, confidence=0.35,
                         source="currency_24h_analysis",
-                        created_at=datetime.now().isoformat(),
+                        created_at=utc_now_naive().isoformat(),
                     ))
 
         except Exception as e:
@@ -1131,7 +1131,7 @@ class MultiMarketSignalEngine:
                             score=max(0, min(100, 50 + chg_pct * 5)),
                             strength=strength, confidence=0.3,
                             source="crypto_price_analysis",
-                            created_at=datetime.now().isoformat(),
+                            created_at=utc_now_naive().isoformat(),
                         ))
                         continue
 
@@ -1197,7 +1197,7 @@ class MultiMarketSignalEngine:
                             score=max(0, min(100, score)),
                             strength=strength, confidence=0.3 + strength * 0.3,
                             source="crypto_analysis",
-                            created_at=datetime.now().isoformat(),
+                            created_at=utc_now_naive().isoformat(),
                         ))
 
         except Exception as e:
@@ -1346,7 +1346,7 @@ class MultiMarketSignalEngine:
                         score=50 + buy_score * 40,
                         strength=strength, confidence=0.35,
                         source="options_pcr_analysis",
-                        created_at=datetime.now().isoformat(),
+                        created_at=utc_now_naive().isoformat(),
                     ))
 
         except Exception as e:
@@ -1413,7 +1413,7 @@ class MultiMarketSignalEngine:
                         score=max(0, min(100, 50 + (chg_pct or 0) * 5)),
                         strength=strength, confidence=0.3,
                         source="commodity_analysis",
-                        created_at=datetime.now().isoformat(),
+                        created_at=utc_now_naive().isoformat(),
                     ))
 
         except Exception as e:
@@ -1486,7 +1486,7 @@ class MultiMarketSignalEngine:
                         score=max(0, min(100, 50 + chg_pct * 5)),
                         strength=strength, confidence=0.35,
                         source="ime_futures_analysis",
-                        created_at=datetime.now().isoformat(),
+                        created_at=utc_now_naive().isoformat(),
                     ))
 
         except Exception as e:
@@ -1535,5 +1535,5 @@ class MultiMarketSignalEngine:
             score=max(0, min(100, score)),
             strength=strength, confidence=0.3 + strength * 0.3,
             source=f"{market}_technical_analysis",
-            created_at=datetime.now().isoformat(),
+            created_at=utc_now_naive().isoformat(),
         )

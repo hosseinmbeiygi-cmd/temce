@@ -248,11 +248,17 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
                 - r * K * erT * stats.norm.cdf(-d2)
             )
 
-    gamma = (
-        (pdf_d1 / (S * sigma * math.sqrt(T)))
-        if params.futures_price is None
-        else (exp_rt * pdf_d1 / (F * sigma * math.sqrt(T)))
-    )
+    _gden = (S * sigma * math.sqrt(T)) if params.futures_price is None else (F * sigma * math.sqrt(T))
+    if not math.isfinite(_gden) or _gden < 1e-12:
+        gamma = 0.0
+    else:
+        gamma = (
+            (pdf_d1 / _gden)
+            if params.futures_price is None
+            else (exp_rt * pdf_d1 / _gden)
+        )
+        if not math.isfinite(gamma):
+            gamma = 0.0
     vega = (
         S * pdf_d1 * math.sqrt(T) / 100.0
         if params.futures_price is None

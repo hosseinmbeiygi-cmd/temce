@@ -413,7 +413,7 @@ def _schedule_ticks(
 async def workload_sweep(
     limiter: RateLimiter, rec: Recorder, limits: dict[str, int]
 ) -> None:
-    for name, ep in sorted(BrsApiEndpoints.all().items()):
+    for _name, ep in sorted(BrsApiEndpoints.all().items()):
         await sim_request(limiter, rec, ep.category.value, ep.path)
 
 
@@ -602,7 +602,7 @@ async def workload_multi_day(
 ) -> None:
     # Day 1 (08:00 → next 08:00) then day 2 (same schedule). The daily
     # counter must reset at Tehran midnight between them.
-    for day in range(2):
+    for _ in range(2):
         await workload_realtime_day(limiter, rec, limits)
         # jump to the start of the next virtual day
         next_morning = (_clock.wall + timedelta(days=1)).replace(

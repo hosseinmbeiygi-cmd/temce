@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from .models import RejectionReason, TradeCard, TradeCardStatus
+from .models import RejectionReason
 
 
 # ── Hard Blocks (سند §5.2) ──

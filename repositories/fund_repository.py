@@ -9,6 +9,8 @@ Follows the same pattern as InstrumentRepository.
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -246,6 +248,7 @@ class _FundDbRepo(DbRepository[Fund, FundModel]):
                 "sell_legal_volume": orm.sell_legal_volume,
                 "time": orm.time or "",
                 "data_source": orm.data_source or "tsetmc",
+                "nav_basis": _stored_nav_basis(orm.extra),
             },
             created_at=orm.created_at,
             updated_at=orm.updated_at,
@@ -280,9 +283,30 @@ class _FundDbRepo(DbRepository[Fund, FundModel]):
             time=extra.get("time") or "",
             data_source=extra.get("data_source") or "tsetmc",
             snapshot_date=extra.get("snapshot_date"),
+            # ``nav_basis`` is the one extras key without a column of its own, and it is the
+            # key that says whether ``nav`` is a published NAV or a traded price standing in
+            # for one. It used to be dropped here, so the label never survived a save.
+            extra=json.dumps({"nav_basis": extra["nav_basis"]}) if extra.get("nav_basis") else None,
         )
 
 
 def new_fund_id() -> str:
     """Generate a new unique fund ID."""
     return new_id("fund")
+
+
+def _stored_nav_basis(raw: object) -> str:
+    """``funds.extra`` is a JSON **string** in a TEXT column; anything unreadable is no basis.
+
+    A row written before this label existed reports ``""``, which the fund pages render as
+    «مبنا نامشخص» rather than implying the NAV was published.
+    """
+    if isinstance(raw, dict):
+        return str(raw.get("nav_basis") or "")
+    if not isinstance(raw, str) or not raw:
+        return ""
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return ""
+    return str(parsed.get("nav_basis") or "") if isinstance(parsed, dict) else ""

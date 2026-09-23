@@ -42,7 +42,9 @@ class AttachmentExtractor:
             wb = openpyxl.load_workbook(content, read_only=True, data_only=True)
             rows: list[str] = []
             for ws in wb.worksheets:
-                for row in ws.iter_row(values_only=True):
+                # Audit fix (C7): openpyxl's method is ``iter_rows`` —
+                # ``iter_row`` never existed and would raise AttributeError.
+                for row in ws.iter_rows(values_only=True):
                     rows.append("\t".join(str(c) if c else "" for c in row))
             wb.close()
             return Result.ok("\n".join(rows))

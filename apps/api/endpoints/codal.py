@@ -370,12 +370,18 @@ async def dividend_history(
     code: str,
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
-    """سود تقسیمی واقعی از جدول corporate_actions (در صورت موجود بودن)."""
+    """سود تقسیمی واقعی از جدول corporate_actions (در صورت موجود بودن).
+
+    The model import is deliberately *outside* the try: when it was inside, a
+    duplicate-``__tablename__`` crash in ``models.option`` was caught here and
+    reported as «this symbol paid no dividends» for every symbol, forever.
+    """
+
+    from sqlalchemy import select
+
+    from models.option import CorporateActionModel
+
     try:
-        from sqlalchemy import select
-
-        from models.option import CorporateActionModel
-
         rows = (
             (
                 await session.execute(
@@ -400,7 +406,8 @@ async def dividend_history(
                 {
                     "date": str(r.ex_date) if r.ex_date else "",
                     "cash_per_share": float(cps or 0),
-                    "total_payout": float(cps or 0) * 0,  # shares unknown here — left 0
+                    # shares outstanding are not on this row; unknown is null, not 0
+                    "total_payout": None,
                     "type": "نقدی",
                     "meeting": str(r.raw_text or "")[:80],
                 }
@@ -408,7 +415,9 @@ async def dividend_history(
         return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "dividends": dividends})
     except Exception:
         logger.exception("Failed to load dividends for %s", code)
-        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "dividends": []})
+        return ApiResponse[dict[str, Any]](
+            success=False, error={"message": "خواندن سود تقسیمی ناموفق بود."}
+        )
 
 
 @router.get("/{code}/holders")

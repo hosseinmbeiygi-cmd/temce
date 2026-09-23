@@ -33,7 +33,7 @@ function formatCurrency(n: number): string {
   if (n >= 1e12) return (n / 1e12).toFixed(1) + "T";
   if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
-  return n.toLocaleString();
+  return n.toLocaleString("en-US");
 }
 
 export default function MonteCarloPage() {
@@ -174,7 +174,7 @@ export default function MonteCarloPage() {
             <div className="glass-card p-4">
               <h3 className="font-bold text-surface-200 mb-2">📝 تفسیر</h3>
               <div className="text-sm text-surface-400 space-y-1">
-                <p>• در <span className="font-bold text-surface-200">{result.simulations.toLocaleString()}</span> شبیه‌سازی اجرا شد</p>
+                <p>• در <span className="font-bold text-surface-200">{result.simulations.toLocaleString("en-US")}</span> شبیه‌سازی اجرا شد</p>
                 <p>• احتمال سوددهی: <span className={`font-bold ${result.prob_profit > 60 ? "text-accent-emerald" : "text-accent-rose"}`}>{result.prob_profit}%</span></p>
                 <p>• احتمال از دست دادن بیش از ۵۰٪ سرمایه: <span className={`font-bold ${result.prob_ruin < 10 ? "text-accent-emerald" : "text-accent-rose"}`}>{result.prob_ruin}%</span></p>
                 <p>• بازده مورد انتظار: <span className="font-bold text-surface-200">{result.expected_return}%</span></p>

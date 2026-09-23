@@ -136,23 +136,30 @@ class RiskGate:
         self.max_position_pct = max_position_pct
 
     def compute_var(self, returns: list[float]) -> float:
+        import math
         if not returns:
             return 0.0
-
-        sorted_r = sorted(returns)
+        clean = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not clean:
+            return 0.0
+        sorted_r = sorted(clean)
         idx = int((1 - self.alpha) * len(sorted_r))
-        return -sorted_r[min(idx, len(sorted_r) - 1)]
+        out = -sorted_r[min(idx, len(sorted_r) - 1)]
+        return out if math.isfinite(out) else 0.0
 
     def compute_cvar(self, returns: list[float]) -> float:
+        import math
         if not returns:
             return 0.0
-
-        sorted_r = sorted(returns)
+        clean = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not clean:
+            return 0.0
+        sorted_r = sorted(clean)
         cutoff = int((1 - self.alpha) * len(sorted_r))
         if cutoff <= 0:
             return -sorted_r[0] if sorted_r else 0.0
-
-        return -sum(sorted_r[:cutoff]) / cutoff
+        out = -sum(sorted_r[:cutoff]) / cutoff
+        return out if math.isfinite(out) else 0.0
 
     def adjust_weights(self, weights: dict[str, float], returns_history: dict[str, list[float]]) -> dict[str, float]:
         """Adjust portfolio weights based on CVaR limits."""
@@ -185,16 +192,18 @@ class TSESimulator:
     Models:
     - Daily price limits (دامنه نوسان ±5%)
     - Buy/sell queue lockups with probabilistic fill
-    - Commission: buy ~0.37%, sell ~0.88% (includes tax)
+    - Commission: buy 0.485% / sell 0.985% via domain.trading.iran_costs
+      (broker 0.4%/side + clearing 0.085%/side + 0.5% sell tax)
     - Slippage based on market depth
     - Base volume effect (حجم مبنا)
     """
 
-    def __init__(self, commission_buy: float = 0.003712, commission_sell: float = 0.0088,
+    def __init__(self, commission_buy: float | None = None, commission_sell: float | None = None,
                  slippage: float = 0.001, queue_fill_rate: float = 0.7,
                  cancellation_rate: float = 0.05):
-        self.comm_buy = commission_buy
-        self.comm_sell = commission_sell
+        from domain.trading import iran_costs as _iran
+        self.comm_buy = commission_buy if commission_buy is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT)
+        self.comm_sell = commission_sell if commission_sell is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT + _iran.SELL_TAX_PCT)
         self.slippage = slippage
         self.queue_fill_rate = queue_fill_rate
         self.cancellation_rate = cancellation_rate

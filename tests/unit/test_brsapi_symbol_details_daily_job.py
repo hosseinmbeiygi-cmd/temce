@@ -15,8 +15,9 @@ the enriched ``brsapi_symbol_details`` table for the whole market (the
 9. ``run_job`` dispatches ``brsapi_symbol_details_all`` to the backfill.
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from brsapi.jobs.registry import BRsAPI_SYNC_JOBS, BrsApiJobRegistry
 from brsapi.services.sync_service import SyncReport

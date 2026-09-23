@@ -71,6 +71,10 @@ class PaperTradeModel(TimestampMixin, Base):
     __tablename__ = "paper_trades"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    # Owning authenticated user (JWT ``sub``). Nullable for legacy rows opened
+    # before per-user isolation; NULL rows remain visible to everyone (shared
+    # demo book) while new writes are always scoped to their owner.
+    user_id: Mapped[str | None] = mapped_column(String(50), index=True)
     signal_snapshot_id: Mapped[str | None] = mapped_column(String(50), index=True)
 
     symbol: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

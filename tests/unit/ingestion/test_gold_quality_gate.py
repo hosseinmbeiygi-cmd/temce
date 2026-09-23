@@ -14,7 +14,6 @@ from ingestion.gold.quality_gate import (
     GoldQualityGate,
 )
 
-
 _FRESH = object()  # sentinel: use a dynamically fresh timestamp
 
 

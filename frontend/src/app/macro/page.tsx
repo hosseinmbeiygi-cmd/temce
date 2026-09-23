@@ -81,15 +81,15 @@ function formatIndicatorValue(indicator: MacroIndicator): string {
 }
 
 function formatChange(change: number): { text: string; color: string; icon: string } {
-  if (change > 0) return { text: `+${change.toLocaleString()}`, color: "text-accent-emerald", icon: "trending_up" };
-  if (change < 0) return { text: `${change.toLocaleString()}`, color: "text-accent-rose", icon: "trending_down" };
+  if (change > 0) return { text: `+${change.toLocaleString("en-US")}`, color: "text-accent-emerald", icon: "trending_up" };
+  if (change < 0) return { text: `${change.toLocaleString("en-US")}`, color: "text-accent-rose", icon: "trending_down" };
   return { text: "0", color: "text-surface-400", icon: "remove_red_eye" };
 }
 
 function formatPrice(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
+  return n.toLocaleString("en-US");
 }
 
 // ------ Components --------------------------------------------------------------------------------------------------
@@ -177,7 +177,7 @@ function LivePriceRow({ item }: { item: BrsapiItem }) {
       <td className="py-2.5 px-3 text-right">
         <span className={`inline-flex items-center gap-1 text-xs font-mono font-bold ${changeColor}`}>
           <span className="material-icons text-sm">{changeIcon}</span>
-          {change >= 0 ? "+" : ""}{change.toLocaleString()}
+          {change >= 0 ? "+" : ""}{change.toLocaleString("en-US")}
         </span>
       </td>
       <td className={`py-2.5 px-3 text-right font-mono ${changeColor}`}>
@@ -423,7 +423,7 @@ export default function MacroPage() {
                 <p className={`text-2xl font-black font-mono ${
                   selectedDetail.change > 0 ? "text-accent-emerald" : selectedDetail.change < 0 ? "text-accent-rose" : "text-surface-400"
                 }`}>
-                  {selectedDetail.change > 0 ? "+" : ""}{selectedDetail.change.toLocaleString()}
+                  {selectedDetail.change > 0 ? "+" : ""}{selectedDetail.change.toLocaleString("en-US")}
                 </p>
                 <p className="text-xs text-surface-500 mt-1">نسبت به دوره قبل</p>
               </div>

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { ArrowUpRight, Banknote, Building2 } from "lucide-react";
-import { VALUE_VOLUME, type Top5Symbol } from "@/lib/market-mock";
+import { type Top5Symbol } from "@/lib/market-mock";
 import { useActiveSymbols, useMarketOverview } from "@/hooks/useMarketData";
+import LiveDataBanner from "./LiveDataBanner";
 import { fmtBillion, fmtInt, fmtPct } from "@/lib/market-format";
 import { cn } from "@/lib/cn";
 import { MiniMetric, SectionHeader } from "./primitives";
@@ -45,15 +46,14 @@ function Top5Table({ rows, market }: { rows: Top5Symbol[]; market: "tse" | "otc"
 }
 
 export default function ValueVolumePanel() {
-  const live = useMarketOverview();
-  const active = useActiveSymbols();
-  const vv = VALUE_VOLUME;
-  const tradeValueB = live?.tradeValueB ?? vv.tradeValueB;
-  const volumeM = live?.volumeM ?? vv.volumeM;
+  const { data: live, isLive, isError, isLoading } = useMarketOverview();
+  const { data: active, isLive: aIsLive, isError: aIsError, isLoading: aIsLoading } = useActiveSymbols();
+  // No silent mock substitution — deltas need the previous-day baseline which
+  // has no live feed yet, so they are rendered as flat when data is absent.
+  const tradeValueB = live?.tradeValueB ?? null;
+  const volumeM = live?.volumeM ?? null;
   const top5Tse = active.tse;
   const top5Otc = active.otc;
-  const valueDelta = ((tradeValueB - vv.prevTradeValueB) / vv.prevTradeValueB) * 100;
-  const volDelta = ((volumeM - vv.prevVolumeM) / vv.prevVolumeM) * 100;
   return (
     <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
@@ -61,25 +61,33 @@ export default function ValueVolumePanel() {
         title="ارزش و حجم معاملات"
         subtitle="بورس و فرابورس — امروز در برابر دیروز"
       />
+      <LiveDataBanner
+        state={{
+          isLive: isLive || aIsLive,
+          isError: isError || aIsError,
+          isLoading: isLoading || aIsLoading,
+        }}
+      />
       <div className="mt-4 grid grid-cols-3 gap-2.5">
         <MiniMetric
           label="ارزش معاملات"
-          value={fmtBillion(tradeValueB)}
-          tone={valueDelta >= 0 ? "up" : "down"}
-          hint={`نسبت به دیروز ${fmtPct(valueDelta, 1)}`}
+          value={tradeValueB != null ? fmtBillion(tradeValueB) : "—"}
+          hint="میلیارد تومان"
         />
         <MiniMetric
           label="حجم معاملات"
-          value={`${fmtInt(volumeM)} میلیون`}
-          tone={volDelta >= 0 ? "up" : "down"}
-          hint={`نسبت به دیروز ${fmtPct(volDelta, 1)}`}
+          value={volumeM != null ? `${fmtInt(volumeM)} میلیون` : "—"}
+          hint="میلیون سهم"
         />
-        <MiniMetric label="تعداد معاملات" value={`${fmtInt(vv.dealsK)} هزار`} hint="قرارداد" />
+        <MiniMetric label="تعداد معاملات" value="—" hint="منبع داده متصل نیست" />
       </div>
       <div className="mt-5 grid gap-5 md:grid-cols-2">
         <Top5Table rows={top5Tse} market="tse" />
         <Top5Table rows={top5Otc} market="otc" />
       </div>
+      {top5Tse.length === 0 && top5Otc.length === 0 && (
+        <p className="mt-3 text-center text-[11px] text-ink-3">داده زنده‌ای برای نمادهای برتر در دسترس نیست.</p>
+      )}
     </section>
   );
 }

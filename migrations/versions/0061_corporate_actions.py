@@ -11,7 +11,7 @@ moving averages, RSI and any backtest that spans the event date.
 
 Two tables, one job:
 
-* ``corporate_actions`` — the event ledger (per symbol, per ex-date):
+* ``corporate_action_events`` — the event ledger (per symbol, per ex-date):
   ``action_type`` ∈ capital_increase | bonus | dividend,
   ``ratio`` (new shares per old share − 1, e.g. 1.0 for a 100% capital
   increase from retained earnings/bonus) and ``dps`` (cash dividend in
@@ -21,6 +21,14 @@ Two tables, one job:
   (symbol, trade_date), computed backwards from the newest event by
   ``services/corporate_action_service.py``. Kept as a real table (not a
   recursive SQL view) so indicator reads are a single indexed lookup.
+
+Why this ledger is not called ``corporate_actions``: that name is already a
+live table with an incompatible shape (``id``/``symbol``/``params`` JSONB,
+mapped by ``models/option.py`` and read by ``/codal/{code}/dividends``). A
+``CREATE TABLE IF NOT EXISTS`` against it would have no-opped — the service
+would then query ``ratio``/``dps`` columns that do not exist — and the
+downgrade would have dropped a table this migration never created. Renaming
+keeps both ledgers and leaves the existing table's rows untouched.
 
 Factor conventions (standard TSE practice):
   capital_increase/bonus → 1 / (1 + ratio)
@@ -40,7 +48,7 @@ depends_on = None
 
 _DDL = [
     """
-    CREATE TABLE IF NOT EXISTS corporate_actions (
+    CREATE TABLE IF NOT EXISTS corporate_action_events (
         symbol_id    BIGINT       NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
         ex_date      DATE         NOT NULL,
         action_type  VARCHAR(20)  NOT NULL
@@ -55,7 +63,7 @@ _DDL = [
         PRIMARY KEY (symbol_id, ex_date, action_type)
     )
     """,
-    "CREATE INDEX IF NOT EXISTS idx_corp_actions_ex_date ON corporate_actions (ex_date)",
+    "CREATE INDEX IF NOT EXISTS idx_corp_action_events_ex_date ON corporate_action_events (ex_date)",
     """
     CREATE TABLE IF NOT EXISTS daily_adjust_factors (
         symbol_id    BIGINT        NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
@@ -75,4 +83,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS daily_adjust_factors")
-    op.execute("DROP TABLE IF EXISTS corporate_actions")
+    op.execute("DROP TABLE IF EXISTS corporate_action_events")
+

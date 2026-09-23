@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from apps.api.dependencies import get_current_user, get_optional_user
+from apps.api.dependencies import require_user_for_writes
 from apps.api.dependencies import require_roles as require_any_role
 from schemas.common.responses import ApiResponse
 
-# Auth dependency that makes user info available if token is provided (optional)
-_optional_auth = [Depends(get_optional_user)]
-
-# Required auth dependency — token is mandatory for sensitive endpoints
-_required_auth = [Depends(get_current_user)]
+# Reference market data: anonymous visitors may read it, but never mutate it.
+# Distinct from the role-gated lists below, and from the old _optional_auth,
+# which let anonymous callers through on every method.
+_public_read = [Depends(require_user_for_writes)]
 
 # Role-based dependencies (require_any_role: user must have ANY of the listed roles)
 _require_analyst = [Depends(require_any_role("analyst", "admin"))]
@@ -20,6 +19,7 @@ _require_user = [Depends(require_any_role("user", "analyst", "admin"))]
 _ENDPOINTS = [
     {"path": "/ingestion", "tag": "Ingestion", "description": "Ingestion service boundary (BrsApi/CODAL) — standalone-ready"},
     {"path": "/health", "tag": "Health", "description": "Health check"},
+    {"path": "/golddesk", "tag": "GoldDesk SaaS", "description": "Scoped-token Gold/FX analysis surface (SaaS tiers)"},
     {
         "path": "/chat",
         "tag": "Chat",
@@ -111,6 +111,11 @@ _ENDPOINTS = [
     },
     {"path": "/tests", "tag": "Tests", "description": "Test runner"},
     {"path": "/portfolios", "tag": "Portfolios", "description": "Portfolio management"},
+    {
+        "path": "/pre-buy",
+        "tag": "Pre-Buy",
+        "description": "بانک سؤالات پیش از خرید — برگهٔ تصمیم ۱۱ مرحله‌ای با شروط ستاره‌ای",
+    },
     {"path": "/watchlist", "tag": "Watchlist", "description": "User watchlists"},
     {"path": "/dashboard", "tag": "Admin Dashboard", "description": "Admin dashboard"},
     {
@@ -223,6 +228,7 @@ class Router:
         from apps.api.endpoints.orderbooks import router as orderbooks_router
         from apps.api.endpoints.paper_trading import router as paper_trading_router
         from apps.api.endpoints.portfolios import router as portfolios_router
+        from apps.api.endpoints.pre_buy import router as pre_buy_router
         from apps.api.endpoints.queue_analysis import router as queue_analysis_router
         from apps.api.endpoints.quotes import router as quotes_router
         from apps.api.endpoints.recommendations import router as recommendations_router
@@ -245,61 +251,65 @@ class Router:
         from apps.api.endpoints.tests_runner import router as tests_router
         from apps.api.endpoints.trades import router as trades_router
         from apps.api.endpoints.watchlist import router as watchlist_router
+        from apps.api.endpoints.golddesk import router as golddesk_router
         from apps.api.endpoints.websocket import router as websocket_router
 
         # Health and auth routers are intentionally unprotected
         router.include_router(health_router, prefix="/health", tags=["Health"])
+        # GoldDesk SaaS surface — scoped API tokens (منشور بخش ۴), no JWT session.
+        router.include_router(golddesk_router, prefix="/golddesk", tags=["GoldDesk SaaS"])
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-        # All data routers have optional auth — token is checked if provided, but not required
-        router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"], dependencies=_optional_auth)
+        # Reference market data may be read by anonymous visitors (the landing and
+        # /markets pages render before login); every write still needs a token.
+        router.include_router(alerts_router, prefix="/alerts", tags=["Alerts"], dependencies=_require_user)
         router.include_router(
             market_router,
             prefix="/market",
             tags=["Market"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             market_dashboard_router,
             prefix="/market-dashboard",
             tags=["Market Dashboard"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             market_watch_router,
             prefix="/market-watch",
             tags=["Market Watch"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             symbols_router,
             prefix="/instruments",
             tags=["Symbols"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         # DB-free static symbol catalog & search — works without PostgreSQL.
         router.include_router(
             symbol_search_router,
             prefix="/symbols",
             tags=["Symbols"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             quotes_router,
             prefix="/quotes",
             tags=["Quotes"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             orderbooks_router,
             prefix="/orderbooks",
             tags=["Orderbooks"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             trades_router,
             prefix="/trades",
             tags=["Trades"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(signals_router,
             prefix="/signals",
@@ -310,37 +320,37 @@ class Router:
             recommendations_router,
             prefix="/recommendations",
             tags=["Recommendations"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             indicators_router,
             prefix="/indicators",
             tags=["Indicators"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
-            chat_router, prefix="/chat", tags=["Chat"], dependencies=_optional_auth
+            chat_router, prefix="/chat", tags=["Chat"], dependencies=_require_user
         )
         router.include_router(
-            codal_router, prefix="/codal", tags=["Codal"], dependencies=_optional_auth
+            codal_router, prefix="/codal", tags=["Codal"], dependencies=_public_read
         )
         router.include_router(
             codal_accounting_router,
             prefix="/codal-accounting",
             tags=["Codal Accounting"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             codal_audit_router,
             prefix="/codal-audit",
             tags=["Codal Audit"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             codal_professional_router,
             prefix="/codal-professional",
             tags=["Codal Professional"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(data_import_router,
             prefix="/data-import",
@@ -351,10 +361,10 @@ class Router:
             economic_calendar_router,
             prefix="/economic-calendar",
             tags=["Economic Calendar"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
-            news_router, prefix="/news", tags=["News"], dependencies=_optional_auth
+            news_router, prefix="/news", tags=["News"], dependencies=_public_read
         )
         # News tag→symbol mapping administration (§20.7) — admin only.
         router.include_router(
@@ -367,154 +377,155 @@ class Router:
             jobs_router, prefix="/jobs", tags=["Jobs"], dependencies=_require_admin
         )
         router.include_router(
-            macro_router, prefix="/macro", tags=["Macro"], dependencies=_optional_auth
+            macro_router, prefix="/macro", tags=["Macro"], dependencies=_public_read
         )
         router.include_router(
             fundamental_router,
             prefix="/fundamental",
             tags=["Fundamental Analysis"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(backtests_router,
             prefix="/backtests",
             tags=["Backtests"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
-        router.include_router(ml_router, prefix="/ml", tags=["ML"], dependencies=_optional_auth)
+        router.include_router(ml_router, prefix="/ml", tags=["ML"], dependencies=_require_user)
         router.include_router(
             multi_market_signals_router,
             prefix="/multi-market-signals",
             tags=["Multi-Market Signals"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             reports_router,
             prefix="/reports",
             tags=["Reports"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             smart_money_router,
             prefix="/smart-money",
             tags=["Smart Money"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             analysis_router,
             prefix="/analysis",
             tags=["Analysis"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             anomalies_router,
             prefix="/anomalies",
             tags=["Anomalies"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
-            alpha_router, prefix="/alpha", tags=["Alpha"], dependencies=_optional_auth
+            alpha_router, prefix="/alpha", tags=["Alpha"], dependencies=_require_user
         )
         router.include_router(
-            risk_router, prefix="/risk", tags=["Risk"], dependencies=_optional_auth
+            risk_router, prefix="/risk", tags=["Risk"], dependencies=_require_user
         )
         router.include_router(
             funds_router,
             prefix="/funds",
             tags=["Funds"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             funds_nav_router,
             prefix="/funds/v2/nav",
             tags=["Funds NAV"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             funds_ledger_router,
             prefix="/funds/v2/ledger",
             tags=["Funds Ledger"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             funds_compliance_router,
             prefix="/funds/v2/compliance",
             tags=["Funds Compliance"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             funds_regulator_router,
             prefix="/funds/v2/regulator",
             tags=["Funds Regulator"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             funds_v2_router,
             prefix="/funds/v2",
             tags=["Funds V2"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             stocks_v2_router,
             prefix="/stocks/v2",
             tags=["Stocks V2"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             options_router,
             prefix="/options",
             tags=["Options"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
         router.include_router(
             forecast_router,
             prefix="/forecast",
             tags=["Forecast"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             forecast_engine_router,
             prefix="/forecast-engine",
             tags=["Forecast Engine"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             saved_filters_router,
             prefix="/saved-filters",
             tags=["Saved Filters"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             screener_router,
             prefix="/screener",
             tags=["Screener"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             screener110_router,
             prefix="/screener110",
             tags=["Screener110"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             screener_v2_router,
             prefix="/screener-v2",
             tags=["Smart Screener V2"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             stock_assistant_router,
             prefix="/stock-assistant",
             tags=["Stock Assistant"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             assistant_router,
             prefix="/assistant",
             tags=["Unified Assistant"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
+        # Running the test-suite spawns a subprocess on the server — admin-only.
         router.include_router(
-            tests_router, prefix="/tests", tags=["Tests"], dependencies=_optional_auth
+            tests_router, prefix="/tests", tags=["Tests"], dependencies=_require_admin
         )
         router.include_router(portfolios_router,
             prefix="/portfolios",
@@ -525,13 +536,21 @@ class Router:
             paper_trading_router,
             prefix="/paper-trading",
             tags=["Paper Trading"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
+        )
+        # The bank itself is public content; every sheet endpoint enforces a real user
+        # per-endpoint because it also needs the caller's id to scope ownership.
+        router.include_router(
+            pre_buy_router,
+            prefix="/pre-buy",
+            tags=["Pre-Buy"],
+            dependencies=_require_user,
         )
         router.include_router(
             watchlist_router,
             prefix="/watchlist",
             tags=["Watchlist"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             admin_dashboard_router,
@@ -545,21 +564,24 @@ class Router:
             market_info_router,
             prefix="/market-info",
             tags=["Market Info"],
-            dependencies=_optional_auth,
+            dependencies=_public_read,
         )
-        # BrsApi endpoints (commodities, crypto, global data)
+        # BrsApi endpoints (commodities, crypto, global data).
+        # /manage/* routes carry their own admin-gate dependency (declared on
+        # each route in endpoints/brsapi.py) because they burn the BrsApi
+        # daily quota and can run for hours.
         router.include_router(
             brsapi_router,
             prefix="/brsapi",
             tags=["BrsApi"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # Tabdeal exchange integration
         router.include_router(
             tabdeal_router,
             prefix="/tabdeal",
             tags=["Tabdeal"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # Table browser exposes arbitrary database metadata/rows; keep it
         # restricted to administrators (never anonymous or optional-auth).
@@ -574,14 +596,14 @@ class Router:
             compose_router,
             prefix="/compose",
             tags=["Strategy Composition"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # Market Insights (fake queues, accumulation, manipulation, fear-greed, etc.)
         router.include_router(
             market_insights_router,
             prefix="/market-insights",
             tags=["Market Insights"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # Signal Insights (accuracy, backtesting, walk-forward, ensemble)
         router.include_router(signal_insights_router,
@@ -594,14 +616,14 @@ class Router:
             decision_engine_router,
             prefix="/decision-engine",
             tags=["Decision Engine"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # Queue Analysis (Phase 1 — real queue detection from TSETMC data)
         router.include_router(
             queue_analysis_router,
             prefix="/queue-analysis",
             tags=["Queue Analysis"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # WebSocket for real-time market data
         router.include_router(
@@ -622,7 +644,7 @@ class Router:
             ingestion_router,
             prefix="/ingestion",
             tags=["Ingestion"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # Armor Dashboard — API for the Armor Dashboard (celery + next.js stack)
         from apps.api.endpoints.precompute import dashboard_router as armor_dashboard_router
@@ -633,23 +655,23 @@ class Router:
             precompute_router,
             prefix="/precompute",
             tags=["Armor Precompute"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             armor_dashboard_router,
             prefix="/dashboard",
             tags=["Armor Dashboard"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         router.include_router(
             armor_symbols_router,
             prefix="/symbols",
             tags=["Armor Symbols"],
-            dependencies=_optional_auth,
+            dependencies=_require_user,
         )
         # System administration (kill switch + permission check, §15.3 + §19.3).
         # Auth is enforced per-endpoint via get_current_user/require_roles inside
-        # the router, so it must NOT also carry _optional_auth at mount time.
+        # the router, so no mount-level dependency is added here.
         router.include_router(
             system_router,
             prefix="",

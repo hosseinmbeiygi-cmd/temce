@@ -86,7 +86,7 @@ def compute_cumulative_factors(
 async def recompute_factors(session: AsyncSession, symbol_id: int) -> int:
     """Recompute and upsert daily_adjust_factors for one symbol. Returns row count.
 
-    Reads corporate_actions + daily_history close at each ex-date, computes
+    Reads corporate_action_events + daily_history close at each ex-date, computes
     factors with the pure function above, then upserts with a per-row guard
     (dbcompat trap #3: no implicit commit — caller owns the transaction).
     """
@@ -95,7 +95,7 @@ async def recompute_factors(session: AsyncSession, symbol_id: int) -> int:
             text(
                 """
                 SELECT ex_date, action_type, ratio, dps
-                FROM corporate_actions
+                FROM corporate_action_events
                 WHERE symbol_id = :sid
                 ORDER BY ex_date ASC
                 """

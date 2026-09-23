@@ -1,7 +1,8 @@
-from enum import Enum
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
 from datetime import datetime
+from enum import Enum
+
+from pydantic import BaseModel, Field
+
 
 class SymbolGroup(str, Enum):
     A = "A"
@@ -25,15 +26,15 @@ class GroupProgress(BaseModel):
 
 class PrecomputeStatusResponse(BaseModel):
     overall_status: JobStatus
-    current_group: Optional[SymbolGroup] = None
+    current_group: SymbolGroup | None = None
     total_symbols: int
     completed_symbols: int
     failed_symbols: int
     progress_percent: float
-    current_symbol: Optional[str] = None
-    estimated_remaining_seconds: Optional[int] = None
+    current_symbol: str | None = None
+    estimated_remaining_seconds: int | None = None
     last_update: datetime
-    groups: Dict[SymbolGroup, GroupProgress]
+    groups: dict[SymbolGroup, GroupProgress]
 
 class SymbolComputationResult(BaseModel):
     symbol: str
@@ -46,7 +47,7 @@ class SymbolComputationResult(BaseModel):
     armor_score: float
     data_dri: float = Field(..., ge=0.0, le=100.0, description="Data Reliability Index")
     is_unreliable: bool = False
-    red_flags: List[str] = []
+    red_flags: list[str] = []
     calculated_at: datetime
     expires_at: datetime
     version: str = "v4.0"

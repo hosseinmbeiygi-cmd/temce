@@ -157,7 +157,7 @@ export default function MigrationStatusPanel() {
               <span className={`w-1.5 h-1.5 rounded-full ${tbl.status === "ok" ? "bg-accent-emerald" : "bg-accent-rose"}`} />
             </div>
             <div className="text-lg font-black text-surface-200 font-mono">
-              {tbl.row_count.toLocaleString()}
+              {tbl.row_count.toLocaleString("en-US")}
             </div>
             <div className="text-[8px] text-surface-500 mt-0.5">
               {tbl.status === "ok"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from typing import Any
 
 from core.logging import get_logger
@@ -11,13 +12,19 @@ logger = get_logger(__name__)
 # the in-memory representation stays bounded and the text export is valid.
 _HISTOGRAM_BUCKETS: tuple[float, ...] = (0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0)
 
+# Per-series histogram samples are kept in a bounded circular buffer of exactly
+# this size — the same window the text export has always rendered (values[-1000:]).
+# The middleware observes one sample per HTTP request, so an unbounded list here
+# grew linearly with traffic for the lifetime of the process (slow RAM leak).
+_HISTOGRAM_SAMPLE_LIMIT = 1000
+
 
 class PrometheusExporter:
     def __init__(self):
         self._metrics: dict[str, Any] = {}
         self._counters: dict[str, float] = {}
         self._gauges: dict[str, float] = {}
-        self._histograms: dict[str, list[float]] = {}
+        self._histograms: dict[str, deque[float]] = {}
         self._enabled = True
 
     def counter(self, name: str, labels: dict[str, str] | None = None) -> float:
@@ -39,9 +46,10 @@ class PrometheusExporter:
 
     def observe(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
         key = self._metric_key(name, labels)
-        if key not in self._histograms:
-            self._histograms[key] = []
-        self._histograms[key].append(value)
+        buf = self._histograms.get(key)
+        if buf is None:
+            buf = self._histograms[key] = deque(maxlen=_HISTOGRAM_SAMPLE_LIMIT)
+        buf.append(value)  # oldest sample is evicted automatically at maxlen
 
     def observe_duration(self, name: str, labels: dict[str, str] | None = None) -> _Timer:
         return _Timer(self, name, labels)
@@ -93,17 +101,20 @@ class PrometheusExporter:
             name, labels = self._split_key(key)
             lines.append(f"# HELP {name} Histogram metric")
             lines.append(f"# TYPE {name} histogram")
+            # The deque is bounded at _HISTOGRAM_SAMPLE_LIMIT, so this equals
+            # the legacy `values[-1000:]` window bit-for-bit.
+            samples = tuple(values)
             # Cumulative bucket counts (valid Prometheus text format).
             counts = dict.fromkeys(_HISTOGRAM_BUCKETS, 0)
-            for v in values[-1000:]:
+            for v in samples:
                 for le in _HISTOGRAM_BUCKETS:
                     if v <= le:
                         counts[le] += 1
             for le, count in counts.items():
                 self._render_series(lines, name, labels, f'le="{le}"', count)
-            self._render_series(lines, name, labels, 'le="+Inf"', len(values[-1000:]))
-            lines.append(f"{name}_count{labels} {len(values[-1000:])}")
-            lines.append(f"{name}_sum{labels} {sum(values[-1000:])}")
+            self._render_series(lines, name, labels, 'le="+Inf"', len(samples))
+            lines.append(f"{name}_count{labels} {len(samples)}")
+            lines.append(f"{name}_sum{labels} {sum(samples)}")
         return "\n".join(lines)
 
     def disable(self) -> None:

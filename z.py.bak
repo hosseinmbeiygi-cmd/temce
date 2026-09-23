@@ -1,0 +1,283 @@
+import os
+import re
+import time
+import json
+import logging
+import threading
+from datetime import datetime, timedelta
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import jdatetime
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# ============================ تنظیمات ============================
+API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"  # کلید BrsApi خود را وارد کنید
+
+DAILY_LIMIT = 10000          # سقف روزانه قطعی
+MAX_PER_5_MINUTES = 950      # برای امنیت کمی زیر ۱۰۰۰
+BURST_WINDOW = 300           # ۵ دقیقه (۳۰۰ ثانیه)
+MIN_DELAY_PER_REQ = 0.25     # تأخیر حداقل جهت جلوگیری از خطای ۴۲۹
+MAX_WORKERS = 4              # تعداد ترد پایدار در ویندوز
+
+DATA_DIR = "transactions_data"
+STATE_FILE = "crawler_state.json"
+SYMBOLS_CACHE_FILE = "all_symbols.json"
+
+START_DATE_SHAMSI = "1390-01-01"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("collector.log", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
+
+# ============================ مدیریت سهمیه ============================
+class RateLimiter:
+    def __init__(self, daily_limit=DAILY_LIMIT, burst_limit=MAX_PER_5_MINUTES, burst_window=BURST_WINDOW):
+        self.daily_limit = daily_limit
+        self.burst_limit = burst_limit
+        self.burst_window = burst_window
+        self.lock = threading.Lock()
+        self.recent_requests = deque()
+        self.last_req_time = 0
+        self.state = self.load_state()
+
+    def load_state(self):
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        default_state = {"current_day": today_str, "requests_today": 0}
+        if os.path.exists(STATE_FILE):
+            try:
+                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("current_day") == today_str:
+                        return data
+            except Exception as e:
+                logging.error(f"خطا در بارگذاری فایل وضعیت: {e}")
+        return default_state
+
+    def save_state(self):
+        with open(STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.state, f, ensure_ascii=False, indent=2)
+
+    def acquire_slot(self):
+        while True:
+            with self.lock:
+                now = time.time()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+
+                if self.state["current_day"] != today_str:
+                    self.state["current_day"] = today_str
+                    self.state["requests_today"] = 0
+                    self.recent_requests.clear()
+                    self.save_state()
+
+                if self.state["requests_today"] >= self.daily_limit:
+                    return False, "DAILY_LIMIT_EXCEEDED"
+
+                while self.recent_requests and self.recent_requests[0] <= now - self.burst_window:
+                    self.recent_requests.popleft()
+
+                sleep_time = 0
+                if len(self.recent_requests) >= self.burst_limit:
+                    sleep_time = (self.recent_requests[0] + self.burst_window) - now + 0.5
+                else:
+                    elapsed = now - self.last_req_time
+                    if elapsed < MIN_DELAY_PER_REQ:
+                        sleep_time = MIN_DELAY_PER_REQ - elapsed
+
+                if sleep_time <= 0:
+                    self.recent_requests.append(time.time())
+                    self.last_req_time = time.time()
+                    self.state["requests_today"] += 1
+                    current_count = self.state["requests_today"]
+                    self.save_state()
+                    return True, current_count
+
+            time.sleep(sleep_time)
+
+    def refund_slot(self):
+        with self.lock:
+            if self.state["requests_today"] > 0:
+                self.state["requests_today"] -= 1
+                self.save_state()
+
+
+# ============================ فیلتر و پالایش نام نمادها ============================
+def is_valid_symbol_name(sym: str) -> bool:
+    """بررسی اینکه آیا ورودی واقعاً یک نماد معتبر بورسی است یا خیر"""
+    if not sym or not isinstance(sym, str):
+        return False
+    sym = sym.strip()
+    # اگر تاریخ/ساعت یا کاراکترهای غیراستاندارد باشد رد شود
+    if any(c in sym for c in r'/\:*?"<>|@;,'):
+        return False
+    # نماد نباید صرفاً عدد یا خیلی طولانی باشد
+    if sym.isdigit() or len(sym) > 30 or len(sym) < 2:
+        return False
+    return True
+
+
+def extract_all_symbols():
+    if os.path.exists(SYMBOLS_CACHE_FILE):
+        try:
+            with open(SYMBOLS_CACHE_FILE, "r", encoding="utf-8") as f:
+                syms = json.load(f)
+                valid_syms = [s for s in syms if is_valid_symbol_name(s)]
+                if len(valid_syms) > 10:
+                    logging.info(f"تعداد {len(valid_syms)} نماد از کش لود شد.")
+                    return valid_syms
+        except Exception:
+            pass
+
+    logging.info("در حال استخراج دقیق لیست نمادها...")
+    symbols = set()
+
+    # ۱. اولویت اول: از وب‌سرویس خود BrsApi
+    try:
+        url = f"https://Api.BrsApi.ir/Tsetmc/All.php?key={API_KEY}"
+        resp = requests.get(url, timeout=20)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list):
+                for item in data:
+                    sym = item.get("l18")
+                    if is_valid_symbol_name(sym):
+                        symbols.add(sym.strip())
+    except Exception as e:
+        logging.warning(f"عدم دریافت از BrsApi: {e}")
+
+    # ۲. فال‌بک دقیق و پالایش‌شده از TSETMC
+    if not symbols:
+        try:
+            url = "http://old.tsetmc.com/tsev2/data/MarketWatchPlus.aspx"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+            if r.status_code == 200:
+                parts = r.text.split(";")
+                for row in parts:
+                    cols = row.split(",")
+                    # در دیتای بورس، سطر نماد باید حداقل ۲۳ ستون استاندارد داشته باشد
+                    if len(cols) >= 10:
+                        sym = cols[2].strip()
+                        if is_valid_symbol_name(sym):
+                            symbols.add(sym)
+        except Exception as e:
+            logging.error(f"خطا در ارتباط با TSETMC: {e}")
+
+    clean_list = sorted(list(symbols))
+    if clean_list:
+        with open(SYMBOLS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(clean_list, f, ensure_ascii=False, indent=2)
+        logging.info(f"مجموعاً {len(clean_list)} نماد استاندارد و معتبر استخراج شد.")
+        return clean_list
+
+    raise RuntimeError("هیچ نماد معتبری یافت نشد. اتصال اینترنت را چک کنید.")
+
+
+# ============================ دانلودر ============================
+class SmartCollector:
+    def __init__(self, symbols):
+        self.symbols = symbols
+        self.limiter = RateLimiter()
+        os.makedirs(DATA_DIR, exist_ok=True)
+        self.session = requests.Session()
+        retries = Retry(total=3, backoff_factor=1)
+        adapter = HTTPAdapter(max_retries=retries, pool_connections=MAX_WORKERS, pool_maxsize=MAX_WORKERS)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
+    def fetch_transaction(self, task):
+        symbol, date_str, out_path = task
+
+        allowed, count_or_reason = self.limiter.acquire_slot()
+        if not allowed:
+            return "DAILY_STOP"
+
+        url = "https://Api.BrsApi.ir/Tsetmc/Transaction.php"
+        params = {
+            "key": API_KEY,
+            "l18": symbol,
+            "date": date_str
+        }
+
+        try:
+            resp = self.session.get(url, params=params, timeout=15)
+            
+            if resp.status_code in (429, 403):
+                logging.warning(f"کد {resp.status_code} برای {symbol} در {date_str} - برگشت سهمیه و استراحت.")
+                self.limiter.refund_slot()
+                time.sleep(3)
+                return "RETRY"
+
+            if resp.status_code == 200:
+                data = resp.json()
+                with open(out_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False)
+                logging.info(f"[{count_or_reason}/{DAILY_LIMIT}] ذخیره شد: {symbol} | {date_str}")
+                return "OK"
+            else:
+                return "FAIL"
+
+        except Exception as e:
+            logging.error(f"خطای شبکه: {e}")
+            self.limiter.refund_slot()
+            return "RETRY"
+
+    def run(self):
+        start_y, start_m, start_d = map(int, START_DATE_SHAMSI.split("-"))
+        start_date = jdatetime.date(start_y, start_m, start_d)
+        today = jdatetime.date.today()
+
+        tasks = []
+        logging.info("آماده‌سازی صف کارها و تطبیق فایل‌های قبلی (Resume)...")
+
+        for sym in self.symbols:
+            # جلوگیری مجدد از کاراکترهای غیرمجاز در نام فولدر ویندوز
+            safe_sym = re.sub(r'[\\/*?:"<>|]', "", sym).strip()
+            if not safe_sym:
+                continue
+
+            sym_dir = os.path.join(DATA_DIR, safe_sym)
+            os.makedirs(sym_dir, exist_ok=True)
+
+            curr = start_date
+            while curr <= today:
+                date_str = curr.strftime("%Y-%m-%d")
+                out_path = os.path.join(sym_dir, f"{date_str}.json")
+
+                if not os.path.exists(out_path):
+                    tasks.append((sym, date_str, out_path))
+
+                curr += timedelta(days=1)
+
+        logging.info(f"تعداد تسک‌های باقیمانده برای دانلود: {len(tasks)}")
+
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            future_to_task = {executor.submit(self.fetch_transaction, task): task for task in tasks}
+
+            for future in as_completed(future_to_task):
+                res = future.result()
+                if res == "DAILY_STOP":
+                    logging.info("سقف ۱۰,۰۰۰ ریکوئست امروز پر شد. کار تا فردا متوقف می‌شود.")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+
+
+if __name__ == "__main__":
+    # اگر فایل کش قدیمی وجود دارد حذف شود تا دیتای خراب پاک شود
+    if os.path.exists(SYMBOLS_CACHE_FILE):
+        try:
+            with open(SYMBOLS_CACHE_FILE, "r", encoding="utf-8") as f:
+                test_data = json.load(f)
+                if any(any(c in s for c in r'/\:*?"<>|@;,') for s in test_data if isinstance(s, str)):
+                    os.remove(SYMBOLS_CACHE_FILE)
+        except Exception:
+            pass
+
+    symbols = extract_all_symbols()
+    collector = SmartCollector(symbols)
+    collector.run()

@@ -7,9 +7,15 @@ Input tables (auto-detected):
   D) data/codal_attachments/codal   — 19 companies: P&L/BS (7), shareholders/audit/board,
                                       monthly activity (2), holding portfolio (1), notices
 """
-import os, sys, csv, json, math, statistics as st
+import csv
+import json
+import math
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import etl, analytics
+import analytics
+import etl
 
 BASE = etl.BASE
 OUT = os.path.join(BASE, 'new_symbol_reports')
@@ -245,7 +251,7 @@ def build_page(sym, info, ctx):
         for r in news:
             L.append('| ' + ' | '.join(r) + ' |')
     else:
-        L.append(f'- فاقد داده (اطلاعیه کدال برای این نماد در ورودی نیست)')
+        L.append('- فاقد داده (اطلاعیه کدال برای این نماد در ورودی نیست)')
     L.append('')
     # 13 حسابرسی
     L.append('## ۱۳. حسابرسی و کیفیت گزارشگری')
@@ -254,7 +260,7 @@ def build_page(sym, info, ctx):
         for line in aud:
             L.append(line)
     else:
-        L.append(f'- فاقد داده (گزارش حسابرسی در ورودی موجود نیست)')
+        L.append('- فاقد داده (گزارش حسابرسی در ورودی موجود نیست)')
     L.append('')
     # 14 هم‌گروهی
     L.append('## ۱۴. مقایسه با هم‌گروهی‌ها')
@@ -298,7 +304,7 @@ def build_page(sym, info, ctx):
     L.append('')
     # 17 بلوکی
     L.append('## ۱۷. معاملات بلوکی و اشخاص وابسته')
-    L.append(f'- فاقد داده (جدول مربوطه در ورودی موجود نیست)')
+    L.append('- فاقد داده (جدول مربوطه در ورودی موجود نیست)')
     L.append('| تاریخ | نوع (بلوکی/وابسته) | طرفین معامله | تعداد سهم | قیمت | درصد نسبت به سرمایه |')
     L.append('|---|---|---|---|---|---|')
     L.append('')
@@ -336,7 +342,7 @@ def main():
     holdings = etl.load_holdings_portfolio()
 
     # detection log entries (name-based path = high confidence)
-    for sym, info in hist.items():
+    for _sym, info in hist.items():
         dlog(info['source'], 'date/open/high/low/close', 'قیمت روزانه OHLC', 'نام‌محور', 'بالا', 'قیمت روزانه',
              f'سری {info["n"]} روزه از {info["first"]} تا {info["last"]}؛ واحد تشخیص: {info["unit"]}')
     for sym, info in metals.items():
@@ -464,7 +470,7 @@ def main():
         chg = (last[1] / first[1] - 1) * 100 if first[1] else None
         # 5-min candlesticks for technicals
         buckets = {}
-        for t, p, v in ticks:
+        for t, p, _v in ticks:
             h, m = t.split(':')[:2]
             buckets.setdefault((h, int(m) // 5 * 5), []).append((t, p))
         candles = []

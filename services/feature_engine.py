@@ -358,11 +358,13 @@ class FeatureEngine:
         shares_count = float(enriched.get("shares_count", 0) or 0)
         free_float_pct = float(enriched.get("free_float_pct", 0) or 0)
         last_price = float(enriched.get("price_last", 0) or 0)
-        float_shares_count = shares_count * free_float_pct / 100.0 if shares_count > 0 else 0
-        if float_shares_count > 0 and last_price > 0:
-            f["float_turnover_pct"] = round(
-                100 * f["trade_value"] / (float_shares_count * last_price), 2
-            )
+        # Safe guard: free_float_pct is a percent (0-100); clamp to avoid
+        # inflated scale when bad data carries fractions >100 or negatives.
+        _ff = min(max(free_float_pct, 0.0), 100.0)
+        float_shares_count = shares_count * _ff / 100.0 if shares_count > 0 else 0
+        _denom = float_shares_count * last_price
+        if _denom > 1e-9:
+            f["float_turnover_pct"] = round(100 * f["trade_value"] / _denom, 2)
         else:
             f["float_turnover_pct"] = 0.0
 
@@ -410,8 +412,9 @@ class FeatureEngine:
         # نسبت خالص حقوقی به شناور (بر حسب تعداد سهام شناور، نه درصد)
         shares_count = float(enriched.get("shares_count", 0) or 0)
         free_float_pct = float(enriched.get("free_float_pct", 0) or 0)
-        float_shares_count = shares_count * free_float_pct / 100.0 if shares_count > 0 else 0
-        if float_shares_count > 0:
+        _ff2 = min(max(free_float_pct, 0.0), 100.0)
+        float_shares_count = shares_count * _ff2 / 100.0 if shares_count > 0 else 0
+        if float_shares_count > 1e-9:
             f["net_inst_ratio"] = round(f["net_inst_volume"] / float_shares_count * 100, 2)
         else:
             f["net_inst_ratio"] = 0.0

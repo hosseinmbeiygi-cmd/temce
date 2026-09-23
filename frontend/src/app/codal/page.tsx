@@ -371,7 +371,7 @@ export default function CodalPage() {
           {/* Result count */}
           {!isLoading && total > 0 && (
             <div className="mt-3 text-xs text-surface-500">
-              {total.toLocaleString()} اطلاعیه یافت شد
+              {total.toLocaleString("en-US")} اطلاعیه یافت شد
               {searchSymbol && " برای نماد \"" + searchSymbol + "\""}
             </div>
           )}

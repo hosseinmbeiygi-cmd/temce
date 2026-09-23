@@ -223,7 +223,7 @@ export default function FundsIntradayPage() {
                           <td className="px-2 py-0.5 text-emerald-400">{fmt(c.high)}</td>
                           <td className="px-2 py-0.5 text-rose-400">{fmt(c.low)}</td>
                           <td className="px-2 py-0.5">{fmt(c.close)}</td>
-                          <td className="px-2 py-0.5 text-gray-400">{c.volume.toLocaleString()}</td>
+                          <td className="px-2 py-0.5 text-gray-400">{c.volume.toLocaleString("en-US")}</td>
                           <td className="px-2 py-0.5 text-gray-400">{fmt(c.vwap)}</td>
                           <td className="px-2 py-0.5 text-gray-400">{c.trades}</td>
                         </tr>

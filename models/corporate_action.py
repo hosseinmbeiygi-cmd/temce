@@ -13,7 +13,14 @@ from models.base import Base, TimestampMixin
 
 
 class CorporateActionModel(Base):
-    __tablename__ = "corporate_actions"
+    """Capital-increase / bonus / DPS events.
+
+    Named ``corporate_action_events`` because ``corporate_actions`` is already a
+    live table with an incompatible shape (``models/option.py``); sharing the name
+    made ``import models.option`` raise and silently emptied ``/codal/{code}/dividends``.
+    """
+
+    __tablename__ = "corporate_action_events"
 
     symbol_id: Mapped[int] = mapped_column(
         ForeignKey("symbols.id", ondelete="CASCADE"), primary_key=True

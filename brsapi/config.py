@@ -45,6 +45,11 @@ class EndpointConfig:
     optional_params: tuple[str, ...] = ()
     default_params: dict[str, str] = field(default_factory=dict)
     ttl_cache_seconds: int = 55
+    # Critical endpoints feed the same-day market record and are re-fetched only
+    # once per session, so they keep running past the soft budget ceiling.
+    # Non-critical endpoints (backfills, reference lists, rebuildable snapshots)
+    # are rejected once daily usage crosses ``budget_soft_reject_pct``.
+    critical: bool = False
 
 
 class BrsApiEndpoints:
@@ -89,6 +94,7 @@ class BrsApiEndpoints:
         sync_interval_seconds=SyncInterval.REALTIME,
         required_params=("key", "l18"),
         ttl_cache_seconds=30,
+        critical=True,
     )
 
     # Index: 2 req / 100s → ~1.2 req/min
@@ -109,6 +115,7 @@ class BrsApiEndpoints:
         sync_interval_seconds=SyncInterval.REALTIME_SLOW,
         required_params=("key", "l18"),
         ttl_cache_seconds=60,
+        critical=True,
     )
 
     # Option: 3 req / 10s → 18 req/min
@@ -130,6 +137,7 @@ class BrsApiEndpoints:
         required_params=("key", "l18"),
         optional_params=("date",),
         ttl_cache_seconds=60,
+        critical=True,
     )
 
     # History: 4 req / 10s → 24 req/min
@@ -142,6 +150,7 @@ class BrsApiEndpoints:
         default_params={"type": "0"},
         optional_params=("type",),
         ttl_cache_seconds=3600,
+        critical=True,
     )
 
     HISTORY_REALLEGAL = EndpointConfig(
@@ -153,6 +162,7 @@ class BrsApiEndpoints:
         default_params={"type": "1"},
         optional_params=("type",),
         ttl_cache_seconds=3600,
+        critical=True,
     )
 
     # Candlestick: 2 req / 10s → 12 req/min
@@ -165,6 +175,7 @@ class BrsApiEndpoints:
         optional_params=("count",),
         default_params={"type": "1"},
         ttl_cache_seconds=30,
+        critical=True,
     )
 
     # Shareholder: 2 req / 10s → 12 req/min
@@ -424,6 +435,15 @@ class BrsApiSettings(BaseSettings):
     # request immediately instead of sleeping until midnight. Prevents a
     # blocked-key cascade when multiple jobs pile up past the quota.
     fail_fast_on_daily_exhausted: bool = Field(default=True)
+
+    # Tiered budget defence (evaluated against the PERSISTED daily counter, so
+    # it holds across workers and restarts). At ``budget_warn_pct`` a warning
+    # is logged once per Tehran day; from ``budget_soft_reject_pct`` upward
+    # only endpoints flagged ``critical`` may still spend quota, which leaves
+    # head-room for the same-day market record instead of letting a backfill
+    # walk the key up to the provider's block threshold.
+    budget_warn_pct: int = Field(default=85, ge=1, le=100)
+    budget_soft_reject_pct: int = Field(default=95, ge=1, le=100)
 
     # BrsApiBudgetGovernor (brsapi/budget.py) — persistent, cross-process
     # guard that prevents the key from getting blocked again. The in-process

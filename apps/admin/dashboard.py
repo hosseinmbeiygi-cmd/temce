@@ -113,7 +113,17 @@ async def dashboard_overview(
             ]:
                 # table may not exist
                 with contextlib.suppress(Exception):
-                    r = await session.execute(text(f"SELECT COUNT(*) FROM {tbl}"))
+                    # Planner statistics (pg_class.reltuples) avoid a full-table
+                    # COUNT(*) over ~43M rows on every dashboard load. Counts are
+                    # estimates — fine for a size overview.
+                    r = await session.execute(
+                        text(
+                            "SELECT GREATEST(reltuples, 0)::bigint FROM pg_class "
+                            "JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace "
+                            "WHERE nspname = 'public' AND relname = :t AND relkind = 'r'"
+                        ),
+                        {"t": tbl},
+                    )
                     table_rows.append({"table": tbl, "rows": r.scalar() or 0})
 
         total_db_records = sum(r["rows"] for r in table_rows)

@@ -117,7 +117,70 @@ async def fetch_market_watch(
     return build_market_watch_from_snapshots(snapshots)
 
 
+class _HistoryService(Protocol):
+    """Minimal protocol for services that can provide batched daily OHLCV history."""
+
+    async def get_batch_historical_daily(self, limit: int = 61) -> list[dict[str, Any]]: ...
+
+
+#: Candles per symbol for the screeners. Above the analytics compute window (20) with room
+#: for the 50-bar windows the smart-money layers use.
+DAILY_HISTORY_DAYS = 61
+
+
+def candles_from_daily_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Map BrsApi daily rows to the candle keys the screeners compute on, oldest first.
+
+    ``historical_daily`` stores ``price_first``/``price_max``/``price_min``/``trade_volume``
+    and its queries return rows newest-first, while the analytics engine and the smart-money
+    layers read ``price_open``/``price_high``/``price_low``/``volume`` and treat the *last*
+    element as today. Passing one convention as the other left every high, low and volume at
+    zero and computed the indicators backwards in time.
+    """
+    candles: list[dict[str, Any]] = []
+    for r in rows:
+        close = r.get("price_close") or 0
+        if not close:
+            # A day with no closing price is not a candle; padding one would invent a bar.
+            continue
+        candles.append({
+            "date": r.get("date") or r.get("trade_date"),
+            "price_close": close,
+            "price_open": r.get("price_open") or r.get("price_first") or close,
+            "price_high": r.get("price_high") or r.get("price_max") or close,
+            "price_low": r.get("price_low") or r.get("price_min") or close,
+            "price_last": r.get("price_last") or close,
+            "volume": r.get("volume") or r.get("trade_volume") or 0,
+            "value": r.get("value") or r.get("trade_value") or 0,
+        })
+    candles.reverse()
+    return candles
+
+
+async def fetch_history_map(
+    service: _HistoryService,
+    symbols: set[str] | None = None,
+    days: int = DAILY_HISTORY_DAYS,
+) -> dict[str, list[dict[str, Any]]]:
+    """Build ``symbol -> candles`` from one batched daily-history query.
+
+    A symbol with no usable rows is simply absent from the mapping — the caller then reports
+    its analytics as not measured rather than scoring an empty series.
+    """
+    rows = await service.get_batch_historical_daily(limit=days)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for r in rows or []:
+        sym = r.get("symbol")
+        if not sym or (symbols is not None and sym not in symbols):
+            continue
+        grouped.setdefault(sym, []).append(r)
+    return {sym: candles for sym in grouped if (candles := candles_from_daily_rows(grouped[sym]))}
+
+
 __all__ = [
+    "DAILY_HISTORY_DAYS",
     "build_market_watch_from_snapshots",
+    "candles_from_daily_rows",
+    "fetch_history_map",
     "fetch_market_watch",
 ]

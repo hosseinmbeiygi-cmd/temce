@@ -17,8 +17,10 @@ def session() -> AsyncSession:
 
 @pytest.fixture
 def service(session: AsyncSession) -> CodalAttachmentDownloadService:
-    # Mock merge to return the same row so tests can observe status changes.
-    session.merge = MagicMock(side_effect=lambda row: row)
+    # Audit fix (C8): session.merge is an ASYNC method on AsyncSession — a
+    # MagicMock returned the row synchronously, so `await session.merge(row)`
+    # raised TypeError and the empty-response branch was never reached.
+    session.merge = AsyncMock(side_effect=lambda row: row)
     return CodalAttachmentDownloadService(session)
 
 

@@ -465,7 +465,7 @@ export default function GeneratePage() {
             <div className="text-xs text-surface-500">نوع استراتژی</div>
           </div>
           <div className="glass-card p-3 text-center">
-            <div className="text-2xl font-bold text-accent-emerald">{totalCombinations.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-accent-emerald">{totalCombinations.toLocaleString("en-US")}</div>
             <div className="text-xs text-surface-500">ترکیب تقریبی</div>
           </div>
           <div className="glass-card p-3 text-center">
@@ -821,7 +821,7 @@ export default function GeneratePage() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="glass-card p-3 text-center">
-                <div className="text-2xl font-bold text-surface-100">{results.stats.total_combinations.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-surface-100">{results.stats.total_combinations.toLocaleString("en-US")}</div>
                 <div className="text-xs text-surface-500">ترکیب اجرا شده</div>
               </div>
               <div className="glass-card p-3 text-center">

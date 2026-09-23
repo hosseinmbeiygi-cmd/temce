@@ -91,10 +91,23 @@ class InstrumentRepository:
         matches = [inst for inst in self._mem._store.values() if inst.market_type.value == market_type]  # type: ignore
         return Result.ok(matches)
 
-    async def count(self) -> int:
+    async def get_market_types_by_symbols(self, symbols: list[str]) -> Result[dict[str, str]]:
+        """Batch-fetch market_type for many symbols in ONE query (N+1 fix for market watch).
+
+        Returns ``{symbol: market_type_value}`` for symbols that resolved; symbols
+        not found are simply absent from the mapping so callers can apply their
+        existing "Unknown" default.
+        """
+        if not symbols:
+            return Result.ok({})
         if self._db:
-            return await self._db.count()
-        return len(self._mem._store)  # type: ignore
+            return await self._db.get_market_types_by_symbols(symbols)
+        found: dict[str, str] = {}
+        for inst in self._mem._store.values():  # type: ignore
+            if inst.symbol in symbols:
+                mt = getattr(inst, "market_type", None)
+                found[inst.symbol] = getattr(mt, "value", str(mt)) if mt is not None else "Unknown"
+        return Result.ok(found)
 
 
 class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
@@ -155,6 +168,21 @@ class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
         stmt = select(sa_func.count()).select_from(InstrumentModel)
         result = await self.session.execute(stmt)
         return result.scalar() or 0
+
+    async def get_market_types_by_symbols(self, symbols: list[str]) -> Result[dict[str, str]]:
+        """One-query batch lookup: ``symbol -> market_type`` for market-watch enrichment."""
+        stmt = select(InstrumentModel.symbol, InstrumentModel.market_type).where(
+            InstrumentModel.symbol.in_(symbols)
+        )
+        result = await self.session.execute(stmt)
+        found: dict[str, str] = {}
+        for row in result.all():
+            sym = str(row.symbol or "")
+            if not sym:
+                continue
+            mt = row.market_type
+            found[sym] = getattr(mt, "value", str(mt)) if mt is not None else "Unknown"
+        return Result.ok(found)
 
     def _to_domain(self, orm: InstrumentModel) -> Instrument:
         from domain.common.enum_types import AssetClass, InstrumentStatus, MarketType

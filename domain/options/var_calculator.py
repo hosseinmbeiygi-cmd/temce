@@ -143,8 +143,14 @@ class VaRCalculator:
         var_95_pct = -np.percentile(cumulative_returns, 5)
         var_99_pct = -np.percentile(cumulative_returns, 1)
 
-        cvar_95_pct = -np.mean(cumulative_returns[cumulative_returns <= -var_95_pct])
-        cvar_99_pct = -np.mean(cumulative_returns[cumulative_returns <= -var_99_pct])
+        _t95 = cumulative_returns[cumulative_returns <= -var_95_pct]
+        _t99 = cumulative_returns[cumulative_returns <= -var_99_pct]
+        cvar_95_pct = float(-np.mean(_t95)) if _t95.size > 0 else float(var_95_pct)
+        cvar_99_pct = float(-np.mean(_t99)) if _t99.size > 0 else float(var_99_pct)
+        if not np.isfinite(cvar_95_pct):
+            cvar_95_pct = float(var_95_pct)
+        if not np.isfinite(cvar_99_pct):
+            cvar_99_pct = float(var_99_pct)
 
         return VaRResult(
             var_95=var_95_pct * portfolio_value,

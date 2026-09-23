@@ -31,9 +31,9 @@ import threading
 import time
 
 import pytest
-import redis
 
 import precompute.workers.celery_tasks as ct
+import redis
 from precompute.config import load_config
 
 pytestmark = [pytest.mark.integration]
@@ -100,7 +100,7 @@ class EventCapture:
                 with contextlib.suppress(TypeError, ValueError):
                     self.events.append(json.loads(msg["data"]))
 
-    def __enter__(self) -> "EventCapture":
+    def __enter__(self) -> EventCapture:
         self._thread.start()
         time.sleep(0.5)  # let the SUBSCRIBE land before dispatching
         return self

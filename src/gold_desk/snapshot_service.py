@@ -144,8 +144,9 @@ async def _calc_daily_changes(session: AsyncSession, brsapi_prices: dict[str, fl
             pass
     # TSE: از برترین صندوق یا Index history اگر موجود باشد
     with contextlib.suppress(Exception):
-        from brsapi.models.commodity import GoldCoinHistoryModel
         from sqlalchemy import desc, select
+
+        from brsapi.models.commodity import GoldCoinHistoryModel
 
         # تلاش برای شاخص کل (نماد TSE کلی)
         for sym in ("TSE_INDEX", "INDEX", "TEDPIX"):

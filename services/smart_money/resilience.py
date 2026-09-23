@@ -6,6 +6,7 @@ data sources are unavailable.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Callable
 from enum import StrEnum
@@ -155,7 +156,7 @@ class ResilientFetcher:
                 if attempt < self.retry_policy.max_retries:
                     delay = self.retry_policy.get_delay(attempt)
                     logger.warning("Fetch attempt %d failed: %s — retrying in %.1fs", attempt + 1, exc, delay)
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
 
         # All retries failed — try fallback
         self._fetch_stats["failures"] += 1

@@ -12,8 +12,9 @@ exists for candlesticks):
 6. The status / cancel manage endpoints behave correctly.
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from apps.api.endpoints.brsapi import (
     _SHAREHOLDER_BACKFILL_STATE,

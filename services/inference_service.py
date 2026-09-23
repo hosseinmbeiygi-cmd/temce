@@ -6,6 +6,7 @@ instead of fabricated predictions.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from datetime import UTC, datetime
 from typing import Any
@@ -307,8 +308,11 @@ class InferenceService:
             if not pipeline_file.exists():
                 return None
 
-            with open(pipeline_file, "rb") as f:
-                loaded = pickle.load(f)
+            def _read_pickle() -> Any:
+                with open(pipeline_file, "rb") as f:
+                    return pickle.load(f)
+
+            loaded = await asyncio.to_thread(_read_pickle)
 
             trained_features: list[str] = list(fm.feature_names)
             if row.parameters:

@@ -27,13 +27,14 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path
+
+from apps.api.dependencies import require_roles
 
 from api.job_state import (
-    is_job_active as _is_job_active,
     load_status as _load_status,
     reset_job as _reset_job,
-    save_status as _save_status,
+    save_status as _save_status,  # noqa: F401 (re-exported by apps.api.endpoints.precompute)
 )
 
 
@@ -189,7 +190,11 @@ def _is_stale(expires_at: str | None) -> bool:
 
 
 # ── 1. POST /api/precompute/start ────────────────────────────────
-@router.post("/start", summary="شروع پیش‌محاسبه زرهی (کل بازار)")
+@router.post(
+    "/start",
+    summary="شروع پیش‌محاسبه زرهی (کل بازار)",
+    dependencies=[Depends(require_roles("admin"))],  # dispatches a full-market Celery run
+)
 async def start_precompute() -> ApiResponse[dict[str, Any]]:
     """
     Enqueue the grouped Celery pipeline:

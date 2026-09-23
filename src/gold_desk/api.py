@@ -1176,13 +1176,31 @@ async def metrics() -> Response:
 
 @router.get("/macro", summary="Macro events affecting gold market")
 async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict:
-    """رویدادهای کلان اقتصادی (CPI، نرخ بهره، M2، تقاضا) + تأثیر بر طلا."""
+    """رویدادهای کلان اقتصادی (CPI، نرخ بهره، M2، تقاضا) + تأثیر بر طلا.
+
+    بدون رویدادِ واقعی، ضریب و تفسیر ``null`` است و نبودِ داده اعلام می‌شود. «خنثی» یک
+    قضاوت است، نه نبودِ قضاوت؛ و رویدادهای نمونهٔ ``get_sample_events`` هرگز از این‌جا
+    بیرون نمی‌روند.
+    """
     events = await fetch_macro_events()
-    multiplier = compute_macro_multiplier(events)
     items = sorted(events, key=lambda e: e.published_at, reverse=True)[:limit]
+    if not items:
+        return {
+            "success": True,
+            "data": {
+                "dataAvailable": False,
+                "missingBecause": "هیچ رویداد کلانی از منبع واقعی ثبت نشده است؛ scrape CBI/مرکز آمار هنوز داده‌ای ننوشته است.",
+                "count": 0,
+                "macro_multiplier": None,
+                "interpretation": None,
+                "events": [],
+            },
+        }
+    multiplier = compute_macro_multiplier(events)
     return {
         "success": True,
         "data": {
+            "dataAvailable": True,
             "count": len(items),
             "macro_multiplier": round(multiplier, 3),
             "interpretation": (

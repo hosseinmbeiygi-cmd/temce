@@ -447,7 +447,7 @@ export default function QueueStatusPanel() {
               </div>
               <div>
                 <span className="text-surface-500">قیمت: </span>
-                <span className="font-mono text-surface-200">{symbolResult.last_price?.toLocaleString()}</span>
+                <span className="font-mono text-surface-200">{symbolResult.last_price?.toLocaleString("en-US")}</span>
               </div>
             </div>
 

@@ -344,7 +344,7 @@ export default function AnalysisPage() {
                                 "bg-accent-amber/15 text-accent-amber"
                               }`}>{s.label || "خنثی"}</span>
                             </td>
-                            <td className="py-2.5 font-mono text-surface-200 text-xs">{(s.volume || 0).toLocaleString()}</td>
+                            <td className="py-2.5 font-mono text-surface-200 text-xs">{(s.volume || 0).toLocaleString("en-US")}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -509,7 +509,7 @@ export default function AnalysisPage() {
                   <div className="glass-card p-4">
                     <div className="text-xs text-surface-500 mb-1">SMA (50)</div>
                     <div className={`text-lg font-bold font-mono ${smaValue != null ? "text-surface-200" : "text-surface-600"}`}>
-                      {smaValue != null ? smaValue.toLocaleString() : "—"}
+                      {smaValue != null ? smaValue.toLocaleString("en-US") : "—"}
                     </div>
                     <div className="text-xs mt-0.5 text-surface-500">
                       {smaValue != null
@@ -526,7 +526,7 @@ export default function AnalysisPage() {
                       ohlcvBars && ohlcvBars.length > 0 ? "text-surface-200" : "text-surface-600"
                     }`}>
                       {ohlcvBars && ohlcvBars.length > 0
-                        ? ohlcvBars[ohlcvBars.length - 1]?.volume?.toLocaleString() ?? "—"
+                        ? ohlcvBars[ohlcvBars.length - 1]?.volume?.toLocaleString("en-US") ?? "—"
                         : "—"}
                     </div>
                     <div className="text-xs mt-0.5 text-surface-500">
@@ -615,11 +615,11 @@ export default function AnalysisPage() {
                         </div>
                         <div className="bg-surface-800/50 rounded-lg p-3 text-center">
                           <div className="text-xs text-surface-500">قیمت هدف</div>
-                          <div className="text-lg font-bold text-accent-emerald">{elliotData.target_price.toLocaleString()}</div>
+                          <div className="text-lg font-bold text-accent-emerald">{elliotData.target_price.toLocaleString("en-US")}</div>
                         </div>
                         <div className="bg-surface-800/50 rounded-lg p-3 text-center">
                           <div className="text-xs text-surface-500">حد ضرر</div>
-                          <div className="text-lg font-bold text-accent-rose">{elliotData.stop_loss.toLocaleString()}</div>
+                          <div className="text-lg font-bold text-accent-rose">{elliotData.stop_loss.toLocaleString("en-US")}</div>
                         </div>
                       </div>
                     </div>
@@ -642,7 +642,7 @@ export default function AnalysisPage() {
                                 {w.projected && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-600/30 text-surface-400">پیش‌بینی</span>}
                               </div>
                               <div className="text-xs text-surface-500 mt-0.5">
-                                {w.start != null ? w.start.toLocaleString() : "—"} → {w.end != null ? w.end.toLocaleString() : "—"}
+                                {w.start != null ? w.start.toLocaleString("en-US") : "—"} → {w.end != null ? w.end.toLocaleString("en-US") : "—"}
                                 {w.percent != null && <span className={w.percent >= 0 ? "text-accent-emerald" : "text-accent-rose"}> ({w.percent > 0 ? "+" : ""}{w.percent}%)</span>}
                               </div>
                             </div>
@@ -657,7 +657,7 @@ export default function AnalysisPage() {
                         {Object.entries(elliotData.fibonacci_levels).map(([level, price]) => (
                           <div key={level} className="bg-surface-800/50 rounded-lg p-2.5 text-center">
                             <div className="text-[10px] text-surface-500">{level}</div>
-                            <div className="text-sm font-mono font-bold text-surface-200">{price.toLocaleString()}</div>
+                            <div className="text-sm font-mono font-bold text-surface-200">{price.toLocaleString("en-US")}</div>
                           </div>
                         ))}
                       </div>

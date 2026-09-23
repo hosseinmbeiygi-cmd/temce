@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, RedirectResponse
 
+from apps.api.dependencies import require_roles
 from apps.api.error_handlers import register_error_handlers
 from apps.api.metrics import MetricsMiddleware, get_prometheus_exporter
 from apps.api.middleware import (
@@ -28,11 +29,6 @@ from core.config import settings
 from core.database import close_database, get_session, init_database
 from core.logging import get_logger, setup_logging
 from ml.models import register_all_models
-
-try:
-    from apps.api.dependencies import require_roles
-except Exception:  # pragma: no cover
-    require_roles = None  # type: ignore
 
 logger = get_logger(__name__)
 
@@ -418,7 +414,13 @@ async def _with_startup_lock(key: str, task: str) -> bool:
 
     locker = _get_startup_locker()
     if locker is None:
-        logger.warning("Startup lock unavailable for %s — running without lock", task)
+        # Fail-open here means every replica runs the full BrsApi sync at once against
+        # tables that have no uniqueness guard, so in production the lock being
+        # unavailable is a reason not to start the work — not a reason to skip the lock.
+        if settings.is_production:
+            logger.error("Startup lock unavailable for %s — refusing to run unlocked", task)
+            return False
+        logger.warning("Startup lock unavailable for %s — single-process dev, running without lock", task)
         return True
 
     owner = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
@@ -1014,7 +1016,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/orchestrator-cron/toggle")
     async def orchestrator_cron_toggle(
-        _user: dict = Depends(require_roles("admin")) if require_roles else None,  # type: ignore
+        _user: dict = Depends(require_roles("admin")),
     ):
         """Enable or disable the hourly orchestrator cron."""
         # Use distributed lock to prevent lost updates when two admins toggle concurrently.
@@ -1032,7 +1034,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/orchestrator-cron/run-now")
     async def orchestrator_cron_run_now(
-        _user: dict = Depends(require_roles("admin")) if require_roles else None,  # type: ignore
+        _user: dict = Depends(require_roles("admin")),
     ):
         """Trigger an immediate orchestrator run (does not wait for the hourly tick).
 

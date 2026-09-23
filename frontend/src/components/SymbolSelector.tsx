@@ -120,7 +120,7 @@ export default function SymbolSelector({
                   <button
                     key={m.key}
                     onClick={() => onMarketFilterChange?.(m.key)}
-                    title={`${m.label}: ${count.toLocaleString()} نماد`}
+                    title={`${m.label}: ${count.toLocaleString("en-US")} نماد`}
                     className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap transition-colors ${
                       active
                         ? "bg-primary-600 text-white shadow-sm"
@@ -129,7 +129,7 @@ export default function SymbolSelector({
                   >
                     {m.label}
                     {count > 0 && (
-                      <span className="mr-1 opacity-60">{count.toLocaleString()}</span>
+                      <span className="mr-1 opacity-60">{count.toLocaleString("en-US")}</span>
                     )}
                   </button>
                 );

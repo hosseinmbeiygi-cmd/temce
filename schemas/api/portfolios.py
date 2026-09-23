@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from schemas.api.legal import LegalDisclaimerMixin
+
 
 class PortfolioCreate(BaseModel):
     name: str
@@ -12,7 +14,7 @@ class PortfolioCreate(BaseModel):
     currency: str = "IRR"
 
 
-class PortfolioResponse(BaseModel):
+class PortfolioResponse(BaseModel, LegalDisclaimerMixin):
     id: str
     name: str = ""
     description: str = ""

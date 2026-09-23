@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 
 from core.config import settings
@@ -51,9 +53,9 @@ class TelegramSender:
         data = {"chat_id": self._chat_id, "caption": caption}
         async with httpx.AsyncClient(timeout=60.0) as client:
             try:
-                with open(str(safe_path), "rb") as f:
-                    files = {"document": f}
-                    resp = await client.post(url, data=data, files=files)
+                content = await asyncio.to_thread(safe_path.read_bytes)
+                files = {"document": (safe_path.name, content)}
+                resp = await client.post(url, data=data, files=files)
                 resp.raise_for_status()
                 return Result.ok(True)
             except httpx.HTTPError as e:

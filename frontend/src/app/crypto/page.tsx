@@ -341,7 +341,7 @@ function CryptoTable({ cryptos }: { cryptos: CryptoPrice[] }) {
                       ${c.price_usd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div className="text-[10px] text-surface-600 font-mono">
-                      {c.price_toman ? `${c.price_toman.toLocaleString()} تومان` : ""}
+                      {c.price_toman ? `${c.price_toman.toLocaleString("en-US")} تومان` : ""}
                     </div>
                   </td>
                   <td className="py-3 px-4 text-left">

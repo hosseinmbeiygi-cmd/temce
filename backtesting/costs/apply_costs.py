@@ -63,7 +63,6 @@ def apply_costs(
         symbol = t.get("symbol", "?")
 
         total_cost = _COST_ENGINE.compute(side, price, qty)
-        broker = _COST_ENGINE.buy_cost(price, qty) if side != "sell" else _COST_ENGINE.sell_cost(price, qty)
         commission = price * qty * _COST_ENGINE.broker_pct
         tax = price * qty * _COST_ENGINE.sell_tax_pct if side == "sell" else 0.0
         clearing = price * qty * _COST_ENGINE.clearing_fee_pct

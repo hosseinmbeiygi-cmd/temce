@@ -4,8 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from schemas.api.legal import LegalDisclaimerMixin
 
-class SignalResponse(BaseModel):
+
+class SignalResponse(BaseModel, LegalDisclaimerMixin):
     id: str
     symbol: str = ""
     signal_type: str = ""

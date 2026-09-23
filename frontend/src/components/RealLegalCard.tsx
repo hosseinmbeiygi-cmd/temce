@@ -18,7 +18,7 @@ export interface RealLegalData {
 function formatNum(v: number): string {
   if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
   if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
-  return v.toLocaleString();
+  return v.toLocaleString("en-US");
 }
 
 function MiniRLBox({ label, volume, count }: { label: string; volume: number; count: number }) {
@@ -30,9 +30,9 @@ function MiniRLBox({ label, volume, count }: { label: string; volume: number; co
     <div className={`${bgColor} ${borderColor} border rounded-lg p-2.5 text-center`}>
       <p className={`text-xs font-bold ${textColor} mb-1`}>{label}</p>
       <p className="font-mono font-bold text-surface-100 text-sm">
-        {volume >= 1e6 ? (volume / 1e6).toFixed(1) + "M" : volume >= 1e3 ? (volume / 1e3).toFixed(0) + "K" : volume.toLocaleString()}
+        {volume >= 1e6 ? (volume / 1e6).toFixed(1) + "M" : volume >= 1e3 ? (volume / 1e3).toFixed(0) + "K" : volume.toLocaleString("en-US")}
       </p>
-      <p className="text-xs text-surface-500 mt-0.5">{count.toLocaleString()} نفر</p>
+      <p className="text-xs text-surface-500 mt-0.5">{count.toLocaleString("en-US")} نفر</p>
     </div>
   );
 }

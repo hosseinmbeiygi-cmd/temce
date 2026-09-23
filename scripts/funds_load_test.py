@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Fund Module Load & Scalability Harness — N = 500..2000 funds (A8.6).
 
 دو حالت اجرا:
@@ -20,9 +19,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import random
-import statistics
 import sys
 import time
 from pathlib import Path
@@ -131,7 +128,7 @@ def run_sim(n_values: list[int], concurrency: int) -> list[dict]:
 
         # ۱) هویت + Fingerprint
         matches_pool = {}
-        for i, rec in enumerate(universe):
+        for _i, rec in enumerate(universe):
             fp = identity_fingerprint(rec["isin"], None, rec["symbol"])
             fid = derive_fund_id(symbol=rec["symbol"], market=rec["market"])
             matches_pool[fp] = fid

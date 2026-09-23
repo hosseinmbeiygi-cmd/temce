@@ -116,13 +116,42 @@ async def recommend_strategies(body: RecommendRequest) -> ApiResponse[list[dict[
     return ApiResponse(success=True, data=results)
 
 
+def _missing_inputs(S: float, K: float, T: float, r: float | None, sigma: float | None) -> list[str]:
+    """Which Black-Scholes inputs the caller did not supply.
+
+    ``r`` and ``sigma`` used to default to ۱۵٪ and ۳۵٪, so a price came back for anybody who
+    asked with no idea of the rate or the implied volatility. An invented volatility is the
+    whole option price, so the calculator now refuses instead of guessing.
+    """
+
+    out: list[str] = []
+    if not S or S <= 0:
+        out.append("قیمت underlying (S)")
+    if not K or K <= 0:
+        out.append("قیمت اعمال (K)")
+    if T is None or T <= 0:
+        out.append("زمان تا سررسید بر حسب سال (T)")
+    if r is None:
+        out.append("نرخ بدون ریسک (r)")
+    if sigma is None:
+        out.append("نوسان ضمنی (sigma)")
+    return out
+
+
+def _need_inputs(missing: list[str]) -> str:
+    return "بدون این ورودی‌ها عددی محاسبه نمی‌شود: " + "، ".join(missing)
+
+
 @router.get("/greeks", summary="Calculate Greeks for an option")
 async def calculate_greeks(
-    S: float, K: float, T: float, r: float = 0.15, sigma: float = 0.35,
+    S: float, K: float, T: float, r: float | None = None, sigma: float | None = None,
     option_type: str = "call"
 ) -> ApiResponse[dict[str, Any]]:
+    missing = _missing_inputs(S, K, T, r, sigma)
+    if missing:
+        return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
     from domain.options.pricing import black_scholes_price
-    result = black_scholes_price(S, K, T, r, sigma, option_type)
+    result = black_scholes_price(S, K, T, float(r), float(sigma), option_type)
     return ApiResponse(success=True, data={
         "price": result.price,
         "delta": result.delta,
@@ -132,16 +161,20 @@ async def calculate_greeks(
         "rho": result.rho,
         "intrinsic_value": result.intrinsic_value,
         "time_value": result.time_value,
+        "inputs": {"S": S, "K": K, "T": T, "r": r, "sigma": sigma, "type": option_type},
     })
 
 
 @router.get("/pricing", summary="Black-Scholes pricing for call and put")
 async def pricing(
-    S: float, K: float, T: float, r: float = 0.15, sigma: float = 0.35
+    S: float, K: float, T: float, r: float | None = None, sigma: float | None = None
 ) -> ApiResponse[dict[str, Any]]:
+    missing = _missing_inputs(S, K, T, r, sigma)
+    if missing:
+        return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
     from domain.options.pricing import black_scholes_call, black_scholes_put
-    call_price = black_scholes_call(S, K, T, r, sigma)
-    put_price = black_scholes_put(S, K, T, r, sigma)
+    call_price = black_scholes_call(S, K, T, float(r), float(sigma))
+    put_price = black_scholes_put(S, K, T, float(r), float(sigma))
     return ApiResponse(success=True, data={
         "call_price": round(call_price, 2),
         "put_price": round(put_price, 2),

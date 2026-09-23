@@ -183,9 +183,14 @@ class TestDownloadAndImportAll:
         service._http_client = client
 
         # Pre-create the exact file path the service would use.
+        # (Filename format after the C2 fix includes a sha1-digest of the link.)
         sym_dir = tmp_path / "فولاد"
         sym_dir.mkdir(parents=True, exist_ok=True)
-        existing = sym_dir / "فولاد_codal_2026-01-15.xlsx"
+        import hashlib as _hashlib
+
+        raw_link = "https://api.brsapi.ir/files/fa.xlsx"  # default _make_row excel link
+        digest = _hashlib.sha1(raw_link.encode("utf-8")).hexdigest()[:8]
+        existing = sym_dir / f"فولاد_codal_2026-01-15_{digest}.xlsx"
         existing.write_bytes(b"x" * 200)  # > 100 bytes
 
         with (

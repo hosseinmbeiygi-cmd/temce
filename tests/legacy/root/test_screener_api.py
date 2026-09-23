@@ -1,4 +1,5 @@
 ﻿from pathlib import Path
+
 """Test the actual screener API endpoint."""
 
 import asyncio

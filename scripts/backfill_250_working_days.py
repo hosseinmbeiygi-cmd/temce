@@ -141,8 +141,9 @@ async def _run_with_session(registry: BrsApiJobRegistry, name: str, **kwargs: ob
 
 
 async def stage_status() -> None:
-    import core.database as database
     from sqlalchemy import text
+
+    import core.database as database
 
     assert database.async_session_factory is not None
     tables = [

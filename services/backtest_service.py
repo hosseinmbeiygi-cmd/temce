@@ -83,6 +83,8 @@ class BacktestService:
         self._repo = repository or BacktestRepository()
         self._runs: dict[str, dict[str, Any]] = {}  # fallback in-memory cache
         self._cancel_events: dict[str, asyncio.Event] = {}
+        # Serializes CPU-bound simulation off-loads (see run_backtest).
+        self._run_lock = asyncio.Lock()
 
     async def run(
         self, strategy: BaseStrategy, capital: float | None = None, data: list[dict[str, Any]] | None = None
@@ -219,10 +221,15 @@ class BacktestService:
             cancel_event = asyncio.Event()
             self._cancel_events[run_id] = cancel_event
 
-            # Note: cancel_event is registered for cancel_run() but simulator.run() doesn't
-            # accept it directly. Cancellation is checked via event loop mechanics.
-            # simulator.run() is synchronous (deterministic core); no await needed.
-            result = simulator.run(strategy, initial_capital=capital, data=data)
+            # Offload the CPU-bound simulation to a worker thread: awaiting
+            # the sync core directly stalls the whole event loop (every other
+            # endpoint freezes for the duration of the backtest).
+            # The simulator is shared state (SL/TP wired above), so runs are
+            # still serialized per service instance.
+            async with self._run_lock:
+                result = await asyncio.to_thread(
+                    simulator.run, strategy, capital, data
+                )
 
             # Clean up cancel event
             self._cancel_events.pop(run_id, None)

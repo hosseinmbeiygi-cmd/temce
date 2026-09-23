@@ -37,6 +37,9 @@ export default function ChartContainer({
   return (
     <div
       className={className}
+      // Financial charts must always lay out LTR: the RTL page shell would
+      // otherwise mirror axes and reverse negative/percentage ranges.
+      dir="ltr"
       style={{ width: "100%", height, position: "relative" }}
     >
       {mounted ? (

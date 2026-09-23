@@ -5,7 +5,8 @@ returns a NullCache-compatible service and every miss recomputes.
 """
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from core.cache import get_cache
 from core.logging import get_logger

@@ -6,6 +6,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from schemas.api.legal import LegalDisclaimerMixin
+
 
 class GoldSignalAction(str, Enum):
     BUY = "BUY"
@@ -21,7 +23,7 @@ class GoldSignalTimeframe(str, Enum):
     LONG_TERM = "LONG_TERM"
 
 
-class GoldSignal(BaseModel):
+class GoldSignal(BaseModel, LegalDisclaimerMixin):
     """سیگنال استاندارد طلا (طبق schema پرامپت)."""
 
     timestamp: str

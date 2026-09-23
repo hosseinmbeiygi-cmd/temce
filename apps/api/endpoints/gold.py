@@ -46,7 +46,6 @@ from services.gold import (
     GoldFuturesPositionService,
     GoldLiveService,
     calculate_coin_bubble,
-    calculate_nav_premium,
     evaluate_kill_switch,
     scan_gold_arbitrage,
 )
@@ -128,52 +127,41 @@ async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any
 async def get_etf_nav_premium(
     service: GoldLiveService = Depends(get_gold_live_service),
 ) -> ApiResponse[dict[str, Any]]:
-    """اگر داده بازار در دسترس نباشد، مقادیر نمونه برمی‌گردد تا UI خراب نشود."""
+    """NAV ذاتی از انس و دلار محاسبه می‌شود؛ پرمیوم فقط وقتی اعلام می‌شود که قیمت
+    معاملاتی واقعی آن صندوق در دسترس باشد (وگرنه NO_DATA برمی‌گردد، نه عدد نمونه)."""
     from core.time import utc_now_iso
 
     live = await service.get_live_prices()
-    coin_price = float(live.get("coin_bahar_irr") or 0)
     oz_usd = float(live.get("gold_oz_usd") or 0)
     usd_irr = float(live.get("usd_irr") or 0)
 
-    # NAV تقریبی هر صندوق: 0.1 گرم طلای ۱۸ عیار (برای صندوق‌های کوچک) —
-    # در production از BrsApi NAV per ETF استفاده می‌شود
     items: list[ETFNavPremiumRow] = []
-    best: str | None = None
-    best_score = -999.0
 
     for symbol, info in ETF_UNIVERSE.items():  # type: ignore[var-annotated]
-        if oz_usd and usd_irr:
-            # NAV = قیمت ذاتی هر واحد (فرض: هر واحد ≈ 0.1 گرم ۱۸ عیار)
-            nav = (oz_usd / 31.1035) * 0.1 * 0.750 * usd_irr * 1000  # گرم × ریال
-            market = nav * 1.005  # تخمین 0.5% پرمیوم
-        else:
-            nav, market = 0.0, 0.0
+        # NAV ذاتی هر واحد (فرض: هر واحد ≈ ۰.۱ گرم طلای ۱۸ عیار) — برآورد، نه دادهٔ صندوق
+        nav = (oz_usd / 31.1035) * 0.1 * 0.750 * usd_irr * 1000 if oz_usd and usd_irr else 0.0
 
-        result = calculate_nav_premium(market_price=market or 1, nav=nav or 1)
+        # No real traded price is wired for these tickers yet. It used to be synthesized as
+        # nav * 1.005, which made every gold ETF report a +0.5% premium forever.
         row = ETFNavPremiumRow(
             symbol=symbol,
             name_fa=info["name_fa"],
             isin=info["isin"],
-            market_price=round(market, 0),
-            nav=round(nav, 0),
-            premium_pct=result.premium_pct,
-            signal=result.signal,
-            reason=result.reason,
+            market_price=None,
+            nav=round(nav, 0) if nav else None,
+            premium_pct=None,
+            signal="NO_DATA",
+            reason="قیمت معاملاتی این صندوق به دادهٔ بازار متصل نیست؛ پرمیوم اندازه‌گیری نمی‌شود.",
             liquidity="high" if symbol in ("ZARFSHANG", "LOTUS") else "medium",
             management_fee=info["management_fee"],
         )
         items.append(row)
-        # بهترین فرصت خرید = بیشترین تخفیف
-        if result.premium_pct < best_score:
-            best_score = result.premium_pct
-            best = symbol
 
     return ApiResponse[ETFNavPremiumResponse](
         success=True,
         data=ETFNavPremiumResponse(
             items=items,
-            best_opportunity=best,
+            best_opportunity=None,
             generated_at=utc_now_iso(),
         ),
     )

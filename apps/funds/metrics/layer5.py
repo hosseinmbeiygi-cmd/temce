@@ -56,7 +56,7 @@ def compute_layer5(
     if nav_returns and cpi_returns:
         out["inflation_beta"] = beta_to_market(nav_returns, cpi_returns)
         if len(nav_returns) == len(cpi_returns):
-            real = [(1 + n) / (1 + c) - 1 for n, c in zip(nav_returns, cpi_returns)]
+            real = [(1 + n) / (1 + c) - 1 for n, c in zip(nav_returns, cpi_returns, strict=False)]
             out["real_return"] = sum(real) / len(real)
 
     if nav_returns and interbank_rate_changes and len(nav_returns) == len(interbank_rate_changes):

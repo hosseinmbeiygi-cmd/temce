@@ -207,11 +207,19 @@ class FundService:
         name = str(enriched.get("name") or symbol)
 
         # Compute NAV-related fields if possible
-        nav = price_last if price_last > 0 else float(enriched.get("nav") or 0)
+        fund_type = self._infer_fund_type(enriched)
+
+        # `base_volume` is a quoted TSETMC figure, not a function of the unit count. It used to
+        # be written as 1% of the units, which is a made-up liquidity number in 512 rows.
+        raw_base_volume = enriched.get("base_volume")
+        base_volume = int(raw_base_volume) if raw_base_volume else None
+        # NAV falls back to the last traded price, so record which of the two was stored: a
+        # fund page can then say «NAV خوانده نشد» instead of presenting a price as a valuation.
+        real_nav = float(enriched.get("nav") or 0)
+        nav = real_nav if real_nav > 0 else price_last
+        nav_basis = "nav" if real_nav > 0 else ("price_last" if price_last > 0 else "none")
         nav_change = nav - price_yesterday if price_yesterday > 0 else 0
         nav_change_pct = round((nav_change / price_yesterday) * 100, 2) if price_yesterday > 0 else 0.0
-
-        fund_type = self._infer_fund_type(enriched)
 
         # ── Try to find existing fund ──
         existing = await self.get_by_symbol(symbol)
@@ -233,7 +241,8 @@ class FundService:
                 "trade_volume": trade_volume,
                 "trade_value": trade_value,
                 "trade_count": trade_count,
-                "base_volume": int(shares_count * 0.01),
+                "base_volume": base_volume,
+                "nav_basis": nav_basis,
                 "market_value": market_value,
                 "buy_real_volume": buy_real,
                 "buy_legal_volume": buy_legal,
@@ -271,7 +280,8 @@ class FundService:
                     "trade_volume": trade_volume,
                     "trade_value": trade_value,
                     "trade_count": trade_count,
-                    "base_volume": int(shares_count * 0.01),
+                    "base_volume": base_volume,
+                    "nav_basis": nav_basis,
                     "market_value": market_value,
                     "buy_real_volume": buy_real,
                     "buy_legal_volume": buy_legal,
@@ -319,7 +329,12 @@ class FundService:
 
     @staticmethod
     def _fund_to_dict(fund: Fund) -> dict[str, Any]:
-        """Convert a Fund entity to a plain dict for API responses."""
+        """Convert a Fund entity to a plain dict for API responses.
+
+        The ``extra`` keys are read without a ``0`` default: rows written before the sync
+        stopped inventing figures simply lack them, and "missing" must leave as ``None`` rather
+        than as a price, volume or market value of zero.
+        """
         extra = fund.extra or {}
         return {
             "symbol": fund.symbol,
@@ -327,23 +342,28 @@ class FundService:
             "isin": fund.isin or "",
             "fund_type": fund.fund_type or "",
             "nav": fund.nav,
-            "nav_change": extra.get("nav_change", 0),
-            "nav_change_pct": extra.get("nav_change_pct", 0),
-            "price_last": extra.get("price_last", 0),
-            "price_close": extra.get("price_close", 0),
-            "price_yesterday": extra.get("price_yesterday", 0),
-            "price_max": extra.get("price_max", 0),
-            "price_min": extra.get("price_min", 0),
-            "trade_volume": extra.get("trade_volume", 0),
-            "trade_value": extra.get("trade_value", 0),
-            "trade_count": extra.get("trade_count", 0),
+            "nav_change": extra.get("nav_change"),
+            "nav_change_pct": extra.get("nav_change_pct"),
+            "price_last": extra.get("price_last"),
+            "price_close": extra.get("price_close"),
+            "price_yesterday": extra.get("price_yesterday"),
+            "price_max": extra.get("price_max"),
+            "price_min": extra.get("price_min"),
+            "trade_volume": extra.get("trade_volume"),
+            "trade_value": extra.get("trade_value"),
+            "trade_count": extra.get("trade_count"),
             "shares_count": fund.total_units,
-            "base_volume": extra.get("base_volume", 0),
-            "market_value": extra.get("market_value", 0),
-            "buy_real_volume": extra.get("buy_real_volume", 0),
-            "buy_legal_volume": extra.get("buy_legal_volume", 0),
-            "sell_real_volume": extra.get("sell_real_volume", 0),
-            "sell_legal_volume": extra.get("sell_legal_volume", 0),
+            # Absent or NULL both mean «حجم مبنا خوانده نشده»; a zero default would read as a
+            # symbol with no base-volume rule at all.
+            "base_volume": extra.get("base_volume"),
+            # "nav" | "price_last" | "" — a fund page must be able to say the NAV was never
+            # read and this figure is the traded price, without changing the number itself.
+            "nav_basis": extra.get("nav_basis", ""),
+            "market_value": extra.get("market_value"),
+            "buy_real_volume": extra.get("buy_real_volume"),
+            "buy_legal_volume": extra.get("buy_legal_volume"),
+            "sell_real_volume": extra.get("sell_real_volume"),
+            "sell_legal_volume": extra.get("sell_legal_volume"),
             "time": extra.get("time", ""),
             "data_source": extra.get("data_source", ""),
         }

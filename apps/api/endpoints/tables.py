@@ -64,17 +64,50 @@ async def list_tables(
     )
     all_tables = [row[0] for row in result.fetchall()]
 
+    # Planner statistics give row estimates in ONE query; a physical COUNT(*)
+    # per table meant a full scan of ~43M rows on every page load. Exact counts
+    # are only worth their cost on small tables.
+    _EXACT_COUNT_THRESHOLD = 100_000
+    estimates: dict[str, int] = {}
+    try:
+        stats = await session.execute(
+            text("""
+                SELECT relname, GREATEST(reltuples, 0)::bigint AS est
+                FROM pg_class
+                JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+                WHERE nspname = 'public' AND relkind = 'r'
+            """)
+        )
+        estimates = {row[0]: int(row[1]) for row in stats.fetchall()}
+    except Exception:
+        logger.debug("pg_class row estimates unavailable, falling back to COUNT(*)")
+
     tables = []
     for t in all_tables:
         if not _SAFE_IDENTIFIER.match(t):
             continue
-        try:
-            count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{t}"'))
-            count = count_result.scalar() or 0
-        except Exception:
-            logger.debug("Failed to count rows in %s", t)
-            count = -1
-        tables.append({"name": t, "row_count": count})
+        count: int
+        approximate = False
+        if t in estimates:
+            count = estimates[t]
+            approximate = True
+            if count < _EXACT_COUNT_THRESHOLD:
+                try:
+                    count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{t}"'))
+                    count = count_result.scalar() or 0
+                    approximate = False
+                except Exception:
+                    logger.debug("Failed to count rows in %s", t)
+                    count = -1
+                    approximate = False
+        else:
+            try:
+                count_result = await session.execute(text(f'SELECT COUNT(*) FROM "{t}"'))
+                count = count_result.scalar() or 0
+            except Exception:
+                logger.debug("Failed to count rows in %s", t)
+                count = -1
+        tables.append({"name": t, "row_count": count, "approximate": approximate})
 
     order_map = {name: i for i, name in enumerate(TABLE_ORDER)}
     tables.sort(key=lambda t: (order_map.get(t["name"], 999), t["name"]))

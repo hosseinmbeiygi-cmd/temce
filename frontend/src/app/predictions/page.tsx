@@ -92,27 +92,27 @@ export default function PredictionsPage() {
   /* Live anchors: gold-coin + currency from BrsApi — passed as last_close. */
   const goldQ = useQuery({
     queryKey: ["predictions-gold-live"],
-    queryFn: async () => (await apiGet<any>("/brsapi/gold-coin")).data ?? [],
+    queryFn: async () => (await apiGet<{ data?: LiveRow[] }>("/brsapi/gold-coin")).data ?? [],
     staleTime: 120_000,
   });
   const fxQ = useQuery({
     queryKey: ["predictions-fx-live"],
-    queryFn: async () => (await apiGet<any>("/brsapi/currency")).data ?? [],
+    queryFn: async () => (await apiGet<{ data?: LiveRow[] }>("/brsapi/currency")).data ?? [],
     staleTime: 120_000,
   });
   const commoditiesQ = useQuery({
     queryKey: ["predictions-commodities-live"],
     queryFn: async () => {
       try {
-        const r = await apiGet<any>("/brsapi/commodities?category=precious_metal");
-        return extractArray<LiveRow>(r?.data ?? r);
+        const r = await apiGet<unknown>("/brsapi/commodities?category=precious_metal");
+        return extractArray<LiveRow>(r);
       } catch { return []; }
     },
     staleTime: 120_000,
   });
 
-  const goldList = (goldQ.data ?? []) as LiveRow[];
-  const fxList = (fxQ.data ?? []) as LiveRow[];
+  const goldList = goldQ.data ?? [];
+  const fxList = fxQ.data ?? [];
   const commList = commoditiesQ.data ?? [];
 
   const anchors = useMemo(() => {
@@ -136,7 +136,7 @@ export default function PredictionsPage() {
           if (!last) return { symbol, forecasts: [] };
           const settled = await Promise.allSettled(
             HORIZONS.map((h) =>
-              apiGet<any>(`/forecast?symbol=${symbol}&horizon=${h}&last_close=${last}`).then((r) => (r?.data ?? r) as Forecast),
+              apiGet<{ data?: Forecast }>(`/forecast?symbol=${symbol}&horizon=${h}&last_close=${last}`).then((r) => r?.data ?? (r as unknown as Forecast)),
             ),
           );
           const forecasts = settled

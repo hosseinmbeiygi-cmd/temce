@@ -75,8 +75,9 @@ async def store_warm(rows: list[dict[str, Any]]) -> int:
     if not rows:
         return 0
     try:
-        from core.database import async_session_factory
         from sqlalchemy import text
+
+        from core.database import async_session_factory
 
         if async_session_factory is None:
             logger.debug("Warm store skipped — DB not initialized (%d rows)", len(rows))
@@ -109,27 +110,39 @@ async def store_warm(rows: list[dict[str, Any]]) -> int:
                 logger.debug("Warm ensure table failed", exc_info=True)
 
             inserted = 0
+            # Single multi-row INSERT (executemany) instead of one round-trip
+            # per row; ON CONFLICT DO NOTHING keeps the idempotency the old
+            # per-row loop had.
+            rows: list[dict[str, Any]] = []
             for r in valid:
                 try:
                     sym = r["symbol"]
                     fetched = r.get("fetched_at") or datetime.now(UTC).isoformat()
-                    # Parse to timestamptz
                     try:
                         ts = datetime.fromisoformat(fetched.replace("Z", "+00:00"))
                     except Exception:
                         ts = datetime.now(UTC)
-                    await session.execute(
-                        text("INSERT INTO armor_raw_ingest (symbol, fetched_at, payload) VALUES (:s, :t, :p) ON CONFLICT DO NOTHING"),
-                        {"s": sym, "t": ts, "p": json.dumps(r, ensure_ascii=False, default=str)},
-                    )
-                    inserted += 1
+                    rows.append({
+                        "s": sym,
+                        "t": ts,
+                        "p": json.dumps(r, ensure_ascii=False, default=str),
+                    })
                 except Exception:
-                    logger.debug("Warm insert failed for %s", r.get("symbol"), exc_info=True)
+                    logger.debug("Warm row skipped (bad payload): %s", r.get("symbol"), exc_info=True)
+            if rows:
+                try:
+                    res = await session.execute(
+                        text(
+                            "INSERT INTO armor_raw_ingest (symbol, fetched_at, payload) "
+                            "VALUES (:s, :t, :p) ON CONFLICT DO NOTHING"
+                        ),
+                        rows,
+                    )
+                    inserted = res.rowcount or 0
+                    await session.commit()
+                except Exception:
                     await session.rollback()
-            try:
-                await session.commit()
-            except Exception:
-                await session.rollback()
+                    logger.debug("Warm bulk insert failed (%d rows)", len(rows), exc_info=True)
             logger.info("Warm stored %d/%d rows", inserted, len(valid))
             return inserted
     except Exception:
@@ -165,8 +178,6 @@ async def pipeline_store(rows: list[dict[str, Any]], fetched_at: str | None = No
             hot_stored += 1
             warm_batch.append(r)
         else:
-            # Check if deduped vs redis unavailable
-            dkey = _dedup_key(sym, r["fetched_at"])
             # If redis unavailable, store_hot returns False but we still want warm
             with contextlib.suppress(Exception):
                 from core.cache import get_cache

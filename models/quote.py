@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Float, Integer, String
+from sqlalchemy import BigInteger, Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -6,6 +6,11 @@ from models.base import Base, TimestampMixin
 
 class QuoteModel(TimestampMixin, Base):
     __tablename__ = "quotes"
+    # Composite for history queries (symbol IN (...) ORDER BY date DESC).
+    # Matches migration 0063; mirrors the VARCHAR date column this schema uses.
+    __table_args__ = (
+        Index("ix_quotes_symbol_date", "symbol", "date"),
+    )
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     instrument_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

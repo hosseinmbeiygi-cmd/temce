@@ -138,7 +138,41 @@ class UniversalMarginEngine:
         if long_stock_qty > 0 and long_puts and not shorts:
             return MarginResult(0.0, 0.0, net_premium, "protective_put")
 
-        # 3. Vertical Spread (2 legs, same type, opposite direction, different strikes)
+        # 3. Calendar Spread (2 legs, same type, same strike, different expiry)
+        #    Must be detected BEFORE vertical spread: a zero-width "vertical"
+        #    with different expiries is a calendar, not a credit spread.
+        if (
+            len(options) == 2
+            and options[0].leg_type == options[1].leg_type
+            and options[0].strike == options[1].strike
+            and options[0].days_to_expiry != options[1].days_to_expiry
+        ):
+            short_leg = next((lg for lg in options if lg.direction == Direction.SHORT), None)
+            long_leg = next((lg for lg in options if lg.direction == Direction.LONG), None)
+            if short_leg is not None and long_leg is not None:
+                if short_leg.days_to_expiry > long_leg.days_to_expiry:
+                    # Short calendar (short far / long near): the long leg
+                    # expires first and cannot cap far-horizon risk ->
+                    # full naked margin on the short leg, no offset.
+                    margin = self._naked_short_margin(short_leg)
+                    stype = "short_calendar"
+                else:
+                    # Long calendar (short near / long far): the long leg's
+                    # premium offsets part of the short-leg exposure, capped
+                    # at the matched quantity, floored at min_margin.
+                    matched_qty = min(short_leg.quantity, long_leg.quantity)
+                    offset = long_leg.premium * matched_qty * long_leg.contract_size
+                    naked = self._naked_short_margin(short_leg)
+                    margin = float(max(naked - offset, float(self.config["min_margin"])))
+                    stype = "calendar_spread"
+                return MarginResult(
+                    margin,
+                    margin * float(self.config["maintenance_ratio"]),
+                    net_premium,
+                    stype,
+                )
+
+        # 4. Vertical Spread (2 legs, same type, opposite direction, different strikes)
         if len(options) == 2 and options[0].leg_type == options[1].leg_type:
             sorted_opts = sorted(options, key=lambda x: x.strike)
             if sorted_opts[0].direction != sorted_opts[1].direction:
@@ -159,7 +193,7 @@ class UniversalMarginEngine:
 
                 return MarginResult(margin, margin * float(self.config["maintenance_ratio"]), net_premium, stype)
 
-        # 4. Iron Condor (4 legs: 2 call spread + 2 put spread)
+        # 5. Iron Condor (4 legs: 2 call spread + 2 put spread)
         if len(options) == 4:
             calls = [idx for idx in options if idx.leg_type == LegType.CALL]
             puts = [idx for idx in options if idx.leg_type == LegType.PUT]
@@ -169,7 +203,7 @@ class UniversalMarginEngine:
                 total = float(max(call_margin, put_margin))
                 return MarginResult(total, total * float(self.config["maintenance_ratio"]), net_premium, "iron_condor")
 
-        # 5. Short Straddle/Strangle (2 short legs with different types)
+        # 6. Short Straddle/Strangle (2 short legs with different types)
         if len(shorts) == 2 and len(longs) == 0:
             if shorts[0].leg_type != shorts[1].leg_type:
                 m1 = self._naked_short_margin(shorts[0])
@@ -179,12 +213,12 @@ class UniversalMarginEngine:
                 stype = "short_straddle" if shorts[0].strike == shorts[1].strike else "short_strangle"
                 return MarginResult(total, total * float(self.config["maintenance_ratio"]), net_premium, stype)
 
-        # 6. Long Straddle/Strangle (2 long legs) -> no margin
+        # 7. Long Straddle/Strangle (2 long legs) -> no margin
         if len(longs) == 2 and len(shorts) == 0:
             if longs[0].leg_type != longs[1].leg_type:
                 return MarginResult(0.0, 0.0, net_premium, "long_straddle")
 
-        # 7. Default: sum of naked margins with portfolio discount
+        # 8. Default: sum of naked margins with portfolio discount
         total_margin = 0.0
         for leg in shorts:
             total_margin += self._naked_short_margin(leg)

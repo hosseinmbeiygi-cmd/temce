@@ -60,7 +60,7 @@ def compute_layer2(
             out["info_ratio"] = (safe_mean(rets) - safe_mean(market_returns)) / m_sd if m_sd > 0 else None
 
         up_f, up_m, dn_f, dn_m = [], [], [], []
-        for f, m in zip(rets, market_returns):
+        for f, m in zip(rets, market_returns, strict=False):
             if m > 0:
                 up_f.append(f)
                 up_m.append(m)

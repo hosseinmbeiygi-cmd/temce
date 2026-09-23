@@ -90,7 +90,7 @@ def beta_to_market(fund_returns: Sequence[float], market_returns: Sequence[float
         return None
     fm = mean(fund_returns)
     mm = mean(market_returns)
-    cov = sum((f - fm) * (m - mm) for f, m in zip(fund_returns, market_returns)) / (len(fund_returns) - 1)
+    cov = sum((f - fm) * (m - mm) for f, m in zip(fund_returns, market_returns, strict=False)) / (len(fund_returns) - 1)
     var = sum((m - mm) ** 2 for m in market_returns) / (len(market_returns) - 1)
     if var == 0:
         return None
@@ -133,7 +133,7 @@ def correlation(xs: Sequence[float], ys: Sequence[float]) -> float | None:
     n = len(xs)
     mx = sum(xs) / n
     my = sum(ys) / n
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False)) / n
     var_x = sum((x - mx) ** 2 for x in xs) / n
     var_y = sum((y - my) ** 2 for y in ys) / n
     if var_x == 0 or var_y == 0:

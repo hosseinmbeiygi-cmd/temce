@@ -1,4 +1,4 @@
-from sqlalchemy import Float, Integer, String
+from sqlalchemy import Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -6,6 +6,11 @@ from models.base import Base, TimestampMixin
 
 class TradeModel(TimestampMixin, Base):
     __tablename__ = "trades"
+    # Composite for history queries (symbol IN (...) ORDER BY date DESC).
+    # Matches migration 0063.
+    __table_args__ = (
+        Index("ix_trades_symbol_date", "symbol", "date"),
+    )
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     instrument_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

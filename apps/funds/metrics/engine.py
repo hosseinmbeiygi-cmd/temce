@@ -144,7 +144,13 @@ def compute_all_metrics(inp: MetricsInput, weighted_keys: set[str] | None = None
         dwr=inp.dwr,
         has_defunct_siblings=inp.has_defunct_siblings,
         portfolio_weights=inp.portfolio_weights,
-        daily_volume_per_stock=inp.portfolio_weights,
+        # FIX (audit): this previously passed ``portfolio_weights`` (fractions
+        # like 0.3) as per-stock traded volume, making ``liquidity_spiral``
+        # assume every position liquidates in a fraction of a day and report
+        # near-zero impact. True per-stock volume is not available in the
+        # input contract, so pass None and let the metric report honestly
+        # instead of a confidently wrong number.
+        daily_volume_per_stock=None,
         redemption_rate=inp.redemption_rate,
         market_impact_coef=inp.market_impact_coef,
         hidden_repo_pct=inp.hidden_repo_pct,

@@ -22,6 +22,14 @@ interface LiveSymbol {
   price: number;
 }
 
+/** Mirrors `IRAN_OPTIONS_STATS` in services/options_reference.py. */
+interface IranOptionsStats {
+  year_1403_growth?: string;
+  new_trader_failure_rate?: string;
+  best_monthly_target?: string;
+  key_insight?: string;
+}
+
 const HEADER_GRADIENT = "linear-gradient(334.62deg, #DDF3EA 33.4%, #178B5A 126.76%)";
 
 const STRATEGIES: StrategyRow[] = [
@@ -173,12 +181,12 @@ export default function OptionsMarketPage() {
 
   const { data: statsResp } = useQuery({
     queryKey: ["options", "iran-stats"],
-    queryFn: () => apiGet<{ success: boolean; data: any }>("/api/v1/options/reference/stats"),
+    queryFn: () => apiGet<{ success: boolean; data: IranOptionsStats }>("/api/v1/options/reference/stats"),
     staleTime: 300_000,
   });
 
   const symbols: LiveSymbol[] = liveSymbolsResp?.data ?? [];
-  const stats: any = statsResp?.data;
+  const stats = statsResp?.data;
 
   // Compute aggregates from real symbols
   const totalVolume = symbols.reduce((s, x) => s + (x.volume || 0), 0);

@@ -70,7 +70,7 @@ function TableList({
             className="w-full text-right px-3 py-2.5 rounded-lg transition-colors flex items-center justify-between hover:bg-surface-800">
             <span style={{ fontFamily: "monospace" }}>{t.name}</span>
             <span style={{ fontSize: 12, color: "#94a3b8", fontFamily: "monospace" }}>
-              {t.row_count >= 0 ? t.row_count.toLocaleString() : "?"}
+              {t.row_count >= 0 ? t.row_count.toLocaleString("en-US") : "?"}
             </span>
           </button>
         ))}
@@ -104,7 +104,7 @@ function DataTable({ data }: { data: TableData }) {
           placeholder="جستجو در این جدول..."
           style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0", padding: "8px 16px", background: "#1e293b", border: "1px solid #334155", borderRadius: 8, width: 224, outline: "none" }} />
         <div style={{ fontWeight: 700, fontSize: 13, color: "#94a3b8", fontFamily: "monospace" }} dir="ltr">
-          {dis.total.toLocaleString()} rows | Page {dis.page}/{dis.total_pages}
+          {dis.total.toLocaleString("en-US")} rows | Page {dis.page}/{dis.total_pages}
         </div>
       </div>
       <div style={{ overflowX: "auto", borderRadius: 12, border: "1px solid rgba(51,65,85,0.5)" }}>
@@ -208,7 +208,7 @@ function GlobalSearch({ query }: { query: string }) {
   return (
     <div className="space-y-4">
       <div style={{ fontWeight: 700, fontSize: 14, color: "#cbd5e1", marginBottom: 8 }}>
-        {results.length} جدول — {results.reduce((s, r) => s + r.total, 0).toLocaleString()} ردیف یافت شد
+        {results.length} جدول — {results.reduce((s, r) => s + r.total, 0).toLocaleString("en-US")} ردیف یافت شد
       </div>
       {results.map(r => {
         const isOn = open === r.table;
@@ -220,7 +220,7 @@ function GlobalSearch({ query }: { query: string }) {
                 <span className="material-icons" style={{ color: "#818cf8" }}>table_chart</span>
                 <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 16, color: "#f1f5f9" }}>{r.table}</span>
                 <span style={{ fontSize: 12, background: "rgba(79,70,229,0.15)", color: "#a5b4fc", padding: "4px 10px", borderRadius: 99, fontWeight: 700 }}>
-                  {r.total.toLocaleString()} ردیف
+                  {r.total.toLocaleString("en-US")} ردیف
                 </span>
               </div>
               <span className="material-icons" style={{ color: "#94a3b8", fontSize: 20 }}>{isOn ? "expand_less" : "expand_more"}</span>
@@ -253,7 +253,7 @@ function GlobalSearch({ query }: { query: string }) {
                 </table>
                 {r.total > 20 && (
                   <div style={{ textAlign: "center", fontSize: 12, color: "#94a3b8", marginTop: 12, fontWeight: 700 }}>
-                    نمایش ۲۰ از {r.total.toLocaleString()} ردیف
+                    نمایش ۲۰ از {r.total.toLocaleString("en-US")} ردیف
                   </div>
                 )}
               </div>

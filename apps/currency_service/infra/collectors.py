@@ -12,7 +12,7 @@ gregorian, jalali].
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -112,7 +112,7 @@ class LiveCollector:
             free = await fetch_tgju_dollar(client) or fixture.free
             usdt = await fetch_nobitex_usdt(client) or fixture.usdt
         return RateSnapshot(
-            timestamp=datetime.now(tz=timezone.utc),
+            timestamp=datetime.now(tz=UTC),
             free=free,
             usdt=usdt,
             nima=fixture.nima,

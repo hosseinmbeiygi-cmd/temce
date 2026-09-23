@@ -515,7 +515,6 @@ def compute_fund_score(m: FundMetrics, group_avg_bubble: float | None = None) ->
     # بازدهی (اگر وزن دارد)
     if "alpha_ir" in weights:
         # سهامی/مختلط/بخشی/شاخصی
-        ret_12 = _score_return_pct(m.return_12m)
         layers["alpha_ir"] = _score_ir(m.information_ratio)
     if "behavior_persistence" in weights:
         # صفر یعنی نامعلوم — نمره خنثی

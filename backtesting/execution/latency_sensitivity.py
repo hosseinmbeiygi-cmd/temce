@@ -42,7 +42,6 @@ class LatencySensitivityAnalyzer:
                     orig_price = t.get("price", base_prices[min(i, len(base_prices) - 1)])
                     impact_pct = (exec_price - orig_price) / orig_price if orig_price > 0 else 0
                     side = t.get("side", "buy")
-                    slippage_dir = abs(impact_pct) if side == "buy" else -abs(impact_pct)
                     if impact_pct > 0 and side == "buy" or impact_pct < 0 and side == "sell":
                         total_impact += abs(t.get("quantity", 0) * exec_price * abs(impact_pct))
             pnl_after = base_pnl - total_impact

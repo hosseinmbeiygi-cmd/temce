@@ -249,7 +249,7 @@ class TestNewScenarios(unittest.TestCase):
         result = self._run("starvation", daily=10000, five_min=1000)
         self.assertTrue(result.ok)
         self.assertEqual(len(result.starvation_stats), 4)
-        for cat, s in result.starvation_stats.items():
+        for _cat, s in result.starvation_stats.items():
             # The shared 5-min window caps EVERYONE (incl. the hog) at 1,000.
             self.assertEqual(s["hog_accepted"], 1001)
             # Others may be heavily delayed but never push past the cap.

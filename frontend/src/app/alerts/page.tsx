@@ -236,7 +236,7 @@ export default function AlertsPage() {
                         {historyData.map((h) => (
                           <div key={h.id} className="flex items-center justify-between text-xs py-1 px-2 bg-surface-800/30 rounded">
                             <span className="text-gray-400">{new Date(h.triggered_at).toLocaleString("fa-IR")}</span>
-                            <span className="font-mono text-surface-200">{h.trigger_value?.toLocaleString()}</span>
+                            <span className="font-mono text-surface-200">{h.trigger_value?.toLocaleString("en-US")}</span>
                             <span className="text-gray-500 truncate max-w-[200px]">{h.message}</span>
                           </div>
                         ))}

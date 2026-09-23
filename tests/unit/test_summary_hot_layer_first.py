@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
 
 import pytest
 
@@ -44,7 +43,7 @@ class _FakeCache:
         return True
 
     @property
-    def client(self) -> "_FakeCache":
+    def client(self) -> _FakeCache:
         # The router awaits cache.client.hget / .get / .scan — the same object
         # provides the async surface.
         return self
@@ -213,7 +212,6 @@ async def test_summary_tolerates_corrupt_hot_layer_entry_and_falls_back(fake_cac
 async def test_funnel_seeded_memory_store_serves_summary_without_hot_layer(fake_cache) -> None:
     """The in-memory store must still be populated by real SYMBOL_RESULT_UPDATED
     events through ws_manager — /summary serves it when the hot layer is empty."""
-    from api.ws_manager import get_armor_ws_manager
     from precompute.workers import celery_tasks as ct
 
     monkeypatch_ct_emit = ct.EMIT_MODE  # noqa: F841 — funnel forced via fixture-like patch below

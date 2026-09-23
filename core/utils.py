@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def safe_error_message(exc: BaseException, *, default_message: str = "Internal error") -> str:
     """Return a non-leaking message string for a caught exception.

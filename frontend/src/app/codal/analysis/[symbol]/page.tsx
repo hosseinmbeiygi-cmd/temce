@@ -80,7 +80,7 @@ function formatCurrency(val: number | null | undefined): string {
   if (Math.abs(val) >= 1e9) return (val / 1e9).toFixed(1) + "B";
   if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + "M";
   if (Math.abs(val) >= 1e3) return (val / 1e3).toFixed(0) + "K";
-  return val.toLocaleString();
+  return val.toLocaleString("en-US");
 }
 
 function formatPct(val: number | null | undefined): { text: string; color: string } {
@@ -281,13 +281,13 @@ export default function CodalAnalysisPage() {
                   <div className="flex items-end justify-between">
                     <div>
                       <p className="text-3xl font-black font-mono text-surface-100">
-                        {analysis.price.last.toLocaleString()}
+                        {analysis.price.last.toLocaleString("en-US")}
                       </p>
                       <p className="text-xs text-surface-500 mt-1">ریال</p>
                     </div>
                     <div className="text-right">
                       <p className={`text-lg font-bold font-mono ${pricePct.color}`}>
-                        {analysis.price.change.toLocaleString()} ({pricePct.text})
+                        {analysis.price.change.toLocaleString("en-US")} ({pricePct.text})
                       </p>
                       <p className="text-xs text-surface-500 mt-1">تغییر روز</p>
                     </div>
@@ -296,15 +296,15 @@ export default function CodalAnalysisPage() {
                   <div className="grid grid-cols-2 gap-3 text-center">
                     <div className="bg-surface-800 rounded-xl p-3">
                       <p className="text-xs text-surface-500">بالاترین</p>
-                      <p className="font-mono font-bold text-accent-rose">{analysis.price.max.toLocaleString()}</p>
+                      <p className="font-mono font-bold text-accent-rose">{analysis.price.max.toLocaleString("en-US")}</p>
                     </div>
                     <div className="bg-surface-800 rounded-xl p-3">
                       <p className="text-xs text-surface-500">پایین‌ترین</p>
-                      <p className="font-mono font-bold text-accent-emerald">{analysis.price.min.toLocaleString()}</p>
+                      <p className="font-mono font-bold text-accent-emerald">{analysis.price.min.toLocaleString("en-US")}</p>
                     </div>
                     <div className="bg-surface-800 rounded-xl p-3">
                       <p className="text-xs text-surface-500">قیمت دیروز</p>
-                      <p className="font-mono text-surface-300">{analysis.price.yesterday.toLocaleString()}</p>
+                      <p className="font-mono text-surface-300">{analysis.price.yesterday.toLocaleString("en-US")}</p>
                     </div>
                     <div className="bg-surface-800 rounded-xl p-3">
                       <p className="text-xs text-surface-500">حجم معاملات</p>
@@ -328,7 +328,7 @@ export default function CodalAnalysisPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <MetricBox label="P/E" value={analysis.fundamental.pe_ratio.toFixed(1)} unit="×" color={peStatus} />
                   <MetricBox label="P/S" value={analysis.fundamental.ps_ratio ? analysis.fundamental.ps_ratio.toFixed(2) : "—"} unit="×" />
-                  <MetricBox label="EPS" value={analysis.fundamental.eps ? analysis.fundamental.eps.toLocaleString() : "—"} unit="ریال" color={epsStatus} />
+                  <MetricBox label="EPS" value={analysis.fundamental.eps ? analysis.fundamental.eps.toLocaleString("en-US") : "—"} unit="ریال" color={epsStatus} />
                   <MetricBox label="P/E گروه" value={analysis.fundamental.group_pe ? analysis.fundamental.group_pe.toFixed(1) : "—"} unit="×" />
                   <MetricBox label="ارزش بازار" value={formatCurrency(analysis.fundamental.market_cap)} unit="ریال" color="text-primary-300" />
                   <MetricBox label="تعداد سهام" value={formatCurrency(analysis.fundamental.shares_count)} unit="سهم" />
@@ -381,11 +381,11 @@ export default function CodalAnalysisPage() {
                 <p className="text-xs text-surface-500 mb-1">فاصله از آستانه مجاز</p>
                 <p className={`text-lg font-bold ${analysis.price.lowest_allowed > 0 ? "text-accent-emerald" : "text-surface-400"}`}>
                   {analysis.price.lowest_allowed > 0
-                    ? `کف: ${analysis.price.lowest_allowed.toLocaleString()}`
+                    ? `کف: ${analysis.price.lowest_allowed.toLocaleString("en-US")}`
                     : "نامشخص"}
                 </p>
                 <p className="font-mono text-sm mt-1 text-surface-300">
-                  {analysis.price.highest_allowed > 0 ? `سقف: ${analysis.price.highest_allowed.toLocaleString()}` : ""}
+                  {analysis.price.highest_allowed > 0 ? `سقف: ${analysis.price.highest_allowed.toLocaleString("en-US")}` : ""}
                 </p>
               </div>
             </div>
@@ -501,7 +501,7 @@ export default function CodalAnalysisPage() {
                     {[
                       { label: "P/E", value: analysis.fundamental.pe_ratio.toFixed(2), desc: analysis.fundamental.pe_ratio < 5 ? "ارزشمند" : analysis.fundamental.pe_ratio < 10 ? "منطقی" : "بالا" },
                       { label: "P/S", value: analysis.fundamental.ps_ratio ? analysis.fundamental.ps_ratio.toFixed(2) : "—", desc: "نسبت قیمت به فروش" },
-                      { label: "EPS", value: analysis.fundamental.eps ? analysis.fundamental.eps.toLocaleString() : "—", desc: analysis.fundamental.eps > 0 ? "سودآور" : "زیان‌ده" },
+                      { label: "EPS", value: analysis.fundamental.eps ? analysis.fundamental.eps.toLocaleString("en-US") : "—", desc: analysis.fundamental.eps > 0 ? "سودآور" : "زیان‌ده" },
                       { label: "P/E گروه", value: analysis.fundamental.group_pe ? analysis.fundamental.group_pe.toFixed(2) : "—", desc: "میانگین P/E صنعت" },
                       { label: "ارزش بازار", value: formatCurrency(analysis.fundamental.market_cap) + " ریال", desc: "Market Cap" },
                       { label: "تعداد سهام", value: formatCurrency(analysis.fundamental.shares_count), desc: "کل سهام منتشر شده" },
@@ -511,11 +511,11 @@ export default function CodalAnalysisPage() {
                       { label: "سود خالص تخمینی", value: formatCurrency(analysis.fundamental.estimated_net_profit) + " ریال", desc: "برآورد از EPS × تعداد سهام" },
                       { label: "حجم معاملات", value: formatCurrency(analysis.trade.volume), desc: "حجم کل معاملات روز" },
                       { label: "ارزش معاملات", value: formatCurrency(analysis.trade.value) + " ریال", desc: "ارزش کل معاملات روز" },
-                      { label: "تعداد معاملات", value: analysis.trade.count.toLocaleString(), desc: "تعداد دفعات معامله" },
-                      { label: "بالاترین قیمت", value: analysis.price.max.toLocaleString(), desc: "قیمت حداکثر روز" },
-                      { label: "پایین‌ترین قیمت", value: analysis.price.min.toLocaleString(), desc: "قیمت حداقل روز" },
-                      { label: "کف مجاز", value: analysis.price.lowest_allowed ? analysis.price.lowest_allowed.toLocaleString() : "—", desc: "آستانه پایین مجاز" },
-                      { label: "سقف مجاز", value: analysis.price.highest_allowed ? analysis.price.highest_allowed.toLocaleString() : "—", desc: "آستانه بالای مجاز" },
+                      { label: "تعداد معاملات", value: analysis.trade.count.toLocaleString("en-US"), desc: "تعداد دفعات معامله" },
+                      { label: "بالاترین قیمت", value: analysis.price.max.toLocaleString("en-US"), desc: "قیمت حداکثر روز" },
+                      { label: "پایین‌ترین قیمت", value: analysis.price.min.toLocaleString("en-US"), desc: "قیمت حداقل روز" },
+                      { label: "کف مجاز", value: analysis.price.lowest_allowed ? analysis.price.lowest_allowed.toLocaleString("en-US") : "—", desc: "آستانه پایین مجاز" },
+                      { label: "سقف مجاز", value: analysis.price.highest_allowed ? analysis.price.highest_allowed.toLocaleString("en-US") : "—", desc: "آستانه بالای مجاز" },
                       { label: "وضعیت نماد", value: analysis.state || "—", desc: "وضعیت معاملاتی" },
                     ].map((row, i) => (
                       <tr key={i} className="border-b border-surface-800/50 hover:bg-white/5">
@@ -571,7 +571,7 @@ export default function CodalAnalysisPage() {
                                     <td className="py-2 px-3 text-xs text-surface-500">{idx + 1}</td>
                                     <td className="py-2 px-3 text-surface-200">{label}</td>
                                     <td className="py-2 px-3 font-mono text-surface-100 font-bold">
-                                      {value.toLocaleString()}
+                                      {value.toLocaleString("en-US")}
                                     </td>
                                   </tr>
                                 ))}

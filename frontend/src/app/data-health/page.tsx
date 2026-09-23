@@ -197,7 +197,7 @@ export default function DataHealthPage() {
                     </td>
                     <td className="py-3 px-2 text-center text-surface-400 font-mono">{s.latency}</td>
                     <td className="py-3 px-2 text-center text-surface-400">{s.lastSync}</td>
-                    <td className="py-3 px-2 text-center text-surface-400 font-mono">{s.recordsCount.toLocaleString()}</td>
+                    <td className="py-3 px-2 text-center text-surface-400 font-mono">{s.recordsCount.toLocaleString("en-US")}</td>
                     <td className="py-3 px-2 text-center">
                       <span className={`font-mono ${s.errorRate === "۱۰۰%" ? "text-accent-rose" : parseFloat(s.errorRate) > 1 ? "text-accent-amber" : "text-accent-emerald"}`}>
                         {s.errorRate}
@@ -226,7 +226,7 @@ export default function DataHealthPage() {
                 </div>
                 <p className="text-sm text-surface-300 mb-2">{issue.description}</p>
                 <div className="flex items-center gap-4 text-[10px] text-surface-500">
-                  <span>تعداد رکوردهای affected: {issue.affectedRecords.toLocaleString()}</span>
+                  <span>تعداد رکوردهای affected: {issue.affectedRecords.toLocaleString("en-US")}</span>
                 </div>
               </div>
             ))}
@@ -246,7 +246,7 @@ export default function DataHealthPage() {
           { label: "سرویس سالم", value: metrics.filter(m => m.status === "healthy").length.toString() + "/" + metrics.length, icon: CheckCircle2, color: "text-accent-emerald" },
           { label: "منابع متصل", value: sources.filter(s => s.status === "connected").length.toString() + "/" + sources.length, icon: Database, color: "text-accent-cyan" },
           { label: "مشکلات باز", value: issues.filter(i => i.severity !== "minor").length.toString(), icon: AlertTriangle, color: issues.some(i => i.severity === "critical") ? "text-accent-rose" : "text-accent-amber" },
-          { label: "رکورد کل", value: sources.reduce((sum, s) => sum + s.recordsCount, 0).toLocaleString(), icon: HardDrive, color: "text-accent-emerald" },
+          { label: "رکورد کل", value: sources.reduce((sum, s) => sum + s.recordsCount, 0).toLocaleString("en-US"), icon: HardDrive, color: "text-accent-emerald" },
         ].map((s, i) => {
           const Icon = s.icon;
           return (

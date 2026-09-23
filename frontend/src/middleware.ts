@@ -88,6 +88,8 @@ export const PROTECTED_ROUTES: readonly string[] = [
   "/profile",
   "/watchlist",
   "/portfolio",
+  // Decision sheets are per-user judgement records; /pre-buy/print/<id> is covered too.
+  "/pre-buy",
   "/signals/register",
   "/paper-trading",
   "/sync",

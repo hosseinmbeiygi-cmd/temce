@@ -54,7 +54,8 @@ class TestFlagDefaults:
         repo = NewsRepository(session=None)
         assert repo.reading_from_items is False
 
-    def test_repo_with_session_flag_off_stays_legacy(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_repo_with_session_flag_off_stays_legacy(self, monkeypatch):
         from unittest.mock import MagicMock
 
         from core.config import settings as real_settings
@@ -65,7 +66,7 @@ class TestFlagDefaults:
         monkeypatch.setattr(real_settings, "news_read_from_items", False, raising=False)
         repo = NewsRepository(session=MagicMock())
         assert repo.reading_from_items is False
-        assert NewsItemsReadRepo.is_enabled() is False
+        assert await NewsItemsReadRepo.is_enabled() is False
 
 
 # ── DB-backed routing + behavior ─────────────────────────────────────────
@@ -144,9 +145,12 @@ class TestItemsReadPath:
                 # ── flag ON: reads served from news_items ──
                 monkeypatch.setattr(real_settings, "news_read_from_items", True, raising=False)
                 repo_on = NewsRepository(session=session)
-                assert repo_on.reading_from_items is True
+                # reading_from_items reflects the LAZY gate: it flips on the
+                # first routed read, not in __init__ (is_enabled is async now)
+                assert repo_on.reading_from_items is False
 
                 found = await repo_on.search(marker)
+                assert repo_on.reading_from_items is True
                 assert found.success
                 ids = [i.id for i in found.value.items]
                 assert ids == [f"ni_{item_id}"]

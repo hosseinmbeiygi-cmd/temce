@@ -2,19 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 from services.smart_money.normalizer import MinMaxClipped
+from services.smart_money.stats import extract_columns, nz_or_one, open_return, zscore
 
 norm = MinMaxClipped()
-
-
-def _zscore(vals: list[float]) -> tuple[float, float]:
-    n = len(vals)
-    if n < 2:
-        return 0.0, 1.0
-    mu = sum(vals) / n
-    var = sum((x - mu) ** 2 for x in vals) / (n - 1)
-    std = var**0.5 or 1.0
-    return mu, std
 
 
 class BuyerPowerLayer:
@@ -34,45 +27,68 @@ class BuyerPowerLayer:
         rbp_val = (val_ratio + vol_ratio + count_ratio) / 3.0
         rbp_n = norm(rbp_val, 0.8, 3.0)
 
-        hist_rbp: list[float] = []
-        hist_val_ratio: list[float] = []
-        for q in history:
-            hab = q.get("avg_buy", 0.0) or 1.0
-            has_ = q.get("avg_sell", 0.0) or 1.0
-            hrbv = q.get("real_buy_value", 0.0) or 1.0
-            hrsv = q.get("real_sell_value", 0.0) or 1.0
-            hrbc = q.get("real_buy_count", 1) or 1
-            hrsc = q.get("real_sell_count", 1) or 1
-            hvr = hab / has_ if has_ else 1.0
-            hvar = hrbv / hrsv if hrsv else 1.0
-            hcr = hrbc / hrsc if hrsc else 1.0
-            hist_rbp.append((hvr + hvar + hcr) / 3.0)
-            hist_val_ratio.append(hvar)
+        n = len(history)
+        if n:
+            # ── Single extraction pass over history (all columns at once) ──
+            col = extract_columns(history, {
+                "avg_buy": 0.0, "avg_sell": 0.0,
+                "real_buy_value": 0.0, "real_sell_value": 0.0,
+                "real_buy_count": 1, "real_sell_count": 1,
+                "value": 0, "price_close": 0.0, "price_open": 0.0,
+            })
+            ab_h, as_h = col["avg_buy"], col["avg_sell"]
+            rbv_h, rsv_h = col["real_buy_value"], col["real_sell_value"]
+            rbc_h, rsc_h = col["real_buy_count"], col["real_sell_count"]
+            val_h = col["value"]
 
-        mu_rbp, std_rbp = _zscore(hist_rbp) if hist_rbp else (1.0, 1.0)
+            # ── Vectorized derived series (legacy `or` semantics preserved;
+            #    one stacked where instead of per-array calls) ──
+            Z = np.vstack([ab_h, as_h, rbv_h, rsv_h, rbc_h, rsc_h, val_h])
+            Z = np.where(Z != 0.0, Z, 1.0)
+            ab1, as1, rbv1, rsv1, rbc1, rsc1, val1 = Z
+            hvr = ab1 / as1
+            hvar = rbv1 / rsv1
+            hcr = rbc1 / rsc1
+            hist_rbp = (hvr + hvar + hcr) / 3.0
+
+            hist_pc = rbv_h / np.maximum(rbc_h, 1.0)          # legacy max(count, 1) — raw numerator
+            hist_nrmf = (rbv_h - rsv_h) / val1                # raw numerators, `or 1` denominator
+            hist_amihud = np.abs(open_return(col["price_close"], col["price_open"])) / val1
+
+            if n >= 2:
+                # Stacked stats: all five series in one (5, n) matrix →
+                # two NumPy reductions total instead of ten.
+                S = np.vstack([hist_rbp, hvar, hist_pc, hist_nrmf, hist_amihud])
+                mus = S.mean(axis=1)
+                stds = S.std(axis=1, ddof=1)
+                stds = np.where(stds != 0.0, stds, 1.0)
+                mu_rbp, mu_vr, mu_pc, mu_nrmf, mu_am = (float(x) for x in mus)
+                std_rbp, std_vr, std_pc, std_nrmf, std_am = (float(x) for x in stds)
+            else:
+                mu_rbp, std_rbp = zscore(hist_rbp)
+                mu_vr, std_vr = zscore(hvar)
+                mu_pc, std_pc = zscore(hist_pc)
+                mu_nrmf, std_nrmf = zscore(hist_nrmf)
+                mu_am, std_am = zscore(hist_amihud)
+        else:
+            # Legacy empty-history defaults (mu=1.0 for rbp/vr z-scores)
+            mu_rbp, std_rbp = 1.0, 1.0
+            mu_vr, std_vr = 1.0, 1.0
+            mu_pc, std_pc = 0.0, 1.0
+            mu_nrmf, std_nrmf = 0.0, 1.0
+            mu_am, std_am = 0.0, 1.0
+
         z_rbp = (rbp_val - mu_rbp) / std_rbp if std_rbp else 0.0
         z_rbp_n = norm(z_rbp, 1.5, 4.0)
 
-        mu_vr, std_vr = _zscore(hist_val_ratio) if hist_val_ratio else (1.0, 1.0)
         z_vr = (val_ratio - mu_vr) / std_vr if std_vr else 0.0
         z_vr_n = norm(z_vr, 1.5, 4.0)
 
-        hist_pc: list[float] = (
-            [q.get("real_buy_value", 0.0) / max(q.get("real_buy_count", 1), 1) for q in history] if history else [0.0]
-        )
-        mu_pc, std_pc = _zscore(hist_pc)
         pc_today = rbv / rbc if rbc else 0.0
         z_pc = (pc_today - mu_pc) / std_pc if std_pc else 0.0
         z_pc_n = norm(z_pc, 1.5, 4.0)
 
-        hist_nrmf: list[float] = []
-        for q in history:
-            hrbv = q.get("real_buy_value", 0.0) or 0.0
-            hrsv = q.get("real_sell_value", 0.0) or 0.0
-            hval = q.get("value", 0) or 1
-            hist_nrmf.append((hrbv - hrsv) / hval if hval else 0.0)
         nrmf_today = (rbv - rsv) / val if val else 0.0
-        mu_nrmf, std_nrmf = _zscore(hist_nrmf) if hist_nrmf else (0.0, 1.0)
         z_nrmf = (nrmf_today - mu_nrmf) / std_nrmf if std_nrmf else 0.0
         z_nrmf_n = norm(z_nrmf, 1.0, 3.0)
 
@@ -80,25 +96,17 @@ class BuyerPowerLayer:
         o = quote.get("price_open", 0.0)
         rt = (c - o) / o if o else 0.0
         amihud = abs(rt) / val if val else 0.0
-        hist_amihud: list[float] = []
-        for q in history:
-            hc = q.get("price_close", 0.0)
-            ho = q.get("price_open", 0.0)
-            hv = q.get("value", 0) or 1
-            hrt = (hc - ho) / ho if ho else 0.0
-            hist_amihud.append(abs(hrt) / hv if hv else 0.0)
-        mu_am, std_am = _zscore(hist_amihud) if hist_amihud else (0.0, 1.0)
         z_am = (amihud - mu_am) / std_am if std_am else 0.0
         z_am_n = 1.0 - norm(z_am, -0.5, 2.0)
 
         bp_score = 0.25 * rbp_n + 0.20 * z_rbp_n + 0.15 * z_vr_n + 0.15 * z_pc_n + 0.15 * z_nrmf_n + 0.10 * z_am_n
 
         return {
-            "bps": min(1.0, max(0.0, bp_score)),
-            "rbp_n": rbp_n,
-            "z_rbp_n": z_rbp_n,
-            "z_vr_n": z_vr_n,
-            "z_pc_n": z_pc_n,
-            "z_nrmf_n": z_nrmf_n,
-            "z_am_n": z_am_n,
+            "bps": float(min(1.0, max(0.0, bp_score))),
+            "rbp_n": float(rbp_n),
+            "z_rbp_n": float(z_rbp_n),
+            "z_vr_n": float(z_vr_n),
+            "z_pc_n": float(z_pc_n),
+            "z_nrmf_n": float(z_nrmf_n),
+            "z_am_n": float(z_am_n),
         }

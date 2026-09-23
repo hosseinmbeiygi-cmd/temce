@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from schemas.api.legal import LegalDisclaimerMixin
+
 
 class RecommendationRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list)
@@ -10,7 +12,7 @@ class RecommendationRequest(BaseModel):
     horizon: str = "medium_term"
 
 
-class RecommendationResponse(BaseModel):
+class RecommendationResponse(BaseModel, LegalDisclaimerMixin):
     id: str
     symbol: str = ""
     action: str = ""

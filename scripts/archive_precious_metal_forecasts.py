@@ -137,8 +137,8 @@ async def _collect_prices_from_db() -> dict[str, dict[str, Any]]:
     from sqlalchemy import select
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from scripts._db import database_url_async
     from brsapi.models.commodity import CommodityPriceModel, GoldCoinPriceModel, GoldCurrencyProPriceModel
+    from scripts._db import database_url_async
 
     engine = create_async_engine(database_url_async(), pool_pre_ping=True)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)

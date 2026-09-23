@@ -68,7 +68,7 @@ export interface Fund {
   trade_value: number;
   trade_count: number;
   shares_count: number;
-  base_volume: number;
+  base_volume: number | null;
   market_value: number;
   buy_real_volume: number;
   buy_legal_volume: number;

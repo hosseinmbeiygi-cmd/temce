@@ -45,8 +45,8 @@ class FundBlock(BaseModel):
     symbol: str
     fund_name: str
     nav_per_unit: float
-    market_price: float
-    bubble_pct: float
+    market_price: float | None
+    bubble_pct: float | None
     bpr: float
     real_buy_value: int
     real_sell_value: int

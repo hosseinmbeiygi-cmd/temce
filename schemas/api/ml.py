@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from schemas.api.legal import LegalDisclaimerMixin
+
 
 class MlPredictionRequest(BaseModel):
     symbol: str
@@ -12,7 +14,7 @@ class MlPredictionRequest(BaseModel):
     horizon: int = 5
 
 
-class MlPredictionResponse(BaseModel):
+class MlPredictionResponse(BaseModel, LegalDisclaimerMixin):
     symbol: str = ""
     model_name: str = ""
     predictions: list[dict[str, Any]] = Field(default_factory=list)

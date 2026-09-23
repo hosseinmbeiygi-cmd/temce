@@ -18,7 +18,6 @@ from contracts.events import (
     SYMBOL_RESULT_UPDATED,
 )
 from contracts.schemas import SymbolComputationResult, SymbolGroup
-
 from precompute import redis_client
 from precompute.classifier import (
     SymbolFeatures,

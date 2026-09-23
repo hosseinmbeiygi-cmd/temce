@@ -101,7 +101,9 @@ export default function Chart({ data, height = 400, symbol = "" }: ChartProps) {
     for (let i = 0; i < 5; i++) {
       const v = minP + (1 - i / 4) * range;
       const y = pad.top + (i / 4) * plotH;
-      ctx.fillText(v.toLocaleString("fa"), pad.left - 5, y + 3);
+      // Latin digits + explicit locale: matches the market-format terminal
+      // convention (dir=ltr numbers); "fa" rendered Persian digits on canvas.
+      ctx.fillText(v.toLocaleString("en-US"), pad.left - 5, y + 3);
     }
 
     // Date labels (X axis)
@@ -118,7 +120,8 @@ export default function Chart({ data, height = 400, symbol = "" }: ChartProps) {
   }, [chartData, height]);
 
   return (
-    <div className="glass-card p-3">
+    // LTR canvas container — price axis and time axis must not mirror in the RTL shell.
+    <div className="glass-card p-3" dir="ltr">
       {symbol && <p className="text-sm text-gray-400 mb-2 px-1">{symbol}</p>}
       <canvas ref={canvasRef} className="w-full" style={{ height: `${height}px` }} />
     </div>

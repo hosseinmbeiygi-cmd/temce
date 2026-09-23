@@ -45,10 +45,12 @@ class ETFNavPremiumRow(BaseModel):
     symbol: str
     name_fa: str
     isin: str
-    market_price: float = Field(..., description="قیمت معاملاتی بازار (تومان)")
-    nav: float = Field(..., description="NAV هر واحد (تومان)")
-    premium_pct: float = Field(..., description="درصد پرمیوم (+) یا دیسکانت (-)")
-    signal: str = Field(..., description="BUY / SELL / NEUTRAL")
+    # Null when the platform has no real market price for the fund: an invented price
+    # produced a permanent "+0.5% premium" for every ETF, which is worse than no answer.
+    market_price: float | None = Field(None, description="قیمت معاملاتی بازار (تومان)")
+    nav: float | None = Field(None, description="NAV هر واحد (تومان)")
+    premium_pct: float | None = Field(None, description="درصد پرمیوم (+) یا دیسکانت (-)")
+    signal: str = Field(..., description="BUY / SELL / NEUTRAL / NO_DATA")
     reason: str
     liquidity: str = "high"
     management_fee: str = "0.5%"

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+from collections.abc import Iterable
 from statistics import fmean, pstdev
-from typing import Any, Iterable
+from typing import Any
 
 from src.features.fair_value import fair_value_gold_irr, premium_log
 

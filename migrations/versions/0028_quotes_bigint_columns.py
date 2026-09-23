@@ -12,6 +12,8 @@ the alert evaluation flow. Widening to BIGINT fixes it.
 
 from __future__ import annotations
 
+import contextlib
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -50,15 +52,13 @@ def upgrade() -> None:
 
     if is_hypertable:
         # Keep indexes valid after type change (hypertables don't auto-rebuild).
-        try:
+        with contextlib.suppress(Exception):
             bind.execute(
                 sa.text(
                     'SELECT create_hypertable(:t, :col, if_not_exists := TRUE)'
                 ),
                 {"t": _QUOTES, "col": "time"},
             )
-        except Exception:
-            pass
 
 
 def downgrade() -> None:

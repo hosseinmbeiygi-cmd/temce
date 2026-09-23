@@ -35,17 +35,25 @@ def speed(S: float, K: float, T: float, r: float, sigma: float, option_type: str
     """
     if T <= 0 or sigma <= 0 or S <= 0:
         return 0.0
+    import math as _m
+
     d1 = _bs_d1(S, K, T, r, sigma)
-    gamma_val = stats.norm.pdf(d1) / (S * sigma * math.sqrt(T))
-    return float(-gamma_val / S * (d1 / (sigma * math.sqrt(T)) + 1))
+    _den = S * sigma * _m.sqrt(T)
+    if not _m.isfinite(_den) or _den < 1e-12:
+        return 0.0
+    gamma_val = stats.norm.pdf(d1) / _den
+    out = float(-gamma_val / S * (d1 / (sigma * _m.sqrt(T)) + 1))
+    return out if _m.isfinite(out) else 0.0
 
 
 def charm(S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> float:
     """Charm: dDelta/dT (delta decay per unit time).
 
-    Also called "delta bleed" or "delta decay".
-    For call: charm = -e^(-qT) * [N'(d1) * (r/(sigma*sqrt(T)) - d2/(2*T)) - q*N(d1)]
-    For put:  charm = e^(-qT) * [N'(d1) * (r/(sigma*sqrt(T)) - d2/(2*T)) + q*N(-d1)]
+    Also called "delta bleed" or "delta decay". Implemented for the
+    zero-dividend-yield case (q = 0), which matches the TSE options market
+    where the underlying has no dividend yield:
+    For call: charm = -N'(d1) * (r/(sigma*sqrt(T)) - d2/(2*T))
+    For put:  charm = +N'(d1) * (r/(sigma*sqrt(T)) - d2/(2*T))
     """
     if T <= 0 or sigma <= 0 or S <= 0:
         return 0.0
@@ -97,13 +105,19 @@ def color(S: float, K: float, T: float, r: float, sigma: float) -> float:
     """
     if T <= 0 or sigma <= 0 or S <= 0:
         return 0.0
+    import math as _m
+
     d1 = _bs_d1(S, K, T, r, sigma)
-    d2 = d1 - sigma * math.sqrt(T)
-    gamma_val = stats.norm.pdf(d1) / (S * sigma * math.sqrt(T))
-    return float(-gamma_val * (
-        r + (r - 0.5 * sigma**2) * d1 / (sigma * math.sqrt(T))
+    d2 = d1 - sigma * _m.sqrt(T)
+    _den = S * sigma * _m.sqrt(T)
+    if not _m.isfinite(_den) or _den < 1e-12:
+        return 0.0
+    gamma_val = stats.norm.pdf(d1) / _den
+    out = float(-gamma_val * (
+        r + (r - 0.5 * sigma**2) * d1 / (sigma * _m.sqrt(T))
         + (1 - d1 * d2) / (2 * T)
     ))
+    return out if _m.isfinite(out) else 0.0
 
 
 def ultima(S: float, K: float, T: float, r: float, sigma: float) -> float:

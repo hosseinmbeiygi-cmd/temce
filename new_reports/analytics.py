@@ -43,7 +43,7 @@ def macd(closes):
         return None, None, None
     e12 = ema_series(closes, 12)
     e26 = ema_series(closes, 26)
-    line = [a - b for a, b in zip(e12, e26)]
+    line = [a - b for a, b in zip(e12, e26, strict=False)]
     sig = ema_series(line, 9)
     return line[-1], sig[-1], line[-1] - sig[-1]
 
@@ -229,11 +229,11 @@ def ml_run(rows):
     if len(set(ytr)) < 2 or len(set(yte)) < 2:
         return None
     # standardize on train stats
-    cols = list(zip(*Xtr))
+    cols = list(zip(*Xtr, strict=False))
     mu = [st.mean(c) for c in cols]
     sd = [st.pstdev(c) or 1.0 for c in cols]
     def std(part):
-        return [[(v - m) / s for v, m, s in zip(row, mu, sd)] for row in part]
+        return [[(v - m) / s for v, m, s in zip(row, mu, sd, strict=False)] for row in part]
     Xtr, Xva, Xte = std(Xtr), std(Xva), std(Xte)
     res = {'n': n, 'train': len(Xtr), 'val': len(Xva), 'test': len(Xte),
            'balance': sum(y) / len(y) * 100, 'models': {}, 'names': names}
@@ -242,10 +242,10 @@ def ml_run(rows):
     for name, pred_fn in [('logreg', logreg), ('gboost', gb_stump)]:
         try:
             pred, prob, imp = pred_fn(Xtr, ytr, Xva, yva, Xte)
-            acc = sum(1 for p, t in zip(pred, yte) if p == t) / len(yte) * 100
-            tp = sum(1 for p, t in zip(pred, yte) if p == 1 and t == 1)
-            fp = sum(1 for p, t in zip(pred, yte) if p == 1 and t == 0)
-            fn = sum(1 for p, t in zip(pred, yte) if p == 0 and t == 1)
+            acc = sum(1 for p, t in zip(pred, yte, strict=False) if p == t) / len(yte) * 100
+            tp = sum(1 for p, t in zip(pred, yte, strict=False) if p == 1 and t == 1)
+            fp = sum(1 for p, t in zip(pred, yte, strict=False) if p == 1 and t == 0)
+            fn = sum(1 for p, t in zip(pred, yte, strict=False) if p == 0 and t == 1)
             prec = tp / (tp + fp) * 100 if tp + fp else None
             rec = tp / (tp + fn) * 100 if tp + fn else None
             f1 = 2 * prec * rec / (prec + rec) if prec and rec else None
@@ -257,11 +257,11 @@ def ml_run(rows):
 
 def nfeatures_const(X):
     # drop constant columns instead of rejecting the whole dataset (volume absent in price history)
-    cols = list(zip(*X))
+    cols = list(zip(*X, strict=False))
     return any(st.pstdev(c) == 0 for c in cols)
 
 def drop_const_cols(X):
-    cols = list(zip(*X))
+    cols = list(zip(*X, strict=False))
     keep = [j for j, c in enumerate(cols) if st.pstdev(c) > 0]
     return [[row[j] for j in keep] for row in X], keep
 
@@ -276,8 +276,8 @@ def logreg(Xtr, ytr, Xva, yva, Xte):
     for _ in range(iters):
         gw = [0.0] * d
         gb = 0.0
-        for xi, yi in zip(Xtr, ytr):
-            z = sum(wj * xj for wj, xj in zip(w, xi)) + b
+        for xi, yi in zip(Xtr, ytr, strict=False):
+            z = sum(wj * xj for wj, xj in zip(w, xi, strict=False)) + b
             p = 1 / (1 + math.exp(-max(-30, min(30, z))))
             e = p - yi
             for j in range(d):
@@ -287,7 +287,7 @@ def logreg(Xtr, ytr, Xva, yva, Xte):
             w[j] -= lr * (gw[j] / len(Xtr) + l2 * w[j])
         b -= lr * gb / len(Xtr)
     def prob(row):
-        z = sum(wj * xj for wj, xj in zip(w, row)) + b
+        z = sum(wj * xj for wj, xj in zip(w, row, strict=False)) + b
         return 1 / (1 + math.exp(-max(-30, min(30, z))))
     pred = [1 if prob(r) >= 0.5 else 0 for r in Xte]
     return pred, [prob(r) for r in Xte], None
@@ -301,14 +301,14 @@ def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
     F = [f0] * n
     stumps = []
     for _ in range(rounds):
-        resid = [yi - 1 / (1 + math.exp(-max(-30, min(30, fi)))) for yi, fi in zip(ytr, F)]
+        resid = [yi - 1 / (1 + math.exp(-max(-30, min(30, fi)))) for yi, fi in zip(ytr, F, strict=False)]
         best = None
         feats = random.sample(range(d), min(d, 6))
         for j in feats:
             vals = sorted(set(row[j] for row in Xtr))
             for v in vals:
-                lm = [r for row, r in zip(Xtr, resid) if row[j] <= v]
-                rm = [r for row, r in zip(Xtr, resid) if row[j] > v]
+                lm = [r for row, r in zip(Xtr, resid, strict=False) if row[j] <= v]
+                rm = [r for row, r in zip(Xtr, resid, strict=False) if row[j] > v]
                 if not lm or not rm:
                     continue
                 gl, gr = st.mean(lm), st.mean(rm)
@@ -319,7 +319,7 @@ def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
             break
         _, j, v, gl, gr = best
         stumps.append((j, v, gl, gr))
-        F = [fi + lr * (gl if row[j] <= v else gr) for row, fi in zip(Xtr, F)]
+        F = [fi + lr * (gl if row[j] <= v else gr) for row, fi in zip(Xtr, F, strict=False)]
     def prob(row):
         f = f0
         for j, v, gl, gr in stumps:
@@ -334,7 +334,7 @@ def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
     return pred, [prob(r) for r in Xte], imp[:5]
 
 def auc_score(probs, yte):
-    pairs = sorted(zip(probs, yte))
+    pairs = sorted(zip(probs, yte, strict=False))
     # rank-based AUC
     ranks = {}
     i = 0
@@ -347,7 +347,7 @@ def auc_score(probs, yte):
     n_neg = len(yte) - n_pos
     if not n_pos or not n_neg:
         return None
-    for p, ts in sorted(uniq.items()):
+    for _p, ts in sorted(uniq.items()):
         k = len(ts)
         avg_rank = r + (k - 1) / 2
         if ts[0] == 1 or 1 in ts:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.logging import get_logger
+from domain.trading import iran_costs as _iran_costs
 
 logger = get_logger(__name__)
 
@@ -43,11 +44,13 @@ class StrategyResult:
 class OptionsStrategyEngine:
     """Complete options strategy engine covering all 28+ strategies from the book."""
 
-    # Iranian market constants
+    # Iranian market constants (costs single-sourced from domain.trading.iran_costs)
     CONTRACT_SIZE = 1000       # Each option contract = 1000 shares
     RISK_FREE_RATE = 0.15      # 15% annual (Iran)
-    COMMISSION_BUY = 0.00125   # 0.125% buy commission
-    COMMISSION_SELL = 0.00625  # 0.625% sell commission (incl 0.5% tax)
+    # Canonical TSE rates — single-sourced from domain.trading.iran_costs
+    # (BROKER 0.4%/side + CLEARING 0.085%/side; SELL TAX 0.5% sell-only).
+    COMMISSION_BUY: float = _iran_costs.BROKER_PCT + _iran_costs.CLEARING_FEE_PCT
+    COMMISSION_SELL: float = _iran_costs.BROKER_PCT + _iran_costs.CLEARING_FEE_PCT + _iran_costs.SELL_TAX_PCT
     SETTLEMENT_DAYS = 2        # T+2 settlement
     PRICE_LIMIT_PCT = 0.05     # 5% daily price limit for stocks
     OPTION_PRICE_LIMIT_PCT = 0.19  # 19% for options (wider than stocks)
@@ -878,17 +881,12 @@ class OptionsStrategyEngine:
         self, entry_price: float, exit_price: float, quantity: int,
         is_option: bool = True, is_short: bool = False
     ) -> dict[str, Any]:
-        """Calculate realistic P&L with Iranian market costs."""
-        if is_option:
-            # Options: 0.125% buy + 0.625% sell
-            buy_cost = entry_price * quantity * self.COMMISSION_BUY
-            sell_cost = exit_price * quantity * self.COMMISSION_SELL
-            total_commission = buy_cost + sell_cost
-        else:
-            # Stocks: 0.125% buy + 0.88% sell (incl tax)
-            buy_cost = entry_price * quantity * 0.00125
-            sell_cost = exit_price * quantity * 0.0088
-            total_commission = buy_cost + sell_cost
+        """Calculate realistic P&L with Iranian market costs (via iran_costs)."""
+        from domain.trading import iran_costs as _iran
+
+        buy_cost = _iran.buy_cost(entry_price, quantity)
+        sell_cost = _iran.sell_cost(exit_price, quantity)
+        total_commission = buy_cost + sell_cost
 
         gross_pnl = (exit_price - entry_price) * quantity
         net_pnl = gross_pnl - total_commission

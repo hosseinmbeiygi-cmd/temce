@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pandas as pd
@@ -73,13 +74,13 @@ class DataLoader:
         try:
             search_url = "https://search.tsetmc.com/api/Stock/GetStockSearch"
             params = {'text': symbol, 'page': 1, 'pageSize': 1}
-            response = requests.get(search_url, params=params, headers=DEFAULT_HEADERS)
+            response = await asyncio.to_thread(requests.get, search_url, params=params, headers=DEFAULT_HEADERS)
             if response.status_code != 200 or not response.json().get('data'):
                 return Result.fail("Symbol not found")
 
             ins_code = response.json()['data'][0]['insCode']
             realtime_url = f"http://cdn.tsetmc.com/api/Stock/GetStockDetail/{ins_code}"
-            response = requests.get(realtime_url, headers=DEFAULT_HEADERS)
+            response = await asyncio.to_thread(requests.get, realtime_url, headers=DEFAULT_HEADERS)
 
             if response.status_code != 200:
                 return Result.fail("Failed to get realtime data")
@@ -156,7 +157,7 @@ class DataLoader:
                         'page': 1,
                         'pageSize': 1
                     }
-                    response = requests.get(search_url, params=params, headers=DEFAULT_HEADERS)
+                    response = await asyncio.to_thread(requests.get, search_url, params=params, headers=DEFAULT_HEADERS)
                     response.encoding = 'utf-8'  # Ensure UTF-8 encoding
                     try:
                         json_data = response.json()
@@ -171,7 +172,7 @@ class DataLoader:
 
                     # Get historical data
                     hist_url = f"http://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/{ins_code}/0"
-                    response = requests.get(hist_url, headers=DEFAULT_HEADERS)
+                    response = await asyncio.to_thread(requests.get, hist_url, headers=DEFAULT_HEADERS)
                     if response.status_code != 200:
                         continue
 

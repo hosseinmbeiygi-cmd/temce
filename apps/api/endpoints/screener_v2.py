@@ -102,16 +102,82 @@ def _validate_sort_order(sort_order: str) -> str:
     return "asc" if isinstance(sort_order, str) and sort_order.lower() == "asc" else "desc"
 
 
-async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Fetch BrsApi snapshots and convert them to screener inputs.
+def _n(value: float | None, digits: int) -> float | None:
+    """Round a measured value; pass an unmeasured one through as ``null``.
 
-    Uses the shared ``services.market_watch_helper.fetch_market_watch`` helper
-    so that V2 endpoints do not duplicate the snapshot fetching / conversion
-    logic already used by the main screener endpoint.
+    ``round(None, 2)`` used to be impossible here because absence arrived as 0.0, which the
+    client then drew as a real reading — RSI 0 is maximum oversold and %B 0 is a close on the
+    lower band. Null is the only honest rendering of "no candles to compute on".
+    """
+    return None if value is None else round(value, digits)
+
+
+def _item(r: Any) -> dict[str, Any]:
+    """One screener row as the API returns it. Shared by GET and POST so the two never drift."""
+    return {
+        "symbol": r.symbol,
+        "name": r.name,
+        "market": r.market,
+        "industry": r.industry,
+        "last_price": r.last_price,
+        "change_pct": r.change_pct,
+        "volume": r.volume,
+        "value": r.value,
+        "smc_score": _n(r.smc_score, 4),
+        "phase": r.phase,
+        "rank": r.rank,
+        "reason": r.reason,
+        "liquidity_score": _n(r.liquidity_score, 4),
+        "power_score": _n(r.power_score, 4),
+        "structure_score": _n(r.structure_score, 4),
+        "orderflow_score": _n(r.orderflow_score, 4),
+        "trigger_score": _n(r.trigger_score, 4),
+        "analyticsComputed": r.analytics_computed,
+        "analyticsBars": r.analytics_bars,
+        "rsi": _n(r.rsi, 2),
+        "macd_histogram": _n(r.macd_histogram, 4),
+        "bb_pct": _n(r.bb_pct, 4),
+        "atr_pct": _n(r.atr_pct, 2),
+        "adx": _n(r.adx, 2),
+        "trend_direction": r.trend_direction,
+        "trend_strength": _n(r.trend_strength, 4),
+        "volatility_regime": r.volatility_regime,
+        "pattern_signal": r.pattern_signal,
+        "pattern_confidence": _n(r.pattern_confidence, 4),
+        "technical_score": _n(r.technical_score, 4),
+        "momentum_score": _n(r.momentum_score, 4),
+        "risk_score": _n(r.risk_score, 4),
+        "composite_score": _n(r.composite_score, 4),
+        "composite_signal": r.composite_signal,
+        "support_level": r.support_level,
+        "resistance_level": r.resistance_level,
+        "distance_to_support": r.distance_to_support,
+        "distance_to_resistance": r.distance_to_resistance,
+        "poc_price": r.poc_price,
+        "value_area_high": r.value_area_high,
+        "value_area_low": r.value_area_low,
+        "volume_trend": r.volume_trend,
+        "pe_ratio": r.pe_ratio,
+        "eps": r.eps,
+        "market_value": r.market_value,
+    }
+
+
+async def _fetch_v2_market_data(
+    limit: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    """Fetch BrsApi snapshots and daily history and convert them to screener inputs.
+
+    Uses the shared ``services.market_watch_helper`` helpers so that V2 endpoints do not
+    duplicate the snapshot fetching / conversion logic already used by the main screener.
+
+    The history map is what makes the advanced analytics real: without it every symbol was
+    analysed with an empty series, so the engine's "not computed" defaults were exported as
+    RSI 0.00 and ADX 0.00 for the entire market.
     """
     from brsapi.services.query_service import BrsApiQueryService
     from core.database import get_session
-    from services.market_watch_helper import fetch_market_watch
+    from services.market_watch_helper import fetch_history_map, fetch_market_watch
 
     # ``get_session()`` is an async generator; ``aclosing`` guarantees the DB
     # session is closed deterministically even though we return from inside
@@ -120,9 +186,16 @@ async def _fetch_v2_market_data(limit: int) -> tuple[list[dict[str, Any]], list[
         async for sess in sessions:
             svc = BrsApiQueryService(session=sess)
             instruments, market_watch = await fetch_market_watch(svc, limit=limit)
-            return instruments, market_watch
+            symbols = {i.get("symbol") for i in instruments if i.get("symbol")}
+            history_map: dict[str, list[dict[str, Any]]] = {}
+            try:
+                history_map = await fetch_history_map(svc, symbols=symbols)
+            except Exception as exc:  # pragma: no cover - depends on the history table
+                # Missing history is reported per symbol as "not measured", never filled in.
+                logger.warning("Screener V2 daily history unavailable: %s", exc)
+            return instruments, market_watch, history_map
 
-    return [], []
+    return [], [], {}
 
 
 # ── Schemas ──
@@ -182,7 +255,7 @@ async def screener_v2(
         return ApiResponse(success=True, data=cached)
 
     try:
-        instruments, market_watch = await _fetch_v2_market_data(limit=min(200, limit * 4))
+        instruments, market_watch, history_map = await _fetch_v2_market_data(limit=min(200, limit * 4))
 
         if not instruments:
             return ApiResponse(
@@ -195,6 +268,7 @@ async def screener_v2(
         results, stats = screener.batch_analyze(
             instruments=instruments,
             market_watch=market_watch,
+            history_map=history_map,
             sort_by=sort_by,
             sort_order=sort_order,
             limit=limit,
@@ -202,54 +276,7 @@ async def screener_v2(
             market=market,
         )
 
-        items = []
-        for r in results:
-            item = {
-                "symbol": r.symbol,
-                "name": r.name,
-                "market": r.market,
-                "industry": r.industry,
-                "last_price": r.last_price,
-                "change_pct": r.change_pct,
-                "volume": r.volume,
-                "value": r.value,
-                "smc_score": round(r.smc_score, 4),
-                "phase": r.phase,
-                "rank": r.rank,
-                "reason": r.reason,
-                "liquidity_score": round(r.liquidity_score, 4),
-                "power_score": round(r.power_score, 4),
-                "structure_score": round(r.structure_score, 4),
-                "orderflow_score": round(r.orderflow_score, 4),
-                "trigger_score": round(r.trigger_score, 4),
-                "rsi": round(r.rsi, 2),
-                "macd_histogram": round(r.macd_histogram, 4),
-                "bb_pct": round(r.bb_pct, 4),
-                "atr_pct": round(r.atr_pct, 2),
-                "adx": round(r.adx, 2),
-                "trend_direction": r.trend_direction,
-                "trend_strength": round(r.trend_strength, 4),
-                "volatility_regime": r.volatility_regime,
-                "pattern_signal": r.pattern_signal,
-                "pattern_confidence": round(r.pattern_confidence, 4),
-                "technical_score": round(r.technical_score, 4),
-                "momentum_score": round(r.momentum_score, 4),
-                "risk_score": round(r.risk_score, 4),
-                "composite_score": round(r.composite_score, 4),
-                "composite_signal": r.composite_signal,
-                "support_level": r.support_level,
-                "resistance_level": r.resistance_level,
-                "distance_to_support": r.distance_to_support,
-                "distance_to_resistance": r.distance_to_resistance,
-                "poc_price": r.poc_price,
-                "value_area_high": r.value_area_high,
-                "value_area_low": r.value_area_low,
-                "volume_trend": r.volume_trend,
-                "pe_ratio": r.pe_ratio,
-                "eps": r.eps,
-                "market_value": r.market_value,
-            }
-            items.append(item)
+        items = [_item(r) for r in results]
 
         data = {"items": items, "total": stats["total"], "stats": stats}
         _cache_set(cache_key, data)
@@ -288,7 +315,7 @@ async def screener_v2_filter(
         return ApiResponse(success=True, data=cached)
 
     try:
-        instruments, market_watch = await _fetch_v2_market_data(limit=min(200, body.limit * 4))
+        instruments, market_watch, history_map = await _fetch_v2_market_data(limit=min(200, body.limit * 4))
 
         if not instruments:
             return ApiResponse(
@@ -311,6 +338,7 @@ async def screener_v2_filter(
         results, stats = screener.batch_analyze(
             instruments=instruments,
             market_watch=market_watch,
+            history_map=history_map,
             sort_by=body.sort_by,
             sort_order=body.sort_order,
             limit=len(instruments),  # Get all results, paginate after filtering
@@ -412,54 +440,7 @@ async def screener_v2_filter(
         if body.signal_filter:
             results = [r for r in results if r.composite_signal == body.signal_filter]
 
-        items = []
-        for r in results:
-            item = {
-                "symbol": r.symbol,
-                "name": r.name,
-                "market": r.market,
-                "industry": r.industry,
-                "last_price": r.last_price,
-                "change_pct": r.change_pct,
-                "volume": r.volume,
-                "value": r.value,
-                "smc_score": round(r.smc_score, 4),
-                "phase": r.phase,
-                "rank": r.rank,
-                "reason": r.reason,
-                "liquidity_score": round(r.liquidity_score, 4),
-                "power_score": round(r.power_score, 4),
-                "structure_score": round(r.structure_score, 4),
-                "orderflow_score": round(r.orderflow_score, 4),
-                "trigger_score": round(r.trigger_score, 4),
-                "rsi": round(r.rsi, 2),
-                "macd_histogram": round(r.macd_histogram, 4),
-                "bb_pct": round(r.bb_pct, 4),
-                "atr_pct": round(r.atr_pct, 2),
-                "adx": round(r.adx, 2),
-                "trend_direction": r.trend_direction,
-                "trend_strength": round(r.trend_strength, 4),
-                "volatility_regime": r.volatility_regime,
-                "pattern_signal": r.pattern_signal,
-                "pattern_confidence": round(r.pattern_confidence, 4),
-                "technical_score": round(r.technical_score, 4),
-                "momentum_score": round(r.momentum_score, 4),
-                "risk_score": round(r.risk_score, 4),
-                "composite_score": round(r.composite_score, 4),
-                "composite_signal": r.composite_signal,
-                "support_level": r.support_level,
-                "resistance_level": r.resistance_level,
-                "distance_to_support": r.distance_to_support,
-                "distance_to_resistance": r.distance_to_resistance,
-                "poc_price": r.poc_price,
-                "value_area_high": r.value_area_high,
-                "value_area_low": r.value_area_low,
-                "volume_trend": r.volume_trend,
-                "pe_ratio": r.pe_ratio,
-                "eps": r.eps,
-                "market_value": r.market_value,
-            }
-            items.append(item)
+        items = [_item(r) for r in results]
 
         data = {"items": items, "total": len(items), "stats": stats, "applied_filters": body.filters}
         _cache_set(cache_key, data)
@@ -499,6 +480,7 @@ async def compare_symbols(
                 snapshots = await svc.get_enriched_snapshots(limit=500)
                 snap_map = {s.get("symbol"): s for s in snapshots if s.get("symbol") in symbol_list}
 
+                from services.market_watch_helper import DAILY_HISTORY_DAYS, candles_from_daily_rows
                 from services.smart_screener_v2 import SmartScreenerV2
 
                 screener = SmartScreenerV2()
@@ -519,37 +501,15 @@ async def compare_symbols(
                         "eps": s.get("eps"),
                         "market_value": s.get("market_value"),
                     }
+                    # Real candles per symbol. This endpoint used to pass an empty history, so
+                    # every comparison it rendered was built from uncomputed indicators.
+                    rows = await svc.get_historical_daily(sym, limit=DAILY_HISTORY_DAYS)
+                    history = candles_from_daily_rows(rows)
                     result = screener.analyze_symbol(
-                        sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, []
+                        sym, s.get("name", sym), s.get("market", ""), s.get("sector", ""), quote, history
                     )
-                    results.append(
-                        {
-                            "symbol": result.symbol,
-                            "name": result.name,
-                            "industry": result.industry,
-                            "last_price": result.last_price,
-                            "change_pct": result.change_pct,
-                            "composite_score": round(result.composite_score, 4),
-                            "composite_signal": result.composite_signal,
-                            "smc_score": round(result.smc_score, 4),
-                            "technical_score": round(result.technical_score, 4),
-                            "momentum_score": round(result.momentum_score, 4),
-                            "risk_score": round(result.risk_score, 4),
-                            "rsi": round(result.rsi, 2),
-                            "macd_histogram": round(result.macd_histogram, 4),
-                            "trend_direction": result.trend_direction,
-                            "trend_strength": round(result.trend_strength, 4),
-                            "volatility_regime": result.volatility_regime,
-                            "pattern_signal": result.pattern_signal,
-                            "pattern_confidence": round(result.pattern_confidence, 4),
-                            "support_level": result.support_level,
-                            "resistance_level": result.resistance_level,
-                            "distance_to_support": result.distance_to_support,
-                            "distance_to_resistance": result.distance_to_resistance,
-                            "volume_trend": result.volume_trend,
-                            "pe_ratio": result.pe_ratio,
-                        }
-                    )
+                    item = _item(result)
+                    results.append(item)
 
                 return ApiResponse(success=True, data={"items": results})
 

@@ -32,13 +32,18 @@ class SafeTradingAgent:
         self.history: list[dict[str, Any]] = []
 
     def calculate_cvar(self, returns: list[float]) -> float:
+        import math
         if not returns:
             return 0.0
-        sorted_r = sorted(returns)
+        clean = [float(r) for r in returns if r is not None and math.isfinite(float(r))]
+        if not clean:
+            return 0.0
+        sorted_r = sorted(clean)
         cutoff = int((1 - self.alpha) * len(sorted_r))
         if cutoff <= 0:
             return -sorted_r[0] if sorted_r else 0.0
-        return -sum(sorted_r[:cutoff]) / cutoff
+        out = -sum(sorted_r[:cutoff]) / cutoff
+        return out if math.isfinite(out) else 0.0
 
     def calculate_var(self, returns: list[float]) -> float:
         if not returns:

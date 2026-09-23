@@ -3,22 +3,16 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, extractArray } from "@/lib/api";
-import {
-  INDICES,
-  NEWS,
-  QUOTES,
-  TOP_PERFORMERS,
-  TOP_STOCKS_TODAY,
-  VALUE_VOLUME,
-  type IndexQuote,
-  type MarketSession,
-  type NewsItem,
-  type QuoteItem,
-  type TickerItem,
-  type Top5Symbol,
-  type TopStock,
-  getMarketSession,
+import type {
+  IndexQuote,
+  MarketSession,
+  NewsItem,
+  QuoteItem,
+  TickerItem,
+  Top5Symbol,
+  TopStock,
 } from "@/lib/market-mock";
+import { getMarketSession } from "@/lib/market-mock";
 
 /** Minimal shapes for the new live hooks (kept local to avoid mock coupling). */
 export interface FlowRow {
@@ -71,14 +65,33 @@ export interface CalendarEvent {
   importance?: number;
 }
 
+export interface MarketOverviewData {
+  breadth: { up: number; down: number; flat: number };
+  tradeValueB: number;
+  volumeM: number;
+  avgChangePct: number;
+}
+
 /**
- * Live market data layer — fetches the real backend endpoints and falls back
- * to the static mock catalogue when the API is unreachable or empty. Every
- * hook returns the same shape the dashboard widgets already consume, so wiring
- * a widget to live data is a one-line change.
- *
- * All list hooks return ≥10 symbols when live data is available so each
- * dashboard section stays populated during manual testing.
+ * Contract for live-data hooks. No hook in this module ever falls back to
+ * mock/sample data silently — widgets must render `LiveDataBanner` when
+ * `isLive` is false (after loading finished), so a backend outage or an
+ * empty feed is always explicit to the user.
+ */
+export interface LiveDataResult<T> {
+  data: T;
+  /** True when the backend returned usable live data. */
+  isLive: boolean;
+  /** True when the last fetch errored. */
+  isError: boolean;
+  /** True while the first fetch (or a refetch with no cached data) is running. */
+  isLoading: boolean;
+}
+
+/**
+ * Live market data layer — fetches the real backend endpoints ONLY. Widgets
+ * decide how to surface the degraded state via LiveDataBanner; this module
+ * never substitutes fake numbers.
  */
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -230,7 +243,6 @@ export function useMarketSession(): MarketSession {
     nextEventLabel: "",
   });
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt market session after mount
   useEffect(() => {
     setSession(getMarketSession());
     const id = setInterval(() => {
@@ -247,270 +259,233 @@ export function useMarketSession(): MarketSession {
  * lists (ticker, top gainers, TSE/OTC tables, top performers) derive from
  * this one query so the browser makes a single request instead of four.
  */
-function useEnrichedHeatmap(): HeatmapCell[] {
-  const { data } = useQuery({
+function useEnrichedHeatmap(): LiveDataResult<HeatmapCell[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-heatmap"],
     queryFn: async (): Promise<HeatmapCell[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: HeatmapCell[] }>(
-          "/market/enriched-heatmap?limit=120"
-        );
-        const arr = extractArray<HeatmapCell>(res);
-        if (arr.length === 0 && (res as unknown as Record<string, unknown>)?.success === false) {
-          console.warn("[useEnrichedHeatmap] backend returned success:false", res);
-        }
-        return arr;
-      } catch (e) {
-        console.warn("[useEnrichedHeatmap] fetch failed, falling back to mock", e);
-        throw e;
+      const res = await apiGet<{ success: boolean; data: HeatmapCell[] }>(
+        "/market/enriched-heatmap?limit=120"
+      );
+      const arr = extractArray<HeatmapCell>(res);
+      if (arr.length === 0 && (res as unknown as Record<string, unknown>)?.success === false) {
+        console.warn("[useEnrichedHeatmap] backend returned success:false", res);
       }
+      return arr;
     },
     refetchInterval: 30_000,
     staleTime: 10_000,
     retry: 1,
   });
-  return data ?? [];
+  const cells = data ?? [];
+  return { data: cells, isLive: cells.length > 0, isError, isLoading };
 }
 
 /** Live ticker / sitebar strip — top symbols by value from the heatmap. */
-export function useTickerItems(): TickerItem[] {
-  const cells = useEnrichedHeatmap();
-  if (cells.length > 0) {
-    const mapped = mapHeatmapToTicker(
-      [...cells].sort((a, b) => (b.value || 0) - (a.value || 0))
-    );
-    if (mapped.length > 0) return mapped;
-  }
-  // بدون داده واقعی، تیکر خالی می‌ماند — هرگز مقادیر نمونه نمایش داده نمی‌شود.
-  return [];
+export function useTickerItems(): LiveDataResult<TickerItem[]> {
+  const hm = useEnrichedHeatmap();
+  const mapped =
+    hm.data.length > 0
+      ? mapHeatmapToTicker([...hm.data].sort((a, b) => (b.value || 0) - (a.value || 0)))
+      : [];
+  return {
+    data: mapped,
+    isLive: mapped.length > 0,
+    isError: hm.isError,
+    isLoading: hm.isLoading,
+  };
 }
 
 /** Live indices — شاخص کل / هم‌وزن / فرابورس / … from /market/indices. */
-export function useIndices(): IndexQuote[] {
-  const { data } = useQuery({
+export function useIndices(): LiveDataResult<IndexQuote[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-indices"],
-    queryFn: async (): Promise<IndexQuote[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: RawIndex[] }>("/market/indices");
-        const raw = extractArray<RawIndex>(res);
-        const mapped = mapIndices(raw);
-        if (mapped.length > 0) return mapped;
-      } catch {
-        /* fall through to mock */
-      }
-      return INDICES;
-    },
+    queryFn: async (): Promise<IndexQuote[]> => mapIndices(
+      extractArray<RawIndex>(
+        await apiGet<{ success: boolean; data: RawIndex[] }>("/market/indices")
+      )
+    ),
     refetchInterval: 120_000,
     staleTime: 60_000,
+    retry: 1,
   });
-  return data ?? INDICES;
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
 /** Live news strip from /news. */
-export function useNewsItems(): NewsItem[] {
-  const { data } = useQuery({
+export function useNewsItems(): LiveDataResult<NewsItem[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-news"],
     queryFn: async (): Promise<NewsItem[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: { items: NewsItem[] } }>(
-          "/news?page_size=6"
-        );
-        const items = res?.data?.items ?? [];
-        if (items.length > 0) {
-          return items.slice(0, 6).map((n, i) => {
-            const publishedAt = (n as NewsItem).published_at ?? (n as { publish_date?: string }).publish_date;
-            return {
-              id: n.id || `news-${i}`,
-              title: n.title,
-              source: n.source || "بازار",
-              published_at: publishedAt,
-              time: publishedAt
-                ? new Date(publishedAt).toLocaleTimeString("fa-IR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "",
-              sentiment: "neutral",
-              symbols: [],
-            };
-          });
-        }
-      } catch {
-        /* fall through to mock */
-      }
-      return NEWS;
+      const res = await apiGet<{ success: boolean; data: { items: NewsItem[] } }>(
+        "/news?page_size=6"
+      );
+      const items = res?.data?.items ?? [];
+      return items.slice(0, 6).map((n, i) => {
+        const publishedAt = (n as NewsItem).published_at ?? (n as { publish_date?: string }).publish_date;
+        return {
+          id: n.id || `news-${i}`,
+          title: n.title,
+          source: n.source || "بازار",
+          published_at: publishedAt,
+          time: publishedAt
+            ? new Date(publishedAt).toLocaleTimeString("fa-IR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "",
+          sentiment: "neutral",
+          symbols: [],
+        } satisfies NewsItem;
+      });
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
+    retry: 1,
   });
-  return data ?? NEWS;
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
 /** Live market breadth, value & volume from market-dashboard overview. */
-export function useMarketOverview() {
-  const { data } = useQuery({
+export function useMarketOverview(): LiveDataResult<MarketOverviewData | null> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-overview"],
-    queryFn: async (): Promise<{
-      breadth: { up: number; down: number; flat: number };
-      tradeValueB: number;
-      volumeM: number;
-      avgChangePct: number;
-    } | null> => {
-      try {
-        const res = await apiGet<{
-          success: boolean;
-          data: { overview?: { value?: DashboardOverview } };
-        }>("/market-dashboard");
-        const ov = res?.data?.overview?.value;
-        if (ov && typeof ov.gainers === "number") {
-          return {
-            breadth: {
-              up: ov.gainers ?? 0,
-              down: ov.losers ?? 0,
-              flat: ov.unchanged ?? 0,
-            },
-            tradeValueB: (ov.total_value ?? 0) / 1e12,
-            volumeM: (ov.total_volume ?? 0) / 1e6,
-            avgChangePct: ov.avg_change_pct ?? 0,
-          };
-        }
-      } catch {
-        /* fall through to mock */
+    queryFn: async (): Promise<MarketOverviewData | null> => {
+      const res = await apiGet<{
+        success: boolean;
+        data: { overview?: { value?: DashboardOverview } };
+      }>("/market-dashboard");
+      const ov = res?.data?.overview?.value;
+      if (ov && typeof ov.gainers === "number") {
+        return {
+          breadth: {
+            up: ov.gainers ?? 0,
+            down: ov.losers ?? 0,
+            flat: ov.unchanged ?? 0,
+          },
+          tradeValueB: (ov.total_value ?? 0) / 1e12,
+          volumeM: (ov.total_volume ?? 0) / 1e6,
+          avgChangePct: ov.avg_change_pct ?? 0,
+        };
       }
       return null;
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
+    retry: 1,
   });
-
-  const fallback = {
-    breadth: VALUE_VOLUME.breadth,
-    tradeValueB: VALUE_VOLUME.tradeValueB,
-    volumeM: VALUE_VOLUME.volumeM,
-    avgChangePct: VALUE_VOLUME.avgChangePct ?? 0,
-  };
-  return data ?? fallback;
+  return { data: data ?? null, isLive: data != null, isError, isLoading };
 }
 
 /** Live top gainers (≥10) from enriched heatmap — used by TopStocksToday. */
-export function useTopStocks(): TopStock[] {
-  const cells = useEnrichedHeatmap();
-  if (cells.length > 0) {
-    const mapped = mapHeatmapToStocks(cells).sort(
-      (a, b) => b.changePct - a.changePct
-    );
-    if (mapped.length >= 10) return mapped.slice(0, 12);
-    if (mapped.length > 0) return mapped;
-  }
-  return TOP_STOCKS_TODAY;
+export function useTopStocks(): LiveDataResult<TopStock[]> {
+  const hm = useEnrichedHeatmap();
+  const mapped =
+    hm.data.length > 0
+      ? mapHeatmapToStocks(hm.data).sort((a, b) => b.changePct - a.changePct)
+      : [];
+  return {
+    data: mapped,
+    isLive: mapped.length > 0,
+    isError: hm.isError,
+    isLoading: hm.isLoading,
+  };
 }
 
 /** Live top symbols by value, split by market (بورس / فرابورس) — 10 each. */
-export function useActiveSymbols(): { tse: Top5Symbol[]; otc: Top5Symbol[] } {
-  const cells = useEnrichedHeatmap();
-  if (cells.length > 0) {
-    const byValue = (rows: HeatmapCell[]) =>
-      [...rows]
-        .sort((a, b) => (b.value || 0) - (a.value || 0))
-        .slice(0, 10)
-        .map<Top5Symbol>((c) => ({
-          symbol: c.symbol,
-          name: c.name ?? "",
-          tradeValueB: (c.value ?? 0) / 1e12,
-          changePct: c.change,
-        }));
-    const tse = byValue(cells.filter((c) => (c.market || "").includes("بورس")));
-    const otc = byValue(cells.filter((c) => (c.market || "").includes("فرابورس")));
-    if (tse.length >= 5 || otc.length >= 5) return { tse, otc };
-  }
-  return { tse: VALUE_VOLUME.top5Tse, otc: VALUE_VOLUME.top5Otc };
+export function useActiveSymbols(): LiveDataResult<{ tse: Top5Symbol[]; otc: Top5Symbol[] }> {
+  const hm = useEnrichedHeatmap();
+  const byValue = (rows: HeatmapCell[]) =>
+    [...rows]
+      .sort((a, b) => (b.value || 0) - (a.value || 0))
+      .slice(0, 10)
+      .map<Top5Symbol>((c) => ({
+        symbol: c.symbol,
+        name: c.name ?? "",
+        tradeValueB: (c.value ?? 0) / 1e12,
+        changePct: c.change,
+      }));
+  // NB: "فرابورس" contains "بورس" as a substring — an includes("بورس") filter
+  // alone leaks OTC rows into the TSE table (a real misclassification the old
+  // mock fallback used to hide).
+  const market = (c: HeatmapCell) => c.market || "";
+  const tse = byValue(hm.data.filter((c) => market(c).includes("بورس") && !market(c).includes("فرابورس")));
+  const otc = byValue(hm.data.filter((c) => market(c).includes("فرابورس")));
+  return {
+    data: { tse, otc },
+    isLive: tse.length > 0 || otc.length > 0,
+    isError: hm.isError,
+    isLoading: hm.isLoading,
+  };
 }
 
 /** Live quote cards (طلا / سکه / ارز / تتر / دلار) from brsapi endpoints. */
-export function useQuoteCards(): QuoteItem[] {
-  const { data } = useQuery({
+export function useQuoteCards(): LiveDataResult<QuoteItem[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-quote-cards"],
     queryFn: async (): Promise<QuoteItem[]> => {
-      try {
-        const [goldRes, curRes, cryptoRes] = await Promise.all([
-          apiGet<{ success: boolean; data: PriceRow[] }>("/brsapi/gold-coin"),
-          apiGet<{ success: boolean; data: PriceRow[] }>("/brsapi/currency"),
-          apiGet<{ success: boolean; data: CryptoRow[] }>("/brsapi/crypto?limit=200&sort_by=rank"),
-        ]);
-        const gold = extractArray<PriceRow>(goldRes);
-        const cur = extractArray<PriceRow>(curRes);
-        const crypto = extractArray<CryptoRow>(cryptoRes);
-        const cryptoAsPrice = crypto.map<PriceRow>((c) => ({
-          ...c,
-          price: c.price_irr ?? c.price,
-        }));
-        // Show up to 10 quote cards: 2 gold, 2 coins, dollar, tether, euro,
-        // dirham + extra currencies. Crypto rows only supply USDT and only when
-        // a real IRR price exists (price_irr) — otherwise the mock tether is
-        // kept, because a zero/1$ price would look broken.
-        const wanted = [
-          "IR_GOLD_18K", "IR_GOLD_24K", "IR_COIN_EMAMI", "IR_COIN_BAHAR",
-          "USD", "USDT", "EUR", "AED", "GBP", "TRY",
-        ];
-        const rows = [
-          ...pickSymbols(gold, wanted),
-          ...pickSymbols(cur, wanted),
-          ...pickSymbols(cryptoAsPrice, wanted).filter(
-            (c) => c.symbol === "USDT" && (c.price ?? 0) > 1000
-          ),
-        ];
-        const seen = new Set<string>();
-        const quotes: QuoteItem[] = [];
-        for (const row of rows) {
-          if (seen.has(row.symbol)) continue;
-          seen.add(row.symbol);
-          const q = mapPriceToQuote(row);
-          if (q) quotes.push(q);
-          if (quotes.length >= 10) break;
-        }
-        if (quotes.length >= 3) {
-          // Keep tether visible — if the live crypto feed had no usable USDT
-          // IRR price, fall back to the mock tether card so the row stays full.
-          if (!quotes.some((q) => q.kind === "tether")) {
-            const mockTether = QUOTES.find((q) => q.kind === "tether");
-            if (mockTether) quotes.push(mockTether);
-          }
-          return quotes;
-        }
-      } catch {
-        /* fall through to mock */
+      const [goldRes, curRes, cryptoRes] = await Promise.all([
+        apiGet<{ success: boolean; data: PriceRow[] }>("/brsapi/gold-coin"),
+        apiGet<{ success: boolean; data: PriceRow[] }>("/brsapi/currency"),
+        apiGet<{ success: boolean; data: CryptoRow[] }>("/brsapi/crypto?limit=200&sort_by=rank"),
+      ]);
+      const gold = extractArray<PriceRow>(goldRes);
+      const cur = extractArray<PriceRow>(curRes);
+      const crypto = extractArray<CryptoRow>(cryptoRes);
+      const cryptoAsPrice = crypto.map<PriceRow>((c) => ({
+        ...c,
+        price: c.price_irr ?? c.price,
+      }));
+      // Show up to 10 quote cards: 2 gold, 2 coins, dollar, tether, euro,
+      // dirham + extra currencies. Crypto rows only supply USDT and only when
+      // a real IRR price exists (price_irr) — a zero/1$ price would look broken.
+      const wanted = [
+        "IR_GOLD_18K", "IR_GOLD_24K", "IR_COIN_EMAMI", "IR_COIN_BAHAR",
+        "USD", "USDT", "EUR", "AED", "GBP", "TRY",
+      ];
+      const rows = [
+        ...pickSymbols(gold, wanted),
+        ...pickSymbols(cur, wanted),
+        ...pickSymbols(cryptoAsPrice, wanted).filter(
+          (c) => c.symbol === "USDT" && (c.price ?? 0) > 1000
+        ),
+      ];
+      const seen = new Set<string>();
+      const quotes: QuoteItem[] = [];
+      for (const row of rows) {
+        if (seen.has(row.symbol)) continue;
+        seen.add(row.symbol);
+        const q = mapPriceToQuote(row);
+        if (q) quotes.push(q);
+        if (quotes.length >= 10) break;
       }
-      return QUOTES;
+      return quotes;
     },
     refetchInterval: 120_000,
     staleTime: 60_000,
+    retry: 1,
   });
-  return data ?? QUOTES;
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
 /** Live top performers for LiquidityBlocks — shares the same heatmap query. */
-export function useTopPerformers(): TopStock[] {
-  const cells = useEnrichedHeatmap();
-  if (cells.length > 0) {
-    const mapped = mapHeatmapToStocks(cells).sort(
-      (a, b) => b.changePct - a.changePct
-    );
-    if (mapped.length >= 10) return mapped.slice(0, 10);
-    if (mapped.length > 0) return mapped;
-  }
-  return TOP_PERFORMERS;
+export function useTopPerformers(): LiveDataResult<TopStock[]> {
+  const hm = useEnrichedHeatmap();
+  const mapped =
+    hm.data.length > 0
+      ? mapHeatmapToStocks(hm.data).sort((a, b) => b.changePct - a.changePct)
+      : [];
+  return {
+    data: mapped,
+    isLive: mapped.length > 0,
+    isError: hm.isError,
+    isLoading: hm.isLoading,
+  };
 }
 
 // ── New live hooks (dashboard wiring) ─────────────────────────────────
-
-function sparkFromSeries(values: number[], n = 7): number[] {
-  if (values.length === 0) return [];
-  if (values.length <= n) return values;
-  const step = (values.length - 1) / (n - 1);
-  const out: number[] = [];
-  for (let i = 0; i < n; i++) out.push(values[Math.round(i * step)]);
-  return out;
-}
 
 /** Live global markets (S&P / gold oz / brent / BTC) from BrsApi sections. */
 export function useGlobalMarkets(): GlobalQuote[] {
@@ -672,7 +647,8 @@ export function useFlowSummary(): FlowSummary | null {
  * weights feed; this is the best available real-data proxy.
  */
 export function useIndexImpacts(): { positive: ImpactRow[]; negative: ImpactRow[] } {
-  const cells = useEnrichedHeatmap();
+  const hm = useEnrichedHeatmap();
+  const cells = hm.data;
   if (cells.length === 0) return { positive: [], negative: [] };
   const scored = cells
     .map((c) => ({

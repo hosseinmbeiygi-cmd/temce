@@ -12,14 +12,15 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, time as dt_time, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
+from datetime import time as dt_time
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from core.logging import get_logger
 from core.result import Result
 
-from .brs_api_client import BrsApiIngestionClient, DEFAULT_ALL_SYMBOLS_TYPE
+from .brs_api_client import DEFAULT_ALL_SYMBOLS_TYPE, BrsApiIngestionClient
 from .config import IngestionConfig
 from .raw_validation import RawQuoteValidator, RawValidationReport
 

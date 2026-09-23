@@ -10,6 +10,7 @@ import { Gem, DollarSign, TrendingUp, TrendingDown, Activity, Coins, BarChart3, 
 type GoldItem = { symbol?: string; name?: string; title?: string; price?: number; price_close?: number; price_last?: number; change_percent?: number; unit?: string; date?: string; time?: string };
 type FxItem = { symbol: string; name?: string; price?: number; change_percent?: number; unit?: string; time?: string };
 type ForecastRes = { symbol: string; horizon_days: number; forecast: { date: string; p50: number; p_lower: number; p_upper: number; direction_probability_up: number }[]; model: { name: string; version: string }; quality: { status: string } };
+type ForecastDetail = ForecastRes & { meta?: { disclaimer?: string; fair_value_irr?: number; premium_log?: number } };
 
 export default function GoldDollarPage() {
   const [tab, setTab] = useState<"live" | "forecast">("live");
@@ -20,47 +21,47 @@ export default function GoldDollarPage() {
 
   const goldQ = useQuery({
     queryKey: ["gold-coin-live"],
-    queryFn: async () => (await apiGet<any>("/brsapi/gold-coin")).data ?? [],
+    queryFn: async () => (await apiGet<{ data?: GoldItem[] }>("/brsapi/gold-coin")).data ?? [],
     refetchInterval: 120_000,
   });
   const fxQ = useQuery({
     queryKey: ["fx-live"],
-    queryFn: async () => (await apiGet<any>("/brsapi/currency")).data ?? [],
+    queryFn: async () => (await apiGet<{ data?: FxItem[] }>("/brsapi/currency")).data ?? [],
     refetchInterval: 120_000,
   });
   const forecastQ = useQuery({
     queryKey: ["forecast-gold", forecastSymbol, horizon, goldQ.data, fxQ.data],
     queryFn: async () => {
-      const findGold = (need: string) => (goldQ.data as any[])?.find((x: any) => `${x.symbol ?? ""} ${x.name ?? ""} ${x.title ?? ""}`.includes(need));
-      const findFx = (need: string) => (fxQ.data as any[])?.find((x: any) => `${x.symbol}`.toLowerCase().includes(need.toLowerCase()));
+      const findGold = (need: string) => goldQ.data?.find((x) => `${x.symbol ?? ""} ${x.name ?? ""} ${x.title ?? ""}`.includes(need));
+      const findFx = (need: string) => fxQ.data?.find((x) => `${x.symbol}`.toLowerCase().includes(need.toLowerCase()));
       let lastClose: number;
-      if (forecastSymbol === "gold_18k") lastClose = findGold("18")?.price ?? (goldQ.data as any[])?.[0]?.price ?? 81200000;
+      if (forecastSymbol === "gold_18k") lastClose = findGold("18")?.price ?? goldQ.data?.[0]?.price ?? 81200000;
       else if (forecastSymbol === "usd_irr_free") lastClose = findFx("usd")?.price ?? 850000;
       else lastClose = findFx("xau")?.price ?? 3350;
       const usdIrr = findFx("usd")?.price;
       const qs = new URLSearchParams({ symbol: forecastSymbol, horizon: String(horizon), last_close: String(lastClose) });
       if (usdIrr) qs.set("usd_irr", String(usdIrr));
-      const r = await apiGet<any>(`/forecast?${qs.toString()}`);
-      return r.data as ForecastRes & { meta?: { disclaimer?: string; fair_value_irr?: number; premium_log?: number } };
+      const r = await apiGet<{ data?: ForecastDetail }>(`/forecast?${qs.toString()}`);
+      return r.data;
     },
     enabled: tab === "forecast" && !goldQ.isLoading && !fxQ.isLoading,
     staleTime: 60_000,
   });
 
   const stats = useMemo(() => {
-    const g = (goldQ.data ?? []) as GoldItem[];
-    const f = (fxQ.data ?? []) as FxItem[];
+    const g = goldQ.data ?? [];
+    const f = fxQ.data ?? [];
     return {
       goldCount: g.length,
       fxCount: f.length,
-      bestGold: g.reduce((a: any, b: any) => ((b.change_percent ?? -999) > (a?.change_percent ?? -999) ? b : a), null as any),
-      bestFx: f.reduce((a: any, b: any) => ((b.change_percent ?? -999) > (a?.change_percent ?? -999) ? b : a), null as any),
+      bestGold: g.reduce<GoldItem | null>((a, b) => ((b.change_percent ?? -999) > (a?.change_percent ?? -999) ? b : a), null),
+      bestFx: f.reduce<FxItem | null>((a, b) => ((b.change_percent ?? -999) > (a?.change_percent ?? -999) ? b : a), null),
     };
   }, [goldQ.data, fxQ.data]);
 
   const converter = useMemo(() => {
-    const usd = (fxQ.data as any[])?.find((x: any) => x.symbol?.toLowerCase().includes("usd"))?.price ?? 850000;
-    const gold = (goldQ.data as any[])?.find((x: any) => (x.symbol ?? x.name ?? "").includes("18"))?.price ?? 81200000;
+    const usd = fxQ.data?.find((x) => x.symbol?.toLowerCase().includes("usd"))?.price ?? 850000;
+    const gold = goldQ.data?.find((x) => (x.symbol ?? x.name ?? "").includes("18"))?.price ?? 81200000;
     const a = parseFloat(amount) || 0;
     return { usd, gold, toToman: a * gold, toGoldGram: usd ? (a * usd) / gold : 0 };
   }, [amount, goldQ.data, fxQ.data]);
@@ -107,11 +108,11 @@ export default function GoldDollarPage() {
 
           {/* تب‌های اصلی */}
           <div className="mt-8 flex gap-2">
-            {[
+            {([
               { k: "live", l: "قیمت لحظه‌ای", i: Activity },
               { k: "forecast", l: "پیش‌بینی", i: BarChart3 },
-            ].map((t) => (
-              <button key={t.k} onClick={() => setTab(t.k as any)} className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition ${tab === t.k ? "bg-white text-zinc-900 shadow-lg" : "bg-white/10 text-white hover:bg-white/15 border border-white/10"}`}>
+            ] as const).map((t) => (
+              <button key={t.k} onClick={() => setTab(t.k)} className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition ${tab === t.k ? "bg-white text-zinc-900 shadow-lg" : "bg-white/10 text-white hover:bg-white/15 border border-white/10"}`}>
                 <t.i className="w-4 h-4" /> {t.l}
               </button>
             ))}
@@ -135,9 +136,9 @@ export default function GoldDollarPage() {
             {subTab === "gold" ? (
               goldQ.isLoading ? (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}</div>
-              ) : (goldQ.data as any[])?.length ? (
+              ) : goldQ.data?.length ? (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(goldQ.data as any[]).map((g: any, i: number) => {
+                  {goldQ.data.map((g, i) => {
                     const up = (g.change_percent ?? 0) >= 0;
                     return (
                       <div key={i} className="relative overflow-hidden rounded-2xl border border-amber-500/15 bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 hover:shadow-xl hover:shadow-amber-500/10 transition">
@@ -159,9 +160,9 @@ export default function GoldDollarPage() {
               )
             ) : fxQ.isLoading ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}</div>
-            ) : (fxQ.data as any[])?.length ? (
+            ) : fxQ.data?.length ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {(fxQ.data as any[]).map((c: any, i: number) => {
+                {fxQ.data.map((c, i) => {
                   const up = (c.change_percent ?? 0) >= 0;
                   return (
                     <div key={i} className="rounded-2xl border border-emerald-500/15 bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 hover:shadow-xl hover:shadow-emerald-500/10 transition">
@@ -221,8 +222,8 @@ export default function GoldDollarPage() {
                 </select>
               </label>
               <div className="text-xs text-amber-200/70 mr-auto flex flex-col gap-1 text-left">
-                <span>مدل: {forecastQ.data?.model ? `${(forecastQ.data as any).model.name} ${(forecastQ.data as any).model.version}` : "xgboost_ensemble_mock"} • بازه 80% per-day</span>
-                {forecastQ.data && (forecastQ.data as any).meta?.disclaimer && <span className="text-amber-300/80">⚠️ {(forecastQ.data as any).meta.disclaimer}</span>}
+                <span>مدل: {forecastQ.data?.model ? `${forecastQ.data.model.name} ${forecastQ.data.model.version}` : "xgboost_ensemble_mock"} • بازه 80% per-day</span>
+                {forecastQ.data?.meta?.disclaimer && <span className="text-amber-300/80">⚠️ {forecastQ.data.meta.disclaimer}</span>}
               </div>
             </div>
 

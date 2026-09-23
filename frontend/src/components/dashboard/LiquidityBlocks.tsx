@@ -2,18 +2,30 @@
 
 import Link from "next/link";
 import { HandCoins, Sparkles, Wallet } from "lucide-react";
-import { CASH_FLOW, LIQUIDITY } from "@/lib/market-mock";
-import { useMarketOverview, useTopPerformers } from "@/hooks/useMarketData";
+import { useMarketOverview, useTopPerformers, useFlowSummary } from "@/hooks/useMarketData";
+import LiveDataBanner from "./LiveDataBanner";
 import { fmtBillion, fmtInt, fmtPct } from "@/lib/market-format";
 import { cn } from "@/lib/cn";
 import { DeltaBadge, TrendArrow } from "./primitives";
 
 export default function LiquidityBlocks() {
-  const live = useMarketOverview();
-  const topPerformers = useTopPerformers();
-  const liquidityB = live?.tradeValueB ?? LIQUIDITY.totalB;
+  const { data: live, isLive, isError, isLoading } = useMarketOverview();
+  const { data: topPerformers, isLive: tpIsLive, isError: tpIsError, isLoading: tpIsLoading } = useTopPerformers();
+  const flow = useFlowSummary();
+  // No silent mock substitution: headline numbers render an em-dash when the
+  // backend has no live data — the LiveDataBanner above explains why.
+  const liquidityB = live?.tradeValueB ?? null;
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="md:col-span-2 xl:col-span-3">
+        <LiveDataBanner
+          state={{
+            isLive: isLive || tpIsLive,
+            isError: isError || tpIsError,
+            isLoading: isLoading || tpIsLoading,
+          }}
+        />
+      </div>
       {/* نقدینگی */}
       <div className="group rounded-2xl border border-line bg-card p-6 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[var(--shadow-card-hover)]">
         <div className="flex items-center gap-2.5">
@@ -24,27 +36,11 @@ export default function LiquidityBlocks() {
         </div>
         <div className="mt-4 flex items-baseline gap-2">
           <span dir="ltr" className="font-mono text-[26px] font-black tabular-nums text-ink">
-            {fmtBillion(liquidityB)}
+            {liquidityB != null ? fmtBillion(liquidityB) : "—"}
           </span>
           <span className="text-[11px] text-ink-3">میلیارد تومان</span>
         </div>
-        <DeltaBadge value={live?.avgChangePct ?? LIQUIDITY.deltaPct} className="mt-2" />
-        <div className="mt-5 space-y-2">
-          {LIQUIDITY.cashDistribution.map((c) => (
-            <div key={c.label} className="flex items-center gap-2.5">
-              <span className="w-16 shrink-0 text-[10.5px] font-medium text-ink-3">{c.label}</span>
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-soft">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${c.value}%`, background: c.color }}
-                />
-              </div>
-              <span dir="ltr" className="w-8 shrink-0 text-left font-mono text-[10.5px] tabular-nums text-ink-2">
-                {c.value}٪
-              </span>
-            </div>
-          ))}
-        </div>
+        {live?.avgChangePct != null && <DeltaBadge value={live.avgChangePct} className="mt-2" />}
       </div>
 
       {/* جریان نقدینگی */}
@@ -57,25 +53,25 @@ export default function LiquidityBlocks() {
         </div>
         <div className="mt-4 flex items-baseline gap-2">
           <span dir="ltr" className="font-mono text-[26px] font-black tabular-nums text-up">
-            +{fmtBillion(CASH_FLOW.realNetInflowB)}
+            {flow?.realNetB != null ? (flow.realNetB >= 0 ? `+${fmtBillion(flow.realNetB)}` : fmtBillion(flow.realNetB)) : "—"}
           </span>
           <span className="text-[11px] text-ink-3">ورود حقیقی (م.ت)</span>
         </div>
         <div className="mt-3 flex items-center gap-2 text-[11px] text-ink-3">
           حقوقی:
           <span dir="ltr" className="font-mono font-bold tabular-nums text-down">
-            {fmtBillion(CASH_FLOW.legalNetInflowB)}
+            {flow?.legalNetB != null ? fmtBillion(flow.legalNetB) : "—"}
           </span>
           <span>میلیارد تومان خروج</span>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2.5">
           <div className="rounded-xl border border-line bg-soft/60 p-3">
             <p className="text-[10px] text-ink-3">صف خرید</p>
-            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-up">{fmtInt(CASH_FLOW.queueBuy)}</p>
+            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-up">{flow?.queueBuy != null ? fmtInt(flow.queueBuy) : "—"}</p>
           </div>
           <div className="rounded-xl border border-line bg-soft/60 p-3">
             <p className="text-[10px] text-ink-3">صف فروش</p>
-            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-down">{fmtInt(CASH_FLOW.queueSell)}</p>
+            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-down">{flow?.queueSell != null ? fmtInt(flow.queueSell) : "—"}</p>
           </div>
         </div>
       </div>
@@ -94,6 +90,9 @@ export default function LiquidityBlocks() {
           </Link>
         </div>
         <div className="mt-4 divide-y divide-line">
+          {topPerformers.length === 0 && (
+            <p className="py-6 text-center text-[11px] text-ink-3">داده زنده‌ای برای برترین‌ها در دسترس نیست.</p>
+          )}
           {topPerformers.map((s) => (
             <Link
               key={s.symbol}

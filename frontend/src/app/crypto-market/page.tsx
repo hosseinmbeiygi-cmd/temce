@@ -181,7 +181,7 @@ function CoinCard({ coin, tf }: { coin: Coin; tf: Timeframe }) {
           </div>
           <div className="text-left">
             <div className="font-mono font-bold text-surface-100 text-sm">${fmtPrice(coin.price_usd)}</div>
-            <div className="text-[10px] text-surface-500 font-mono">{coin.price_toman?.toLocaleString()} تومان</div>
+            <div className="text-[10px] text-surface-500 font-mono">{coin.price_toman?.toLocaleString("en-US")} تومان</div>
           </div>
         </div>
 
@@ -261,7 +261,7 @@ function TopCoinRow({ coin, idx, tf }: { coin: Coin; idx: number; tf: Timeframe 
       </td>
       <td className="py-3 px-3 text-right">
         <div className="font-mono font-bold text-surface-200">${fmtPrice(coin.price_usd)}</div>
-        <div className="text-[10px] text-surface-500 font-mono">{coin.price_toman?.toLocaleString()} تومان</div>
+        <div className="text-[10px] text-surface-500 font-mono">{coin.price_toman?.toLocaleString("en-US")} تومان</div>
       </td>
       <td className="py-3 px-3 text-right">
         <div className={cn("font-mono font-bold text-xs", isUp ? "text-accent-emerald" : "text-accent-rose")}>

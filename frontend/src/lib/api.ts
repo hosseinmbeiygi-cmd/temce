@@ -142,22 +142,47 @@ function _handle401() {
 
 
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+  // Combine the caller's signal (e.g. React Query cancellation on symbol
+  // switch) with the internal timeout signal. Previously options.signal was
+  // unconditionally overwritten by the internal controller, so external
+  // cancellation was silently ignored.
+  const externalSignal = options.signal ?? null;
+  let combined: AbortSignal = timeoutController.signal;
+  let externalListener: (() => void) | null = null;
+  if (externalSignal) {
+    const anyFn = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
+    if (typeof anyFn === "function") {
+      combined = anyFn([timeoutController.signal, externalSignal]);
+    } else if (externalSignal.aborted) {
+      timeoutController.abort();
+    } else {
+      externalListener = () => timeoutController.abort();
+      externalSignal.addEventListener("abort", externalListener, { once: true });
+    }
+  }
   try {
     const response = await fetch(url, {
-    ...options,
-    signal: controller.signal,
-    credentials: "include",
-  });
+      ...options,
+      signal: combined,
+      credentials: "include",
+    });
     return response;
   } catch (e) {
+    // An externally aborted request must keep its AbortError identity so
+    // React Query can distinguish cancellation from a real failure — do not
+    // mask it as a timeout.
+    if (externalSignal?.aborted) throw e;
     if (e instanceof DOMException && e.name === "AbortError") {
       throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
     }
     throw e;
   } finally {
     clearTimeout(timer);
+    if (externalListener && externalSignal) {
+      externalSignal.removeEventListener("abort", externalListener);
+    }
   }
 }
 
@@ -194,8 +219,8 @@ async function apiRequest<T>(
   return response.json() as Promise<T>;
 }
 
-export async function apiGet<T>(endpoint: string, token?: string | null): Promise<T> {
-  return apiRequest<T>(endpoint, { headers: {} }, token);
+export async function apiGet<T>(endpoint: string, token?: string | null, signal?: AbortSignal): Promise<T> {
+  return apiRequest<T>(endpoint, { headers: {}, signal: signal ?? undefined }, token);
 }
 
 export async function apiPost<T>(
@@ -217,6 +242,14 @@ export async function apiPut<T>(
   token?: string | null
 ): Promise<T> {
   return apiRequest<T>(endpoint, { method: 'PUT', body: data ? JSON.stringify(data) : undefined }, token);
+}
+
+export async function apiPatch<T>(
+  endpoint: string,
+  data?: Record<string, unknown>,
+  token?: string | null
+): Promise<T> {
+  return apiRequest<T>(endpoint, { method: 'PATCH', body: data ? JSON.stringify(data) : undefined }, token);
 }
 
 export async function apiDelete<T>(endpoint: string, token?: string | null): Promise<T> {

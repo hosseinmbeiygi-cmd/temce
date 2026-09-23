@@ -64,14 +64,14 @@ function HeatmapCellComponent({ cell }: { cell: HeatmapCell }) {
                 }}>{cell.state}</span>
               </div>
             )}
-            {cell.price != null && <TooltipRow label="قیمت" value={cell.price.toLocaleString()} />}
+            {cell.price != null && <TooltipRow label="قیمت" value={cell.price.toLocaleString("en-US")} />}
             {cell.freeFloatPct != null && cell.freeFloatPct > 0 && (
               <TooltipRow label="شناوری" value={`${cell.freeFloatPct.toFixed(1)}%`} />
             )}
-            {cell.eps != null && cell.eps !== 0 && <TooltipRow label="EPS" value={cell.eps.toLocaleString()} />}
+            {cell.eps != null && cell.eps !== 0 && <TooltipRow label="EPS" value={cell.eps.toLocaleString("en-US")} />}
             {cell.peRatio != null && cell.peRatio !== 0 && <TooltipRow label="P/E" value={cell.peRatio.toFixed(1)} />}
-            {cell.volume != null && <TooltipRow label="حجم" value={cell.volume.toLocaleString()} />}
-            {cell.value != null && <TooltipRow label="ارزش" value={cell.value.toLocaleString()} />}
+            {cell.volume != null && <TooltipRow label="حجم" value={cell.volume.toLocaleString("en-US")} />}
+            {cell.value != null && <TooltipRow label="ارزش" value={cell.value.toLocaleString("en-US")} />}
             {cell.board && <TooltipRow label="تابلو" value={cell.board} />}
           </div>
           <div style={{
@@ -123,7 +123,7 @@ function TreemapTooltip({ active, payload }: { active?: boolean; payload?: Array
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
         <span style={{ color: "var(--text-secondary)" }}>قیمت:</span>
         <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--text-primary)" }}>
-          {data.price?.toLocaleString() || "—"}
+          {data.price?.toLocaleString("en-US") || "—"}
         </span>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
@@ -140,7 +140,7 @@ function TreemapTooltip({ active, payload }: { active?: boolean; payload?: Array
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
           <span style={{ color: "var(--text-secondary)" }}>حجم:</span>
           <span style={{ fontFamily: "monospace", fontWeight: 600, color: "var(--text-primary)" }}>
-            {data.volume?.toLocaleString()}
+            {data.volume?.toLocaleString("en-US")}
           </span>
         </div>
       )}
@@ -148,7 +148,7 @@ function TreemapTooltip({ active, payload }: { active?: boolean; payload?: Array
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
           <span style={{ color: "var(--text-secondary)" }}>EPS:</span>
           <span style={{ fontFamily: "monospace", fontWeight: 600, color: "var(--text-primary)" }}>
-            {data.eps?.toLocaleString()}
+            {data.eps?.toLocaleString("en-US")}
           </span>
         </div>
       )}

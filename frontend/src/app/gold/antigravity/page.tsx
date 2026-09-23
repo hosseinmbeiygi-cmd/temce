@@ -251,7 +251,7 @@ export default function AntigravityPage() {
           <h3 className="text-sm font-bold text-zinc-100 mb-3">⚡ مارجین آتی (IME • 10x)</h3>
           <div className="grid grid-cols-3 gap-2">
             <label className="text-xs text-zinc-400">ورود<input type="number" value={futEntry} onChange={e => setFutEntry(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
-            <label className="text-xs text-zinc-400">جهت<select value={futType} onChange={e => setFutType(e.target.value as any)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select></label>
+            <label className="text-xs text-zinc-400">جهت<select value={futType} onChange={e => setFutType(e.target.value as "LONG" | "SHORT")} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select></label>
             <label className="text-xs text-zinc-400">موجودی<input type="number" value={futEquity} onChange={e => setFutEquity(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
           </div>
           <div className="mt-3 space-y-2 text-xs">

@@ -85,7 +85,7 @@ function formatNumber(n: number | null | undefined): string {
   if (Math.abs(n) >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + "B";
   if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
   if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
+  return n.toLocaleString("en-US");
 }
 
 function formatPct(val: number | null | undefined): { text: string; color: string } {
@@ -216,16 +216,16 @@ export default function RecommendationsPage() {
   return (
     <AppLayout
       title="توصیه‌ها"
-      subtitle={total.toLocaleString() + " توصیه • " + buyRecs.length + " خرید • " + sellRecs.length + " فروش • " + holdRecs.length + " نگهداری"}
+      subtitle={total.toLocaleString("en-US") + " توصیه • " + buyRecs.length + " خرید • " + sellRecs.length + " فروش • " + holdRecs.length + " نگهداری"}
     >
       <div className="max-w-7xl mx-auto space-y-5">
         {/* Stats Row */}
         {!isLoading && recommendations.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="💎" label="کل توصیه‌ها" value={total.toLocaleString()} />
-            <StatCard icon="🟢" label="خرید" value={buyRecs.length.toLocaleString()} color="text-accent-emerald" />
-            <StatCard icon="🔴" label="فروش" value={sellRecs.length.toLocaleString()} color="text-accent-rose" />
-            <StatCard icon="⏸️" label="نگهداری" value={holdRecs.length.toLocaleString()} color="text-accent-amber" />
+            <StatCard icon="💎" label="کل توصیه‌ها" value={total.toLocaleString("en-US")} />
+            <StatCard icon="🟢" label="خرید" value={buyRecs.length.toLocaleString("en-US")} color="text-accent-emerald" />
+            <StatCard icon="🔴" label="فروش" value={sellRecs.length.toLocaleString("en-US")} color="text-accent-rose" />
+            <StatCard icon="⏸️" label="نگهداری" value={holdRecs.length.toLocaleString("en-US")} color="text-accent-amber" />
           </div>
         )}
 
@@ -447,7 +447,7 @@ export default function RecommendationsPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-2">
                 <p className="text-xs text-surface-500">
-                  صفحه {page} از {totalPages} — {total.toLocaleString()} توصیه
+                  صفحه {page} از {totalPages} — {total.toLocaleString("en-US")} توصیه
                 </p>
                 <div className="flex gap-1">
                   <button

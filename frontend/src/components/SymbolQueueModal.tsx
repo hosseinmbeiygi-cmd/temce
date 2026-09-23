@@ -218,19 +218,19 @@ export default function SymbolQueueModal({ symbol, onClose }: SymbolQueueModalPr
                 <div className="rounded-xl p-2.5 bg-surface-800/30 border border-surface-700/30">
                   <span className="text-surface-500">قیمت</span>
                   <div className="font-mono text-surface-200 font-bold mt-0.5">
-                    {result.last_price?.toLocaleString()}
+                    {result.last_price?.toLocaleString("en-US")}
                   </div>
                 </div>
                 <div className="rounded-xl p-2.5 bg-surface-800/30 border border-surface-700/30">
                   <span className="text-surface-500">سقف دامنه</span>
                   <div className="font-mono text-surface-200 mt-0.5">
-                    {result.limit_up?.toLocaleString() ?? "—"}
+                    {result.limit_up?.toLocaleString("en-US") ?? "—"}
                   </div>
                 </div>
                 <div className="rounded-xl p-2.5 bg-surface-800/30 border border-surface-700/30">
                   <span className="text-surface-500">کف دامنه</span>
                   <div className="font-mono text-surface-200 mt-0.5">
-                    {result.limit_down?.toLocaleString() ?? "—"}
+                    {result.limit_down?.toLocaleString("en-US") ?? "—"}
                   </div>
                 </div>
               </div>

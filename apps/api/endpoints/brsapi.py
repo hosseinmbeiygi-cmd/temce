@@ -17,6 +17,8 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+
+from apps.api.dependencies import require_roles
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func as sa_func
 from sqlalchemy import select, text
@@ -32,6 +34,11 @@ from schemas.common.responses import ApiResponse
 router = APIRouter()
 
 
+
+# Sync/manage routes burn the BrsApi daily quota (and can run for hours), so
+# every /manage/* route requires an admin. Kept as a shared dependency so a
+# newly added manage route cannot accidentally skip the gate.
+_manage_admin = [Depends(require_roles("admin"))]
 # ── Health ─────────────────────────────────────────────────────────
 
 
@@ -1004,7 +1011,9 @@ SECTIONS: dict[str, dict[str, Any]] = {
 }
 
 
-@router.get("/manage/sections", summary="List all BrsApi sections with status")
+@router.get("/manage/sections",
+    summary="List all BrsApi sections with status",
+    dependencies=_manage_admin)
 async def list_sections(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[list[dict[str, Any]]]:
@@ -1111,7 +1120,9 @@ async def list_sections(
     return ApiResponse[list[dict[str, Any]]](success=True, data=list(results))
 
 
-@router.post("/manage/sync/{section_id}", summary="Sync a BrsApi section")
+@router.post("/manage/sync/{section_id}",
+    summary="Sync a BrsApi section",
+    dependencies=_manage_admin)
 async def sync_section(
     section_id: str,
     date_start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
@@ -1245,7 +1256,9 @@ async def sync_section(
         )
 
 
-@router.get("/manage/download/{section_id}", summary="Download BrsApi section data")
+@router.get("/manage/download/{section_id}",
+    summary="Download BrsApi section data",
+    dependencies=_manage_admin)
 async def download_section(
     section_id: str,
     format: str = Query("json", description="Download format: json or csv"),
@@ -1394,6 +1407,7 @@ async def download_section(
 
 @router.get(
     "/manage/usage",
+    dependencies=_manage_admin,
     summary="BrsApi daily usage report (admin)",
     description="Per-day request usage (count + 302 blocks) read from brsapi_daily_usage "
     "plus a live governor snapshot for today. For the admin panel usage widget.",
@@ -1470,6 +1484,7 @@ async def daily_usage_report(
 
 @router.post(
     "/manage/usage/flush",
+    dependencies=_manage_admin,
     summary="Flush BrsApi usage recorder to DB",
     description="Immediately persist any in-memory usage counters to brsapi_daily_usage "
     "(normally flushed every 60s by a background task).",
@@ -1618,7 +1633,9 @@ async def get_symbol_detail(
         return ApiResponse[dict[str, Any]](success=False, error={"message": _safe_error_message(exc)})
 
 
-@router.post("/manage/sync-nav-all", summary="Batch sync NAV for all ETF funds")
+@router.post("/manage/sync-nav-all",
+    summary="Batch sync NAV for all ETF funds",
+    dependencies=_manage_admin)
 async def sync_nav_all(
     max_symbols: int = Query(0, ge=0, le=500, description="Max symbols to sync (0 = all ETFs)"),
     session: AsyncSession = Depends(get_db_session),
@@ -1645,7 +1662,9 @@ async def sync_nav_all(
     return ApiResponse[dict[str, Any]](success=report.success, data=asdict(report))
 
 
-@router.post("/manage/sync-top-symbols", summary="Sync Symbol.php for top N symbols")
+@router.post("/manage/sync-top-symbols",
+    summary="Sync Symbol.php for top N symbols",
+    dependencies=_manage_admin)
 async def sync_top_symbols(
     limit: int = Query(10, ge=1, le=50, description="Number of top symbols to sync"),
     session: AsyncSession = Depends(get_db_session),
@@ -1725,7 +1744,9 @@ async def sync_top_symbols(
     )
 
 
-@router.post("/manage/sync-all-history", summary="Sync history for ALL symbols")
+@router.post("/manage/sync-all-history",
+    summary="Sync history for ALL symbols",
+    dependencies=_manage_admin)
 async def sync_all_history(
     limit: int = Query(0, ge=0, le=2000, description="Max symbols (0 = all)"),
     session: AsyncSession = Depends(get_db_session),
@@ -1903,6 +1924,7 @@ async def _run_candle_backfill(max_symbols: int, allow_weekend: bool) -> None:
 
 @router.post(
     "/manage/sync-all-candlesticks",
+    dependencies=_manage_admin,
     summary="Download candlesticks for ALL symbols (manual)",
     description="Trigger a full-market candlestick backfill in the background: AllSymbols + adjusted/unadjusted/realtime candles for every symbol",
 )
@@ -1959,13 +1981,17 @@ async def sync_all_candlesticks(
     )
 
 
-@router.get("/manage/sync-all-candlesticks/status", summary="Status of the manual candlestick backfill")
+@router.get("/manage/sync-all-candlesticks/status",
+    summary="Status of the manual candlestick backfill",
+    dependencies=_manage_admin)
 async def sync_all_candlesticks_status() -> ApiResponse[dict[str, Any]]:
     """Return live progress of the manual full-market candlestick backfill."""
     return ApiResponse[dict[str, Any]](success=True, data=dict(_CANDLE_BACKFILL_STATE))
 
 
-@router.post("/manage/sync-all-candlesticks/cancel", summary="Cancel the manual candlestick backfill")
+@router.post("/manage/sync-all-candlesticks/cancel",
+    summary="Cancel the manual candlestick backfill",
+    dependencies=_manage_admin)
 async def cancel_sync_all_candlesticks() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _CANDLE_BACKFILL_STATE["status"] != "running":
@@ -2055,6 +2081,7 @@ async def _run_shareholder_backfill(max_symbols: int, allow_weekend: bool) -> No
 
 @router.post(
     "/manage/sync-all-shareholders",
+    dependencies=_manage_admin,
     summary="Download latest shareholders for ALL symbols (manual)",
     description="Trigger a full-market shareholder backfill in the background: AllSymbols + latest shareholder composition for every symbol",
 )
@@ -2111,13 +2138,17 @@ async def sync_all_shareholders(
     )
 
 
-@router.get("/manage/sync-all-shareholders/status", summary="Status of the manual shareholder backfill")
+@router.get("/manage/sync-all-shareholders/status",
+    summary="Status of the manual shareholder backfill",
+    dependencies=_manage_admin)
 async def sync_all_shareholders_status() -> ApiResponse[dict[str, Any]]:
     """Return live progress of the manual full-market shareholder backfill."""
     return ApiResponse[dict[str, Any]](success=True, data=dict(_SHAREHOLDER_BACKFILL_STATE))
 
 
-@router.post("/manage/sync-all-shareholders/cancel", summary="Cancel the manual shareholder backfill")
+@router.post("/manage/sync-all-shareholders/cancel",
+    summary="Cancel the manual shareholder backfill",
+    dependencies=_manage_admin)
 async def cancel_sync_all_shareholders() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _SHAREHOLDER_BACKFILL_STATE["status"] != "running":
@@ -2248,6 +2279,7 @@ async def _run_history_real_legal_backfill(max_symbols: int, allow_weekend: bool
 
 @router.post(
     "/manage/sync-all-history-price",
+    dependencies=_manage_admin,
     summary="Download daily historical prices for ALL symbols (manual)",
     description="Trigger a full-market history-price backfill in the background: AllSymbols + daily historical prices for every symbol",
 )
@@ -2301,13 +2333,17 @@ async def sync_all_history_price(
     )
 
 
-@router.get("/manage/sync-all-history-price/status", summary="Status of the manual history-price backfill")
+@router.get("/manage/sync-all-history-price/status",
+    summary="Status of the manual history-price backfill",
+    dependencies=_manage_admin)
 async def sync_all_history_price_status() -> ApiResponse[dict[str, Any]]:
     """Return live progress of the manual history-price backfill."""
     return ApiResponse[dict[str, Any]](success=True, data=dict(_HISTORY_PRICE_BACKFILL_STATE))
 
 
-@router.post("/manage/sync-all-history-price/cancel", summary="Cancel the manual history-price backfill")
+@router.post("/manage/sync-all-history-price/cancel",
+    summary="Cancel the manual history-price backfill",
+    dependencies=_manage_admin)
 async def cancel_sync_all_history_price() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _HISTORY_PRICE_BACKFILL_STATE["status"] != "running":
@@ -2330,6 +2366,7 @@ async def cancel_sync_all_history_price() -> ApiResponse[dict[str, Any]]:
 
 @router.post(
     "/manage/sync-all-history-real-legal",
+    dependencies=_manage_admin,
     summary="Download real/legal history for ALL symbols (manual)",
     description="Trigger a full-market real/legal backfill in the background: AllSymbols + real/legal buy-sell history for every symbol",
 )
@@ -2385,13 +2422,17 @@ async def sync_all_history_real_legal(
     )
 
 
-@router.get("/manage/sync-all-history-real-legal/status", summary="Status of the manual history real/legal backfill")
+@router.get("/manage/sync-all-history-real-legal/status",
+    summary="Status of the manual history real/legal backfill",
+    dependencies=_manage_admin)
 async def sync_all_history_real_legal_status() -> ApiResponse[dict[str, Any]]:
     """Return live progress of the manual history real/legal backfill."""
     return ApiResponse[dict[str, Any]](success=True, data=dict(_HISTORY_REAL_LEGAL_BACKFILL_STATE))
 
 
-@router.post("/manage/sync-all-history-real-legal/cancel", summary="Cancel the manual history real/legal backfill")
+@router.post("/manage/sync-all-history-real-legal/cancel",
+    summary="Cancel the manual history real/legal backfill",
+    dependencies=_manage_admin)
 async def cancel_sync_all_history_real_legal() -> ApiResponse[dict[str, Any]]:
     """Request cancellation of the running backfill (stops after the current symbol)."""
     if _HISTORY_REAL_LEGAL_BACKFILL_STATE["status"] != "running":
@@ -2412,7 +2453,9 @@ async def cancel_sync_all_history_real_legal() -> ApiResponse[dict[str, Any]]:
     )
 
 
-@router.post("/manage/test-connection", summary="Test BrsApi API key and connectivity")
+@router.post("/manage/test-connection",
+    summary="Test BrsApi API key and connectivity",
+    dependencies=_manage_admin)
 async def test_brsapi_connection() -> ApiResponse[dict[str, Any]]:
     """
     Verify the configured BrsApi API key by calling a live endpoint.
@@ -2484,7 +2527,9 @@ async def test_brsapi_connection() -> ApiResponse[dict[str, Any]]:
         )
 
 
-@router.get("/manage/sync-stats", summary="Per-endpoint sync status dashboard")
+@router.get("/manage/sync-stats",
+    summary="Per-endpoint sync status dashboard",
+    dependencies=_manage_admin)
 async def sync_stats(
     window_days: int = Query(7, ge=1, le=90, description="Days to look back for error rate and avg duration"),
     session: AsyncSession = Depends(get_db_session),
@@ -2875,7 +2920,9 @@ async def nav_sync_status(
     )
 
 
-@router.get("/manage/last-update/{section_id}", summary="Last update time for a section")
+@router.get("/manage/last-update/{section_id}",
+    summary="Last update time for a section",
+    dependencies=_manage_admin)
 async def section_last_update(
     section_id: str,
     session: AsyncSession = Depends(get_db_session),
@@ -2906,7 +2953,9 @@ async def section_last_update(
 # ── History Fetch from BrsApi (Crypto / Gold / Currency) ──────────────
 
 
-@router.get("/manage/history-status", summary="Status of history tables")
+@router.get("/manage/history-status",
+    summary="Status of history tables",
+    dependencies=_manage_admin)
 async def history_status(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
@@ -2936,7 +2985,9 @@ async def history_status(
     return ApiResponse[dict[str, Any]](success=True, data=result)
 
 
-@router.post("/manage/sync-crypto-history", summary="Fetch crypto history from BrsApi")
+@router.post("/manage/sync-crypto-history",
+    summary="Fetch crypto history from BrsApi",
+    dependencies=_manage_admin)
 async def sync_crypto_history(
     limit: int = Query(0, ge=0, le=500, description="Max symbols (0 = all)"),
     session: AsyncSession = Depends(get_db_session),
@@ -2974,7 +3025,9 @@ async def sync_crypto_history(
     )
 
 
-@router.post("/manage/sync-gold-currency-history", summary="Fetch gold/currency history from BrsApi")
+@router.post("/manage/sync-gold-currency-history",
+    summary="Fetch gold/currency history from BrsApi",
+    dependencies=_manage_admin)
 async def sync_gold_currency_history(
     limit: int = Query(0, ge=0, le=500, description="Max symbols (0 = all)"),
     session: AsyncSession = Depends(get_db_session),
@@ -3012,7 +3065,9 @@ async def sync_gold_currency_history(
     )
 
 
-@router.post("/manage/import-json-history", summary="Import JSON files into history tables")
+@router.post("/manage/import-json-history",
+    summary="Import JSON files into history tables",
+    dependencies=_manage_admin)
 async def import_json_history(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
@@ -3080,8 +3135,7 @@ async def import_json_history(
 
     async def _import_file(filepath: Path, table: str) -> tuple[int, int]:
         symbol = filepath.stem.replace("_history", "")
-        with open(filepath, encoding="utf-8") as f:
-            data = _json.load(f)
+        data = _json.loads(await asyncio.to_thread(filepath.read_text, encoding="utf-8"))
         if not data:
             return 0, 0
         inserted = 0

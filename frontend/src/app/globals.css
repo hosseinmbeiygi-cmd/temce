@@ -1973,3 +1973,22 @@ body.dark-theme .glass-card:hover {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+
+/* ── Printing the A4 decision sheet (/pre-buy/print/[sheetId]) ─────────────
+   The printout is a document, so it is always ink-on-white whatever the app
+   theme says. Only the toolbar carries data-screen-only; the sheet itself is
+   plain markup that already sets its own white background. */
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  [data-screen-only] {
+    display: none !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+}

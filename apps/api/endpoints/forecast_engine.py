@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from schemas.api.legal import LEGAL_DISCLAIMER_FA
 from schemas.common.responses import ApiResponse
 from src.forecast_engine.exceptions import ForecastingError, NoDataError, StaleDataError
 from src.forecast_engine.symbol_registry import SYMBOL_REGISTRY, all_intraday_eligible_symbols
@@ -20,6 +21,7 @@ class EngineForecastResponse(BaseModel):
     forecasted_bubble: float | None = None
     forecasted_price: float
     bubble_trend: str
+    legal_disclaimer: str = Field(default=LEGAL_DISCLAIMER_FA)
 
 
 class SymbolStatus(BaseModel):

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import statistics
 import time
 from typing import Any
@@ -168,40 +169,83 @@ def _infer_fund_type(name: str | None, symbol: str | None = None) -> str:
 # ── Row → unified Fund dict ─────────────────────────────────────────────────
 
 
+def _num(value: Any, digits: int | None = None) -> float | None:
+    """A stored number as a number; NULL as ``None``.
+
+    Every serializer here used to write ``float(r.x or 0)``, and the fund columns are all
+    nullable — so a symbol whose order-book split never arrived was published with a NAV of
+    0, a market value of 0 and a volume of 0, which the pages then charted, ranked and summed
+    as measurements. A stored 0 still reads as 0 (that is a real "no trades today").
+    """
+    if value is None:
+        return None
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    return round(num, digits) if digits is not None else num
+
+
+def _cnt(value: Any) -> int | None:
+    """Integer form of :func:`_num` — counts must not arrive as floats."""
+    num = _num(value)
+    return None if num is None else int(num)
+
+
+def _fund_extra(raw: str | dict | None) -> dict[str, Any]:
+    """``funds.extra`` is a JSON **string** in a TEXT column; unreadable means no extras."""
+    if isinstance(raw, dict):
+        return raw
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _ime_fund_to_dict(r: ImeFundModel) -> dict[str, Any]:
     """Convert a brsapi_ime_funds row to the unified Fund shape."""
-    nav = r.price_close or r.price_last or 0
-    prev = r.price_yesterday or 0
-    change_pct = r.price_close_change_pct if r.price_close_change_pct is not None else r.price_last_change_pct
-    change = r.price_close_change if r.price_close_change is not None else r.price_last_change
+    nav = _num(r.price_close) or _num(r.price_last)
+    prev = _num(r.price_yesterday)
+    change_pct = _num(
+        r.price_close_change_pct if r.price_close_change_pct is not None else r.price_last_change_pct, 2
+    )
+    change = _num(r.price_close_change if r.price_close_change is not None else r.price_last_change)
     if change_pct is None and prev and nav:
-        change_pct = (nav - prev) / prev * 100
+        change_pct = round((nav - prev) / prev * 100, 2)
     if change is None and prev and nav:
-        change = nav - prev
+        change = round(nav - prev, 4)
     return {
         "symbol": r.symbol,
         "name": r.name or r.symbol,
         "isin": r.isin or "",
         "fund_type": _infer_fund_type(r.name, r.symbol),
         "market": "ime",
-        "nav": float(nav or 0),
-        "nav_change": float(change or 0),
-        "nav_change_pct": round(float(change_pct or 0), 2),
-        "price_last": float(r.price_last or 0),
-        "price_close": float(r.price_close or 0),
-        "price_yesterday": float(r.price_yesterday or 0),
-        "price_max": float(r.price_max or 0),
-        "price_min": float(r.price_min or 0),
-        "trade_volume": int(r.trade_volume or 0),
-        "trade_value": float(r.trade_value or 0),
-        "trade_count": int(r.trade_count or 0),
-        "shares_count": int(r.shares_count or 0),
-        "base_volume": int(r.base_volume or 0),
-        "market_value": float(r.market_value or 0),
-        "buy_real_volume": int(r.buy_real_volume or 0),
-        "buy_legal_volume": int(r.buy_legal_volume or 0),
-        "sell_real_volume": int(r.sell_real_volume or 0),
-        "sell_legal_volume": int(r.sell_legal_volume or 0),
+        "nav": nav,
+        # The IME table has no NAV column at all — this is a closing price wearing the NAV
+        # label until ``nav_records`` overrides it. Say so instead of letting the page decide.
+        "nav_source": "price_proxy" if nav else None,
+        "nav_change": change,
+        "nav_change_pct": change_pct,
+        "price_last": _num(r.price_last),
+        "price_close": _num(r.price_close),
+        "price_yesterday": _num(r.price_yesterday),
+        "price_max": _num(r.price_max),
+        "price_min": _num(r.price_min),
+        "trade_volume": _cnt(r.trade_volume),
+        "trade_value": _num(r.trade_value),
+        "trade_count": _cnt(r.trade_count),
+        "shares_count": _cnt(r.shares_count),
+        # A stored 0 is a real حجم مبنا; NULL means the snapshot never carried one. Coercing
+        # the two together would let the fund pages price liquidity off an absence.
+        "base_volume": _cnt(r.base_volume),
+        "market_value": _num(r.market_value),
+        "buy_real_volume": _cnt(r.buy_real_volume),
+        "buy_legal_volume": _cnt(r.buy_legal_volume),
+        "sell_real_volume": _cnt(r.sell_real_volume),
+        "sell_legal_volume": _cnt(r.sell_legal_volume),
         "time": str(r.fetched_at or ""),
         "data_source": "ime",
         "updated_at": str(getattr(r, "fetched_at", "") or ""),
@@ -210,38 +254,43 @@ def _ime_fund_to_dict(r: ImeFundModel) -> dict[str, Any]:
 
 def _snapshot_to_dict(r: SymbolSnapshotModel) -> dict[str, Any]:
     """Convert a ``brsapi_symbol_snapshots`` row (latest TSE ETF snapshot) to the unified Fund shape."""
-    nav = r.price_close or r.price_last or 0
-    prev = r.price_yesterday or 0
-    change_pct = r.price_close_change_pct if r.price_close_change_pct is not None else r.price_last_change_pct
-    change = r.price_close_change if r.price_close_change is not None else r.price_last_change
+    nav = _num(r.price_close) or _num(r.price_last)
+    prev = _num(r.price_yesterday)
+    change_pct = _num(
+        r.price_close_change_pct if r.price_close_change_pct is not None else r.price_last_change_pct, 2
+    )
+    change = _num(r.price_close_change if r.price_close_change is not None else r.price_last_change)
     if change_pct is None and prev and nav:
-        change_pct = (nav - prev) / prev * 100
+        change_pct = round((nav - prev) / prev * 100, 2)
     if change is None and prev and nav:
-        change = nav - prev
+        change = round(nav - prev, 4)
     return {
         "symbol": r.symbol,
         "name": r.name or r.symbol,
         "isin": r.isin or "",
         "fund_type": _infer_fund_type(r.name, r.symbol),
         "market": "tse",
-        "nav": float(nav or 0),
-        "nav_change": float(change or 0),
-        "nav_change_pct": round(float(change_pct or 0), 2),
-        "price_last": float(r.price_last or 0),
-        "price_close": float(r.price_close or 0),
-        "price_yesterday": float(r.price_yesterday or 0),
-        "price_max": float(r.price_max or 0),
-        "price_min": float(r.price_min or 0),
-        "trade_volume": int(r.trade_volume or 0),
-        "trade_value": float(r.trade_value or 0),
-        "trade_count": int(r.trade_count or 0),
-        "shares_count": int(r.shares_count or 0),
-        "base_volume": int(r.base_volume or 0),
-        "market_value": float(r.market_value or 0),
-        "buy_real_volume": int(r.buy_real_volume or 0),
-        "buy_legal_volume": int(r.buy_legal_volume or 0),
-        "sell_real_volume": int(r.sell_real_volume or 0),
-        "sell_legal_volume": int(r.sell_legal_volume or 0),
+        "nav": nav,
+        # Same as the IME rows: an ETF snapshot has no NAV column, so this is a traded price
+        # until a ``nav_records`` row replaces it and relabels the source.
+        "nav_source": "price_proxy" if nav else None,
+        "nav_change": change,
+        "nav_change_pct": change_pct,
+        "price_last": _num(r.price_last),
+        "price_close": _num(r.price_close),
+        "price_yesterday": _num(r.price_yesterday),
+        "price_max": _num(r.price_max),
+        "price_min": _num(r.price_min),
+        "trade_volume": _cnt(r.trade_volume),
+        "trade_value": _num(r.trade_value),
+        "trade_count": _cnt(r.trade_count),
+        "shares_count": _cnt(r.shares_count),
+        "base_volume": _cnt(r.base_volume),
+        "market_value": _num(r.market_value),
+        "buy_real_volume": _cnt(r.buy_real_volume),
+        "buy_legal_volume": _cnt(r.buy_legal_volume),
+        "sell_real_volume": _cnt(r.sell_real_volume),
+        "sell_legal_volume": _cnt(r.sell_legal_volume),
         "time": str(r.fetched_at or ""),
         "data_source": "tsetmc",
         "snapshot_date": str(r.fetched_at)[:10] if r.fetched_at else "",
@@ -251,30 +300,39 @@ def _snapshot_to_dict(r: SymbolSnapshotModel) -> dict[str, Any]:
 
 def _fund_model_to_dict(r: FundModel) -> dict[str, Any]:
     """Convert a ``funds`` table row (TSE funds) to the unified Fund shape."""
+    # ``nav_basis`` is what the sync recorded next to the NAV it stored: a real NAV, the last
+    # traded price standing in for one, or neither. Rows written before that label existed
+    # report ``None`` — the page then says the basis is unknown rather than implying a NAV.
+    basis = {
+        "nav": "fund_nav",
+        "price_last": "price_proxy",
+        "none": "no_nav",
+    }.get(_fund_extra(r.extra).get("nav_basis") or "")
     return {
         "symbol": r.symbol,
         "name": r.name or r.symbol,
         "isin": r.isin or "",
         "fund_type": r.fund_type or _infer_fund_type(r.name, r.symbol),
         "market": "tse",
-        "nav": float(r.nav or 0),
-        "nav_change": float(r.nav_change or 0),
-        "nav_change_pct": round(float(r.nav_change_pct or 0), 2),
-        "price_last": float(r.price_last or 0),
-        "price_close": float(r.price_close or 0),
-        "price_yesterday": float(r.price_yesterday or 0),
-        "price_max": float(r.price_max or 0),
-        "price_min": float(r.price_min or 0),
-        "trade_volume": int(r.trade_volume or 0),
-        "trade_value": float(r.trade_value or 0),
-        "trade_count": int(r.trade_count or 0),
-        "shares_count": int(r.shares_count or 0),
-        "base_volume": int(r.base_volume or 0),
-        "market_value": float(r.market_value or 0),
-        "buy_real_volume": int(r.buy_real_volume or 0),
-        "buy_legal_volume": int(r.buy_legal_volume or 0),
-        "sell_real_volume": int(r.sell_real_volume or 0),
-        "sell_legal_volume": int(r.sell_legal_volume or 0),
+        "nav": _num(r.nav),
+        "nav_source": basis,
+        "nav_change": _num(r.nav_change),
+        "nav_change_pct": _num(r.nav_change_pct, 2),
+        "price_last": _num(r.price_last),
+        "price_close": _num(r.price_close),
+        "price_yesterday": _num(r.price_yesterday),
+        "price_max": _num(r.price_max),
+        "price_min": _num(r.price_min),
+        "trade_volume": _cnt(r.trade_volume),
+        "trade_value": _num(r.trade_value),
+        "trade_count": _cnt(r.trade_count),
+        "shares_count": _cnt(r.shares_count),
+        "base_volume": _cnt(r.base_volume),
+        "market_value": _num(r.market_value),
+        "buy_real_volume": _cnt(r.buy_real_volume),
+        "buy_legal_volume": _cnt(r.buy_legal_volume),
+        "sell_real_volume": _cnt(r.sell_real_volume),
+        "sell_legal_volume": _cnt(r.sell_legal_volume),
         "time": r.time or "",
         "data_source": r.data_source or "tsetmc",
         "snapshot_date": r.snapshot_date or "",

@@ -6,7 +6,6 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from core.result import Result
-
 from ingestion.symbol_scanner import (
     AllSymbolsScanner,
     MarketSession,

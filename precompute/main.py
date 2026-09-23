@@ -22,7 +22,7 @@ async def _run(input_path: str | None) -> dict[str, object]:
     from .workers.celery_tasks import dispatch_armor_pipeline_async, load_symbols_from_ingestion
 
     if input_path:
-        with open(input_path, "r", encoding="utf-8") as fh:
+        with open(input_path, encoding="utf-8") as fh:
             rows = json.load(fh)
         from .classifier import classify_from_dicts
 

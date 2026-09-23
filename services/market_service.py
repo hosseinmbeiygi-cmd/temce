@@ -751,31 +751,39 @@ class MarketService:
             from core.database import get_session
 
             result_map: dict[str, list[float]] = {}
-            # Use raw SQL for an efficient batch query
+            # Window function: transfer exactly `limit` rows per symbol instead
+            # of the full history (which used to stream millions of rows and
+            # discard all but the first 30 in Python).
             async for session in get_session():
                 placeholders = ", ".join([f":sym{i}" for i in range(len(symbols))])
                 params = {f"sym{i}": sym for i, sym in enumerate(symbols)}
                 params["lim"] = limit
                 sql = sa_text(f"""
-                    SELECT q.symbol, q.price_close
-                    FROM quotes q
-                    WHERE q.symbol IN ({placeholders})
-                      AND q.price_close IS NOT NULL
-                    ORDER BY q.symbol, q.date DESC
+                    SELECT symbol, price_close
+                    FROM (
+                        SELECT q.symbol,
+                               q.date,
+                               q.price_close,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY q.symbol
+                                   ORDER BY q.date DESC
+                               ) AS rn
+                        FROM quotes q
+                        WHERE q.symbol IN ({placeholders})
+                          AND q.price_close IS NOT NULL
+                    ) ranked
+                    WHERE rn <= :lim
+                    ORDER BY symbol, date DESC
                 """)
                 rows = await session.execute(sql, params)
-                # Group by symbol, take first `limit` per symbol (most recent)
+                # Group by symbol, in chronological order
                 for row in rows:
                     sym = str(row.symbol or "")
                     if not sym:
                         continue
                     if sym not in result_map:
                         result_map[sym] = []
-                    if len(result_map[sym]) < limit:
-                        result_map[sym].append(float(row.price_close or 0))
-                # Reverse each list to chronological order
-                for sym in result_map:
-                    result_map[sym].reverse()
+                    result_map[sym].append(float(row.price_close or 0))
             return Result.ok(result_map)
         except Exception:
             logger.exception("Failed to fetch batch sparklines")
@@ -790,18 +798,18 @@ class MarketService:
         if not quotes_result.success:
             return quotes_result
 
+        # Batch-resolve market types in ONE query instead of one query per
+        # quote (~600 round-trips per request on the market-watch page).
+        symbols = [q.symbol for q in quotes_result.value if q.symbol]
+        market_by_symbol: dict[str, str] = {}
+        batch_result = await self.instrument_repo.get_market_types_by_symbols(symbols)
+        if batch_result.success and batch_result.value:
+            market_by_symbol = batch_result.value
+
         enriched_quotes: list[dict[str, Any]] = []
 
         for quote in quotes_result.value:
-            inst_result = await self.instrument_repo.get_by_symbol(quote.symbol)
-
-            market = "Unknown"
-
-            if inst_result.success and inst_result.value:
-                market_type = getattr(inst_result.value, "market_type", None)
-
-                if market_type is not None:
-                    market = getattr(market_type, "value", str(market_type))
+            market = market_by_symbol.get(quote.symbol or "", "Unknown")
 
             quote_dict = vars(quote).copy()
             quote_dict["market"] = market

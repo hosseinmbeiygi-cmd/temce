@@ -19,6 +19,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Node build/tooling scripts run as CommonJS outside the Next app graph.
+    "scripts/**",
   ]),
 ]);
 

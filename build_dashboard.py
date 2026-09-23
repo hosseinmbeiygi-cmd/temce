@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 build_dashboard.py — داشبورد تجمیعی از run_stats*.jsonl صفحات نمادها
 خروجی: symbol_reports/dashboard.md و symbol_reports/dashboard_user_raw.csv
@@ -146,7 +145,7 @@ def score_passers(passers):
     rsis = [num(s.get("rsi14")) for s in passers]
     pegaps = [(-(num(s["pe"]) / num(s["industry_pe"]) - 1) * 100) if (num(s.get("pe")) and num(s.get("industry_pe"))) else None for s in passers]
     mos_vals = [None for _ in passers]  # ارزش منصفانه در ورودی موجود نیست
-    for s, g, r, pg, mos in zip(passers, growths, rsis, pegaps, mos_vals):
+    for s, g, r, pg, mos in zip(passers, growths, rsis, pegaps, mos_vals, strict=False):
         parts = {}
         if mos is not None:
             parts["mos"] = norm(mos_vals, mos)
@@ -233,8 +232,8 @@ def main():
     lines.append("")
 
     lines += ["### ۴.۲ فیلترهای غربالگری پیش‌فرض (قابل تنظیم)", "",
-              f"- P/E(TTM) کمتر از میانگین P/E صنعت مربوطه",
-              f"- رشد سود خالص YoY بزرگ‌تر از صفر",
+              "- P/E(TTM) کمتر از میانگین P/E صنعت مربوطه",
+              "- رشد سود خالص YoY بزرگ‌تر از صفر",
               f"- RSI(14) بین {RSI_LOW:.0f} و {RSI_HIGH:.0f}",
               f"- نسبت بدهی کمتر از {DEBT_MAX_PCT:.0f}٪",
               f"- میانگین ارزش معاملات ۳۰روزه بیشتر از {MIN_LIQUIDITY_TOMAN:,} تومان در روز",
@@ -260,7 +259,7 @@ def main():
     if scored:
         lines += ["| رتبه | نماد | Score (نرمال‌شده ۰-۱۰۰) | Margin of Safety% | رشد سود YoY% | RSI14 | تناقض‌های شناسایی‌شده |",
                   "|---|---|---|---|---|---|---|"]
-        for i, (sym, sc, mos, g, r, pg, used, wsum) in enumerate(scored[:10], start=1):
+        for i, (sym, sc, _mos, g, r, _pg, _used, _wsum) in enumerate(scored[:10], start=1):
             s = next(x for x in stats if x["symbol"] == sym)
             lines.append(f"| {i} | {sym} | {sc:.1f} | نامشخص | {fpct(g)} | {fnum(r)} | {contradiction_cell(s)} |")
         lines.append("")

@@ -114,7 +114,6 @@ class VaultService:
         """Return list of secrets expiring within WARNING_DAYS_BEFORE_EXPIRY."""
         warnings: list[dict[str, Any]] = []
         now = datetime.now(UTC)
-        threshold = now + timedelta(days=WARNING_DAYS_BEFORE_EXPIRY)
 
         for key, secret in self._secrets.items():
             expires_at = datetime.fromisoformat(secret["expires_at"])

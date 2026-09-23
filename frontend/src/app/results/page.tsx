@@ -123,11 +123,11 @@ export default function ResultsPage() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center p-3 bg-surface-900/50 rounded-lg">
                         <span className="text-sm text-surface-400">سرمایه اولیه:</span>
-                        <span className="font-mono text-surface-200">{result.initial_capital.toLocaleString()} ریال</span>
+                        <span className="font-mono text-surface-200">{result.initial_capital.toLocaleString("en-US")} ریال</span>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-surface-900/50 rounded-lg">
                         <span className="text-sm text-surface-400">ارزش نهایی:</span>
-                        <span className="font-mono text-surface-200">{result.final_value.toLocaleString()} ریال</span>
+                        <span className="font-mono text-surface-200">{result.final_value.toLocaleString("en-US")} ریال</span>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-surface-900/50 rounded-lg">
                         <span className="text-sm text-surface-400">تعداد معاملات:</span>

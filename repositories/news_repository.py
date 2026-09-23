@@ -32,9 +32,7 @@ class NewsRepository:
         # per services.news_read_canary, with shadow comparison in non-full
         # modes. Writes ALWAYS stay on the legacy repo + dual-write, so any
         # mode flip is data-safe both ways.
-        self._items_read: "NewsItemsReadRepo | None" = (
-            NewsItemsReadRepo(session) if session and NewsItemsReadRepo.is_enabled() else None
-        )
+        self._items_read: "NewsItemsReadRepo | None" = None
 
     async def _route(self, discriminator: str) -> "tuple[ReadPathDecision, Any, Any]":
         """Resolve the canary decision and return (decision, legacy_repo,
@@ -45,7 +43,15 @@ class NewsRepository:
         mode = await resolve_mode()
         decision = decide(mode, discriminator)
         legacy = self._db or self._mem
-        items = self._items_read if (decision.serve_items or decision.shadow) else None
+        items = None
+        if decision.serve_items or decision.shadow:
+            if self._items_read is None and self._session is not None:
+                self._items_read = (
+                    NewsItemsReadRepo(self._session)
+                    if await NewsItemsReadRepo.is_enabled()
+                    else None
+                )
+            items = self._items_read
         return decision, legacy, items
 
     @property

@@ -159,23 +159,26 @@ def _calculate_derived_fields(detail: dict[str, Any]) -> dict[str, Any]:
 
     # Calculate ownership change
     real_net = buy_real_volume - sell_real_volume
-    buy_legal_volume - sell_legal_volume
-    ownership_change = real_net  # Positive = real to legal, Negative = legal to real
+    legal_net = buy_legal_volume - sell_legal_volume
+    ownership_change = real_net  # Positive = real investors are net buyers, so units move legal → real
 
     # Calculate per capita
     avg_real_buy = buy_real_volume // buy_real_count if buy_real_count > 0 else 0
     avg_real_sell = sell_real_volume // sell_real_count if sell_real_count > 0 else 0
 
-    # Calculate seller strength
+    # Seller strength is sell volume over buy volume: >1 is a book tilted to selling.
+    # With no recorded buy volume the ratio is undefined, and 1.0 would claim a balanced
+    # book out of a symbol nobody traded — so it stays unknown.
     total_buy = buy_real_volume + buy_legal_volume
     total_sell = sell_real_volume + sell_legal_volume
-    seller_strength = total_sell / total_buy if total_buy > 0 else 1.0
+    seller_strength = total_sell / total_buy if total_buy > 0 else None
 
-    # Calculate money flow (in rials)
-    money_out_real = sell_real_volume * price_last  # Real selling
-    buy_real_volume * price_last    # Real buying
-    sell_legal_volume * price_last
-    buy_legal_volume * price_last
+    # Money flow in rials, both directions: reporting only the outflow invites the reader to
+    # assume the inflow was zero.
+    money_out_real = sell_real_volume * price_last
+    money_in_real = buy_real_volume * price_last
+    money_out_legal = sell_legal_volume * price_last
+    money_in_legal = buy_legal_volume * price_last
 
     # Build order book (from raw_json if available)
     order_book = _parse_order_book(detail)
@@ -245,14 +248,27 @@ def _calculate_derived_fields(detail: dict[str, Any]) -> dict[str, Any]:
         # Derived real/legal metrics
         "ownership_change": ownership_change,
         "ownership_change_formatted": _format_volume(abs(ownership_change)),
-        "ownership_direction": "حقوقی به حقیقی" if ownership_change > 0 else "حقیقی به حقوقی",
+        "ownership_direction": (
+            "حقوقی به حقیقی" if ownership_change > 0
+            else "حقیقی به حقوقی" if ownership_change < 0
+            else "بدون تغییر خالص"
+        ),
         "avg_real_buy": avg_real_buy,
         "avg_real_buy_formatted": _format_volume(avg_real_buy),
         "avg_real_sell": avg_real_sell,
         "avg_real_sell_formatted": _format_volume(avg_real_sell),
         "seller_strength": seller_strength,
+        "seller_strength_label": f"{seller_strength:.2f}" if seller_strength is not None else "—",
         "money_out_real": money_out_real,
         "money_out_real_formatted": _format_rial(money_out_real),
+        "money_in_real": money_in_real,
+        "money_in_real_formatted": _format_rial(money_in_real),
+        "money_out_legal": money_out_legal,
+        "money_out_legal_formatted": _format_rial(money_out_legal),
+        "money_in_legal": money_in_legal,
+        "money_in_legal_formatted": _format_rial(money_in_legal),
+        "legal_change": legal_net,
+        "legal_change_formatted": _format_volume(abs(legal_net)),
 
         # Time info
         "time": detail.get("time", ""),
@@ -363,10 +379,13 @@ def format_symbol_info_text(info: dict[str, Any]) -> str:
         f"  فروش حقوقی: {info['sell_legal_volume_formatted']} ({info['sell_legal_count']:,} نفر)",
         "",
         f"  تغییر مالکیت {info['ownership_direction']}: {info['ownership_change_formatted']}",
-        f"  قدرت فروشندگان: {info['seller_strength']:.2f}",
+        f"  قدرت فروشندگان: {info['seller_strength_label']}",
         f"  سرانه خرید حقیقی: {info['avg_real_buy_formatted']}",
         f"  سرانه فروش حقیقی: {info['avg_real_sell_formatted']}",
+        f"  ورود پول حقیقی: {info['money_in_real_formatted']} ریال",
         f"  خروج پول حقیقی: {info['money_out_real_formatted']} ریال",
+        f"  ورود پول حقوقی: {info['money_in_legal_formatted']} ریال",
+        f"  خروج پول حقوقی: {info['money_out_legal_formatted']} ریال",
         "",
     ])
 

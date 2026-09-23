@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from apps.api.dependencies import get_brsapi_query_service
@@ -23,6 +23,99 @@ class AnalysisOverviewFrontend(BaseModel):
     recommendations: list[dict[str, Any]]
     market_status: str
     analysis_date: str
+
+
+@router.get("/correlations")
+async def analysis_correlations(
+    min_history: int = Query(60, ge=10, le=250, description="Minimum daily closes per symbol"),
+    min_corr: float = Query(0.35, ge=0.0, le=1.0, description="Minimum |correlation| to report a pair"),
+    limit: int = Query(60, ge=1, le=200, description="Max pairs returned"),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[dict[str, Any]]:
+    """Real pairwise return correlations, grouped by sector.
+
+    Replaces the frontend's hardcoded MOCK_CATEGORIES fallback: pairs are
+    computed from actual daily-close history (Pearson on returns) for symbols
+    within the same sector, so the page shows measured values instead of
+    static demo numbers.
+    """
+    try:
+        snapshots = await brsapi.get_latest_snapshots(limit=500)
+    except Exception:
+        logger.exception("Correlations: snapshot fetch failed")
+        return ApiResponse(success=True, data={"categories": [], "source": "unavailable"})
+
+    # Group symbols by sector, keep a couple of the most-liquid names per sector
+    by_sector: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for s in snapshots:
+        sector = s.get("sector") or ""
+        if sector and s.get("symbol"):
+            by_sector[sector].append(s)
+    for sector in by_sector:
+        by_sector[sector].sort(key=lambda s: s.get("trade_value", 0) or 0, reverse=True)
+        by_sector[sector] = by_sector[sector][:4]  # 4 symbols → ≤6 pairs per sector
+
+    # Fetch history per unique symbol (bounded: ≤ 4 × #sectors)
+    import math
+
+    history: dict[str, list[float]] = {}
+    for members in by_sector.values():
+        for s in members:
+            sym = s["symbol"]
+            if sym in history:
+                continue
+            try:
+                candles = await brsapi.get_candlesticks(sym, limit=min_history + 5)
+                closes = [float(c.get("close") or 0) for c in candles][-min_history:]
+                if len(closes) >= min_history and all(c > 0 for c in closes):
+                    history[sym] = closes
+            except Exception:
+                logger.debug("Correlations: history failed for %s", sym)
+
+    def _returns(closes: list[float]) -> list[float]:
+        return [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))]
+
+    def _pearson(a: list[float], b: list[float]) -> float | None:
+        n = min(len(a), len(b))
+        if n < 30:
+            return None
+        a, b = a[-n:], b[-n:]
+        ma, mb = sum(a) / n, sum(b) / n
+        cov = sum((x - ma) * (y - mb) for x, y in zip(a, b, strict=False))
+        va = math.sqrt(sum((x - ma) ** 2 for x in a))
+        vb = math.sqrt(sum((y - mb) ** 2 for y in b))
+        if va == 0 or vb == 0:
+            return None
+        return max(-1.0, min(1.0, cov / (va * vb)))
+
+    categories: list[dict[str, Any]] = []
+    for sector, members in sorted(by_sector.items()):
+        pairs: list[dict[str, Any]] = []
+        for i in range(len(members)):
+            for j in range(i + 1, len(members)):
+                sa, sb = members[i], members[j]
+                ra, rb = history.get(sa["symbol"]), history.get(sb["symbol"])
+                if not ra or not rb:
+                    continue
+                corr = _pearson(_returns(ra), _returns(rb))
+                if corr is None or abs(corr) < min_corr:
+                    continue
+                strength = "strong" if abs(corr) >= 0.7 else "moderate" if abs(corr) >= 0.4 else "weak"
+                pairs.append({
+                    "pair": f"{sa.get('name') or sa['symbol']} / {sb.get('name') or sb['symbol']}",
+                    "symbolA": sa["symbol"],
+                    "symbolB": sb["symbol"],
+                    "correlation": round(corr, 3),
+                    "strength": strength,
+                    "direction": "positive" if corr > 0 else "negative",
+                    "description": f"همبستگی بازده روزانه در {len(min(ra, rb, key=len))-1} روز اخیر",
+                })
+        if pairs:
+            pairs.sort(key=lambda p: abs(p["correlation"]), reverse=True)
+            categories.append({"name": sector, "pairs": pairs[:limit]})
+
+    categories.sort(key=lambda c: max((abs(p["correlation"]) for p in c["pairs"]), default=0), reverse=True)
+    return ApiResponse(success=True, data={"categories": categories, "source": "computed"})
 
 
 @router.get("/overview")

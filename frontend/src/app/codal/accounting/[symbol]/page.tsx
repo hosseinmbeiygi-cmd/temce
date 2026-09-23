@@ -81,7 +81,7 @@ function formatCurrency(val: number | null | undefined): string {
   if (Math.abs(val) >= 1e9) return (val / 1e9).toFixed(1) + "B";
   if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + "M";
   if (Math.abs(val) >= 1e3) return (val / 1e3).toFixed(0) + "K";
-  return val.toLocaleString();
+  return val.toLocaleString("en-US");
 }
 
 function faNum(s: string): string {
@@ -326,7 +326,7 @@ export default function CodalAccountingPage() {
                       {Object.entries(ratiosData.classified_items).map(([key, val]) => (
                         <div key={key} className="flex items-center justify-between p-2 rounded-lg bg-surface-800/50 text-xs">
                           <span className="text-surface-400">{key}</span>
-                          <span className="font-mono text-surface-200 font-bold">{val.toLocaleString()}</span>
+                          <span className="font-mono text-surface-200 font-bold">{val.toLocaleString("en-US")}</span>
                         </div>
                       ))}
                     </div>
@@ -417,7 +417,7 @@ export default function CodalAccountingPage() {
                                     <td key={hi} className={`py-2.5 px-3 font-mono ${
                                       val && val > 0 ? "text-accent-emerald" : val && val < 0 ? "text-accent-rose" : "text-surface-100"
                                     } ${item.label === "جمع" || item.label === "مجموع" ? "font-bold" : ""}`}>
-                                      {val != null ? faNum(val.toLocaleString()) : "—"}
+                                      {val != null ? faNum(val.toLocaleString("en-US")) : "—"}
                                     </td>
                                   );
                                 })}

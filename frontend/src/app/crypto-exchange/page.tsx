@@ -83,7 +83,7 @@ function PriceCard({ crypto, selectedTimeframe }: { crypto: CryptoPrice; selecte
             ${crypto.price_usd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="text-[10px] text-surface-500 font-mono">
-            {crypto.price_toman?.toLocaleString()} تومان
+            {crypto.price_toman?.toLocaleString("en-US")} تومان
           </div>
         </div>
       </div>
@@ -112,11 +112,11 @@ function PriceCard({ crypto, selectedTimeframe }: { crypto: CryptoPrice; selecte
       <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
         <div className="flex justify-between">
           <span className="text-surface-500">بالاترین ۲۴h:</span>
-          <span className="font-mono text-accent-emerald">${crypto.high_24h?.toLocaleString()}</span>
+          <span className="font-mono text-accent-emerald">${crypto.high_24h?.toLocaleString("en-US")}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-surface-500">پایین‌ترین ۲۴h:</span>
-          <span className="font-mono text-accent-rose">${crypto.low_24h?.toLocaleString()}</span>
+          <span className="font-mono text-accent-rose">${crypto.low_24h?.toLocaleString("en-US")}</span>
         </div>
       </div>
     </div>
@@ -310,7 +310,7 @@ function CryptoTable({ cryptos, selectedTimeframe }: { cryptos: CryptoPrice[]; s
                       ${c.price_usd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <div className="text-[10px] text-surface-500 font-mono">
-                      {c.price_toman?.toLocaleString()} تومان
+                      {c.price_toman?.toLocaleString("en-US")} تومان
                     </div>
                   </td>
                   <td className="py-3 px-3 text-right">
@@ -331,8 +331,8 @@ function CryptoTable({ cryptos, selectedTimeframe }: { cryptos: CryptoPrice[]; s
                   </td>
                   <td className="py-3 px-3 text-right hidden xl:table-cell">
                     <div className="text-xs">
-                      <div className="text-accent-emerald font-mono">${c.high_24h?.toLocaleString()}</div>
-                      <div className="text-accent-rose font-mono">${c.low_24h?.toLocaleString()}</div>
+                      <div className="text-accent-emerald font-mono">${c.high_24h?.toLocaleString("en-US")}</div>
+                      <div className="text-accent-rose font-mono">${c.low_24h?.toLocaleString("en-US")}</div>
                     </div>
                   </td>
                 </tr>

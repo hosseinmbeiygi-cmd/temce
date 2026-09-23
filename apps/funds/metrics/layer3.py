@@ -15,7 +15,7 @@ def active_share(fund_weights: Sequence[float], bench_weights: Sequence[float]) 
     """Active Share = ½ × Σ|w_fund − w_bench| (فرمول Cremers)."""
     if len(fund_weights) != len(bench_weights) or not fund_weights:
         return None
-    diff = sum(abs(f - b) for f, b in zip(fund_weights, bench_weights))
+    diff = sum(abs(f - b) for f, b in zip(fund_weights, bench_weights, strict=False))
     return diff / 2.0
 
 
@@ -102,7 +102,7 @@ def compute_layer3(
 
     if portfolio_returns and benchmark_returns_td:
         if len(portfolio_returns) == len(benchmark_returns_td):
-            diffs = [p - b for p, b in zip(portfolio_returns, benchmark_returns_td)]
+            diffs = [p - b for p, b in zip(portfolio_returns, benchmark_returns_td, strict=False)]
             out["tracking_difference"] = safe_mean(diffs)
 
     if holdings_history and len(holdings_history) >= 2:

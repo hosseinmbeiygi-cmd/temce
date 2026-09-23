@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from brsapi.client import BrsApiResponse
 from core.result import Result
-
 from ingestion.brs_api_client import (
     BROWSER_HEADERS,
     BrsApiIngestionClient,

@@ -119,8 +119,8 @@ def audit_row(
     fallback_applied: dict[str, Any] = {}
     red_flags: list[str] = []
 
-    for field, level in FIELD_LEVELS.items():
-        val = row.get(field)
+    for fname, level in FIELD_LEVELS.items():
+        val = row.get(fname)
         # Special: also check alternative camelCase keys
         if _is_missing(val):
             # Try aliases
@@ -132,39 +132,38 @@ def audit_row(
                 "price_lowest_allowed": ["priceLowestAllowed"],
                 "price_highest_allowed": ["priceHighestAllowed"],
             }
-            for alt in aliases.get(field, []):
+            for alt in aliases.get(fname, []):
                 alt_val = row.get(alt)
                 if not _is_missing(alt_val):
                     val = alt_val
-                    patched[field] = alt_val
+                    patched[fname] = alt_val
                     break
         if _is_missing(val):
-            missing[level].append(field)
+            missing[level].append(fname)
             if level == MissingLevel.CRITICAL:
-                red_flags.append(f"missing_critical:{field}")
+                red_flags.append(f"missing_critical:{fname}")
             # Apply fallback for IMPORTANT only
             if level == MissingLevel.IMPORTANT:
                 fallback_val: Any = None
-                if group_medians and field in group_medians and group_medians[field] is not None:
-                    fallback_val = group_medians[field]
-                elif field in FALLBACK_DEFAULTS:
-                    fallback_val = FALLBACK_DEFAULTS[field]
+                if group_medians and fname in group_medians and group_medians[fname] is not None:
+                    fallback_val = group_medians[fname]
+                elif fname in FALLBACK_DEFAULTS:
+                    fallback_val = FALLBACK_DEFAULTS[fname]
                 # Special: price band from price_last
-                if field in ("price_lowest_allowed", "price_highest_allowed") and patched.get("price_last"):
+                if fname in ("price_lowest_allowed", "price_highest_allowed") and patched.get("price_last"):
                     pl = patched["price_last"] or 0
                     # TSE default ±5% band
-                    if field == "price_lowest_allowed":
+                    if fname == "price_lowest_allowed":
                         fallback_val = round(pl * 0.95)
                     else:
                         fallback_val = round(pl * 1.05)
                 if fallback_val is not None:
-                    patched[field] = fallback_val
-                    fallback_applied[field] = fallback_val
+                    patched[fname] = fallback_val
+                    fallback_applied[fname] = fallback_val
 
     has_critical = len(missing[MissingLevel.CRITICAL]) > 0
 
     # Completeness: weighted (critical 60%, important 30%, supplementary 10%)
-    total_fields = len(FIELD_LEVELS)
     critical_total = sum(1 for v in FIELD_LEVELS.values() if v == MissingLevel.CRITICAL)
     important_total = sum(1 for v in FIELD_LEVELS.values() if v == MissingLevel.IMPORTANT)
     supp_total = sum(1 for v in FIELD_LEVELS.values() if v == MissingLevel.SUPPLEMENTARY)

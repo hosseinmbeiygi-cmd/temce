@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 build_symbol_reports.py
 سازنده «صفحه اختصاصی نماد» از جداول خام واقعی (TimescaleDB + فایل‌های داده).
@@ -21,12 +20,12 @@ import re
 import sys
 import time
 import traceback
-from datetime import date, datetime, timedelta
+import warnings
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import warnings
 
 from core.time import now_tehran
 
@@ -61,7 +60,6 @@ DECISION_REMINDER = (
 
 def db_connect():
     import psycopg2
-    from psycopg2.extras import DictCursor
 
     host = os.getenv("PG_HOST", "localhost")
     port = os.getenv("PG_PORT", "5432")
@@ -319,7 +317,7 @@ def detect_columns(df: pd.DataFrame, source_name: str, sample_desc: str = ""):
             means = {c: pd.to_numeric(df[c], errors="coerce").mean() for c in grp}
             ordered = sorted(grp, key=lambda c: (means[c] if pd.notna(means[c]) else -np.inf), reverse=True)
             roles = [r for r in ["high", "close", "open", "low"] if r not in mapping]
-            for role, col in zip(roles, ordered):
+            for role, col in zip(roles, ordered, strict=False):
                 mapping[role] = col
                 log_rows.append(dict(نام_فایل=source_name, ستون_انتخابی=col, نوع_محتوای_تشخیص_داده_شده=role,
                                      مسیر_تشخیص="آماری", درجه_اطمینان="متوسط",
@@ -580,9 +578,9 @@ def ml_features(df: pd.DataFrame):
 
 
 def ml_train(df: pd.DataFrame) -> dict:
-    from sklearn.linear_model import LogisticRegression
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score, roc_auc_score)
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
     f, feature_cols, vol_ok = ml_features(df)
     n_total = len(f)
@@ -628,7 +626,7 @@ def ml_train(df: pd.DataFrame) -> dict:
                                 random_state=42, n_jobs=1, class_weight="balanced_subsample")
     rf.fit(Xtr, ytr)
     base = float(max(np.mean(yte), 1 - np.mean(yte))) if len(yte) else None
-    importances = sorted(zip(feature_cols, rf.feature_importances_), key=lambda t: t[1], reverse=True)
+    importances = sorted(zip(feature_cols, rf.feature_importances_, strict=False), key=lambda t: t[1], reverse=True)
     return {
         "status": "ok", "n": n, "n_total": n_total, "ml_capped": ml_capped,
         "n_train": n_tr, "n_val": n_val, "n_test": len(Xte),
@@ -856,7 +854,7 @@ class DataHub:
                             "buy_real_count", "sell_real_count", "buy_real_volume", "sell_real_volume",
                             "bid_price_1", "bid_volume_1", "bid_price_5", "bid_volume_5", "ask_price_1",
                             "ask_volume_1", "ask_price_5", "ask_volume_5", "gregorian_date"]
-                    out["snapshot"] = dict(zip(cols, rows[0]))
+                    out["snapshot"] = dict(zip(cols, rows[0], strict=False))
         if has("real_legal"):
             with contextlib.suppress(Exception):
                 cur.execute(
@@ -1021,7 +1019,7 @@ def effect_words(text: str):
     return "نامشخص"
 
 
-def compose_page(symbol, hub: "DataHub", sources: list, data: dict, detection_note: dict) -> tuple[str, dict]:
+def compose_page(symbol, hub: DataHub, sources: list, data: dict, detection_note: dict) -> tuple[str, dict]:
     p = Page(symbol)
     det = data.get("details", {})
     scr = data.get("screener", {})
@@ -1975,7 +1973,7 @@ def main():
                  f"- تعداد کل نمادهای پردازش‌شده: **{len(stats)}**",
                  f"- میانگین درصد فیلدهای پرشده (شاخص کامل‌بودن داده): **{sum(fills)/len(fills):.1f}٪**",
                  f"- تعداد صفحات با تکمیل کمتر از ۳۰٪: **{len(low)}**",
-                 f"- توزیع دسته‌ها: " + "، ".join(f"{k}: {v}" for k, v in sorted(cats.items(), key=lambda t: -t[1])),
+                 "- توزیع دسته‌ها: " + "، ".join(f"{k}: {v}" for k, v in sorted(cats.items(), key=lambda t: -t[1])),
                  f"- نمادهای دارای مدل ML موفق: **{sum(1 for s in stats if s.get('has_ml'))}**",
                  f"- نمادهای دارای بک‌تست کافی: **{sum(1 for s in stats if s.get('has_backtest'))}**", "",
                  "## نمادهای نیازمند بررسی دستی (کمترین کامل‌بودن داده)", ""]

@@ -116,8 +116,11 @@ def heston_price(params: HestonParams) -> OptionPrice:
     p_dn = _heston_call_price_semi_closed(params_dn)
     delta = float((p_up - p_dn) / (2 * h_spot))
 
-    # Gamma
-    gamma = float((p_up - 2 * price + p_dn) / (h_spot**2))
+    # Gamma (finite-difference; guarded against div-by-zero / non-finite)
+    import math as _math
+    gamma = float((p_up - 2 * price + p_dn) / (h_spot**2)) if h_spot > 1e-12 else 0.0
+    if not _math.isfinite(gamma):
+        gamma = 0.0
 
     # Vega (sensitivity to initial variance v0)
     params_vup = HestonParams(**{**params.__dict__, "v0": params.v0 + h_vol})

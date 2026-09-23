@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import re
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
 
 import numpy as np
@@ -21,6 +22,27 @@ from core.result import PaginatedResult, Result
 from services.signal_accuracy_tracker import SignalAccuracyTracker
 
 logger = get_logger(__name__)
+
+
+def _signal_anchor(signal: dict[str, Any]) -> date:
+    """The date a signal was raised — the bar series must start *after* it.
+
+    Without this the "future" query returns the symbol's oldest bars, so a signal
+    raised today is scored against last year's price move.
+    """
+
+    for key in ("date", "signal_date", "created_at", "time", "timestamp"):
+        raw = signal.get(key)
+        if not raw:
+            continue
+        if isinstance(raw, datetime):
+            return raw.date()
+        if isinstance(raw, date):
+            return raw
+        text = str(raw).strip().replace("/", "-")[:10]
+        with contextlib.suppress(ValueError):
+            return datetime.strptime(text, "%Y-%m-%d").date()
+    return date.today()
 
 
 @dataclass
@@ -152,7 +174,8 @@ class SignalBacktestEngine:
 
                     # Fetch future price data
                     hist_data = await self._fetch_future_prices(
-                        session, symbol, market_type, signal_price, days_forward
+                        session, symbol, market_type, signal_price, days_forward,
+                        from_date=_signal_anchor(signal),
                     )
 
                     if not hist_data:
@@ -242,8 +265,14 @@ class SignalBacktestEngine:
         market: str,
         current_price: float,
         days_forward: int,
+        from_date: date | None = None,
     ) -> list[dict[str, Any]]:
-        """Fetch future price data for a symbol after the signal date."""
+        """Fetch price bars strictly after the signal date.
+
+        Filters on ``gregorian_date`` (a real DATE) rather than ``date`` — that column is
+        a VARCHAR holding both Jalali and Gregorian strings, so a string comparison there
+        silently selects the wrong window.
+        """
         try:
             from sqlalchemy import text
 
@@ -254,15 +283,16 @@ class SignalBacktestEngine:
                 "crypto": "brsapi_gold_currency_pro_daily_history",
             }
             table = table_map.get(market, "brsapi_historical_daily")
+            anchor = from_date or date.today()
 
             r = await session.execute(text(f"""
-                SELECT date, price_first as open, price_max as high,
+                SELECT gregorian_date, price_first as open, price_max as high,
                        price_min as low, price_close as close
                 FROM {table}
-                WHERE symbol = :symbol AND price_close > 0
-                ORDER BY date ASC
-                LIMIT {days_forward}
-            """), {"symbol": symbol})
+                WHERE symbol = :symbol AND price_close > 0 AND gregorian_date > :from_date
+                ORDER BY gregorian_date ASC
+                LIMIT :days
+            """), {"symbol": symbol, "from_date": anchor, "days": days_forward})
             rows = r.fetchall()
 
             return [

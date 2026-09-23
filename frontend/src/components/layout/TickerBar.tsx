@@ -49,7 +49,7 @@ function TickerChip({ symbol, price, changePct }: TickerItem) {
 }
 
 export default function TickerBar() {
-  const tickerItems = useTickerItems();
+  const { data: tickerItems } = useTickerItems();
   const session = useMarketSession();
   const AVG = tickerItems.length > 0 ? tickerItems.reduce((s, t) => s + t.changePct, 0) / tickerItems.length : 0;
   const items = [...tickerItems, ...tickerItems];

@@ -9,8 +9,9 @@ and the ``_run_candlesticks_all`` orchestration:
    candle types (3=adjusted, 2=unadjusted, 1=realtime).
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from brsapi.jobs.registry import BrsApiJobRegistry, BrsApiSyncJob
 from brsapi.services.sync_service import SyncReport

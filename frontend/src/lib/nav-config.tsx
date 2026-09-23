@@ -181,6 +181,7 @@ export const NAV_CONFIG: NavItem[] = [
         icon: TrendingUp,
         items: [
           { label: "تحلیل بازار", href: "/analysis" },
+          { label: "برگهٔ خرید", href: "/pre-buy", desc: "برگهٔ تصمیم چندمرحله‌ای پیش از خرید؛ بانک هر نوع ابزار جداست" },
           { label: "پیشبینی قیمتها", href: "/predictions" },
           { label: "دیده‌بان آلفا", href: "/alpha" },
           { label: "بک‌تست", href: "/backtest" },

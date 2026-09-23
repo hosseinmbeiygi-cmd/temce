@@ -141,7 +141,7 @@ export default function PortfolioPage() {
               >
                 <div className="font-bold text-sm">{p.name}</div>
                 <div className="text-xs opacity-70 mt-1">
-                  {p.current_value.toLocaleString()} ریال
+                  {p.current_value.toLocaleString("en-US")} ریال
                 </div>
               </div>
             ))
@@ -175,14 +175,14 @@ export default function PortfolioPage() {
                 <div className="glass-card p-5">
                   <div className="text-xs text-surface-500 mb-1">ارزش فعلی</div>
                   <div className="text-2xl font-black text-surface-100">
-                    {activePortfolio.current_value.toLocaleString()} 
+                    {activePortfolio.current_value.toLocaleString("en-US")} 
                     <span className="text-xs font-normal"> ریال</span>
                   </div>
                 </div>
                 <div className="glass-card p-5">
                   <div className="text-xs text-surface-500 mb-1">سرمایه اولیه</div>
                   <div className="text-2xl font-black text-surface-400">
-                    {activePortfolio.initial_capital.toLocaleString()} 
+                    {activePortfolio.initial_capital.toLocaleString("en-US")} 
                     <span className="text-xs font-normal"> ریال</span>
                   </div>
                 </div>
@@ -193,7 +193,7 @@ export default function PortfolioPage() {
                       ? "text-accent-emerald" 
                       : "text-accent-rose"
                   }`}>
-                    {(activePortfolio.current_value - activePortfolio.initial_capital).toLocaleString()}
+                    {(activePortfolio.current_value - activePortfolio.initial_capital).toLocaleString("en-US")}
                   </div>
                 </div>
               </div>
@@ -230,22 +230,22 @@ export default function PortfolioPage() {
                         >
                           <td className="p-4 font-bold text-surface-200">{pos.symbol}</td>
                           <td className="p-4 font-mono text-surface-400">
-                            {pos.quantity.toLocaleString()}
+                            {pos.quantity.toLocaleString("en-US")}
                           </td>
                           <td className="p-4 font-mono text-surface-400">
-                            {pos.avg_cost?.toLocaleString()}
+                            {pos.avg_cost?.toLocaleString("en-US")}
                           </td>
                           <td className="p-4 font-mono text-surface-200">
-                            {pos.current_price?.toLocaleString()}
+                            {pos.current_price?.toLocaleString("en-US")}
                           </td>
                           <td className="p-4 font-mono text-surface-200">
-                            {pos.market_value?.toLocaleString()}
+                            {pos.market_value?.toLocaleString("en-US")}
                           </td>
                           <td className={`p-4 font-mono ${
                             pos.unrealized_pnl >= 0 ? "text-accent-emerald" : "text-accent-rose"
                           }`}>
                             {pos.unrealized_pnl >= 0 ? "+" : ""}
-                            {pos.unrealized_pnl?.toLocaleString()}
+                            {pos.unrealized_pnl?.toLocaleString("en-US")}
                           </td>
                           <td className="p-4">
                             <div className="flex items-center gap-2">

@@ -34,6 +34,7 @@ dependencies = [
     "minio>=7.2",
     "redis[hiredis]>=5.0",
     "structlog>=24.1",
+    "pytz>=2023.3",
 ]
 
 [project.optional-dependencies]

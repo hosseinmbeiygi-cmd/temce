@@ -146,6 +146,7 @@ class PaperTradingService:
         capital_allocated: float = 0,
         entry_price: float | None = None,
         entry_notes: str | None = None,
+        user_id: str | None = None,
     ) -> Result[dict[str, Any]]:
         """Open a simulated long position from a stored buy signal snapshot."""
         snap = await self.session.get(PaperSignalSnapshotModel, snapshot_id)
@@ -176,6 +177,7 @@ class PaperTradingService:
 
         trade = PaperTradeModel(
             id=new_id("ptrade"),
+            user_id=user_id,
             signal_snapshot_id=snap.id,
             symbol=snap.symbol,
             name=snap.name,
@@ -205,9 +207,14 @@ class PaperTradingService:
         exit_price: float | None = None,
         exit_reason: str = "manual",
         exit_notes: str | None = None,
+        user_id: str | None = None,
     ) -> Result[dict[str, Any]]:
-        """Close an open paper trade and compute P&L."""
-        trade = await self.session.get(PaperTradeModel, trade_id)
+        """Close an open paper trade and compute P&L.
+
+        With ``user_id`` set, only the owner (or a NULL-owner legacy trade) can
+        be closed — other users' trades resolve to "not found".
+        """
+        trade = await self._get_owned_trade(trade_id, user_id)
         if trade is None:
             return Result.fail(f"Trade {trade_id} not found")
         if trade.status != "open":
@@ -233,6 +240,21 @@ class PaperTradingService:
         )
         await self._record_equity()
         return Result.ok(self._trade_to_dict(trade))
+
+    async def _get_owned_trade(self, trade_id: str, user_id: str | None) -> PaperTradeModel | None:
+        """Fetch a trade scoped to ``user_id``; NULL-owner legacy rows are shared.
+
+        Anonymous callers (no user) may only touch legacy shared rows — a user's
+        own trades stay isolated from everyone else.
+        """
+        trade = await self.session.get(PaperTradeModel, trade_id)
+        if trade is None:
+            return None
+        if trade.user_id is None:
+            return trade
+        if user_id is not None and trade.user_id == user_id:
+            return trade
+        return None
 
     async def auto_close_due_trades(self) -> Result[int]:
         """Close open trades whose target / stop / reverse-signal / max-hold fired.
@@ -264,22 +286,26 @@ class PaperTradingService:
 
     # ── 3. Accounting / dashboard ──────────────────────────────────────────
 
-    async def get_dashboard(self) -> dict[str, Any]:
-        """Aggregate P&L stats for the paper account."""
+    async def get_dashboard(self, user_id: str | None = None) -> dict[str, Any]:
+        """Aggregate P&L stats for the paper account (owner-scoped, see list_trades)."""
         from sqlalchemy import func
+        from sqlalchemy import or_ as sa_or
+
+        owner_filter = sa_or(PaperTradeModel.user_id.is_(None), PaperTradeModel.user_id == user_id) \
+            if user_id else PaperTradeModel.user_id.is_(None)
 
         total_result = await self.session.execute(
-            select(func.count()).select_from(PaperTradeModel)
+            select(func.count()).select_from(PaperTradeModel).where(owner_filter)
         )
         total = total_result.scalar() or 0
 
         closed_result = await self.session.execute(
-            select(PaperTradeModel).where(PaperTradeModel.status == "closed")
+            select(PaperTradeModel).where(PaperTradeModel.status == "closed", owner_filter)
         )
         closed = closed_result.scalars().all()
 
         open_result = await self.session.execute(
-            select(PaperTradeModel).where(PaperTradeModel.status == "open")
+            select(PaperTradeModel).where(PaperTradeModel.status == "open", owner_filter)
         )
         open_trades = open_result.scalars().all()
 
@@ -331,12 +357,22 @@ class PaperTradingService:
         symbol: str | None = None,
         page: int = 1,
         page_size: int = 50,
+        user_id: str | None = None,
     ) -> Result[PaginatedResult[dict[str, Any]]]:
-        """List paper trades with optional filters."""
+        """List paper trades with optional filters.
+
+        Scope: the caller's own trades + legacy NULL-owner rows. Pass
+        ``user_id=None`` only for anonymous/public views (legacy rows only).
+        """
         from sqlalchemy import func
+        from sqlalchemy import or_ as sa_or
 
         stmt = select(PaperTradeModel)
         count_stmt = select(func.count()).select_from(PaperTradeModel)
+        owner_filter = sa_or(PaperTradeModel.user_id.is_(None), PaperTradeModel.user_id == user_id) \
+            if user_id else PaperTradeModel.user_id.is_(None)
+        stmt = stmt.where(owner_filter)
+        count_stmt = count_stmt.where(owner_filter)
         if status:
             stmt = stmt.where(PaperTradeModel.status == status)
             count_stmt = count_stmt.where(PaperTradeModel.status == status)

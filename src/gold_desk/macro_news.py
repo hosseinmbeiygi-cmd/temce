@@ -13,7 +13,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import re
@@ -108,7 +107,13 @@ def estimate_impact(title: str, category: str) -> tuple[int, float]:
 
 
 def get_sample_events() -> list[MacroEvent]:
-    """نمونه رویدادهای کلان برای شروع. در آینده با scraper جایگزین می‌شود."""
+    """دادهٔ نمایشی (demo) — هرگز خروجی واقعی نه.
+
+    این رویدادها دست‌نویس‌اند: نرخ تورم، نقدینگی M2 و خرید بانک‌های مرکزی با منبع
+    «markaz_amar»/«cbi»/«wgc» و تاریخِ محاسبه‌شده از «الان». به‌همین دلیل از مسیر
+    ``fetch_macro_events`` صدا زده نمی‌شود؛ مصرف‌کنندهٔ تست و دمو باید خودش بداند که این‌ها
+    عدد واقعی نیستند. راهاست که نبودِ داده اعلام شود، نه پر کردنش با یک روایت باورپذیر.
+    """
     now = utc_now_naive()
     return [
         MacroEvent(
@@ -210,18 +215,10 @@ async def fetch_macro_events() -> list[MacroEvent]:
     except Exception as exc:
         logger.debug("macro cache fetch failed: %s", exc)
 
-    # seed
-    events = get_sample_events()
-    with contextlib.suppress(Exception):
-        from core.cache import get_cache
-
-        cache = get_cache()
-        await cache.set(
-            REDIS_KEY_MACRO,
-            json.dumps([e.to_dict() for e in events], default=str),
-            ttl=86400 * REDIS_KEY_MACRO_CACHE_DAYS,
-        )
-    return events
+    # No cache: an empty list, not the demo seed. The scraper below is what fills this;
+    # until it runs, the product has to say «داده‌ای نیست» instead of inventing a CPI print.
+    logger.info("macro events cache empty — reporting no data instead of the demo seed")
+    return []
 
 
 # ── News scraper (RSS / CBI / MarkazAmar) ────────────────────

@@ -39,7 +39,9 @@ def get_screener(screener_type: ScreenerType | str, session: AsyncSession, **kwa
     if st == ScreenerType.SMART_V2:
         from services.smart_screener_v2 import SmartScreenerV2
 
-        return SmartScreenerV2(session=session, **kwargs)
+        # No session: V2 is fed its history explicitly via ``batch_analyze(history_map=...)``.
+        # Forwarding ``session`` here raised TypeError, so the documented usage never worked.
+        return SmartScreenerV2(**kwargs)
     if st == ScreenerType.SCREENER110:
         from services.screener110_service import Screener110Service
 

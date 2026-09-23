@@ -18,9 +18,11 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -31,6 +33,7 @@ from core.db_utils import safe_row_str
 from core.fix_network import fix_network
 from core.ids import new_id
 from core.logging import get_logger
+from services.codal_financial_statement_import import classify_report_type
 from core.paths import data_path
 from core.time import utc_now_naive
 from models.codal_financial import CodalFinancialStatementModel
@@ -43,6 +46,9 @@ fix_network()
 
 CODAL_DOWNLOAD_DIR = str(data_path("codal_excel"))
 os.makedirs(CODAL_DOWNLOAD_DIR, exist_ok=True)
+
+# C5: Persian/Arabic digits → ASCII for filenames.
+_DIGIT_TRANS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "0123456789" * 2)
 
 
 @dataclass
@@ -116,8 +122,11 @@ class CodalDownloadService:
         start = time.monotonic()
         summary = CodalDownloadSummary()
 
-        # 1. Get unprocessed announcements
-        stmt = text("""
+        # 1. Get unprocessed announcements.
+        # C9 (audit): the old dedup was per-SYMBOL (one imported statement
+        # marked every future announcement of that symbol as processed).
+        # Dedup per announcement via its unique link instead.
+        base_sql = """
             SELECT ca.code, ca.symbol, ca.link, ca.link_excel, ca.link_pdf,
                    ca.date_publish, ca.title
             FROM codal_announcements ca
@@ -125,15 +134,20 @@ class CodalDownloadService:
               AND ca.symbol IS NOT NULL AND ca.symbol != ''
               AND NOT EXISTS (
                   SELECT 1 FROM codal_financial_statements cfs
-                  WHERE cfs.symbol = ca.symbol
-                    AND cfs.import_batch = 'codal_download'
+                  WHERE cfs.filename = COALESCE(ca.link_excel, ca.link)
               )
             ORDER BY ca.date_publish DESC
-        """)
+        """
         if max_announcements > 0:
-            stmt = text(str(stmt)[:-1] + f" LIMIT {max_announcements}")
-
-        result = await self.session.execute(stmt)
+            # C10 (audit): replace the fragile str(stmt)[:-1] + " LIMIT n"
+            # string surgery with a clean wrapping subquery.
+            stmt = text(
+                f"SELECT * FROM ({base_sql}) AS q LIMIT :max_announcements"
+            )
+            result = await self.session.execute(stmt, {"max_announcements": max_announcements})
+        else:
+            stmt = text(base_sql)
+            result = await self.session.execute(stmt)
         rows = result.fetchall()
         summary.total_announcements = len(rows)
 
@@ -172,12 +186,20 @@ class CodalDownloadService:
             elif ".html" in dl_link.lower() or ".htm" in dl_link.lower():
                 ext = ".html"
 
-            filename = f"{symbol}_codal_{date_publish}{ext}"
+            # C5 (audit): date_publish arrives Jalali with Persian digits and
+            # slashes ("۱۴۰۵/۰۳/۱۷") — slashes break paths on Windows and
+            # Persian digits break lexicographic ordering. Normalize first.
+            date_publish = date_publish.translate(_DIGIT_TRANS).replace("/", "-")
+            # C2 (audit): several announcements of one symbol share a publish
+            # date — a filename of symbol+date silently overwrote/skipped them.
+            # Add a short hash of the link so every announcement is distinct.
+            link_digest = hashlib.sha1(dl_link.encode("utf-8")).hexdigest()[:8]
+            filename = f"{symbol}_codal_{date_publish}_{link_digest}{ext}"
             filepath = os.path.join(sym_dir, filename)
 
             # Skip if already downloaded
             if os.path.exists(filepath) and os.path.getsize(filepath) > 100:
-                return {"status": "exists", "filepath": filepath, "symbol": symbol}
+                return {"status": "exists", "filepath": filepath, "symbol": symbol, "title": _title}
 
             # Handle relative URLs (prepend BrsApi base)
             if dl_link.startswith('/'):
@@ -192,13 +214,13 @@ class CodalDownloadService:
                     resp = await client.get(dl_link)
                     resp.raise_for_status()
 
-                    with open(filepath, "wb") as f:
-                        f.write(resp.content)
+                    await asyncio.to_thread(Path(filepath).write_bytes, resp.content)
 
                     return {
                         "status": "downloaded",
                         "filepath": filepath,
                         "symbol": symbol,
+                        "title": _title,
                         "size": len(resp.content),
                     }
                 except Exception as e:
@@ -217,6 +239,7 @@ class CodalDownloadService:
                 # Try to parse
                 filepath = res.get("filepath", "")
                 symbol = res.get("symbol", "unknown")
+                _title = res.get("title", "")
                 parsed = parse_report(filepath)
 
                 if parsed and "error" not in parsed:
@@ -229,8 +252,12 @@ class CodalDownloadService:
                     record = CodalFinancialStatementModel(
                         id=new_id("cfs"),
                         symbol=symbol,
-                        report_type=fn_parsed["report_type"] if fn_parsed else "codal_download",
+                        # C3 (audit): classify from the announcement title so
+                        # two different same-day reports don't collapse onto
+                        # one (symbol, type, date) row.
+                        report_type=classify_report_type(_title) if _title else (fn_parsed["report_type"] if fn_parsed else "codal_download"),
                         report_date=fn_parsed["date"] if fn_parsed else utc_now_naive().strftime("%Y%m%d"),
+                        # C9: dedup key = source link (see the SELECT above).
                         filename=fname,
                         file_path=filepath,
                         title=parsed.get("title", ""),

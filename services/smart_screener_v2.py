@@ -22,6 +22,18 @@ from services.smart_money.scoring_engine import ScoringEngine
 
 logger = get_logger(__name__)
 
+#: Categorical value for an analytics field the history was too short to measure. Distinct
+#: from ``"sideways"``/``"normal"``/``"neutral"``, which are readings, not absences.
+NOT_MEASURED = "not_measured"
+
+
+def _as_sort_value(value: Any) -> Any:
+    """Numeric where it can be, otherwise a string — so one column never mixes types."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
 
 @dataclass
 class ScreenerConfig:
@@ -83,43 +95,53 @@ class EnhancedScreenedSymbol:
     orderflow_score: float = 0.0
     trigger_score: float = 0.0
 
-    # Advanced analytics
-    rsi: float = 0.0
-    macd_histogram: float = 0.0
-    bb_pct: float = 0.0
-    atr_pct: float = 0.0
-    adx: float = 0.0
-    trend_direction: str = "sideways"
-    trend_strength: float = 0.0
-    volatility_regime: str = "normal"
+    # Advanced analytics. Every numeric here is ``None`` when the history was too short to
+    # measure it: these fields used to default to 0.0, and 0.0 is a real reading for several
+    # of them (RSI 0 = maximum oversold, %B 0 = a close sitting on the lower band), so an
+    # unmeasured symbol was being ranked as a buy opportunity by the absence of data. The
+    # categoricals use ``NOT_MEASURED`` for the same reason — "sideways" is a claim about the
+    # trend, not a statement that no trend was computed.
+    rsi: float | None = None
+    macd_histogram: float | None = None
+    bb_pct: float | None = None
+    atr_pct: float | None = None
+    adx: float | None = None
+    trend_direction: str = NOT_MEASURED
+    trend_strength: float | None = None
+    volatility_regime: str = NOT_MEASURED
 
     # Pattern signals
     pattern_signal: str = ""
-    pattern_confidence: float = 0.0
+    pattern_confidence: float | None = None
 
     # Composite scores
-    technical_score: float = 0.0
-    momentum_score: float = 0.0
-    risk_score: float = 0.0
+    technical_score: float | None = None
+    momentum_score: float | None = None
+    risk_score: float | None = None
     composite_score: float = 0.0
-    composite_signal: str = "neutral"
+    composite_signal: str = NOT_MEASURED
 
     # Support/Resistance
-    support_level: float = 0.0
-    resistance_level: float = 0.0
-    distance_to_support: float = 0.0
-    distance_to_resistance: float = 0.0
+    support_level: float | None = None
+    resistance_level: float | None = None
+    distance_to_support: float | None = None
+    distance_to_resistance: float | None = None
 
     # Volume profile
-    poc_price: float = 0.0
-    value_area_high: float = 0.0
-    value_area_low: float = 0.0
-    volume_trend: str = "neutral"
+    poc_price: float | None = None
+    value_area_high: float | None = None
+    value_area_low: float | None = None
+    volume_trend: str = NOT_MEASURED
 
     # Fundamental
     pe_ratio: float | None = None
     eps: float | None = None
     market_value: float | None = None
+
+    # Analytics provenance: why the ``None``s above are ``None`` — shown next to them so the
+    # reader sees «۱۸ کندل» rather than an unexplained blank.
+    analytics_bars: int = 0
+    analytics_computed: bool = True
 
     # Metadata
     details: dict[str, Any] = field(default_factory=dict)
@@ -210,14 +232,24 @@ class SmartScreenerV2:
         # Step 5: Pattern detection
         pattern_signal, pattern_confidence = self._get_best_pattern(advanced)
 
-        # Step 6: Support/Resistance
+        # Step 6: Support/Resistance — a missing level is None, not 0.0: a support at price
+        # zero is a number the UI would happily turn into a "+∞% above support" distance.
+        measured = advanced.indicators.computed
         sr_levels = advanced.support_resistance
-        support = next((lv.level for lv in sr_levels if lv.type == "support"), 0.0)
-        resistance = next((lv.level for lv in sr_levels if lv.type == "resistance"), 0.0)
+        support = next((lv.level for lv in sr_levels if lv.type == "support"), None) if measured else None
+        resistance = next((lv.level for lv in sr_levels if lv.type == "resistance"), None) if measured else None
 
         current_price = float(quote.get("price_close", 0) or 0)
-        dist_support = (current_price - support) / current_price * 100 if current_price and support else 0
-        dist_resistance = (resistance - current_price) / current_price * 100 if current_price and resistance else 0
+        dist_support = (
+            round((current_price - support) / current_price * 100, 2)
+            if measured and current_price and support
+            else None
+        )
+        dist_resistance = (
+            round((resistance - current_price) / current_price * 100, 2)
+            if measured and current_price and resistance
+            else None
+        )
 
         result = EnhancedScreenedSymbol(
             symbol=symbol,
@@ -236,29 +268,31 @@ class SmartScreenerV2:
             structure_score=float(smc_result.get("scores", {}).get("breakout_readiness", 0)),
             orderflow_score=float(smc_result.get("scores", {}).get("absorption", 0)),
             trigger_score=float(smc_result.get("scores", {}).get("float_lock", 0)),
-            rsi=advanced.indicators.rsi_14,
-            macd_histogram=advanced.indicators.macd_histogram,
-            bb_pct=advanced.indicators.bb_pct,
-            atr_pct=advanced.volatility.atr_pct,
-            adx=advanced.indicators.adx,
-            trend_direction=advanced.trend.direction,
-            trend_strength=advanced.trend.strength,
-            volatility_regime=advanced.volatility.regime,
+            analytics_bars=advanced.indicators.bars,
+            analytics_computed=measured,
+            rsi=advanced.indicators.rsi_14 if measured else None,
+            macd_histogram=advanced.indicators.macd_histogram if measured else None,
+            bb_pct=advanced.indicators.bb_pct if measured else None,
+            atr_pct=advanced.volatility.atr_pct if measured else None,
+            adx=advanced.indicators.adx if measured else None,
+            trend_direction=advanced.trend.direction if measured else NOT_MEASURED,
+            trend_strength=advanced.trend.strength if measured else None,
+            volatility_regime=advanced.volatility.regime if measured else NOT_MEASURED,
             pattern_signal=pattern_signal,
-            pattern_confidence=pattern_confidence,
+            pattern_confidence=pattern_confidence if measured else None,
             technical_score=technical_score,
             momentum_score=momentum_score,
             risk_score=risk_score,
             composite_score=composite,
-            composite_signal=advanced.composite_signal,
+            composite_signal=advanced.composite_signal if measured else NOT_MEASURED,
             support_level=support,
             resistance_level=resistance,
-            distance_to_support=round(dist_support, 2),
-            distance_to_resistance=round(dist_resistance, 2),
-            poc_price=advanced.volume_profile.poc_price,
-            value_area_high=advanced.volume_profile.value_area_high,
-            value_area_low=advanced.volume_profile.value_area_low,
-            volume_trend=advanced.volume_profile.volume_trend,
+            distance_to_support=dist_support,
+            distance_to_resistance=dist_resistance,
+            poc_price=advanced.volume_profile.poc_price if measured else None,
+            value_area_high=advanced.volume_profile.value_area_high if measured else None,
+            value_area_low=advanced.volume_profile.value_area_low if measured else None,
+            volume_trend=advanced.volume_profile.volume_trend if measured else NOT_MEASURED,
             pe_ratio=float(quote.get("pe_ratio", 0) or 0) or None,
             eps=float(quote.get("eps", 0) or 0) or None,
             market_value=float(quote.get("market_value", 0) or 0) or None,
@@ -268,9 +302,11 @@ class SmartScreenerV2:
         self._set_cached(cache_key, result)
         return result
 
-    def _compute_technical_score(self, analysis: AdvancedAnalysis) -> float:
-        """Compute technical score from advanced analysis."""
+    def _compute_technical_score(self, analysis: AdvancedAnalysis) -> float | None:
+        """Compute technical score from advanced analysis, or ``None`` if not measurable."""
         ind = analysis.indicators
+        if not ind.computed:
+            return None
         score = 0.0
 
         # RSI contribution
@@ -302,9 +338,11 @@ class SmartScreenerV2:
 
         return max(-1.0, min(1.0, score))
 
-    def _compute_momentum_score(self, analysis: AdvancedAnalysis) -> float:
-        """Compute momentum score."""
+    def _compute_momentum_score(self, analysis: AdvancedAnalysis) -> float | None:
+        """Compute momentum score, or ``None`` if not measurable."""
         ind = analysis.indicators
+        if not ind.computed:
+            return None
         score = 0.0
 
         # Stochastic
@@ -333,8 +371,14 @@ class SmartScreenerV2:
 
         return max(-1.0, min(1.0, score))
 
-    def _compute_risk_score(self, analysis: AdvancedAnalysis) -> float:
-        """Compute risk score (higher = more risky)."""
+    def _compute_risk_score(self, analysis: AdvancedAnalysis) -> float | None:
+        """Compute risk score (higher = more risky), or ``None`` if not measurable.
+
+        Every input below is an analytics output — regime, ATR, trend stability — so below
+        the compute window there is no risk reading to report, only a guess.
+        """
+        if not analysis.indicators.computed:
+            return None
         vol = analysis.volatility
         risk = 0.0
 
@@ -354,21 +398,41 @@ class SmartScreenerV2:
     def _compute_composite_score(
         self,
         smc_score: float,
-        technical_score: float,
-        momentum_score: float,
-        risk_score: float,
+        technical_score: float | None,
+        momentum_score: float | None,
+        risk_score: float | None,
     ) -> float:
-        """Compute weighted composite score."""
+        """Weighted composite over the legs that were actually measured.
+
+        ``fundamental_weight`` is applied to ``1 - risk_score``: the configuration name is
+        older than this formula and there is no fundamental input in it. It stays a risk
+        inversion — renaming the arithmetic would change every rank in the screener — but it
+        is no longer described as a fundamental leg.
+
+        A leg arrives as ``None`` when the history was too short to compute it; its weight is
+        then dropped and the rest renormalised. Scoring an unmeasured leg as 0.0 let a
+        three-week-old symbol inherit a penalty or a bonus from data that does not exist.
+        """
+
         cfg = self.config
-        risk_adjustment = 1.0 - (risk_score * 0.3)  # Penalize high risk
+        contributions: dict[str, float] = {"smart_money": smc_score}
+        weights: dict[str, float] = {"smart_money": cfg.smart_money_weight}
+        if technical_score is not None:
+            contributions["technical"] = technical_score
+            weights["technical"] = cfg.technical_weight
+        if momentum_score is not None:
+            contributions["momentum"] = momentum_score
+            weights["momentum"] = cfg.momentum_weight
+        if risk_score is not None:
+            contributions["risk_inversion"] = 1 - risk_score
+            weights["risk_inversion"] = cfg.fundamental_weight
 
-        raw = (
-            smc_score * cfg.smart_money_weight
-            + technical_score * cfg.technical_weight
-            + momentum_score * cfg.momentum_weight
-            + (1 - risk_score) * cfg.fundamental_weight
-        )
+        total_weight = sum(weights.values())
+        if total_weight <= 0:
+            return 0.0
+        raw = sum(contributions[name] * weights[name] for name in weights) / total_weight
 
+        risk_adjustment = 1.0 if risk_score is None else 1.0 - (risk_score * 0.3)
         return max(-1.0, min(1.0, raw * risk_adjustment))
 
     def _get_best_pattern(self, analysis: AdvancedAnalysis) -> tuple[str, float]:
@@ -383,7 +447,20 @@ class SmartScreenerV2:
         return "", 0.0
 
     def _build_reason(self, advanced: AdvancedAnalysis, smc_result: dict) -> str:
-        """Build human-readable reason string."""
+        """Build human-readable reason string.
+
+        Below the compute window the sentence is the count of candles, not "تحلیل عادی":
+        calling an unanalysed symbol "normal" is the same fabricated reading as RSI 0.
+        """
+        ind = advanced.indicators
+        if not ind.computed:
+            bars = ind.bars
+            return (
+                "داده کافی برای تحلیل تکنیکال نیست (کمتر از ۵ کندل)"
+                if bars < 5
+                else f"تاریخچه کوتاه: {bars} کندل، اندیکاتورها محاسبه نشده‌اند"
+            )
+
         reasons = []
 
         if advanced.trend.direction == "up" and advanced.trend.strength > 0.5:
@@ -407,7 +484,7 @@ class SmartScreenerV2:
             if best.confidence > 0.7:
                 reasons.append(best.description)
 
-        return " · ".join(reasons) if reasons else "تحلیل عادی"
+        return " · ".join(reasons) if reasons else "هیچ شرط برجسته‌ای در داده‌های محاسبه‌شده دیده نشد"
 
     def batch_analyze(
         self,
@@ -481,9 +558,14 @@ class SmartScreenerV2:
             if result.composite_score >= min_score:
                 results.append(result)
 
-        # Sort
+        # Sort. Unmeasured values sort last in both directions: ``None`` is not the smallest
+        # number, and treating it as one would push every short-history symbol to the top of
+        # an ascending sort.
         reverse = sort_order.lower() != "asc"
-        results.sort(key=lambda r: getattr(r, sort_by, 0.0), reverse=reverse)
+        measured_rows = [r for r in results if getattr(r, sort_by, None) is not None]
+        unmeasured_rows = [r for r in results if getattr(r, sort_by, None) is None]
+        measured_rows.sort(key=lambda r: _as_sort_value(getattr(r, sort_by)), reverse=reverse)
+        results = measured_rows + unmeasured_rows
 
         # Rank
         for i, r in enumerate(results, 1):
@@ -586,27 +668,27 @@ class SmartScreenerV2:
     def _compute_stats(
         self, paginated: list[EnhancedScreenedSymbol], all_results: list[EnhancedScreenedSymbol]
     ) -> dict[str, Any]:
-        """Compute aggregate statistics."""
-        if not all_results:
-            return {
-                "total": 0,
-                "avg_composite": 0,
-                "avg_technical": 0,
-                "avg_momentum": 0,
-                "avg_risk": 0,
-                "signal_distribution": {},
-                "sector_distribution": {},
-                "trend_distribution": {},
-                "volatility_distribution": {},
-            }
+        """Compute aggregate statistics.
 
+        Averages are taken over the symbols that actually have the leg measured, and the
+        measured/unmeasured split is reported next to them: an average of nothing is ``None``,
+        not 0, because 0 would read as "the market scored zero".
+        """
         total = len(all_results)
+
+        def _avg(field: str) -> float | None:
+            vals = [getattr(r, field) for r in all_results if getattr(r, field) is not None]
+            return round(sum(vals) / len(vals), 4) if vals else None
+
+        measured = sum(1 for r in all_results if r.analytics_computed)
         return {
             "total": total,
-            "avg_composite": round(sum(r.composite_score for r in all_results) / total, 4),
-            "avg_technical": round(sum(r.technical_score for r in all_results) / total, 4),
-            "avg_momentum": round(sum(r.momentum_score for r in all_results) / total, 4),
-            "avg_risk": round(sum(r.risk_score for r in all_results) / total, 4),
+            "avg_composite": _avg("composite_score"),
+            "avg_technical": _avg("technical_score"),
+            "avg_momentum": _avg("momentum_score"),
+            "avg_risk": _avg("risk_score"),
+            "analyticsMeasured": measured,
+            "analyticsNotMeasured": total - measured,
             "signal_distribution": self._count_signals(all_results),
             "sector_distribution": self._count_industries(all_results),
             "trend_distribution": self._count_trends(all_results),

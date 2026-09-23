@@ -36,7 +36,7 @@ async def main(symbol_arg: str | None) -> None:
         if symbol_arg:
             rows = await conn.fetch("SELECT id FROM symbols WHERE symbol = $1", symbol_arg)
         else:
-            rows = await conn.fetch("SELECT DISTINCT symbol_id FROM corporate_actions")
+            rows = await conn.fetch("SELECT DISTINCT symbol_id FROM corporate_action_events")
         logger.info("symbols to process: %d", len(rows))
 
         total = 0
@@ -44,7 +44,7 @@ async def main(symbol_arg: str | None) -> None:
             sid = int(r["id"] if "id" in r.keys() else r["symbol_id"])
 
             actions = await conn.fetch(
-                "SELECT ex_date, action_type, ratio, dps FROM corporate_actions WHERE symbol_id=$1 ORDER BY ex_date",
+                "SELECT ex_date, action_type, ratio, dps FROM corporate_action_events WHERE symbol_id=$1 ORDER BY ex_date",
                 sid,
             )
             if not actions:

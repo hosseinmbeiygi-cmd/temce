@@ -58,8 +58,8 @@ export default function MarketDepthPage() {
               <div className="order-rows">
                 {ob.bids.map((bid, i) => (
                   <div key={i} className="order-row bid-row" style={{ "--width": `${(bid.volume / ob.bids[0]?.volume || 1) * 100}%` } as React.CSSProperties}>
-                    <span className="order-price bid-price">{bid.price.toLocaleString()}</span>
-                    <span className="order-volume">{bid.volume.toLocaleString()}</span>
+                    <span className="order-price bid-price">{bid.price.toLocaleString("en-US")}</span>
+                    <span className="order-volume">{bid.volume.toLocaleString("en-US")}</span>
                   </div>
                 ))}
               </div>
@@ -75,8 +75,8 @@ export default function MarketDepthPage() {
               <div className="order-rows">
                 {ob.asks.map((ask, i) => (
                   <div key={i} className="order-row ask-row" style={{ "--width": `${(ask.volume / ob.asks[0]?.volume || 1) * 100}%` } as React.CSSProperties}>
-                    <span className="order-price ask-price">{ask.price.toLocaleString()}</span>
-                    <span className="order-volume">{ask.volume.toLocaleString()}</span>
+                    <span className="order-price ask-price">{ask.price.toLocaleString("en-US")}</span>
+                    <span className="order-volume">{ask.volume.toLocaleString("en-US")}</span>
                   </div>
                 ))}
               </div>

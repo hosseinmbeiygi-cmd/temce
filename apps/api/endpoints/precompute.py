@@ -27,10 +27,14 @@ from fastapi import APIRouter, HTTPException, Path
 
 from api.routers.precompute_router import (
     _is_stale as _api_is_stale,
+)
+from api.routers.precompute_router import (
     _load_all_results,
     _load_single_result,
     _load_status,
     _save_status,
+)
+from api.routers.precompute_router import (
     start_precompute as start_precompute_canonical,
 )
 from api.ws_manager import get_armor_ws_manager

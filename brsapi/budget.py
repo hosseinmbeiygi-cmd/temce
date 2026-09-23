@@ -43,6 +43,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any
 
+from brsapi.rate_limiter import RateLimitExhaustedError
+
 logger = getLogger(__name__)
 
 TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
@@ -87,6 +89,15 @@ class BudgetBlockedError(Exception):
     """
 
 
+class BudgetSoftRejectError(RateLimitExhaustedError):
+    """Raised for non-critical traffic once daily usage passes the soft ceiling.
+
+    Subclasses :class:`~brsapi.rate_limiter.RateLimitExhaustedError` so every
+    caller that already treats budget exhaustion as a fast failure keeps
+    working, while still being distinguishable for logging and tests.
+    """
+
+
 @dataclass
 class _BlockState:
     """Server-side block signal (302 heavy-file redirect) state."""
@@ -124,6 +135,8 @@ class BrsApiBudgetGovernor:
         fail_fast: bool | None = None,
         persist: bool = True,
         usage_recorder: Any | None = None,
+        warn_pct: int | None = None,
+        soft_reject_pct: int | None = None,
     ) -> None:
         from brsapi.config import settings as brsapi_settings
         from brsapi.rate_limiter import get_rate_limiter
@@ -141,6 +154,12 @@ class BrsApiBudgetGovernor:
         self._persist = persist
         self._redis: Any = redis_client
         self._redis_prefix = redis_prefix or brsapi_settings.budget_redis_prefix
+        self._warn_pct = warn_pct if warn_pct is not None else brsapi_settings.budget_warn_pct
+        self._soft_reject_pct = (
+            soft_reject_pct if soft_reject_pct is not None
+            else brsapi_settings.budget_soft_reject_pct
+        )
+        self._warned_on = ""           # Tehran date of the last budget warning
         self._block_cooldown = (
             block_cooldown if block_cooldown is not None
             else float(brsapi_settings.budget_block_cooldown_seconds)
@@ -361,6 +380,7 @@ class BrsApiBudgetGovernor:
         endpoint: str = "",
         tokens: int = 1,
         fail_fast: bool | None = None,
+        critical: bool = False,
     ) -> None:
         """Fail-fast pre-check before any live HTTP call.
 
@@ -381,12 +401,42 @@ class BrsApiBudgetGovernor:
         used = await self._daily_used()
         if used >= self._daily_limit:
             raise self._exhausted_error(used)
+        await self._gate_daily_usage(used, critical, endpoint)
 
         # Fast local gate via the in-process limiter (keeps the pre-existing
         # behaviour for callers that build a custom limiter).
         local = self._limiter.status()["global"]
         if local["daily_remaining"] <= 0:
             raise self._exhausted_error(local["daily_count"])
+
+    async def _gate_daily_usage(self, used: int, critical: bool, endpoint: str) -> None:
+        """Warn once a day past ``warn_pct``; shed non-critical load past ``soft_reject_pct``.
+
+        The warn-once key is the Tehran date, so a long-running collector does
+        not emit the same alert on every request but still gets a fresh one
+        when the next day starts.
+        """
+        if self._daily_limit <= 0:
+            return
+        pct = used * 100 // self._daily_limit
+        if pct < self._warn_pct:
+            return
+
+        today = self._tehran_today()
+        if self._warned_on != today:
+            self._warned_on = today
+            logger.warning(
+                "BrsApi budget at %d%% (%d/%d daily requests) — warning threshold "
+                "is %d%%, non-critical traffic is rejected from %d%%",
+                pct, used, self._daily_limit, self._warn_pct, self._soft_reject_pct,
+            )
+
+        if pct >= self._soft_reject_pct and not critical:
+            raise BudgetSoftRejectError(
+                f"BrsApi daily usage at {pct}% ({used}/{self._daily_limit}) — "
+                f"non-critical request for {endpoint or 'unknown endpoint'} rejected "
+                "to keep the key below the provider's block threshold"
+            )
 
     def _exhausted_error(self, used: int) -> Exception:
         from brsapi.rate_limiter import RateLimitExhaustedError
@@ -402,12 +452,14 @@ class BrsApiBudgetGovernor:
         tokens: int = 1,
         endpoint: str = "",
         fail_fast: bool | None = None,
+        critical: bool = False,
     ) -> None:
         """Acquire permission for one live request.
 
-        Enforces, in order: block cooldown → persisted daily cap → shared
-        5-min window (Redis) → the in-process limiter (buckets + local caps).
-        Usage is persisted only after the limiter grants the slot.
+        Enforces, in order: block cooldown → persisted daily hard cap → budget
+        tiers (warn / soft-reject non-critical) → shared 5-min window (Redis) →
+        the in-process limiter (buckets + local caps). Usage is persisted only
+        after the limiter grants the slot.
         """
         if fail_fast is None:
             fail_fast = self._fail_fast
@@ -418,6 +470,13 @@ class BrsApiBudgetGovernor:
 
         reserved_daily = False
         if fail_fast:
+            # The hard cap is checked first so a fully-spent budget always
+            # reports as exhausted, never as a soft rejection. Gating before the
+            # reservation keeps a shed request from touching the counter.
+            used = await self._daily_used()
+            if used >= self._daily_limit:
+                raise self._exhausted_error(used)
+            await self._gate_daily_usage(used, critical, endpoint)
             if self._backend == "redis":
                 # Reserve atomically in Redis.  The Lua path does not mutate
                 # the counter when the request would exceed the cap.

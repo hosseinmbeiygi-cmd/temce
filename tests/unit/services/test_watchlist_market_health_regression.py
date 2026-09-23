@@ -18,11 +18,10 @@ assert on query shape, not on a live database.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 import pytest
-from sqlalchemy.sql.elements import TextClause
 
 from core.result import Result
 from services.market_health_index import MarketHealthIndex

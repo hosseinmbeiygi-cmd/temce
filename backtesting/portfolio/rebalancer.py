@@ -13,12 +13,23 @@ class RebalanceFrequency(Enum):
 
 @dataclass
 class RebalanceCost:
-    commission_pct: float = 0.0035
+    # Canonical TSE rates single-sourced from domain.trading.iran_costs:
+    # broker 0.4%/side + clearing 0.085%/side; tax 0.5% sell-only (handled per-side).
+    commission_pct: float = 0.004
     slippage_bps: float = 0.0
     tax_pct: float = 0.0
+    clearing_pct: float = 0.00085
+    sell_tax_pct: float = 0.005
 
     def total_cost_pct(self) -> float:
-        return self.commission_pct + self.slippage_bps / 10000.0 + self.tax_pct
+        return self.commission_pct + self.clearing_pct + self.slippage_bps / 10000.0 + self.tax_pct
+
+    def cost_for(self, side: str, value: float) -> float:
+        from domain.trading import iran_costs as _iran
+
+        qty = 1
+        price = abs(float(value))
+        return _iran.compute(side, price, qty)
 
 
 @dataclass
@@ -103,7 +114,8 @@ class Rebalancer:
                         "value": abs(diff),
                     }
                 )
-                trade_cost = abs(diff) * self.rule.cost.total_cost_pct()
+                _side = "buy" if diff > 0 else "sell"
+                trade_cost = self.rule.cost.cost_for(_side, abs(diff))
                 total_cost += trade_cost
                 total_turnover += abs(diff)
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, extractArray } from "@/lib/api";
 import { useMarketWebSocket } from "@/hooks/useWebSocket";
@@ -152,21 +152,44 @@ type SnapshotRow = {
 
 type NavRow = { symbol?: string; nav_issue?: number; nav_redemption?: number; date?: string };
 
-function useFundSnapshot(symbol: string) {
-  const price = useQuery({
+function fundPriceQuery(symbol: string) {
+  return {
     queryKey: ["multi-asset-fund-price", symbol],
     queryFn: () => apiGet<unknown>(`/brsapi/manage/download/all-symbols?symbol=${encodeURIComponent(symbol)}&limit=1`),
     staleTime: 60_000,
     refetchInterval: 60_000,
-  });
-  const nav = useQuery({
+  };
+}
+
+function fundNavQuery(symbol: string) {
+  return {
     queryKey: ["multi-asset-fund-nav", symbol],
     queryFn: () => apiGet<unknown>(`/brsapi/manage/download/nav?symbol=${encodeURIComponent(symbol)}&limit=1`),
     staleTime: 5 * 60_000,
-  });
-  const row = extractArray<SnapshotRow>(price.data)[0];
-  const navRow = extractArray<NavRow>(nav.data)[0];
-  return { row, navRow, isLoading: price.isLoading || nav.isLoading, isError: price.isError };
+  };
+}
+
+function snapshotFrom(price: { data: unknown; isError: boolean }, nav: { data: unknown }) {
+  return {
+    row: extractArray<SnapshotRow>(price.data)[0],
+    navRow: extractArray<NavRow>(nav.data)[0],
+    isError: price.isError,
+  };
+}
+
+function useFundSnapshot(symbol: string) {
+  const price = useQuery(fundPriceQuery(symbol));
+  const nav = useQuery(fundNavQuery(symbol));
+  return { ...snapshotFrom(price, nav), isLoading: price.isLoading || nav.isLoading };
+}
+
+/** `useFundSnapshot` for a fixed list, without calling a hook inside `.map()`. */
+function useFundSnapshots(symbols: readonly string[]) {
+  const results = useQueries({ queries: symbols.flatMap((symbol) => [fundPriceQuery(symbol), fundNavQuery(symbol)]) });
+  return symbols.map((symbol, i) => ({
+    symbol,
+    data: { ...snapshotFrom(results[i * 2], results[i * 2 + 1]), isLoading: results[i * 2].isLoading || results[i * 2 + 1].isLoading },
+  }));
 }
 
 function useSymbolDetail(symbol: string, enabled = true) {
@@ -562,7 +585,7 @@ const GOLD_FUNDS = ["طلا", "عیار", "گوهر", "زر", "زرفام"];
 
 function EtfAnalysisTable() {
   const [expanded, setExpanded] = useState<string | null>(null);
-  const funds = GOLD_FUNDS.map((symbol) => ({ symbol, data: useFundSnapshot(symbol) }));
+  const funds = useFundSnapshots(GOLD_FUNDS);
   const rows = funds
     .filter((f) => f.data.row && (f.data.row.price_last ?? 0) > 0)
     .map((f) => {
@@ -979,14 +1002,15 @@ function priceForSymbol(symbol: string, live: ReturnType<typeof useLiveMarketDat
 }
 
 function PortfolioModule({ trades, remove, live }: { trades: Trade[]; remove: (id: string) => void; live: ReturnType<typeof useLiveMarketData> }) {
-  const funds = GOLD_FUNDS.map((symbol) => ({ symbol, data: useFundSnapshot(symbol) }));
+  const funds = useFundSnapshots(GOLD_FUNDS);
   const zarafshan = useSymbolDetail("زرافشان");
+  const zarafshanPrice = (zarafshan.detail?.price_last as number | undefined) ?? null;
   const fundCache = useMemo(() => {
     const map = new Map<string, number | null>();
     for (const fund of funds) map.set(fund.symbol, fund.data.row?.price_last ?? null);
-    map.set("زرافشان", (zarafshan.detail?.price_last as number | undefined) ?? null);
+    map.set("زرافشان", zarafshanPrice);
     return map;
-  }, [funds.map((f) => f.data.row?.price_last).join(","), zarafshan.detail?.price_last]);
+  }, [funds, zarafshanPrice]);
   const usdRate = live.bySymbol.get("USD")?.price ?? null;
 
   const positions = useMemo(() => {

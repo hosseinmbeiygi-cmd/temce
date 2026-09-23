@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Newspaper } from "lucide-react";
 import { useNewsItems } from "@/hooks/useMarketData";
+import LiveDataBanner from "./LiveDataBanner";
 import { cn } from "@/lib/cn";
 import { SectionHeader } from "./primitives";
 
@@ -13,7 +14,7 @@ const SENTIMENT_DOT: Record<string, string> = {
 };
 
 export default function NewsStrip() {
-  const NEWS = useNewsItems();
+  const { data: NEWS, isLive, isError, isLoading } = useNewsItems();
   return (
     <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
@@ -30,6 +31,7 @@ export default function NewsStrip() {
           </Link>
         }
       />
+      <LiveDataBanner state={{ isLive, isError, isLoading }} />
       <div className="mt-4 grid gap-2.5 md:grid-cols-3">
         {NEWS.map((item) => (
           <Link

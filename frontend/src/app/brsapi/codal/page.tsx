@@ -289,7 +289,7 @@ export default function BrsapiCodalPage() {
         {/* ------ Stats ------------------------------------------------------------------------------------------------------------------ */}
         {!isLoading && announcements.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatsCard icon="📋" label="Total" value={total.toLocaleString()} />
+            <StatsCard icon="📋" label="Total" value={total.toLocaleString("en-US")} />
             <StatsCard icon="🔍" label="With ins_id" value={withInsId} />
             <StatsCard icon="🔗" label="With instrument_id" value={withInstrumentId} />
             <StatsCard icon="📄" label="Has PDF" value={withPdf} />
@@ -383,7 +383,7 @@ export default function BrsapiCodalPage() {
           {/* Result count */}
           {!isLoading && total > 0 && (
             <div className="mt-3 text-xs text-surface-500">
-              {total.toLocaleString()} announcements found
+              {total.toLocaleString("en-US")} announcements found
               {symbol && ` for symbol "${symbol}"`}
               {instrumentId && ` | instrument_id: ${instrumentId}`}
             </div>

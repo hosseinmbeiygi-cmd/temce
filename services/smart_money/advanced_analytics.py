@@ -15,10 +15,24 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+#: The shortest window the screener scores with (Bollinger uses 20 bars). Below this the
+#: indicators are not "flat", they are absent — and absent must never be scored.
+MIN_COMPUTED_BARS = 20
+
 
 @dataclass
 class TechnicalIndicators:
-    """Computed technical indicators for a symbol."""
+    """Computed technical indicators for a symbol.
+
+    ``computed`` and ``bars`` exist because every field defaults to 0.0, and 0.0 is a real
+    reading for several of them: RSI 0 is maximum oversold and %B 0 is a close at the lower
+    band. Without this pair a symbol with three weeks of history was scored as a buy
+    opportunity by the absence of history. Long-window fields (``sma_200``) stay clamped to
+    the bars available, so ``bars`` is also the reader's note of how wide that window was.
+    """
+
+    bars: int = 0
+    computed: bool = False
     rsi_14: float = 0.0
     rsi_7: float = 0.0
     macd_line: float = 0.0
@@ -146,7 +160,7 @@ class AdvancedAnalyticsEngine:
     # ── Technical Indicators ──────────────────────────────────────────
 
     def _compute_indicators(self, closes: list[float], highs: list[float], lows: list[float], volumes: list[float]) -> TechnicalIndicators:
-        ind = TechnicalIndicators()
+        ind = TechnicalIndicators(bars=len(closes))
         if len(closes) < 14:
             return ind
 
@@ -182,6 +196,7 @@ class AdvancedAnalyticsEngine:
         ind.mfi = self._mfi(closes, highs, lows, volumes)
         ind.williams_r = self._williams_r(closes, highs, lows)
 
+        ind.computed = len(closes) >= MIN_COMPUTED_BARS
         return ind
 
     def _rsi(self, data: list[float], period: int) -> float:

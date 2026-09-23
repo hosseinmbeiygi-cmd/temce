@@ -1,5 +1,9 @@
 """Build dashboard.md (tabs Alef/Beh/Jim + side-by-side) + run summary from _pages_meta.json."""
-import os, sys, json, math
+import json
+import math
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import etl
 

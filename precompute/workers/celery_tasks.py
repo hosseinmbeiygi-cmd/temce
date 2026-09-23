@@ -35,10 +35,10 @@ from contracts.events import (
 from contracts.schemas import SymbolGroup
 
 from .. import redis_client
+from ..classifier import classify_from_dicts
 from ..config import load_config
 from ..dri_engine import DRISignals, age_from_iso, compute_dri
 from ..missing_data_auditor import audit_batch
-from ..classifier import classify_from_dicts
 
 logger = logging.getLogger("precompute.workers.celery_tasks")
 
@@ -403,7 +403,6 @@ def dispatch_armor_pipeline(
 ) -> dict[str, Any]:
     """Sync orchestrator (Celery path, or off-loop fallback for tests/CLI)."""
     groups = symbols_by_group or {"A": [], "B": [], "C": []}
-    total_all = sum(len(groups.get(g, [])) for g in ("A", "B", "C"))
     job_id = job_id or f"precompute-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
     app = _get_celery_app()
 

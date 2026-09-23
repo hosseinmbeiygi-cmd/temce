@@ -13,8 +13,9 @@ already exists for candlesticks and shareholders:
 6. The status / cancel manage endpoints behave correctly for both backfills.
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from apps.api.endpoints.brsapi import (
     _HISTORY_PRICE_BACKFILL_STATE,

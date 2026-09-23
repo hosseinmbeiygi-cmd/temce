@@ -23,9 +23,12 @@ class FundNAVStatus:
     symbol: str
     fund_name: str
     nav_per_unit: float
-    market_price: float
-    bubble_abs: float
-    bubble_pct: float
+    # None means "no traded price was found", which is not the same as a 0% bubble: the
+    # scorer gives its best NAV mark to a zero, so substituting NAV here used to turn a
+    # missing price into «تخفیف/نزدیک».
+    market_price: float | None
+    bubble_abs: float | None
+    bubble_pct: float | None
     bpr: float
     real_buy_value: int
     real_sell_value: int
@@ -106,8 +109,9 @@ async def get_fund_status(
 ) -> FundNAVStatus | None:
     """وضعیت کامل یک صندوق.
 
-    market_price_override: اگر قیمت بازار از BrsApi snapshot موجود باشد
-        مستقیماً استفاده می‌شود، وگرنه fallback به NAV.
+    market_price_override: اگر قیمت بازار از BrsApi snapshot موجود باشد مستقیماً
+        استفاده می‌شود؛ اگر هیچ‌کدام از منابع قیمت آن را ندهند، market_price None می‌ماند
+        و حباب محاسبه نمی‌شود.
     """
     nav = await _latest_nav(session, symbol)
     if nav is None:
@@ -146,8 +150,8 @@ async def get_fund_status(
                 val = res.scalar()
                 if val and float(val) > 0:
                     market_price = float(val)
-        if market_price is None or market_price <= 0:
-            market_price = nav
+        if market_price is not None and market_price <= 0:
+            market_price = None
 
     market_data = await _fund_market_data(session, symbol) or {}
     bpr = float(market_data.get("bpr", 0))
@@ -161,8 +165,12 @@ async def get_fund_status(
     if nav_7d and nav_7d > 0:
         nav_7d_pct = ((nav - nav_7d) / nav_7d) * 100.0
 
-    bubble_abs = market_price - nav
-    bubble_pct = (bubble_abs / nav * 100.0) if nav > 0 else 0.0
+    bubble_abs = None if market_price is None else market_price - nav
+    bubble_pct = (
+        None
+        if bubble_abs is None or nav <= 0
+        else bubble_abs / nav * 100.0
+    )
 
     return FundNAVStatus(
         symbol=symbol,

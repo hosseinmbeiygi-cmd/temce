@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Callable
 from typing import TypeVar
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
@@ -249,6 +249,23 @@ async def get_optional_user(authorization: str = Header("")) -> dict | None:
     except Exception as e:
         logger.debug("Optional user token invalid: %s", e)
         return None
+
+
+# Canonical required-auth dependency name used by routers.
+# Alias of get_current_user: raises 401 when no valid Bearer token is present.
+get_current_active_user = get_current_user
+
+
+async def require_user_for_writes(request: Request, authorization: str = Header("")) -> dict | None:
+    """Public reference market data is readable anonymously; mutating it is not.
+
+    Applied at mount time to read-only data routers so the unauthenticated
+    landing/market pages keep working while POST/PUT/PATCH/DELETE still need a
+    real token. Read handlers that are user-scoped must not live on such a router.
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return await get_optional_user(authorization)
+    return await get_current_user(authorization)
 
 
 async def require_role(role: str, current_user: dict = Depends(get_current_user)) -> dict:

@@ -1202,7 +1202,7 @@ export default function BacktestPage() {
                           <YAxis
                             domain={[yMin, yMax]}
                             tick={{ fill: "#64748b", fontSize: 10, fontFamily: "monospace" }}
-                            tickFormatter={(v: number) => Math.round(v).toLocaleString()}
+                            tickFormatter={(v: number) => Math.round(v).toLocaleString("en-US")}
                             axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
                             width={80}
                           />
