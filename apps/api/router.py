@@ -220,10 +220,7 @@ class Router:
         from apps.api.endpoints.ml import router as ml_router
         from apps.api.endpoints.multi_market_signals import router as multi_market_signals_router
         from apps.api.endpoints.news import router as news_router
-<<<<<<< HEAD
-=======
         from apps.api.endpoints.news_tag_map_admin import router as news_tag_map_admin_router
->>>>>>> ccb49b02 (feat(news): admin endpoints for tag→symbol mapping overrides (§20.7))
         from apps.api.endpoints.options import router as options_router
         from apps.api.endpoints.orderbooks import router as orderbooks_router
         from apps.api.endpoints.paper_trading import router as paper_trading_router
