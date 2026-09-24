@@ -115,8 +115,20 @@ def binomial_tree_price(params: TreeOptionParams, *, _compute_theta: bool = True
     """
     S, K, T, r, sigma, q = params.S, params.K, params.T, params.r, params.sigma, params.q
     N = params.N
-    dt = T / N
     is_call = params.option_type == "call"
+    # P0-4: degenerate inputs (expired, non-positive spot, no steps, or
+    # non-finite values) would make dt=0 → u==d → ZeroDivisionError in
+    # _crr_params. Return intrinsic value instead of crashing.
+    if (
+        not math.isfinite(S) or not math.isfinite(K) or not math.isfinite(T)
+        or not math.isfinite(sigma) or N <= 0 or T <= 0 or S <= 0
+    ):
+        intrinsic = max(0.0, (S if math.isfinite(S) else 0.0) - K) if is_call else max(0.0, K - (S if math.isfinite(S) else 0.0))
+        return OptionPrice(
+            model="binomial", price=float(intrinsic),
+            intrinsic_value=float(intrinsic), time_value=0.0,
+        )
+    dt = T / N
     is_american = params.style == OptionStyle.AMERICAN
     is_bermoudan = params.style == OptionStyle.BERMOUDAN
 
@@ -234,8 +246,19 @@ def trinomial_tree_price(params: TreeOptionParams) -> OptionPrice:
     """
     S, K, T, r, sigma, q = params.S, params.K, params.T, params.r, params.sigma, params.q
     N = params.N
-    dt = T / N
     is_call = params.option_type == "call"
+    # P0-4: same degenerate-input guard as binomial (dt=0 → dx=0 →
+    # division by zero in _trinomial_params).
+    if (
+        not math.isfinite(S) or not math.isfinite(K) or not math.isfinite(T)
+        or not math.isfinite(sigma) or N <= 0 or T <= 0 or S <= 0
+    ):
+        intrinsic = max(0.0, (S if math.isfinite(S) else 0.0) - K) if is_call else max(0.0, K - (S if math.isfinite(S) else 0.0))
+        return OptionPrice(
+            model="trinomial", price=float(intrinsic),
+            intrinsic_value=float(intrinsic), time_value=0.0,
+        )
+    dt = T / N
     is_american = params.style == OptionStyle.AMERICAN
 
     sigma_eff = _effective_sigma(sigma, r, dt, factor=math.sqrt(3.0))
