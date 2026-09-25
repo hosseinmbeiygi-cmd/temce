@@ -41,6 +41,23 @@ class RecommendRequest(BaseModel):
     risk_tolerance: float = 0.5
 
 
+class MarginLeg(BaseModel):
+    leg_type: str  # "stock" | "call" | "put"
+    direction: str  # "long" | "short"
+    strike: float = 0
+    premium: float = 0
+    underlying_price: float = 0
+    days_to_expiry: int = 0
+    implied_volatility: float = 0
+    contract_size: int = 1000
+    quantity: int = 1
+    underlying_group: str = "default"
+
+
+class MarginRequest(BaseModel):
+    legs: list[MarginLeg]
+
+
 @router.get("/strategies", summary="List all options strategies")
 async def list_strategies() -> ApiResponse[list[dict[str, Any]]]:
     engine = get_options_engine()
@@ -150,8 +167,14 @@ async def calculate_greeks(
     missing = _missing_inputs(S, K, T, r, sigma)
     if missing:
         return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
+    from domain.options.higher_order_greeks import charm, vanna
     from domain.options.pricing import black_scholes_price
     result = black_scholes_price(S, K, T, float(r), float(sigma), option_type)
+    try:
+        vanna_v = float(vanna(S, K, T, float(r), float(sigma)))
+        charm_v = float(charm(S, K, T, float(r), float(sigma), option_type))
+    except Exception:
+        vanna_v, charm_v = 0.0, 0.0
     return ApiResponse(success=True, data={
         "price": result.price,
         "delta": result.delta,
@@ -159,6 +182,8 @@ async def calculate_greeks(
         "theta": result.theta,
         "vega": result.vega,
         "rho": result.rho,
+        "vanna": vanna_v,
+        "charm": charm_v,
         "intrinsic_value": result.intrinsic_value,
         "time_value": result.time_value,
         "inputs": {"S": S, "K": K, "T": T, "r": r, "sigma": sigma, "type": option_type},
@@ -620,6 +645,42 @@ async def live_commodity_chain(
         "iv": iv, "rate": rate,
         "calls": calls, "puts": puts,
         "total_contracts": len(calls) + len(puts),
+    })
+
+
+@router.post("/professional/margin", summary="Position margin per SEO/IME directive (UniversalMarginEngine)")
+async def position_margin(body: MarginRequest) -> ApiResponse[dict[str, Any]]:
+    """Initial/maintenance margin for an option position using the directive
+    coefficients in ``domain.options.margin_engine`` (per underlying group,
+    intrinsic + base + premium, spread/covered-call detection)."""
+    from domain.options.margin_engine import Direction, LegType, OptionLeg, UniversalMarginEngine
+
+    try:
+        legs = [
+            OptionLeg(
+                leg_type=LegType(l.leg_type),
+                direction=Direction.LONG if l.direction == "long" else Direction.SHORT,
+                strike=l.strike,
+                premium=l.premium,
+                underlying_price=l.underlying_price,
+                days_to_expiry=l.days_to_expiry,
+                implied_volatility=l.implied_volatility,
+                contract_size=l.contract_size,
+                quantity=l.quantity,
+                underlying_group=l.underlying_group,
+            )
+            for l in body.legs
+        ]
+        result = UniversalMarginEngine().calculate_margin(legs)
+    except (ValueError, KeyError) as exc:
+        return ApiResponse(success=False, error={"message": f"invalid legs: {exc}"})
+    return ApiResponse(success=True, data={
+        "total_initial_margin": round(result.total_initial_margin, 0),
+        "total_maintenance_margin": round(result.total_maintenance_margin, 0),
+        "net_premium_flow": round(result.net_premium_flow, 0),
+        "strategy_type": result.strategy_type,
+        "details": result.details,
+        "settlement": "T+2",
     })
 
 

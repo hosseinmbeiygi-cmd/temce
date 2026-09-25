@@ -7,6 +7,7 @@ import { fmt } from "../helpers";
 
 interface Greeks {
   delta: number; gamma: number; theta: number; vega: number; rho: number;
+  vanna?: number; charm?: number;
   intrinsic_value: number; time_value: number;
 }
 
@@ -16,6 +17,8 @@ const GREEK_META = [
   { id: "theta", label: "تتا", desc: "فرسایش زمانی روزانه" },
   { id: "vega", label: "وگا", desc: "حساسیت به نوسان" },
   { id: "rho", label: "رو", desc: "حساسیت به نرخ بهره" },
+  { id: "vanna", label: "ونا", desc: "حساسیت دلتا به نوسان" },
+  { id: "charm", label: "چارم", desc: "فرسایش دلتا در زمان" },
 ] as const;
 
 export default function RiskTab() {
@@ -96,7 +99,7 @@ export default function RiskTab() {
 
       {greeks && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
             {GREEK_META.map((g) => (
               <div key={g.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
                 <div className="text-[10px] text-slate-500">{g.label}</div>
