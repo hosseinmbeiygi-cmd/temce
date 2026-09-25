@@ -22,6 +22,9 @@ def test_backtest_report_metrics():
     assert all(math.isfinite(v) for v in rep.equity_curve)
     assert rep.metrics.max_drawdown >= 0
     assert math.isfinite(rep.metrics.sharpe_ratio)
+    assert math.isfinite(rep.metrics.profit_factor)
+    assert math.isfinite(rep.metrics.annualized_return_pct)
+    assert {t.exit_reason for t in rep.trades} <= {"stop", "target", "expiry"}
 
 
 def test_backtest_momentum_runs():

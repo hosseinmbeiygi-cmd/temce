@@ -28,6 +28,8 @@ class HistoryBar:
 class OptionTrade:
     entry_date: str
     expiry_date: str
+    exit_date: str
+    exit_reason: str  # "stop" | "target" | "expiry"
     strike: float
     premium: float
     payoff: float
@@ -44,6 +46,8 @@ class BacktestMetrics:
     max_drawdown: float
     max_drawdown_pct: float
     sharpe_ratio: float
+    profit_factor: float
+    annualized_return_pct: float
     avg_win: float
     avg_loss: float
 
@@ -115,6 +119,8 @@ class OptionsBacktestService:
         sigma: float = 0.30,
         initial_capital: float = 100_000_000.0,
         contract_size: int = 1000,
+        stop_loss_pct: float = 0.50,
+        take_profit_pct: float = 1.00,
     ) -> None:
         if isinstance(entry_filter, str):
             if entry_filter not in STRATEGIES:
@@ -128,6 +134,8 @@ class OptionsBacktestService:
         self._sigma = sigma
         self._capital = initial_capital
         self._size = contract_size
+        self._stop_pct = stop_loss_pct
+        self._target_pct = take_profit_pct
 
     async def fetch_history(
         self, symbol: str, limit: int = 500, session_factory: object = None
@@ -177,23 +185,43 @@ class OptionsBacktestService:
             premium_per_share = black_scholes_call(s, s, t_years, self._r, self._sigma)
             cost_premium = premium_per_share * self._size
             fee_in = _costs.buy_cost(cost_premium, 1)
-            s_exp = closes[i + self._dte]
-            payoff = max(s_exp - s, 0.0) * self._size
-            fee_out = _costs.sell_cost(max(payoff, 0.0), 1) if payoff > 0 else 0.0
-            pnl = payoff - cost_premium - fee_in - fee_out
+            stop_level = cost_premium * (1.0 - self._stop_pct)
+            target_level = cost_premium * (1.0 + self._target_pct)
+            # Walk forward: stop/target exits on daily BS revaluation, else expiry.
+            exit_reason = "expiry"
+            exit_idx = i + self._dte
+            exit_value = max(closes[exit_idx] - s, 0.0) * self._size
+            for j in range(i + 1, i + self._dte):
+                t_rem = max((i + self._dte - j) / 365.0, 1e-6)
+                theo = black_scholes_call(closes[j], s, t_rem, self._r, self._sigma) * self._size
+                if theo <= stop_level:
+                    exit_reason, exit_idx, exit_value = "stop", j, max(theo, 0.0)
+                    break
+                if theo >= target_level:
+                    exit_reason, exit_idx, exit_value = "target", j, theo
+                    break
+            s_exp = closes[exit_idx]
+            fee_out = _costs.sell_cost(max(exit_value, 0.0), 1) if exit_value > 0 else 0.0
+            pnl = exit_value - cost_premium - fee_in - fee_out
             trades.append(
                 OptionTrade(
                     entry_date=dates[i], expiry_date=dates[i + self._dte],
-                    strike=s, premium=cost_premium, payoff=payoff, pnl_net=pnl,
+                    exit_date=dates[exit_idx], exit_reason=exit_reason,
+                    strike=s, premium=cost_premium, payoff=exit_value, pnl_net=pnl,
                     underlying_entry=s, underlying_expiry=s_exp,
                 )
             )
             equity.append(equity[-1] + pnl)
-            equity_dates.append(dates[i + self._dte])
-            i += self._dte  # non-overlapping holding periods
+            equity_dates.append(dates[exit_idx])
+            i = exit_idx + 1  # non-overlapping holding periods
 
         wins = [t.pnl_net for t in trades if t.pnl_net > 0]
         losses = [t.pnl_net for t in trades if t.pnl_net <= 0]
+        gross_win = sum(wins)
+        gross_loss = abs(sum(losses))
+        profit_factor = (gross_win / gross_loss) if gross_loss > 0 else (float("inf") if gross_win > 0 else 0.0)
+        years = max(len(equity_dates) / TRADING_DAYS_PER_YEAR, 1e-9)
+        ann_ret = ((equity[-1] / self._capital) ** (1.0 / years) - 1.0) * 100.0 if equity[-1] > 0 else -100.0
         max_dd, max_dd_pct = _max_drawdown(equity)
         per_trade_ret = [t.pnl_net / self._capital for t in trades]
         metrics = BacktestMetrics(
@@ -203,6 +231,8 @@ class OptionsBacktestService:
             max_drawdown=max_dd,
             max_drawdown_pct=max_dd_pct,
             sharpe_ratio=_sharpe(per_trade_ret),
+            profit_factor=profit_factor if math.isfinite(profit_factor) else 0.0,
+            annualized_return_pct=ann_ret if math.isfinite(ann_ret) else 0.0,
             avg_win=(sum(wins) / len(wins)) if wins else 0.0,
             avg_loss=(sum(losses) / len(losses)) if losses else 0.0,
         )
