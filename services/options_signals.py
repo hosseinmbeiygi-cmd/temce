@@ -100,7 +100,7 @@ class GuardedSignal:
     confidence: float
     route: str
     liquidity_note: str
-    fee_note: str = field(default="fees: iran_costs (broker+clearing, sell tax on sell)")
+    fee_note: str = field(default="fees: 0.125%/side on premium (iran_costs); 0.5% tax only on physical settlement")
     settlement: str = field(default="T+2")
 
     def to_dict(self) -> dict[str, Any]:
@@ -155,7 +155,7 @@ def generate_guarded_signals(
         entry = float(cand.get("entry", cand.get("premium", 0.0)) or 0.0)
         max_profit = float(cand.get("max_profit", 0.0) or 0.0)
         max_loss = abs(float(cand.get("max_loss", 0.0) or 0.0))
-        fee_drag = _costs.buy_cost(max(entry, 0.0), 1) + _costs.sell_cost(max(entry, 0.0), 1)
+        fee_drag = _costs.option_buy_cost(max(entry, 0.0)) + _costs.option_sell_cost(max(entry, 0.0))
         tp = entry + max(0.0, max_profit - fee_drag)
         sl = entry - max_loss if max_loss > 0 else entry * 0.9
         rr = ((tp - entry) / (entry - sl)) if entry > sl else 0.0

@@ -184,7 +184,7 @@ class OptionsBacktestService:
             s = closes[i]
             premium_per_share = black_scholes_call(s, s, t_years, self._r, self._sigma)
             cost_premium = premium_per_share * self._size
-            fee_in = _costs.buy_cost(cost_premium, 1)
+            fee_in = _costs.option_buy_cost(cost_premium)
             stop_level = cost_premium * (1.0 - self._stop_pct)
             target_level = cost_premium * (1.0 + self._target_pct)
             # Walk forward: stop/target exits on daily BS revaluation, else expiry.
@@ -201,7 +201,8 @@ class OptionsBacktestService:
                     exit_reason, exit_idx, exit_value = "target", j, theo
                     break
             s_exp = closes[exit_idx]
-            fee_out = _costs.sell_cost(max(exit_value, 0.0), 1) if exit_value > 0 else 0.0
+            # Premium close: 0.125% (no transfer tax — tax is physical-settlement only).
+            fee_out = _costs.option_sell_cost(max(exit_value, 0.0)) if exit_value > 0 else 0.0
             pnl = exit_value - cost_premium - fee_in - fee_out
             trades.append(
                 OptionTrade(

@@ -96,3 +96,12 @@ def test_touch_probabilities_ordered():
 def test_put_call_ratio():
     assert OptionsMLService.put_call_ratio(100.0, 150.0) == 1.5
     assert OptionsMLService.put_call_ratio(0.0, 150.0) == 0.0
+
+
+def test_option_fee_schedule():
+    from domain.trading import iran_costs as c
+
+    assert c.option_buy_cost(1_000_000) == 1250.0
+    assert c.option_sell_cost(1_000_000) == 1250.0
+    # 0.5% transfer tax only on physical settlement, never on premium closes.
+    assert c.option_sell_cost(1_000_000, physical_settlement=True) == 6250.0
