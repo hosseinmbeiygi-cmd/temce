@@ -494,6 +494,135 @@ async def live_symbols() -> ApiResponse[list[dict[str, Any]]]:
     return ApiResponse(success=True, data=symbols)
 
 
+# ── IME commodity options (gold / saffron) with Black-76 ─────────────────────
+
+#: Known IME commodity codes (contract_category_commodity). Saffron trades
+#: under "ZR" on the IME options board; unknown codes are still queryable.
+IME_COMMODITIES = ("GoldBar", "ZR", "SilverBar", "KA", "DG", "CU", "JZ", "NQ", "LG ETC")
+
+
+@router.get("/live/commodities", summary="List IME commodities with options")
+async def live_commodities() -> ApiResponse[list[dict[str, Any]]]:
+    """Distinct ``contract_category_commodity`` values with contract counts."""
+    from sqlalchemy import text
+
+    from core.database import async_session_factory
+
+    if async_session_factory is None:
+        return ApiResponse(success=False, error={"message": "Database not connected"})
+
+    async with async_session_factory() as session:
+        rows = (
+            await session.execute(
+                text(
+                    "SELECT contract_category_commodity, COUNT(*) "
+                    "FROM brsapi_ime_options "
+                    "WHERE contract_category_commodity IS NOT NULL "
+                    "GROUP BY 1 ORDER BY 2 DESC"
+                )
+            )
+        ).fetchall()
+
+    return ApiResponse(success=True, data=[
+        {"commodity": r[0], "contracts": r[1]} for r in rows
+    ])
+
+
+@router.get("/live/commodity-chain", summary="IME commodity options chain (Black-76)")
+async def live_commodity_chain(
+    commodity: str = "GoldBar",
+    forward_price: float | None = None,
+    iv: float = 0.30,
+    rate: float = 0.25,
+    limit: int = 50,
+) -> ApiResponse[dict[str, Any]]:
+    """Options chain for an IME commodity (gold, saffron/ZR, …) from ``brsapi_ime_options``.
+
+    Each leg carries the market quote plus the Black-76 theoretical price
+    and delta. ``forward_price`` defaults to the ATM proxy (median strike)
+    when no futures forward is supplied — reported via ``forward_source``.
+    """
+    from sqlalchemy import text
+
+    from core.database import async_session_factory
+
+    if async_session_factory is None:
+        return ApiResponse(success=False, error={"message": "Database not connected"})
+
+    async with async_session_factory() as session:
+        rows = (
+            await session.execute(
+                text(
+                    "SELECT strike_price, call_contract_code, call_price_last, "
+                    "call_trade_volume, call_open_interest, call_days_remaining, "
+                    "call_bid_price_1, call_ask_price_1, "
+                    "put_contract_code, put_price_last, put_trade_volume, "
+                    "put_open_interest, put_days_remaining, "
+                    "put_bid_price_1, put_ask_price_1 "
+                    "FROM brsapi_ime_options "
+                    "WHERE contract_category_commodity = :c "
+                    "AND strike_price IS NOT NULL AND strike_price > 0 "
+                    "ORDER BY fetched_at DESC, strike_price ASC "
+                    "LIMIT :n"
+                ),
+                {"c": commodity, "n": limit * 2},
+            )
+        ).fetchall()
+
+    # Latest snapshot per strike (one row per strike).
+    by_strike: dict[float, Any] = {}
+    for r in rows:
+        k = float(r[0])
+        by_strike.setdefault(k, r)
+    strikes = sorted(by_strike)[:limit]
+
+    from src.gold_desk.black76 import black76_greeks, black76_price
+
+    if forward_price and forward_price > 0:
+        forward, forward_source = float(forward_price), "query"
+    elif strikes:
+        forward = strikes[len(strikes) // 2]
+        forward_source = "atm_proxy"
+    else:
+        return ApiResponse(success=True, data={
+            "commodity": commodity, "forward": 0.0, "forward_source": "none",
+            "calls": [], "puts": [], "total_contracts": 0, "model": "black76",
+        })
+
+    def _leg(row: Any, side: str) -> dict[str, Any]:
+        # Row layout: 0 strike, 1-7 call fields, 8-14 put fields.
+        base = 8 if side == "put" else 1
+        days = row[base + 4] or row[5] or 30
+        t = max(float(days) / 365.0, 1e-6)
+        k = float(row[0])
+        try:
+            call_px, put_px, _, _ = black76_price(forward, k, t, iv, rate)
+            g = black76_greeks(forward, k, t, iv, rate)
+            theo = call_px if side == "call" else put_px
+            delta = float(g.delta) if side == "call" else float(g.delta - 1.0)
+        except Exception:
+            theo, delta = 0.0, 0.0
+        return {
+            "symbol": row[base], "type": side, "strike": k,
+            "price": row[base + 1], "volume": row[base + 2], "oi": row[base + 3],
+            "days_to_expiry": days, "bid": row[base + 5], "ask": row[base + 6],
+            "theoretical": round(theo, 1), "delta": round(delta, 4),
+        }
+
+    calls = [_leg(by_strike[k], "call") for k in strikes]
+    puts = sorted(
+        (_leg(by_strike[k], "put") for k in strikes),
+        key=lambda x: x["strike"], reverse=True,
+    )
+    return ApiResponse(success=True, data={
+        "commodity": commodity, "forward": forward,
+        "forward_source": forward_source, "model": "black76",
+        "iv": iv, "rate": rate,
+        "calls": calls, "puts": puts,
+        "total_contracts": len(calls) + len(puts),
+    })
+
+
 @router.get("/professional/iran-costs", summary="Iranian market cost breakdown")
 async def iran_costs() -> ApiResponse[dict[str, Any]]:
     engine = get_options_engine()

@@ -222,6 +222,7 @@ class Router:
         from apps.api.endpoints.news import router as news_router
         from apps.api.endpoints.news_tag_map_admin import router as news_tag_map_admin_router
         from apps.api.endpoints.options import router as options_router
+        from apps.api.endpoints.options_frontend import router as options_frontend_router
         from apps.api.endpoints.orderbooks import router as orderbooks_router
         from apps.api.endpoints.paper_trading import router as paper_trading_router
         from apps.api.endpoints.portfolios import router as portfolios_router
@@ -470,6 +471,12 @@ class Router:
             options_router,
             prefix="/options",
             tags=["Options"],
+            dependencies=_public_read,
+        )
+        router.include_router(
+            options_frontend_router,
+            prefix="/api/options",
+            tags=["Options Frontend"],
             dependencies=_public_read,
         )
         router.include_router(
