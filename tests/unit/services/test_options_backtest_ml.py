@@ -67,3 +67,32 @@ def test_max_pain_known_case():
     )
     assert r.max_pain_strike == 100.0
     assert r.total_payout_at_max_pain == min(r.payout_by_strike.values())
+
+
+def test_garch_forecast_sane():
+    import numpy as np
+
+    rng = np.random.default_rng(7)
+    rets = list(rng.normal(0.0, 0.02, 250))
+    f = OptionsMLService.garch_forecast(rets, horizon_days=30)
+    assert math.isfinite(f.realized_vol_annual) and f.realized_vol_annual > 0
+    assert 0.0 < f.garch_alpha + f.garch_beta < 1.0
+    assert f.n_observations == 250
+    # Few observations → sample-std fallback, no crash.
+    f2 = OptionsMLService.garch_forecast([0.01, -0.02, 0.015], horizon_days=10)
+    assert math.isfinite(f2.realized_vol_annual)
+
+
+def test_touch_probabilities_ordered():
+    svc = OptionsMLService(n_paths=5000, seed=3)
+    t = svc.touch_probabilities(100.0, 0.30, 30, 115.0, 85.0)
+    assert 0.0 <= t.probability_of_profit <= 1.0
+    assert 0.0 <= t.probability_of_touch_upper <= 1.0
+    assert 0.0 <= t.probability_of_touch_lower <= 1.0
+    # Touching is always at least as likely as expiring beyond.
+    assert t.probability_of_touch_upper >= t.probability_of_profit - 0.02
+
+
+def test_put_call_ratio():
+    assert OptionsMLService.put_call_ratio(100.0, 150.0) == 1.5
+    assert OptionsMLService.put_call_ratio(0.0, 150.0) == 0.0

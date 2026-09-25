@@ -1,10 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, TrendingDown, Minus, Loader2, Target, ShieldAlert } from "lucide-react";
-import { apiPost } from "@/lib/api";
-import { PayoffDiagram, fmt, riskBg, riskColor, riskLabel, marketLabel } from "../helpers";
-import type { StrategyAnalysis, StrategyInfo } from "../types";
+import {
+  Loader2,
+  Target,
+  ShieldAlert,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Percent,
+} from "lucide-react";
+import {
+  fetchOptionsSignals,
+  type OptionSignal,
+  type SignalsResponse,
+} from "@/lib/options-api";
+import { fmt } from "../helpers";
+import { CardSkeletonGrid } from "./Skeleton";
 
 type Market = "all" | "stock" | "commodity";
 
@@ -15,53 +27,60 @@ const CONDITIONS = [
   { id: "volatile", label: "پرنوسان" },
 ];
 
-function dirIcon(market: string) {
-  if (market.includes("bull")) return <TrendingUp size={16} className="text-accent-emerald" />;
-  if (market.includes("bear")) return <TrendingDown size={16} className="text-accent-rose" />;
-  return <Minus size={16} className="text-accent-amber" />;
+const IV_LEVELS = [
+  { id: "50", label: "IV متوسط" },
+  { id: "80", label: "IV بالا (فروش پریمیوم)" },
+  { id: "20", label: "IV پایین (خرید پریمیوم)" },
+];
+
+function dirIcon(bias: string) {
+  const b = (bias || "").toLowerCase();
+  if (b.includes("bull") || b.includes("up")) return <TrendingUp size={16} className="text-emerald-400" />;
+  if (b.includes("bear") || b.includes("down")) return <TrendingDown size={16} className="text-rose-400" />;
+  return <Minus size={16} className="text-amber-400" />;
+}
+
+function Confidence({ score }: { score: number }) {
+  // 0..100 → colored chip
+  const tone = score >= 70 ? "text-emerald-400 border-emerald-600/40" : score >= 45 ? "text-amber-400 border-amber-600/40" : "text-slate-400 border-slate-700";
+  return (
+    <span className={`px-2 py-0.5 rounded-full border font-bold font-mono text-[11px] ${tone}`} dir="ltr">
+      {score.toFixed(0)}%
+    </span>
+  );
 }
 
 export default function SignalsTab() {
   const [condition, setCondition] = useState("neutral");
+  const [ivRank, setIvRank] = useState("50");
   const [market, setMarket] = useState<Market>("all");
-  const [signals, setSignals] = useState<StrategyInfo[]>([]);
+  const [payload, setPayload] = useState<SignalsResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<StrategyAnalysis | null>(null);
-  const [analyzing, setAnalyzing] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const load = async () => {
     setLoading(true);
+    setError("");
     try {
-      const r = await apiPost<{ success: boolean; data: StrategyInfo[] }>(
-        "/options/recommend",
-        { market_condition: condition, risk_tolerance: 0.5 }
-      );
-      setSignals(r.success ? r.data ?? [] : []);
+      const r = await fetchOptionsSignals({
+        market_condition: condition,
+        iv_rank: Number(ivRank) || 50,
+        guarded: true,
+      });
+      setPayload(r);
     } catch {
-      setSignals([]);
+      setError("اتصال به سرور برقرار نشد");
+      setPayload(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const analyze = async (s: StrategyInfo) => {
-    setAnalyzing(s.id);
-    try {
-      const r = await apiPost<{ success: boolean; data: StrategyAnalysis }>(
-        "/options/analyze",
-        { strategy: s.id, stock_price: 1000, strike: 1000, call_premium: 50, put_premium: 30 }
-      );
-      setAnalysis(r.success ? r.data : null);
-    } catch {
-      setAnalysis(null);
-    } finally {
-      setAnalyzing(null);
-    }
-  };
-
-  const filtered = signals.filter(
-    (s) => market === "all" || (s.market ?? "").toLowerCase().includes(market === "stock" ? "stock" : "commod")
-  );
+  const signals = (payload?.signals ?? []).filter((s: OptionSignal) => {
+    if (market === "all") return true;
+    const bias = String(s.market_bias ?? "").toLowerCase();
+    return market === "stock" ? !bias.includes("commod") : bias.includes("commod");
+  });
 
   return (
     <div className="space-y-4">
@@ -79,6 +98,15 @@ export default function SignalsTab() {
             </button>
           ))}
         </div>
+        <select
+          value={ivRank}
+          onChange={(e) => setIvRank(e.target.value)}
+          className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200"
+        >
+          {IV_LEVELS.map((v) => (
+            <option key={v.id} value={v.id}>{v.label}</option>
+          ))}
+        </select>
         <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
           {(["all", "stock", "commodity"] as Market[]).map((m) => (
             <button
@@ -102,60 +130,79 @@ export default function SignalsTab() {
         </button>
       </div>
 
-      {filtered.length === 0 && !loading && (
-        <div className="text-center text-slate-500 text-sm py-12">سیگنالی یافت نشد — شرایط بازار را انتخاب و دریافت بزنید.</div>
+      {error && (
+        <div className="text-center text-rose-400 text-xs bg-rose-500/10 border border-rose-500/30 rounded-2xl py-3">{error}</div>
+      )}
+
+      {loading && <CardSkeletonGrid />}
+
+      {signals.length === 0 && !loading && !error && (
+        <div className="text-center text-slate-500 text-sm py-12">
+          سیگنالی یافت نشد — شرایط بازار را انتخاب و دریافت بزنید. (فیلتر نقدشوندگی فعال است: نمادهای قفل‌شده حذف می‌شوند)
+        </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => analyze(s)}
-            className="text-right bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-emerald-600/50 transition-colors"
+        {signals.map((s, i) => (
+          <div
+            key={`${s.strategy_id}-${i}`}
+            className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5 hover:border-emerald-600/50 transition-colors"
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 font-bold text-sm text-slate-100">
-                {dirIcon(s.market ?? "")}
-                {s.name_fa || s.name}
+                {dirIcon(s.market_bias)}
+                {s.strategy_name_fa || s.strategy_id}
               </span>
-              {analyzing === s.id && <Loader2 size={14} className="animate-spin text-slate-400" />}
+              <Confidence score={s.confidence} />
             </div>
+
             <div className="flex items-center gap-2 text-[11px]">
-              <span className={`px-2 py-0.5 rounded-full border font-bold ${riskBg(s.risk)} ${riskColor(s.risk)}`}>
-                ریسک {riskLabel(s.risk)}
+              <span
+                className={`px-2 py-0.5 rounded-full border font-bold ${
+                  s.direction === "credit"
+                    ? "text-amber-400 border-amber-600/40 bg-amber-500/10"
+                    : "text-emerald-400 border-emerald-600/40 bg-emerald-500/10"
+                }`}
+              >
+                {s.direction === "credit" ? "فروش پریمیوم" : "خرید پریمیوم"}
               </span>
-              <span className="text-slate-500">{marketLabel(s.market ?? "")}</span>
-              {typeof s.score === "number" && (
-                <span className="text-emerald-400 font-mono">امتیاز {s.score.toFixed(1)}</span>
+              <span className="text-slate-500 font-mono" dir="ltr">{s.underlying || "—"}</span>
+              {typeof s.iv_rank === "number" && (
+                <span className="flex items-center gap-1 text-slate-500">
+                  <Percent size={10} />
+                  IV {s.iv_rank.toFixed(0)}
+                </span>
               )}
             </div>
-          </button>
+
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              <div className="bg-slate-950 rounded-lg p-1.5">
+                <div className="text-[9px] text-slate-500">ورود</div>
+                <div className="font-mono text-[11px] font-bold text-slate-200" dir="ltr">{fmt(s.entry_price)}</div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-1.5">
+                <div className="text-[9px] text-slate-500 flex items-center justify-center gap-0.5"><Target size={9} /> حد سود</div>
+                <div className="font-mono text-[11px] font-bold text-emerald-400" dir="ltr">{fmt(s.take_profit)}</div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-1.5">
+                <div className="text-[9px] text-slate-500 flex items-center justify-center gap-0.5"><ShieldAlert size={9} /> حد ضرر</div>
+                <div className="font-mono text-[11px] font-bold text-rose-400" dir="ltr">{fmt(s.stop_loss)}</div>
+              </div>
+              <div className="bg-slate-950 rounded-lg p-1.5">
+                <div className="text-[9px] text-slate-500">R/R</div>
+                <div className="font-mono text-[11px] font-bold text-amber-400" dir="ltr">{s.risk_reward?.toFixed?.(2) ?? "—"}</div>
+              </div>
+            </div>
+
+            {(s.iran_notes ?? []).length > 0 && (
+              <div className="text-[10px] text-slate-500 leading-4">{s.iran_notes[0]}</div>
+            )}
+          </div>
         ))}
       </div>
 
-      {analysis && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-          <h3 className="font-bold text-sm text-slate-100">{analysis.strategy_name_fa || analysis.strategy_name}</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
-            <div className="bg-slate-950 rounded-xl p-3">
-              <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Target size={12} /> حد سود</div>
-              <div className="font-mono font-bold text-emerald-400" dir="ltr">{fmt(analysis.max_profit)}</div>
-            </div>
-            <div className="bg-slate-950 rounded-xl p-3">
-              <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><ShieldAlert size={12} /> حد ضرر</div>
-              <div className="font-mono font-bold text-rose-400" dir="ltr">{fmt(analysis.max_loss)}</div>
-            </div>
-            <div className="bg-slate-950 rounded-xl p-3">
-              <div className="text-[10px] text-slate-500">سر‌به‌سر</div>
-              <div className="font-mono font-bold text-amber-400" dir="ltr">{(analysis.break_even ?? []).map(fmt).join(" / ")}</div>
-            </div>
-            <div className="bg-slate-950 rounded-xl p-3">
-              <div className="text-[10px] text-slate-500">هزینه اولیه</div>
-              <div className="font-mono font-bold text-slate-200" dir="ltr">{fmt(analysis.initial_cost)}</div>
-            </div>
-          </div>
-          <PayoffDiagram analysis={analysis} />
-        </div>
+      {payload && (
+        <div className="text-[10px] text-slate-600 text-center">{payload.legal_disclaimer}</div>
       )}
     </div>
   );
