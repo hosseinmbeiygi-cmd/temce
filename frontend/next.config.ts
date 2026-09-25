@@ -1,4 +1,4 @@
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import path from "path";
 import type { NextConfig } from "next";
 
@@ -48,7 +48,6 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   // Keep local/dev builds silent and fast.
   silent: true,
-  disableLogger: true,
   // Source maps upload only when a token is present (CI).
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,

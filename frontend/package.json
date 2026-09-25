@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
     "build": "node scripts/build-with-heap.js",
     "start": "next start",
     "lint": "eslint",
