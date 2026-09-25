@@ -38,14 +38,29 @@ class PredictBody(BaseModel):
 
 @router.get("/signals", summary="Option strategy signals")
 async def option_signals(
-    market_condition: str = "neutral", risk_tolerance: float = 0.5
+    market_condition: str = "neutral",
+    risk_tolerance: float = 0.5,
+    guarded: bool = True,
+    iv_rank: float = 50.0,
+    min_oi: float = 10.0,
+    min_volume: float = 5.0,
+    max_spread_pct: float = 10.0,
 ) -> ApiResponse[dict[str, Any]]:
     from services.options_service import get_options_engine
+    from services.options_signals import generate_guarded_signals
 
     engine = get_options_engine()
-    signals = engine.recommend(market_condition, risk_tolerance)
+    candidates = engine.recommend(market_condition, risk_tolerance)
+    if guarded:
+        signals = generate_guarded_signals(
+            candidates, iv_rank_value=iv_rank, min_oi=min_oi,
+            min_volume=min_volume, max_spread_pct=max_spread_pct,
+        )
+    else:
+        signals = candidates
     return ApiResponse(success=True, data={
         "signals": signals,
+        "iv_rank": iv_rank,
         "legal_disclaimer": LEGAL_DISCLAIMER_FA,
     })
 
