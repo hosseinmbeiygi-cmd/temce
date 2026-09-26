@@ -139,6 +139,10 @@ tmp-chrome-profile*/
 /symdist.txt
 /index_done.txt
 
+# Runtime state churn — brsapi budget governor / readiness tracker rewrite
+# these every few minutes when Redis is unavailable (brsapi/budget.py, brsapi/readiness.py)
+json/brsapi/*_state.json
+
 # Security cleanup (2026-09): sensitive & unknown files
 *.bin
 /checkpoint.json
