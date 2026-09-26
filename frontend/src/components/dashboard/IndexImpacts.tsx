@@ -48,7 +48,7 @@ function ImpactList({ rows, positive }: { rows: ImpactRow[]; positive: boolean }
 export default function IndexImpacts() {
   const { data, isLive, isError, isLoading } = useIndexImpacts();
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="IndexImpacts" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={Scale}
         title="تأثیر بر شاخص کل"

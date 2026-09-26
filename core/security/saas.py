@@ -59,11 +59,16 @@ TIERS: dict[str, Tier] = {
 }
 
 # JWT roles → tier mapping (resolve_tier picks the highest tier present).
+# "free" is reserved for monetized SaaS surfaces (gold desk scoped keys).
+# Platform roles must land on a tier whose burst covers a real app boot:
+# the dashboard fires ~20 API calls on first paint, so a platform "user"
+# mapped to free (burst=10) got 429s on half the widgets.
 _ROLE_TO_TIER: dict[str, str] = {
     "admin": "institutional",
     "institutional": "institutional",
+    "analyst": "pro",
     "pro": "pro",
-    "user": "free",
+    "user": "pro",
 }
 
 

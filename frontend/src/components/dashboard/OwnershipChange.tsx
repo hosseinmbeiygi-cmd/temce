@@ -27,7 +27,7 @@ export default function OwnershipChange() {
   const { data: rows, isLive, isError, isLoading } = useOwnershipFlows();
   const max = Math.max(1e-9, ...rows.map((r) => Math.max(Math.abs(r.realNet), Math.abs(r.legalNet))));
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="OwnershipChange" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={Users}
         title="تغییر مالکیت حقوقی و حقیقی"

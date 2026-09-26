@@ -37,7 +37,7 @@ export default function MarketMap() {
   const { data: sectors, isLive, isError, isLoading } = useSectorMap();
 
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="MarketMap" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={Map}
         title="نقشه بازار"

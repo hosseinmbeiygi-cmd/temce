@@ -26,7 +26,7 @@ export default function MarketOverview() {
   const marketCapUsdB = totalCapB != null && usdRate != null ? totalCapB / usdRate : null;
 
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="MarketOverview" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader icon={Eye} title="نگاه کلی به بازار" subtitle="وضعیت امروز بازار سهام" />
       <LiveDataBanner state={{ isLive, isError, isLoading }} />
 

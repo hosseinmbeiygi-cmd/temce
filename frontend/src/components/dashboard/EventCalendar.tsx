@@ -29,7 +29,7 @@ const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چها�
 export default function EventCalendar() {
   const { data: events, isLive, isError, isLoading } = useMarketEvents();
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="EventCalendar" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={CalendarDays}
         title="تقویم بازار"

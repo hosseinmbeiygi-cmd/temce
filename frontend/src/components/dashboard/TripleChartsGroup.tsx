@@ -64,7 +64,7 @@ export default function TripleChartsGroup() {
   };
 
   return (
-    <section className="space-y-3">
+    <section data-widget="TripleChartsGroup" className="space-y-3">
       <SectionHeader
         icon={BarChart3}
         title="جریان پول و معاملات"

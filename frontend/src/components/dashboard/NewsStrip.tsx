@@ -16,7 +16,7 @@ const SENTIMENT_DOT: Record<string, string> = {
 export default function NewsStrip() {
   const { data: NEWS, isLive, isError, isLoading } = useNewsItems();
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="NewsStrip" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={Newspaper}
         title="آخرین اخبار بازار"

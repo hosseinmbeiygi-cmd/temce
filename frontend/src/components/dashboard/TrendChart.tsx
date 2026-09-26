@@ -32,7 +32,7 @@ export default function TrendChart() {
   const delta = hasSeries && first !== 0 ? ((last - first) / first) * 100 : 0;
 
   return (
-    <section className="hero-ring rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <section data-widget="TrendChart" className="hero-ring rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
         icon={TrendingUp}
         tone="up"

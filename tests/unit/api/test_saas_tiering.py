@@ -73,7 +73,11 @@ class TestTieredLimiter:
         assert TIERS["free"].burst < TIERS["institutional"].burst
 
     def test_resolve_tier_from_jwt_roles(self) -> None:
-        assert resolve_tier(["user"]) == "free"
+        # Platform roles must NOT land on the SaaS "free" tier: the dashboard
+        # fires ~20 calls on first paint and free (burst=10) would 429 half
+        # the widgets. "free" is only for anonymous/monetized SaaS keys.
+        assert resolve_tier(["user"]) == "pro"
+        assert resolve_tier(["analyst"]) == "pro"
         assert resolve_tier(["user", "pro"]) == "pro"
         assert resolve_tier(["admin"]) == "institutional"
         assert resolve_tier([]) == "free"

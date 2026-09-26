@@ -16,7 +16,7 @@ export default function LiquidityBlocks() {
   // backend has no live data — the LiveDataBanner above explains why.
   const liquidityB = live?.tradeValueB ?? null;
   return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <section data-widget="LiquidityBlocks" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <div className="md:col-span-2 xl:col-span-3">
         <LiveDataBanner
           state={{

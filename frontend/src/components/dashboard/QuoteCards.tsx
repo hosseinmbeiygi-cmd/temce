@@ -41,7 +41,7 @@ const KIND_ACCENT: Record<QuoteItem["kind"], string> = {
 export default function QuoteCards() {
   const { data: QUOTES, isLive, isError, isLoading } = useQuoteCards();
   return (
-    <section className="space-y-3">
+    <section data-widget="QuoteCards" className="space-y-3">
       <SectionHeader
         icon={CircleDollarSign}
         title="قیمت‌های روز"

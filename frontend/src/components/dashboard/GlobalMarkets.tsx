@@ -10,7 +10,7 @@ export default function GlobalMarkets() {
   const { data: markets, isLive, isError, isLoading } = useGlobalMarkets();
 
   return (
-    <section className="space-y-3">
+    <section data-widget="GlobalMarkets" className="space-y-3">
       <SectionHeader
         icon={Globe}
         title="بازارهای جهانی"
