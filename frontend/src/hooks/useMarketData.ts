@@ -685,3 +685,89 @@ export function useMarketEvents(): LiveDataResult<CalendarEvent[]> {
   const rows = data ?? [];
   return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
+
+// ── TripleChartsGroup aggregates ──────────────────────────────────────
+
+export interface SectorFlowBar {
+  name: string;
+  valueB: number;
+}
+
+export interface ValueDayBar {
+  day: string;
+  date: string;
+  valueB: number;
+}
+
+export interface OwnershipDayBar {
+  day: string;
+  date: string;
+  realB: number;
+  legalB: number;
+}
+
+/** Live per-sector real money flow (today) from /market/cashflow-by-sector. */
+export function useCashflowBySector(): LiveDataResult<SectorFlowBar[]> {
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ["live-cashflow-by-sector"],
+    queryFn: async (): Promise<SectorFlowBar[]> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ name: string; value_b: number }> }>(
+        "/market/cashflow-by-sector?limit=500"
+      );
+      return extractArray<{ name: string; value_b: number }>(res).map((r) => ({
+        name: r.name,
+        valueB: r.value_b,
+      }));
+    },
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+}
+
+/** Live daily market trade value from /market/value-history. */
+export function useValueHistory(): LiveDataResult<ValueDayBar[]> {
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ["live-value-history"],
+    queryFn: async (): Promise<ValueDayBar[]> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ date: string; day: string; value_b: number }> }>(
+        "/market/value-history?days=5"
+      );
+      return extractArray<{ date: string; day: string; value_b: number }>(res).map((r) => ({
+        day: r.day,
+        date: r.date,
+        valueB: r.value_b,
+      }));
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+    retry: 1,
+  });
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+}
+
+/** Live daily real/legal net flow from /market/ownership-history. */
+export function useOwnershipHistory(): LiveDataResult<OwnershipDayBar[]> {
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ["live-ownership-history"],
+    queryFn: async (): Promise<OwnershipDayBar[]> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ date: string; day: string; real_b: number; legal_b: number }> }>(
+        "/market/ownership-history?days=5"
+      );
+      return extractArray<{ date: string; day: string; real_b: number; legal_b: number }>(res).map((r) => ({
+        day: r.day,
+        date: r.date,
+        realB: r.real_b,
+        legalB: r.legal_b,
+      }));
+    },
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+    retry: 1,
+  });
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+}

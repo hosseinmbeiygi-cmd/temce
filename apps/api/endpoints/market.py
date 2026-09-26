@@ -436,3 +436,160 @@ async def market_index_history(
     except Exception as exc:
         logger.exception("Index history failed for %s", name)
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+
+
+def _fa_weekday(date_str: str) -> str:
+    """Persian weekday label for a stored date string.
+
+    BrsApi history rows carry dates as either ``YYYYMMDD`` or ``YYYY-MM-DD``;
+    extract the first 8 digits and let ``date.weekday()`` decide. Anything
+    unparsable falls back to the raw string so the chart still shows a label.
+    """
+    from datetime import date as _date
+
+    digits = "".join(ch for ch in str(date_str) if ch.isdigit())
+    if len(digits) >= 8:
+        try:
+            y, m, d = int(digits[:4]), int(digits[4:6]), int(digits[6:8])
+            return ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه", "یکشنبه"][_date(y, m, d).weekday()]
+        except ValueError:
+            pass
+    return str(date_str)
+
+
+@router.get(
+    "/cashflow-by-sector",
+    summary="Real money flow by sector (today)",
+    description="Net real (حقیقی) value flow grouped by industry sector for the "
+    "latest snapshot cycle, in billion toman — from brsapi_symbol_snapshots.",
+)
+async def market_cashflow_by_sector(
+    limit: int = Query(500, ge=50, le=2000),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    """Per-sector net real flow: (buy_real_volume − sell_real_volume) × price_last."""
+    try:
+        snapshots = await brsapi.get_enriched_snapshots(limit=limit)
+        sectors: dict[str, float] = {}
+        for s in snapshots:
+            price = s.get("price_last") or 0
+            brv = s.get("buy_real_volume") or 0
+            srv = s.get("sell_real_volume") or 0
+            if not price or (brv == 0 and srv == 0):
+                continue
+            sector = (s.get("sector") or "").strip() or "سایر"
+            sectors[sector] = sectors.get(sector, 0.0) + (brv - srv) * price
+        rows = [
+            {"name": name, "value_b": round(net / 1e9, 1)}
+            for name, net in sectors.items()
+        ]
+        rows.sort(key=lambda x: x["value_b"], reverse=True)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=rows[:20])
+    except Exception as exc:
+        logger.exception("Cashflow by sector failed")
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+
+
+@router.get(
+    "/value-history",
+    summary="Daily market trade value (last N trading days)",
+    description="Market-wide trade_value summed over all symbols per day from "
+    "brsapi_historical_daily — oldest-first, in billion toman, for bar charts.",
+)
+async def market_value_history(
+    days: int = Query(5, ge=3, le=30),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    try:
+        from sqlalchemy import func, select
+
+        from brsapi.models.tsetmc import HistoricalDailyModel
+
+        # Partition key → the latest ``days`` distinct trading dates.
+        latest_dates = (
+            await brsapi.session.execute(
+                select(HistoricalDailyModel.date)
+                .distinct()
+                .order_by(HistoricalDailyModel.date.desc())
+                .limit(days)
+            )
+        ).scalars().all()
+        if not latest_dates:
+            return ApiResponse[list[dict[str, Any]]](success=True, data=[])
+
+        stmt = (
+            select(
+                HistoricalDailyModel.date,
+                func.sum(HistoricalDailyModel.trade_value).label("total_value"),
+            )
+            .where(HistoricalDailyModel.date.in_(latest_dates))
+            .group_by(HistoricalDailyModel.date)
+            .order_by(HistoricalDailyModel.date.asc())
+        )
+        rows = (await brsapi.session.execute(stmt)).all()
+
+        data: list[dict[str, Any]] = []
+        for r in rows:
+            data.append({
+                "date": str(r.date),
+                "day": _fa_weekday(r.date),
+                "value_b": round((r.total_value or 0) / 1e9, 0),
+            })
+        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+    except Exception as exc:
+        logger.exception("Market value history failed")
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+
+
+@router.get(
+    "/ownership-history",
+    summary="Daily real/legal net flow (last N trading days)",
+    description="Market-wide net real (حقیقی) vs legal (حقوقی) value per day from "
+    "brsapi_historical_real_legal — oldest-first, in billion toman.",
+)
+async def market_ownership_history(
+    days: int = Query(5, ge=3, le=30),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    try:
+        from sqlalchemy import func, select
+
+        from brsapi.models.tsetmc import HistoricalRealLegalModel
+
+        latest_dates = (
+            await brsapi.session.execute(
+                select(HistoricalRealLegalModel.date)
+                .distinct()
+                .order_by(HistoricalRealLegalModel.date.desc())
+                .limit(days)
+            )
+        ).scalars().all()
+        if not latest_dates:
+            return ApiResponse[list[dict[str, Any]]](success=True, data=[])
+
+        stmt = (
+            select(
+                HistoricalRealLegalModel.date,
+                func.sum(HistoricalRealLegalModel.buy_real_value).label("real_buy"),
+                func.sum(HistoricalRealLegalModel.sell_real_value).label("real_sell"),
+                func.sum(HistoricalRealLegalModel.buy_legal_value).label("legal_buy"),
+                func.sum(HistoricalRealLegalModel.sell_legal_value).label("legal_sell"),
+            )
+            .where(HistoricalRealLegalModel.date.in_(latest_dates))
+            .group_by(HistoricalRealLegalModel.date)
+            .order_by(HistoricalRealLegalModel.date.asc())
+        )
+        rows = (await brsapi.session.execute(stmt)).all()
+
+        data: list[dict[str, Any]] = []
+        for r in rows:
+            data.append({
+                "date": str(r.date),
+                "day": _fa_weekday(r.date),
+                "real_b": round(((r.real_buy or 0) - (r.real_sell or 0)) / 1e9, 1),
+                "legal_b": round(((r.legal_buy or 0) - (r.legal_sell or 0)) / 1e9, 1),
+            })
+        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+    except Exception as exc:
+        logger.exception("Market ownership history failed")
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
