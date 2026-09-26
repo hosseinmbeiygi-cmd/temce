@@ -14,6 +14,16 @@ class AlertCreate(BaseModel):
     channels: list[str] = Field(default_factory=lambda: ["console"])
     enabled: bool = True
     description: str = ""
+    signal_id: str = ""
+    market: str = ""
+    timeframe: str = ""
+
+
+class SignalAlertCreate(BaseModel):
+    """One-click 'I bought this signal, alert me' — server snapshots TP/SL."""
+    signal_id: str
+    channels: list[str] = Field(default_factory=lambda: ["console"])
+    description: str = ""
 
 
 class AlertUpdate(BaseModel):
@@ -36,6 +46,9 @@ class AlertResponse(BaseModel):
     description: str = ""
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    signal_id: str = ""
+    market: str = ""
+    timeframe: str = ""
 
 
 class AlertListResponse(BaseModel):

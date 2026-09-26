@@ -5,6 +5,7 @@ import { getSnapshot, getSnapshotHistory, planDCA, priceOption, protectiveCollar
 import { subscribeGoldWS } from "@/lib/goldApi";
 import { useState, useEffect } from "react";
 import type { Snapshot, AssetBlock, FundBlock } from "@/types/gold";
+import AddAlertButton from "@/components/AddAlertButton";
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -145,7 +146,10 @@ function CoinCard({ a }: { k: string; a: AssetBlock }) {
     <div className={`rounded-xl ring-1 ${c.ring} ${c.bg} p-4 backdrop-blur transition hover:scale-[1.01]`}>
       <div className="flex items-start justify-between mb-2">
         <div className="text-sm font-semibold text-zinc-100">{a.display_name}</div>
-        <div className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ring-current/20 ${c.text}`}>{c.label}</div>
+        <div className="flex items-center gap-1.5">
+          <AddAlertButton compact symbol={a.symbol} market="gold" entry={a.market_price} />
+          <div className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ring-current/20 ${c.text}`}>{c.label}</div>
+        </div>
       </div>
       <div className="text-2xl font-black text-zinc-100 tabular-nums mb-1">{fmt(a.market_price)}</div>
       <div className="text-[10px] text-zinc-500 mb-3 flex justify-between">
@@ -173,6 +177,7 @@ function FundRow({ f }: { f: FundBlock }) {
       <td className={`py-2.5 px-3 text-xs font-bold tabular-nums ${c.text}`}>{fmtPct(f.bubble_pct)}</td>
       <td className={`py-2.5 px-3 text-xs tabular-nums ${bprTone}`}>{f.bpr.toFixed(2)}</td>
       <td className="py-2.5 px-3 text-xs text-zinc-400 tabular-nums">{(f.net_inflow / 1e9).toFixed(1)}B</td>
+      <td className="py-2.5 px-3"><AddAlertButton compact symbol={f.symbol} market="fund" entry={f.market_price} /></td>
     </tr>
   );
 }
@@ -271,6 +276,7 @@ export default function GoldUnifiedPage() {
                 <th className="text-right py-2.5 px-3 font-medium">حباب NAV</th>
                 <th className="text-right py-2.5 px-3 font-medium">BPR</th>
                 <th className="text-right py-2.5 px-3 font-medium">جریان خالص</th>
+                <th className="text-right py-2.5 px-3 font-medium">هشدار</th>
               </tr>
             </thead>
             <tbody>

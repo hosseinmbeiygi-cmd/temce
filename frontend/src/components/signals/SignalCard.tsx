@@ -1,6 +1,15 @@
 "use client";
 
 import type { EnrichedSignal } from "@/lib/types";
+import AddAlertButton from "@/components/AddAlertButton";
+
+/** Extract first latin/persian-digit number from a level string (targets/stop). */
+function parseLevel(s: string | undefined): number | undefined {
+  if (!s) return undefined;
+  const fa = s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+  const m = fa.replace(/,/g, "").match(/\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : undefined;
+}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -169,7 +178,18 @@ export default function SignalCard({ signal, variant = "compact", onClick }: Sig
               </span>
             </div>
           </div>
-          <ConfidenceGauge value={signal.confidence} size={80} strokeWidth={8} />
+          <div className="flex flex-col items-center gap-2">
+            <ConfidenceGauge value={signal.confidence} size={80} strokeWidth={8} />
+            <AddAlertButton
+              symbol={signal.symbol}
+              market={signal.market}
+              timeframe={signal.timeframe}
+              entry={signal.price}
+              takeProfit={parseLevel(signal.targets)}
+              stopLoss={parseLevel(signal.stop_loss)}
+              direction={signal.direction}
+            />
+          </div>
         </div>
 
         {/* 11 Columns Grid */}
@@ -273,6 +293,16 @@ export default function SignalCard({ signal, variant = "compact", onClick }: Sig
           <span className={`font-mono ${signal.change_pct >= 0 ? "text-accent-emerald" : "text-accent-rose"}`}>{fmtPct(signal.change_pct)}</span>
           <span className="mr-auto text-surface-400 truncate max-w-[200px]">{signal.reason}</span>
           <span className="text-primary-300 font-mono font-bold">{signal.boosted_score.toFixed(0)}</span>
+          <AddAlertButton
+            compact
+            symbol={signal.symbol}
+            market={signal.market}
+            timeframe={signal.timeframe}
+            entry={signal.price}
+            takeProfit={parseLevel(signal.targets)}
+            stopLoss={parseLevel(signal.stop_loss)}
+            direction={signal.direction}
+          />
         </div>
       </div>
     );
@@ -292,6 +322,14 @@ export default function SignalCard({ signal, variant = "compact", onClick }: Sig
         <ConfidenceGauge value={signal.confidence} size={40} strokeWidth={5} />
         <span className="text-xs text-surface-400 mr-auto truncate max-w-[150px]">{signal.reason}</span>
         <span className="text-xs font-mono text-primary-300 font-bold">{signal.boosted_score.toFixed(0)}</span>
+        <AddAlertButton
+          compact
+          symbol={signal.symbol}
+          market={signal.market}
+          timeframe={signal.timeframe}
+          entry={signal.price}
+          direction={signal.direction}
+        />
       </div>
     </div>
   );

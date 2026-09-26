@@ -242,6 +242,17 @@ async def get_multi_market_signals(
         if min_strength > 0:
             signals_list = [s for s in signals_list if (s.get("boosted_score") or 0) / 100.0 >= min_strength]
 
+        # Dedupe: the pipeline can emit the same (symbol, market, timeframe,
+        # direction) more than once (identical confidence/price). Keep the best
+        # boosted_score per key so the dashboard never shows twin rows.
+        _seen: dict[tuple, dict[str, Any]] = {}
+        for s in signals_list:
+            k = (s.get("symbol"), s.get("market"), s.get("timeframe"), s.get("direction"))
+            prev = _seen.get(k)
+            if prev is None or (s.get("boosted_score") or 0) > (prev.get("boosted_score") or 0):
+                _seen[k] = s
+        signals_list = list(_seen.values())
+
         # Sort
 
         if sort_by == "confidence":

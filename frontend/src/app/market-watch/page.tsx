@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
+import AddAlertButton from "@/components/AddAlertButton";
 import { apiGet } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -109,13 +110,16 @@ function FlowList({ title, items, color }: {
           <div className="text-xs text-surface-500 text-center py-4">داده‌ای موجود نیست</div>
         ) : (
           items.map((item, i) => (
-            <div key={i} className="flex items-center justify-between text-xs">
-              <span className="text-surface-300 truncate max-w-[60%]">
+            <div key={i} className="flex items-center justify-between text-xs gap-2">
+              <span className="text-surface-300 truncate max-w-[50%]">
                 {item.symbol || item.name}
               </span>
               <span className={`font-mono font-bold ${text}`}>
                 {item.value.toLocaleString("en-US")}
               </span>
+              {(item.symbol || item.name) && (
+                <AddAlertButton compact symbol={item.symbol || item.name || ""} market="stock" />
+              )}
             </div>
           ))
         )}

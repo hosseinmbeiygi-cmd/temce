@@ -15,6 +15,7 @@ import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import FundNavMiniChart, { type FundNavPoint } from "@/components/FundNavMiniChart";
+import AddAlertButton from "@/components/AddAlertButton";
 import FundCompareModal from "@/components/FundCompareModal";
 import FundDiscoveryBanner from "@/components/FundDiscoveryBanner";
 import FundMarketSyncButton from "@/components/FundMarketSyncButton";
@@ -378,6 +379,7 @@ function ShelfTab({
                 >
                   <Star className={`w-3.5 h-3.5 ${watch.includes(f.symbol) ? "fill-current" : ""}`} />
                 </button>
+                <AddAlertButton compact symbol={f.symbol} market="fund" entry={typeof f.nav === "number" ? f.nav : undefined} />
                 <div className="shrink-0 w-[84px] hidden sm:block">
                   {spark[f.symbol]?.length > 1 ? (
                     <FundNavMiniChart points={spark[f.symbol]} width={84} height={28} />

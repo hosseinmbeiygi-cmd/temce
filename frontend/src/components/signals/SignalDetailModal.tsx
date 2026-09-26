@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { EnrichedSignal } from "@/lib/types";
+import AddAlertButton from "@/components/AddAlertButton";
 
 const MARKET_COLORS: Record<string, string> = {
   stock: "#64FFDA", gold: "#FFD700", currency: "#FF6B6B",
@@ -104,7 +105,16 @@ export default function SignalDetailModal({ signal, onClose }: SignalDetailModal
                 </div>
               </div>
             </div>
-            <button onClick={onClose} className="text-surface-500 hover:text-surface-300 text-sm px-2 py-1 rounded hover:bg-surface-700/50 transition-colors">✕</button>
+            <div className="flex items-center gap-2">
+              <button onClick={onClose} className="text-surface-500 hover:text-surface-300 text-sm px-2 py-1 rounded hover:bg-surface-700/50 transition-colors">✕</button>
+              <AddAlertButton
+                symbol={signal.symbol}
+                market={signal.market}
+                timeframe={signal.timeframe}
+                entry={signal.price}
+                direction={signal.direction}
+              />
+            </div>
           </div>
 
           {/* Scores Row */}

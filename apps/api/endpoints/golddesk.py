@@ -19,8 +19,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
+from pydantic import BaseModel
+
 from apps.api.dependencies import get_gold_live_service
-from apps.api.endpoints.gold import get_arbitrage, get_etf_nav_premium, get_live_prices
+from apps.api.endpoints import gold as gold_handlers
 from core.logging import get_logger
 from core.security.saas import ScopedToken, api_key_auth
 from schemas.common.responses import ApiResponse
@@ -29,6 +31,16 @@ from services.gold import GoldLiveService
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _as_dict(inner: Any) -> dict[str, Any]:
+    """Normalize a delegated gold handler's payload to a JSON-safe dict.
+
+    The upstream handlers return ``ApiResponse[SomeModel]``; this surface
+    re-envelopes the payload with SaaS ``meta`` — models must be dumped first
+    or pydantic rejects them as ``dict``.
+    """
+    return inner.model_dump(mode="json") if isinstance(inner, BaseModel) else inner
 
 
 @router.get(
@@ -42,8 +54,10 @@ async def golddesk_snapshot(
     service: GoldLiveService = Depends(get_gold_live_service),
     token: ScopedToken = Depends(api_key_auth("gold:read")),
 ) -> ApiResponse[dict[str, Any]]:
-    data = await get_live_prices(refresh=refresh, service=service)
-    return ApiResponse[dict[str, Any]](success=True, data=data.data, meta={"tier": token.tier, "owner": token.owner})
+    data = await gold_handlers.get_live_prices(refresh=refresh, service=service)
+    return ApiResponse[dict[str, Any]](
+        success=True, data=_as_dict(data.data), meta={"tier": token.tier, "owner": token.owner}
+    )
 
 
 @router.get(
@@ -56,8 +70,8 @@ async def golddesk_nav_premium(
     service: GoldLiveService = Depends(get_gold_live_service),
     token: ScopedToken = Depends(api_key_auth("gold:read")),
 ) -> ApiResponse[dict[str, Any]]:
-    data = await get_etf_nav_premium(service=service)
-    return ApiResponse[dict[str, Any]](success=True, data=data.data, meta={"tier": token.tier})
+    data = await gold_handlers.get_etf_nav_premium(service=service)
+    return ApiResponse[dict[str, Any]](success=True, data=_as_dict(data.data), meta={"tier": token.tier})
 
 
 @router.get(
@@ -70,5 +84,5 @@ async def golddesk_arbitrage(
     service: GoldLiveService = Depends(get_gold_live_service),
     token: ScopedToken = Depends(api_key_auth("gold:analyze")),
 ) -> ApiResponse[dict[str, Any]]:
-    data = await get_arbitrage(service=service)
-    return ApiResponse[dict[str, Any]](success=True, data=data.data, meta={"tier": token.tier})
+    data = await gold_handlers.get_arbitrage(service=service)
+    return ApiResponse[dict[str, Any]](success=True, data=_as_dict(data.data), meta={"tier": token.tier})

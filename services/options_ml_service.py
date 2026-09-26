@@ -39,6 +39,25 @@ class ExpectedMoveResult:
 
 
 @dataclass(frozen=True)
+class VolatilityForecast:
+    realized_vol_annual: float
+    garch_omega: float
+    garch_alpha: float
+    garch_beta: float
+    unconditional_vol_annual: float
+    n_observations: int
+
+
+@dataclass(frozen=True)
+class TouchProbability:
+    probability_of_profit: float
+    probability_of_touch_upper: float
+    probability_of_touch_lower: float
+    breakeven_upper: float
+    breakeven_lower: float
+
+
+@dataclass(frozen=True)
 class MaxPainResult:
     max_pain_strike: float
     total_payout_at_max_pain: float
@@ -94,6 +113,98 @@ class OptionsMLService:
         """Risk-neutral-ish probability S_T > `level` from simulated paths."""
         terminal = self._terminal_prices(spot, sigma, days_to_expiry / 365.0)
         return float(np.mean(terminal > level))
+
+    # ── Phase 4: realized-vol forecasting (GARCH) + touch probabilities ──
+
+    @staticmethod
+    def garch_forecast(
+        log_returns: list[float] | NDArray[np.float64],
+        horizon_days: int = 30,
+    ) -> VolatilityForecast:
+        """GARCH(1,1) realized-volatility forecast (variance targeting).
+
+        Fits alpha/beta on a coarse grid by Gaussian log-likelihood with
+        omega fixed at ``long_run_var * (1 - alpha - beta)``; forecasts the
+        average daily variance over `horizon_days` and annualizes it.
+        Falls back to sample std when fewer than 30 observations exist.
+        """
+        rets = np.asarray(log_returns, dtype=float)
+        rets = rets[np.isfinite(rets)]
+        n = len(rets)
+        if n == 0:
+            raise ValueError("log_returns must be non-empty")
+        if horizon_days <= 0:
+            raise ValueError("horizon_days must be positive")
+        long_var = float(np.var(rets))
+        if n < 30 or long_var <= 0:
+            vol = math.sqrt(max(long_var, 0.0)) * math.sqrt(252.0)
+            return VolatilityForecast(vol, 0.0, 0.0, 0.0, vol, n)
+
+        demeaned = rets - float(np.mean(rets))
+        best_ll, best = -math.inf, (0.05, 0.90)
+        for alpha in (0.02, 0.05, 0.08, 0.12):
+            for beta in (0.80, 0.85, 0.90, 0.93):
+                if alpha + beta >= 0.999:
+                    continue
+                omega = long_var * (1.0 - alpha - beta)
+                var = long_var
+                ll = 0.0
+                for r in demeaned:
+                    var = omega + alpha * r * r + beta * var
+                    if var <= 0:
+                        ll = -math.inf
+                        break
+                    ll += -0.5 * (math.log(2 * math.pi * var) + r * r / var)
+                if math.isfinite(ll) and ll > best_ll:
+                    best_ll, best = ll, (alpha, beta)
+        alpha, beta = best
+        omega = long_var * (1.0 - alpha - beta)
+        var = omega + alpha * demeaned[-1] ** 2 + beta * long_var
+        horizon_var = 0.0
+        for _ in range(horizon_days):
+            horizon_var += var
+            var = omega + (alpha + beta) * var
+        avg_daily = horizon_var / horizon_days
+        realized = math.sqrt(max(avg_daily, 0.0)) * math.sqrt(252.0)
+        uncond = math.sqrt(max(long_var, 0.0)) * math.sqrt(252.0)
+        return VolatilityForecast(realized, omega, alpha, beta, uncond, n)
+
+    def touch_probabilities(
+        self,
+        spot: float,
+        sigma: float,
+        days_to_expiry: int,
+        breakeven_upper: float,
+        breakeven_lower: float,
+        risk_free: float = 0.0,
+    ) -> TouchProbability:
+        """PoP (expire beyond breakeven) + touch probabilities from full paths."""
+        if days_to_expiry <= 0:
+            raise ValueError("days_to_expiry must be positive")
+        steps = min(max(days_to_expiry, 1), 252)
+        dt = (days_to_expiry / 365.0) / steps
+        shocks = self._rng.standard_normal((self._n_paths, steps))
+        drift = (risk_free - 0.5 * sigma * sigma) * dt
+        diffusion = sigma * math.sqrt(dt) * shocks
+        log_paths = np.cumsum(drift + diffusion, axis=1)
+        terminal = spot * np.exp(log_paths[:, -1])
+        running_max = spot * np.exp(np.maximum.accumulate(log_paths, axis=1).max(axis=1))
+        running_min = spot * np.exp(np.minimum.accumulate(log_paths, axis=1).min(axis=1))
+        pop = float(np.mean((terminal >= breakeven_upper) | (terminal <= breakeven_lower)))
+        return TouchProbability(
+            probability_of_profit=pop,
+            probability_of_touch_upper=float(np.mean(running_max >= breakeven_upper)),
+            probability_of_touch_lower=float(np.mean(running_min <= breakeven_lower)),
+            breakeven_upper=breakeven_upper,
+            breakeven_lower=breakeven_lower,
+        )
+
+    @staticmethod
+    def put_call_ratio(call_volume: float, put_volume: float) -> float:
+        """Put/Call volume ratio (contrarian sentiment gauge)."""
+        if call_volume <= 0:
+            return 0.0
+        return max(put_volume, 0.0) / call_volume
 
     @staticmethod
     def max_pain(

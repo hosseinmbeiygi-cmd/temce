@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_current_user, get_db_session
 from core.logging import get_logger
-from schemas.api.alerts import AlertCreate, AlertUpdate
+from schemas.api.alerts import AlertCreate, AlertUpdate, SignalAlertCreate
 from schemas.common.responses import ApiResponse
 from services.alert_service import AlertService
 
@@ -40,6 +40,28 @@ async def create_alert(
         symbol=req.symbol,
         alert_type=req.alert_type,
         condition=req.condition,
+        channels=req.channels,
+        description=req.description,
+        signal_id=req.signal_id,
+        market=req.market,
+        timeframe=req.timeframe,
+    )
+    if not result.success:
+        return ApiResponse(success=False, error={"message": result.error})
+    return ApiResponse(success=True, data=result.value)
+
+
+@router.post("/from-signal")
+async def create_signal_alert(
+    req: SignalAlertCreate,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> ApiResponse:
+    """One-click: user bought/follows a signal -> subscribe to TP/SL notifications."""
+    svc = AlertService(session)
+    result = await svc.create_signal_alert(
+        user_id=current_user["sub"],
+        signal_id=req.signal_id,
         channels=req.channels,
         description=req.description,
     )

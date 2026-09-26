@@ -76,7 +76,7 @@ class AlertService:
             logger.error("List alerts failed: %s", e)
             return Result.fail(str(e))
 
-    async def create_alert(self, user_id: str, instrument_id: str, symbol: str, alert_type: str, condition: dict, channels: list[str], description: str) -> Result[dict[str, Any]]:
+    async def create_alert(self, user_id: str, instrument_id: str, symbol: str, alert_type: str, condition: dict, channels: list[str], description: str, signal_id: str = "", market: str = "", timeframe: str = "") -> Result[dict[str, Any]]:
         try:
             alert = AlertModel(
                 id=new_id("alr"),
@@ -87,6 +87,9 @@ class AlertService:
                 channels=json.dumps(channels),
                 enabled=True,
                 description=description,
+                signal_id=signal_id or None,
+                market=market or None,
+                timeframe=timeframe or None,
             )
             self.session.add(alert)
             await self.session.flush()
@@ -284,6 +287,60 @@ class AlertService:
             raise
         return triggered
 
+    async def create_signal_alert(self, user_id: str, signal_id: str, channels: list[str] | None = None, description: str = "") -> Result[dict[str, Any]]:
+        """One-click subscribe to an owned/bought signal: snapshots entry/TP/SL
+        so the nightly evaluation can notify on hit_target/hit_stop."""
+        try:
+            from models.signal import SignalModel
+            result = await self.session.execute(select(SignalModel).where(SignalModel.id == signal_id))
+            sig = result.scalar_one_or_none()
+            if not sig:
+                return Result.fail("Signal not found")
+            condition = {
+                "signal_id": signal_id,
+                "direction": sig.direction,
+                "entry": sig.entry,
+                "take_profit": sig.take_profit,
+                "stop_loss": sig.stop_loss,
+            }
+            return await self.create_alert(
+                user_id=user_id, instrument_id=sig.instrument_id or "",
+                symbol=sig.symbol, alert_type="signal_tp_sl", condition=condition,
+                channels=channels or ["console"],
+                description=description or f"Signal {sig.symbol} {sig.direction} TP={sig.take_profit} SL={sig.stop_loss}",
+                signal_id=signal_id, market=sig.market or "", timeframe=sig.timeframe or "",
+            )
+        except Exception as e:
+            logger.error("Create signal alert failed: %s", e)
+            return Result.fail(str(e))
+
+    async def notify_signal_outcome(self, signal_id: str, status: str, price: float) -> int:
+        """Called by the nightly signal-eval job: notify all enabled subscribers
+        of this signal about hit_target/hit_stop/expired_neutral."""
+        try:
+            result = await self.session.execute(
+                select(AlertModel).where(AlertModel.signal_id == signal_id, AlertModel.enabled)
+            )
+            alerts = result.scalars().all()
+            now = datetime.now(UTC).replace(tzinfo=None)
+            n = 0
+            for alert in alerts:
+                message = f"Signal {alert.symbol} [{signal_id[:8]}]: {status} @ {price}"
+                channels = json.loads(alert.channels) if isinstance(alert.channels, str) and alert.channels else []
+                delivered = await self._deliver_notification(message, channels)
+                self.session.add(AlertHistoryModel(
+                    id=new_id("alh"), alert_id=alert.id,
+                    trigger_value=price, message=message, delivered=delivered))
+                alert.triggered_count = (alert.triggered_count or 0) + 1
+                alert.last_triggered = now
+                n += 1
+            if n:
+                await self.session.flush()
+            return n
+        except Exception as e:
+            logger.error("Notify signal outcome failed: %s", e)
+            return 0
+
     def _alert_to_dict(self, alert: AlertModel) -> dict[str, Any]:
         return {
             "id": alert.id,
@@ -298,4 +355,7 @@ class AlertService:
             "description": alert.description or "",
             "created_at": alert.created_at,
             "updated_at": alert.updated_at,
+            "signal_id": alert.signal_id or "",
+            "market": alert.market or "",
+            "timeframe": alert.timeframe or "",
         }

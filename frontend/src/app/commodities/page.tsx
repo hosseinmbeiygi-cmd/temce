@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
+import AddAlertButton from "@/components/AddAlertButton";
 import { apiGet } from "@/lib/api";
 
 interface CommodityPrice {
@@ -55,6 +56,7 @@ function CommodityCard({ c }: { c: CommodityPrice }) {
             <span className="text-xs text-surface-500 font-mono">{c.symbol}</span>
           </div>
         </div>
+        <AddAlertButton compact symbol={c.symbol} market="commodity" entry={c.price} />
         {c.category && (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-600/10 text-primary-300">
             {CATEGORIES.find((cat) => cat.key === c.category)?.label || c.category}

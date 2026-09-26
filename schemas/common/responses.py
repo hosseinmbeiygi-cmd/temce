@@ -14,6 +14,9 @@ class ApiResponse(BaseModel, Generic[T]):
     data: T | None = None
     error: dict[str, Any] | None = None
     message: str | None = None
+    # Optional SaaS metadata (tier/owner of the scoped token that served the
+    # request) — only populated by the monetized surfaces (e.g. /golddesk).
+    meta: dict[str, Any] | None = None
     # Most payloads are plain dicts, so the envelope is the only place where the
     # disclaimer is guaranteed to reach the client for every signal/forecast.
     legal_disclaimer: str = Field(default=LEGAL_DISCLAIMER_FA)

@@ -21,6 +21,10 @@ class AlertModel(TimestampMixin, Base):
     last_triggered: Mapped[datetime | None] = mapped_column(DateTime)
     description: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # --- signal/market link (add-to-alerts from any section) ---
+    signal_id: Mapped[str | None] = mapped_column(String(50), index=True)
+    market: Mapped[str | None] = mapped_column(String(20), index=True)
+    timeframe: Mapped[str | None] = mapped_column(String(10))
 
 
 class AlertHistoryModel(Base):

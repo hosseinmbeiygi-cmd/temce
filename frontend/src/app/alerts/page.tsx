@@ -18,6 +18,9 @@ interface Alert {
   last_triggered: string | null;
   description: string;
   created_at: string;
+  signal_id?: string;
+  market?: string;
+  timeframe?: string;
 }
 
 const ALERT_TYPES = [
@@ -213,6 +216,11 @@ export default function AlertsPage() {
                     <div>
                       <p className="font-medium">{alert.symbol} — {ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type}</p>
                       <p className="text-xs text-gray-500">آستانه: {String(alert.condition?.threshold ?? "-")} | فعال‌سازی: {alert.triggered_count} بار</p>
+                      {(alert.market || alert.timeframe || alert.signal_id) && (
+                        <p className="text-[10px] text-primary-300/80 mt-0.5">
+                          {[alert.market, alert.timeframe, alert.signal_id ? `سیگنال ${alert.signal_id.slice(0, 8)}` : ""].filter(Boolean).join(" • ")}
+                        </p>
+                      )}
                       {alert.description && <p className="text-xs text-gray-600 mt-0.5">{alert.description}</p>}
                     </div>
                   </div>

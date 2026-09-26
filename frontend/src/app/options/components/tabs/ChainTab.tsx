@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, Loader2 } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import AddAlertButton from "@/components/AddAlertButton";
 import { fmt } from "../helpers";
 import { TableSkeleton } from "./Skeleton";
 import type { ChainData, LiveSymbol, OptionContract } from "../types";
@@ -85,6 +86,7 @@ function LegTable({
               <th className="px-2 py-2 font-normal">OI</th>
               <th className="px-2 py-2 font-normal">DTE</th>
               <th className="px-2 py-2 font-normal">M</th>
+              <th className="px-2 py-2 font-normal">هشدار</th>
             </tr>
           </thead>
           <tbody className="font-mono">
@@ -104,6 +106,7 @@ function LegTable({
                   <td className="px-2 py-1.5">{fmt(l.oi)}</td>
                   <td className="px-2 py-1.5">{l.days_to_expiry}</td>
                   <td className={`px-2 py-1.5 font-bold ${mColor}`}>{m}</td>
+                  <td className="px-2 py-1.5"><AddAlertButton compact symbol={l.symbol} market="option" entry={l.price} /></td>
                 </tr>
               );
             })}

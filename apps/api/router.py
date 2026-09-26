@@ -223,6 +223,7 @@ class Router:
         from apps.api.endpoints.news_tag_map_admin import router as news_tag_map_admin_router
         from apps.api.endpoints.options import router as options_router
         from apps.api.endpoints.options_frontend import router as options_frontend_router
+        from apps.api.endpoints.options_strategy import router as options_strategy_router
         from apps.api.endpoints.orderbooks import router as orderbooks_router
         from apps.api.endpoints.paper_trading import router as paper_trading_router
         from apps.api.endpoints.portfolios import router as portfolios_router
@@ -474,6 +475,12 @@ class Router:
             dependencies=_public_read,
         )
         router.include_router(
+            options_strategy_router,
+            prefix="/options",
+            tags=["Options Strategy"],
+            dependencies=_public_read,
+        )
+        router.include_router(
             options_frontend_router,
             prefix="/api/options",
             tags=["Options Frontend"],
@@ -544,11 +551,13 @@ class Router:
         )
         # The bank itself is public content; every sheet endpoint enforces a real user
         # per-endpoint because it also needs the caller's id to scope ownership.
+        # Reads (catalogue/instruments) stay anonymous; writes still require a JWT
+        # (require_user_for_writes) — the sheet routes add get_current_user themselves.
         router.include_router(
             pre_buy_router,
             prefix="/pre-buy",
             tags=["Pre-Buy"],
-            dependencies=_require_user,
+            dependencies=_public_read,
         )
         router.include_router(
             watchlist_router,

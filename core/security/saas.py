@@ -316,7 +316,10 @@ def tier_subject_from_request(request: Request) -> str | None:
     Returns None for anonymous requests (no Authorization header) — those are
     handled by the existing per-IP sliding window only.
     """
-    scheme, param = get_authorization_scheme_param(request.headers.get("authorization", ""))
+    headers = getattr(request, "headers", None)
+    if headers is None:  # duck-typed fakes / non-HTTP scopes — treat as anonymous
+        return None
+    scheme, param = get_authorization_scheme_param(headers.get("authorization", ""))
     if scheme.lower() != "bearer" or not param:
         return None
     try:
