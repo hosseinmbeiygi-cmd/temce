@@ -1,20 +1,24 @@
 "use client";
 
 import { Globe } from "lucide-react";
-import { GLOBAL_MARKETS } from "@/lib/market-mock";
+import { useGlobalMarkets } from "@/hooks/useMarketData";
 import { fmtNum } from "@/lib/market-format";
+import LiveDataBanner from "./LiveDataBanner";
 import { DeltaBadge, SectionHeader, Sparkline } from "./primitives";
 
 export default function GlobalMarkets() {
+  const { data: markets, isLive, isError, isLoading } = useGlobalMarkets();
+
   return (
     <section className="space-y-3">
       <SectionHeader
         icon={Globe}
         title="بازارهای جهانی"
-        subtitle="S&P 500، نفت، انس طلا و رمزارز — همان الگوی قیمت‌های داخلی"
+        subtitle="انس طلا، نفت برنت و بیت‌کوین — از BrsApi"
       />
+      <LiveDataBanner state={{ isLive, isError, isLoading }} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {GLOBAL_MARKETS.map((g) => (
+        {markets.map((g) => (
           <div
             key={g.id}
             className="group cursor-pointer rounded-2xl border border-line bg-card p-3.5 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[var(--shadow-card-hover)]"

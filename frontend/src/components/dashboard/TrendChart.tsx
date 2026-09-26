@@ -4,9 +4,9 @@ import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useIndexIntraday } from "@/hooks/useMarketData";
-import { INDEX_INTRADAY } from "@/lib/market-mock";
 import { fmtInt } from "@/lib/market-format";
 import { cn } from "@/lib/cn";
+import LiveDataBanner from "./LiveDataBanner";
 import { ChartTooltip, SectionHeader } from "./primitives";
 
 const RANGES = ["۱ روز", "۱ هفته", "۱ ماه", "۳ ماه", "سالانه"];
@@ -22,12 +22,14 @@ function compact(v: number): string {
 
 export default function TrendChart() {
   const [range, setRange] = useState(0);
-  const live = useIndexIntraday(range);
-  const series = live.length >= 2 ? live : INDEX_INTRADAY;
-  const isLive = live.length >= 2;
-  const first = series[0].value;
-  const last = series[series.length - 1].value;
-  const delta = ((last - first) / first) * 100;
+  const { data: live, isLive, isError, isLoading } = useIndexIntraday(range);
+  // No silent mock substitution: with <2 live points the chart renders empty
+  // axes and the LiveDataBanner explains the degraded state.
+  const series = live.length >= 2 ? live : [];
+  const hasSeries = series.length >= 2;
+  const first = hasSeries ? series[0].value : 0;
+  const last = hasSeries ? series[series.length - 1].value : 0;
+  const delta = hasSeries && first !== 0 ? ((last - first) / first) * 100 : 0;
 
   return (
     <section className="hero-ring rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
@@ -35,7 +37,7 @@ export default function TrendChart() {
         icon={TrendingUp}
         tone="up"
         title="روند شاخص کل — امروز"
-        subtitle={isLive ? "حرکت شاخص کل بورس در ساعات معاملاتی — داده زنده" : "حرکت شاخص کل بورس در ساعات معاملاتی — داده نمونه (سرویس زنده در دسترس نیست)"}
+        subtitle="حرکت شاخص کل بورس در ساعات معاملاتی — داده زنده"
         action={
           <div className="flex items-center gap-1 rounded-xl border border-line bg-soft p-1">
             {RANGES.map((r, i) => (
@@ -55,6 +57,7 @@ export default function TrendChart() {
         }
       />
 
+      <LiveDataBanner state={{ isLive, isError, isLoading }} />
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_260px]">
         <div className="h-52 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
@@ -95,7 +98,7 @@ export default function TrendChart() {
           <div>
             <p className="text-[10.5px] text-ink-3">ارزش فعلی شاخص</p>
             <p dir="ltr" className="mt-1 font-mono text-[26px] font-black tabular-nums text-ink">
-              {fmtInt(last)}
+              {hasSeries ? fmtInt(last) : "—"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -109,17 +112,16 @@ export default function TrendChart() {
             <span className="text-[10.5px] text-ink-3">از ابتدای امروز</span>
           </div>
           <div className="h-px bg-line" />
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-card p-2.5">
+          <div className="grid grid-cols-2 gap-2">              <div className="rounded-xl bg-card p-2.5">
               <p className="text-[9.5px] text-ink-3">بیشترین</p>
               <p dir="ltr" className="mt-0.5 font-mono text-[12px] font-bold tabular-nums text-ink">
-                {fmtInt(Math.max(...series.map((p) => p.value)))}
+                {hasSeries ? fmtInt(Math.max(...series.map((p) => p.value))) : "—"}
               </p>
             </div>
             <div className="rounded-xl bg-card p-2.5">
               <p className="text-[9.5px] text-ink-3">کمترین</p>
               <p dir="ltr" className="mt-0.5 font-mono text-[12px] font-bold tabular-nums text-ink">
-                {fmtInt(Math.min(...series.map((p) => p.value)))}
+                {hasSeries ? fmtInt(Math.min(...series.map((p) => p.value))) : "—"}
               </p>
             </div>
           </div>

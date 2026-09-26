@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Scale } from "lucide-react";
-import { INDEX_IMPACT_NEGATIVE, INDEX_IMPACT_POSITIVE } from "@/lib/market-mock";
+import { useIndexImpacts, type ImpactRow } from "@/hooks/useMarketData";
 import { fmtNum } from "@/lib/market-format";
 import { cn } from "@/lib/cn";
+import LiveDataBanner from "./LiveDataBanner";
 import { SectionHeader } from "./primitives";
 
-function ImpactList({ rows, positive }: { rows: typeof INDEX_IMPACT_POSITIVE; positive: boolean }) {
-  const max = Math.max(...rows.map((r) => Math.abs(r.impact)));
+function ImpactList({ rows, positive }: { rows: ImpactRow[]; positive: boolean }) {
+  const max = Math.max(1e-9, ...rows.map((r) => Math.abs(r.impact)));
   return (
     <div className="space-y-1.5">
       {rows.map((r) => (
@@ -45,21 +46,27 @@ function ImpactList({ rows, positive }: { rows: typeof INDEX_IMPACT_POSITIVE; po
 }
 
 export default function IndexImpacts() {
+  const { data, isLive, isError, isLoading } = useIndexImpacts();
   return (
     <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
-      <SectionHeader icon={Scale} title="تأثیر بر شاخص کل" subtitle="سهم هر نماد از تغییر شاخص — واحد" />
+      <SectionHeader
+        icon={Scale}
+        title="تأثیر بر شاخص کل"
+        subtitle="سهم تقریبی هر نماد از تغییر شاخص — بر پایه جریان داده زنده"
+      />
+      <LiveDataBanner state={{ isLive, isError, isLoading }} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-up">
             <ArrowUp className="size-3.5" aria-hidden /> تأثیر مثبت بر شاخص
           </p>
-          <ImpactList rows={INDEX_IMPACT_POSITIVE} positive />
+          <ImpactList rows={data.positive} positive />
         </div>
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-down">
             <ArrowDown className="size-3.5" aria-hidden /> تأثیر منفی بر شاخص
           </p>
-          <ImpactList rows={INDEX_IMPACT_NEGATIVE} positive={false} />
+          <ImpactList rows={data.negative} positive={false} />
         </div>
       </div>
     </section>

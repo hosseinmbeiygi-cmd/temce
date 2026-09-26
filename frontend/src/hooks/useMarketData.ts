@@ -17,6 +17,7 @@ import { getMarketSession } from "@/lib/market-mock";
 /** Minimal shapes for the new live hooks (kept local to avoid mock coupling). */
 export interface FlowRow {
   symbol: string;
+  name?: string;
   realNet: number;
   legalNet: number;
 }
@@ -487,133 +488,118 @@ export function useTopPerformers(): LiveDataResult<TopStock[]> {
 
 // ── New live hooks (dashboard wiring) ─────────────────────────────────
 
-/** Live global markets (S&P / gold oz / brent / BTC) from BrsApi sections. */
-export function useGlobalMarkets(): GlobalQuote[] {
-  const { data } = useQuery({
+/** Live global markets (gold oz / brent / BTC) from BrsApi commodities + crypto. */
+export function useGlobalMarkets(): LiveDataResult<GlobalQuote[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-global-markets"],
     queryFn: async (): Promise<GlobalQuote[]> => {
-      try {
-        const [comRes, btcRes] = await Promise.all([
-          apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/commodities"),
-          apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/crypto?limit=50&sort_by=rank"),
-        ]);
-        const commodities = extractArray<Record<string, unknown>>(comRes);
-        const cryptos = extractArray<Record<string, unknown>>(btcRes);
-        const find = (rows: Array<Record<string, unknown>>, keys: string[]) =>
-          rows.find((r) => {
-            const sym = String(r.symbol ?? "").toUpperCase();
-            const name = String(r.name ?? "");
-            return keys.some((k) => sym.includes(k) || name.includes(k));
-          });
-        const quotes: GlobalQuote[] = [];
-        const push = (id: string, title: string, subtitle: string, unit: string, row?: Record<string, unknown>) => {
-          if (!row) return;
-          const price = Number(row.price ?? row.price_usd ?? 0);
-          const changePct = Number(row.change_percent ?? row.changePct ?? 0);
-          if (!price) return;
-          quotes.push({ id, title, subtitle, price, unit, changePct, spark: sparkFromChange(changePct) });
-        };
-        const goldOz = find(commodities, ["GOLD", "XAU"]);
-        const brent = find(commodities, ["BRENT", "OIL", "WTI"]);
-        const btc = find(cryptos, ["BTC", "BITCOIN"]);
-        push("gold-oz", "انس طلا", "کامکس", "دلار", goldOz);
-        push("brent", "نفت برنت", "ICE", "دلار", brent);
-        push("btc", "بیت‌کوین", "رمزارز", "دلار", btc);
-        if (quotes.length > 0) return quotes;
-      } catch {
-        /* fall through to empty */
-      }
-      return [];
+      const [comRes, btcRes] = await Promise.all([
+        apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/commodities"),
+        apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/crypto?limit=50&sort_by=rank"),
+      ]);
+      const commodities = extractArray<Record<string, unknown>>(comRes);
+      const cryptos = extractArray<Record<string, unknown>>(btcRes);
+      const find = (rows: Array<Record<string, unknown>>, keys: string[]) =>
+        rows.find((r) => {
+          const sym = String(r.symbol ?? "").toUpperCase();
+          const name = String(r.name ?? "");
+          return keys.some((k) => sym.includes(k) || name.includes(k));
+        });
+      const quotes: GlobalQuote[] = [];
+      const push = (id: string, title: string, subtitle: string, unit: string, row?: Record<string, unknown>) => {
+        if (!row) return;
+        const price = Number(row.price ?? row.price_usd ?? 0);
+        const changePct = Number(row.change_percent ?? row.changePct ?? 0);
+        if (!price) return;
+        quotes.push({ id, title, subtitle, price, unit, changePct, spark: sparkFromChange(changePct) });
+      };
+      const goldOz = find(commodities, ["GOLD", "XAU"]);
+      const brent = find(commodities, ["BRENT", "OIL", "WTI"]);
+      const btc = find(cryptos, ["BTC", "BITCOIN"]);
+      push("gold-oz", "انس طلا", "کامکس", "دلار", goldOz);
+      push("brent", "نفت برنت", "ICE", "دلار", brent);
+      push("btc", "بیت‌کوین", "رمزارز", "دلار", btc);
+      return quotes;
     },
     refetchInterval: 300_000,
     staleTime: 120_000,
+    retry: 1,
   });
-  return data ?? [];
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
 /** Live شاخص کل intraday / multi-day history from brsapi_index_values. */
-export function useIndexIntraday(rangeIdx = 0): IntradayPoint[] {
-  const { data } = useQuery({
+export function useIndexIntraday(rangeIdx = 0): LiveDataResult<IntradayPoint[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-index-intraday", rangeIdx],
     queryFn: async (): Promise<IntradayPoint[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>(
-          "/market/index-history/%D8%B4%D8%A7%D8%AE%D8%B5%20%DA%A9%D9%84?limit=60"
-        );
-        const rows = extractArray<Record<string, unknown>>(res);
-        const points = rows
-          .map((r) => ({
-            time: String(r.fetched_at ?? r.created_at ?? "").slice(11, 16) || "—",
-            value: Number(r.index_value ?? 0),
-          }))
-          .filter((p) => p.value > 0);
-        if (points.length >= 2) return points;
-      } catch {
-        /* fall through to empty */
-      }
-      return [];
+      const res = await apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>(
+        "/market/index-history/%D8%B4%D8%A7%D8%AE%D8%B5%20%DA%A9%D9%84?limit=60"
+      );
+      const rows = extractArray<Record<string, unknown>>(res);
+      return rows
+        .map((r) => ({
+          time: String(r.fetched_at ?? r.created_at ?? "").slice(11, 16) || "—",
+          value: Number(r.index_value ?? 0),
+        }))
+        .filter((p) => p.value > 0);
     },
     refetchInterval: 120_000,
     staleTime: 60_000,
+    retry: 1,
   });
-  return data ?? [];
+  const points = data ?? [];
+  return { data: points, isLive: points.length >= 2, isError, isLoading };
 }
 
 /** Live sector map from /market/treemap (stocks view aggregates by sector). */
-export function useSectorMap(): SectorCell[] {
-  const { data } = useQuery({
+export function useSectorMap(): LiveDataResult<SectorCell[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-sector-map"],
     queryFn: async (): Promise<SectorCell[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: { children?: Array<{ name: string; children?: Array<{ change: number }> }> } }>(
-          "/market/treemap?limit=2000"
-        );
-        const sectors = res?.data?.children ?? [];
-        const cells = sectors
-          .map((s) => ({
-            name: s.name,
-            count: s.children?.length ?? 0,
-            changePct:
-              s.children && s.children.length > 0
-                ? s.children.reduce((acc, c) => acc + (Number(c.change) || 0), 0) / s.children.length
-                : 0,
-          }))
-          .filter((c) => c.count > 0)
-          .sort((a, b) => b.changePct - a.changePct)
-          .slice(0, 20);
-        if (cells.length > 0) return cells;
-      } catch {
-        /* fall through to empty */
-      }
-      return [];
+      const res = await apiGet<{ success: boolean; data: { children?: Array<{ name: string; children?: Array<{ change: number }> }> } }>(
+        "/market/treemap?limit=2000"
+      );
+      const sectors = res?.data?.children ?? [];
+      return sectors
+        .map((s) => ({
+          name: s.name,
+          count: s.children?.length ?? 0,
+          changePct:
+            s.children && s.children.length > 0
+              ? s.children.reduce((acc, c) => acc + (Number(c.change) || 0), 0) / s.children.length
+              : 0,
+        }))
+        .filter((c) => c.count > 0)
+        .sort((a, b) => b.changePct - a.changePct)
+        .slice(0, 20);
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
+    retry: 1,
   });
-  return data ?? [];
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
 /** Live per-symbol real/legal net flow (top movers) for OwnershipChange. */
-export function useOwnershipFlows(): FlowRow[] {
-  const { data } = useQuery({
+export function useOwnershipFlows(): LiveDataResult<FlowRow[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-ownership-flows"],
     queryFn: async (): Promise<FlowRow[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; real_net_b: number; legal_net_b: number }> }>(
-          "/market/flow-history?limit=8"
-        );
-        const rows = extractArray<{ symbol: string; real_net_b: number; legal_net_b: number }>(res);
-        const mapped = rows.map((r) => ({ symbol: r.symbol, name: r.symbol, realNet: r.real_net_b, legalNet: r.legal_net_b }));
-        if (mapped.length > 0) return mapped;
-      } catch {
-        /* fall through to empty */
-      }
-      return [];
+      const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; real_net_b: number; legal_net_b: number }> }>(
+        "/market/flow-history?limit=8"
+      );
+      const rows = extractArray<{ symbol: string; real_net_b: number; legal_net_b: number }>(res);
+      return rows.map((r) => ({ symbol: r.symbol, name: r.symbol, realNet: r.real_net_b, legalNet: r.legal_net_b }));
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
+    retry: 1,
   });
-  return data ?? [];
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
 /** Live market-wide real/legal totals + queue counts for LiquidityBlocks / MarketOverview. */
@@ -646,33 +632,42 @@ export function useFlowSummary(): FlowSummary | null {
  * positive/negative leaders. True TSE index contribution needs the official
  * weights feed; this is the best available real-data proxy.
  */
-export function useIndexImpacts(): { positive: ImpactRow[]; negative: ImpactRow[] } {
+export function useIndexImpacts(): LiveDataResult<{ positive: ImpactRow[]; negative: ImpactRow[] }> {
   const hm = useEnrichedHeatmap();
   const cells = hm.data;
-  if (cells.length === 0) return { positive: [], negative: [] };
-  const scored = cells
-    .map((c) => ({
-      symbol: c.symbol,
-      name: c.name ?? c.symbol,
-      impact: (c.change || 0) * Math.log10(1 + (c.value || 0) / 1e9),
-    }))
-    .sort((a, b) => b.impact - a.impact);
-  const positive = scored.filter((r) => r.impact > 0).slice(0, 5);
-  const negative = scored.filter((r) => r.impact < 0).slice(-5).reverse();
-  return { positive, negative };
+  const impacts = (() => {
+    if (cells.length === 0) return { positive: [], negative: [] };
+    const scored = cells
+      .map((c) => ({
+        symbol: c.symbol,
+        name: c.name ?? c.symbol,
+        impact: (c.change || 0) * Math.log10(1 + (c.value || 0) / 1e9),
+      }))
+      .sort((a, b) => b.impact - a.impact);
+    return {
+      positive: scored.filter((r) => r.impact > 0).slice(0, 5),
+      negative: scored.filter((r) => r.impact < 0).slice(-5).reverse(),
+    };
+  })();
+  return {
+    data: impacts,
+    isLive: impacts.positive.length > 0 || impacts.negative.length > 0,
+    isError: hm.isError,
+    isLoading: hm.isLoading,
+  };
 }
 
-/** Live economic/market events from /economic-calendar (upcoming 14 days). */
-export function useMarketEvents(): CalendarEvent[] {
-  const { data } = useQuery({
+/** Live economic/market events from /economic-calendar (upcoming 30 days). */
+export function useMarketEvents(): LiveDataResult<CalendarEvent[]> {
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["live-market-events"],
     queryFn: async (): Promise<CalendarEvent[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: { events?: Array<Record<string, unknown>> } | Array<Record<string, unknown>> }>(
-          "/economic-calendar?min_importance=1"
-        );
-        const raw = Array.isArray(res?.data) ? res.data : (res?.data?.events ?? []);
-        const events = (raw as Array<Record<string, unknown>>).map((e, i) => ({
+      const res = await apiGet<{ success: boolean; data: { events?: Array<Record<string, unknown>> } | Array<Record<string, unknown>> }>(
+        "/economic-calendar?min_importance=1"
+      );
+      const raw = Array.isArray(res?.data) ? res.data : (res?.data?.events ?? []);
+      return (raw as Array<Record<string, unknown>>)
+        .map((e, i) => ({
           id: String(e.id ?? `ev-${i}`),
           title: String(e.title ?? ""),
           date: String(e.date ?? ""),
@@ -680,15 +675,13 @@ export function useMarketEvents(): CalendarEvent[] {
           country: e.country ? String(e.country) : undefined,
           category: e.category ? String(e.category) : undefined,
           importance: typeof e.importance === "number" ? e.importance : undefined,
-        }));
-        if (events.length > 0) return events.slice(0, 8);
-      } catch {
-        /* fall through to empty */
-      }
-      return [];
+        }))
+        .slice(0, 8);
     },
     refetchInterval: 600_000,
     staleTime: 300_000,
+    retry: 1,
   });
-  return data ?? [];
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
