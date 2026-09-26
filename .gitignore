@@ -135,6 +135,9 @@ tmp-chrome-profile*/
 /ruff_*.txt
 /project_summary.txt
 /temp_*.txt
+/pilot*.txt
+/symdist.txt
+/index_done.txt
 
 # Security cleanup (2026-09): sensitive & unknown files
 *.bin
