@@ -92,6 +92,11 @@ bench_schema2_temp.py
 
 # Misc local tooling
 frontend-all-code.txt
+scripts/frontend-all-code.txt
+funds-all-code.txt
+*_all-code.txt
+*_all_codes.txt
+/output_texts/
 go
 go.cmd
 go.ps1
