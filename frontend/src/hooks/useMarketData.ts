@@ -686,6 +686,40 @@ export function useMarketEvents(): LiveDataResult<CalendarEvent[]> {
   return { data: rows, isLive: rows.length > 0, isError, isLoading };
 }
 
+// ── AssetAllocationPie ────────────────────────────────────────────────
+
+export interface AssetSliceLive {
+  label: string;
+  valueB: number;
+  pct: number;
+}
+
+/**
+ * Live market-wide asset-class allocation from /market/asset-allocation.
+ * Classification is name-based on the backend (سهام/سرمایه‌گذاری/صندوق‌ها/
+ * اوراق) — an approximation, not an official TSE feed.
+ */
+export function useAssetAllocation(): LiveDataResult<AssetSliceLive[]> {
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ["live-asset-allocation"],
+    queryFn: async (): Promise<AssetSliceLive[]> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ label: string; value_b: number; pct: number }> }>(
+        "/market/asset-allocation?limit=2000"
+      );
+      return extractArray<{ label: string; value_b: number; pct: number }>(res).map((r) => ({
+        label: r.label,
+        valueB: r.value_b,
+        pct: r.pct,
+      }));
+    },
+    refetchInterval: 600_000,
+    staleTime: 300_000,
+    retry: 1,
+  });
+  const rows = data ?? [];
+  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+}
+
 // ── TripleChartsGroup aggregates ──────────────────────────────────────
 
 export interface SectorFlowBar {

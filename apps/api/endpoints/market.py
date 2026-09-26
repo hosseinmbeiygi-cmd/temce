@@ -233,6 +233,9 @@ async def market_enriched_heatmap(
     brsapi=Depends(get_brsapi_query_service),
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
+        cached = _agg_cache_get("enriched-heatmap:500")
+        if cached is not None:
+            return ApiResponse[list[dict[str, Any]]](success=True, data=cached)
         enriched = await brsapi.get_enriched_snapshots(limit=500)
         cells = [
             {
@@ -254,6 +257,7 @@ async def market_enriched_heatmap(
             }
             for s in enriched if s.get("symbol")
         ]
+        _agg_cache_set("enriched-heatmap:500", cells)
         return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
     except Exception as exc:
         logger.exception("Enriched heatmap failed")
@@ -269,6 +273,10 @@ async def market_treemap(
     try:
         from collections import defaultdict
 
+        cache_key = f"treemap:{limit}"
+        cached = _agg_cache_get(cache_key)
+        if cached is not None:
+            return ApiResponse[dict[str, Any]](success=True, data={"children": cached})
         enriched = await brsapi.get_enriched_snapshots(limit=limit)
 
         # Group by sector
@@ -304,6 +312,7 @@ async def market_treemap(
                 "children": symbols,
             })
 
+        _agg_cache_set(cache_key, children)
         return ApiResponse[dict[str, Any]](
             success=True,
             data={"children": children},
@@ -334,7 +343,9 @@ async def market_flow_summary(
     day's traded volume (proxy for صف خرید/فروش).
     """
     try:
-        snapshots = await brsapi.get_enriched_snapshots(limit=limit)
+        # Plain snapshots (no heavy detail JOIN) — flow math only needs
+        # fields that already live on SymbolSnapshotModel.
+        snapshots = await brsapi.get_latest_snapshots(limit=limit)
         real_net = 0.0
         legal_net = 0.0
         queue_buy = 0
@@ -438,23 +449,140 @@ async def market_index_history(
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
-def _fa_weekday(date_str: str) -> str:
-    """Persian weekday label for a stored date string.
+def _classify_asset(name: str) -> str | None:
+    """Approximate asset-class bucket from a symbol's Persian company name.
 
-    BrsApi history rows carry dates as either ``YYYYMMDD`` or ``YYYY-MM-DD``;
-    extract the first 8 digits and let ``date.weekday()`` decide. Anything
-    unparsable falls back to the raw string so the chart still shows a label.
+    TSE has no clean asset-class feed, so we classify from the name:
+      * «سرمایه‌گذاری»-prefixed companies    → سرمایه‌گذاری (holding)
+      * fund markers (صندوق/ETF + نوع)      → one of the fund classes
+      * everything else                      → سهام (common equity)
+
+    Returns None when the name clearly belongs to a non-tradable record
+    (rights/حق تقدم, ETF unit suffixes handled by fund branch, etc.) so the
+    caller can skip it instead of polluting the equity bucket.
     """
-    from datetime import date as _date
+    n = (name or "").strip()
+    if not n:
+        return None
+    if "حق تقدم" in n:
+        return None
+    # Fund branch first: fund names may contain «سرمایه‌گذاری» (e.g.
+    # «صندوق سرمایه‌گذاری طلا») and must classify as funds, not holdings.
+    if "صندوق" in n:
+        if "طلا" in n:
+            return "صندوق طلا"
+        if "درآمد ثابت" in n or "درامد ثابت" in n:
+            return "اوراق درآمد ثابت"
+        return "صندوق سهامی"
+    if "سرمایه‌گذاری" in n or "سرمایه گذاری" in n:
+        return "سرمایه‌گذاری"
+    if "اوراق" in n:
+        return "اوراق درآمد ثابت"
+    return "سهام"
 
+
+# ── Aggregate-endpoint cache ─────────────────────────────────────────────
+# The snapshot feed refreshes every few minutes, so the dashboard
+# aggregates below cache their result briefly: a 5-minute TTL keeps
+# numbers fresh without re-running the aggregation on every widget poll
+# (and shields the DB when several clients hit the widgets at once).
+_AGG_CACHE: dict[str, tuple[float, Any]] = {}
+_AGG_TTL = 300.0  # seconds
+
+
+def _agg_cache_get(key: str) -> Any | None:
+    import time
+
+    hit = _AGG_CACHE.get(key)
+    if hit and (time.monotonic() - hit[0]) < _AGG_TTL:
+        return hit[1]
+    return None
+
+
+def _agg_cache_set(key: str, val: Any) -> None:
+    import time
+
+    _AGG_CACHE[key] = (time.monotonic(), val)
+    # Bound the cache (only a few keys exist, but stay defensive).
+    while len(_AGG_CACHE) > 8:
+        oldest = min(_AGG_CACHE, key=lambda k: _AGG_CACHE[k][0])
+        del _AGG_CACHE[oldest]
+
+
+def _fa_weekday(date_str: str) -> str:
+    """Persian weekday label for a stored history date.
+
+    BrsApi history rows carry **Jalali** dates (e.g. ``1405-06-18``), so the
+    digits are first converted to Gregorian via ``jdatetime`` before the
+    weekday is derived. Plain Gregorian dates (year ≥ 1700) are handled
+    directly. Anything unparsable falls back to the raw string so the chart
+    still shows a label.
+    """
     digits = "".join(ch for ch in str(date_str) if ch.isdigit())
-    if len(digits) >= 8:
-        try:
-            y, m, d = int(digits[:4]), int(digits[4:6]), int(digits[6:8])
-            return ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه", "یکشنبه"][_date(y, m, d).weekday()]
-        except ValueError:
-            pass
-    return str(date_str)
+    if len(digits) < 8:
+        return str(date_str)
+    y, m, d = int(digits[:4]), int(digits[4:6]), int(digits[6:8])
+    weekdays = ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه", "یکشنبه"]
+    try:
+        if 1300 <= y <= 1600:  # Jalali year range
+            import jdatetime
+
+            return weekdays[jdatetime.date(y, m, d).togregorian().weekday()]
+        from datetime import date as _date
+
+        return weekdays[_date(y, m, d).weekday()]
+    except (ValueError, ImportError):
+        return str(date_str)
+
+
+@router.get(
+    "/asset-allocation",
+    summary="Market-wide asset-class allocation",
+    description="Aggregate market_value of all listed instruments grouped into "
+    "five asset classes (سهام، سرمایه‌گذاری، صندوق سهامی، صندوق طلا، "
+    "اوراق درآمد ثابت) from the latest brsapi_symbol_snapshots cycle.",
+)
+async def market_asset_allocation(
+    limit: int = Query(2000, ge=100, le=5000),
+    brsapi=Depends(get_brsapi_query_service),
+) -> ApiResponse[list[dict[str, Any]]]:
+    """Market-cap allocation across asset classes.
+
+    Classification is name-based (see :func:`_classify_asset`) — an
+    approximation while TSE offers no asset-class field. Percentages are
+    computed server-side; the frontend renders the donut directly.
+    """
+    try:
+        cached = _agg_cache_get("asset-allocation")
+        if cached is not None:
+            return ApiResponse[list[dict[str, Any]]](success=True, data=cached)
+        # Plain snapshots (no heavy detail JOIN) — classification and
+        # market_value both come from SymbolSnapshotModel itself.
+        snapshots = await brsapi.get_latest_snapshots(limit=limit)
+        buckets: dict[str, float] = {}
+        for s in snapshots:
+            mv = s.get("market_value") or 0
+            cls = _classify_asset(s.get("name") or "")
+            if not mv or cls is None:
+                continue
+            buckets[cls] = buckets.get(cls, 0.0) + mv
+        total = sum(buckets.values())
+        if total <= 0:
+            return ApiResponse[list[dict[str, Any]]](success=True, data=[])
+        rows = [
+            {
+                "label": label,
+                "value_b": round(net / 1e12, 0),  # هزار میلیارد تومان
+                "pct": round(net / total * 100, 1),
+            }
+            for label, net in buckets.items()
+        ]
+        rows.sort(key=lambda x: x["value_b"], reverse=True)
+        _agg_cache_set("asset-allocation", rows)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+    except Exception as exc:
+        logger.exception("Asset allocation failed")
+        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
 
 
 @router.get(
@@ -469,7 +597,12 @@ async def market_cashflow_by_sector(
 ) -> ApiResponse[list[dict[str, Any]]]:
     """Per-sector net real flow: (buy_real_volume − sell_real_volume) × price_last."""
     try:
-        snapshots = await brsapi.get_enriched_snapshots(limit=limit)
+        cached = _agg_cache_get("cashflow-by-sector")
+        if cached is not None:
+            return ApiResponse[list[dict[str, Any]]](success=True, data=cached)
+        # Plain snapshots (no heavy detail JOIN) — sector/flow fields are
+        # already on SymbolSnapshotModel.
+        snapshots = await brsapi.get_latest_snapshots(limit=limit)
         sectors: dict[str, float] = {}
         for s in snapshots:
             price = s.get("price_last") or 0
@@ -484,7 +617,9 @@ async def market_cashflow_by_sector(
             for name, net in sectors.items()
         ]
         rows.sort(key=lambda x: x["value_b"], reverse=True)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=rows[:20])
+        rows = rows[:20]
+        _agg_cache_set("cashflow-by-sector", rows)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
     except Exception as exc:
         logger.exception("Cashflow by sector failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})

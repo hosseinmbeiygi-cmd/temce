@@ -42,6 +42,13 @@ from brsapi.models import (
 
 logger = getLogger(__name__)
 
+# Fast-path window for ``get_latest_snapshots``: each fetch cycle writes one
+# row per symbol in a tight id range, so the newest cycle always sits inside
+# the last ~N ids. Scanning that PK window is an index range scan
+# (milliseconds) while a full-table ``GROUP BY symbol`` takes tens of
+# seconds on the multi-million-row snapshot table.
+_SNAPSHOT_SCAN_WINDOW = 50_000
+
 
 class BrsApiQueryService:
     """
@@ -78,54 +85,84 @@ class BrsApiQueryService:
         return await self.get_latest_snapshots(limit=limit)
 
     async def _enriched_snapshots_join(self, limit: int) -> list[dict[str, Any]]:
-        """Internal: run the LEFT JOIN version of enriched snapshots.
+        """Internal: run the enriched-snapshots query.
 
         Deduplicates by symbol — only the latest snapshot per symbol is returned.
-        """
-        from sqlalchemy import func, join, or_
 
-        # Step 1: get latest snapshot id per symbol
-        subq = (
+        Implementation note: the original single LEFT JOIN with an OR fallback
+        condition (``ins_id = d.ins_id OR (ins_id IS NULL AND symbol = d.symbol)``)
+        defeated every index — the planner degenerated to a nested loop doing
+        millions of join-filter comparisons plus a full-table seq scan for the
+        dedup (~30s+). Instead: windowed dedup (see get_latest_snapshots),
+        then two targeted, index-friendly IN lookups against the (small)
+        detail table merged in Python. Semantics are identical: ins_id match
+        first, symbol fallback only for rows whose ins_id is null.
+        """
+        from sqlalchemy import func, or_, select
+
+        # Step 1: get latest snapshot id per symbol — restricted to recent
+        # cycles (a full-table GROUP BY costs tens of seconds on this table).
+        max_id = (
+            await self.session.execute(select(func.max(SymbolSnapshotModel.id)))
+        ).scalar_one()
+        latest_q = (
             select(
                 SymbolSnapshotModel.symbol,
                 func.max(SymbolSnapshotModel.id).label("max_id"),
             )
             .where(SymbolSnapshotModel.symbol.isnot(None))
             .where(SymbolSnapshotModel.symbol != "")
-            .group_by(SymbolSnapshotModel.symbol)
+        )
+        if max_id is not None:
+            latest_q = latest_q.where(
+                SymbolSnapshotModel.id > max_id - _SNAPSHOT_SCAN_WINDOW
+            )
+        subq = (
+            latest_q.group_by(SymbolSnapshotModel.symbol)
             .order_by(func.max(SymbolSnapshotModel.trade_value).desc().nullslast())
             .limit(limit)
         ).subquery()
 
-        # Step 2: join deduplicated snapshots with detail
-        j = join(
-            SymbolSnapshotModel,
-            SymbolDetailModel,
-            or_(
-                SymbolSnapshotModel.ins_id == SymbolDetailModel.ins_id,
-                SymbolSnapshotModel.ins_id.is_(None) & (SymbolSnapshotModel.symbol == SymbolDetailModel.symbol),
-            ),
-            isouter=True,
-        )
-
         stmt = (
-            select(SymbolSnapshotModel, SymbolDetailModel)
-            .select_from(j)
+            select(SymbolSnapshotModel)
             .join(subq, SymbolSnapshotModel.id == subq.c.max_id)
             .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
         )
-        result = await self.session.execute(stmt)
+        snaps = (await self.session.execute(stmt)).scalars().all()
+
+        # Step 2: targeted detail lookup — ins_id primary, symbol fallback
+        # only for rows whose ins_id is null (mirrors the old OR-join).
+        ins_ids = {s.ins_id for s in snaps if s.ins_id}
+        fallback_syms = {s.symbol for s in snaps if not s.ins_id}
+        details: list[Any] = []
+        if ins_ids or fallback_syms:
+            conds = []
+            if ins_ids:
+                conds.append(SymbolDetailModel.ins_id.in_(ins_ids))
+            if fallback_syms:
+                conds.append(SymbolDetailModel.symbol.in_(fallback_syms))
+            details = list(
+                (
+                    await self.session.execute(
+                        select(SymbolDetailModel).where(or_(*conds))
+                    )
+                ).scalars().all()
+            )
+        by_ins: dict[str, Any] = {}
+        by_sym: dict[str, Any] = {}
+        for d_obj in details:
+            by_ins.setdefault(d_obj.ins_id, d_obj)
+            by_sym.setdefault(d_obj.symbol, d_obj)
 
         rows: list[dict[str, Any]] = []
         seen_symbols: set[str] = set()
-        for snap_row, detail_row in result:
-            if snap_row is None:
-                continue
+        for snap_row in snaps:
             sym = getattr(snap_row, "symbol", "")
             if sym in seen_symbols:
                 continue
             seen_symbols.add(sym)
             d = self._row_dict(snap_row)
+            detail_row = by_ins.get(snap_row.ins_id) if snap_row.ins_id else by_sym.get(sym)
             if detail_row is not None:
                 detail_d = self._row_dict(detail_row)
                 for field in ("price_lowest_allowed", "price_highest_allowed", "free_float_pct",
@@ -140,10 +177,48 @@ class BrsApiQueryService:
     async def get_latest_snapshots(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return latest snapshot per symbol (deduplicated).
 
-        Uses a subquery to find the MAX(id) per symbol, then fetches
-        only those rows — prevents the same symbol appearing multiple times.
+        The snapshot table grows by one full fetch cycle (~1.2–1.7k rows)
+        every few minutes, so a full-table ``GROUP BY symbol`` costs tens
+        of seconds on the multi-million-row table. Instead, group only over
+        the last ``_SNAPSHOT_SCAN_WINDOW`` ids (a handful of recent cycles
+        — an index range scan) and take MAX(id) per symbol; the result is
+        identical to a full-table dedup for every symbol that traded in
+        the window. Falls back to the full GROUP BY when the window is
+        empty (fresh DB) or the windowed query fails.
         """
-        from sqlalchemy import func
+        from sqlalchemy import func, select
+
+        try:
+            max_id = (
+                await self.session.execute(select(func.max(SymbolSnapshotModel.id)))
+            ).scalar_one()
+            if max_id is not None:
+                window = (
+                    select(
+                        SymbolSnapshotModel.symbol,
+                        func.max(SymbolSnapshotModel.id).label("max_id"),
+                    )
+                    .where(
+                        SymbolSnapshotModel.id > max_id - _SNAPSHOT_SCAN_WINDOW,
+                        SymbolSnapshotModel.symbol.isnot(None),
+                        SymbolSnapshotModel.symbol != "",
+                    )
+                    .group_by(SymbolSnapshotModel.symbol)
+                ).subquery()
+                stmt = (
+                    select(SymbolSnapshotModel)
+                    .join(window, SymbolSnapshotModel.id == window.c.max_id)
+                    .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
+                    .limit(limit)
+                )
+                rows = (await self.session.execute(stmt)).scalars().all()
+                if rows:
+                    return [self._row_dict(r) for r in rows]
+        except Exception:
+            logger.warning(
+                "get_latest_snapshots windowed dedup failed — falling back to full GROUP BY",
+                exc_info=True,
+            )
 
         subq = (
             select(
