@@ -210,14 +210,14 @@ jobs:
           ENV: test
 
       - name: Upload FundService coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-fund-service
           path: coverage-fund-service.xml
           if-no-files-found: warn
 
       - name: Upload Fund API coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-fund-api
           path: coverage-fund-api.xml
