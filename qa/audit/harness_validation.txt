@@ -1,0 +1,15 @@
+test_assertion_observations_are_preserved (test_harness.HarnessTests.test_assertion_observations_are_preserved) ... ok
+test_exact_case_budget (test_harness.HarnessTests.test_exact_case_budget) ... ok
+test_fresh_microstructure_fixture_is_deterministic (test_harness.HarnessTests.test_fresh_microstructure_fixture_is_deterministic) ... ok
+test_future_mutation_keeps_first_input_row_unchanged (test_harness.HarnessTests.test_future_mutation_keeps_first_input_row_unchanged) ... ok
+test_nan_does_not_pass_numeric_assertion (test_harness.HarnessTests.test_nan_does_not_pass_numeric_assertion) ... ok
+test_network_guard_blocks_connect_and_connect_ex (test_harness.HarnessTests.test_network_guard_blocks_connect_and_connect_ex) ... ok
+test_original_file_manifest_not_changed_by_import (test_harness.HarnessTests.test_original_file_manifest_not_changed_by_import) ... ok
+test_strict_json (test_harness.HarnessTests.test_strict_json) ... ok
+test_synthetic_history_has_monotonic_dates (test_harness.HarnessTests.test_synthetic_history_has_monotonic_dates) ... ok
+test_tolerance_does_not_hide_single_rial_boundary (test_harness.HarnessTests.test_tolerance_does_not_hide_single_rial_boundary) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.460s
+
+OK
