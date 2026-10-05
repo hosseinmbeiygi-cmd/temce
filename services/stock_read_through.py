@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from core.logging import get_logger
 from core.time import now_tehran, utc_now_naive
+from services.adjusted_price_reader import load_daily_candles
 from services.stock_signal_engine import (
     LayerInputs,
     compute_composite_signal,
@@ -380,33 +381,13 @@ class StockReadThroughService:
         return snapshot
 
     async def _load_daily_candles(self, symbol: str, limit: int = 260) -> list[dict[str, Any]]:
-        rows = (
-            await self.session.execute(
-                text(
-                    """
-                    SELECT d.trade_date, d.price_first, d.price_max, d.price_min, d.price_last,
-                           d.trade_volume, d.trade_value
-                    FROM daily_history d
-                    WHERE d.symbol = :sym AND d.price_last IS NOT NULL
-                    ORDER BY d.trade_date DESC LIMIT :lim
-                    """
-                ),
-                {"sym": symbol, "lim": limit},
-            )
-        ).fetchall()
-        candles = [
-            {
-                "date": str(r[0]),
-                "open": float(r[1] or r[4]),
-                "high": float(r[2] or r[4]),
-                "low": float(r[3] or r[4]),
-                "close": float(r[4]),
-                "volume": float(r[5] or 0),
-                "value": float(r[6] or 0),
-            }
-            for r in reversed(rows)
-        ]
-        return candles
+        """Adjusted OHLCV candles for the JIT indicator fallback.
+
+        Shares ``services/adjusted_price_reader.py`` with the nightly
+        precompute so the JIT path and ``stock_indicators_snapshot`` can never
+        disagree about corporate actions (migration 0108).
+        """
+        return await load_daily_candles(self.session, symbol, limit)
 
     # ── ۴. Signal کامل (کارت تصمیم‌گیری) ──
 

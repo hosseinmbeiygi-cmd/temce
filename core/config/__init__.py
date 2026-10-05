@@ -367,3 +367,15 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+    # ── Corporate-action price adjustment for indicators (audit §2) ─────
+    # When true, the indicator layer (nightly stock_indicators_snapshot
+    # precompute + the JIT read-through) reads vw_daily_history_adjusted
+    # (migration 0108) so capital increases / bonus shares / DPS cannot
+    # corrupt multi-year MAs, RSI or MACD. Set false to read raw TSETMC
+    # prices again; the reader ALSO falls back to raw automatically when the
+    # view is missing, so a half-deployed migration is never a hard failure.
+    # Factor semantics: services/corporate_action_service.py.
+    indicator_adjusted_prices: bool = Field(
+        default=True, alias="INDICATOR_ADJUSTED_PRICES"
+    )
+

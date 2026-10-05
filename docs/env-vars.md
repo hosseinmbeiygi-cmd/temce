@@ -369,6 +369,14 @@ flowchart TB
 ### `INDICATOR_` — اندیکاتورها
 `INDICATOR_DEFAULT_PERIOD` (14)، `INDICATOR_EMA_SPAN` (12)، `INDICATOR_SMA_SPAN` (20)، `INDICATOR_BOLLINGER_PERIOD` (20)، `INDICATOR_BOLLINGER_STD` (2.0)، `INDICATOR_RSI_PERIOD` (14)، `INDICATOR_MACD_FAST` (12)، `INDICATOR_MACD_SLOW` (26)، `INDICATOR_MACD_SIGNAL` (9)، `INDICATOR_ATR_PERIOD` (14)، `INDICATOR_VOLUME_MA_PERIOD` (20)، `INDICATOR_CACHE_RESULTS` (true)، `INDICATOR_CACHE_TTL_SECONDS` (3600)
 
+### تعدیل قیمت رویداد شرکتی — مسیر خواندن اندیکاتورها (migration 0108)
+| متغیر | پیش‌فرض | توضیح |
+|---|---|---|
+| `INDICATOR_ADJUSTED_PRICES` | `true` | خواندن اندیکاتورها از `vw_daily_history_adjusted` (ضریب `daily_adjust_factors`). `false` = برگشت به قیمت خام TSETMC. جزئیات: `docs/PRICE_ADJUSTMENT_READ_PATH.md` |
+
+> نکته: این فلگ روی کلاس `Settings` (alias صریح) تعریف شده، نه روی `IndicatorSettings` — اسم متغیر محیطی همان است و تفاوتی در عمل ندارد.
+> اگر view وجود نداشته باشد (migration اجرا نشده باشد) مسیر خواندن خودکار به قیمت خام برمی‌گردد و هیچوقت خطا نمی‌دهد.
+
 ### `FF_` — Feature Flags
 `FF_USE_ML_MODELS` (true)، `FF_USE_WEBSOCKET` (true)، `FF_USE_CACHE` (true)، `FF_USE_ADVANCED_BACKTEST` (false)، `FF_ENABLE_AUDIT` (true)، `FF_ENABLE_SENTRY` (false)، `FF_ENABLE_METRICS` (true)، `FF_ENABLE_PROVIDER_FAILOVER` (true)، `FF_ENABLE_AUTO_RETRY` (true)، `FF_ENABLE_RATE_LIMITING` (true)، `FF_ENABLE_CIRCUIT_BREAKER` (true)
 
