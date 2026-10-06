@@ -14,14 +14,20 @@ Prices *before* the ex-date are multiplied by the factor; from the
 ex-date onward the series stays raw. Factors multiply cumulatively
 walking backwards from the newest event.
 
+Date axis: factors are keyed on the **true Gregorian trade date**, read from
+``vw_daily_history_adjusted`` (migration 0109) so they line up with
+``corporate_action_events.ex_date``. ``daily_history.trade_date`` is the
+*fetch* date and must not be used here.
+
 Polyglot-PK note (core/dbcompat trap #1): ``symbols.id`` is BIGINT so
 parameters are passed to asyncpg as int — never str.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from datetime import date
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,12 +118,16 @@ async def recompute_factors(session: AsyncSession, symbol_id: int) -> int:
     ]
     ex_dates = [a["ex_date"] for a in actions]
 
-    # close price at each ex-date (for dividend factors)
+    # Factor dates come from vw_daily_history_adjusted, whose ``trade_date``
+    # is the TRUE Gregorian trade date derived from the Shamsi column
+    # (migration 0109). ``daily_history.trade_date`` is the *fetch* date, so
+    # using it here compared real ex-dates against fetch dates and compounded
+    # every factor against the wrong day.
     close_rows = await session.execute(
         text(
             """
             SELECT trade_date, price_close
-            FROM daily_history
+            FROM vw_daily_history_adjusted
             WHERE symbol_id = :sid AND trade_date = ANY(:dates)
             """
         ),
@@ -127,7 +137,10 @@ async def recompute_factors(session: AsyncSession, symbol_id: int) -> int:
 
     all_dates = (
         await session.execute(
-            text("SELECT trade_date FROM daily_history WHERE symbol_id = :sid"),
+            text(
+                "SELECT trade_date FROM vw_daily_history_adjusted "
+                "WHERE symbol_id = :sid AND trade_date IS NOT NULL"
+            ),
             {"sid": symbol_id},
         )
     ).scalars().all()

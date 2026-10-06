@@ -74,22 +74,26 @@ class IndicatorPrecomputeService:
     async def _select_symbols(
         self, batch_limit: int, symbol: str | None
     ) -> list[tuple[str, date]]:
-        """Symbols to process + their latest trade date, without a 10M-row scan.
+        """Symbols to process + their latest **true** trade date, cheaply.
 
         The obvious form — ``SELECT symbol, MAX(trade_date) FROM daily_history
         WHERE price_last IS NOT NULL GROUP BY symbol`` — reads every row of the
         view (which itself LEFT JOINs ``symbols``) and measured **70.8 s** on
-        the dev DB. The lateral rewrite probes ``idx_hist_symbol_gregorian``
-        once per symbol instead: **11 ms**, same rows and same ordering.
+        the dev DB. The lateral rewrite probes ``idx_hist_symbol_date`` once
+        per symbol instead: **11 ms**, same ordering.
 
         It reads ``brsapi_historical_daily`` (the table behind the
-        ``daily_history`` view) on purpose: this step only needs the metadata,
-        so the ``symbols`` join of the view would be pure overhead, and the
-        source column is identical either way.
+        ``daily_history`` view) on purpose: this step only needs metadata, so
+        the ``symbols`` join of the view would be pure overhead, and
+        ``h.date`` is the true trade date (Shamsi) whose Gregorian form the
+        snapshot is keyed on. Ordering by ``h.date`` — not by
+        ``jalali_to_gregorian(h.date)`` — keeps the index scan (Shamsi
+        ``YYYY-MM-DD`` sorts chronologically), and the converter then runs
+        once per symbol instead of once per row.
 
         Note this query is deliberately NOT routed through the adjusted view —
-        a MAX(trade_date) needs no price adjustment, and joining 10M rows for
-        it would be wasted work.
+        a MAX(date) needs no price adjustment, and joining 10M rows for it
+        would be wasted work.
         """
         symbol_filter = "AND symbol = :symbol" if symbol else ""
         rows = (
@@ -103,10 +107,10 @@ class IndicatorPrecomputeService:
                         WHERE symbol IS NOT NULL {symbol_filter}
                     ) s
                     CROSS JOIN LATERAL (
-                        SELECT h.gregorian_date AS last_date
+                        SELECT jalali_to_gregorian(h.date) AS last_date
                         FROM brsapi_historical_daily h
                         WHERE h.symbol = s.symbol AND h.price_last IS NOT NULL
-                        ORDER BY h.gregorian_date DESC
+                        ORDER BY h.date DESC
                         LIMIT 1
                     ) l
                     ORDER BY s.symbol
