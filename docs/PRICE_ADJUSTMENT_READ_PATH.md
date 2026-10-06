@@ -37,6 +37,7 @@ rows = 5,450,380 · distinct symbol = 2,371 · distinct trade_date = 17
 | `services/adjusted_price_reader.py` | منبع واحد خواندن کندل برای precompute و JIT |
 | `services/indicator_precompute_service.py` | snapshot شبانه از همین مسیر + شمارش نمادها با تاریخ واقعی |
 | `services/corporate_action_service.py` + `scripts/backfill_adjust_factors.py` | ضریب‌ها روی تاریخ **میلادی واقعی** |
+| `scripts/import_corporate_actions.py` | پر کردن `corporate_action_events` از فایل‌های CODAL + تاریخ ex و نسبت از بازپایه‌گذاری TSETMC (بخش ۹) |
 
 ```sql
 -- هسته‌ی view (0109)
@@ -142,7 +143,7 @@ LEFT JOIN daily_adjust_factors f
    );
    ```
 3. ضریب‌ها وقتی رویداد واقعی CODAL لود و `backfill_adjust_factors.py` اجرا شود
-   مؤثر می‌شوند (`corporate_action_events` و `daily_adjust_factors` فعلاً خالی‌اند).
+   مؤثر می‌شوند (بخش ۹).
 
 ## ۸. اجرا
 
@@ -159,3 +160,121 @@ view می‌خوانند، پس محور تاریخ در همه‌جا یکی ا
 > `UPDATE` تک‌ردیفی می‌ساخت؛ روی ۵٫۴۵M ردیف عملی نیست و این کار لازم هم نیست چون
 > `0109` تبدیل را در SQL انجام می‌دهد. آن اسکریپت فقط برای جداول دیگر
 > (`brsapi_intraday_trades`, `brsapi_codal_announcements`, …) قابل استفاده است.
+
+## ۹. پر کردن رویدادها: `scripts/import_corporate_actions.py`
+
+ضریب‌ها تا وقتی `corporate_action_events` خالی است هیچ اثری ندارند. این اسکریپت
+آن جدول را پر می‌کند و بعد `backfill_adjust_factors.py` ضریب‌ها را می‌سازد.
+
+### ۹٫۱ دو منبع، دو نقش
+
+* **CODAL** (`codal_reports_backup.summary LIKE '%ثبت افزایش سرمایه%'` +
+  `brsapi_codal_announcements.title ILIKE '%آگهی ثبت افزایش سرمایه%'`) → **برچسب
+  رویداد** + ارجاع (`codal_ref`). مجموعاً ۴۷۶ نماد.
+* **بازپایه‌گذاری خود TSETMC** → **تاریخ ex و نسبت** (دقیق).
+
+روی روز ex، TSETMC مقدار `price_yesterday` را روی پایه‌ی تعدیل‌شده بازنشانی
+می‌کند و درصد تغییر همان روز را نسبت به همان پایه گزارش می‌کند؛ پس تعدیل از
+`price_close_change_pct` پنهان می‌ماند. روی هر روز معاملاتی دیگرِ یک نماد سالم،
+`price_yesterday` **دقیقاً** برابر close روز قبل است. مقادیر تأییدشده:
+
+```text
+ومهان   2026-09-12  8250 → py 5500   f = 1/1.5    (ratio = 0.5)
+سیدکو   2026-09-01 45510 → py 11380  f = 1/4      (ratio = 3)
+شساخت   2026-09-02 21780 → py  4200  f = 1/5.19   (ratio = 4.19)
+```
+
+پس `ratio = 1/f − 1` که دقیقاً معکوسِ `1/(1+ratio)` در
+`services/corporate_action_service.py` است.
+
+### ۹٫۲ چرا تشخیص نماد‌به‌نماد گارد شده است
+
+`price_yesterday` **سراسری** قابل اعتماد نیست؛ فقط per-symbol است. روی ۲٬۲۳۱ نماد
+با ≥۱۰۰ ردیف (از ۲۰۲۳):
+
+```text
+۳۷۰ نماد   price_yesterday == prev_close روی ۱۰۰٪ ردیف‌ها
+۸۳۸ نماد   ۹۰–۱۰۰٪
+t~۷۵۰ نماد  <۳۰٪      ← ردیف‌های آشغال (مثلاً price_close = 1 در برابر py = 41,330)
+```
+
+یک فیلتر سراسری `|f−1| > ε` حدود **۱٫۲۵M** «رویداد» پیدا می‌کند؛ یعنی بی‌فایده.
+بنابراین:
+
+1. یک نماد فقط وقتی واجد شرایط است که `clean_rate` خودش بالا باشد
+   (`--min-clean-rate`، پیش‌فرض `0.98`) و ≥ `--min-rows` ردیف قابل استفاده داشته
+   باشد.
+2. فقط روزهایی که `f < 1` هستند کاندیداند (افزایش سرمایه همیشه به **پایین**
+   بازپایه می‌کند).
+3. یک افزایش سرمایه فقط وقتی نوشته می‌شود که یک فایل CODAL تاریخ ex را تأیید کند
+   (`--window-before`/`--window-after`، پیش‌فرض `−120…+240`).
+
+روزهای تأییدنشده به‌صورت پیش‌فرض **رد** می‌شوند (از آرتیفکت داده قابل تفکیک
+نیستند)؛ `--include-dividends` آن‌ها را به‌عنوان `dividend` با
+`dps = close·(1−f)` می‌نویسد، به‌طوری‌که `(close − dps)/close` دقیقاً `f` را
+بازتولید کند.
+
+### ۹٫۳ چرا تشخیص دسته‌ای (batch) است
+
+نسخه‌ی تک‌کوئری (window روی کل view) Postgres را وادار می‌کند همه‌ی ۵٫۴۵M ردیف
+را مرتب و به `base/pgsql_tmp` بریزد — روی دیسک پر با
+`DiskFullError: could not write to file base/pgsql_tmp/...` شکست می‌خورد و حتی
+وقتی جا باشد کند است. اسکریپت ۲۵ نماد در هر پرس‌وجو می‌گیرد
+(`--batch-size`) و predicate روی `symbol` توسط `idx_hist_symbol_date` سرو
+می‌شود؛ پس مرتب‌سازی در حافظه می‌ماند و view هرگز کامل اسکن نمی‌شود.
+
+### ۹٫۴ محدودیت مهم: پوشش رجیستری نماد
+
+`corporate_action_events.symbol_id` و `daily_adjust_factors` هر دو FK به
+`symbols(id)` دارند و view هم ضریب را از طریق `symbols` وصل می‌کند. اما:
+
+```text
+نمادهای دارای داده‌ی قیمت      = 2,371
+ردیف‌های symbols (seed دستی)   =   511
+نمادهای دارای رویداد قابل تشخیص = 1,921
+از آن‌ها ثبت‌شده در symbols     =   225   ← بقیه ۸۳٪ تاریخ قیمت را پوشش می‌دهند
+```
+
+هیچ job‌ی `symbols` را پر نمی‌کند (فقط seed اولیه)، در حالی که precompute
+اندیکاتورها روی **همه‌ی** نمادهای `brsapi_historical_daily` می‌چرخد. یعنی تا وقتی
+نمادهای گمشده در `symbols` ثبت نشوند، قیمت آن‌ها هیچ‌وقت تعدیل نمی‌شود (بند ۱ در
+بخش ۷).
+
+اسکریپت به‌صورت پیش‌فرض رجیستری را **دست نمی‌زند** و فقط گزارش می‌کند:
+
+```bash
+python scripts/import_corporate_actions.py --dry-run --report-unregistered
+```
+
+با `--register-missing` نمادهای تأییدشده‌ی گمشده را در `symbols` درج می‌کند
+(name/isin از جدیدترین `brsapi_symbol_snapshots`، و `id` از یک hash قطعی در بازه‌ی
+`[10^18, 10^18+10^15)` که با idهای seed‌شده برخورد نمی‌کند). این تغییر در
+رجیستری اثر دارد و عمداً opt-in است.
+
+### ۹٫۵ اجرا
+
+```bash
+# پیش‌نمایش (هیچ نوشتنی)
+python scripts/import_corporate_actions.py --dry-run --report-unregistered
+
+# ثبت نمادهای گمشده + درج رویدادها
+python scripts/import_corporate_actions.py --register-missing
+
+# ضریب‌ها روی تاریخ میلادی واقعی
+python scripts/backfill_adjust_factors.py
+```
+
+هر دو اسکریپت idempotent هستند (`ON CONFLICT (symbol_id, ex_date, action_type)` و
+`ON CONFLICT (symbol_id, trade_date)`). تست‌های واحد منطق خالص:
+`tests/unit/scripts/test_import_corporate_actions.py`.
+
+### ۹٫۶ وضعیت اجرا (۲۰۲۶-۱۰-۰۶)
+
+کد و تست‌ها آماده‌اند (۱۷ تست سبز، ruff پاک) و اجرای تک‌نماد درست کار می‌کند
+(ومهان: ۷ روز بازپایه، `clean_rate 0.9916`، ۵ رویداد تأییدشده توسط CODAL).
+اجرای دسته‌ای هم روی ۱٬۰۰۰ از ۲٬۳۷۱ نماد رسید و ۳٬۵۷۷ روز بازپایه پیدا کرد.
+اما **اجرای کامل انجام نشده**: درایو `C:` روی ۱۰۰٪ است و آزاد آن در جریان همین
+اسکن‌ها از ۱٫۳GB به **۴۸MB** رسید؛ Postgres برای اسکن/بک‌فیل کامل
+`DiskFullError: could not write to file base/pgsql_tmp/...` می‌دهد. تا آزاد
+نشدن فضا، `corporate_action_events` و `daily_adjust_factors` خالی می‌مانند
+(تأیید‌شده: هر دو صفر ردیف).
