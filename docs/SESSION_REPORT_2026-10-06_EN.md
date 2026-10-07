@@ -597,6 +597,9 @@ tests/unit, combined                         5330    5218      50      62       
 collected by pytest                          5334   (= 5330 measured + 4 never terminating)
 ```
 
+> **Superseded by Part G.** These are the **pre-fix, reassembled** figures. The suite has
+> since been re-run end to end in one process; the current measured result is in **Part G**.
+
 The four tests that never terminate at any guard are analysed in C2.5. Raw aggregate of the 157 JUnit XML artifacts behind the first row (5 chunk XMLs + 152 per-file XMLs):
 
 ```text
@@ -805,6 +808,12 @@ after Fix 1-7            5334     5254      18      62         0
 
 **This is a reassembly, not the output of a single pytest process**, for two reasons: the four hanging tests cannot share a process with the rest at any practical guard, and D5 shows that `tests/unit` results are chunk-boundary sensitive, so a single-process figure would not be comparable to the C2 baseline. The two independent quantities that *were* re-run from scratch are the 8-module group in the table above and the four market-watch tests in D1.
 
+> **Retired as a statement of current state — see Part G.** The `after Fix 1-7` row is an
+> arithmetic reconstruction, not a run. The suite has since been executed in a single
+> process after Fixes 1–7, E2 and E3; that measurement (**47 failed, 5,224 passed, 63
+> skipped, exit 1**) is the authoritative figure, and the 30-test pass gap against this row
+> is the chunk-boundary effect D5 predicted rather than a regression.
+
 One intermediate result is worth recording because it was a real bug in the first attempt at Fix 3: registering the override as `lambda: replacement` makes FastAPI inject the **function object**, and every consumer then dies on `current_user.get(...)` — `AttributeError: 'function' object has no attribute 'get'`. The override must be the callable itself so FastAPI awaits it and injects its return value.
 
 ### D3. Remaining tests outside `tests/unit` — complete run
@@ -891,7 +900,7 @@ AssertionError: assert 1 == 0
 
 The tests assume *"no real price data (no DB)"*. Once a previous module has warmed the SQLAlchemy/asyncpg pool on the now session-wide loop, `analyze([])` genuinely reaches the database of 5.45 M adjusted rows and returns a Market-Regime signal — so the assumption fails. Under the previous per-module loops the engine was bound to a closed loop, the error was swallowed, and `[]` was returned **for the wrong reason**.
 
-This is therefore **not a regression introduced by Fix 2**; Fix 2 removed an accident that was masking tests whose premise ("no database") is false in this environment. It does mean that `tests/unit` pass/fail counts are **chunk-boundary sensitive**, which is why the C2 numbers were produced file-by-file or in chunks and should not be compared against a hypothetical single-process run.
+This is therefore **not a regression introduced by Fix 2**; Fix 2 removed an accident that was masking tests whose premise ("no database") is false in this environment. It does mean that `tests/unit` pass/fail counts are **chunk-boundary sensitive**, which is why the C2 numbers were produced file-by-file or in chunks and should not be compared against a hypothetical single-process run. **Part G is that single-process run, and it confirms the prediction**: the same five rate-limit/BRsAPI files that yield 2 failures in isolation contribute 25 in the full suite.
 
 > **Resolved — see Part E.** `TestCrossMarketCorrelator` now pins
 > `core.database.async_session_factory` to `None` through an autouse fixture, so the
@@ -905,6 +914,7 @@ The honest boundary of this report:
 * **Run to completion:** `tests/unit` (5,334 collected; 5,330 measured; 4 never terminating) and every collectable test outside `tests/unit` (736 measured, 5 files killed at their caps).
 * **Not run at all:** anything that cannot be imported without network I/O — `tests/legacy/**` and the loose root `tests/test_*.py` modules (19 collection errors, 0 tests executed, 413 s of retry time).
 * **Not re-measured end to end:** the full `tests/unit` suite was *not* re-run after Fixes 1–7. The verification in D2 re-runs the eight modules that contained the failures; the aggregate pass/fail totals printed in C2 still describe the **pre-fix** state and are labelled as such there.
+* **Correction — now re-measured end to end (Part G):** the full `tests/unit` suite *has* since been run in one process after all fixes: **47 failed, 5,224 passed, 63 skipped in 2817.63s, exit 1**, with clean collection and no `INTERNALERROR`. Parts C/D's aggregate totals are superseded by that number; E4's "eight remaining" is superseded by G4/G5.
 * **Now run (corrects this bullet):** `scripts/import_corporate_actions.py` and `scripts/backfill_adjust_factors.py` were executed in a later session — `corporate_action_events` 0 → 586, `daily_adjust_factors` 0 → 621,818 (A14). `symbols` is still 511.
 * **Not decided:** whether `--register-missing` is permitted; the 1,921 tickers with detectable events are still not registered (A15).
 * The `test_quant_signal_orchestrator.py` failures were **not** pre-existing bugs — they were cross-file contamination and are fixed in Part E. `test_signal_decision_engine.py` was not re-examined.
@@ -974,6 +984,13 @@ after a DB-warming edge-case test                      57 passed (2 warm-up) exi
 ```
 
 ### E4. The `tests/unit` failures that remain
+
+> **Superseded by Part G.** This "eight" was established by running the eight in
+> isolation and after a DB warner. A later full single-process run of `tests/unit`
+> shows those same eight are a subset of **47** failures (5,224 passed, 63 skipped),
+> because the suite also accumulates process-wide rate-limiter/BRsAPI state that a
+> file-local run does not. The list below remains accurate for those eight tests
+> individually; they are not the whole remaining picture.
 
 After E2 and E3, **eight** `tests/unit` failures remain, all outside the scope of
 this follow-up and each with an unrelated cause:
@@ -1139,6 +1156,147 @@ are pre-existing and out of scope here; the practical target remains `pytest tes
 
 ---
 
+## Part G — The single-process `tests/unit` run (supersedes the reassembled totals)
+
+Parts C–E measured `tests/unit` by chunking it and re-running the heavy files one by one,
+then adding the pieces up. D2 said outright that the resulting 5,254/18 row was *a
+reassembly, not the output of a single pytest process*, and D5 predicted that a
+single-process figure **would not be comparable** to the chunked one because the results
+are chunk-boundary sensitive. The outstanding request was to remove the caveat by running
+the whole suite once, in one process, and to replace the reassembled numbers with that
+measurement. This part does that.
+
+### G1. Command
+
+One pytest process, no `xdist`, no `--timeout` guard, no deselection:
+
+```text
+$ timeout 10800 venv/Scripts/python -m pytest tests/unit -q
+```
+
+The three-hour GNU `timeout` was a safety net only; the run finished well inside it.
+
+### G2. Result
+
+```text
+47 failed, 5224 passed, 63 skipped, 40 warnings in 2817.63s (0:46:57)
+EXIT=1
+```
+
+```text
+grep -c "INTERNALERROR"        -> 0
+grep -c "ERROR collecting"     -> 0
+```
+
+So the run in Part F's fix (the `collect_ignore` that stops a bare `pytest` from importing
+the legacy scripts) did what it was supposed to: **collection was clean**, there was no
+`INTERNALERROR`, no collection error, and no process abort — a full summary line was
+produced. The suite ran in **46:57** wall clock.
+
+One measurement artifact to record honestly: **no JUnit XML was produced.** This run
+passed no `--junitxml`, so the captured stdout above is the only artifact; unlike C2's
+157 XML files there is nothing to re-aggregate, and the printed summary is the number.
+
+### G3. The 47 failures, by file
+
+```text
+ 13  tests/unit/test_rate_limit_middleware.py
+  6  tests/unit/services/test_signal_decision_engine.py
+  5  tests/unit/services/test_news_read_canary.py
+  4  tests/unit/test_signals_rate_limit.py
+  4  tests/unit/test_api_inbound_simulation.py
+  3  tests/unit/test_brsapi_budget_governor.py
+  2  tests/unit/test_precompute_worker_callbacks.py
+  2  tests/unit/test_confirmed_runtime_fixes.py
+  1  tests/unit/test_rbac.py
+  1  tests/unit/test_critical_runtime_fixes.py
+  1  tests/unit/test_brsapi_usage_simulator.py
+  1  tests/unit/test_api_v6_hardening.py
+  1  tests/unit/services/test_news_items_read_path.py
+  1  tests/unit/services/test_backtest_service_v2.py
+  1  tests/unit/services/test_adjusted_price_reader.py
+  1  tests/unit/scripts/test_build_feature_store.py
+ 47  total
+```
+
+### G4. These are **not** 47 independent bugs — the failures are order/state dependent
+
+The list above is very different from the eight in E4, and the difference is the point. A
+targeted re-run of the five rate-limit / BRsAPI files gave a **different failure set in the
+same files** than the full run did:
+
+```text
+$ pytest -q -p no:randomly \
+    tests/unit/test_rate_limit_middleware.py tests/unit/test_signals_rate_limit.py \
+    tests/unit/test_api_inbound_simulation.py tests/unit/test_brsapi_budget_governor.py \
+    tests/unit/test_brsapi_usage_simulator.py
+
+2 failed, 76 passed in 141.17s (0:02:21)          PIPESTATUS=1
+
+failed here: test_rate_limit_middleware.py::TestPrefixMatching::test_unknown_path_uses_default
+             test_brsapi_usage_simulator.py::TestNewScenarios::test_starvation_others_still_get_through_or_wait
+```
+
+Those same five files contribute **25 failures** in the single-process run
+(13 + 4 + 4 + 3 + 1) but only **2** when run together in isolation, and one of the two
+(`test_unknown_path_uses_default`) does not fail in the full run at all. The tests are not
+randomised (`-p no:randomly`); what changes is how much live rate-limiter / BRsAPI global
+state each test inherits from everything that ran before it. This is exactly the
+chunk-boundary sensitivity D5 documented, observed from the opposite direction. The
+practical consequence is that **G3 must not be read as 47 distinct product bugs**: a large
+part of it is shared, process-wide limiter/budget state that the file-local measurements in
+Parts C–E never accumulated.
+
+The same re-run also exposed the wall-clock source directly:
+
+```text
+brsapi.rate_limiter:rate_limiter.py:203  BrsApi 5-MIN LIMIT REACHED (1000/1000). Waiting ~201s…
+```
+
+repeated multiple times — the real 5-minute-window limiter actually sleeping ~200 s per
+occurrence, which is a material share of the 46:57 suite time and of the failures above.
+
+One more logged (not failing) item in the full-run head is worth naming for whoever picks
+this up: `apps/admin/dashboard.py:304 in backfill_coverage` calls
+`_get_backfill_coverage(session)` with `session = <MagicMock spec='AsyncSession'>` and
+raises — it is logged, not surfaced as a test failure, so it is not part of the 47.
+
+### G5. What this corrects
+
+* **D2's reassembly row is retired as a statement of current state.** The rows
+  `before Fix 1-7 5334 5218 50 …` / `after Fix 1-7 5334 5254 18 …` describe an arithmetic
+  reconstruction. The measured single-process result after all of Fixes 1–7, E2 and E3 is
+  **5,224 passed / 47 failed / 63 skipped**, exit 1. The 63 skips match the 62+1 expectation
+  closely enough to confirm the same tests run; the 5,224 is **30 fewer passes** than the
+  reassembled 5,254, which is the chunk-boundary effect D5 predicted rather than a
+  regression.
+* **E4's "eight remaining" is superseded.** The eight were each verified to fail
+  identically alone and after a DB warner — that remains true for those eight, and several
+  of them appear in G3 (`test_confirmed_runtime_fixes.py` 2, `test_rbac.py` 1,
+  `test_api_v6_hardening.py` 1, `test_build_feature_store.py` 1,
+  `test_brsapi_usage_simulator.py` 1, `test_critical_runtime_fixes.py` 1,
+  `test_rate_limit_middleware.py` 1). But in a single process the same files also pick up
+  the limiter/state failures in G4, so "eight" understated the suite as a whole.
+* **Several suites the documents do not list reappear**: `test_rate_limit_middleware.py`
+  (13), `services/test_signal_decision_engine.py` (6), `test_signals_rate_limit.py` (4),
+  `test_api_inbound_simulation.py` (4), `test_brsapi_budget_governor.py` (3),
+  `test_precompute_worker_callbacks.py` (2). D6 recorded that
+  `test_signal_decision_engine.py` was *not re-examined* — the full run confirms it should
+  not have been assumed clean.
+* The four never-terminating tests of C2.5 are **not** in G3: Fix 1 made them runnable, and
+  they pass inside the single process. That part of Parts C–E is confirmed, not overturned.
+
+### G6. Limitations of this run
+
+* Per-test root causes were **not** individually diagnosed here; only file-level counts and
+  the order-dependence evidence were established. Treating the 47 as 47 separate defects is
+  not supported by the data.
+* No JUnit XML and no `--durations` breakdown were captured, so there is no per-test timing
+  from this run beyond the `BrsApi … Waiting ~201s` lines.
+* `tests/legacy/**` and the loose root modules remain unmeasured, exactly as in C2.1/D3/D6.
+
+---
+
 ## Current repository state
 
 The block lists the commits that produced the state described in this report — through the
@@ -1154,10 +1312,11 @@ main~2 → f0ed96d4 fix(test-isolation,api): … (34 files, +785/−128)
 main~3 → 1212cb87 docs: audit verification, price-read-path notes, reports
 main~4 → 43278bbd feat(corporate-actions): … (3 files, +773/−1)
 docs/ARCHITECTURE_AUDIT_2026-10-06.md  tracked (472 lines incl. §9 and §9.9)
-docs/SESSION_REPORT_2026-10-06_EN.md   tracked (this file; incl. Parts D, E and F)
+docs/SESSION_REPORT_2026-10-06_EN.md   tracked (this file; incl. Parts D, E, F and G)
 docs/FINAL_REPORT_2026-10-07_FA.md     tracked (Persian final account)
 corporate_action_events = 586    daily_adjust_factors = 621,818    symbols = 511
 C: free = 26 GB (/c total 238G, 213G used, 90%)
+tests/unit, single process (Part G)    47 failed, 5224 passed, 63 skipped, 2817.63s (46:57), EXIT=1
 ```
 
 ### Changes committed in this session
