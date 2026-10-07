@@ -1,7 +1,7 @@
 # Session Report (EN) — Corporate-Action Import & Architecture-Audit Verification
 
 > Date: 6–7 October 2026
-> Reference commit: `4c1f7b0e` on `main` (not pushed; this report was committed in `ba4f0667`)
+> Reference commit: `4c1f7b0e` on `main` (not pushed). The docs refresh that carries this text was committed *on top of* that revision; the state block below lists the code/test and report commits it describes, not the refresh itself.
 > Scope: corporate-action import + factor backfill (Part A), an independent verification of `docs/ARCHITECTURE_AUDIT_2026-10-06.md` (Part B), the full test-suite execution and the repairs that followed it (Parts C–E), and the repo-wide `pytest` collection crash (Part F)
 > Validation: **ruff exit 0** · **17/17 unit tests pass (exit 0)** · 18 of 19 line-numbered audit claims reproduced exactly · **6,058 tests collected, exit 0**
 > Language note: Persian counterparts live in `docs/PRICE_ADJUSTMENT_READ_PATH.md` (§۹–§۱۲) and `docs/ARCHITECTURE_AUDIT_2026-10-06.md` (§9); the Persian final account is `docs/FINAL_REPORT_2026-10-07_FA.md`.
@@ -1141,6 +1141,10 @@ are pre-existing and out of scope here; the practical target remains `pytest tes
 
 ## Current repository state
 
+The block lists the commits that produced the state described in this report — through the
+last code/test commit. The docs refresh carrying this text sits immediately on top of
+`4c1f7b0e`; it is not listed by hash so the block does not have to name itself.
+
 ```text
 main → 4c1f7b0e   fix(tests): stop a bare pytest from collecting the legacy import-time
                   scripts (1 file, +14)                              not pushed
@@ -1149,7 +1153,7 @@ main~1 → ba4f0667 docs: record the executed import/backfill, fixed failures, a
 main~2 → f0ed96d4 fix(test-isolation,api): … (34 files, +785/−128)
 main~3 → 1212cb87 docs: audit verification, price-read-path notes, reports
 main~4 → 43278bbd feat(corporate-actions): … (3 files, +773/−1)
-docs/ARCHITECTURE_AUDIT_2026-10-06.md  tracked (473 lines incl. §9 and §9.9)
+docs/ARCHITECTURE_AUDIT_2026-10-06.md  tracked (472 lines incl. §9 and §9.9)
 docs/SESSION_REPORT_2026-10-06_EN.md   tracked (this file; incl. Parts D, E and F)
 docs/FINAL_REPORT_2026-10-07_FA.md     tracked (Persian final account)
 corporate_action_events = 586    daily_adjust_factors = 621,818    symbols = 511
