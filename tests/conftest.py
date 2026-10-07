@@ -38,6 +38,20 @@ _reconfigure_stream(sys.stdout)
 _reconfigure_stream(sys.stderr)
 
 
+# ── Collection exclusion: legacy standalone scripts ─────────────
+# ``tests/legacy`` holds one-off scripts, not pytest tests, and they run at
+# *import* time: live HTTP scans against a running API (``_tmp_api_test*.py``,
+# ``test_codal_api.py``) and two modules that do
+# ``sys.stdout = io.TextIOWrapper(sys.stdout.buffer, ...)``
+# (``test_excel_parser.py`` / ``test_excel_parser2.py``).  That reassignment
+# wraps the console's buffer, so when the original wrapper is collected the
+# stream is closed out from under pytest and the whole run dies with
+# ``ValueError: I/O operation on closed file`` during collection — before a
+# single test executes.  CI always targets explicit paths; ignore the tree so
+# a bare ``pytest`` also collects cleanly.
+collect_ignore = ["legacy"]
+
+
 # ── PostgreSQL availability check ───────────────────────────────
 # Used by ``pytest_collection_modifyitems`` to skip ``needs_db`` tests
 # when there is no reachable PostgreSQL instance.
