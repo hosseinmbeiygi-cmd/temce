@@ -65,7 +65,24 @@ async def test_codal_financials(client):
     data = resp.json()
     assert data["success"] is True
     assert "quarters" in data["data"]
-    assert len(data["data"]["quarters"]) == 4
+    quarters = data["data"]["quarters"]
+    # The endpoint serves the real CODAL statements it can find (capped at 8,
+    # newest report_date first).  This database holds a single statement per
+    # symbol, so assert the documented schema contract and the cap instead of
+    # a fixed row count that no data source here can satisfy.
+    assert 1 <= len(quarters) <= 8
+    required = {
+        "period",
+        "report_type",
+        "revenue",
+        "cost",
+        "gross_profit",
+        "operating_profit",
+        "net_profit",
+        "eps",
+    }
+    for quarter in quarters:
+        assert required <= set(quarter)
 
 
 @pytest.mark.asyncio
@@ -142,8 +159,9 @@ async def test_news_trending(client):
 
 
 @pytest.mark.asyncio
-async def test_analysis_overview(client):
-    resp = await client.get("/api/v1/analysis/overview")
+async def test_analysis_overview(user_client):
+    # The /analysis mount requires an authenticated user (router.py, _require_user).
+    resp = await user_client.get("/api/v1/analysis/overview")
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
@@ -152,25 +170,25 @@ async def test_analysis_overview(client):
 
 
 @pytest.mark.asyncio
-async def test_analysis_trends(client):
-    resp = await client.get("/api/v1/analysis/trends")
+async def test_analysis_trends(user_client):
+    resp = await user_client.get("/api/v1/analysis/trends")
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
 
 
 @pytest.mark.asyncio
-async def test_analysis_elliot_waves(client):
+async def test_analysis_elliot_waves(user_client):
     """Endpoint exists but may return success=False without real data."""
-    resp = await client.get("/api/v1/analysis/elliot-waves/فولاد")
+    resp = await user_client.get("/api/v1/analysis/elliot-waves/فولاد")
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] in (True, False)
 
 
 @pytest.mark.asyncio
-async def test_analysis_liquidity(client):
-    resp = await client.get("/api/v1/analysis/liquidity")
+async def test_analysis_liquidity(user_client):
+    resp = await user_client.get("/api/v1/analysis/liquidity")
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True

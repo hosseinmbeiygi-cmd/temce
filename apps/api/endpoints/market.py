@@ -55,12 +55,20 @@ async def most_active(
 
 
 @router.get("/watch", summary="Market watch", description="Get market watch list")
-async def market_watch(service: MarketService = Depends(get_market_service)) -> ApiResponse[PaginatedResult[Any]]:
-    result = await service.get_market_watch()
+async def market_watch(
+    limit: int = Query(500, ge=1, le=2000, description="Maximum instruments to return (audit API-005)"),
+    service: MarketService = Depends(get_market_service),
+) -> ApiResponse[PaginatedResult[Any]]:
+    # The cap is applied in SQL by the service (newest trade date, LIMIT), not
+    # after building the whole table: fetching every row cost >10 minutes.
+    result = await service.get_market_watch(limit=limit)
     if not result.success:
         return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
 
-    items = result.value
+    items = result.value or []
+    # Audit API-005: the full market-watch table used to be serialized on
+    # every poll; cap the response at ``limit`` rows.
+    items = items[:limit]
     return ApiResponse[PaginatedResult[Any]](
         success=True,
         data=PaginatedResult(

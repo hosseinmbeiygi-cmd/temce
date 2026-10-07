@@ -16,7 +16,7 @@ from repositories.db_base import DbRepository
 class OrderBookRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[OrderBookSnapshot] | None = None if session else InMemoryRepository[OrderBookSnapshot]()
+        self._mem: InMemoryRepository[OrderBookSnapshot] | None = None if session else InMemoryRepository(OrderBookSnapshot)
         self._db: _OrderBookDbRepo | None = None if not session else _OrderBookDbRepo(session)
 
     async def get(self, id: str) -> Result[OrderBookSnapshot]:

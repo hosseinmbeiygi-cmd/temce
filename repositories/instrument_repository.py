@@ -22,7 +22,7 @@ def _finglish_candidates(query: str) -> list[str]:
 class InstrumentRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Instrument] | None = None if session else InMemoryRepository[Instrument]()
+        self._mem: InMemoryRepository[Instrument] | None = None if session else InMemoryRepository(Instrument)
         self._db: _InstrumentDbRepo | None = None if not session else _InstrumentDbRepo(session)
 
     async def get(self, id: str) -> Result[Instrument]:

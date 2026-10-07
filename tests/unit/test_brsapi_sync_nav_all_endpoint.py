@@ -23,15 +23,23 @@ from httpx import ASGITransport, AsyncClient
 # Ensure project root is importable when pytest is invoked from any cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_current_user, get_db_session
 from apps.api.endpoints.brsapi import router as brsapi_router
 from brsapi.services.sync_service import SyncReport
+
+
+_ADMIN = {"username": "test_admin", "roles": ["admin"], "user_id": 1}
 
 
 def _make_app(fake_session: object) -> FastAPI:
     app = FastAPI()
     app.include_router(brsapi_router, prefix="/brsapi")
     app.dependency_overrides[get_db_session] = lambda: fake_session
+    # ``/manage/sync-nav-all`` is declared with ``dependencies=_manage_admin``
+    # (``require_roles("admin")``), so an unauthenticated call answers 401 before
+    # the handler runs.  The router's dependency was captured at import time, so
+    # overriding the original callable satisfies it here.
+    app.dependency_overrides[get_current_user] = lambda: _ADMIN
     return app
 
 

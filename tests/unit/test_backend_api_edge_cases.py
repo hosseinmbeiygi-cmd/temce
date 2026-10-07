@@ -74,13 +74,20 @@ async def test_instruments_nonexistent_market(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_signals_nonexistent_type(user_client: AsyncClient):
-    """Filter by nonexistent signal type should return empty (requires user)."""
+async def test_signals_unknown_filter_param_ignored(user_client: AsyncClient):
+    """``/signals`` has no ``type`` filter, so an unknown value is ignored.
+
+    The listing endpoint only paginates; FastAPI drops unrecognised query
+    params. The contract is therefore "return the unfiltered page", not
+    "return an empty page" — asserting the former would encode a filter the
+    API never had (requires user).
+    """
     resp = await user_client.get("/api/v1/signals", params={"type": "ناموجود"})
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["data"]["total"] == 0
-    assert data["data"]["items"] == []
+    body = resp.json()
+    assert body["success"] is True
+    assert "items" in body["data"]
+    assert isinstance(body["data"]["total"], int)
 
 
 @pytest.mark.asyncio
@@ -132,8 +139,16 @@ async def test_instruments_search_unicode(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_news_page_too_high(client: AsyncClient):
-    """Page number beyond range should return empty list."""
-    resp = await client.get("/api/v1/news", params={"page": 999, "page_size": 10})
+    """Page number beyond range should return empty list.
+
+    The page is derived from the live ``total_pages`` rather than hard-coded:
+    with ~19k articles "999" is a valid page and would legitimately return
+    items, so the old assertion tested nothing but the table size.
+    """
+    first = await client.get("/api/v1/news", params={"page_size": 10})
+    assert first.status_code == 200
+    total_pages = first.json()["data"]["total_pages"]
+    resp = await client.get("/api/v1/news", params={"page": total_pages + 1, "page_size": 10})
     assert resp.status_code == 200
     data = resp.json()
     assert data["data"]["items"] == []
@@ -237,8 +252,10 @@ async def test_fund_navs_are_positive(client: AsyncClient):
     """All fund NAVs should be positive."""
     resp = await client.get("/api/v1/funds")
     assert resp.status_code == 200
+    # ``/funds`` returns the raw fund envelope (``items`` at top level), not
+    # the ``{success, data}`` wrapper used by most endpoints.
     data = resp.json()
-    for f in data["data"]["items"]:
+    for f in data["items"]:
         if "nav" in f:
             assert f["nav"] > 0, f"Non-positive NAV for {f['name']}"
 
@@ -253,13 +270,16 @@ async def test_dashboard_has_all_sections(admin_client: AsyncClient):
     """Dashboard response has all expected top-level keys (requires admin)."""
     resp = await admin_client.get("/api/v1/dashboard")
     data = resp.json()
-    assert set(data.keys()) == {
+    # The overview carries more than these five sections (job stats, table
+    # rows, ML models, …); the contract is that the documented sections are
+    # present, not that nothing else is.
+    assert {
         "metrics",
         "market_breakdown",
         "top_gainers",
         "top_losers",
         "recent_announcements",
-    }
+    } <= set(data.keys())
 
 
 @pytest.mark.asyncio
@@ -345,7 +365,9 @@ async def test_market_bourse_returns_valid(client: AsyncClient):
 async def test_energy_commodity_sub_markets_non_overlapping(client: AsyncClient):
     """Energy & Commodity sub-markets should have no overlapping instruments."""
     resp = await client.get("/api/v1/market/energy-commodity")
-    data = resp.json()
+    body = resp.json()
+    assert body["success"] is True
+    data = body["data"]
     symbols_kala = {i["symbol"] for i in data["sub_markets"][0]["instruments"]}
     symbols_energy = {i["symbol"] for i in data["sub_markets"][1]["instruments"]}
     assert symbols_kala.isdisjoint(symbols_energy), "Sub-markets overlap!"
@@ -355,7 +377,9 @@ async def test_energy_commodity_sub_markets_non_overlapping(client: AsyncClient)
 async def test_energy_commodity_sub_market_totals_match(client: AsyncClient):
     """Sum of sub-market instrument counts equals total_symbols."""
     resp = await client.get("/api/v1/market/energy-commodity")
-    data = resp.json()
+    body = resp.json()
+    assert body["success"] is True
+    data = body["data"]
     sub_total = sum(sm["count"] for sm in data["sub_markets"])
     assert (
         sub_total == data["summary"]["total_symbols"]
@@ -379,7 +403,10 @@ async def test_top_gainers_are_sorted(admin_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_industries_sorted_by_count(client: AsyncClient):
     """Industries should be sorted by count descending (most_common)."""
-    resp = await client.get("/api/v1/industries")
+    # Industries are mounted under ``/market-info`` to avoid colliding with
+    # the funds router's ``/funds`` route.
+    resp = await client.get("/api/v1/market-info/industries")
+    assert resp.status_code == 200
     data = resp.json()
     counts = [ind["count"] for ind in data["data"]["items"]]
     assert counts == sorted(counts, reverse=True), "Industries not sorted by count descending"

@@ -52,7 +52,13 @@ async def test_accepts_allowed_origin(mock_settings) -> None:
         raise Exception("end of stream")  # triggers the generic except/finally path
 
     ws.receive_text = _receive
-    with patch("apps.api.endpoints.websocket.get_realtime_service", return_value=mock_service):
+    with (
+        patch("apps.api.endpoints.websocket.get_realtime_service", return_value=mock_service),
+        # Audit API-003 added a handshake token check between the Origin guard and
+        # ``accept()``.  This test is about the Origin guard, so the separate gate
+        # is satisfied here rather than exercised.
+        patch("apps.api.endpoints.websocket.verify_websocket_token", AsyncMock(return_value=True)),
+    ):
         await market_websocket(ws)
     ws.accept.assert_awaited_once()
     ws.close.assert_not_awaited()
@@ -74,7 +80,10 @@ async def test_accepts_non_browser_client_without_origin(mock_settings) -> None:
         raise Exception("end of stream")
 
     ws.receive_text = _receive
-    with patch("apps.api.endpoints.websocket.get_realtime_service", return_value=mock_service):
+    with (
+        patch("apps.api.endpoints.websocket.get_realtime_service", return_value=mock_service),
+        patch("apps.api.endpoints.websocket.verify_websocket_token", AsyncMock(return_value=True)),
+    ):
         await market_websocket(ws)
     ws.accept.assert_awaited_once()
     ws.close.assert_not_awaited()
@@ -96,7 +105,10 @@ async def test_wildcard_origin_disables_check(mock_settings) -> None:
         raise Exception("end of stream")
 
     ws.receive_text = _receive
-    with patch("apps.api.endpoints.websocket.get_realtime_service", return_value=mock_service):
+    with (
+        patch("apps.api.endpoints.websocket.get_realtime_service", return_value=mock_service),
+        patch("apps.api.endpoints.websocket.verify_websocket_token", AsyncMock(return_value=True)),
+    ):
         await market_websocket(ws)
     ws.accept.assert_awaited_once()
     ws.close.assert_not_awaited()

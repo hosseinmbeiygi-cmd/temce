@@ -175,16 +175,21 @@ async def list_news(
             error={"message": str(exc)},
         )
     date_from, date_to = date_range if date_range else (None, None)
-    result = await service.list_all(page, page_size, date_from=date_from, date_to=date_to)
+    # Normalize before the query so the legacy ``company`` alias matches the
+    # stored ``companies`` value — and so the DB can filter + count it.
+    canonical_category = normalize_news_category(category) if category else None
+    result = await service.list_all(
+        page, page_size, date_from=date_from, date_to=date_to, category=canonical_category
+    )
     if result.success and result.value and len(result.value.items) > 0:
         paginated = result.value
         items = [_item_to_response(item) for item in paginated.items]
-        # Apply category filter if provided (keep DB total, page may have fewer)
-        # Normalized first so the legacy ``company`` alias matches stored ``companies``.
-        if category:
-            canonical = normalize_news_category(category)
-            items = [item for item in items if item.category == canonical]
-        # Use the true DB total, not the current page size
+        # Defensive re-filter: the DB path already filters by category (so
+        # total/paging are correct), but stubbed services and the in-memory
+        # repo return the unfiltered page.
+        if canonical_category:
+            items = [item for item in items if item.category == canonical_category]
+        # Use the true (already category-filtered) DB total, not the page size
         total = paginated.total
         total_pages = max(1, (total + page_size - 1) // page_size)
         if page > total_pages and total_pages > 0:
@@ -206,8 +211,8 @@ async def list_news(
             data=PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1),
         )
     market_news = await _get_market_news(session, page_size)
-    if category and category != "market":
-        market_news = [n for n in market_news if n.category == category]
+    if canonical_category and canonical_category != "market":
+        market_news = [n for n in market_news if n.category == canonical_category]
     return ApiResponse[PaginatedResult[NewsResponse]](
         success=True,
         data=PaginatedResult(

@@ -26,10 +26,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
-from apps.api.app import app
 from apps.api.endpoints.symbols import MAX_UPLOAD_BYTES
 from core.result import Result
 from repositories.instrument_repository import InstrumentRepository
@@ -40,14 +38,10 @@ from services.instrument_import_service import InstrumentImportService
 # ────────────────────────────────────────────────────────────────────
 
 
-@pytest_asyncio.fixture
-async def client():
-    """HTTPX client wrapping the FastAPI ASGI app — mirrors the existing
-    pattern from ``tests/unit/test_backend_api.py``."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
+# The shared ``admin_client`` fixture from ``tests/unit/conftest.py`` supplies the
+# authenticated client.  A local unauthenticated ``client`` fixture used to shadow
+# it, which made every request 401: the symbols router is mounted with
+# ``require_user_for_writes``, so POST /import needs a real user.
 
 @pytest.fixture(autouse=True)
 def _stub_db_save(monkeypatch: pytest.MonkeyPatch):
@@ -68,7 +62,7 @@ def _stub_db_save(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.mark.asyncio
-async def test_import_csv_happy_path(client: AsyncClient):
+async def test_import_csv_happy_path(admin_client: AsyncClient):
     """1. A small but realistic CSV is parsed, all rows commit, no errors."""
     csv_bytes = (
         "symbol,name,isin,group_code\n"
@@ -77,7 +71,7 @@ async def test_import_csv_happy_path(client: AsyncClient):
         "وبملت,BankMellat,IRO1BANK0001,02\n"
     ).encode()
 
-    resp = await client.post(
+    resp = await admin_client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", csv_bytes, "text/csv")},
     )
@@ -93,12 +87,12 @@ async def test_import_csv_happy_path(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_import_csv_missing_symbol_column(client: AsyncClient):
+async def test_import_csv_missing_symbol_column(admin_client: AsyncClient):
     """2. A CSV whose header doesn't include ``symbol`` returns a friendly
     error in the ``ApiResponse`` envelope."""
     csv_bytes = b"name,isin\nFoo,ISIN1\nBar,ISIN2\n"
 
-    resp = await client.post(
+    resp = await admin_client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", csv_bytes, "text/csv")},
     )
@@ -110,7 +104,7 @@ async def test_import_csv_missing_symbol_column(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_import_csv_malformed_rows(client: AsyncClient):
+async def test_import_csv_malformed_rows(admin_client: AsyncClient):
     """3. Rows with non-numeric values in numeric columns are reported as
     parse errors; the endpoint still returns 200 with a fully populated
     summary so callers can act on each error individually."""
@@ -121,7 +115,7 @@ async def test_import_csv_malformed_rows(client: AsyncClient):
         b"BAD2,200,worse\n"  # par_value not numeric
     )
 
-    resp = await client.post(
+    resp = await admin_client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", csv_bytes, "text/csv")},
     )
@@ -141,12 +135,12 @@ async def test_import_csv_malformed_rows(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_import_over_size_file_rejected(client: AsyncClient):
+async def test_import_over_size_file_rejected(admin_client: AsyncClient):
     """4. A file one byte over the limit is rejected before any parsing
     happens; the response is a clean ApiResponse error envelope."""
     oversized = b"x" * (MAX_UPLOAD_BYTES + 1)
 
-    resp = await client.post(
+    resp = await admin_client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", oversized, "text/csv")},
     )
@@ -158,7 +152,9 @@ async def test_import_over_size_file_rejected(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_import_server_error_envelope(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+async def test_import_server_error_envelope(
+    admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
     """5. Any uncaught ``Exception`` raised by the import service is
     wrapped into a 200 ``ApiResponse`` with ``success=False`` — never a
     raw 500 stack — so the front-end can surface the real cause."""
@@ -169,7 +165,7 @@ async def test_import_server_error_envelope(client: AsyncClient, monkeypatch: py
     monkeypatch.setattr(InstrumentImportService, "import_from_bytes", _fake_import_from_bytes)
 
     csv_bytes = "symbol\nفولاد\nفملی\n".encode()
-    resp = await client.post(
+    resp = await admin_client.post(
         "/api/v1/instruments/import",
         files={"file": ("symbols.csv", csv_bytes, "text/csv")},
     )

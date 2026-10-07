@@ -376,7 +376,11 @@ class TestHttpOutcomeCounting:
     async def test_record_http_outcome_counts_news_only(self, monkeypatch):
         from services import news_read_canary as canary
 
-        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        # Start from an empty dict, not a copy: the middleware records real HTTP
+        # outcomes for every news request the earlier tests in this file make, so a
+        # copy would carry that baseline in and the absolute counts below would
+        # depend on test order.  monkeypatch restores the original on teardown.
+        monkeypatch.setattr(canary, "_mem_counters", {})
         await canary.record_http_outcome("/api/v1/news", 200)
         await canary.record_http_outcome("/api/v1/news", 500)
         await canary.record_http_outcome("/api/v1/news/search", 503)
@@ -392,7 +396,7 @@ class TestHttpOutcomeCounting:
     async def test_window_stats_exposes_http_fields(self, monkeypatch):
         from services import news_read_canary as canary
 
-        monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
+        monkeypatch.setattr(canary, "_mem_counters", {})
         await canary.record_http_outcome("/api/v1/news", 200)
         await canary.record_http_outcome("/api/v1/news", 500)
         stats = await canary.window_stats()

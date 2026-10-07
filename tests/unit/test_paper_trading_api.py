@@ -76,11 +76,17 @@ class TestDashboard:
         assert data["data"]["win_rate"] == 60.0
 
     async def test_service_error(self, svc: AsyncMock) -> None:
+        """A service exception produces the safe envelope.
+
+        The endpoint logs the exception (``logger.exception``) and returns a
+        generic message, so the failure path cannot leak internals to a client.
+        """
         svc.get_dashboard = AsyncMock(side_effect=RuntimeError("db down"))
         resp = await _get(make_app(svc), "/paper-trading/dashboard")
+        assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is False
-        assert "db down" in data["error"]["message"]
+        assert data["error"]["message"] == "Internal error"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -130,7 +136,11 @@ class TestListTrades:
     async def test_query_params_passed(self, svc: AsyncMock) -> None:
         svc.list_trades = AsyncMock(return_value=Result.ok(_paginated([])))
         await _get(make_app(svc), "/paper-trading/trades?status=open&symbol=خودرو&page=2&page_size=10")
-        svc.list_trades.assert_awaited_once_with(status="open", symbol="خودرو", page=2, page_size=10)
+        # ``user_id`` scopes the ledger to the caller; this harness sends no
+        # credentials, so the optional user resolves to None.
+        svc.list_trades.assert_awaited_once_with(
+            status="open", symbol="خودرو", page=2, page_size=10, user_id=None
+        )
 
     async def test_failure_result(self, svc: AsyncMock) -> None:
         svc.list_trades = AsyncMock(return_value=Result.fail("no trades"))
@@ -166,7 +176,7 @@ class TestOpenTrade:
         assert data["data"]["trade_id"] == "t1"
         svc.open_trade.assert_awaited_once_with(
             snapshot_id="s1", quantity=100.0, capital_allocated=5_000_000.0,
-            entry_price=4500.0, entry_notes=None,
+            entry_price=4500.0, entry_notes=None, user_id=None,
         )
 
     async def test_without_entry_price(self, svc: AsyncMock) -> None:
@@ -179,7 +189,7 @@ class TestOpenTrade:
         assert resp.json()["success"] is True
         svc.open_trade.assert_awaited_once_with(
             snapshot_id="s2", quantity=10.0, capital_allocated=0.0,
-            entry_price=None, entry_notes=None,
+            entry_price=None, entry_notes=None, user_id=None,
         )
 
     async def test_failure_result(self, svc: AsyncMock) -> None:
@@ -190,11 +200,13 @@ class TestOpenTrade:
         assert "snapshot not found" in data["error"]["message"]
 
     async def test_exception(self, svc: AsyncMock) -> None:
+        """The handler converts an unexpected error into the safe envelope."""
         svc.open_trade = AsyncMock(side_effect=ValueError("bad body"))
         resp = await _post(make_app(svc), "/paper-trading/trades", json={"snapshot_id": "s1"})
+        assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is False
-        assert "bad body" in data["error"]["message"]
+        assert data["error"]["message"] == "Internal error"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -215,6 +227,7 @@ class TestCloseTrade:
         assert data["data"]["pnl"] == 1500.0
         svc.close_trade.assert_awaited_once_with(
             trade_id="t1", exit_price=4800.0, exit_reason="target", exit_notes="هدف رسید",
+            user_id=None,
         )
 
     async def test_default_body_uses_manual_reason(self, svc: AsyncMock) -> None:
@@ -223,6 +236,7 @@ class TestCloseTrade:
         assert resp.json()["success"] is True
         svc.close_trade.assert_awaited_once_with(
             trade_id="t1", exit_price=None, exit_reason="manual", exit_notes=None,
+            user_id=None,
         )
 
     async def test_failure_result(self, svc: AsyncMock) -> None:
@@ -247,11 +261,13 @@ class TestAutoClose:
         assert data["data"] == {"closed": 2}
 
     async def test_exception(self, svc: AsyncMock) -> None:
+        """The handler converts an unexpected error into the safe envelope."""
         svc.auto_close_due_trades = AsyncMock(side_effect=RuntimeError("boom"))
         resp = await _post(make_app(svc), "/paper-trading/auto-close")
+        assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is False
-        assert "boom" in data["error"]["message"]
+        assert data["error"]["message"] == "Internal error"
 
 
 # ═══════════════════════════════════════════════════════════════

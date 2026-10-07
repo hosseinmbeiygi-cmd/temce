@@ -24,7 +24,7 @@ from repositories.news_items_read_repo import NewsItemsReadRepo
 class NewsRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[NewsItem] | None = None if session else InMemoryRepository[NewsItem]()
+        self._mem: InMemoryRepository[NewsItem] | None = None if session else InMemoryRepository(NewsItem)
         self._db: _NewsDbRepo | None = None if not session else _NewsDbRepo(session)
         # Canary READ path (NEWS_READ_MODE off/shadow/canary/full + legacy
         # boolean NEWS_READ_FROM_ITEMS forcing full): serves list/search/
@@ -88,17 +88,26 @@ class NewsRepository:
         page_size: int = 100,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        category: str | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
         decision, legacy, items = await self._route(f"list:{page}:{page_size}")
         served = None
         probed = None
         if decision.serve_items and items is not None:
-            served = await items.list(page, page_size, date_from=date_from, date_to=date_to)
-        elif legacy is not None:
-            served = await (self._db or self._mem).list(page, page_size, date_from=date_from, date_to=date_to)
+            served = await items.list(
+                page, page_size, date_from=date_from, date_to=date_to, category=category
+            )
+        elif self._db is not None:
+            served = await self._db.list(
+                page, page_size, date_from=date_from, date_to=date_to, category=category
+            )
+        elif self._mem is not None:
+            # In-memory store has no SQL filters — page it directly and let
+            # callers apply any date/category predicates themselves.
+            served = await self._mem.list(page, page_size)
         if decision.shadow and items is not None and self._db is not None:
             try:
-                probed = await self._items_read_probe(page, page_size, date_from, date_to)
+                probed = await self._items_read_probe(page, page_size, date_from, date_to, category)
             except Exception:  # noqa: BLE001 — probe failure must not break serving
                 pass
         await self._record_parity(decision, served, probed)
@@ -202,10 +211,12 @@ class NewsRepository:
             return served
         return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
-    async def _items_read_probe(self, page, page_size, date_from, date_to):
+    async def _items_read_probe(self, page, page_size, date_from, date_to, category=None):
         """Shadow probe of list() on the items repo (kept separate so the
         legacy-served list() path stays symmetric with search/symbol)."""
-        return await self._items_read.list(page, page_size, date_from=date_from, date_to=date_to)
+        return await self._items_read.list(
+            page, page_size, date_from=date_from, date_to=date_to, category=category
+        )
 
     async def _record_parity(
         self,
@@ -294,9 +305,15 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         page_size: int = 100,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        category: str | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
         # Filter: only articles with a source (exclude legacy NULL-source ISNA articles)
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
+        # Category is filtered in SQL (not on the fetched page) so ``total``
+        # and pagination reflect the filtered set — a page-level filter kept
+        # the unfiltered table count and returned the wrong page for page>1.
+        if category is not None:
+            source_filter = source_filter & (NewsArticleModel.category == category)
 
         # Inner: DISTINCT ON (title) — one row per title, newest first.
         # Ordering key = TIMESTAMP (published_at_ts), NOT the VARCHAR

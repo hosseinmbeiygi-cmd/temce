@@ -182,10 +182,14 @@ class NewsItemsReadRepo:
         page_size: int = 100,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        category: str | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
-        return await self._run_query(
-            select(NewsItemModel), page, page_size, date_from, date_to
-        )
+        stmt = select(NewsItemModel)
+        # Category is pushed into SQL so ``total`` and paging describe the
+        # filtered set, mirroring the legacy repo (canary parity).
+        if category is not None:
+            stmt = stmt.where(NewsItemModel.category == category)
+        return await self._run_query(stmt, page, page_size, date_from, date_to)
 
     async def search(
         self,

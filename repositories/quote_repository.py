@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.result import Result
@@ -16,7 +16,7 @@ from repositories.db_base import DbRepository
 class QuoteRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Quote] | None = None if session else InMemoryRepository[Quote]()
+        self._mem: InMemoryRepository[Quote] | None = None if session else InMemoryRepository(Quote)
         self._db: _QuoteDbRepo | None = None if not session else _QuoteDbRepo(session)
 
     async def get(self, id: str) -> Result[Quote]:
@@ -41,6 +41,25 @@ class QuoteRepository:
             rows = result.scalars().all()
             return Result.ok([self._db._to_domain(r) for r in rows])
         return Result.ok(list(self._mem._store.values()))
+
+    async def get_latest_snapshot(self, limit: int) -> Result[list[Quote]]:
+        """Quotes from the newest trade date only, at most ``limit`` rows.
+
+        Market watch needs one current snapshot per symbol, not the whole price
+        history: the unbounded ``get_all()`` read it replaces built 3.4M ORM rows
+        per request, which took over ten minutes to answer.
+        """
+        if self._db:
+            return await self._db.get_latest_snapshot(limit)
+        store = self._mem._store.values()
+        if not store:
+            return Result.ok([])
+        latest = max(q.date or "" for q in store)
+        rows = sorted(
+            (q for q in store if (q.date or "") == latest),
+            key=lambda q: q.symbol or "",
+        )
+        return Result.ok(rows[:limit])
 
     async def get_latest(self, instrument_id: str) -> Result[Quote]:
         if self._db:
@@ -115,6 +134,26 @@ class QuoteRepository:
 
 class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
     model_class = QuoteModel
+
+    async def get_latest_snapshot(self, limit: int) -> Result[list[Quote]]:
+        """Bounded read of the newest trade date's quotes.
+
+        ``quotes.date`` is a VARCHAR holding ISO Gregorian dates for the recent
+        rows (older rows carry Jalali dates), so ``MAX(date)`` picks the newest
+        stored trade date.  The equality filter lets the ``ix_quotes_date`` index
+        do the work and caps the result at ``limit`` rows instead of streaming
+        the full 3.4M-row table into Python objects.
+        """
+        latest_date = select(func.max(QuoteModel.date)).scalar_subquery()
+        stmt = (
+            select(QuoteModel)
+            .where(QuoteModel.date == latest_date)
+            .order_by(QuoteModel.symbol)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        return Result.ok([self._to_domain(r) for r in rows])
 
     async def get_latest(self, instrument_id: str) -> Result[Quote]:
         stmt = (

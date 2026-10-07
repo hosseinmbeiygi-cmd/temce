@@ -41,9 +41,9 @@ class MlModel(BaseEntity):
 class MlRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem_model: InMemoryRepository[MlModel] | None = None if session else InMemoryRepository[MlModel]()
-        self._mem_version: InMemoryRepository[ModelVersion] | None = None if session else InMemoryRepository[ModelVersion]()
-        self._mem_run: InMemoryRepository[TrainingRun] | None = None if session else InMemoryRepository[TrainingRun]()
+        self._mem_model: InMemoryRepository[MlModel] | None = None if session else InMemoryRepository(MlModel)
+        self._mem_version: InMemoryRepository[ModelVersion] | None = None if session else InMemoryRepository(ModelVersion)
+        self._mem_run: InMemoryRepository[TrainingRun] | None = None if session else InMemoryRepository(TrainingRun)
         self._db: _MlDbRepo | None = None if not session else _MlDbRepo(session)
 
     async def get_model(self, id: str) -> Result[MlModel]:

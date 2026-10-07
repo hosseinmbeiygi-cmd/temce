@@ -60,19 +60,78 @@ _MOCK_USER: dict[str, Any] = {
 }
 
 
+async def _mock_admin_user(authorization: str = "") -> dict[str, Any]:
+    """Stand-in for ``get_current_user`` used by the authenticated fixtures."""
+    _ = authorization
+    return dict(_MOCK_ADMIN)
+
+
+async def _mock_regular_user(authorization: str = "") -> dict[str, Any]:
+    """Stand-in for ``get_current_user`` returning a plain user."""
+    _ = authorization
+    return dict(_MOCK_USER)
+
+
+def _authenticate(
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+    current_user: Any,
+    replacement: Any,
+) -> dict[Any, Any]:
+    """Make every auth path in the app resolve to ``current_user``'s role set.
+
+    Two mechanisms are needed.  ``Depends(get_current_user)`` (used by
+    ``require_roles``, ``require_role`` and friends) is satisfied by the
+    dependency-override map — note the override is registered as the *callable
+    itself*, so FastAPI awaits it and injects its return value; wrapping it in a
+    ``lambda`` would inject the function object and every consumer would then
+    fail on ``current_user.get(...)``.
+
+    Mount-time helpers such as ``require_user_for_writes`` call
+    ``get_current_user`` *directly*, so the override map never reaches them and
+    an authenticated write would still answer 401.  Patching the module global
+    covers that second path.
+
+    Returns the overrides that were in place beforehand so the caller can
+    restore exactly that state instead of blasting every override away.
+    """
+    from apps.api import dependencies
+
+    previous = dict(app.dependency_overrides)
+    app.dependency_overrides[current_user] = replacement
+    monkeypatch.setattr(dependencies, "get_current_user", replacement, raising=False)
+    return previous
+
+
+def _restore_overrides(app: FastAPI, previous: dict[Any, Any]) -> None:
+    """Put ``app.dependency_overrides`` back the way ``_authenticate`` found it."""
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(previous)
+
+
 @pytest_asyncio.fixture
-async def admin_client(app: FastAPI, client: AsyncClient) -> AsyncClient:
+async def admin_client(
+    app: FastAPI, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> AsyncGenerator[AsyncClient, None]:
     """Client with admin-level auth (``get_current_user`` returns admin)."""
     from apps.api.dependencies import get_current_user
-    app.dependency_overrides[get_current_user] = lambda: _MOCK_ADMIN
-    yield client
-    app.dependency_overrides.clear()
+
+    previous = _authenticate(app, monkeypatch, get_current_user, _mock_admin_user)
+    try:
+        yield client
+    finally:
+        _restore_overrides(app, previous)
 
 
 @pytest_asyncio.fixture
-async def user_client(app: FastAPI, client: AsyncClient) -> AsyncClient:
+async def user_client(
+    app: FastAPI, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> AsyncGenerator[AsyncClient, None]:
     """Client with regular-user auth (``get_current_user`` returns ``{roles: ["user"]}``)."""
     from apps.api.dependencies import get_current_user
-    app.dependency_overrides[get_current_user] = lambda: _MOCK_USER
-    yield client
-    app.dependency_overrides.clear()
+
+    previous = _authenticate(app, monkeypatch, get_current_user, _mock_regular_user)
+    try:
+        yield client
+    finally:
+        _restore_overrides(app, previous)

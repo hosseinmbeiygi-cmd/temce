@@ -16,7 +16,7 @@ from repositories.db_base import DbRepository
 class MacroRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[MacroEntity] | None = None if session else InMemoryRepository[MacroEntity]()
+        self._mem: InMemoryRepository[MacroEntity] | None = None if session else InMemoryRepository(MacroEntity)
         self._db: _MacroDbRepo | None = None if not session else _MacroDbRepo(session)
 
     async def get(self, id: str) -> Result[MacroEntity]:

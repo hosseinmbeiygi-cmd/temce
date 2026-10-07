@@ -30,7 +30,7 @@ class FundRepository:
 
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Fund] | None = None if session else InMemoryRepository[Fund]()
+        self._mem: InMemoryRepository[Fund] | None = None if session else InMemoryRepository(Fund)
         self._db: _FundDbRepo | None = None if not session else _FundDbRepo(session)
 
     # ── CRUD ──────────────────────────────────────────────────────

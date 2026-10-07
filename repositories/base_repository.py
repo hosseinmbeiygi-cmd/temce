@@ -29,13 +29,18 @@ class BaseRepository(ABC, Generic[T]):
 
 
 class InMemoryRepository(BaseRepository[T]):
+    #: Stores are shared between instances **of the same entity type**, so a
+    #: repository handed out by one service is visible to another in the same
+    #: process.  They must not be shared *across* entity types: keying only on
+    #: the class name put instruments, quotes and every other entity into a
+    #: single bucket, so a quote summary iterated ``Instrument`` rows and raised
+    #: ``AttributeError: 'Instrument' object has no attribute 'instrument_id'``.
     _shared_store: dict[str, dict[str, Any]] = {}
 
-    def __init__(self) -> None:
+    def __init__(self, entity_type: type | None = None) -> None:
         cls = type(self)
-        if cls.__name__ not in self._shared_store:
-            self._shared_store[cls.__name__] = {}
-        self._store = self._shared_store[cls.__name__]
+        key = cls.__name__ if entity_type is None else f"{cls.__name__}:{entity_type.__name__}"
+        self._store = self._shared_store.setdefault(key, {})
 
     async def get(self, id: str) -> Result[T]:
         entity = self._store.get(id)

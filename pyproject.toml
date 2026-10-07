@@ -125,9 +125,14 @@ strict = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--capture=no"]
+# One event loop for the whole session. The FastAPI app and its SQLAlchemy/asyncpg
+# pool are built once by the session-scoped ``app`` fixture, so a per-module test
+# loop left later modules reusing connections bound to a closed loop — that showed
+# up as "Event loop is closed" / "'NoneType' object has no attribute 'send'" and
+# as requests that never returned.
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "module"
-asyncio_default_test_loop_scope = "module"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 markers = [
     "performance: performance tests",
     "e2e: end-to-end tests",

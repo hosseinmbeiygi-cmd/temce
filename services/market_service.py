@@ -792,8 +792,14 @@ class MarketService:
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         return await self.quote_repo.get_market_summary()
 
-    async def get_market_watch(self) -> Result[list[dict[str, Any]]]:
-        quotes_result = await self.quote_repo.get_all()
+    async def get_market_watch(self, limit: int = 500) -> Result[list[dict[str, Any]]]:
+        """Newest snapshot quotes, bounded by ``limit``.
+
+        The read is pushed into SQL (newest trade date, ``LIMIT``) instead of
+        scanning the whole price table: the unbounded version built 3.4M ORM
+        rows per request and never returned within ten minutes.
+        """
+        quotes_result = await self.quote_repo.get_latest_snapshot(limit)
 
         if not quotes_result.success:
             return quotes_result
