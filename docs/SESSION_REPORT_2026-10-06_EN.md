@@ -18,12 +18,12 @@
 | Unit tests | ✅ 17 tests, all passing |
 | Docs | ✅ `docs/PRICE_ADJUSTMENT_READ_PATH.md` 164 → 585 lines (§۹–§۱۲) |
 | Commit | ✅ `43278bbd` (3 files, +773/−1) — §۹ only |
-| Full import executed | ❌ not run |
-| Factor backfill executed | ❌ not run |
-| Real indicator-delta measured | ❌ not run |
-| DB writes | **none** — `corporate_action_events`=0, `daily_adjust_factors`=0, `symbols`=511 |
+| Full import executed | ✅ ran, exit 0 — **586 events** written (see A14) |
+| Factor backfill executed | ✅ ran, exit 0 in 73 s — **621,818 factors** over 145 symbols |
+| Real indicator-delta measured | ✅ adjusted vs raw 20-row MA differ by **38.7%** onومعادن |
+| DB writes | `corporate_action_events` 0 → **586**, `daily_adjust_factors` 0 → **621,818**, `symbols` stayed 511 |
 | Push | ❌ not performed |
-| Blockers | disk `C:` at 100% (48 MB free) + open registry-coverage decision |
+| Blockers | none for the executed run; the registry-coverage decision is still open (see A15) |
 
 ### A1. Problem
 
@@ -247,7 +247,10 @@ Full batched run (stopped by the full disk):
 
 Only those three paths were staged; the dozens of pre-existing unrelated modifications remained untouched and unstaged. The Codebuff footer is present. Verified: no commitlint/husky/commit-msg hook exists in this repo (only `post-checkout`/`post-commit`), and the subject length (82) is within the repo's range (median 73, max 100). **Not pushed.**
 
-### A11. Blockers
+### A11. Blockers (resolved later — see A14)
+
+> **Resolved.** The disk was emptied to 28 GB free and the import + backfill were
+then run to completion (A14). The block below is the state *at the time*.
 
 ```text
 $ df -h /c
@@ -261,31 +264,97 @@ pgdata = C:\Program Files\PostgreSQL\18\data
 
 Free space fell from 1.3 GB → 719 MB → 48 MB during these scans. Also open: the registry-coverage decision — register only CODAL-corroborated tickers (recommended), all event-bearing tickers (~1,700), or none.
 
-### A12. Remaining work
+### A12. Remaining work — now executed
 
 ```bash
-# 0) free several GB on C:   (mandatory)
-
-# 1) full preview (writes nothing)
-python scripts/import_corporate_actions.py --dry-run --report-unregistered
-
-# 2) insert events (with --register-missing if that option is approved)
-python scripts/import_corporate_actions.py --register-missing
-
-# 3) materialise factors on the true Gregorian trade date
-python scripts/backfill_adjust_factors.py
-
-# 4) verify: counts > 0 in both tables, and one indicator actually changes
+# 0) free several GB on C:            → done (28 GB free)
+# 1) full preview                     → done: 1,679 events / 431 symbols
+# 2) insert events (no --register-missing)  → done: 586 rows, exit 0
+# 3) materialise factors              → done: 621,818 rows, exit 0, 73 s
+# 4) verify both counts + one indicator→ done: A14 (38.7% MA delta onومعادن)
 ```
+
+Still open: `--register-missing` (A15) and any scheduled rebuild of
+daily_adjust_factors after new events (see the `recompute_factors` gap in A13).
 
 ### A13. Limitations and gaps
 
-Not verified: full import, factor backfill, and any real indicator-delta measurement (the earlier proof used a **synthetic** factor inside a rolled-back transaction). The ratio is validated against TSETMC re-basing plus spot `shares_count` checks, not an independent full-coverage source. `--include-dividends` is uncorroborated by design and unvalidated. Thresholds are engineering choices, not calibrated on labelled data. The pre-existing failures `test_signal_decision_engine.py` / `test_quant_signal_orchestrator.py` (24) are unrelated and were not run. `symbols` was left untouched at 511 rows.
+**No longer unverified:** the full import, the factor backfill, and a real
+indicator-delta measurement have all since been executed (A14). The earlier
+"synthetic factor in a rolled-back transaction" proof is superseded by the live
+ومعادن measurement.
+
+Still unverified or open: the ratio is validated against TSETMC re-basing plus
+spot `shares_count` checks, not an independent full-coverage source;
+`--include-dividends` is uncorroborated by design and unvalidated; and the
+thresholds are engineering choices, not calibrated on labelled data. `symbols`
+was left untouched at 511 rows (A15). The `test_quant_signal_orchestrator.py`
+failures once listed here as "unrelated and not run" turned out to be cross-file
+contamination and are fixed (D5).
 
 A consumer scan of this feature surfaced two further gaps:
 
 1. **`recompute_factors` has no caller** anywhere (`services/`, `jobs/`, `apps/`, `scripts/`, `tests/`, `workers/`, `backtesting/`, `BrsApi_Forecasting/`) — `daily_adjust_factors` is written only by the manual backfill script, no job or endpoint rebuilds it after new events, and it has no unit test.
 2. **The DP-022 patch package is unapplied.** `scripts/_dp_batch.py` / `_dp_batch2.py` (untracked one-shot editors, "run once, then deletable") intend to add a second writer `write_corporate_action` for `price_adjustment` events — but it does not exist in `brsapi/models/tsetmc.py` and is called nowhere. Its proposed `ratio = adjusted_price` and `ex_date = COALESCE(date, CURRENT_DATE)` also conflict with the `1/(1+ratio)` convention.
+
+### A14. Import and backfill executed (after the disk was freed)
+
+The full import and the factor backfill were re-run in a later session once the
+disk had been emptied (28 GB free). Both finished with exit status 0 and every
+number below is a live `SELECT` against `my_first_db`, not a dry-run estimate.
+
+**Dry-run** (writes nothing):
+
+```text
+eligible symbols=821  rebasing days=9836
+corroborated=1679 events / 431 symbols   unmatched=8157   symbols_without_filing=390
+286 of the 431 corroborated symbols are absent from ``symbols`` (FK) — skipped
+```
+
+**Real import** — without `--register-missing` (the registry-coverage decision
+below was never made), so the 286 FK-blocked symbols simply keep no rows:
+
+```text
+python scripts/import_corporate_actions.py          → exit 0
+corporate_action_events: 0 → 586 rows
+  145 distinct symbols, every row action_type='capital_increase', source='codal'
+  ratio  min 0.000154   max 78.426   avg 0.9887
+```
+
+**Factor backfill** — `scripts/backfill_adjust_factors.py`, exit 0 in 73 s:
+
+```text
+daily_adjust_factors: 0 → 621,818 rows over 145 symbols
+  min 0.0030002916   max 1.0   non-unit factors 558,972
+```
+
+**View verified** (`pg_get_viewdef`): `vw_daily_history_adjusted` applies
+`COALESCE(f.adj_factor, 1)` and yields `price_*_adj = price * adj_factor`, joined
+through `jalali_to_gregorian(h.date::text)`; `trade_date` is the derived Gregorian
+date. `resolve_price_source` returns `('vw_daily_history_adjusted', True)`.
+
+**End-to-end proof — the adjustment is real and large.** ومعادن (symbol_id
+56834567890123456) has 16 stored events. On 2025-02-11 the raw close is 3,827; the
+stored factor is 0.7211510725, so the adjusted close is 2,581.72 — continuous with
+the post-ex close of 2,581 on 2025-02-15 instead of a step. The factor is exactly
+`1/(1 + 0.386672)`, the stored event ratio. Same 20 rows, a 20-row moving average:
+
+```text
+unadjusted MA 3620.20   adjusted MA 2610.71   →  38.7% error if the factor is ignored
+```
+
+**Caveat found while measuring.** `load_daily_candles(session, sym, adjusted=False)`
+reads a *different* table (`daily_history`), not the view, so index-aligning
+raw-vs-adjusted candles across the two calls is invalid. Compare `price_close` and
+`price_close_adj` on the same `vw_daily_history_adjusted` rows (as done above).
+
+### A15. Registry coverage — still open
+
+1,921 tickers have a detectable event, but only 225 exist in `symbols`; 286 of the
+431 CODAL-corroborated symbols remain FK-blocked, so their events cannot be stored
+and 83% of the price history cannot be adjusted. `--register-missing` inserts the
+missing tickers with a deterministic id but was deliberately **not** run — the
+choice of which tickers to register is a product decision, not a code one.
 
 ---
 
@@ -417,7 +486,7 @@ Priorities stand unchanged, with two refinements: item 5 ("independently re-revi
 
 The earlier phases of this session were blocked from running tests by a full system disk (`No space left on device`). After 10 GB were freed, both suites were executed. Everything below is a raw result: **no code was changed to make a test pass**, and no assertion, skip or timeout was weakened or removed.
 
-> **Read Part D alongside this part.** Part C is the *measurement record* of the repository as it stood before any repair, and its pass/fail counts are the pre-fix counts. Part D records the fixes that were applied afterwards, the verification of those fixes, and exactly which of the numbers below are still current. In particular, the C2.5 claim that `market_service.py` and `quote_repository.py` were untouched is **no longer true** — Fix 1 in Part D edits both.
+> **Read Parts D and E alongside this part.** Part C is the *measurement record* of the repository as it stood before any repair, and its pass/fail counts are the pre-fix counts. Part D records the fixes that were applied afterwards, the verification of those fixes, and exactly which of the numbers below are still current; Part E records the follow-up (import executed, the eight edge-case failures fixed, contamination removed, commit `f0ed96d4`). In particular, the C2.5 claim that `market_service.py` and `quote_repository.py` were untouched is **no longer true** — Fix 1 in Part D edits both.
 
 ### C1. Frontend suite (vitest) — complete
 
@@ -719,10 +788,12 @@ $ pytest -q tests/unit/test_instrument_import_api.py tests/unit/test_endpoints.p
              tests/unit/test_paper_trading_api.py tests/unit/services/test_historical_data_service.py
 
 before fixes:  11 failed, 104 passed, 2 skipped   in 178.94s
-after fixes:    0 failed, 114 passed, 2 skipped   in 225.42s
+after fixes:    0 failed, 115 passed, 2 skipped   in 262.79s   (exit status 0)
 ```
 
-All 50 failures from C2.4 are accounted for: **32 fixed** by the changes above; **18 remain** and are listed in D4 (17 of them appear in the 49-item list in C2.4, plus `test_dashboard_has_all_sections` from C2.5). The 11 failures that fell to 0 in the table above cover only the subset of the 32 that lives in the eight modules re-run here; the remaining 21 fixed tests are in modules that were measured individually, or are the four never-terminating tests that Fix 1 made runnable.
+117 tests are collected in both runs; the `after` row is 115 passed + 2 skipped, i.e. no failures. The 262.79 s is a single pytest process — the same command in both rows — and the exit status was captured explicitly rather than read off a filtered pipe.
+
+All 50 failures from C2.4 are accounted for: **32 fixed** by the changes above; **18 remain** and are listed in D4 (17 of them appear in the 49-item list in C2.4, plus `test_dashboard_has_all_sections` from C2.5). A follow-up session then fixed **10** of those 18 (the eight `test_backend_api_edge_cases.py` ones and the two `test_quant_signal_orchestrator.py` ones), leaving **8** — see Part E. The 11 failures that fell to 0 in the table above cover only the subset of the 32 that lives in the eight modules re-run here; the remaining 21 fixed tests are in modules that were measured individually, or are the four never-terminating tests that Fix 1 made runnable.
 
 Reassembling the totals from the same file-by-file measurements with the four C2.5 tests now included and the 32 fixed failures removed:
 
@@ -774,6 +845,11 @@ This is a **test-harness environment defect, not a product defect**: the limiter
 
 ### D4. The 18 `tests/unit` failures that remain
 
+> **Superseded in part — see Part E.** 10 of these 18 have since been fixed: the
+eight `test_backend_api_edge_cases.py` failures and the two
+`test_quant_signal_orchestrator.py` ones. The list below is kept as the pre-fix
+record; the eight still open appear at the end of Part E.
+
 Not fixed, with the measured cause for each:
 
 ```text
@@ -817,6 +893,11 @@ The tests assume *"no real price data (no DB)"*. Once a previous module has warm
 
 This is therefore **not a regression introduced by Fix 2**; Fix 2 removed an accident that was masking tests whose premise ("no database") is false in this environment. It does mean that `tests/unit` pass/fail counts are **chunk-boundary sensitive**, which is why the C2 numbers were produced file-by-file or in chunks and should not be compared against a hypothetical single-process run.
 
+> **Resolved — see Part E.** `TestCrossMarketCorrelator` now pins
+> `core.database.async_session_factory` to `None` through an autouse fixture, so the
+> signal-fallback cases no longer depend on run order; the file gives `55 passed`
+> instead of `2 failed / 53 passed` alone and `24 failures` after a warmer.
+
 ### D6. Scope statement — what was and was not run
 
 The honest boundary of this report:
@@ -824,26 +905,126 @@ The honest boundary of this report:
 * **Run to completion:** `tests/unit` (5,334 collected; 5,330 measured; 4 never terminating) and every collectable test outside `tests/unit` (736 measured, 5 files killed at their caps).
 * **Not run at all:** anything that cannot be imported without network I/O — `tests/legacy/**` and the loose root `tests/test_*.py` modules (19 collection errors, 0 tests executed, 413 s of retry time).
 * **Not re-measured end to end:** the full `tests/unit` suite was *not* re-run after Fixes 1–7. The verification in D2 re-runs the eight modules that contained the failures; the aggregate pass/fail totals printed in C2 still describe the **pre-fix** state and are labelled as such there.
-* **Not run:** `scripts/import_corporate_actions.py` against the database and `scripts/backfill_adjust_factors.py`. `corporate_action_events = 0`, `daily_adjust_factors = 0`, `symbols = 511` — still zero writes, unchanged from Part A.
-* **Not decided:** whether `--register-missing` is permitted; the 1,921 tickers with detectable events are still not registered.
-* The two known pre-existing failures in `test_signal_decision_engine.py` and `test_quant_signal_orchestrator.py` are untouched.
+* **Now run (corrects this bullet):** `scripts/import_corporate_actions.py` and `scripts/backfill_adjust_factors.py` were executed in a later session — `corporate_action_events` 0 → 586, `daily_adjust_factors` 0 → 621,818 (A14). `symbols` is still 511.
+* **Not decided:** whether `--register-missing` is permitted; the 1,921 tickers with detectable events are still not registered (A15).
+* The `test_quant_signal_orchestrator.py` failures were **not** pre-existing bugs — they were cross-file contamination and are fixed in Part E. `test_signal_decision_engine.py` was not re-examined.
+
+---
+
+## Part E — Follow-up session: import executed, remaining failures fixed, contamination removed
+
+Part D was written before the follow-up work. This part records what changed
+afterwards and rewrites the four affected numbers above.
+
+### E1. The import and the factor backfill were executed
+
+A11/A12/D6 record both scripts as "not run"; they have since been executed with
+exit status 0 — **586 events** into `corporate_action_events` and **621,818
+factors** into `daily_adjust_factors`, with a 38.7% moving-average delta on
+ومعادن proving the adjustment reaches the read path. Full numbers and the SQL
+verification are in **A14**; the open registry decision is **A15**.
+
+### E2. The eight `test_backend_api_edge_cases.py` failures are fixed
+
+Three were real contract mismatches, the rest were stale assertions. The only
+product change is the news category filter (E2.1); the others are test repairs.
+
+1. **`GET /news?category=` filtered the fetched page but kept the unfiltered
+table count** (total 19,711 for a nonexistent category). The filter is now pushed
+into SQL through `NewsService.list_all` → `NewsRepository.list` → both `_NewsDbRepo`
+and `NewsItemsReadRepo` (so the canary read path stays symmetric), and the
+endpoint normalises the alias before the query. `total`, `total_pages` and paging
+now describe the filtered set.
+2. `test_news_page_too_high` used `page=999`, which is *inside* the ~1,972-page
+range; it now derives `total_pages` from the response and requests `+1`.
+3. `test_fund_navs_are_positive` read `data["data"]["items"]`, but `/funds`
+returns the raw envelope (`items` at top level).
+4. `test_dashboard_has_all_sections` asserted exact key equality against five
+keys; the overview also returns `job_stats`, `table_rows`, `ml_models`, … — now
+a `<=` (superset) check.
+5. `test_energy_commodity_sub_*` read `sub_markets`/`summary` at the top level;
+they live under `data`.
+6. `test_industries_sorted_by_count` used `/api/v1/industries`; the route is
+`/api/v1/market-info/industries`.
+7. `test_signals_nonexistent_type` encoded a `type` filter the endpoint never
+had. It now asserts the documented behaviour: an unrecognised query param is
+ignored and a well-formed page is returned.
+
+Verification (single process, exit status captured):
+
+```text
+$ pytest -q tests/unit/test_backend_api_edge_cases.py
+34 passed, 18 warnings in 420.50s (0:07:00)      exit status 0
+```
+
+The six neighbouring news suites were re-run to prove no regression (158 passed,
+4 skipped, exit 0).
+
+### E3. Cross-file contamination removed (supersedes D5)
+
+`TestCrossMarketCorrelator` and the auto-retrain holdout test assume the database
+is unavailable; both now pin `core.database.async_session_factory` to `None` (an
+autouse fixture and an explicit `monkeypatch`, respectively) instead of relying on
+the module order that happens to leave it unset.
+
+```text
+test_quant_signal_orchestrator.py alone                55 passed            exit 0
+after a DB-warming edge-case test                      57 passed (2 warm-up) exit 0
+   (before: 2 failed/53 alone, 24 failed after the warmer)
+```
+
+### E4. The `tests/unit` failures that remain
+
+After E2 and E3, **eight** `tests/unit` failures remain, all outside the scope of
+this follow-up and each with an unrelated cause:
+
+```text
+2  test_confirmed_runtime_fixes.py     limiter.wait_if_needed() StopIteration;
+                                       ModuleNotFoundError: 'database_handler'
+1  test_rate_limit_middleware.py       cross-test limiter state
+1  test_rbac.py                        ['user'] != ['admin'] — call_count logic
+1  test_api_v6_hardening.py            router-audit script exits 1
+1  test_build_feature_store.py         patches a name the module no longer has
+1  test_brsapi_usage_simulator.py      result.ok is False
+1  test_critical_runtime_fixes.py      no traceback captured
+  8 total
+```
+
+These were checked for contamination rather than assumed: the same eight fail
+identically when run alone and when run after a DB-warming test.
+
+### E5. Commit
+
+```text
+f0ed96d4  fix(test-isolation,api): bound market-watch, fix news category paging, unblock unit suite
+          34 files changed, 785 insertions(+), 128 deletions(-)
+```
+
+Staged per hunk: in `apps/api/endpoints/market.py` only the `/watch` hunk (Fix 1)
+was committed, leaving the pre-existing `audit API-005` `/bourse` cap in the
+working tree; the same was done for the unrelated edits sharing
+`repositories/codal_repository.py` (DP-020), `repositories/instrument_repository.py`
+(`ins_code`) and `pyproject.toml` (dependency-policy comment), and
+`repositories/db_base.py` (`merge`-vs-`add`) was left uncommitted entirely.
 
 ---
 
 ## Current repository state
 
 ```text
-main → 43278bbd                        (3 files, +773/−1; §۹ of the price report; not pushed)
-docs/PRICE_ADJUSTMENT_READ_PATH.md     M   (§۹ committed; §۱۰–§۱۲ uncommitted) — 585 lines
+main → f0ed96d4                        fix(test-isolation,api): … (34 files, +785/−128; not pushed)
+main~1 → 1212cb87                      docs: audit verification, price-read-path notes, reports
+main~2 → 43278bbd                      feat(corporate-actions): … (3 files, +773/−1)
 docs/ARCHITECTURE_AUDIT_2026-10-06.md  ??  (untracked; 448 lines incl. §9)
-docs/SESSION_REPORT_2026-10-06_EN.md   ??  (this file; now 900+ lines incl. Part D)
-corporate_action_events = 0    daily_adjust_factors = 0    symbols = 511
-C: free = 28 GB (was 48 MB before cleanup; /c total 238G, 210G used, 88%)
+docs/SESSION_REPORT_2026-10-06_EN.md   ??  (this file; incl. Parts D and E)
+docs/FINAL_REPORT_2026-10-07_FA.md     ??  (untracked; Persian final account)
+corporate_action_events = 586    daily_adjust_factors = 621,818    symbols = 511
+C: free = 28 GB (/c total 238G, 210G used, 88%)
 ```
 
-### Uncommitted changes made in this session
+### Changes committed in this session (`f0ed96d4`)
 
-Files edited for Fixes 1–7 (all verified in D2, none committed):
+Fixes 1–7 plus the edge-case, contamination and report work:
 
 ```text
 repositories/base_repository.py                     Fix 7  key + __init__
@@ -861,6 +1042,19 @@ tests/unit/test_brsapi_sync_nav_all_endpoint.py     Fix 3
 tests/unit/test_ws_origin_and_table_guard.py        Fix 4
 tests/unit/services/test_news_read_canary.py        Fix 5
 tests/unit/test_paper_trading_api.py                Fix 6
+services/news_service.py                            E2.1 category push-down
+repositories/news_repository.py                     E2.1 category push-down (legacy + canary)
+repositories/news_items_read_repo.py                E2.1 category push-down (items path)
+apps/api/endpoints/news.py                          E2.1 pass canonical category to the query
+tests/unit/test_backend_api_edge_cases.py           E2   8 failures → 0 (34 passed)
+tests/unit/services/test_quant_signal_orchestrator.py E3   pin the data source (contamination)
+tests/unit/backtesting/test_audit_fixes_regression.py E3   pin the data source (new file)
 ```
 
-`apps/api/endpoints/market.py` interleaves a pre-existing `audit API-005` edit (a `limit` cap on `/bourse`) with Fix 1, and the working tree carries hundreds of unrelated pre-existing modifications, so these files were **not** staged — separating them from each other would need a per-hunk review.
+Per-hunk staging kept the unrelated pre-existing edits that share those files out
+of the commit: the `audit API-005` `/bourse` cap in `apps/api/endpoints/market.py`,
+the DP-020 edits in `repositories/codal_repository.py`, the `ins_code` change in
+`repositories/instrument_repository.py`, the dependency-policy comment in
+`pyproject.toml`, and the `merge`-vs-`add` change in `repositories/db_base.py`.
+Those hunks remain in the working tree, along with hundreds of unrelated
+pre-existing modifications elsewhere.

@@ -13,8 +13,10 @@
 |---|---|---|
 | اسکریپت وارد‌سازی رویدادهای افزایش سرمایه از CODAL | ✅ نوشته و کامیت شد | کامیت `43278bbd` — `scripts/import_corporate_actions.py` (۵۲۲ خط) |
 | تست‌های همان اسکریپت | ✅ ۱۷ تست، همه سبز | `tests/unit/scripts/test_import_corporate_actions.py` |
-| اجرای واقعی وارد‌سازی روی پایگاه داده | ❌ اجرا نشده | `corporate_action_events = 0`، `daily_adjust_factors = 0` |
-| بک‌فیل فاکتورهای تعدیل | ❌ اجرا نشده | `scripts/backfill_adjust_factors.py` فراخوانی نشد |
+| اجرای واقعی وارد‌سازی روی پایگاه داده | ✅ اجرا شد (exit 0) | `corporate_action_events` ۰ → **۵۸۶** رویداد (۱۴۵ نماد، همه `capital_increase`، منبع `codal`) |
+| بک‌فیل فاکتورهای تعدیل | ✅ اجرا شد (exit 0 در ۷۳ ثانیه) | `daily_adjust_factors` ۰ → **۶۲۱٬۸۱۸** فاکتور روی ۱۴۵ نماد |
+| اثبات تغییر واقعی اندیکاتور | ✅ اندازه‌گیری شد | میانگین متحرک ۲۰ ردیفی با/بی فاکتور: **۳۸٫۷٪** اختلاف روی ومعادن |
+| کامیت اصلاحات کد و تست | ✅ انجام شد | کامیت `f0ed96d4` — ۳۴ فایل، ‎+۷۸۵/−۱۲۸ |
 | تأیید مستقل «ممیزی معماری ۲۰۲۶-۱۰-۰۶» | ✅ انجام شد | `docs/ARCHITECTURE_AUDIT_2026-10-06.md` §۹ |
 | اجرای کامل تست‌های فرانت‌اند (vitest) | ✅ کامل | ۳۳ فایل، ۴۱۱ تست، ۵۴.۸۸ ثانیه |
 | اجرای کامل تست‌های `tests/unit` | ✅ کامل | ۵٬۳۳۴ جمع‌آوری، همه اندازه‌گیری شدند |
@@ -22,7 +24,9 @@
 | رفع اشکال‌های واقعی | ✅ ۷ ریشه‌ای رفع شد | ۳۲ از ۵۰ شکست برطرف شد |
 | کامیت فایل‌های مستندات | ✅ انجام شد | ۳ فایل |
 
-**نتیجه اصلی:** اسکریپت وارد‌سازی آماده است ولی **هیچ نوشتنی در پایگاه داده انجام نشده**. دلیلش دو چیز است: (۱) فضای دیسک تا پیش از این مرحله پر بود، (۲) یک تصمیم باز درباره «ثبت نمادهای ناموجود» (`--register-missing`) هنوز گرفته نشده.
+**نتیجه اصلی:** پس از آزادسازی فضا، وارد‌سازی و بک‌فیل روی پایگاه داده **اجرا شدند** (۵۸۶ رویداد و ۶۲۱٬۸۱۸ فاکتور) و اثرشان روی یک اندیکاتور واقعی اندازه‌گیری شد. اصلاحات کد و تست این جلسه هم کامیت شدند (`f0ed96d4`). تنها مورد باز، تصمیم محصولی درباره «ثبت نمادهای ناموجود» (`--register-missing`) است که عمداً اجرا نشد.
+
+> **بازنگری بخش‌های ۳، ۶.۶، ۸.۱، ۹ و پیوست:** همهٔ آن‌ها پیش از اجرای وارد‌سازی/بک‌فیل و پیش از کامیت نوشته شده‌اند؛ وضعیت به‌روز در همین خلاصه و در بخش ۳ (به‌روزشده) آمده است.
 
 ---
 
@@ -126,20 +130,33 @@ id = 10**18 + blake2b(symbol, digest_size=8) % 10**15
 
 ---
 
-## ۳. مرحله ۲ — بک‌فیل فاکتور تعدیل (اجرا نشده)
+## ۳. مرحله ۲ — بک‌فیل فاکتور تعدیل (اجرا شد)
 
-این مرحله **اجرا نشد**. دستورهای آماده:
+این مرحله **اجرا شد** (پس از آزادسازی فضا). دستورها و خروجی واقعی:
 
 ```bash
-# ۰) آزادسازی فضا روی درایو C   (اجباری — انجام شد: 48MB → 28GB)
+# ۰) آزادسازی فضا روی درایو C   (انجام شد: 48MB → 28GB)
 # ۱) پیش‌نمایش کامل، بدون هیچ نوشتنی
 venv/Scripts/python scripts/import_corporate_actions.py --dry-run
-# ۲) درج رویدادها (با --register-missing فقط اگر تأیید شود)
-venv/Scripts/python scripts/import_corporate_actions.py
+#    → eligible symbols=821  rebasing days=9836
+#    → corroborated=1679 events / 431 symbols  unmatched=8157  symbols_without_filing=390
+# ۲) درج رویدادها (بدون --register-missing)
+venv/Scripts/python scripts/import_corporate_actions.py        # exit 0
+#    → corporate_action_events: 0 → 586  (145 نماد؛ ratio: min .000154، max 78.426، avg 0.9887)
 # ۳) مادّی‌سازی فاکتورها روی تاریخ میلادی واقعی
-venv/Scripts/python scripts/backfill_adjust_factors.py
-# ۴) راستی‌آزمایی: شمارش > ۰ در هر دو جدول، و تغییر واقعی یک اندیکاتور
+venv/Scripts/python scripts/backfill_adjust_factors.py         # exit 0 در 73 ثانیه
+#    → daily_adjust_factors: 0 → 621,818 روی 145 نماد
+# ۴) راستی‌آزمایی: شمارش > 0 در هر دو جدول، و تغییر واقعی یک اندیکاتور
 ```
+
+**اثبات سرتاسری.** ومعادن ۱۶ رویداد دارد. در ۲۰۲۵-۰۲-۱۱ قیمت پایانی خام ۳٫۸۲۷ است؛ فاکتور ذخیره‌شده ۰٫۷۲۱۱۵۱۰۷۲۵ است ⇒ قیمت تعدیل‌شده ۲٫۵۸۱٫۷۲ که با قیمت پس از رویداد (۲٫۵۸۱ در ۲۰۲۵-۰۲-۱۵) پیوسته است. همین فاکتور دقیقاً
+`1/(1 + 0.386672)` برابر نسبت رویداد ذخیره‌شده است. روی همان ۲۰ ردیف، میانگین متحرک ۲۰ ردیفی:
+
+```text
+میانگین متحرک بدون تعدیل 3620.20   با تعدیل 2610.71   →  خطای 38.7٪ اگر فاکتور نادیده گرفته شود
+```
+
+**هشدار هنگام اندازه‌گیری.** `load_daily_candles(session, sym, adjusted=False)` جدول دیگری (`daily_history`) را می‌خواند، نه view؛ پس هم‌تراز‌سازی ردیفی دادهٔ خام و تعدیل‌شده بین دو فراخوانی نامعتبر است. باید `price_close` و `price_close_adj` روی همان ردیف‌های `vw_daily_history_adjusted` مقایسه شوند.
 
 ### ۳.۱ مانع بازِ ثبت نمادها
 
@@ -296,6 +313,8 @@ $ pytest -q tests/unit/test_instrument_import_api.py tests/unit/test_endpoints.p
 
 ### ۶.۶ ۱۸ شکست باقی‌مانده
 
+> **به‌روزرسانی:** ۱۰ مورد از این ۱۸ مورد بعداً رفع شد — ۸ مورد `test_backend_api_edge_cases.py` و ۲ مورد `test_quant_signal_orchestrator.py` (که در واقع آلودگی بین‌فایلی بودند، نه باگ). **۸ مورد** باقی مانده و فهرستشان در بخش ۱۱ آمده است.
+
 ```text
  8  test_backend_api_edge_cases.py
       test_signals_nonexistent_type         total = 4 ≠ 0 — فیلتر `type` اعمال نمی‌شود
@@ -375,7 +394,7 @@ ENVIRONMENT=test   2 passed, 4 warnings in 16.75s
 
 ---
 
-## ۸. یافته‌های جدید (فقط مستندسازی، بدون اصلاح)
+## ۸. یافته‌های جدید (بخش ۸.۱ بعداً رفع شد — بخش ۱۱.۳)
 
 ### ۸.۱ آلودگی بین‌فایلی زیر حلقهٔ سراسری session
 
@@ -396,6 +415,8 @@ AssertionError: assert 1 == 0
 
 **این یک رگرسیون از اصلاح ۲ نیست.** با حلقه‌های per-module قبلی، موتور به یک حلقهٔ بسته گره خورده بود، خطا بلعیده می‌شد و `[]` **به دلیل غلط** برگردانده می‌شد. اصلاح ۲ آن تصادفِ پوشاننده را برداشت. نتیجهٔ عملی این است که شمارش قبول/رد در `tests/unit` **به مرز تکه‌ها حساس است** — به همین دلیل اعداد بخش ۵ به‌صورت فایل‌به‌فایل و تکه‌ای تولید شدند و نباید با یک اجرای تک‌فرایندی فرضی مقایسه شوند.
 
+**رفع شد.** `TestCrossMarketCorrelator` اکنون در یک fixture از نوع `autouse` مقدار `core.database.async_session_factory` را به `None` pin می‌کند و تست holdout در auto-retrain هم همین کار را با `monkeypatch` می‌کند، پس فرض «پایگاه داده در دسترس نیست» دیگر به ترتیب اجرای فایل‌ها وابسته نیست. نتیجه: همان فایل به‌تنهایی `55 passed` و پس از یک تست گرم‌کنندهٔ پایگاه داده `57 passed` (پیش‌تر: `2 failed/53` و `24 failed`).
+
 ### ۸.۲ فایل‌های تغییر‌یافتهٔ بی‌کامیت فرانت‌اند
 
 نسخهٔ کاری `frontend/src/components/SyncStatus.tsx` یک خط لازم (`useSyncSettings`) را حذف کرده و `frontend/src/lib/fund-analysis.ts` هم تغییر بی‌کامیت دارد. این‌ها علت هر ۷ شکست vitest هستند. **بازگردانی یا اصلاح نشدند** چون از یک جلسهٔ دیگر می‌آیند و بازگردانی‌شان تصمیم شماست.
@@ -409,39 +430,83 @@ AssertionError: assert 1 == 0
 - **اجرا شد تا پایان:** `tests/unit` (۵٬۳۳۴ جمع‌آوری، همه اندازه‌گیری شد) و هر تست قابل‌جمع‌آوری بیرون از آن (۷۳۶ اندازه‌گیری، ۵ فایل در سقف بیرون افتادند).
 - **کلاً اجرا نشد:** هر چیزی که بدون کار شبکه قابل import نیست — `tests/legacy/**` و ماژول‌های پراکندهٔ ریشه (۱۹ خطای جمع‌آوری، ۰ تست اجرا، ۴۱۳ ثانیه زمان retry).
 - **دوباره اندازه‌گیری نشد به‌صورت سرتاسری:** کل `tests/unit` پس از اصلاحات ۱ تا ۷ دوباره اجرا **نشد**. تأیید در بخش ۶.۴ فقط همان ۸ ماژولِ دارای شکست را دوباره اجرا می‌کند. اعداد تجمیعی بخش ۵ همچنان وضعیت **پیش از اصلاح** را توصیف می‌کنند.
-- **اجرا نشد:** `scripts/import_corporate_actions.py` روی پایگاه داده و `scripts/backfill_adjust_factors.py`. هر دو جدول صفر ردیف دارند.
-- **تصمیم‌گیری نشد:** آیا `--register-missing` مجاز است یا نه.
-- **دست‌نخورده:** دو شکست از قبل موجود در `test_signal_decision_engine.py` و `test_quant_signal_orchestrator.py`.
-- **کامیت نشد:** همهٔ اصلاحات کد و تست این جلسه. فایل `apps/api/endpoints/market.py` یک ویرایش بی‌ربطِ از قبل موجود (`audit API-005`، سقف `limit` روی `/bourse`) را با اصلاح ۱ مخلوط می‌کند، و درخت کاری صدها تغییر بی‌ربط از قبل موجود دارد؛ جدا کردن آن‌ها به بازبینی hunk-by-hunk نیاز دارد.
+- **اکنون اجرا شد (این بند را اصلاح می‌کند):** `scripts/import_corporate_actions.py` و `scripts/backfill_adjust_factors.py` روی پایگاه داده اجرا شدند — `corporate_action_events` ۰ → ۵۸۶ و `daily_adjust_factors` ۰ → ۶۲۱٬۸۱۸ (بخش ۳). `symbols` هنوز ۵۱۱ ردیف است.
+- **تصمیم‌گیری نشد:** آیا `--register-missing` مجاز است یا نه؛ ۲۸۶ نماد از ۴۳۱ نماد تأییدشده هنوز گرفتار FK هستند.
+- **رفع شد:** شکست‌های `test_quant_signal_orchestrator.py` دو باگ از پیش موجود نبودند بلکه آلودگی بین‌فایلی بودند (بخش ۸.۱) و اکنون رفع شده‌اند. `test_signal_decision_engine.py` بازبینی نشد.
+- **اکنون کامیت شد (این بند را اصلاح می‌کند):** اصلاحات کد و تست به‌صورت کامیت `f0ed96d4` ثبت شدند، با staging hunk-by-hunk تا ویرایش‌های بی‌ربط از قبل موجود در همان فایل‌ها (`audit API-005` در `market.py`، DP-020 در `codal_repository.py`، `ins_code` در `instrument_repository.py`، کامنت سیاست وابستگی در `pyproject.toml`، و `merge` در `db_base.py`) در درخت کاری باقی بمانند.
 
 ---
 
-## ۱۰. گام‌های بعدی پیشنهادی (به ترتیب اولویت)
+## ۱۰. گام‌های بعدی پیشنهادی
 
-۱. **تصمیم دربارهٔ ثبت نمادها** — آیا `--register-missing` مجاز است؟ (۱٬۷۰۰ نماد رویداد دارند و ثبت نشده‌اند)
-۲. **اجرای وارد‌سازی + بک‌فیل** با `--dry-run`، سپس اجرای واقعی، سپس راستی‌آزمایی یک اندیکاتور.
-۳. **بازبینی و کامیت اصلاحات این جلسه** — ۲۲ فایل، که `market.py` نیاز به تفکیک hunk دارد.
-۴. **رفع ۷ شکست `test_backend_api_edge_cases.py`** که همان کلاس قرارداد کهنهٔ بخش ۶.۱ شماره ۳ هستند (کم‌هزینه، پرتعداد).
-۵. **آلودگی بین‌فایلی بخش ۸.۱** — تعیین‌کننده است برای اینکه اعداد `tests/unit` قابل مقایسه بمانند.
-۶. **بازگردانی یا اصلاح فرانت‌اند** — یک خط در `SyncStatus.tsx` هفت تست vitest را برمی‌گرداند.
-۷. **بازبینی اسکن امنیتی** — روتری که «هیچ وابستگی احراز هویتی resolve نشده» دارد.
+۱. **تصمیم دربارهٔ ثبت نمادها** — آیا `--register-missing` مجاز است؟ (۲۸۶ نماد تأییدشده هنوز FK-blocked هستند)
+۲. **بازگردانی یا اصلاح فرانت‌اند** — یک خط در `SyncStatus.tsx` هفت تست vitest را برمی‌گرداند.
+۳. **رفع ۸ شکست باقی‌ماندهٔ `tests/unit`** — هر کدام علت جداگانه‌ای دارد (بخش ۱۱.۴).
+۴. **بازبینی اسکن امنیتی** — روتری که «هیچ وابستگی احراز هویتی resolve نشده» دارد.
+۵. **زمان‌بندی بازسازی فاکتورها** — `recompute_factors` هیچ فراخوانی‌ای ندارد؛ پس از رویداد جدید هیچ job یا endpointی `daily_adjust_factors` را بازنمی‌سازد.
+
+---
+
+## ۱۱. پیگیری پس از این گزارش — اجرا، رفع شکست‌ها، و حذف آلودگی
+
+### ۱۱.۱ وارد‌سازی و بک‌فیل اجرا شدند
+
+۵۸۶ رویداد و ۶۲۱٬۸۱۸ فاکتور (بخش ۳).
+
+### ۱۱.۲ هشت شکست `test_backend_api_edge_cases.py` رفع شد
+
+تنها تغییر محصولی، فیلتر دستهٔ اخبار بود: `GET /news?category=` صفحهٔ واکشی‌شده را فیلتر می‌کرد ولی شمارش کل جدول را نگه می‌داشت (برای دستهٔ ناموجود `total=19711`). اکنون فیلتر به SQL رانده می‌شود از طریق `NewsService.list_all` → `NewsRepository.list` → `_NewsDbRepo` و `NewsItemsReadRepo` (برای حفظ تقارن مسیر canary)، و endpoint پیش از کوئری نام مستعار را نرمال می‌کند. بقیهٔ موارد تعمیر تست بودند: `page=999` واقعاً در محدوده بود (اکنون `total_pages+1`)؛ `/funds` پاکت خام با `items` سطح بالا برمی‌گرداند؛ داشبورد کلیدهای بیشتری از ۵ کلید دارد (اکنون `<=`)؛ `sub_markets`/`summary` زیر `data` هستند؛ `/industries` در `/api/v1/market-info/industries` است؛ و `type` روی `/signals` اصلاً فیلتر وجود ندارد.
+
+```text
+$ pytest -q tests/unit/test_backend_api_edge_cases.py
+34 passed in 420.50s      exit status 0
+```
+
+شش مجموعهٔ همسایهٔ اخبار هم دوباره اجرا شدند: ۱۵۸ سبز، ۴ اسکیپ، exit 0.
+
+### ۱۱.۳ آلودگی بین‌فایلی حذف شد
+
+بخش ۸.۱: هر دو تست اکنون منبع داده را روی `None` pin می‌کنند. `test_quant_signal_orchestrator.py` به‌تنهایی ۵۵ سبز و پس از یک تست گرم‌کنندهٔ پایگاه داده ۵۷ سبز (exit 0).
+
+### ۱۱.۴ هشت شکست باقی‌ماندهٔ `tests/unit`
+
+```text
+2  test_confirmed_runtime_fixes.py     StopIteration در limiter؛ ModuleNotFoundError: 'database_handler'
+1  test_rate_limit_middleware.py       حالت مشترک limiter بین تست‌ها
+1  test_rbac.py                        ['user'] != ['admin'] — منطق call_count
+1  test_api_v6_hardening.py            اسکریپت ممیزی روتر با کد ۱ بیرون می‌آید
+1  test_build_feature_store.py         patch روی نامی که ماژول دیگر ندارد
+1  test_brsapi_usage_simulator.py      result.ok برابر False
+1  test_critical_runtime_fixes.py      هیچ traceback ثبت نشد
+  ۸ جمع
+```
+
+این هشت مورد از نظر آلودگی بررسی شدند (نه فرض): هم به‌تنهایی و هم پس از یک تست گرم‌کنندهٔ پایگاه داده دقیقاً همین هشت مورد شکست می‌خورند.
+
+### ۱۱.۵ کامیت
+
+```text
+f0ed96d4  fix(test-isolation,api): bound market-watch, fix news category paging, unblock unit suite
+          ۳۴ فایل، ‎+۷۸۵/−۱۲۸
+```
 
 ---
 
 ## پیوست — کامیت و وضعیت مخزن
 
 ```text
-main → 43278bbd                       اسکریپت وارد‌سازی (۳ فایل، ‎+773/−1) — push نشده
-docs/PRICE_ADJUSTMENT_READ_PATH.md          M   (۵۸۵ خط؛ §۹ کامیت شده، §۱۰–§۱۲ بی‌کامیت)
+main → f0ed96d4                       کامیت اصلاحات کد و تست (۳۴ فایل، ‎+785/−128) — push نشده
+main~1 → 1212cb87                     مستندات (ممیزی، قیمت، گزارش‌ها)
+main~2 → 43278bbd                     اسکریپت وارد‌سازی (۳ فایل، ‎+773/−1)
 docs/ARCHITECTURE_AUDIT_2026-10-06.md       ??   (۴۴۸ خط، شامل §۹ تأیید)
-docs/SESSION_REPORT_2026-10-06_EN.md        ??   (شامل بخش D — اصلاحات و تأییدشان)
+docs/SESSION_REPORT_2026-10-06_EN.md        ??   (شامل بخش‌های D و E)
 docs/FINAL_REPORT_2026-10-07_FA.md          ??   (همین فایل)
 
-corporate_action_events = 0    daily_adjust_factors = 0    symbols = 511
+corporate_action_events = 586    daily_adjust_factors = 621,818    symbols = 511
 فضای آزاد C = 28 GB
 ```
 
-### فایل‌های اصلاح‌شده در این جلسه (همه تأییدشده، هیچ‌کدام کامیت نشده)
+### فایل‌های اصلاح‌شده در این جلسه (اکنون در `f0ed96d4` کامیت شده)
 
 ```text
 repositories/base_repository.py                 اصلاح ۷  کلید + __init__
@@ -458,4 +523,13 @@ tests/unit/test_brsapi_sync_nav_all_endpoint.py اصلاح ۳
 tests/unit/test_ws_origin_and_table_guard.py    اصلاح ۴
 tests/unit/services/test_news_read_canary.py    اصلاح ۵
 tests/unit/test_paper_trading_api.py            اصلاح ۶
+services/news_service.py                        بخش ۱۱.۲  راندن فیلتر دسته به SQL
+repositories/news_repository.py                 بخش ۱۱.۲  راندن فیلتر دسته (legacy + canary)
+repositories/news_items_read_repo.py            بخش ۱۱.۲  راندن فیلتر دسته (مسیر items)
+apps/api/endpoints/news.py                      بخش ۱۱.۲  پاس دادن دستهٔ نرمال‌شده به کوئری
+tests/unit/test_backend_api_edge_cases.py       بخش ۱۱.۲  ۸ شکست → ۰ (۳۴ سبز)
+tests/unit/services/test_quant_signal_orchestrator.py بخش ۱۱.۳  pin کردن منبع داده
+tests/unit/backtesting/test_audit_fixes_regression.py بخش ۱۱.۳  pin کردن منبع داده (فایل جدید)
 ```
+
+ویرایش‌های بی‌ربط از قبل موجود با staging hunk-by-hunk از کامیت بیرون نگه داشته شدند: سقف `limit` روی `/bourse` در `market.py`، ویرایش‌های DP-020 در `codal_repository.py`، تغییر `ins_code` در `instrument_repository.py`، کامنت سیاست وابستگی در `pyproject.toml`، و تغییر `merge` در `db_base.py`.
