@@ -22,9 +22,10 @@
 | اجرای کامل تست‌های `tests/unit` | ✅ کامل | ۵٬۳۳۴ جمع‌آوری، همه اندازه‌گیری شدند |
 | اجرای تست‌های باقی‌مانده (بیرون از `tests/unit`) | ✅ تمام فایل‌های قابل‌جمع‌آوری | ۷۳۶ تست، ۱۰۹ فایل XML |
 | رفع اشکال‌های واقعی | ✅ ۷ ریشه‌ای رفع شد | ۳۲ از ۵۰ شکست برطرف شد |
-| کامیت فایل‌های مستندات | ✅ انجام شد | ۳ فایل |
+| کامیت مجموعهٔ مستندات | ✅ انجام شد | `1212cb87` (۴ فایل، ‎+۲۰۸۰) و `ba4f0667` (۲ فایل، ‎+۳۳۰/−۶۲) |
+| رفع خطای `pytest` بدون هیچ آرگومان | ✅ رفع و راستی‌آزمایی شد | `4c1f7b0e` — `tests/conftest.py` (‎+۱۴)؛ ۶٬۰۵۸ تست جمع‌آوری شد، exit 0 (بخش ۱۲) |
 
-**نتیجه اصلی:** پس از آزادسازی فضا، وارد‌سازی و بک‌فیل روی پایگاه داده **اجرا شدند** (۵۸۶ رویداد و ۶۲۱٬۸۱۸ فاکتور) و اثرشان روی یک اندیکاتور واقعی اندازه‌گیری شد. اصلاحات کد و تست این جلسه هم کامیت شدند (`f0ed96d4`). تنها مورد باز، تصمیم محصولی درباره «ثبت نمادهای ناموجود» (`--register-missing`) است که عمداً اجرا نشد.
+**نتیجه اصلی:** پس از آزادسازی فضا، وارد‌سازی و بک‌فیل روی پایگاه داده **اجرا شدند** (۵۸۶ رویداد و ۶۲۱٬۸۱۸ فاکتور) و اثرشان روی یک اندیکاتور واقعی اندازه‌گیری شد. اصلاحات کد و تست این جلسه هم کامیت شدند (`f0ed96d4`). در پیگیری دوم، یک نقص **سراسری مخزن** هم رفع شد: اجرای `pytest` بدون آرگومان پیش از اجرای حتی یک تست کل نشست را می‌کشت (بخش ۱۲). تنها مورد باز، تصمیم محصولی درباره «ثبت نمادهای ناموجود» (`--register-missing`) است که عمداً اجرا نشد.
 
 > **بازنگری بخش‌های ۳، ۶.۶، ۸.۱، ۹ و پیوست:** همهٔ آن‌ها پیش از اجرای وارد‌سازی/بک‌فیل و پیش از کامیت نوشته شده‌اند؛ وضعیت به‌روز در همین خلاصه و در بخش ۳ (به‌روزشده) آمده است.
 
@@ -434,6 +435,8 @@ AssertionError: assert 1 == 0
 - **تصمیم‌گیری نشد:** آیا `--register-missing` مجاز است یا نه؛ ۲۸۶ نماد از ۴۳۱ نماد تأییدشده هنوز گرفتار FK هستند.
 - **رفع شد:** شکست‌های `test_quant_signal_orchestrator.py` دو باگ از پیش موجود نبودند بلکه آلودگی بین‌فایلی بودند (بخش ۸.۱) و اکنون رفع شده‌اند. `test_signal_decision_engine.py` بازبینی نشد.
 - **اکنون کامیت شد (این بند را اصلاح می‌کند):** اصلاحات کد و تست به‌صورت کامیت `f0ed96d4` ثبت شدند، با staging hunk-by-hunk تا ویرایش‌های بی‌ربط از قبل موجود در همان فایل‌ها (`audit API-005` در `market.py`، DP-020 در `codal_repository.py`، `ins_code` در `instrument_repository.py`، کامنت سیاست وابستگی در `pyproject.toml`، و `merge` در `db_base.py`) در درخت کاری باقی بمانند.
+- **اکنون نسخه‌دار شد (این بند را اصلاح می‌کند):** مجموعهٔ مستندات در `1212cb87` (۴ فایل، ‎+۲۰۸۰) و به‌روزرسانی دو گزارش در `ba4f0667` (۲ فایل، ‎+۳۳۰/−۶۲) کامیت شدند؛ دیگر هیچ‌یک از این اسناد `??` (untracked) نیستند.
+- **اکنون اندازه‌گیری و رفع شد (این بند را اصلاح می‌کند):** `pytest` بدون هیچ آرگومان، پیش از اجرای یک تست هم می‌مرد. علت، اسکریپت‌های درخت `tests/legacy` بود که در زمان import اجرا می‌شوند و دو تای آن‌ها `sys.stdout` را بازنویسی می‌کنند. اصلاح (`collect_ignore`) و شواهد در **بخش ۱۲** و کامیت `4c1f7b0e` آمده است.
 
 ---
 
@@ -492,21 +495,155 @@ f0ed96d4  fix(test-isolation,api): bound market-watch, fix news category paging,
 
 ---
 
+## ۱۲. پیگیری دوم — رفع خطای `pytest` بدون هیچ آرگومان
+
+این نقص **سراسری مخزن** بود: هر توسعه‌دهنده‌ای که `pytest` را بدون آرگومان اجرا می‌کرد
+به آن می‌خورد، ولی هر job در CI به‌طور پنهان از آن فرار می‌کرد.
+
+### ۱۲.۱ نشانه
+
+```text
+$ venv/Scripts/pytest
+…
+ValueError: I/O operation on closed file
+INTERNALERROR> Traceback (most recent call last):
+…
+INTERNALERROR>   File "…/_pytest/terminal.py", line …, in write
+```
+
+نشست **در مرحلهٔ جمع‌آوری و پیش از اجرای حتی یک تست** می‌مرد — بدون خط خلاصه و
+بدون فهرست شکست. هیچ نشانهٔ قابل‌اقدامی وجود نداشت.
+
+### ۱۲.۲ علت واقعی — `tests/legacy` یک درخت تست نیست
+
+جمع‌آورنده وارد `tests/legacy/` می‌شد؛ فایل‌های آن **اسکریپت‌های مستقل هستند که در
+زمان import اجرا می‌شوند**، نه تست‌های pytest:
+
+| فایل | کاری که در زمان import می‌کند |
+|---|---|
+| `tests/legacy/scripts/_tmp_api_test.py` و گونه‌هایش | اسکن HTTP زنده روی API در حال اجرا (`BASE = "http://localhost:8000/api/v1"`) |
+| `tests/legacy/scripts/test_codal_api.py` | تماس HTTPS زنده با CODAL |
+| `tests/legacy/root/test_screener_api.py` | `from main import app` ← `ImportError` |
+| `tests/legacy/root/test_signal_api.py` | HTTP زنده، سپس `data["success"]` ← `KeyError` |
+| `tests/legacy/scripts/test_excel_parser.py` / `test_excel_parser2.py` | **`sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")`** |
+
+جفت آخر کشنده است. جایگزینی `sys.stdout` با یک `TextIOWrapper` تازه حول
+`sys.stdout.buffer` یعنی وقتی wrapper **قدیمی** توسط GC جمع شود، **بافر کنسول از زیر
+پای terminal writer خود pytest بسته می‌شود** — همان writerی که هنوز stream اصلی را در
+دست دارد. نوشتن بعدی `ValueError: I/O operation on closed file` می‌دهد، pytest آن را
+به `INTERNALERROR` ارتقا می‌دهد و فرایند می‌میرد. **`INTERNALERROR` نشانه است، نه علت.**
+
+این توضیح می‌دهد چرا در خروجی خطا، خطوط `Status: 401`، `count_announcement: 77` و
+textهای فارسی دیده می‌شدند: آن‌ها `print()`های خود اسکریپت‌های اسکن زنده‌اند.
+
+### ۱۲.۳ اصلاح
+
+یک خط، در `tests/conftest.py`، بلافاصله پس از فراخوانی‌های `_reconfigure_stream`:
+
+```python
+collect_ignore = ["legacy"]
+```
+
+همراه با کامنتی که *دلیل* را ثبت می‌کند تا بعداً به‌عنوان «پیکربندی مرده» حذف نشود.
+گزینهٔ جایگزین — تعمیر حدود ۱۰ اسکریپت legacy — رد شد: آن‌ها probeهای یک‌بارمصرفی
+هستند که مجموعه‌های تست واقعی جایشان را گرفته‌اند و بدون API زنده و پایگاه‌دادهٔ کامل
+هرگز قابل اجرا نبودند.
+
+### ۱۲.۴ راستی‌آزمایی
+
+| بررسی | پیش از اصلاح | پس از اصلاح |
+|---|---|---|
+| `pytest --collect-only -q` (بدون آرگومان) | `INTERNALERROR`، بدون شمارش | **۶٬۰۵۸ تست در ۶۸٫۵۹ ثانیه، exit 0** — بدون `INTERNALERROR`، بدون `I/O operation`، بدون `UnicodeEncodeError` و بدون خطای جمع‌آوری |
+| همان، با `PYTHONUTF8=1` | — | یکسان |
+| اجرای واقعی دو فایل unit | — | **۳۹ سبز در ۶٫۴۱ ثانیه، exit 0** |
+
+```text
+$ PYTHONIOENCODING=utf-8 PYTHONUTF8=1 venv/Scripts/pytest --collect-only -q
+6058 tests collected in 68.59s (0:01:08)                       EXIT=0
+
+$ PYTHONIOENCODING=utf-8 PYTHONUTF8=1 venv/Scripts/pytest -q \
+    tests/unit/scripts/test_import_corporate_actions.py \
+    tests/unit/backtesting/test_audit_fixes_regression.py
+39 passed in 6.41s                                             EXIT=0
+```
+
+**CI هرگز متأثر نبود.** همهٔ workflowها مسیر صریح می‌دهند و هیچ‌کدام `pytest` خالی
+اجرا نمی‌کند:
+
+```text
+ci-pr.yml:147              python -m pytest tests/unit
+ci.yml:229                 pytest tests/unit/backtesting/test_cost_parity.py … -v -x
+ci.yml:237                 pytest tests/unit \
+ci.yml:259                 pytest tests/integration/test_celery_chain_broker.py \
+fund-service.yml:207/222   pytest tests/unit/services/test_fund_service.py …
+```
+
+### ۱۲.۵ یک نکتهٔ دقیق که اندازه‌گیری شد (و فرض نشد)
+
+`collect_ignore` به پوشه‌ای اعمال می‌شود که `conftest.py` بر آن حاکم است، پس برای
+جمع‌آوری پیش‌فرض (`testpaths = ["tests"]`) اثر می‌کند ولی وقتی **مسیر legacy صریحاً
+نام‌برده شود** اثر نمی‌کند:
+
+```text
+$ venv/Scripts/pytest --collect-only -q tests/legacy/root
+4 tests collected, 2 errors in 9.74s                            EXIT=2
+E   ImportError: cannot import name 'app' from 'main'
+E   KeyError: 'success'
+```
+
+این رفتار مستند خود pytest است (مسیری که صریحاً داده شود جمع‌آوری می‌شود) و دلیل
+معتبر ماندن بخش‌های ۵ و ۷ است. این اصلاح **نقطهٔ ورود پیش‌فرض** را از تله پاک می‌کند؛
+اسکریپت‌های legacy را قابل‌اجرا نمی‌کند و هیچ عددی از بخش‌های ۵ تا ۱۱ را باطل نمی‌کند.
+
+### ۱۲.۶ این بخش چه چیزی را در بخش‌های ۵ و ۷ اصلاح می‌کند
+
+بندهای ۵.۲ (C2.1)، ۷ (D3) و ۹ (D6) می‌گویند `tests/legacy/**` «قابل جمع‌آوری نیست چون
+در زمان import کار شبکه انجام می‌دهد» و علت را «هنگ» ثبت می‌کنند. این برای اجرای
+*مجموعه‌ها* درست است ولی کامل نیست: همان درخت **نقطهٔ ورود پیش‌فرض را برای هر
+توسعه‌دهنده می‌شکست** و هیچ‌یک از آن بخش‌ها این را ندیده بود، چون هرکدام مسیر را صریح
+پاس می‌دادند. بخش‌های ۱۲.۲ تا ۱۲.۵ این شکاف را می‌بندند.
+
+### ۱۲.۷ هزینهٔ باقی‌مانده
+
+`pytest` بدون آرگومان اکنون موفق می‌شود ولی سیگنال پاکی نیست: ماژول‌های پراکندهٔ ریشه را
+هم جمع می‌کند (`tests/test_all_modules.py`، `test_backtest.py`، `test_indicators_smoke.py`،
+`test_runner_e2e.py`، `test_screener_api.py`، `test_screener_flow.py`، `test_sync_2.py`، …)
+— حدود ۱۳۰ تستی که پیش از این جلسه هم در زمان import **تماس HTTP زنده** می‌زدند و اکنون
+فقط به‌جای کشتن کل اجرا، با صدای بلند شکست می‌خورند. زمان ۶۸٫۵۹ ثانیه‌ای جمع‌آوری بیشتر
+صرف retry سوکت‌های آن‌هاست و خروجی، نویز `401`/`500` دارد. این ماژول‌ها از پیش موجود و
+بیرون از دامنهٔ این کار هستند؛ هدف کاربردی همچنان `pytest tests/unit` است.
+
+### ۱۲.۸ کامیت
+
+```text
+4c1f7b0e  fix(tests): stop a bare pytest from collecting the legacy import-time scripts
+          tests/conftest.py | 14 ++++++++++++++
+          ۱ فایل، ‎+۱۴
+```
+
+خودِ گزارش‌ها در کامیت جداگانهٔ `ba4f0667` ثبت شدند (۲ فایل، ‎+۳۳۰/−۶۲).
+
+---
+
 ## پیوست — کامیت و وضعیت مخزن
 
 ```text
-main → f0ed96d4                       کامیت اصلاحات کد و تست (۳۴ فایل، ‎+785/−128) — push نشده
-main~1 → 1212cb87                     مستندات (ممیزی، قیمت، گزارش‌ها)
-main~2 → 43278bbd                     اسکریپت وارد‌سازی (۳ فایل، ‎+773/−1)
-docs/ARCHITECTURE_AUDIT_2026-10-06.md       ??   (۴۴۸ خط، شامل §۹ تأیید)
-docs/SESSION_REPORT_2026-10-06_EN.md        ??   (شامل بخش‌های D و E)
-docs/FINAL_REPORT_2026-10-07_FA.md          ??   (همین فایل)
+main   → 4c1f7b0e   fix(tests): … legacy import-time scripts    (۱ فایل، ‎+۱۴)      — push نشده
+main~1 → ba4f0667   docs: record the executed import/backfill …  (۲ فایل، ‎+۳۳۰/−۶۲)
+main~2 → f0ed96d4   fix(test-isolation,api): …                  (۳۴ فایل، ‎+۷۸۵/−۱۲۸)
+main~3 → 1212cb87   docs: audit verification, price-read-path …  (۴ فایل، ‎+۲۰۸۰)
+main~4 → 43278bbd   feat(corporate-actions): …                  (۳ فایل، ‎+۷۷۳/−۱)
+
+docs/ARCHITECTURE_AUDIT_2026-10-06.md   tracked (۴۴۸ خط، شامل §۹ تأیید)
+docs/SESSION_REPORT_2026-10-06_EN.md    tracked (شامل بخش‌های D، E و F)
+docs/FINAL_REPORT_2026-10-07_FA.md      tracked (همین فایل)
+docs/PRICE_ADJUSTMENT_READ_PATH.md      tracked (۶۰۷ خط، §۹–§۱۲)
 
 corporate_action_events = 586    daily_adjust_factors = 621,818    symbols = 511
-فضای آزاد C = 28 GB
+فضای آزاد C = 26 GB  (۲۱۳GB استفاده‌شده از ۲۳۸GB، ۹۰٪)
 ```
 
-### فایل‌های اصلاح‌شده در این جلسه (اکنون در `f0ed96d4` کامیت شده)
+### فایل‌های این جلسه (در `f0ed96d4`، `ba4f0667` و `4c1f7b0e` کامیت شده‌اند)
 
 ```text
 repositories/base_repository.py                 اصلاح ۷  کلید + __init__
@@ -530,6 +667,9 @@ apps/api/endpoints/news.py                      بخش ۱۱.۲  پاس دادن 
 tests/unit/test_backend_api_edge_cases.py       بخش ۱۱.۲  ۸ شکست → ۰ (۳۴ سبز)
 tests/unit/services/test_quant_signal_orchestrator.py بخش ۱۱.۳  pin کردن منبع داده
 tests/unit/backtesting/test_audit_fixes_regression.py بخش ۱۱.۳  pin کردن منبع داده (فایل جدید)
+tests/conftest.py                              بخش ۱۲    collect_ignore = ["legacy"]        (کامیت 4c1f7b0e)
+docs/SESSION_REPORT_2026-10-06_EN.md           بخش ۱۱.۵ + ۱۲  گزارش انگلیسی               (کامیت ba4f0667)
+docs/FINAL_REPORT_2026-10-07_FA.md             بخش ۱۱.۵ + ۱۲  همین فایل                  (کامیت ba4f0667)
 ```
 
 ویرایش‌های بی‌ربط از قبل موجود با staging hunk-by-hunk از کامیت بیرون نگه داشته شدند: سقف `limit` روی `/bourse` در `market.py`، ویرایش‌های DP-020 در `codal_repository.py`، تغییر `ins_code` در `instrument_repository.py`، کامنت سیاست وابستگی در `pyproject.toml`، و تغییر `merge` در `db_base.py`.

@@ -1,10 +1,10 @@
 # Session Report (EN) — Corporate-Action Import & Architecture-Audit Verification
 
-> Date: 6 October 2026
-> Reference commit: `43278bbd` on `main` (not pushed)
-> Scope: corporate-action import + factor backfill (Part A) and an independent verification of `docs/ARCHITECTURE_AUDIT_2026-10-06.md` (Part B)
-> Validation: **ruff exit 0** · **17/17 unit tests pass (exit 0)** · 18 of 19 line-numbered audit claims reproduced exactly
-> Language note: Persian counterparts live in `docs/PRICE_ADJUSTMENT_READ_PATH.md` (§۹–§۱۲) and `docs/ARCHITECTURE_AUDIT_2026-10-06.md` (§9).
+> Date: 6–7 October 2026
+> Reference commit: `4c1f7b0e` on `main` (not pushed; this report was committed in `ba4f0667`)
+> Scope: corporate-action import + factor backfill (Part A), an independent verification of `docs/ARCHITECTURE_AUDIT_2026-10-06.md` (Part B), the full test-suite execution and the repairs that followed it (Parts C–E), and the repo-wide `pytest` collection crash (Part F)
+> Validation: **ruff exit 0** · **17/17 unit tests pass (exit 0)** · 18 of 19 line-numbered audit claims reproduced exactly · **6,058 tests collected, exit 0**
+> Language note: Persian counterparts live in `docs/PRICE_ADJUSTMENT_READ_PATH.md` (§۹–§۱۲) and `docs/ARCHITECTURE_AUDIT_2026-10-06.md` (§9); the Persian final account is `docs/FINAL_REPORT_2026-10-07_FA.md`.
 
 ---
 
@@ -1009,20 +1009,164 @@ working tree; the same was done for the unrelated edits sharing
 
 ---
 
+## Part F — The bare `pytest` crash
+
+A follow-up report — *«pytest اجرا نمی‌شه خطا می‌ده»* — is recorded here because the
+defect it describes was **repo-wide**: any developer running `pytest` with no arguments
+in this repository hit it, while every CI job quietly avoided it.
+
+### F1. Symptom
+
+```text
+$ venv/Scripts/pytest
+…
+ValueError: I/O operation on closed file
+INTERNALERROR> Traceback (most recent call last):
+…
+INTERNALERROR>   File "…/_pytest/terminal.py", line …, in write
+```
+
+The session died **during collection, before a single test executed** — no summary
+line, no failure list, nothing a developer could act on.
+
+### F2. Root cause — `tests/legacy` is not a test tree
+
+The collector walked `tests/legacy/`, whose files are **standalone scripts that execute
+at import time**, not pytest tests:
+
+| File | What it does at import |
+|---|---|
+| `tests/legacy/scripts/_tmp_api_test.py` (and variants) | live HTTP scan of a running API (`BASE = "http://localhost:8000/api/v1"`) |
+| `tests/legacy/scripts/test_codal_api.py` | live CODAL HTTPS call |
+| `tests/legacy/root/test_screener_api.py` | `from main import app` → `ImportError` |
+| `tests/legacy/root/test_signal_api.py` | live HTTP, then `data["success"]` → `KeyError` |
+| `tests/legacy/scripts/test_excel_parser.py` / `test_excel_parser2.py` | **`sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")`** |
+
+The last pair is the fatal one. Re-assigning `sys.stdout` to a new `TextIOWrapper`
+around `sys.stdout.buffer` means that when the *old* wrapper is garbage-collected, the
+**console buffer is closed out from under pytest's terminal writer**, which still holds
+the original stream. The next write raises `ValueError: I/O operation on closed file`,
+pytest escalates it to `INTERNALERROR`, and the process aborts. **The `INTERNALERROR`
+is a symptom, not the cause.**
+
+This also explains the `Status: 401`, `count_announcement: 77` and Persian lines that
+appeared in the crash output: they are the live HTTP scans' own `print()`s.
+
+### F3. Fix
+
+One line, in `tests/conftest.py`, immediately after the UTF-8 `_reconfigure_stream`
+calls:
+
+```python
+collect_ignore = ["legacy"]
+```
+
+with the reference commit `4c1f7b0e`'s comment recording *why*, so it is not deleted
+later as apparent dead configuration. The alternative — repairing the ~10 legacy
+scripts — was rejected: they are one-off probes superseded by the real suites, and they
+were never runnable without a live API and a full database.
+
+### F4. Verification
+
+| Check | Before | After |
+|---|---|---|
+| `pytest --collect-only -q` (bare) | `INTERNALERROR`, no count | **6,058 tests collected in 68.59s, exit 0** — no `INTERNALERROR`, no `I/O operation`, no `UnicodeEncodeError`, no collection errors |
+| the same, with `PYTHONUTF8=1` | — | identical |
+| a real run of two unit files | — | **39 passed in 6.41s, exit 0** |
+
+```text
+$ PYTHONIOENCODING=utf-8 PYTHONUTF8=1 venv/Scripts/pytest --collect-only -q
+6058 tests collected in 68.59s (0:01:08)                      EXIT=0
+
+$ PYTHONIOENCODING=utf-8 PYTHONUTF8=1 venv/Scripts/pytest -q \
+    tests/unit/scripts/test_import_corporate_actions.py \
+    tests/unit/backtesting/test_audit_fixes_regression.py
+39 passed in 6.41s                                            EXIT=0
+```
+
+**CI was never affected.** Every workflow passes explicit paths and none runs a bare
+`pytest`:
+
+```text
+ci-pr.yml:147              python -m pytest tests/unit
+ci.yml:229                 pytest tests/unit/backtesting/test_cost_parity.py … -v -x
+ci.yml:237                 pytest tests/unit \
+ci.yml:259                 pytest tests/integration/test_celery_chain_broker.py \
+fund-service.yml:207/222   pytest tests/unit/services/test_fund_service.py …
+```
+
+**One caveat, measured rather than assumed.** `collect_ignore` applies to the directory
+the `conftest.py` governs, so it takes effect for the default collection
+(`testpaths = ["tests"]`) but **not** when the legacy path is named explicitly:
+
+```text
+$ venv/Scripts/pytest --collect-only -q tests/legacy/root
+4 tests collected, 2 errors in 9.74s                           EXIT=2
+E   ImportError: cannot import name 'app' from 'main'
+E   KeyError: 'success'
+```
+
+That is documented pytest behaviour (an explicitly-passed path is collected), and it is
+why C2.1/D3/D6 still stand: `tests/legacy/**` cannot be collected *as a suite*. The change
+removes the trap from the **default entry point**; it does not make the legacy scripts
+runnable, and nothing in Parts C–E is invalidated by it.
+
+### F5. What this corrects in Parts C–E
+
+C2.1, D3 and D6 describe `tests/legacy/**` as "not collectable because it performs network
+I/O at import" and record the cause as a hang. That is accurate for the *suite* runs but
+incomplete: the tree was also **breaking the default entry point for every developer**,
+which none of those parts noticed because each of them passed a path explicitly. F2–F4
+close that gap.
+
+### F6. What still collects, and what that costs
+
+A bare `pytest` now succeeds, but it is not a clean signal: it also collects the loose
+root modules (`tests/test_all_modules.py`, `test_backtest.py`, `test_indicators_smoke.py`,
+`test_runner_e2e.py`, `test_screener_api.py`, `test_screener_flow.py`, `test_sync_2.py`, …)
+— ~130 tests that already performed **live API calls at import** before this session and
+now merely fail loudly instead of aborting the run. The 68.59s collection time is
+dominated by their socket retries and the output carries `401`/`500` noise. Those modules
+are pre-existing and out of scope here; the practical target remains `pytest tests/unit`.
+
+### F7. Commit
+
+```text
+4c1f7b0e  fix(tests): stop a bare pytest from collecting the legacy import-time scripts
+          tests/conftest.py | 14 ++++++++++++++
+          1 file changed, 14 insertions(+)
+```
+
+---
+
 ## Current repository state
 
 ```text
-main → f0ed96d4                        fix(test-isolation,api): … (34 files, +785/−128; not pushed)
-main~1 → 1212cb87                      docs: audit verification, price-read-path notes, reports
-main~2 → 43278bbd                      feat(corporate-actions): … (3 files, +773/−1)
-docs/ARCHITECTURE_AUDIT_2026-10-06.md  ??  (untracked; 448 lines incl. §9)
-docs/SESSION_REPORT_2026-10-06_EN.md   ??  (this file; incl. Parts D and E)
-docs/FINAL_REPORT_2026-10-07_FA.md     ??  (untracked; Persian final account)
+main → 4c1f7b0e   fix(tests): stop a bare pytest from collecting the legacy import-time
+                  scripts (1 file, +14)                              not pushed
+main~1 → ba4f0667 docs: record the executed import/backfill, fixed failures, and the
+                  commit (2 files, +330/−62)
+main~2 → f0ed96d4 fix(test-isolation,api): … (34 files, +785/−128)
+main~3 → 1212cb87 docs: audit verification, price-read-path notes, reports
+main~4 → 43278bbd feat(corporate-actions): … (3 files, +773/−1)
+docs/ARCHITECTURE_AUDIT_2026-10-06.md  tracked (473 lines incl. §9 and §9.9)
+docs/SESSION_REPORT_2026-10-06_EN.md   tracked (this file; incl. Parts D, E and F)
+docs/FINAL_REPORT_2026-10-07_FA.md     tracked (Persian final account)
 corporate_action_events = 586    daily_adjust_factors = 621,818    symbols = 511
-C: free = 28 GB (/c total 238G, 210G used, 88%)
+C: free = 26 GB (/c total 238G, 213G used, 90%)
 ```
 
-### Changes committed in this session (`f0ed96d4`)
+### Changes committed in this session
+
+Three commits carry this session's work. `f0ed96d4` holds Fixes 1–7 plus the edge-case
+and contamination repairs; `ba4f0667` puts this report and the Persian account under
+version control; `4c1f7b0e` is the `pytest` collection fix of Part F.
+
+```text
+4c1f7b0e  fix(tests): … legacy import-time scripts       1 file,  +14
+ba4f0667  docs: record the executed import/backfill …    2 files, +330/−62
+f0ed96d4  fix(test-isolation,api): …                    34 files, +785/−128
+```
 
 Fixes 1–7 plus the edge-case, contamination and report work:
 

@@ -446,3 +446,27 @@ services/populate_profiles_service.py:221/248   (await self._session.execute(q, 
 * اولویت ۴ (بند ۶٫۳) باید **دو** پیگیری داشته باشد: (الف) استراتژی بارگذاری
   relationshipها (پیش‌فرض در برابر `selectin`/`raise`)، (ب) پروفایل
   `populate_profiles_service`.
+
+### ۹٫۹ پیگیری — بازبینی وضعیت سند (۲۰۲۶-۱۰-۰۷)
+
+§۹ روی `HEAD = 43278bbd` نوشته شده است. پس از آن، مخزن چهار کامیت جلو رفته:
+
+```text
+1212cb87  docs: audit verification, price-read-path notes, reports   (۴ فایل، +۲۰۸۰)
+f0ed96d4  fix(test-isolation,api): …                                (۳۴ فایل، +۷۸۵/−۱۲۸)
+ba4f0667  docs: record the executed import/backfill …               (۲ فایل، +۳۳۰/−۶۲)
+4c1f7b0e  fix(tests): … legacy import-time scripts                  (۱ فایل، +۱۴)
+```
+
+هیچ‌کدام از یافته‌های §۹ باطل نشده است: فایل‌های تغییرکردهٔ `f0ed96d4`
+(`apps/api/endpoints/market.py`، `apps/api/endpoints/news.py`، `services/market_service.py`،
+`services/news_service.py`، `repositories/**`، `pyproject.toml`، `tests/**`) هیچ‌یک از
+فایل‌های شماره‌خط‌دارِ تأییدشده در §۹ نیستند — یعنی `core/database.py`،
+`queue_consumer.py`، `queue_publisher.py`، `jobs/locking.py`، `analytics_service.py`،
+`populate_profiles_service.py`، `bulk_importer/persistence.py`، `fund_scoring.py`،
+`container.py`، `apps/api/app.py:31`، `apps/api/endpoints/backtests.py:20` و
+`frontend/src/lib/fund-analysis.ts`. سه کامیتِ مستندات فقط متن‌اند و `4c1f7b0e` تنها
+`tests/conftest.py` را دست زده است.
+
+پیگیری پس از این سند در `docs/SESSION_REPORT_2026-10-06_EN.md` (بخش‌های D، E و F) و
+`docs/FINAL_REPORT_2026-10-07_FA.md` (بخش‌های ۱۱ و ۱۲) ثبت شده است.
