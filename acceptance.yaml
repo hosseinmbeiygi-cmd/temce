@@ -1,0 +1,33 @@
+version: "1.0"
+asset_class: "gold"
+last_updated: "2026-10-13"
+
+# تنظیمات بازار و دارایی‌ها
+market_rules:
+  gold:
+    global_xau:
+      currency: "USD"
+      risk_free_rate: 0.045
+      trading_days_per_year: 252
+      spread_model: "floating_points"
+    domestic_ime:
+      currency: "IRR"
+      risk_free_rate: 0.300
+      trading_days_per_year: 240
+      spread_model: "tick_size"
+    domestic_etf:
+      currency: "IRR"
+      risk_free_rate: 0.300
+      trading_days_per_year: 240
+      spread_model: "orderbook_depth"
+
+# آستانه‌های پذیرش استراتژی جهت ورود به محیط زنده (Production Gate)
+thresholds:
+  walk_forward:
+    min_wfe: 0.50               # حداقل ۵۰٪ حفظ کارایی خارج از نمونه
+    min_dsr: 0.95               # سطح اطمینان آماری ۹۵٪ برای حذف برازش تصادفی
+    min_oos_sharpe: 1.00        # حداقل شارپ سالانه‌شده ۱.۰ در ارزیابی OOS
+  risk_management:
+    max_drawdown: 0.20          # حداکثر افت سرمایه مجاز: ۲۰٪
+    min_profit_factor: 1.30     # حداقل نسبت سود به زیان ناخالص
+    min_trade_count: 50         # حداقل تعداد معاملات جهت اطمینان از معناداری نمونه
