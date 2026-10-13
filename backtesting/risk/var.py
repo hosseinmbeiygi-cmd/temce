@@ -14,7 +14,9 @@ class ValueAtRisk:
         if len(returns) < 2:
             return 0.0
         arr = np.array(returns)
-        var = float(np.percentile(arr, (1 - self.confidence) * 100))
+        # RISK-001: report VaR as a POSITIVE loss magnitude, not a signed
+        # return quantile (which is negative for any real drawdown tail).
+        var = -float(np.percentile(arr, (1 - self.confidence) * 100))
         return var * np.sqrt(self.horizon_days)
 
     def compute_parametric(self, returns: list[float]) -> float:
@@ -25,7 +27,7 @@ class ValueAtRisk:
         mu = np.mean(returns)
         sigma = np.std(returns)
         z = norm.ppf(1 - self.confidence)
-        var = mu + z * sigma
+        var = -(mu + z * sigma)  # positive loss magnitude
         return float(var * np.sqrt(self.horizon_days))
 
     def compute_historical(self, returns: list[float]) -> float:

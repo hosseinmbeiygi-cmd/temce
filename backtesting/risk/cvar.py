@@ -16,7 +16,8 @@ class ConditionalValueAtRisk:
         arr = np.array(returns)
         var = float(np.percentile(arr, (1 - self.confidence) * 100))
         tail = arr[arr <= var]
+        # RISK-002: positive loss magnitude; expected shortfall >= VaR.
         if len(tail) == 0:
-            return var
-        cvar = float(tail.mean())
+            return -var * np.sqrt(self.horizon_days)
+        cvar = -float(tail.mean())
         return cvar * np.sqrt(self.horizon_days)

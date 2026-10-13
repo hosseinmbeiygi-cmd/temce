@@ -2,17 +2,40 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+# Iranian market sessions are evaluated in Tehran local time (BT-013 / MKT-001).
+TEHRAN_TZ = ZoneInfo("Asia/Tehran")
+
+
+def to_utc(dt: datetime) -> datetime:
+    """Normalise a datetime to aware UTC.
+
+    Naive values are assumed to already be UTC (the simulation's canonical
+    timezone) rather than the host machine's local zone, so results are
+    reproducible regardless of where the process runs.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 class Clock:
     def __init__(self, start: datetime | None = None, end: datetime | None = None) -> None:
-        self._now: datetime = start or datetime.now(UTC)
-        self._start: datetime = self._now
-        self._end: datetime = end or (self._now + timedelta(days=365))
+        now = to_utc(start) if start is not None else datetime.now(UTC)
+        self._now: datetime = now
+        self._start: datetime = now
+        self._end: datetime = to_utc(end) if end is not None else now + timedelta(days=365)
         self._listeners: list[Callable[[datetime], None]] = []
 
     @property
     def now(self) -> datetime:
+        """Current simulation time rendered in Tehran local time."""
+        return self._now.astimezone(TEHRAN_TZ)
+
+    @property
+    def now_utc(self) -> datetime:
+        """Current simulation time as aware UTC (canonical internal form)."""
         return self._now
 
     def tick(self, delta: timedelta = timedelta(days=1)) -> None:
@@ -21,14 +44,15 @@ class Clock:
             listener(self._now)
 
     def jump_to(self, dt: datetime) -> None:
-        self._now = dt
+        self._now = to_utc(dt)
 
     def on_tick(self, listener: Callable[[datetime], None]) -> None:
         self._listeners.append(listener)
 
     def is_market_open(self, market_open: str = "09:00", market_close: str = "12:30") -> bool:
+        """Whether the current time falls inside the Tehran session window."""
         try:
-            t = self._now.time()
+            t = self.now.time()
             open_h, open_m = map(int, market_open.split(":"))
             close_h, close_m = map(int, market_close.split(":"))
 
