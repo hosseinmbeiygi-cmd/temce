@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from backtesting.engine.position_manager import consume_lots_fifo, lots_avg_price
 from backtesting.types import FillEvent, PositionState
 from core.logging import get_logger
 
@@ -26,19 +27,19 @@ class PortfolioManager:
 
         cost = fill.price * fill.quantity
         if fill.side == "buy":
-            total_qty = pos.quantity + fill.quantity
-            total_cost = (pos.avg_price * pos.quantity) + cost
-            pos.avg_price = total_cost / total_qty if total_qty > 0 else 0
-            pos.quantity = total_qty
+            # FIFO tax lot: record the actual fill price, oldest-first.
+            pos.lots.append((fill.quantity, fill.price))
+            pos.quantity += fill.quantity
+            pos.avg_price = lots_avg_price(pos.lots)
             self._cash -= cost + fill.commission
         else:
             if pos.quantity < fill.quantity:
                 logger.warning("Insufficient position for sell: %s (has %d, needs %d)", fill.instrument_id, pos.quantity, fill.quantity)
                 fill.quantity = pos.quantity
 
-            pnl = (fill.price - pos.avg_price) * fill.quantity
-            pos.realized_pnl += pnl
-            pos.quantity -= fill.quantity
+            # FIFO: realize PnL against the oldest lots, not a blended average.
+            pos.realized_pnl += consume_lots_fifo(pos, fill.quantity, fill.price)
+            pos.avg_price = lots_avg_price(pos.lots)
             self._cash += (fill.price * fill.quantity) - fill.commission
 
         self._nav = self.get_nav()
@@ -80,11 +81,22 @@ class PortfolioManager:
         pos = self._positions.get(instrument_id)
         return pos.quantity if pos else 0
 
-    def adjust_positions(self, instrument_id: str, factor: float) -> None:
-        """Adjust positions by a corporate action factor (e.g. split)."""
+    def get_open_lots(self, instrument_id: str) -> list[tuple[int, float]]:
+        """Return the open tax lots (quantity, fill_price) in FIFO order."""
         pos = self._positions.get(instrument_id)
-        if pos is None or pos.quantity == 0:
+        return list(pos.lots) if pos else []
+
+    def adjust_positions(self, instrument_id: str, factor: float) -> None:
+        """Scale a position for a corporate action (e.g. split).
+
+        Lot quantities and their cost basis scale together, so a 2:1 split
+        turns one lot of 100 @ 10 into 200 @ 5 and FIFO realized PnL stays
+        correct after the action.
+        """
+        pos = self._positions.get(instrument_id)
+        if pos is None or pos.quantity == 0 or factor == 0:
             return
-        pos.quantity = round(pos.quantity * factor)
-        pos.avg_price = pos.avg_price / factor if factor != 0 else pos.avg_price
+        pos.lots = [(int(round(qty * factor)), price / factor) for qty, price in pos.lots]
+        pos.quantity = sum(qty for qty, _ in pos.lots)
+        pos.avg_price = lots_avg_price(pos.lots)
         self._nav = self.get_nav()

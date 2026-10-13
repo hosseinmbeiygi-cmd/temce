@@ -42,6 +42,9 @@ class PositionState:
     avg_price: float = 0.0
     realized_pnl: float = 0.0
     current_price: float = 0.0
+    # Open tax lots in FIFO order: (quantity, fill_price), oldest first.
+    # ``avg_price`` is always the quantity-weighted average of these lots.
+    lots: list[tuple[int, float]] = field(default_factory=list)
 
 
 @dataclass
