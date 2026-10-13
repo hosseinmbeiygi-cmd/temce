@@ -46,6 +46,61 @@ def _require_pandas() -> None:
         raise RuntimeError("pandas/numpy are required for the vectorized engine")
 
 
+def _validate_no_lookahead(
+    data: pd.DataFrame,
+    signals: pd.Series,
+    *,
+    max_lookahead_corr: float = 0.95,
+) -> None:
+    """
+    Validate that strategy signals don't exhibit lookahead bias.
+
+    Checks if signals correlate suspiciously high with *future* returns.
+    A signal at time t should not predict returns at t+1 with near-perfect correlation.
+
+    Args:
+        data: Full OHLCV DataFrame
+        signals: Strategy signals (1=long, -1=short, 0=flat)
+        max_lookahead_corr: Maximum allowed correlation with next-period returns.
+                           Default 0.95 catches obvious lookahead; legitimate strategies
+                           typically have much lower correlation (< 0.3).
+
+    Raises:
+        ValueError: If lookahead bias is detected.
+    """
+    _require_pandas()
+    if len(signals) < 10:
+        return  # too few periods to validate
+
+    # Align signals with next-period returns
+    next_returns = data["price_close"].pct_change().shift(-1)
+    aligned = pd.concat([signals, next_returns], axis=1).dropna()
+    if len(aligned) < 10:
+        return
+
+    sig = aligned.iloc[:, 0]
+    ret = aligned.iloc[:, 1]
+
+    # Check correlation between signal at t and return at t+1
+    corr = sig.corr(ret)
+    if abs(corr) > max_lookahead_corr:
+        raise ValueError(
+            f"Lookahead bias detected: signal correlates {corr:.3f} with next-period returns "
+            f"(threshold: {max_lookahead_corr}). Strategy function appears to use future data."
+        )
+
+    # Additional check: signal at t vs return at t+2 (2-period lookahead)
+    next2_returns = data["price_close"].pct_change(2).shift(-2)
+    aligned2 = pd.concat([signals, next2_returns], axis=1).dropna()
+    if len(aligned2) >= 10:
+        corr2 = aligned2.iloc[:, 0].corr(aligned2.iloc[:, 1])
+        if abs(corr2) > max_lookahead_corr:
+            raise ValueError(
+                f"Lookahead bias detected (2-period): signal correlates {corr2:.3f} with "
+                f"2-period-ahead returns (threshold: {max_lookahead_corr})."
+            )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  ENGINE
 # ═══════════════════════════════════════════════════════════════════════════
@@ -68,6 +123,8 @@ class VectorizedBacktestEngine:
     def run_strategy(
         self,
         strategy_func: Callable[[pd.DataFrame], pd.Series | np.ndarray],
+        *,
+        validate_no_lookahead: bool = True,
     ) -> dict[str, Any]:
         """
         Run a strategy and compute metrics.
@@ -75,11 +132,20 @@ class VectorizedBacktestEngine:
         strategy_func receives the full DataFrame (with OHLCV + returns) and
         must return a signal series: 1 = long, -1 = short, 0 = flat.
         Positions are applied with a one-day lag to avoid look-ahead bias.
+
+        Args:
+            strategy_func: Function that takes DataFrame and returns signals.
+            validate_no_lookahead: If True (default), validates that signals
+                don't exhibit lookahead bias by checking correlation with
+                future returns. Set to False for testing or trusted strategies.
         """
         signals = strategy_func(self.data)
         if isinstance(signals, np.ndarray):
             signals = pd.Series(signals, index=self.data.index)
         signals = signals.fillna(0.0).clip(-1, 1)
+
+        if validate_no_lookahead:
+            _validate_no_lookahead(self.data, signals)
 
         # Position shifted by one day → signal on day T trades from day T+1
         position = signals.shift(1).fillna(0.0)
