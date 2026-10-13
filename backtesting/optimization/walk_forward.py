@@ -23,6 +23,7 @@ from collections import Counter
 from typing import Any
 
 from backtesting.engine.simulator import BacktestSimulator
+from backtesting.metrics.deflated_sharpe import deflated_sharpe_ratio
 from backtesting.strategies.registry import get_strategy_registry
 from core.logging import get_logger
 
@@ -107,6 +108,8 @@ class WalkForwardOptimizer:
         max_workers: int | None = None,
         anchored: bool = False,
         stability_penalty: float = 0.1,
+        embargo_pct: float = 0.01,
+        purge_pct: float = 0.01,
     ) -> None:
         """
         Args:
@@ -115,12 +118,21 @@ class WalkForwardOptimizer:
             max_workers: Max parallel optimization workers
             anchored: If True, use anchored (expanding) windows
             stability_penalty: Penalty weight for parameter instability (0-1)
+            embargo_pct: Fraction of total data length dropped as a gap
+                between train end and test start (plan.md F8/F9 — prevents a
+                rolling-window indicator computed near the boundary from
+                leaking test information into the train fold).
+            purge_pct: Fraction of total data length dropped from the END of
+                the train fold, on top of the embargo (same leakage source,
+                applied to the train side).
         """
         self.windows = windows
         self.train_ratio = train_ratio
         self._max_workers = max_workers
         self.anchored = anchored
         self.stability_penalty = stability_penalty
+        self.embargo_pct = embargo_pct
+        self.purge_pct = purge_pct
 
     def _get_max_workers(self) -> int:
         if self._max_workers is not None:
@@ -139,21 +151,27 @@ class WalkForwardOptimizer:
         train_data: list[dict[str, Any]],
         capital: float,
         simulator: BacktestSimulator,
-    ) -> tuple[float, dict[str, Any]]:
-        """Evaluate a single parameter combination on train data."""
+    ) -> tuple[float, dict[str, Any], float]:
+        """Evaluate a single parameter combination on train data.
+
+        Returns ``(composite_score, params, is_sharpe)`` — the composite
+        score still drives which combo wins the IS grid search, but the raw
+        IS Sharpe is also returned so the caller can report walk-forward
+        efficiency as Sharpe/Sharpe (plan.md F8/F9), not Sharpe/composite-score.
+        """
         params = dict(zip(keys, combo, strict=False))
         try:
             strategy = cls(**{k: int(v) if isinstance(v, float) and v == int(v) else v for k, v in params.items()})
             result = simulator.run(strategy, initial_capital=capital, data=train_data)
             if not result.success:
-                return (-1e9, params)
+                return (-1e9, params, 0.0)
             equity = [ep.nav for ep in result.value.equity_curve]
             trades = result.value.trades
             metrics = _compute_metrics(equity, trades)
             score = _objective_function(metrics)
-            return (score, params)
+            return (score, params, metrics["sharpe"])
         except Exception:
-            return (-1e9, params)
+            return (-1e9, params, 0.0)
 
     async def _optimize_window(
         self,
@@ -163,12 +181,15 @@ class WalkForwardOptimizer:
         train_data: list[dict[str, Any]],
         capital: float,
         simulator: BacktestSimulator,
-    ) -> tuple[dict[str, Any], float]:
-        """Find best params for a single window. Returns (params, score)."""
+    ) -> tuple[dict[str, Any], float, float]:
+        """Find best params for a single window.
+
+        Returns ``(params, composite_score, is_sharpe)`` for the winning combo.
+        """
         max_workers = self._get_max_workers()
         semaphore = asyncio.Semaphore(max_workers)
 
-        async def _bounded_eval(combo: tuple) -> tuple[float, dict[str, Any]]:
+        async def _bounded_eval(combo: tuple) -> tuple[float, dict[str, Any], float]:
             async with semaphore:
                 return await self._eval_combo(cls, combo, keys, train_data, capital, simulator)
 
@@ -177,15 +198,17 @@ class WalkForwardOptimizer:
 
         best_score = -1e9
         best_params = {}
+        best_is_sharpe = 0.0
         for r in results:
             if isinstance(r, Exception):
                 continue
-            score, params = r
+            score, params, is_sharpe = r
             if score > best_score:
                 best_score = score
                 best_params = params
+                best_is_sharpe = is_sharpe
 
-        return best_params, best_score
+        return best_params, best_score, best_is_sharpe
 
     def _compute_parameter_stability(self, params_list: list[dict[str, Any]]) -> float:
         """Compute parameter stability across windows (0-1).
@@ -230,29 +253,22 @@ class WalkForwardOptimizer:
         params_list: list[dict[str, Any]],
         scores: list[float],
     ) -> dict[str, Any]:
-        """Select best parameters using weighted scoring.
+        """Select best parameters by summed OOS Sharpe across windows.
 
-        Weights:
-        - In-sample score: 60%
-        - Parameter stability: 30%
-        - Consistency bonus: 10%
+        The caller passes OOS Sharpes only (plan.md F8/F9): IS composite
+        scores must never reach this method. The score for each unique param
+        set is the sum of its per-window OOS Sharpes; the set with the
+        highest summed OOS Sharpe wins.
         """
         if not params_list:
             return {}
 
-        self._compute_parameter_stability(params_list)
-
-        # Weighted score for each unique param set
+        # Summed OOS Sharpe for each unique param set
         param_scores: dict[str, float] = {}
-        param_counts: dict[str, int] = {}
 
         for params, score in zip(params_list, scores, strict=False):
             key = _json.dumps(params, sort_keys=True)
-            if key not in param_scores:
-                param_scores[key] = 0
-                param_counts[key] = 0
-            param_scores[key] += score
-            param_counts[key] += 1
+            param_scores[key] = param_scores.get(key, 0.0) + score
 
         best_key = max(param_scores.keys(), key=lambda k: param_scores[k])
         best_params = _json.loads(best_key)
@@ -284,9 +300,17 @@ class WalkForwardOptimizer:
         all_combos = list(itertools.product(*[param_grid[k] for k in param_grid]))
         keys = list(param_grid.keys())
 
+        # F8/F9: embargo + purge gap (same sizing formula as
+        # backtesting.experiment.purged_walk_forward.PurgedWalkForward) so a
+        # rolling-window indicator computed near the train/test boundary
+        # cannot leak information across it.
+        embargo_bars = max(1, int(len(data) * self.embargo_pct))
+        purge_bars = max(1, int(len(data) * self.purge_pct))
+
         oos_results = []
         all_params = []
-        all_scores = []
+        all_is_sharpes = []
+        all_oos_sharpes = []
 
         for w in range(self.windows):
             if self.anchored:
@@ -301,14 +325,16 @@ class WalkForwardOptimizer:
                 window_data = data[start:end]
 
             split = int(len(window_data) * self.train_ratio)
-            train_data = window_data[:split]
-            test_data = window_data[split:]
+            train_end = max(0, split - purge_bars)
+            test_start = min(len(window_data), split + embargo_bars)
+            train_data = window_data[:train_end]
+            test_data = window_data[test_start:]
 
-            if len(test_data) < 10:
+            if len(test_data) < 10 or len(train_data) < 10:
                 continue
 
             # Optimize on train data
-            best_params, best_score = await self._optimize_window(
+            best_params, _is_score, is_sharpe = await self._optimize_window(
                 cls, all_combos, keys, train_data, capital, simulator
             )
 
@@ -323,9 +349,11 @@ class WalkForwardOptimizer:
                         oos_metrics = _compute_metrics(equity, trades)
                         oos_metrics["window"] = w + 1
                         oos_metrics["params"] = best_params
+                        oos_metrics["n_oos_observations"] = max(len(equity) - 1, 0)
                         oos_results.append(oos_metrics)
                         all_params.append(best_params)
-                        all_scores.append(best_score)
+                        all_is_sharpes.append(is_sharpe)
+                        all_oos_sharpes.append(oos_metrics["sharpe"])
                 except Exception:
                     continue
 
@@ -340,16 +368,37 @@ class WalkForwardOptimizer:
         # Parameter stability
         param_stability = self._compute_parameter_stability(all_params)
 
-        # Walk-forward efficiency (OOS performance / IS performance)
-        is_sharpe_avg = sum(s for s in all_scores if s > 0) / max(len(all_scores), 1)
+        # Walk-forward efficiency (OOS Sharpe / IS Sharpe — plan.md F8/F9).
+        # Previously divided OOS Sharpe by the average composite
+        # _objective_function score (a blend of Sharpe/return/drawdown/trade
+        # -count, not a Sharpe), which is a unit mismatch.
+        # Consistent arithmetic mean over ALL evaluated windows (including
+        # non-positive IS Sharpes) is used (R1): a positive-only numerator with
+        # an all-window denominator would understate the IS mean and inflate WFE.
+        is_sharpe_avg = sum(all_is_sharpes) / max(len(all_is_sharpes), 1)
         wf_efficiency = avg_sharpe / max(is_sharpe_avg, 0.01) if is_sharpe_avg > 0 else 0
 
         # Overfitting score (lower is better)
         overfitting_score = 100 - (consistency * 0.4 + param_stability * 30 + wf_efficiency * 30)
         overfitting_score = max(0, min(100, overfitting_score))
 
-        # Select best parameters
-        best_params = self._select_best_params(all_params, all_scores)
+        # Select best parameters by OOS Sharpe, not IS score (plan.md F8/F9).
+        # Selecting on IS score picks whichever params overfit the training
+        # windows hardest; OOS Sharpe is what the strategy would actually
+        # have earned walking forward.
+        best_params = self._select_best_params(all_params, all_oos_sharpes)
+
+        # Deflated Sharpe Ratio (plan.md F8/F9/C3/C4): corrects the OOS
+        # Sharpe for the multiple-testing bias. The grid was searched once per
+        # fold, so the total number of trials is the per-window grid size
+        # times the number of evaluated folds (R2), not just one window's grid.
+        total_oos_observations = sum(r.get("n_oos_observations", 0) for r in oos_results)
+        n_trials = len(all_combos) * max(len(oos_results), 1)
+        dsr = deflated_sharpe_ratio(
+            sharpe_observed=avg_sharpe,
+            n_trials=n_trials,
+            n_observations=max(total_oos_observations, 1),
+        )
 
         return {
             "strategy": strategy_name,
@@ -363,6 +412,11 @@ class WalkForwardOptimizer:
             "overfitting_score": round(overfitting_score, 1),
             "n_windows": len(oos_results),
             "anchored": self.anchored,
+            "embargo_bars": embargo_bars,
+            "purged_bars": purge_bars,
+            "is_sharpes": all_is_sharpes,
+            "oos_sharpes": all_oos_sharpes,
+            "deflated_sharpe": dsr,
             "recommendation": self._generate_recommendation(
                 consistency, param_stability, wf_efficiency, overfitting_score
             ),
