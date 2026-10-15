@@ -13,9 +13,10 @@ class RebalanceFrequency(Enum):
 
 @dataclass
 class RebalanceCost:
-    # Canonical TSE rates single-sourced from domain.trading.iran_costs:
-    # broker 0.4%/side + clearing 0.085%/side; tax 0.5% sell-only (handled per-side).
-    commission_pct: float = 0.004
+    # Display-only defaults; actual per-side cost goes through
+    # domain.trading.iran_costs.compute (1405 all-in table) in cost_for().
+    # Tax lives INSIDE the sell rate — tax_pct stays 0 to avoid double-count.
+    commission_pct: float = 0.003712
     slippage_bps: float = 0.0
     tax_pct: float = 0.0
     clearing_pct: float = 0.00085

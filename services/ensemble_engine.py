@@ -202,8 +202,8 @@ class TSESimulator:
                  slippage: float = 0.001, queue_fill_rate: float = 0.7,
                  cancellation_rate: float = 0.05):
         from domain.trading import iran_costs as _iran
-        self.comm_buy = commission_buy if commission_buy is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT)
-        self.comm_sell = commission_sell if commission_sell is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT + _iran.SELL_TAX_PCT)
+        self.comm_buy = commission_buy if commission_buy is not None else _iran.buy_rate()
+        self.comm_sell = commission_sell if commission_sell is not None else _iran.sell_rate()
         self.slippage = slippage
         self.queue_fill_rate = queue_fill_rate
         self.cancellation_rate = cancellation_rate

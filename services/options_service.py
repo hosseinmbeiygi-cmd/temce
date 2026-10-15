@@ -49,8 +49,8 @@ class OptionsStrategyEngine:
     RISK_FREE_RATE = 0.15      # 15% annual (Iran)
     # Canonical TSE rates — single-sourced from domain.trading.iran_costs
     # (BROKER 0.4%/side + CLEARING 0.085%/side; SELL TAX 0.5% sell-only).
-    COMMISSION_BUY: float = _iran_costs.BROKER_PCT + _iran_costs.CLEARING_FEE_PCT
-    COMMISSION_SELL: float = _iran_costs.BROKER_PCT + _iran_costs.CLEARING_FEE_PCT + _iran_costs.SELL_TAX_PCT
+    COMMISSION_BUY: float = 0.003712  # = buy_rate(tse_equity); do not sum components (tax is inside sell rate)
+    COMMISSION_SELL: float = 0.0088  # = sell_rate(tse_equity); 0.5% transfer tax already inside
     SETTLEMENT_DAYS = 2        # T+2 settlement
     PRICE_LIMIT_PCT = 0.05     # 5% daily price limit for stocks
     OPTION_PRICE_LIMIT_PCT = 0.19  # 19% for options (wider than stocks)

@@ -224,8 +224,8 @@ class ExecutionEngine:
                  slippage_model: SlippageModel | None = None, latency_model: LatencyModel | None = None,
                  participation_rate: float = 0.1):
         from domain.trading import iran_costs as _iran
-        self.comm_buy = commission_buy if commission_buy is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT)
-        self.comm_sell = commission_sell if commission_sell is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT + _iran.SELL_TAX_PCT)
+        self.comm_buy = commission_buy if commission_buy is not None else _iran.buy_rate()
+        self.comm_sell = commission_sell if commission_sell is not None else _iran.sell_rate()
         self.slippage_model = slippage_model or SlippageModel()
         self.latency_model = latency_model or LatencyModel()
         self.participation_rate = participation_rate

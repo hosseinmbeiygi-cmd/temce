@@ -1,8 +1,22 @@
 # Canonical backtest cost config — single source of truth.
-# NOTE: verify broker_pct / sell_tax_pct / clearing_fee_pct against current
-# brokerage + TSE/CSD fee schedules before live use. Defaults mirror
-# domain/trading/iran_costs.py (0.4% broker/side, 0.085% clearing/side, 0.5% sell tax).
-broker_pct: 0.004
+# All-in 1405 schedule (buy_pct/sell_pct include every levy; the 0.5% equity
+# transfer tax is INSIDE the sell rates — never add it on top):
+#   tse_equity   buy 0.3712%  sell 0.88%    (RT 1.2512%)  سهام/حق‌تقدم بورس تهران
+#   ifb_equity   buy 0.3632%  sell 0.88%    (RT 1.2432%)  سهام/حق‌تقدم فرابورس
+#   taseh        buy 0.49%    sell 0.24%    (RT 0.73%)    اوراق تسهیلات مسکن
+#   debt         buy/sell 0.0725%          (RT 0.145%)   اوراق بدهی و گواهی سپرده
+#   etf_equity   buy 0.2245%  sell 0.23%    (RT 0.4545%)
+#   etf_mixed    buy 0.1175%  sell 0.12625% (RT 0.24375%)
+#   etf_fixed    buy/sell 0.036875%        (RT 0.07375%)
+#   etf_commodity buy/sell ~0.12%          (RT ~0.24%)   صندوق کالایی/طلا
+#   commodity_cert buy/sell ~0.24%        (RT ~0.48%)   گواهی کالایی غیرسکه
+#   coin_cert    buy/sell ~0.125%          (RT ~0.25%)   گواهی سکه طلا
+# Re-verify against the SEO fee schedule + your broker's table before live use.
+market: tse_equity
+# Optional explicit overrides (win over the market table when present):
+# buy_pct: 0.003712
+# sell_pct: 0.0088
+broker_pct: 0.002862
 clearing_fee_pct: 0.00085
 sell_tax_pct: 0.005
 min_commission: 0.0
@@ -10,6 +24,8 @@ base_slippage_bps: 5.0
 volume_impact_factor: 0.15
 min_slippage_bps: 3.0
 max_slippage_bps: 150.0
+# Execution timing: next_open (default, realistic) or same_close.
+execution_timing: next_open
 # Participation cap: orders larger than this fraction of ADV are NOT filled
 # at once — broker returns partial fill (or skip when allow_partial_fill=false).
 max_participation: 0.05

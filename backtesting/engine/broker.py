@@ -38,9 +38,9 @@ class TransactionCostConfig:
     ``Broker.cost_model`` which also includes the CSD clearing fee; the
     fields below mirror the same rates for inspection/compat.
     """
-    # Commission (Iranian market: 0.4% buy + 0.4% sell + 0.5% tax on sell)
+    # Commission (1405 all-in: 0.3712% buy / 0.88% sell, tax inside sell rate)
     commission_pct: float = BROKER_PCT  # 0.4% per side (canonical)
-    # Tax on sell (Iranian market: 0.5% on sell proceeds)
+    # Transfer tax 0.5% is INSIDE the 0.88% sell rate (do not add on top)
     sell_tax_pct: float = SELL_TAX_PCT
     # CSD clearing fee per side
     clearing_fee_pct: float = CLEARING_FEE_PCT
@@ -188,9 +188,9 @@ class Broker:
     ) -> float:
         """Compute total commission including fees and taxes.
 
-        Iranian market structure (canonical — audit F1/F3):
-        - Buy:  0.4% broker + 0.085% clearing
-        - Sell: 0.4% broker + 0.085% clearing + 0.5% tax on proceeds
+        1405 all-in schedule (canonical):
+        - Buy:  0.3712% (tse_equity)
+        - Sell: 0.88% (transfer tax already inside)
 
         Returns:
             Total commission in currency units

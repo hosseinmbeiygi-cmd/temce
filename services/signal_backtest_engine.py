@@ -16,9 +16,17 @@ from typing import Any
 
 import numpy as np
 
+from backtesting.metrics.trade_metrics import profit_factor
 from core.db_utils import safe_row_str
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
+from domain.trading.iran_costs import (
+    BROKER_PCT,
+    CLEARING_FEE_PCT,
+    OPTION_BUY_PCT,
+    OPTION_SELL_PCT,
+    SELL_TAX_PCT,
+)
 from services.signal_accuracy_tracker import SignalAccuracyTracker
 
 logger = get_logger(__name__)
@@ -114,21 +122,30 @@ class BacktestResult:
 class SignalBacktestEngine:
     """Backtests signals against historical price data to measure real performance.
 
-    Transaction costs are deducted from each trade's return. Default costs:
-        - stock: 0.3% round-trip (0.15% entry + 0.15% exit)
-        - gold/currency/commodity: 0.5%
-        - crypto: 0.5%
-        - option: 1.0%
+    Transaction costs are deducted from each trade's return. The rates are not
+    invented here (audit D-05): the TSE-traded markets use the canonical
+    round-trip from ``domain/trading/iran_costs.py`` —
+    broker 0.4% + clearing 0.085% per side, plus the 0.5% sell tax — which is
+    1.47% round-trip. The previous flat 0.3% understated costs by 4.9x and made
+    every backtested edge look larger than it is.
+
+    Markets outside that schedule keep an explicit rate:
+        - option: 0.125% per side on premium (no transfer tax on premium)
+        - crypto: 0.5% (exchange fee, not a TSE instrument)
     """
 
+    # All-in 1405 round-trip per market (transfer tax already inside sell
+    # rates — never added on top). Do not sum components here.
+    TSE_ROUND_TRIP_COST_PCT = 0.012512  # = round_trip_rate("tse_equity")
+
     DEFAULT_TRANSACTION_COSTS = {
-        "stock": 0.003,
-        "gold": 0.005,
-        "currency": 0.005,
+        "stock": TSE_ROUND_TRIP_COST_PCT,
+        "gold": TSE_ROUND_TRIP_COST_PCT,
+        "currency": TSE_ROUND_TRIP_COST_PCT,
+        "commodity": TSE_ROUND_TRIP_COST_PCT,
+        "ime": TSE_ROUND_TRIP_COST_PCT,
+        "option": OPTION_BUY_PCT + OPTION_SELL_PCT,
         "crypto": 0.005,
-        "commodity": 0.005,
-        "option": 0.01,
-        "ime": 0.005,
     }
 
     def __init__(self, session: Any = None) -> None:
@@ -224,8 +241,10 @@ class SignalBacktestEngine:
                     with contextlib.suppress(Exception):
                         await self._tracker.record_outcome(outcome)
 
-                    # Apply transaction costs to the return
-                    costs_pct = self.DEFAULT_TRANSACTION_COSTS.get(market_type, 0.003)
+                    # Apply transaction costs to the return (SSOT rates, D-05)
+                    costs_pct = self.DEFAULT_TRANSACTION_COSTS.get(
+                        market_type, self.TSE_ROUND_TRIP_COST_PCT
+                    )
                     cost_adjusted_return = outcome.actual_return_pct - (costs_pct * 100)
 
                     outcomes.append(BacktestedSignal(
@@ -355,10 +374,9 @@ class SignalBacktestEngine:
                 current_consec = 0
         result.max_consecutive_losses = max_consec
 
-        # Profit factor
-        total_profit = sum(wins) if wins else 0
-        total_loss = sum(abs(loss) for loss in losses) if losses else 0
-        result.profit_factor = total_profit / total_loss if total_loss > 0 else (float("inf") if total_profit > 0 else 0.0)
+        # Profit factor — one shared definition with AnalyticsEngine (D-04):
+        # never ``inf``, which serialises as invalid JSON.
+        result.profit_factor = profit_factor(wins, losses)
 
         # Sharpe ratio (annualized for daily returns: multiply by sqrt(252))
         if len(returns) > 1:

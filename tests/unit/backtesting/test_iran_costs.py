@@ -20,8 +20,8 @@ def test_buy_has_no_tax():
     price, qty = 1000.0, 100
     principal = price * qty
     buy = costs.compute("buy", price, qty)
-    # Buy cost = broker + clearing only (no 0.5% tax component)
-    assert buy == pytest.approx(principal * costs.broker_pct + principal * costs.clearing_fee_pct)
+    # 1405 all-in buy rate, tse_equity (no transfer tax on buy side)
+    assert buy == pytest.approx(principal * 0.003712)
 
 
 def test_sell_includes_tax():
@@ -31,9 +31,19 @@ def test_sell_includes_tax():
     price, qty = 1000.0, 100
     principal = price * qty
     sell = costs.compute("sell", price, qty)
-    assert sell == pytest.approx(
-        principal * costs.broker_pct + principal * costs.clearing_fee_pct + principal * costs.sell_tax_pct
-    )
+    # 1405 all-in sell rate, tse_equity — 0.5% transfer tax already INSIDE,
+    # never added on top of a component sum.
+    assert sell == pytest.approx(principal * 0.0088)
+
+
+def test_1405_table_round_trips():
+    from domain.trading.iran_costs import round_trip_rate
+
+    assert round_trip_rate("tse_equity") == pytest.approx(0.012512)
+    assert round_trip_rate("ifb_equity") == pytest.approx(0.012432)
+    assert round_trip_rate("etf_equity") == pytest.approx(0.004545)
+    assert round_trip_rate("etf_fixed") == pytest.approx(0.0007375)
+    assert round_trip_rate("coin_cert") == pytest.approx(0.0025)
 
 
 def test_sell_is_more_expensive_than_buy():
