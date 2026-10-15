@@ -72,6 +72,23 @@ class IranTransactionCosts:
     ) -> float:
         return self.buy_cost(buy_price, buy_qty) + self.sell_cost(sell_price, sell_qty)
 
+    @classmethod
+    def from_config(cls, path: str = "config/backtest_costs.yaml") -> IranTransactionCosts:
+        """Build from YAML config (no hardcoded rates in engine code)."""
+        try:
+            import yaml  # type: ignore
+
+            with open(path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+        except Exception:
+            cfg = {}
+        return cls(
+            broker_pct=float(cfg.get("broker_pct", BROKER_PCT)),
+            sell_tax_pct=float(cfg.get("sell_tax_pct", SELL_TAX_PCT)),
+            clearing_fee_pct=float(cfg.get("clearing_fee_pct", CLEARING_FEE_PCT)),
+            min_commission=float(cfg.get("min_commission", 0.0)),
+        )
+
 
 # Default canonical instance (frozen → safe to share across engines)
 DEFAULT_IRAN_COSTS = IranTransactionCosts()

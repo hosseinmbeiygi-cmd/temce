@@ -87,13 +87,19 @@ class PortfolioLedger:
     def __init__(
         self,
         initial_capital: float = 1_000_000_000,
-        commission_pct: float = 0.0003,
-        tax_pct: float = 0.0005,
+        commission_pct: float | None = None,  # deprecated; canonical model used
+        tax_pct: float | None = None,  # deprecated; canonical model used
         settlement_days: int = 2,
+        cost_model: Any | None = None,
     ) -> None:
+        from backtesting.costs.iran_costs import IranTransactionCosts
+
         self._initial_capital = initial_capital
         self._cash = initial_capital
-        self._commission_pct = commission_pct
+        # Canonical cost model — single source of truth. Broker is the only
+        # layer that computes costs; Ledger persists FillEvent.commission as-is.
+        self._cost_model = cost_model or IranTransactionCosts()
+        self._commission_pct = commission_pct  # kept for compat, unused
         self._tax_pct = tax_pct
         self._settlement_days = settlement_days
 
@@ -152,7 +158,7 @@ class PortfolioLedger:
             return None
 
         amount = quantity * price
-        commission = amount * self._commission_pct
+        commission = self._cost_model.compute("buy", price, quantity)
         total_cost = amount + commission
 
         if total_cost > self.get_available_cash():
@@ -209,8 +215,8 @@ class PortfolioLedger:
             return None
 
         amount = quantity * price
-        commission = amount * self._commission_pct
-        tax = amount * self._tax_pct
+        commission = self._cost_model.compute("sell", price, quantity)
+        tax = 0.0  # sell tax already inside canonical compute (no double-count)
         net_proceeds = amount - commission - tax
 
         # FIFO lot matching for realized PnL

@@ -25,8 +25,10 @@ def test_dataset_builder_normalize():
 
     builder = DatasetBuilder()
     data = [10.0, 20.0, 30.0, 40.0, 50.0]
-    normalized = builder.normalize(data)
-    assert abs(sum(normalized)) < 0.01
+    # normalize() removed (leaky: fit on full sample). Use fit/apply split.
+    train_s, test_s, stats = builder.fit_normalize(data, test_size=0.4)
+    assert abs(sum(train_s)) < 0.01
+    assert builder.apply_normalization(test_s, stats) is not None
 
 
 def test_dataset_builder_create_sequences():

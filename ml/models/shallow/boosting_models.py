@@ -242,11 +242,12 @@ class StackingEnsembleModel(BaseModel):
 
     def fit(self, X: FeatureMatrix, y: TargetVector, **kwargs: Any) -> None:
         from sklearn.linear_model import Ridge
-        from sklearn.model_selection import KFold
+        from sklearn.model_selection import TimeSeriesSplit
 
         X_np = _to_numpy(X)
         y_np = _to_numpy(y)
         task = self.params.get("task", "regression")
+        gap = int(self.params.get("gap", 0))
 
         base_models = self._create_base_models(task)
         if not base_models:
@@ -257,10 +258,11 @@ class StackingEnsembleModel(BaseModel):
 
         # Generate out-of-fold predictions for meta-learner training
         n_folds = min(5, max(2, n // 50))
-        kf = KFold(n_splits=n_folds, shuffle=False)
+        tss = TimeSeriesSplit(n_splits=n_folds, gap=gap)
         oof_preds = np.zeros((n, n_base))
+        covered = np.zeros(n, dtype=bool)
 
-        for _fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_np)):
+        for _fold_idx, (train_idx, val_idx) in enumerate(tss.split(X_np)):
             X_train, X_val = X_np[train_idx], X_np[val_idx]
             y_train, y_val = y_np[train_idx], y_np[val_idx]
 
@@ -285,10 +287,13 @@ class StackingEnsembleModel(BaseModel):
                             fold_model.fit(X_train, y_train)
                     preds = fold_model.predict(X_val)
                     oof_preds[val_idx, model_idx] = preds
+                    covered[val_idx] = True
 
-        # Train meta-learner on out-of-fold predictions
+        # Train meta-learner on out-of-fold predictions (covered rows only —
+        # TimeSeriesSplit never holds out the leading block; zero-filled rows
+        # must NOT leak into the meta fit).
         self._meta_learner = Ridge(alpha=1.0)
-        self._meta_learner.fit(oof_preds, y_np)
+        self._meta_learner.fit(oof_preds[covered], y_np[covered])
 
         # Retrain all base models on full data
         self._base_models = []

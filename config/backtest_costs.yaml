@@ -1,0 +1,17 @@
+# Canonical backtest cost config — single source of truth.
+# NOTE: verify broker_pct / sell_tax_pct / clearing_fee_pct against current
+# brokerage + TSE/CSD fee schedules before live use. Defaults mirror
+# domain/trading/iran_costs.py (0.4% broker/side, 0.085% clearing/side, 0.5% sell tax).
+broker_pct: 0.004
+clearing_fee_pct: 0.00085
+sell_tax_pct: 0.005
+min_commission: 0.0
+base_slippage_bps: 5.0
+volume_impact_factor: 0.15
+min_slippage_bps: 3.0
+max_slippage_bps: 150.0
+# Participation cap: orders larger than this fraction of ADV are NOT filled
+# at once — broker returns partial fill (or skip when allow_partial_fill=false).
+max_participation: 0.2
+allow_partial_fill: true
+seed: 42

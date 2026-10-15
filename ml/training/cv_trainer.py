@@ -10,10 +10,10 @@ class CVTrainer:
         self.gap_extra = gap_extra
 
     def cross_validate(self, model: Any, X: Any, y: Any) -> dict[str, list[float]]:
-        from ml.evaluation.cross_validation import PurgedTimeSeriesCV
+        from ml.evaluation.cross_validation import CrossValidator
 
-        result = PurgedTimeSeriesCV(
-            n_splits=self.n_folds, horizon=self.horizon, gap_extra=self.gap_extra
+        result = CrossValidator(
+            n_folds=self.n_folds, horizon=self.horizon, gap_extra=self.gap_extra
         ).validate(model, X, y)
         if not result.success:
             raise ValueError(result.error)
