@@ -10,5 +10,8 @@ logger = get_logger(__name__)
 
 class BacktestRunJob:
     async def execute(self, payload: dict[str, Any]) -> Result[dict[str, Any]]:
+        from core.seed import set_global_seed
+
+        set_global_seed(int(payload.get("seed", 42)))
         logger.info("Backtest run job started")
         return Result.ok({"status": "completed", "report_id": ""})

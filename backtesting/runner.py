@@ -136,6 +136,9 @@ class BacktestRunner:
         Raises ``ValueError`` for unknown engines and ``RuntimeError`` when an
         engine reports failure.
         """
+        from core.seed import set_global_seed
+
+        set_global_seed(int(kwargs.pop("seed", 42)))
         name = self.resolve(engine)
         if name in DEPRECATED_ENGINES:
             warnings.warn(

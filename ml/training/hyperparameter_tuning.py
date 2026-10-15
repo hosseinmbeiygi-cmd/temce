@@ -14,7 +14,10 @@ class HyperparameterTuner:
     def optimize(self, model_cls: type, param_space: dict[str, Any], X: Any, y: Any) -> dict[str, Any]:
         import random
 
+        from core.seed import set_global_seed
         from ml.evaluation.cross_validation import CrossValidator
+
+        set_global_seed(self.seed)
 
         rng = random.Random(self.seed)
         best_score = -float("inf")
