@@ -165,20 +165,29 @@ def compute_metrics(equity, fills) -> dict:
 
 def run_backtest(symbol, bars, timing, market) -> dict:
     sys.path.insert(0, os.getcwd())
-    from backtesting.costs.iran_costs import IranTransactionCosts
+    import inspect
+
     from backtesting.engine.broker import Broker
     from backtesting.engine.simulator import BacktestSimulator
 
+    try:
+        from backtesting.costs.iran_costs import IranTransactionCosts
+        costs = IranTransactionCosts(market=market)
+    except TypeError:
+        from backtesting.costs.iran_costs import IranTransactionCosts  # old: no market
+        costs = IranTransactionCosts()
+    try:
+        broker = Broker(cost_model=costs, average_daily_volume=10_000_000)
+    except TypeError:  # very old Broker without cost_model
+        broker = Broker(average_daily_volume=10_000_000)
+    params = inspect.signature(BacktestSimulator.__init__).parameters
+    extra = {"execution_timing": timing} if "execution_timing" in params else {}
+    sim = BacktestSimulator(broker=broker, **extra)
     data = [
         {**b, "instrument_id": symbol, "timestamp": b["date"],
          "daily_volume": int(b.get("volume") or 1_000_000)}
         for b in bars
     ]
-    costs = IranTransactionCosts(market=market)
-    sim = BacktestSimulator(
-        broker=Broker(cost_model=costs, average_daily_volume=10_000_000),
-        execution_timing=timing,
-    )
     res = sim.run(SmaTrend(), initial_capital=1_000_000_000, data=data)
     if not res.success:
         raise RuntimeError(res.error)
@@ -188,7 +197,7 @@ def run_backtest(symbol, bars, timing, market) -> dict:
         "initial_capital": r.initial_capital,
         "final_capital": round(r.final_capital, 1),
         "n_bars": len(data),
-        "execution_timing": sim.execution_timing,
+        "execution_timing": getattr(sim, "execution_timing", "same_close (legacy)"),
         "market": market,
     })
     return out
