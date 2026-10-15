@@ -12,6 +12,6 @@ min_slippage_bps: 3.0
 max_slippage_bps: 150.0
 # Participation cap: orders larger than this fraction of ADV are NOT filled
 # at once — broker returns partial fill (or skip when allow_partial_fill=false).
-max_participation: 0.2
+max_participation: 0.05
 allow_partial_fill: true
 seed: 42

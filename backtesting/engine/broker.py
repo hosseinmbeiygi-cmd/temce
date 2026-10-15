@@ -54,7 +54,7 @@ class TransactionCostConfig:
     max_slippage_bps: float = 100.0  # 1% max
     # Maximum share of ADV taken in one fill; larger orders are partial-filled
     # (or skipped when allow_partial_fill=False). From config/backtest_costs.yaml.
-    max_participation: float = 0.2
+    max_participation: float = 0.05
     allow_partial_fill: bool = True
 
 
