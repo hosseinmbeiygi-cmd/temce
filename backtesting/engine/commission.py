@@ -18,6 +18,11 @@ class CommissionModel:
     iran_mode: bool = False
     iran_model: IranCommissionModel | None = None
 
+    def _canonical_total(self, side: str, price: float, quantity: int) -> float:
+        from backtesting.costs.iran_costs import IranTransactionCosts
+
+        return IranTransactionCosts().compute(side, price, quantity)
+
     def compute(self, fill: FillEvent, side: str = "sell") -> dict[str, float]:
         if self.iran_mode:
             model = self.iran_model or IranCommissionModel()
@@ -27,10 +32,17 @@ class CommissionModel:
 
         principal = fill.price * fill.quantity
         broker = principal * self.broker_pct
-        # Tax is charged on the SELL side only (Iranian market rule — audit F3).
-        tax = principal * self.tax_pct if normalize_side(side) == "sell" else 0.0
         clearing = principal * self.clearing_fee_pct
-        total = broker + tax + clearing + self.fee_per_order
+        if normalize_side(side) == "sell":
+            # Total follows the 1405 all-in table (tax inside); tax is the
+            # residual so broker + tax + clearing == canonical total exactly.
+            total = self._canonical_total("sell", fill.price, fill.quantity)
+            tax = max(total - broker - clearing, 0.0)
+        else:
+            tax = 0.0
+            total = broker + clearing + self.fee_per_order
+            return {"broker": broker, "tax": tax, "fee": self.fee_per_order, "clearing": clearing, "total": total}
+        total = total + self.fee_per_order
         return {"broker": broker, "tax": tax, "fee": self.fee_per_order, "clearing": clearing, "total": total}
 
     def compute_for_order(self, order: OrderEvent, fill_price: float, fill_qty: int) -> float:
@@ -40,9 +52,10 @@ class CommissionModel:
             costs = model.compute_buy(fill_price, fill_qty) if side == "buy" else model.compute_sell(fill_price, fill_qty)
             return costs["total"]
         side = normalize_side(order.side)
+        if side == "sell":
+            # Canonical all-in total (1405 table) — no component double-count.
+            return self._canonical_total("sell", fill_price, fill_qty)
         principal = fill_price * fill_qty
         broker = principal * self.broker_pct
-        # Tax on SELL side only — fixes charging tax on buys (audit F3).
-        tax = principal * self.tax_pct if side == "sell" else 0.0
         clearing = principal * self.clearing_fee_pct
-        return broker + tax + clearing + self.fee_per_order
+        return broker + clearing + self.fee_per_order

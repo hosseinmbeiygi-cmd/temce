@@ -37,6 +37,7 @@ class BacktestSimulator:
         portfolio: PortfolioManager | None = None,
         commission_pct: float | None = None,
         slippage_bps: float | None = None,
+        execution_timing: str | None = None,
     ) -> None:
         if broker is not None:
             self.broker = broker
@@ -48,6 +49,20 @@ class BacktestSimulator:
                 kwargs["slippage_bps"] = slippage_bps
             self.broker = Broker(**kwargs)
         self.portfolio = portfolio or PortfolioManager()
+        # Execution timing: "next_open" (default, realistic — signal on bar t
+        # fills at bar t+1's open) or "same_close" (legacy: fill at bar t's
+        # close, only valid with shift(1) features). From config when None.
+        self.execution_timing = execution_timing or self._default_timing()
+
+    @staticmethod
+    def _default_timing() -> str:
+        try:
+            import yaml  # type: ignore
+
+            with open("config/backtest_costs.yaml", encoding="utf-8") as f:
+                return str((yaml.safe_load(f) or {}).get("execution_timing", "next_open"))
+        except Exception:
+            return "next_open"
 
     def _create_lightweight_context(self, strategy: BaseStrategy) -> Any:
         """Create a lightweight context for strategies that need capital/position info."""
@@ -93,9 +108,12 @@ class BacktestSimulator:
             all_fills: list[FillEvent] = []
             sequence_id = 0
 
-            for bar in data or []:
+            bars = data or []
+            pending: list[Any] = []  # (order, signal_bar_idx) for next_open
+
+            for idx, bar in enumerate(bars):
                 if cancel_flag:
-                    logger.info("Backtest cancelled at bar %d/%d", len(equity_curve), len(data or []))
+                    logger.info("Backtest cancelled at bar %d/%d", len(equity_curve), len(bars))
                     break
 
                 # Incremental indicator computation (no look-ahead)
@@ -103,12 +121,28 @@ class BacktestSimulator:
 
                 orders = strategy.on_bar(bar)
 
-                # Process orders deterministically (in order received)
-                for order in orders:
-                    fill = self.broker.submit_order_sync(order)
-                    if fill:
-                        self.portfolio.update_fill_sync(fill)
-                        all_fills.append(fill)
+                if self.execution_timing == "next_open":
+                    # Fill orders signalled on the PREVIOUS bar at this bar's
+                    # open (order.price set by the strategy is overridden —
+                    # it was bar t's close, unknowable at signal time).
+                    import dataclasses as _dc
+
+                    for pending_order in pending:
+                        nxt = bars[idx].get("open", bars[idx].get("close", 0))
+                        if nxt and nxt > 0:
+                            adj = _dc.replace(pending_order, price=float(nxt))
+                            fill = self.broker.submit_order_sync(adj)
+                            if fill:
+                                self.portfolio.update_fill_sync(fill)
+                                all_fills.append(fill)
+                    pending = list(orders)  # defer this bar's signals
+                else:  # same_close (legacy): fill immediately at bar t close
+                    # Process orders deterministically (in order received)
+                    for order in orders:
+                        fill = self.broker.submit_order_sync(order)
+                        if fill:
+                            self.portfolio.update_fill_sync(fill)
+                            all_fills.append(fill)
 
                 # Mark-to-market using bar close price
                 instrument_id = bar.get("instrument_id", "")
@@ -140,8 +174,10 @@ class BacktestSimulator:
                 trades=all_fills,
                 metadata={
                     "cancelled": cancel_flag,
-                    "total_bars": len(data or []),
+                    "total_bars": len(bars),
                     "sequence_id_max": sequence_id,
+                    "execution_timing": self.execution_timing,
+                    "dropped_last_bar_signals": len(pending),
                 },
             )
             return Result.ok(result)

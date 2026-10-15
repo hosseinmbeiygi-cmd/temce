@@ -87,8 +87,8 @@ class PortfolioLedger:
     def __init__(
         self,
         initial_capital: float = 1_000_000_000,
-        commission_pct: float | None = None,  # deprecated; canonical model used
-        tax_pct: float | None = None,  # deprecated; canonical model used
+        commission_pct: float | None = None,
+        tax_pct: float | None = None,
         settlement_days: int = 2,
         cost_model: Any | None = None,
     ) -> None:
@@ -98,8 +98,22 @@ class PortfolioLedger:
         self._cash = initial_capital
         # Canonical cost model — single source of truth. Broker is the only
         # layer that computes costs; Ledger persists FillEvent.commission as-is.
-        self._cost_model = cost_model or IranTransactionCosts()
-        self._commission_pct = commission_pct  # kept for compat, unused
+        # Explicit commission_pct/tax_pct (legacy callers, tests) are honored
+        # as all-in buy/sell rates: buy=commission_pct,
+        # sell=commission_pct+tax_pct.
+        if cost_model is not None:
+            self._cost_model = cost_model
+        elif commission_pct is not None or tax_pct is not None:
+            from domain.trading import iran_costs as _m
+
+            cp = float(commission_pct) if commission_pct is not None else _m.buy_rate()
+            tp = float(tax_pct) if tax_pct is not None else 0.0
+            key = f"ledger-custom:{cp}:{tp}"
+            _m.MARKET_RATES[key] = (cp, cp + tp)
+            self._cost_model = IranTransactionCosts(market=key)
+        else:
+            self._cost_model = IranTransactionCosts()
+        self._commission_pct = commission_pct
         self._tax_pct = tax_pct
         self._settlement_days = settlement_days
 

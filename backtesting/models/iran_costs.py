@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backtesting.costs.iran_costs import BROKER_PCT, CLEARING_FEE_PCT, SELL_TAX_PCT
+from backtesting.costs.iran_costs import (
+    BROKER_PCT,
+    CLEARING_FEE_PCT,
+    DEFAULT_MARKET,
+    SELL_TAX_PCT,
+)
 
 
 @dataclass
 class IranCommissionModel:
     # Rates are single-sourced from backtesting.costs.iran_costs (audit F1).
+    # Totals follow the 1405 all-in market table (tax inside sell rate);
+    # broker/clearing legs are informational, tax is the residual so that
+    # broker + tax + clearing == canonical total EXACTLY.
     broker_buy_pct: float = BROKER_PCT
     broker_sell_pct: float = BROKER_PCT
     tax_pct: float = SELL_TAX_PCT
@@ -16,6 +24,12 @@ class IranCommissionModel:
     min_commission: float = 0.0
     max_commission: float = float("inf")
     tiered: bool = False
+    market: str = DEFAULT_MARKET
+
+    def _canonical_total(self, side: str, price: float, quantity: int) -> float:
+        from backtesting.costs.iran_costs import IranTransactionCosts
+
+        return IranTransactionCosts(market=self.market).compute(side, price, quantity)
 
     def compute_buy(self, price: float, quantity: int) -> dict[str, float]:
         principal = price * quantity
@@ -34,12 +48,14 @@ class IranCommissionModel:
         broker = max(principal * self.broker_sell_pct, self.min_commission)
         if self.max_commission and broker > self.max_commission:
             broker = self.max_commission
-        tax = principal * self.tax_pct
+        clearing = principal * self.clearing_fee_pct
+        total = self._canonical_total("sell", price, quantity)
+        tax = max(total - broker - clearing, 0.0)
         return {
             "broker": broker,
             "tax": tax,
-            "clearing": principal * self.clearing_fee_pct,
-            "total": broker + tax + principal * self.clearing_fee_pct,
+            "clearing": clearing,
+            "total": total,
         }
 
     def compute_total(self, buy_price: float, buy_qty: int, sell_price: float, sell_qty: int) -> dict[str, float]:

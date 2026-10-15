@@ -121,10 +121,8 @@ def test_engine_commission_sell_has_tax():
     order = _make_order("sell")
     total = model.compute_for_order(order, fill_price=1000.0, fill_qty=100)
     principal = 1000.0 * 100
-    # Sell = broker + clearing + tax
-    assert total == pytest.approx(
-        principal * model.broker_pct + principal * model.clearing_fee_pct + principal * model.tax_pct
-    )
+    # Sell = 1405 all-in rate (0.88% tse_equity, transfer tax inside)
+    assert total == pytest.approx(principal * 0.0088)
 
 
 def test_engine_commission_iran_mode_buy_has_no_tax():
