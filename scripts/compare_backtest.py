@@ -49,7 +49,34 @@ def load_crypto(symbol: str, root: str) -> list[dict]:
     ]
 
 
-def load_tse_ticks(symbol: str, start: str, end: str, root: str) -> list[dict]:
+# TSE continuous session ends 12:30 Tehran time. Ticks printed later
+# (corrections, odd-lots, closing auction prints) must NEVER move the
+# day's OHLC — they belong to post-market, not to bar t.
+DEFAULT_MARKET_CLOSE = "12:30:00"
+
+
+def aggregate_ticks(ticks: list[dict], market_close: str = DEFAULT_MARKET_CLOSE) -> tuple[dict | None, int]:
+    """Aggregate one day's ticks to OHLCV, dropping post-close ticks.
+
+    Returns (bar_dict_without_date, n_dropped_post_close).
+    """
+    in_session = [t for t in ticks if not t.get("canceled") and t.get("volume", 0) > 0]
+    dropped = sum(1 for t in in_session if str(t.get("time", "")) > market_close)
+    in_session = [t for t in in_session if str(t.get("time", "")) <= market_close]
+    if not in_session:
+        return None, dropped
+    prices = [float(t["price"]) for t in in_session]
+    return ({
+        "open": prices[0],
+        "high": max(prices),
+        "low": min(prices),
+        "close": prices[-1],
+        "volume": float(sum(float(t["volume"]) for t in in_session)),
+    }, dropped)
+
+
+def load_tse_ticks(symbol: str, start: str, end: str, root: str,
+                   market_close: str = DEFAULT_MARKET_CLOSE) -> list[dict]:
     sym_dir = os.path.join(root, "transactions_data", symbol)
     if not os.path.isdir(sym_dir):
         cands = sorted(
@@ -68,20 +95,10 @@ def load_tse_ticks(symbol: str, start: str, end: str, root: str) -> list[dict]:
             ticks = json.load(open(os.path.join(sym_dir, fname), encoding="utf-8"))
         except Exception:
             continue
-        ticks = [t for t in ticks if not t.get("canceled") and t.get("volume", 0) > 0]
-        if not ticks:
+        bar, _dropped = aggregate_ticks(ticks, market_close)
+        if not bar:
             continue
-        prices = [float(t["price"]) for t in ticks]
-        bars.append(
-            {
-                "date": day,
-                "open": prices[0],
-                "high": max(prices),
-                "low": min(prices),
-                "close": prices[-1],
-                "volume": float(sum(float(t["volume"]) for t in ticks)),
-            }
-        )
+        bars.append({"date": day, **bar})
     if not bars:
         raise ValueError(f"no ticks for {symbol} in [{start}, {end}]")
     return bars
@@ -216,6 +233,8 @@ def main() -> None:
     ap.add_argument("--commit", default=None, help="git revision to run at (via temp worktree)")
     ap.add_argument("--timing", default="next_open", choices=["next_open", "same_close"])
     ap.add_argument("--market", default="tse_equity")
+    ap.add_argument("--market-close", default=DEFAULT_MARKET_CLOSE,
+                    help="TSE session end; later ticks never enter the day bar")
     ap.add_argument("--data-root", default=REPO_ROOT)
     ap.add_argument("--_in-worktree", action="store_true")
     a = ap.parse_args()
@@ -240,7 +259,7 @@ def main() -> None:
         return
 
     try:
-        bars = load_tse_ticks(a.symbol, a.start, a.end, a.data_root)
+        bars = load_tse_ticks(a.symbol, a.start, a.end, a.data_root, a.market_close)
         source = "transactions_data"
     except (FileNotFoundError, ValueError):
         bars = [b for b in load_crypto(a.symbol, a.data_root) if a.start <= b["date"] <= a.end]
