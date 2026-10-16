@@ -94,7 +94,8 @@ class IranTransactionCosts:
 
             b = float(buy) if buy is not None else _m.buy_rate(market)
             s = float(sell) if sell is not None else _m.sell_rate(market)
-            _m.MARKET_RATES[f"config:{market}"] = (b, s)
+            t = _m.sell_tax(market)  # explicit tax param preserved, never re-added
+            _m.MARKET_RATES[f"config:{market}"] = (b, s, t)
             obj = cls(
                 broker_pct=obj.broker_pct,
                 sell_tax_pct=obj.sell_tax_pct,
