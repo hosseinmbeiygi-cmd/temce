@@ -64,6 +64,7 @@ def main() -> None:
     import numpy as _np
     import pandas as _pd
     from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import balanced_accuracy_score, roc_auc_score
     from sklearn.model_selection import TimeSeriesSplit
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
@@ -93,16 +94,24 @@ def main() -> None:
     gap = a.horizon
     tss = TimeSeriesSplit(n_splits=a.n_splits, gap=gap)
     folds = []
+    MIN_TEST = 30
     for k, (tr, te) in enumerate(tss.split(X)):
         if len(tr) < 30 or len(te) < 5:
             continue
-        # Pipeline: scaler fit on TRAIN fold only (never on test) — the
-        # correct pattern for scaler/PCA/imputer/feature-selection.
         clf = make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000))
         clf.fit(X[tr], y[tr])
         proba = clf.predict_proba(X[te])[:, 1]
         pred = (proba > 0.5).astype(int)
         acc = float((pred == y[te]).mean())
+        try:
+            auc = float(roc_auc_score(y[te], proba)) if len(set(y[te])) > 1 else None
+        except Exception:
+            auc = None
+        bal_acc = float(balanced_accuracy_score(y[te], pred))
+        maj = 1 if float(y[tr].mean()) >= 0.5 else 0
+        maj_acc = float(((_np.ones(len(te)) * maj).astype(int) == y[te]).mean())
+        tr_pos = float(y[tr].mean())
+        te_pos = float(y[te].mean())
         m = fold_metrics([closes[valid[i]] for i in te], [int(p) for p in pred])
         folds.append({
             "fold": k,
@@ -112,13 +121,23 @@ def main() -> None:
             "test_end": bars[valid[te[-1]]]["date"] if "date" in bars[0] else valid[int(te[-1])],
             "n_train": len(tr),
             "n_test": len(te),
+            "excluded_from_mean": len(te) < MIN_TEST,
+            "train_pos_rate": round(tr_pos, 4),
+            "test_pos_rate": round(te_pos, 4),
             "accuracy": round(acc, 4),
+            "balanced_accuracy": round(bal_acc, 4),
+            "auc": round(auc, 4) if auc is not None else None,
+            "majority_baseline_accuracy": round(maj_acc, 4),
             **m,
         })
-    summary = {}
-    if folds:
-        for key in ("accuracy", "sharpe", "max_drawdown_pct", "win_rate_pct", "profit_factor"):
-            vals = [f[key] for f in folds if isinstance(f[key], (int, float))]
+    kept = [f for f in folds if not f["excluded_from_mean"]]
+    small = [f for f in folds if f["excluded_from_mean"]]
+    summary = {"n_folds_total": len(folds), "n_folds_in_mean": len(kept),
+               "n_folds_excluded_small_test": len(small)}
+    if kept:
+        for key in ("accuracy", "balanced_accuracy", "auc", "majority_baseline_accuracy",
+                    "sharpe", "max_drawdown_pct", "win_rate_pct", "profit_factor"):
+            vals = [f[key] for f in kept if isinstance(f[key], (int, float))]
             summary[f"mean_{key}"] = round(sum(vals) / len(vals), 4) if vals else 0.0
     print(json.dumps({"symbol": a.symbol, "horizon": a.horizon, "gap": gap,
                       "folds": folds, "summary": summary}, ensure_ascii=False))
