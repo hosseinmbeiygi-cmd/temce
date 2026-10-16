@@ -59,6 +59,8 @@ def main() -> None:
     ap.add_argument("--n-splits", type=int, default=4)
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--data-root", default=REPO_ROOT)
+    ap.add_argument("--exclude-events", action="store_true",
+                    help="Drop ±horizon windows around |daily|>25% suspects")
     a = ap.parse_args()
 
     import numpy as _np
@@ -80,6 +82,10 @@ def main() -> None:
         bars = [b for b in load_crypto(a.symbol, a.data_root) if a.start <= b["date"] <= a.end]
     if len(bars) < 100:
         raise SystemExit(json.dumps({"error": f"only {len(bars)} bars — need >=100"}))
+    excluded: list = []
+    if a.exclude_events:
+        from scripts.compare_backtest import exclude_event_windows
+        bars, excluded = exclude_event_windows(bars, pad=a.horizon)
 
     df = _pd.DataFrame([{"close": b["close"], "high": b["high"], "low": b["low"],
                          "volume": b.get("volume") or 0} for b in bars])
@@ -140,6 +146,7 @@ def main() -> None:
             vals = [f[key] for f in kept if isinstance(f[key], (int, float))]
             summary[f"mean_{key}"] = round(sum(vals) / len(vals), 4) if vals else 0.0
     print(json.dumps({"symbol": a.symbol, "horizon": a.horizon, "gap": gap,
+                      "excluded_events": excluded,
                       "folds": folds, "summary": summary}, ensure_ascii=False))
 
 

@@ -26,6 +26,44 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 
+# ── corporate-event windows ─────────────────────────────────────────────────
+# Without adjusted prices (no daily_history / factor coverage for these
+# symbols in this env), days with |close-to-close| > 25% are almost surely
+# capital increases/splits (TSE daily limit is ~±7%). They permanently
+# rescale the price level, poisoning indicators, labels and PnL. The honest
+# fallback is to cut a ±horizon window around them (like a trading halt).
+EVENT_THRESHOLD = 0.25
+
+
+def detect_event_windows(bars: list[dict], threshold: float = EVENT_THRESHOLD,
+                         pad: int = 5) -> list[dict]:
+    """Find suspect days and pad them. Returns [{date, ret, drop_from, drop_to}]."""
+    dates = [b["date"] for b in bars]
+    out = []
+    for i in range(1, len(bars)):
+        prev, cur = bars[i - 1]["close"], bars[i]["close"]
+        if not prev:
+            continue
+        r = cur / prev - 1
+        if abs(r) > threshold:
+            out.append({"date": dates[i], "ret": round(r, 4),
+                        "drop_from": dates[max(0, i - pad)],
+                        "drop_to": dates[min(len(dates) - 1, i + pad)]})
+    return out
+
+
+def exclude_event_windows(bars: list[dict], threshold: float = EVENT_THRESHOLD,
+                          pad: int = 5) -> tuple[list[dict], list[dict]]:
+    """Remove event windows (inclusive). Returns (kept, events)."""
+    events = detect_event_windows(bars, threshold, pad)
+    drop = set()
+    dates = [b["date"] for b in bars]
+    for e in events:
+        lo, hi = dates.index(e["drop_from"]), dates.index(e["drop_to"])
+        drop.update(dates[lo:hi + 1])
+    return [b for b in bars if b["date"] not in drop], events
+
+
 # ── data loading ──────────────────────────────────────────────────────────────
 def load_crypto(symbol: str, root: str) -> list[dict]:
     import glob as _g
@@ -273,6 +311,8 @@ def main() -> None:
                     help="1405 table or pre-1405 schedule (0.485%/0.985%) for ablation")
     ap.add_argument("--market-close", default=None,
                     help="Session-end cutoff (default: per-market MARKET_CLOSE; 'off' disables)")
+    ap.add_argument("--exclude-events", action="store_true",
+                    help="Drop ±5d windows around |daily|>25% corporate-action suspects")
     ap.add_argument("--data-root", default=REPO_ROOT)
     ap.add_argument("--_in-worktree", action="store_true")
     a = ap.parse_args()
@@ -304,6 +344,8 @@ def main() -> None:
                    "--data-root", a.data_root, "--_in-worktree"]
             if a.market_close:
                 cmd += ["--market-close", a.market_close]
+            if a.exclude_events:
+                cmd += ["--exclude-events"]
             r = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp)
             sys.stdout.write(r.stdout)
             if r.returncode != 0:
@@ -324,9 +366,13 @@ def main() -> None:
         source = "crypto_history"
     if not bars:
         raise SystemExit(json.dumps({"error": f"no bars for {a.symbol} in range"}))
+    excluded: list = []
+    if a.exclude_events:
+        bars, excluded = exclude_event_windows(bars)
     out = run_backtest(a.symbol, bars, a.timing, a.market, a.rates)
     out.update({"commit": head_commit(), "symbol": a.symbol,
-                "start": a.start, "end": a.end, "source": source})
+                "start": a.start, "end": a.end, "source": source,
+                "excluded_events": excluded})
     print(json.dumps(out, ensure_ascii=False))
 
 
