@@ -22,6 +22,8 @@ import sys
 import tempfile
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 
 # ── data loading ──────────────────────────────────────────────────────────────
@@ -73,11 +75,28 @@ def aggregate_ticks(ticks: list[dict], market_close: str) -> tuple[dict | None, 
     }, dropped)
 
 
+def _resolve_cutoff(market: str, market_close: str | None) -> str:
+    """Per-market session close. Resolution order: explicit arg, then the
+    market_close map in config (read from REPO_ROOT so old-revision runs
+    still resolve it). Unknown markets raise — no silent global default."""
+    if market_close is not None:
+        return market_close
+    try:
+        import yaml  # type: ignore
+
+        with open(os.path.join(REPO_ROOT, "config", "backtest_costs.yaml"),
+                  encoding="utf-8") as f:
+            mc = (yaml.safe_load(f) or {}).get("market_close", {})
+        return mc[market]
+    except KeyError:
+        raise ValueError(f"No session close configured for market {market!r}")
+    except Exception as e:
+        raise RuntimeError(f"Cannot resolve session close for {market!r}: {e}")
+
+
 def load_tse_ticks(symbol: str, start: str, end: str, root: str,
                    market: str = "tse_equity", market_close: str | None = None) -> list[dict]:
-    if market_close is None:
-        from domain.trading.iran_costs import market_close as _mc
-        market_close = _mc(market)
+    market_close = _resolve_cutoff(market, market_close)
     sym_dir = os.path.join(root, "transactions_data", symbol)
     if not os.path.isdir(sym_dir):
         cands = sorted(
