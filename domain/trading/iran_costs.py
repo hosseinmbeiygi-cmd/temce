@@ -29,6 +29,31 @@ MARKET_RATES: dict[str, tuple[float, float, float]] = {
 
 DEFAULT_MARKET = "tse_equity"
 
+# ── Session close per market (Tehran time, continuous session end) ───────────
+# Ticks printed later (corrections, odd-lots, auction prints) must NEVER move
+# the day's OHLC. There is intentionally NO single global default: every
+# market resolves its own close; unknown markets raise instead of silently
+# using 12:30.
+MARKET_CLOSE: dict[str, str] = {
+    "tse_equity": "12:30:00",
+    "ifb_equity": "12:30:00",
+    "taseh": "12:30:00",
+    "debt": "12:30:00",
+    "etf_equity": "12:30:00",
+    "etf_mixed": "12:30:00",
+    "etf_fixed": "12:30:00",
+    "etf_commodity": "12:30:00",
+    "commodity_cert": "12:30:00",
+    "coin_cert": "12:30:00",
+}
+
+
+def market_close(market: str = DEFAULT_MARKET) -> str:
+    try:
+        return MARKET_CLOSE[market]
+    except KeyError:
+        raise ValueError(f"Unknown market {market!r}; expected one of {sorted(MARKET_CLOSE)}")
+
 # ── TSE-equity component decomposition (buy side only; informative) ──────────
 # buy 0.3712% ≈ broker/exchange 0.2862% + CSD clearing 0.085%. The 0.5%
 # transfer tax applies on SELL only and is already inside the 0.88% sell rate.

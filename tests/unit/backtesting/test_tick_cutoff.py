@@ -14,7 +14,7 @@ def _ticks():
 def test_post_close_ticks_excluded_from_bar():
     from scripts.compare_backtest import aggregate_ticks
 
-    bar, dropped = aggregate_ticks(_ticks())
+    bar, dropped = aggregate_ticks(_ticks(), "12:30:00")
     assert dropped == 2
     assert bar["open"] == 1000
     assert bar["close"] == 1010  # last IN-SESSION tick, not the 14:00 print
@@ -27,7 +27,7 @@ def test_all_post_close_day_yields_no_bar():
     from scripts.compare_backtest import aggregate_ticks
 
     ticks = [{"row": 1, "time": "15:00:00", "volume": 5, "price": 999, "canceled": 0}]
-    bar, dropped = aggregate_ticks(ticks)
+    bar, dropped = aggregate_ticks(ticks, "12:30:00")
     assert bar is None and dropped == 1
 
 
@@ -59,7 +59,7 @@ def test_real_files_respect_cutoff():
             if not any(str(t.get("time", "")) > "12:30:00" for t in valid):
                 continue
             checked += 1
-            bar, dropped = aggregate_ticks(valid)
+            bar, dropped = aggregate_ticks(valid, "12:30:00")
             assert dropped > 0
             if bar is None:
                 continue  # whole day was post-close prints: correctly no bar
@@ -72,3 +72,18 @@ def test_real_files_respect_cutoff():
             break
     assert checked > 0, "expected some days with post-close ticks"
     assert fixed > 0, "expected the cutoff to change at least one close"
+
+
+def test_per_market_close_no_single_default():
+    from domain.trading import iran_costs as m
+
+    import scripts.compare_backtest as cb
+
+    assert m.market_close("tse_equity") == "12:30:00"
+    assert m.market_close("etf_equity") == "12:30:00"
+    try:
+        m.market_close("nope")
+        raise SystemExit("should have raised")
+    except ValueError:
+        pass
+    assert not hasattr(cb, "DEFAULT_MARKET_CLOSE"), "single default must be gone"

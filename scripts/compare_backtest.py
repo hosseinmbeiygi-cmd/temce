@@ -49,13 +49,11 @@ def load_crypto(symbol: str, root: str) -> list[dict]:
     ]
 
 
-# TSE continuous session ends 12:30 Tehran time. Ticks printed later
-# (corrections, odd-lots, closing auction prints) must NEVER move the
-# day's OHLC — they belong to post-market, not to bar t.
-DEFAULT_MARKET_CLOSE = "12:30:00"
-
-
-def aggregate_ticks(ticks: list[dict], market_close: str = DEFAULT_MARKET_CLOSE) -> tuple[dict | None, int]:
+# TSE continuous session ends 12:30 Tehran time (per-market, see
+# domain.trading.iran_costs.MARKET_CLOSE — no single global default).
+# Ticks printed later (corrections, odd-lots, closing auction prints) must
+# NEVER move the day's OHLC — they belong to post-market, not to bar t.
+def aggregate_ticks(ticks: list[dict], market_close: str) -> tuple[dict | None, int]:
     """Aggregate one day's ticks to OHLCV, dropping post-close ticks.
 
     Returns (bar_dict_without_date, n_dropped_post_close).
@@ -76,7 +74,10 @@ def aggregate_ticks(ticks: list[dict], market_close: str = DEFAULT_MARKET_CLOSE)
 
 
 def load_tse_ticks(symbol: str, start: str, end: str, root: str,
-                   market_close: str = DEFAULT_MARKET_CLOSE) -> list[dict]:
+                   market: str = "tse_equity", market_close: str | None = None) -> list[dict]:
+    if market_close is None:
+        from domain.trading.iran_costs import market_close as _mc
+        market_close = _mc(market)
     sym_dir = os.path.join(root, "transactions_data", symbol)
     if not os.path.isdir(sym_dir):
         cands = sorted(
@@ -180,13 +181,19 @@ def compute_metrics(equity, fills) -> dict:
     }
 
 
-def run_backtest(symbol, bars, timing, market) -> dict:
+def run_backtest(symbol, bars, timing, market, rates="1405") -> dict:
     sys.path.insert(0, os.getcwd())
     import inspect
 
     from backtesting.engine.broker import Broker
     from backtesting.engine.simulator import BacktestSimulator
 
+    import domain.trading.iran_costs as _m
+
+    if rates == "legacy":
+        # Pre-1405 schedule: 0.4%/side + 0.085% clearing, 0.5% sell tax.
+        _m.MARKET_RATES["legacy_tse"] = (0.00485, 0.00985, 0.005)
+        market = "legacy_tse"
     try:
         from backtesting.costs.iran_costs import IranTransactionCosts
         costs = IranTransactionCosts(market=market)
@@ -210,12 +217,22 @@ def run_backtest(symbol, bars, timing, market) -> dict:
         raise RuntimeError(res.error)
     r = res.value
     out = compute_metrics(r.equity_curve, r.trades)
+    closes = [b["close"] for b in data]
+    bh_ret = (closes[-1] / closes[0] - 1) * 100 if closes[0] else 0.0
+    import statistics as _st
+    bh_rets = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes)) if closes[i - 1]]
+    bh_vol = _st.pstdev(bh_rets) if len(bh_rets) > 1 else 0.0
+    bh_sharpe = (sum(bh_rets) / len(bh_rets) / bh_vol * math.sqrt(252)) if bh_vol > 0 else 0.0
     out.update({
         "initial_capital": r.initial_capital,
         "final_capital": round(r.final_capital, 1),
         "n_bars": len(data),
         "execution_timing": getattr(sim, "execution_timing", "same_close (legacy)"),
         "market": market,
+        "rates": rates,
+        "buy_and_hold_return_pct": round(bh_ret, 2),
+        "buy_and_hold_sharpe": round(bh_sharpe, 4),
+        "low_sample": len(r.trades) < 20,
     })
     return out
 
@@ -233,8 +250,10 @@ def main() -> None:
     ap.add_argument("--commit", default=None, help="git revision to run at (via temp worktree)")
     ap.add_argument("--timing", default="next_open", choices=["next_open", "same_close"])
     ap.add_argument("--market", default="tse_equity")
-    ap.add_argument("--market-close", default=DEFAULT_MARKET_CLOSE,
-                    help="TSE session end; later ticks never enter the day bar")
+    ap.add_argument("--rates", default="1405", choices=["1405", "legacy"],
+                    help="1405 table or pre-1405 schedule (0.485%/0.985%) for ablation")
+    ap.add_argument("--market-close", default=None,
+                    help="Session-end cutoff (default: per-market MARKET_CLOSE; 'off' disables)")
     ap.add_argument("--data-root", default=REPO_ROOT)
     ap.add_argument("--_in-worktree", action="store_true")
     a = ap.parse_args()
@@ -262,8 +281,10 @@ def main() -> None:
             cmd = [sys.executable, os.path.abspath(__file__),
                    "--symbol", a.symbol, "--start", a.start, "--end", a.end,
                    "--timing", a.timing, "--market", a.market,
-                   "--market-close", a.market_close,
+                   "--rates", a.rates,
                    "--data-root", a.data_root, "--_in-worktree"]
+            if a.market_close:
+                cmd += ["--market-close", a.market_close]
             r = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp)
             sys.stdout.write(r.stdout)
             if r.returncode != 0:
@@ -274,15 +295,17 @@ def main() -> None:
                            cwd=REPO_ROOT, capture_output=True)
         return
 
+    # market_close=None → per-market MARKET_CLOSE; "off" → accept all ticks.
+    mc = "99:99:99" if a.market_close == "off" else a.market_close
     try:
-        bars = load_tse_ticks(a.symbol, a.start, a.end, a.data_root, a.market_close)
+        bars = load_tse_ticks(a.symbol, a.start, a.end, a.data_root, a.market, mc)
         source = "transactions_data"
     except (FileNotFoundError, ValueError):
         bars = [b for b in load_crypto(a.symbol, a.data_root) if a.start <= b["date"] <= a.end]
         source = "crypto_history"
     if not bars:
         raise SystemExit(json.dumps({"error": f"no bars for {a.symbol} in range"}))
-    out = run_backtest(a.symbol, bars, a.timing, a.market)
+    out = run_backtest(a.symbol, bars, a.timing, a.market, a.rates)
     out.update({"commit": head_commit(), "symbol": a.symbol,
                 "start": a.start, "end": a.end, "source": source})
     print(json.dumps(out, ensure_ascii=False))

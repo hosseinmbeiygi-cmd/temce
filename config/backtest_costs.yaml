@@ -13,6 +13,19 @@
 #   coin_cert    buy/sell ~0.125%          (RT ~0.25%)   گواهی سکه طلا
 # Re-verify against the SEO fee schedule + your broker's table before live use.
 market: tse_equity
+# Session close per market (Tehran time) — mirrors
+# domain.trading.iran_costs.MARKET_CLOSE. No single global default.
+market_close:
+  tse_equity: "12:30:00"
+  ifb_equity: "12:30:00"
+  taseh: "12:30:00"
+  debt: "12:30:00"
+  etf_equity: "12:30:00"
+  etf_mixed: "12:30:00"
+  etf_fixed: "12:30:00"
+  etf_commodity: "12:30:00"
+  commodity_cert: "12:30:00"
+  coin_cert: "12:30:00"
 # Optional explicit overrides (win over the market table when present):
 # buy_pct: 0.003712
 # sell_pct: 0.0088
