@@ -240,13 +240,29 @@ def main() -> None:
     a = ap.parse_args()
 
     if a.commit and not a._in_worktree:
+        import shutil
+
         tmp = tempfile.mkdtemp(prefix="cmp_bt_")
         subprocess.run(["git", "worktree", "add", "--detach", tmp, a.commit],
                        check=True, cwd=REPO_ROOT, capture_output=True)
         try:
+            # Infra repair (not part of the comparison): some revisions carry
+            # a broken core/config/__init__.py (IndentationError). Overlay the
+            # current working-tree copy so the old revision can import at all.
+            # Cost/engine code still comes 100% from the target commit.
+            fixed_cfg = os.path.join(a.data_root, "core", "config", "__init__.py")
+            dst_cfg = os.path.join(tmp, "core", "config", "__init__.py")
+            try:
+                import py_compile
+                py_compile.compile(os.path.join(tmp, "core", "config", "__init__.py"),
+                                   doraise=True)
+            except Exception:
+                shutil.copyfile(fixed_cfg, dst_cfg)
+                print(json.dumps({"note": "core/config overlaid from working tree (infra repair)"}))
             cmd = [sys.executable, os.path.abspath(__file__),
                    "--symbol", a.symbol, "--start", a.start, "--end", a.end,
                    "--timing", a.timing, "--market", a.market,
+                   "--market-close", a.market_close,
                    "--data-root", a.data_root, "--_in-worktree"]
             r = subprocess.run(cmd, capture_output=True, text=True, cwd=tmp)
             sys.stdout.write(r.stdout)
