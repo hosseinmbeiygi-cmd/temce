@@ -35,6 +35,12 @@ class JobDispatcher:
     ) -> JobResult:
         job_class = self._registry.get(job_name)
         if job_class is None:
+            # BrsApi/GoldDesk jobs in the BrsApi registry are function-based
+            # (no BaseJob class). In queue mode the worker receives their names
+            # from Redis, so dispatch them here instead of failing as unknown.
+            direct = await self._dispatch_brsapi_direct_job(job_name)
+            if direct is not None:
+                return direct
             return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
         if context is None:
             context = JobContext(job_id=new_id("job"), job_name=job_name, params=params or {})
@@ -62,6 +68,29 @@ class JobDispatcher:
         finally:
             await self._locking.release(lock_key, context.job_id)
 
+
+    async def _dispatch_brsapi_direct_job(self, job_name: str) -> JobResult | None:
+        """Run a function-based BrsApi job (e.g. ``gold_snapshot``) if registered.
+
+        Returns ``None`` when ``job_name`` is not a known direct job so the
+        caller can report it as unknown.
+        """
+        try:
+            from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOB_FUNCTIONS
+        except Exception:  # noqa: BLE001
+            logger.debug("GoldDesk job registry unavailable", exc_info=True)
+            return None
+        if job_name not in GOLD_DESK_JOB_FUNCTIONS:
+            return None
+
+        from brsapi.jobs.registry import get_brsapi_job_registry
+
+        report = await get_brsapi_job_registry()._run_direct_job(job_name)
+        if report is None:
+            return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
+        if report.success:
+            return JobResult.success_result(job_name=job_name, message="Completed")
+        return JobResult.failure(report.error or "unknown error", job_name=job_name)
 
     def list_jobs(self) -> list[str]:
         """Return names of all registered jobs."""

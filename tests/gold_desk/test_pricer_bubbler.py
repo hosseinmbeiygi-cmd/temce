@@ -13,7 +13,8 @@ AED = 18520.0  # ~ USD / 3.6725
 
 # مقادیر صحیح مورد انتظار
 EXPECTED_GOLD_18K_PER_GRAM = (XAU * USD) / 31.1034768 * (750.0 / 999.9)
-EXPECTED_COIN_EMAMI = (XAU * USD) / 31.1034768 * (900.0 / 999.9) * 8.133 + 80_000
+EXPECTED_COIN_EMAMI = (XAU * USD) / 31.1034768 * (900.0 / 999.9) * 8.133
+EXPECTED_COIN_BAHAR = EXPECTED_COIN_EMAMI + 80_000
 
 
 # ── pricer ──────────────────────────────────────────────────────
@@ -40,18 +41,22 @@ def test_coin_emami():
 
 
 def test_coin_bahar_same_as_emami():
-    """سکه بهار و امامی وزن یکسان دارند."""
+    """سکه بهار و امامی وزن یکسان دارند؛ کارمزد ضرب بهار ۸۰ هزار تومان بیشتر است."""
     a = pricer.fair_coin("IR_COIN_EMAMI", XAU, USD)
     b = pricer.fair_coin("IR_COIN_BAHAR", XAU, USD)
-    assert abs(a - b) < 0.01
+    assert abs(b - EXPECTED_COIN_BAHAR) < 0.01
+    assert abs((b - a) - 80_000) < 0.01
 
 
 def test_coin_half_half_of_emami():
     """نیم سکه ≈ نصف تمام."""
     full = pricer.fair_coin("IR_COIN_EMAMI", XAU, USD)
     half = pricer.fair_coin("IR_COIN_HALF", XAU, USD)
-    # minting cost روی هر دو هست پس تفاوت ~0
-    assert abs(full - 2 * half) < 50_000  # 50k minting cost
+    # وزن نیم سکه ۴٫۰۶۶ گرم در برابر ۸٫۱۳۳ گرم تمام است، پس ۰٫۰۰۱ گرم
+    # اختلاف وزن در نسبت ۲×نیم − تمام لحاظ می‌شود؛ کارمزد نیم ۵۰ هزار است.
+    coin_gold_per_gram = full / 8.133
+    expected = 100_000 - (8.133 - 2 * 4.066) * coin_gold_per_gram
+    assert (2 * half - full) == pytest.approx(expected, abs=1e-6)
 
 
 def test_invalid_input():

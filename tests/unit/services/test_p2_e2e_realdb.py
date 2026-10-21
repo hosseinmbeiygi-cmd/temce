@@ -1,10 +1,28 @@
-"""P2-2 E2E with the REAL database: symbol -> real candle length -> decision."""
+"""P2-2 E2E with the REAL database: symbol -> real candle length -> decision.
+
+Gate 9 reads the portfolio risk from the paper-trading ledger (audit D-03) and
+fails CLOSED when that ledger is unreadable, so the portfolio state is pinned
+here — this test's subject is real history becoming a decision, and the ledger
+read has its own coverage in ``test_portfolio_risk_gate.py``.
+"""
 import asyncio
 import math
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, patch
 
 import asyncpg
 
+from services.portfolio_risk import PortfolioRiskState
 from services.quant_signal_orchestrator import EnrichedSignal, QuantSignalOrchestrator
+
+
+@contextmanager
+def _approved_empty_portfolio():
+    with patch(
+        "services.portfolio_risk.load_portfolio_risk",
+        AsyncMock(return_value=PortfolioRiskState(approved=True)),
+    ):
+        yield
 
 
 async def fetch_real_history(symbol, limit=120):
@@ -65,9 +83,10 @@ def test_e2e_real_db_history_to_decision():
         source="e2e-real", created_at="now",
     )
     orch = QuantSignalOrchestrator(session=None)
-    released, rejected = asyncio.run(
-        orch._apply_signal_decision([sig], {symbol: len(closes)})
-    )
+    with _approved_empty_portfolio():
+        released, rejected = asyncio.run(
+            orch._apply_signal_decision([sig], {symbol: len(closes)})
+        )
     assert len(released) + len(rejected) == 1
     assert len(released) > 0, "real-history signal must release"
     d = released[0].to_dict()

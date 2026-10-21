@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_db_session, get_replica_session
 from apps.api.error_handlers import safe_error_message
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
@@ -111,7 +111,7 @@ async def screener(
     page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: int | None = Query(None, ge=1, le=200, description="Page size"),
     request: Request = None,
-    session: AsyncSession = Depends(get_db_session),
+    session: AsyncSession = Depends(get_replica_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Run the 5-phase Smart Money screener over real market data."""
     # Rate limiting

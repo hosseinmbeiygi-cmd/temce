@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from core.currency import rial_to_toman_float
 from schemas.api.options import PayoffCalculatorRequest
 from schemas.common.responses import ApiResponse
 from services.options_analytics import get_arbitrage_detector, get_portfolio_analyzer, get_volatility_analyzer
@@ -456,6 +457,12 @@ async def live_options_chain(underlying: str, limit: int = 50) -> ApiResponse[di
             "high": row[10], "low": row[11],
             "bid": row[12], "ask": row[13],
             "trades": row[14], "value": row[15],
+            # User-facing unit: toman (TMN). Raw columns stay rial.
+            "strike_toman": rial_to_toman_float(row[3], default=None),
+            "price_toman": rial_to_toman_float(row[4], default=None),
+            "underlying_price_toman": rial_to_toman_float(row[8], default=None),
+            "value_toman": rial_to_toman_float(row[15], default=None),
+            "currency": "TMN",
         }
         if not underlying_price and row[8]:
             underlying_price = row[8]
@@ -514,6 +521,8 @@ async def live_symbols() -> ApiResponse[list[dict[str, Any]]]:
             "contracts": row[1],
             "volume": row[2],
             "price": row[3],
+            "price_toman": rial_to_toman_float(row[3], default=None),
+            "currency": "TMN",
         })
 
     return ApiResponse(success=True, data=symbols)
@@ -630,6 +639,9 @@ async def live_commodity_chain(
         return {
             "symbol": row[base], "type": side, "strike": k,
             "price": row[base + 1], "volume": row[base + 2], "oi": row[base + 3],
+            "strike_toman": rial_to_toman_float(k, default=None),
+            "price_toman": rial_to_toman_float(row[base + 1], default=None),
+            "currency": "TMN",
             "days_to_expiry": days, "bid": row[base + 5], "ask": row[base + 6],
             "theoretical": round(theo, 1), "delta": round(delta, 4),
         }

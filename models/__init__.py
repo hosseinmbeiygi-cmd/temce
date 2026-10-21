@@ -58,6 +58,12 @@ from models.fund_nav import (
     FundPositionValuationModel,
     FundUnitMovementModel,
 )
+from models.gold_macro import (
+    GoldCotPositionModel,
+    GoldEconomicCalendarEventModel,
+    GoldIranManualEventModel,
+    GoldMacroIndicatorModel,
+)
 from models.indicator import IndicatorModel
 from models.instrument import InstrumentModel
 from models.job_run import JobRunModel

@@ -385,9 +385,22 @@ class TestReadPath:
                     before = await reader.load_daily_candles(conn, sym, 60, adjusted=True)
                     if not before:
                         pytest.skip("no adjusted candles for the picked symbol")
-                    assert (await conn.execute(text("SELECT count(*) FROM daily_adjust_factors"))).scalar() == 0
-
                     target = before[-1]["date"]  # newest true trade date (ISO string)
+                    # A dev DB already carries real factors for other
+                    # (symbol, date) pairs, so only *this* pair has to be
+                    # empty: then the synthetic 0.5 is the sole cause of
+                    # any change between the two reads.
+                    if (
+                        await conn.execute(
+                            text(
+                                "SELECT count(*) FROM daily_adjust_factors "
+                                "WHERE symbol_id = :sid AND trade_date = :d"
+                            ),
+                            {"sid": sid, "d": date.fromisoformat(target)},
+                        )
+                    ).scalar():
+                        pytest.skip("the picked trade date already has a factor row")
+
                     await conn.execute(
                         text(
                             "INSERT INTO daily_adjust_factors "
@@ -417,7 +430,13 @@ class TestReadPath:
                         assert a["date_shamsi"] == b["date_shamsi"]
 
                 assert (
-                    await conn.execute(text("SELECT count(*) FROM daily_adjust_factors"))
+                    await conn.execute(
+                        text(
+                            "SELECT count(*) FROM daily_adjust_factors "
+                            "WHERE symbol_id = :sid AND trade_date = :d"
+                        ),
+                        {"sid": sid, "d": date.fromisoformat(target)},
+                    )
                 ).scalar() == 0, "rollback must clean up the synthetic factor"
         finally:
             await eng.dispose()

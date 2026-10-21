@@ -183,17 +183,61 @@ def test_iran_calendar_uses_thursday_and_friday_as_weekend() -> None:
     assert CalendarUtils.is_weekend(date(2026, 1, 10)) is False
 
 
-def test_legacy_sql_helpers_reject_injected_identifiers(monkeypatch) -> None:
-    import importlib
+@pytest.mark.asyncio
+async def test_table_identifier_guard_rejects_injection_before_any_sql() -> None:
+    """A hostile table name must be stopped before it reaches a query.
 
-    for key in ("PG_HOST", "PG_PORT", "PG_DATABASE", "PG_USER", "PG_PASSWORD"):
-        monkeypatch.setenv(key, "test")
-    module = importlib.import_module("database_handler")
-    assert module._safe_identifier("symbol") == '"symbol"'
-    with pytest.raises(ValueError):
-        module._safe_identifier('symbol"; DROP TABLE users; --')
-    with pytest.raises(ValueError):
-        module._safe_columns(["symbol", "bad column"])
+    Replaces the old ``database_handler`` test: that module (and its
+    ``_safe_identifier`` helper) is gone. The guard now lives in
+    ``apps/api/endpoints/tables.py::_SAFE_IDENTIFIER`` and the table name is
+    interpolated as a quoted identifier, so the property worth locking is not
+    the regex itself but that nothing is ever executed for a bad name.
+    """
+    from apps.api.endpoints.tables import get_table_data
+
+    session = MagicMock()
+    session.execute = AsyncMock()
+
+    result = await get_table_data('instruments"; DROP TABLE users; --', session=session)
+
+    assert result.success is False
+    assert "Invalid table name" in str(result.error)
+    session.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_table_endpoint_keeps_interpolated_identifier_validated() -> None:
+    """After the guard, only a validated name is interpolated — and credentials stay hidden."""
+    from apps.api.endpoints.tables import get_table_data
+
+    class _Row:
+        def __init__(self, mapping: dict) -> None:
+            self._mapping = mapping
+
+    exists = MagicMock()
+    exists.scalar.return_value = True
+    columns = MagicMock()
+    columns.fetchall.return_value = [("id", "integer"), ("hashed_password", "text")]
+    counted = MagicMock()
+    counted.scalar.return_value = 3
+    rows = MagicMock()
+    rows.fetchall.return_value = [_Row({"id": 1, "hashed_password": "sha256:deadbeef"})]
+
+    session = MagicMock()
+    session.execute = AsyncMock(side_effect=[exists, columns, counted, rows])
+
+    result = await get_table_data("instruments", page=1, page_size=50, session=session)
+
+    assert result.success is True
+    assert result.data["columns"] == [{"name": "id", "type": "integer"}]
+    assert result.data["rows"] == [{"id": 1}]
+
+    statements = [str(call.args[0]) for call in session.execute.await_args_list]
+    # Schema lookups stay bound parameters; only the validated name is quoted in.
+    assert ":name" in statements[0]
+    assert ":name" in statements[1]
+    assert statements[2] == 'SELECT COUNT(*) FROM "instruments"'
+    assert "hashed_password" not in statements[3]
 
 
 def test_queue_trade_volume_consumes_ahead_before_filling() -> None:

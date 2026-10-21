@@ -37,6 +37,7 @@ from brsapi.models.ime import ImeFundModel
 from brsapi.models.tsetmc import IntradayTradeModel, NavRecordModel, SymbolSnapshotModel
 from brsapi.services.query_service import BrsApiQueryService
 from core.config import settings
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from core.time import utc_now_naive
 from models.fund import FundModel
@@ -242,6 +243,10 @@ def _ime_fund_to_dict(r: ImeFundModel) -> dict[str, Any]:
         # the two together would let the fund pages price liquidity off an absence.
         "base_volume": _cnt(r.base_volume),
         "market_value": _num(r.market_value),
+        # User-facing unit. The sibling values above stay rial.
+        "market_value_toman": rial_to_toman_float(r.market_value, default=None),
+        "trade_value_toman": rial_to_toman_float(r.trade_value, default=None),
+        "currency": "TMN",
         "buy_real_volume": _cnt(r.buy_real_volume),
         "buy_legal_volume": _cnt(r.buy_legal_volume),
         "sell_real_volume": _cnt(r.sell_real_volume),
@@ -287,6 +292,10 @@ def _snapshot_to_dict(r: SymbolSnapshotModel) -> dict[str, Any]:
         "shares_count": _cnt(r.shares_count),
         "base_volume": _cnt(r.base_volume),
         "market_value": _num(r.market_value),
+        # User-facing unit. The sibling values above stay rial.
+        "market_value_toman": rial_to_toman_float(r.market_value, default=None),
+        "trade_value_toman": rial_to_toman_float(r.trade_value, default=None),
+        "currency": "TMN",
         "buy_real_volume": _cnt(r.buy_real_volume),
         "buy_legal_volume": _cnt(r.buy_legal_volume),
         "sell_real_volume": _cnt(r.sell_real_volume),
@@ -329,6 +338,10 @@ def _fund_model_to_dict(r: FundModel) -> dict[str, Any]:
         "shares_count": _cnt(r.shares_count),
         "base_volume": _cnt(r.base_volume),
         "market_value": _num(r.market_value),
+        # User-facing unit. The sibling values above stay rial.
+        "market_value_toman": rial_to_toman_float(r.market_value, default=None),
+        "trade_value_toman": rial_to_toman_float(r.trade_value, default=None),
+        "currency": "TMN",
         "buy_real_volume": _cnt(r.buy_real_volume),
         "buy_legal_volume": _cnt(r.buy_legal_volume),
         "sell_real_volume": _cnt(r.sell_real_volume),
@@ -695,8 +708,12 @@ async def get_top_funds(
             "nav": f.get("nav"),
             "nav_change_pct": f.get("nav_change_pct"),
             "market_value": f.get("market_value"),
+            "market_value_toman": rial_to_toman_float(f.get("market_value"), default=None),
+            "nav_toman": rial_to_toman_float(f.get("nav"), default=None),
             "trade_volume": f.get("trade_volume"),
             "trade_value": f.get("trade_value"),
+            "trade_value_toman": rial_to_toman_float(f.get("trade_value"), default=None),
+            "currency": "TMN",
             "metric_value": f["_sort"],
         }
         for i, f in enumerate(funds[:top])
@@ -1186,6 +1203,8 @@ async def get_funds_intraday(
                 {
                     "time": r.time,
                     "price": float(r.price) if r.price is not None else None,
+                    "price_toman": rial_to_toman_float(r.price, default=None),
+                    "currency": "TMN",
                     "volume": int(r.volume) if r.volume is not None else 0,
                     "canceled": bool(r.canceled) if r.canceled is not None else False,
                 }
@@ -1201,6 +1220,12 @@ async def get_funds_intraday(
                     "last_price": prices[-1],
                     "price_min": min(prices),
                     "price_max": max(prices),
+                    # Toman copies of the whole summary; the raw keys stay rial.
+                    "first_price_toman": rial_to_toman_float(prices[0], default=None),
+                    "last_price_toman": rial_to_toman_float(prices[-1], default=None),
+                    "price_min_toman": rial_to_toman_float(min(prices), default=None),
+                    "price_max_toman": rial_to_toman_float(max(prices), default=None),
+                    "currency": "TMN",
                     "volume": sum(vols),
                     "value": sum(p * v for p, v in zip(prices, vols, strict=False)),
                     "first_time": ticks[0]["time"],
@@ -1338,6 +1363,7 @@ async def get_funds_intraday_candles(
                         "high": float(hi),
                         "low": float(lo),
                         "close": last_map.get(m, float(lo)),
+                        "close_toman": rial_to_toman_float(last_map.get(m, float(lo))),
                         "volume": int(vol or 0),
                         "value": float(val or 0),
                         "vwap": round(vwap, 2),
@@ -1359,6 +1385,7 @@ async def get_funds_intraday_candles(
                             "high": max(c["high"] for c in grp),
                             "low": min(c["low"] for c in grp),
                             "close": grp[-1]["close"],
+                            "close_toman": grp[-1]["close_toman"],
                             "volume": sum(c["volume"] for c in grp),
                             "value": sum(c["value"] for c in grp),
                             "vwap": round(

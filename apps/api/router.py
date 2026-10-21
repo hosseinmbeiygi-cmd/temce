@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from apps.api.dependencies import require_user_for_writes
 from apps.api.dependencies import require_roles as require_any_role
+from apps.api.dependencies import require_user_for_writes
+from core.logging import get_logger
 from schemas.common.responses import ApiResponse
+
+logger = get_logger(__name__)
 
 # Reference market data: anonymous visitors may read it, but never mutate it.
 # Distinct from the role-gated lists below, and from the old _optional_auth,
@@ -207,6 +210,9 @@ class Router:
         from apps.api.endpoints.funds_nav import router as funds_nav_router
         from apps.api.endpoints.funds_regulator import router as funds_regulator_router
         from apps.api.endpoints.funds_v2 import router as funds_v2_router
+        from apps.api.endpoints.gold import router as gold_core_router
+        from apps.api.endpoints.gold_analytics import router as gold_analytics_router
+        from apps.api.endpoints.golddesk import router as golddesk_router
         from apps.api.endpoints.health import router as health_router
         from apps.api.endpoints.indicators import router as indicators_router
         from apps.api.endpoints.ingestion import router as ingestion_router
@@ -250,13 +256,48 @@ class Router:
         from apps.api.endpoints.tests_runner import router as tests_router
         from apps.api.endpoints.trades import router as trades_router
         from apps.api.endpoints.watchlist import router as watchlist_router
-        from apps.api.endpoints.golddesk import router as golddesk_router
         from apps.api.endpoints.websocket import router as websocket_router
 
         # Health and auth routers are intentionally unprotected
         router.include_router(health_router, prefix="/health", tags=["Health"])
         # GoldDesk SaaS surface — scoped API tokens (منشور بخش ۴), no JWT session.
         router.include_router(golddesk_router, prefix="/golddesk", tags=["GoldDesk SaaS"])
+        # Pure gold calculators (physical, Black-76, options, futures, macro).
+        # They read no account data, so they stay public like market quotes.
+        router.include_router(
+            gold_analytics_router,
+            prefix="/gold/analytics",
+            tags=["Gold Analytics"],
+        )
+        # Gold calculators and the IME futures surface the GoldDesk frontend
+        # calls (``/gold/live-prices``, ``/gold/etf-nav-premium``,
+        # ``/gold/futures/*``, ``/gold/kill-switch``). The futures positions are
+        # somebody's own money, so the whole mount requires a real user.
+        router.include_router(
+            gold_core_router,
+            prefix="/gold",
+            tags=["Gold"],
+            dependencies=_require_user,
+        )
+        # GoldDesk personal surface (طلا/سکه/صندوق/پرتفوی). It carries its own
+        # ``/gold`` prefix, so it is mounted as ``/api/v1/gold/...`` — the paths
+        # the GoldDesk frontend (``lib/goldApi.ts``) already calls. Without this
+        # include the whole personal surface was unreachable over HTTP.
+        try:
+            from src.gold_desk.api import anonymous_router as gold_desk_public_router
+            from src.gold_desk.api import router as gold_desk_personal_router
+
+            # Liveness probe + the spec card the pre-login /markets pages read.
+            router.include_router(gold_desk_public_router, tags=["GoldDesk"])
+            # The personal surface (portfolio, alerts, tokens, chat, trades, …)
+            # is somebody's own money and position data: it requires a real user
+            # like every other personal mount. The frontend already sends the
+            # access token on every goldApi call, so nothing else changes.
+            router.include_router(
+                gold_desk_personal_router, tags=["GoldDesk"], dependencies=_require_user
+            )
+        except Exception as exc:  # noqa: BLE001 — optional surface; never block startup
+            logger.warning("GoldDesk personal router not mounted: %s", exc)
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # Reference market data may be read by anonymous visitors (the landing and
         # /markets pages render before login); every write still needs a token.

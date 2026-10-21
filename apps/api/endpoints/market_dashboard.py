@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from apps.api.dependencies import get_brsapi_query_service, get_market_service
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 from services.market_service import MarketService
@@ -89,9 +90,12 @@ async def _fetch_screener_data(brsapi) -> list[dict[str, Any]]:
                 "name": s.get("name", sym),
                 "sector": s.get("sector", ""),
                 "price": s.get("price_last", 0) or 0,
+                "price_toman": rial_to_toman_float(s.get("price_last") or 0),
                 "change_pct": s.get("price_last_change_pct", 0) or 0,
                 "volume": s.get("trade_volume", 0) or 0,
                 "value": s.get("trade_value", 0) or 0,
+                "value_toman": rial_to_toman_float(s.get("trade_value") or 0),
+                "currency": "TMN",
                 "smc_score": round(smc, 4),
                 "phase": phase,
             })

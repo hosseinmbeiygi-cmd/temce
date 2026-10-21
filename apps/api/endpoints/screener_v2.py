@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from apps.api.error_handlers import safe_error_message
 from core.config import settings
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from core.rate_limit import get_rate_limiter
 from schemas.common.responses import ApiResponse
@@ -120,9 +121,13 @@ def _item(r: Any) -> dict[str, Any]:
         "market": r.market,
         "industry": r.industry,
         "last_price": r.last_price,
+        # User-facing unit. The raw fields above stay rial for existing consumers.
+        "last_price_toman": rial_to_toman_float(r.last_price, default=None),
         "change_pct": r.change_pct,
         "volume": r.volume,
         "value": r.value,
+        "value_toman": rial_to_toman_float(r.value, default=None),
+        "currency": "TMN",
         "smc_score": _n(r.smc_score, 4),
         "phase": r.phase,
         "rank": r.rank,
@@ -160,6 +165,7 @@ def _item(r: Any) -> dict[str, Any]:
         "pe_ratio": r.pe_ratio,
         "eps": r.eps,
         "market_value": r.market_value,
+        "market_value_toman": rial_to_toman_float(r.market_value, default=None),
     }
 
 

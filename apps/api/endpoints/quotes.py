@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 
 from apps.api.dependencies import get_quote_service
+from core.currency import rial_to_toman_float
 from schemas.common.responses import ApiResponse
 from services.quote_import_service import QuoteImportService
 from services.quote_service import QuoteService
@@ -203,5 +204,10 @@ async def test_quote_direct(instrument_id: str):
         service = QuoteService(session=session)
         result = await service.get_latest(instrument_id)
         if result.success:
-            return {"success": True, "price": result.value.price_close}
+            return {
+                "success": True,
+                "price": result.value.price_close,
+                "price_toman": rial_to_toman_float(result.value.price_close, default=None),
+                "currency": "TMN",
+            }
         return {"success": False, "error": result.error}

@@ -213,8 +213,11 @@ def test_build_all_commits_and_logs():
         s._max_date = date(2026, 8, 10)
         return s
 
+    # ``build_feature_store`` deliberately reads the factory off ``core.database``
+    # at call time (a name imported into the module would be bound to ``None``
+    # before ``init_database`` runs), so the factory is patched on that module.
     with patch("scripts.build_feature_store.get_session", fake_get_session), \
-         patch("scripts.build_feature_store.async_session_factory", fake_factory), \
+         patch("core.database.async_session_factory", fake_factory), \
          patch("services.feature_engine.FeatureEngine", return_value=_FakeEngine()), \
          patch.object(builder, "_save_rows", new=AsyncMock()):
         async def run():

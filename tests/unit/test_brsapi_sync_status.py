@@ -33,10 +33,12 @@ from core.time import utc_now_naive
 
 
 def _db_url() -> str:
-    url = os.environ.get(
-        "DATABASE_URL",
-        "postgresql+asyncpg://market:market@localhost:5432/market_test",
-    )
+    """Return the URL the app itself is configured with (see tests/conftest.py)."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        from core.config import settings
+
+        url = settings.database_url_async
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url

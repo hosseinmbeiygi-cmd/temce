@@ -23,13 +23,36 @@ from ml.model_loader import ModelLoader
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 
-def _write_artifact(base: Path, cache_key: str, filename: str = "model_pipeline.pkl", payload: Any = None) -> Path:
-    """Create an artifact dir ``base/<cache_key>/<filename>`` with a pickled payload."""
+def _write_artifact(
+    base: Path,
+    cache_key: str,
+    filename: str = "model_pipeline.pkl",
+    payload: Any = None,
+    annotate: bool = True,
+) -> Path:
+    """Create an artifact dir ``base/<cache_key>/<filename>`` with a pickled payload.
+
+    ``annotate`` records that file's digest in ``metadata.json``, as the real
+    producers always do (the integrity gate, ML-007, refuses an artifact whose
+    directory carries no digest). It is turned off for the extra *legacy* file a
+    test drops next to the current one — a real artifact has exactly one
+    canonical model file per version folder.
+    """
+    import hashlib
+    import json
+
     artifact_dir = base / cache_key
     artifact_dir.mkdir(parents=True, exist_ok=True)
     model_file = artifact_dir / filename
     with open(model_file, "wb") as f:
         pickle.dump(payload if payload is not None else {"name": cache_key}, f)
+    if annotate:
+        (artifact_dir / "metadata.json").write_text(
+            json.dumps(
+                {"model_id": cache_key, "checksum": hashlib.md5(model_file.read_bytes()).hexdigest()}
+            ),
+            encoding="utf-8",
+        )
     return model_file
 
 
@@ -84,7 +107,7 @@ class TestGetModel:
     @pytest.mark.asyncio
     async def test_prefers_new_format_over_legacy(self, loader: ModelLoader, base_dir: Path) -> None:
         _write_artifact(base_dir, "catboost_فولاد", filename="model_pipeline.pkl", payload={"new": True})
-        _write_artifact(base_dir, "catboost_فولاد", filename="model.pkl", payload={"legacy": True})
+        _write_artifact(base_dir, "catboost_فولاد", filename="model.pkl", payload={"legacy": True}, annotate=False)
 
         model = await loader.get_model(symbol="فولاد", algorithm="catboost")
 

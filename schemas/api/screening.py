@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class ScreeningRequest(BaseModel):
@@ -23,11 +25,22 @@ class ScreeningResult(BaseModel):
     volume: int = 0
     value: float = 0.0
     market_cap: float = 0.0
+    currency: CurrencyCode = currency_field()
     p_e_ratio: float | None = None
     eps: float = 0.0
     sector: str = ""
     match_score: float = 0.0
     matched_criteria: list[str] = Field(default_factory=list)
+
+    @computed_field(description="آخرین قیمت به تومان (TMN)")
+    @property
+    def last_price_toman(self) -> float:
+        return toman(self.last_price)
+
+    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @property
+    def value_toman(self) -> float:
+        return toman(self.value)
 
 
 class ScreeningListResponse(BaseModel):

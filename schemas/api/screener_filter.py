@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class FilterCriterion(BaseModel):
@@ -40,6 +42,7 @@ class FilteredItem(BaseModel):
     change_pct: float = 0.0
     volume: int = 0
     value: float = 0.0
+    currency: CurrencyCode = currency_field()
     smc_score: float = 0.0
     phase: str = "neutral"
     rank: int = 0
@@ -89,6 +92,21 @@ class FilteredItem(BaseModel):
     volume_trend: str | None = None
 
     details: dict[str, Any] = Field(default_factory=dict)
+
+    @computed_field(description="آخرین قیمت به تومان (TMN)")
+    @property
+    def last_price_toman(self) -> float:
+        return toman(self.last_price)
+
+    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @property
+    def value_toman(self) -> float:
+        return toman(self.value)
+
+    @computed_field(description="ارزش بازار به تومان (TMN)")
+    @property
+    def market_value_toman(self) -> float | None:
+        return None if self.market_value is None else toman(self.market_value)
 
 
 class ScreenerFilterStats(BaseModel):

@@ -193,6 +193,7 @@ async def test_instrument_consistent_across_endpoints(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.needs_db
 async def test_market_breakdown_matches_total(admin_client: AsyncClient):
     """Sum of market_breakdown counts equals total_instruments (requires admin)."""
     resp = await admin_client.get("/api/v1/dashboard")
@@ -266,6 +267,7 @@ async def test_fund_navs_are_positive(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.needs_db
 async def test_dashboard_has_all_sections(admin_client: AsyncClient):
     """Dashboard response has all expected top-level keys (requires admin)."""
     resp = await admin_client.get("/api/v1/dashboard")
@@ -392,6 +394,7 @@ async def test_energy_commodity_sub_market_totals_match(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.needs_db
 async def test_top_gainers_are_sorted(admin_client: AsyncClient):
     """Top gainers should be sorted descending by change (requires admin)."""
     resp = await admin_client.get("/api/v1/dashboard")

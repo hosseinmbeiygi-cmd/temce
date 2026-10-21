@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class EnergyRequest(BaseModel):
@@ -21,6 +23,12 @@ class EnergyResponse(BaseModel):
     high_24h: float = 0.0
     low_24h: float = 0.0
     last_updated: str = ""
+    currency: CurrencyCode = currency_field()
+
+    @computed_field(description="قیمت به تومان (TMN)")
+    @property
+    def price_toman(self) -> float:
+        return toman(self.price)
 
 
 class EnergyListResponse(BaseModel):

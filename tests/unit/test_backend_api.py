@@ -32,6 +32,7 @@ async def test_health_check(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.needs_db
 async def test_dashboard_returns_metrics(admin_client: AsyncClient):
     """GET /api/v1/dashboard should return dashboard metrics (requires admin)."""
     resp = await admin_client.get("/api/v1/dashboard")

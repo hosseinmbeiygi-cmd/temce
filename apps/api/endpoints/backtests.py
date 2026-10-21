@@ -936,6 +936,12 @@ async def walk_forward(
 
     if "error" in result:
         return ApiResponse[dict[str, Any]](success=False, error={"message": result["error"]})
+
+    # Production gate (``acceptance.yaml``): the verdict is computed on every run,
+    # so a strategy can only be promoted on its measured out-of-sample metrics.
+    from core.config.acceptance_loader import evaluate_walk_forward_result
+
+    result["acceptance"] = evaluate_walk_forward_result(result)
     return ApiResponse[dict[str, Any]](success=True, data=result)
 
 

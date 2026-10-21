@@ -28,6 +28,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from services.stock_read_through import StockReadThroughService
 
@@ -180,9 +181,13 @@ async def get_peers(
                 "symbol": r[0],
                 "name": r[1],
                 "last_price": r[2],
+                "last_price_toman": rial_to_toman_float(r[2], default=None),
                 "close_price": r[3],
+                "close_price_toman": rial_to_toman_float(r[3], default=None),
                 "change_pct": r[4],
                 "trade_value": r[5],
+                "trade_value_toman": rial_to_toman_float(r[5], default=None),
+                "currency": "TMN",
                 "percapita_buy_mnt": (r[9] / (r[7] * 10**7)) if (r[9] and r[7]) else None,
                 "buyer_power": power,
                 "base_volume_ratio": (r[11] / r[12]) if (r[11] and r[12]) else None,

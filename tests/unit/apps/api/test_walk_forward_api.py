@@ -8,6 +8,7 @@ synthetic series and a deterministic simulator. Auth is provided by the shared
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -126,3 +127,54 @@ async def test_walk_forward_backward_compatible_defaults(
     expected_default = max(1, int(_N_BARS * 0.01))
     assert data["embargo_bars"] == expected_default
     assert data["purged_bars"] == expected_default
+
+
+async def test_walk_forward_response_is_gated_automatically(
+    user_client: AsyncClient, fake_service: _FakeBacktestService
+) -> None:
+    """Every walk-forward response carries the ``acceptance.yaml`` verdict.
+
+    The gate runs server-side on each request, so a caller never evaluates the
+    thresholds itself, and each threshold reports the raw field it judged.
+    """
+    payload = {
+        "symbol": "فولاد",
+        "strategy": "moving_average_cross",
+        "capital": 1_000_000_000,
+        "windows": 4,
+    }
+    resp = await user_client.post(_ENDPOINT, json=payload)
+    assert resp.status_code == 200, resp.text
+
+    data = resp.json()["data"]
+    acceptance = data["acceptance"]
+
+    assert acceptance["status"] in {"PASS", "REJECT"}
+    assert acceptance["spec_version"] == "1.0"
+    assert (acceptance["status"] == "PASS") == (acceptance["reasons"] == [])
+
+    rows = {row["threshold"]: row for row in acceptance["thresholds"]}
+    assert set(rows) == {
+        "min_wfe",
+        "min_dsr",
+        "min_oos_sharpe",
+        "max_drawdown",
+        "min_profit_factor",
+        "min_trade_count",
+    }
+    for row in rows.values():
+        assert row["source"], "each threshold must name the raw field it judged"
+        assert isinstance(row["limit"], (int, float))
+        assert isinstance(row["passed"], bool)
+
+    # The verdict is exactly the conjunction of the per-threshold evidence.
+    assert (acceptance["status"] == "PASS") == all(r["passed"] for r in rows.values())
+
+    # The nested DSR block of the raw result reached the gate as a scalar.
+    assert rows["min_dsr"]["value"] is not None
+    # The synthetic simulator trades are all winners, so the profit-factor
+    # criterion passes without an Infinity leaking into the payload.
+    assert rows["min_profit_factor"]["passed"] is True
+    assert rows["min_profit_factor"]["value"] is None
+
+    json.dumps(data, allow_nan=False)  # raises if a non-finite float leaked

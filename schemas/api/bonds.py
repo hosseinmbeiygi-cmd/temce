@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class BondRequest(BaseModel):
@@ -31,6 +33,17 @@ class BondResponse(BaseModel):
     duration: float = 0.0
     status: str = "active"
     created_at: str = ""
+    currency: CurrencyCode = currency_field()
+
+    @computed_field(description="قیمت اوراق به تومان (TMN)")
+    @property
+    def price_toman(self) -> float:
+        return toman(self.price)
+
+    @computed_field(description="ارزش اسمی به تومان (TMN)")
+    @property
+    def par_value_toman(self) -> float:
+        return toman(self.par_value)
 
 
 class BondListResponse(BaseModel):

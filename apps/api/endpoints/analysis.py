@@ -7,7 +7,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from apps.api.dependencies import get_brsapi_query_service
+from apps.api.dependencies import get_replica_brsapi_query_service
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from core.time import utc_now_naive
 from schemas.common.responses import ApiResponse
@@ -30,7 +31,7 @@ async def analysis_correlations(
     min_history: int = Query(60, ge=10, le=250, description="Minimum daily closes per symbol"),
     min_corr: float = Query(0.35, ge=0.0, le=1.0, description="Minimum |correlation| to report a pair"),
     limit: int = Query(60, ge=1, le=200, description="Max pairs returned"),
-    brsapi=Depends(get_brsapi_query_service),
+    brsapi=Depends(get_replica_brsapi_query_service),
 ) -> ApiResponse[dict[str, Any]]:
     """Real pairwise return correlations, grouped by sector.
 
@@ -120,7 +121,7 @@ async def analysis_correlations(
 
 @router.get("/overview")
 async def analysis_overview_frontend(
-    brsapi=Depends(get_brsapi_query_service),
+    brsapi=Depends(get_replica_brsapi_query_service),
 ) -> ApiResponse[AnalysisOverviewFrontend]:
     """Market overview with real data from brsapi_symbol_snapshots."""
     gainers: list[dict[str, Any]] = []
@@ -141,6 +142,9 @@ async def analysis_overview_frontend(
                 "symbol": s.get("symbol", ""),
                 "change": round(s.get("price_last_change_pct", 0), 2),
                 "price": s.get("price_last", 0),
+                # User-facing unit: toman (TMN). `price` keeps the raw rial value.
+                "price_toman": rial_to_toman_float(s.get("price_last"), default=None),
+                "currency": "TMN",
                 "volume": s.get("trade_volume", 0),
             })
 
@@ -150,6 +154,9 @@ async def analysis_overview_frontend(
                 "symbol": s.get("symbol", ""),
                 "change": round(s.get("price_last_change_pct", 0), 2),
                 "price": s.get("price_last", 0),
+                # User-facing unit: toman (TMN). `price` keeps the raw rial value.
+                "price_toman": rial_to_toman_float(s.get("price_last"), default=None),
+                "currency": "TMN",
                 "volume": s.get("trade_volume", 0),
             })
 
@@ -250,7 +257,7 @@ class SectorTrend(BaseModel):
 
 @router.get("/trends")
 async def market_trends(
-    brsapi=Depends(get_brsapi_query_service),
+    brsapi=Depends(get_replica_brsapi_query_service),
 ) -> ApiResponse[list[SectorTrend]]:
     """Real sector trends from brsapi_symbol_snapshots."""
     sector_data: dict[str, dict[str, Any]] = defaultdict(lambda: {"total_change": 0, "count": 0, "symbols": []})
@@ -307,7 +314,7 @@ class LiquidityData(BaseModel):
 
 @router.get("/liquidity")
 async def liquidity_flow(
-    brsapi=Depends(get_brsapi_query_service),
+    brsapi=Depends(get_replica_brsapi_query_service),
 ) -> ApiResponse[LiquidityData]:
     """Real liquidity data from brsapi_symbol_snapshots."""
     sector_flow: dict[str, dict[str, Any]] = defaultdict(lambda: {"inflow": 0, "outflow": 0, "symbols": []})
@@ -391,7 +398,7 @@ async def liquidity_flow(
 @router.get("/elliot-waves/{symbol}")
 async def elliot_wave_analysis(
     symbol: str,
-    brsapi=Depends(get_brsapi_query_service),
+    brsapi=Depends(get_replica_brsapi_query_service),
 ) -> ApiResponse[dict[str, Any]]:
     """Basic trend analysis for a symbol based on price history."""
     try:

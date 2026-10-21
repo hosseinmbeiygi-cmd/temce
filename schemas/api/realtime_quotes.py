@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class RealtimeQuoteResponse(BaseModel):
+    """Realtime snapshot. Raw price fields are rial; ``*_toman`` are TMN."""
+
     symbol: str = ""
     last_price: float = 0.0
     change: float = 0.0
@@ -19,6 +23,17 @@ class RealtimeQuoteResponse(BaseModel):
     ask_price: float = 0.0
     ask_volume: int = 0
     timestamp: str = ""
+    currency: CurrencyCode = currency_field()
+
+    @computed_field(description="قیمت آخرین معامله به تومان (TMN)")
+    @property
+    def last_price_toman(self) -> float:
+        return toman(self.last_price)
+
+    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @property
+    def value_toman(self) -> float:
+        return toman(self.value)
 
 
 class QuoteStreamMessage(BaseModel):

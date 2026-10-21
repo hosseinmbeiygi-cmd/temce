@@ -58,11 +58,23 @@ collect_ignore = ["legacy"]
 
 
 def _db_url() -> str:
-    """Return the DATABASE_URL to probe, falling back to localhost."""
-    return os.environ.get(
-        "DATABASE_URL",
-        "postgresql+asyncpg://market:market@localhost:5432/market_test",
-    )
+    """Return the DATABASE_URL to probe.
+
+    The app's own configured URL is the right thing to probe: a ``needs_db``
+    test exercises the endpoints that read through ``settings``. The old
+    hardcoded ``market_test`` fallback made every ``needs_db`` test skip on a
+    machine whose real database lives under a different name, even though it
+    was reachable.
+    """
+    override = os.environ.get("DATABASE_URL")
+    if override:
+        return override
+    try:
+        from core.config import settings
+
+        return settings.database_url_async
+    except Exception:
+        return "postgresql+asyncpg://market:market@localhost:5432/market_test"
 
 
 def _is_postgres_reachable() -> bool:

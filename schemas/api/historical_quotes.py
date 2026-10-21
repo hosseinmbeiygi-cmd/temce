@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class QuoteHistoryRequest(BaseModel):
@@ -26,6 +28,22 @@ class QuoteHistoryResponse(BaseModel):
     value: float = 0.0
     change: float = 0.0
     change_pct: float = 0.0
+    currency: CurrencyCode = currency_field()
+
+    @computed_field(description="قیمت پایانی به تومان (TMN)")
+    @property
+    def close_toman(self) -> float:
+        return toman(self.close)
+
+    @computed_field(description="آخرین قیمت به تومان (TMN)")
+    @property
+    def last_toman(self) -> float:
+        return toman(self.last)
+
+    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @property
+    def value_toman(self) -> float:
+        return toman(self.value)
 
 
 class QuoteListResponse(BaseModel):

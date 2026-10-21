@@ -316,24 +316,18 @@ class TestFirstUserGetsAdmin:
     async def test_first_user_gets_admin_role(self):
         """First user registered should get admin role."""
 
-        # Mock session: first execute returns None (no existing user), second returns empty list (count=0)
-        call_count = 0
+        # Mock session: the existence check finds nobody, and the user count is
+        # 0 — ``register`` counts users with ``session.scalar(select(count))``,
+        # so the count has to be stubbed explicitly (an AsyncMock default would
+        # be truthy and silently make every registrant a non-admin).
         async def mock_execute(query):
-            nonlocal call_count
-            call_count += 1
             mock_result = MagicMock()
-            if call_count == 1:
-                # First call: check existing username/email
-                mock_result.scalar_one_or_none.return_value = None
-            else:
-                # Second call: count users (empty = first user)
-                mock_scalars = MagicMock()
-                mock_scalars.all.return_value = []
-                mock_result.scalars.return_value = mock_scalars
+            mock_result.scalar_one_or_none.return_value = None
             return mock_result
 
         mock_session = AsyncMock()
         mock_session.execute = mock_execute
+        mock_session.scalar = AsyncMock(return_value=0)  # no users yet
         mock_session.flush = AsyncMock()
 
         from services.user_service import UserService
@@ -350,23 +344,14 @@ class TestFirstUserGetsAdmin:
     async def test_second_user_gets_user_role(self):
         """Second user registered should get user role (not admin)."""
 
-        call_count = 0
         async def mock_execute(query):
-            nonlocal call_count
-            call_count += 1
             mock_result = MagicMock()
-            if call_count == 1:
-                # First call: check existing username/email
-                mock_result.scalar_one_or_none.return_value = None
-            else:
-                # Second call: count users (has existing user)
-                mock_scalars = MagicMock()
-                mock_scalars.all.return_value = [MagicMock()]  # One existing user
-                mock_result.scalars.return_value = mock_scalars
+            mock_result.scalar_one_or_none.return_value = None
             return mock_result
 
         mock_session = AsyncMock()
         mock_session.execute = mock_execute
+        mock_session.scalar = AsyncMock(return_value=1)  # one existing user
         mock_session.flush = AsyncMock()
 
         from services.user_service import UserService

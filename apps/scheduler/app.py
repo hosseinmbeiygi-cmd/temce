@@ -250,6 +250,54 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── Gold macro: FRED real yield (DFII10) + broad USD (DTWEXBGS) ──
+        # FRED publishes once daily (~16:15 ET); a few Tehran-time probes
+        # catch the new print. The job self-skips when FRED_API_KEY is unset,
+        # so a keyless deployment never fails the scheduler.
+        self.add_job(
+            "GoldMacroSyncJob",
+            trigger="cron",
+            hour="6,12,18,22",
+            minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: CFTC Commitment of Traders (gold futures) ──────────
+        # CFTC releases the COT report Friday 15:30 ET. The same probe
+        # cadence picks it up within hours; the sync upserts by report date
+        # so repeated runs never duplicate rows.
+        self.add_job(
+            "GoldCftcCotSyncJob",
+            trigger="cron",
+            hour="6,12,18,22",
+            minute=45,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: economic calendar (CPI / NFP / FOMC) ─────────────
+        self.add_job(
+            "GoldEconomicCalendarSyncJob",
+            trigger="cron",
+            hour="5,17",
+            minute=0,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: tokenized gold (PAXG / XAUT) premium vs spot ───
+        # Reads the BrsApi crypto feed already synced into the DB plus the
+        # stored gold spot — no extra market-data subscription.
+        self.add_job(
+            "GoldTokenizedGoldSyncJob",
+            trigger="cron",
+            hour="6,12,18,22",
+            minute=50,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         self.scheduler.start()
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 

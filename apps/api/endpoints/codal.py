@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
 from apps.api.error_handlers import safe_error_message
+from core.currency import rial_to_toman_float
 from core.db_utils import safe_row_str
 from core.exceptions import NotFoundError
 from core.logging import get_logger
@@ -546,6 +547,11 @@ async def codal_analysis(
                 "highest_allowed": snap.get("price_highest_allowed") or 0,
                 "change": change,
                 "change_pct": round(change_pct, 2),
+                # User-facing unit. The sibling keys above stay rial.
+                "last_toman": rial_to_toman_float(price_last),
+                "yesterday_toman": rial_to_toman_float(price_yesterday),
+                "close_toman": rial_to_toman_float(price_close),
+                "currency": "TMN",
             },
             "fundamental": {
                 "eps": eps,

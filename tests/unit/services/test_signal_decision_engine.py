@@ -1,7 +1,7 @@
-"""Unit tests for SignalDecisionEngine — 10-gate pipeline, grading, and market-aware config.
+"""Unit tests for SignalDecisionEngine — 11-gate pipeline, grading, and market-aware config.
 
 Tests cover:
-  - Individual gate PASS/WARN/BLOCK conditions for each of 10 gates
+  - Individual gate PASS/WARN/BLOCK conditions for each gate (§۲۶ net-profit gate اضافه شده)
   - Full evaluate() flow (RELEASE / WATCHLIST / REJECT verdicts)
   - signal_grade() logic (A+ / A / B / WATCHLIST / REJECT)
   - Market-specific config overrides via get_gate_config()
@@ -415,6 +415,26 @@ class TestGateProbability:
         assert result.verdict == GateVerdict.WARN
 
 
+@pytest.fixture(autouse=True)
+def _heuristic_regime_only(monkeypatch: pytest.MonkeyPatch):
+    """رژیم در تست‌های زیر از مسیر هیوریستیک سنجیده می‌شود، نه از دیتابیس.
+
+    ``_detect_regime`` تا وقتی ``core.database.async_session_factory`` وجود داشته
+    باشد، رژیم را از ``brsapi_index_values`` می‌خواند و در کش ماژول نگه می‌دارد؛ پس
+    نتیجهٔ این تست‌ها به ترتیب اجرای ماژول‌های دیگر وابسته می‌شد (در اجرای تکی سبز،
+    در اجرای کامل قرمز). اینجا هر دو مسیر بیرونی برای همین تست‌ها خاموش می‌شود تا
+    ادعاها همان هیوریستیکی را بسنجند که موضوع تست است.
+    """
+    import core.database as database
+
+    from services import signal_decision_engine as engine_module
+
+    monkeypatch.setattr(database, "async_session_factory", None, raising=False)
+    engine_module._cached_regime_data.clear()
+    yield
+    engine_module._cached_regime_data.clear()
+
+
 class TestGateRegime:
     @pytest.mark.asyncio
     async def test_pass_trend(self):
@@ -533,18 +553,88 @@ class TestGateRiskReward:
         assert result.verdict == GateVerdict.BLOCK
 
     @pytest.mark.asyncio
-    async def test_warn_below_trade(self):
-        engine = _make_engine()
-        candidate = _make_candidate({"risk_reward": 0.7})
-        result = await engine._gate_risk_reward(candidate, "stock")
-        assert result.verdict == GateVerdict.WARN
-
-    @pytest.mark.asyncio
     async def test_zero_rr_blocks(self):
         engine = _make_engine()
         candidate = _make_candidate({"risk_reward": 0.0})
         result = await engine._gate_risk_reward(candidate, "stock")
         assert result.verdict == GateVerdict.BLOCK
+
+
+class TestSpecFloorOnRiskReward:
+    """کف §۲۶ (حداقل ۲ به ۱) سراسری است و پالیسی هر بازار فقط می‌تواند تیره‌تر کند."""
+
+    @pytest.mark.asyncio
+    async def test_floor_cannot_be_loosened_by_market_policy(self):
+        """پالیسی می‌گوید ۰٫۳ ولی کف سند روی ۲٫۰ می‌ماند."""
+        engine = _make_engine()
+        engine._policy._policy_data["stock"] = {
+            "risk_reward": {"minimum_trade": 0.3, "minimum_watchlist": 0.2}
+        }
+        candidate = _make_candidate({"risk_reward": 1.5})
+
+        result = await engine._gate_risk_reward(candidate, "stock")
+
+        assert result.verdict == GateVerdict.BLOCK
+
+    @pytest.mark.asyncio
+    async def test_tighter_market_policy_still_produces_a_warn_band(self):
+        """کف ۲٫۰ است؛ بازار می‌تواند به ۲٫۵ سخت‌تر کند و باند WARN بسازد."""
+        engine = _make_engine()
+        engine._policy._policy_data["stock"] = {
+            "risk_reward": {"minimum_trade": 2.5, "minimum_watchlist": 2.0}
+        }
+        candidate = _make_candidate({"risk_reward": 2.2})
+
+        result = await engine._gate_risk_reward(candidate, "stock")
+
+        assert result.verdict == GateVerdict.WARN
+
+    @pytest.mark.asyncio
+    async def test_exactly_at_the_floor_passes(self):
+        engine = _make_engine()
+        candidate = _make_candidate({"risk_reward": 2.0})
+
+        result = await engine._gate_risk_reward(candidate, "stock")
+
+        assert result.verdict == GateVerdict.PASS
+
+
+class TestGateNetProfit:
+    """§۲۶ — سود خالص هدف باید از حداقل سند (‏۲٪) کمتر نباشد."""
+
+    @pytest.mark.asyncio
+    async def test_pass_when_above_the_floor(self):
+        engine = _make_engine()
+        # stock costs_pct = 0.005 → (10% − 0.5%) = 9.5% ≥ 2%
+        candidate = _make_candidate({"target_pct": 0.10})
+
+        result = await engine._gate_net_profit(candidate, "stock")
+
+        assert result.verdict == GateVerdict.PASS
+
+    @pytest.mark.asyncio
+    async def test_block_when_below_the_floor(self):
+        """هدف ۲٪ منهای هزینهٔ ۰٫۵٪ = ۱٫۵٪ < ۲٪ ⇒ سیگنال صادر نمی‌شود."""
+        engine = _make_engine()
+        candidate = _make_candidate({"target_pct": 0.02})
+
+        result = await engine._gate_net_profit(candidate, "stock")
+
+        assert result.verdict == GateVerdict.BLOCK
+        assert "۲۶" in result.reason
+        assert result.details["min_net_profit_pct"] == pytest.approx(2.0)
+
+    @pytest.mark.asyncio
+    async def test_costs_come_from_the_market_config(self):
+        """همان هدف ۲٪ در طلا (هزینهٔ ۰٫۲٪) هم هنوز زیر ۲٪ است."""
+        engine = _make_engine()
+        engine._policy._policy_data["gold"] = {"expectancy": {"costs_pct": 0.002}}
+        candidate = _make_candidate({"target_pct": 0.02})
+
+        result = await engine._gate_net_profit(candidate, "gold")
+
+        assert result.verdict == GateVerdict.BLOCK
+        assert result.details["costs_pct"] == pytest.approx(0.002)
 
 
 class TestGateExpectancy:
@@ -670,7 +760,9 @@ class TestEvaluate:
         decision = await engine.evaluate(candidate)
         assert decision.verdict == FinalVerdict.RELEASE
         assert decision.is_releasable()
-        assert len(decision.gate_results) == 10
+        # ۱۱ گیت: ۱۰ گیت پیشین به‌همراه گیت سود خالص §۲۶.
+        assert len(decision.gate_results) == 11
+        assert "net_profit" in [g.gate_name for g in decision.gate_results]
 
     @pytest.mark.asyncio
     async def test_bad_data_quality_rejects(self):
@@ -695,15 +787,22 @@ class TestEvaluate:
         """Multiple WARN gates should produce WATCHLIST when > 2 warnings.
 
         raw_score=0.85 ensures trend_strength=0.70 > 0.60 → TREND regime,
-        so the regime gate does NOT block."""
+        so the regime gate does NOT block.
+
+        باند WARN فقط وقتی ممکن است که پالیسی بازار از کف §۲۶ سخت‌گیرتر باشد؛
+        زیر کف، گیت BLOCK می‌دهد نه WARN.
+        """
         engine = _make_engine()
+        engine._policy._policy_data["stock"] = {
+            "risk_reward": {"minimum_trade": 2.5, "minimum_watchlist": 2.0}
+        }
         candidate = _make_candidate(
             {
                 "raw_score": 0.85,  # ensure strong trend → TREND regime
                 "calibrated_probability": 0.68,
                 "best_class_probability": 0.68,
                 "second_class_probability": 0.63,  # margin 0.05 → WARN
-                "risk_reward": 0.7,  # below min_trade → WARN
+                "risk_reward": 2.2,  # ≥ کف ۲٫۰ ولی < سقف بازار ۲٫۵ → WARN
                 "correlated_exposure_pct": 0.50,  # > 0.40 → WARN
             }
         )
@@ -969,6 +1068,7 @@ class TestComputeNetExpectancy:
         assert crypto_net > stock_net
 
 
+@pytest.mark.usefixtures("_heuristic_regime_only")
 class TestDetectRegime:
     @pytest.mark.asyncio
     async def test_crisis(self):

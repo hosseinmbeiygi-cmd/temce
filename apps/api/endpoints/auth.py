@@ -185,7 +185,9 @@ async def register(
     _: None = Depends(register_rate_limit),
 ) -> ApiResponse:
     svc = UserService(session)
-    result = await svc.register(req.username, req.email, req.password, req.full_name, req.phone)
+    result = await svc.register(
+        req.username, req.email, req.password.get_secret_value(), req.full_name, req.phone
+    )
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     _set_refresh_cookie(response, result.value["refresh_token"])
@@ -206,7 +208,7 @@ async def login(
     _: None = Depends(login_rate_limit),
 ) -> ApiResponse:
     svc = UserService(session)
-    result = await svc.login(req.username, req.password)
+    result = await svc.login(req.username, req.password.get_secret_value())
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     data = result.value
@@ -454,7 +456,12 @@ async def mfa_status(
     result = await svc.mfa_status(current_user["sub"])
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
-    status = MFAStatusResponse(**result.value)
+    payload = result.value or {}
+    status = MFAStatusResponse.for_status(
+        enabled=bool(payload.get("enabled")),
+        method=payload.get("method"),
+        telegram_chat_id=payload.get("telegram_chat_id"),
+    )
     return ApiResponse(success=True, data=status.model_dump())
 
 

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class OptionRequest(BaseModel):
@@ -30,6 +32,17 @@ class OptionResponse(BaseModel):
     gamma: float = 0.0
     theta: float = 0.0
     vega: float = 0.0
+    currency: CurrencyCode = currency_field()
+
+    @computed_field(description="اعمال (strike) به تومان (TMN)")
+    @property
+    def strike_price_toman(self) -> float:
+        return toman(self.strike_price)
+
+    @computed_field(description="آخرین قیمت قرارداد به تومان (TMN)")
+    @property
+    def last_price_toman(self) -> float:
+        return toman(self.last_price)
 
 
 class OptionListResponse(BaseModel):

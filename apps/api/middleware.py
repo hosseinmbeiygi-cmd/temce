@@ -47,6 +47,10 @@ _EXEMPT_PATHS = ("/docs", "/redoc", "/openapi.json", "/api/v1/health")
 
 # Sensitive write endpoints that require auth (defense-in-depth at middleware level)
 _SENSITIVE_WRITE_PREFIXES = (
+    # GoldDesk personal surface. The trailing slash matters: it keeps
+    # ``/api/v1/golddesk/...`` (SaaS, its own scoped-token auth) out of this
+    # JWT check while every ``/api/v1/gold/...`` write needs a real token.
+    "/api/v1/gold/",
     "/api/v1/backtests/run",
     "/api/v1/backtests/generate",
     "/api/v1/backtests/cascade",

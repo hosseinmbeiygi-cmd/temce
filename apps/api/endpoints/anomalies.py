@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.error_handlers import safe_error_message
+from core.currency import rial_to_toman_float
 from core.database import get_session
 from core.db_utils import safe_row_str
 from core.logging import get_logger
@@ -80,6 +81,8 @@ def _detect_anomalies(
                                 "expected": round(mean_v, 0),
                                 "z_score": round(z_vol, 2),
                                 "price": price,
+                                "price_toman": rial_to_toman_float(price, default=None),
+                                "currency": "TMN",
                                 "description": f"حجم {int(vol):,} — {z_vol:.1f}σ بالاتر از میانگین {int(mean_v):,}",
                             }
                         )

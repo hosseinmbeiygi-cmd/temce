@@ -29,6 +29,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 from starlette.testclient import TestClient
 
 from apps.api.middleware import RateLimitMiddleware
@@ -126,10 +127,8 @@ def test_window_slides_after_60s(client) -> None:
     assert r.status_code == 200, r.text
 
 
-# ── Scenario B: 24-hour sustained load ────────────────────────────
-
-
-def test_24h_load_keeps_per_minute_window_full(client) -> None:
+# ── Scenario B: 24-hour sustained load ────────────────────────────@pytest.mark.asyncio
+async def test_24h_load_keeps_per_minute_window_full() -> None:
     """Simulate a sustained 35 req/min load for many hours — every minute
     past the first is rejected once the per-minute window saturates.
 
@@ -145,48 +144,57 @@ def test_24h_load_keeps_per_minute_window_full(client) -> None:
     10,000/day threshold the question asks about — and we patch
     ``time.monotonic`` so each simulated minute advances by exactly 60s
     without any real sleep.
+
+    Driven over ``ASGITransport`` instead of ``TestClient``: 14,000
+    requests through the sync client cost ~7 ms each (every call crosses
+    the anyio portal thread), i.e. ~110 s per run — long enough for the
+    ``--timeout`` watchdog to kill the whole suite. The in-process
+    transport issues the same 14,000 requests with the same middleware
+    decisions in a few seconds.
     """
     REQS_PER_MIN = 35
     MINUTES = 400
     fake_now = [time.monotonic()]
 
-    with patch.object(time, "monotonic", side_effect=lambda: fake_now[0]):
-        # First minute: full 35 requests; only 30 should be admitted.
-        total_ok = 0
-        total_429 = 0
-        for _ in range(REQS_PER_MIN):
-            r = client.get("/api/v1/funds")
-            if r.status_code == 200:
-                total_ok += 1
-            elif r.status_code == 429:
-                total_429 += 1
-        assert total_ok == 30, f"first minute: {total_ok=} {total_429=}"
-        assert total_429 == 5
-
-        # Remaining minutes: window is still full from the prior minute
-        # (tokens aged 0..59s), so the new minute starts full and any
-        # 35-burst is rejected. As the clock keeps advancing, the window
-        # *does* drain — at the 60s mark the oldest token expires, so by
-        # the end of minute M+1 one slot reopens, but the burst is 35
-        # so the limiter still rejects ≥ 1.
-        for minute in range(1, MINUTES):
-            fake_now[0] += 60.0  # next minute
-            admitted = 0
-            rejected = 0
+    transport = ASGITransport(app=_create_app(funds_limit=30))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch.object(time, "monotonic", side_effect=lambda: fake_now[0]):
+            # First minute: full 35 requests; only 30 should be admitted.
+            total_ok = 0
+            total_429 = 0
             for _ in range(REQS_PER_MIN):
-                r = client.get("/api/v1/funds")
+                r = await client.get("/api/v1/funds")
                 if r.status_code == 200:
-                    admitted += 1
+                    total_ok += 1
                 elif r.status_code == 429:
-                    rejected += 1
-                else:
-                    pytest.fail(f"unexpected {r.status_code}")
-            total_ok += admitted
-            total_429 += rejected
-            assert rejected >= 1, f"minute {minute}: zero rejections ({admitted=})"
+                    total_429 += 1
+            assert total_ok == 30, f"first minute: {total_ok=} {total_429=}"
+            assert total_429 == 5
+
+            # Remaining minutes: window is still full from the prior minute
+            # (tokens aged 0..59s), so the new minute starts full and any
+            # 35-burst is rejected. As the clock keeps advancing, the window
+            # *does* drain — at the 60s mark the oldest token expires, so by
+            # the end of minute M+1 one slot reopens, but the burst is 35
+            # so the limiter still rejects ≥ 1.
+            for minute in range(1, MINUTES):
+                fake_now[0] += 60.0  # next minute
+                admitted = 0
+                rejected = 0
+                for _ in range(REQS_PER_MIN):
+                    r = await client.get("/api/v1/funds")
+                    if r.status_code == 200:
+                        admitted += 1
+                    elif r.status_code == 429:
+                        rejected += 1
+                    else:
+                        pytest.fail(f"unexpected {r.status_code}")
+                total_ok += admitted
+                total_429 += rejected
+                assert rejected >= 1, f"minute {minute}: zero rejections ({admitted=})"
 
     # We fired more than 10,000 in the simulated window — the question
-    # "does inbound block > 10k/day?" is therefore meaningful.
+    # "does inbound block >10k/day?" is therefore meaningful.
     total_fired = total_ok + total_429
     assert total_fired == REQS_PER_MIN * MINUTES
     assert total_fired > 10_000, f"want >10k in window, got {total_fired}"

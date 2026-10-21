@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from schemas.api.currency import CurrencyCode, currency_field, toman
 
 
 class OhlcvRequest(BaseModel):
@@ -20,6 +22,17 @@ class OhlcvResponse(BaseModel):
     volume: int = 0
     value: float = 0.0
     trade_count: int = 0
+    currency: CurrencyCode = currency_field()
+
+    @computed_field(description="قیمت پایانی به تومان (TMN)")
+    @property
+    def close_toman(self) -> float:
+        return toman(self.close)
+
+    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @property
+    def value_toman(self) -> float:
+        return toman(self.value)
 
 
 class OhlcvListResponse(BaseModel):

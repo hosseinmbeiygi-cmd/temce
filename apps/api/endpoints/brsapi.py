@@ -68,11 +68,19 @@ async def brsapi_health(
 )
 async def get_commodity_prices(
     category: str | None = Query(None, description="Filter: precious_metal | base_metal | energy"),
+    limit: int | None = Query(None, ge=1, le=5000, description="Max rows (newest first)"),
+    latest_only: bool = Query(False, description="Return only the newest row per symbol"),
     service: BrsApiQueryService = Depends(get_brsapi_query_service),
 ) -> ApiResponse[list[dict[str, Any]]]:
-    """Return latest commodity prices, optionally filtered by category."""
+    """Return commodity prices, optionally filtered by category.
+
+    ``latest_only=true`` returns one row per symbol (realtime prices); otherwise
+    the full history is returned, capped by ``limit`` (newest first).
+    """
     try:
-        data = await service.get_commodity_prices(category=category)
+        data = await service.get_commodity_prices(
+            category=category, limit=limit, latest_only=latest_only
+        )
         return ApiResponse[list[dict[str, Any]]](success=True, data=data)
     except Exception as exc:
         logger.exception("Failed to fetch commodity prices")

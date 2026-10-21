@@ -57,13 +57,15 @@ class PreBuySheet(TimestampMixin, Base):
     )
 
     #: {question_code: {"value": str|null, "numbers": {...}, "note": str|null, "answered_at": iso}}
+    #: The default is written without the ``::jsonb`` cast: PostgreSQL coerces the plain
+    #: literal to jsonb, while the cast would make ``create_all`` unparseable on SQLite.
     answers: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")
+        JSONB, nullable=False, server_default=sa.text("'{}'")
     )
     #: {evidence_key: {"value", "unit", "source", "as_of", "status", "note"}} — the last
     #: snapshot the user actually saw, kept so the verdict can be audited later.
     evidence: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")
+        JSONB, nullable=False, server_default=sa.text("'{}'")
     )
     #: Frozen evaluation: verdict, stage states, derived maths, blocking reasons.
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

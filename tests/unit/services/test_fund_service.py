@@ -463,8 +463,13 @@ class TestFundToDict:
         fund.total_units = 0
         fund.extra = None
         d = FundService._fund_to_dict(fund)
-        assert d["nav_change"] == 0
-        assert d["price_last"] == 0
+        # Contract (see ``FundService._fund_to_dict``): a key missing from
+        # ``extra`` leaves as ``None``. Zero would read as "price/volume is
+        # zero" — the fabricated figure the sync stopped writing; the same
+        # contract is pinned in test_funds_serializers_declare_null.py.
+        assert "nav_change" in d and "price_last" in d
+        assert d["nav_change"] is None
+        assert d["price_last"] is None
 
     def test_empty_extra(self):
         fund = MagicMock()
@@ -476,8 +481,9 @@ class TestFundToDict:
         fund.total_units = 0
         fund.extra = {}
         d = FundService._fund_to_dict(fund)
-        assert d["trade_volume"] == 0
-        assert d["market_value"] == 0
+        assert "trade_volume" in d and "market_value" in d
+        assert d["trade_volume"] is None
+        assert d["market_value"] is None
 
 
 # ════════════════════════════════════════════════════════════════

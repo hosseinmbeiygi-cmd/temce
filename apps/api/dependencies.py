@@ -40,6 +40,31 @@ async def get_replica_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+# ── Read-only (replica-backed) service factories ───────────────────────────
+# Audit CFG-05: the replica was configured but never injected, so read-only
+# handlers silently kept using the primary. Every service a GET handler in a
+# read-only router resolves must come from here; the write path keeps the
+# ``get_*_service`` primary factories above.
+
+
+def get_replica_brsapi_query_service(session: AsyncSession = Depends(get_replica_session)):
+    from brsapi.services.query_service import BrsApiQueryService
+
+    return BrsApiQueryService(session=session)
+
+
+def get_replica_analytics_service(session: AsyncSession = Depends(get_replica_session)):
+    from services.analytics_service import AnalyticsService
+
+    return AnalyticsService(session=session)
+
+
+def get_replica_screener_service(session: AsyncSession = Depends(get_replica_session)):
+    from services.screener_service import ScreenerService
+
+    return ScreenerService(session=session)
+
+
 def get_service(service_factory: Callable[..., S]) -> Callable[..., S]:
     """Generic FastAPI dependency factory for session-scoped services.
 

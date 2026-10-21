@@ -139,10 +139,11 @@ class FuturesRiskCalculator:
         # Stop loss پیشنهادی: 1.5× maintenance margin buffer
         # ساده‌ترین حالت: SL با فاصله 2× margin_buffer از ورود
         sl_buffer = self.margin_buffer * 2
-        if position_type == "LONG":
-            recommended_sl = entry_price * (1 - sl_buffer)
-        else:
-            recommended_sl = entry_price * (1 + sl_buffer)
+        recommended_sl = (
+            entry_price * (1 - sl_buffer)
+            if position_type == "LONG"
+            else entry_price * (1 + sl_buffer)
+        )
 
         # اختیاری: محاسبات real-time
         health = distance = alert_level = alert_msg = None
