@@ -348,3 +348,55 @@ class TestProviderSeam:
         assert row["forward_price"] is None
         assert row["iv"] is None
         assert "forward_price" in row["iv_error"]
+
+
+class TestMinHistoryDaysGate:
+    """STEP 5-FIX-2: iv_rank/iv_percentile only once >= N days exist (N from
+    config); below that they must be null — never a thin-sample estimate."""
+
+    async def test_rank_and_percentile_null_below_configured_days(self):
+        history = [0.20 + i * 0.01 for i in range(5)]  # 5 daily observations
+        provider = FakeProvider(
+            [_contract(100.0, "call", iv=0.30)],
+            histories={"2026-11-20-100-call": history},
+        )
+        report = await build_options_chain_report(
+            provider, risk_free_rate=R, min_history_days=30
+        )
+        row = report["contracts"][0]
+
+        assert row["iv"] is not None
+        assert row["iv_history_points"] == 5
+        assert row["iv_rank"] is None
+        assert row["iv_percentile"] is None
+        # history exists, it is only too short — source stays "provider"
+        assert report["iv_history_source"] == "provider"
+
+    async def test_rank_and_percentile_computed_at_configured_days(self):
+        history = [0.20 + i * 0.01 for i in range(30)]  # 30 daily observations
+        provider = FakeProvider(
+            [_contract(100.0, "call", iv=0.30)],
+            histories={"2026-11-20-100-call": history},
+        )
+        report = await build_options_chain_report(
+            provider, risk_free_rate=R, min_history_days=30
+        )
+        row = report["contracts"][0]
+
+        assert row["iv_rank"] is not None
+        assert row["iv_percentile"] is not None
+        assert 0.0 <= row["iv_rank"] <= 100.0
+        assert 0.0 <= row["iv_percentile"] <= 100.0
+        assert report["iv_history_source"] == "provider"
+
+    async def test_default_gate_keeps_legacy_behaviour(self):
+        """Callers that do not pass min_history_days keep the old semantics
+        (percentile from 1 point, rank from 2)."""
+        provider = FakeProvider(
+            [_contract(100.0, "call", iv=0.30)],
+            histories={"2026-11-20-100-call": [0.30]},
+        )
+        report = await build_options_chain_report(provider, risk_free_rate=R)
+        row = report["contracts"][0]
+        assert row["iv_rank"] is None
+        assert row["iv_percentile"] == pytest.approx(100.0)

@@ -124,7 +124,17 @@ class OptionsMarginRequest(BaseModel):
     direction: int = Field(1, description="1 long, -1 short")
     quantity: float = Field(1.0, gt=0)
     starting_equity: float | None = Field(None, ge=0)
-    config: dict[str, Any] = Field(default_factory=dict)
+    # STEP 5-FIX-1: ``None`` means "omitted" — the service then falls back to
+    # the ``derivatives.margin`` section of config/ime_engine_config.yaml.
+    # An explicitly supplied dict overrides the YAML section entirely; keys
+    # that are missing (or null in YAML) still yield ``not_configured``.
+    config: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Margin assumptions. Omit to use derivatives.margin from the IME "
+            "YAML config; an explicit object overrides that section."
+        ),
+    )
 
 
 class AedParityRequest(BaseModel):

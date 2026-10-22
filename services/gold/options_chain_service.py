@@ -4,14 +4,17 @@ Current contracts come from ``brsapi_ime_options`` and forwards come from
 ``brsapi_ime_futures``.  Both tables are populated by the existing BrsApi
 sync jobs.  The service never calls a network provider.
 
-Historical IV observations are not persisted as a dedicated series in the
-current schema.  :class:`ImeOptionsChainProvider` therefore returns an empty
-history and the report exposes ``iv_history_source = "unavailable"``.  The
-pure analyzer still supports history supplied by any other provider.
+Historical IV observations are persisted per contract in
+``gold_option_iv_history`` (STEP 5-FIX-2): the daily
+``GoldOptionIvSnapshotJob`` writes one row per ``(symbol, as_of, strike)``
+and :meth:`ImeOptionsChainProvider.load_iv_history` reads the series back.
+When the table holds no observation for a contract the report exposes
+``iv_history_source = "unavailable"`` with the reason; nothing is inferred.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from sqlalchemy import desc, or_, select
@@ -20,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from brsapi.models.ime import ImeFutureModel, ImeOptionModel
 from core.cache import get_cache
 from core.logging import get_logger
+from models.gold_options import GoldOptionIvHistoryModel
 from services.gold.options_chain import (
     DEFAULT_IV_HISTORY_LIMIT,
     OptionsChainProvider,
@@ -30,6 +34,9 @@ logger = get_logger(__name__)
 
 OPTIONS_CHAIN_CACHE_TTL_SECONDS = 30
 OPTIONS_CHAIN_CACHE_KEY = "gold:analytics:options:chain:{commodity}:{limit}:{forward}:{rate}:{thresholds}"
+# Minimum stored days before iv_rank / iv_percentile are reported.  The
+# configured value lives at derivatives.options.iv_history_min_days.
+DEFAULT_IV_HISTORY_MIN_DAYS = 30
 
 
 def _matches_commodity(row: ImeOptionModel, commodity: str | None) -> bool:
@@ -161,9 +168,17 @@ class ImeOptionsChainProvider(OptionsChainProvider):
     async def load_iv_history(
         self, contract_key: str, *, limit: int = DEFAULT_IV_HISTORY_LIMIT
     ) -> list[float]:
-        # No dedicated historical-IV table exists.  Do not infer a series
-        # from unrelated prices; report the gap to the caller instead.
-        return []
+        # STEP 5-FIX-2: read the dedicated daily series written by
+        # GoldOptionIvSnapshotJob (newest first).  An empty table means no
+        # history — never infer IV from unrelated prices.
+        statement = (
+            select(GoldOptionIvHistoryModel.iv)
+            .where(GoldOptionIvHistoryModel.symbol == contract_key)
+            .order_by(desc(GoldOptionIvHistoryModel.as_of))
+            .limit(limit)
+        )
+        rows = (await self.session.execute(statement)).scalars().all()
+        return [float(value) for value in rows]
 
     async def load_previous_open_interest(
         self, contract_key: str
@@ -190,6 +205,32 @@ class ImeOptionsChainProvider(OptionsChainProvider):
         return float(value) if value is not None else None
 
 
+def _ime_config() -> dict[str, Any]:
+    """Load the IME engine config (``derivatives.options`` section lives here)."""
+    try:
+        from core.config.ime_engine import load_ime_config
+
+        return load_ime_config()
+    except Exception:  # pragma: no cover - config failure must not break reads
+        return {}
+
+
+def _iv_history_min_days() -> int:
+    """N: minimum stored days before iv_rank/iv_percentile are reported."""
+    try:
+        value = (
+            _ime_config()
+            .get("derivatives", {})
+            .get("options", {})
+            .get("iv_history_min_days")
+        )
+        if value is None:
+            return DEFAULT_IV_HISTORY_MIN_DAYS
+        return max(1, int(value))
+    except (AttributeError, TypeError, ValueError):  # pragma: no cover
+        return DEFAULT_IV_HISTORY_MIN_DAYS
+
+
 async def get_options_chain_report(
     session: AsyncSession,
     *,
@@ -214,6 +255,7 @@ async def get_options_chain_report(
         return cached
 
     provider = ImeOptionsChainProvider(session)
+    min_days = _iv_history_min_days()
     try:
         report = await build_options_chain_report(
             provider,
@@ -222,6 +264,8 @@ async def get_options_chain_report(
             forward_price=forward_price,
             risk_free_rate=risk_free_rate,
             liquidity_thresholds=liquidity_thresholds,
+            min_history_days=min_days,
+            iv_history_limit=max(DEFAULT_IV_HISTORY_LIMIT, min_days),
         )
     except Exception as exc:  # pragma: no cover - DB/schema failure path
         logger.exception("IME options-chain query failed")
@@ -242,16 +286,100 @@ async def get_options_chain_report(
     if report.get("iv_history_source") != "provider":
         report["iv_history_source"] = "unavailable"
         report["iv_history_reason"] = (
-            "no dedicated historical IV series exists in brsapi_ime_options"
+            "no historical IV observations in gold_option_iv_history yet "
+            "(GoldOptionIvSnapshotJob has not backfilled a full history)"
         )
 
     await cache.set(cache_key, report, ttl=OPTIONS_CHAIN_CACHE_TTL_SECONDS)
     return report
 
 
+async def snapshot_option_iv(
+    session: AsyncSession,
+    *,
+    as_of: date | None = None,
+    provider: OptionsChainProvider | None = None,
+) -> dict[str, int]:
+    """Store today's per-contract IV observation (STEP 5-FIX-2).
+
+    Runs the normal chain build (contracts + per-expiry forwards + Black-76
+    IV inversion) and upserts one row per ``(symbol, as_of, strike)`` so the
+    daily job is idempotent.  Contracts without a computable IV are counted
+    in ``missing_iv`` — never stored with a fabricated value.
+    """
+    day = as_of or date.today()
+    chain_provider = provider or ImeOptionsChainProvider(session)
+    report = await build_options_chain_report(chain_provider)
+
+    counts = {
+        "scanned": 0,
+        "stored": 0,
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "missing_iv": 0,
+    }
+    for row in report.get("contracts", []):
+        counts["scanned"] += 1
+        iv = row.get("iv")
+        symbol = row.get("contract_key")
+        strike = row.get("strike")
+        if iv is None or symbol is None or strike is None:
+            counts["missing_iv"] += 1
+            continue
+
+        expiry = row.get("expiry")
+        forward = row.get("forward_price")
+        existing = (
+            await session.execute(
+                select(GoldOptionIvHistoryModel).where(
+                    GoldOptionIvHistoryModel.symbol == str(symbol),
+                    GoldOptionIvHistoryModel.as_of == day,
+                    GoldOptionIvHistoryModel.strike == float(strike),
+                )
+            )
+        ).scalar_one_or_none()
+
+        if existing is None:
+            session.add(
+                GoldOptionIvHistoryModel(
+                    symbol=str(symbol),
+                    expiry=str(expiry) if expiry is not None else None,
+                    strike=float(strike),
+                    iv=float(iv),
+                    forward=float(forward) if forward is not None else None,
+                    as_of=day,
+                )
+            )
+            counts["inserted"] += 1
+            counts["stored"] += 1
+            continue
+
+        new_iv = float(iv)
+        new_forward = float(forward) if forward is not None else None
+        new_expiry = str(expiry) if expiry is not None else None
+        if (
+            existing.iv != new_iv
+            or existing.forward != new_forward
+            or existing.expiry != new_expiry
+        ):
+            existing.iv = new_iv
+            existing.forward = new_forward
+            existing.expiry = new_expiry
+            counts["updated"] += 1
+        else:
+            counts["skipped"] += 1
+        counts["stored"] += 1
+
+    await session.commit()
+    return counts
+
+
 __all__ = [
+    "DEFAULT_IV_HISTORY_MIN_DAYS",
     "ImeOptionsChainProvider",
     "OPTIONS_CHAIN_CACHE_KEY",
     "OPTIONS_CHAIN_CACHE_TTL_SECONDS",
     "get_options_chain_report",
+    "snapshot_option_iv",
 ]

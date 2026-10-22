@@ -69,3 +69,7 @@ derivatives:                             # لایهٔ مشتقه — همهٔ م
     stop_out_equity_ratio: null
     contract_size: null
     contract_multiplier: null
+  # حداقل روز دادهٔ تاریخی IV برای محاسبهٔ iv_rank / iv_percentile
+  # (کمتر از این مقدار هر دو null گزارش می‌شوند — STEP 5-FIX-2)
+  options:
+    iv_history_min_days: 30

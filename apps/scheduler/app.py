@@ -298,6 +298,18 @@ class SchedulerApp:
             replace_existing=True,
         )
 
+        # ── Gold options: daily per-contract IV snapshot (STEP 5-FIX-2) ──
+        # One observation per (symbol, as_of, strike) per day feeds
+        # iv_rank/iv_percentile; the unique key makes reruns idempotent.
+        self.add_job(
+            "GoldOptionIvSnapshotJob",
+            trigger="cron",
+            hour=18,
+            minute=20,
+            max_instances=1,
+            replace_existing=True,
+        )
+
         self.scheduler.start()
         logger.info("Scheduler started with %d BrsApi jobs", len(register_all_brsapi_jobs().enabled))
 

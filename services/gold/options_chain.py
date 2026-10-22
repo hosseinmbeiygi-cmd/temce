@@ -18,6 +18,11 @@ skew           = nearest OTM put IV - nearest OTM call IV
 
 An unavailable history or forward price is reported as ``None`` with a reason;
 no synthetic values are created.
+
+``iv_rank`` / ``iv_percentile`` are computed only when the history holds at
+least ``min_history_days`` observations (STEP 5-FIX-2: N comes from config);
+below that both stay ``None`` while ``iv_history_points`` still reports what
+exists.
 """
 
 from __future__ import annotations
@@ -140,10 +145,14 @@ def _market_price(contract: dict[str, Any]) -> float:
 
 
 def _history_stats(
-    iv: float | None, history: list[float]
+    iv: float | None, history: list[float], *, min_days: int = 1
 ) -> tuple[float | None, float | None, int]:
     points = [float(value) for value in history if value is not None]
     if iv is None or not points:
+        return None, None, len(points)
+    if len(points) < max(1, min_days):
+        # STEP 5-FIX-2: fewer than N stored days — rank/percentile stay null
+        # instead of estimating from a thin sample.
         return None, None, len(points)
 
     percentile = sum(1 for value in points if value <= iv) / len(points) * 100.0
@@ -209,6 +218,7 @@ def _enrich_contract(
     iv_history: list[float],
     previous_open_interest: float | None,
     liquidity_thresholds: dict[str, float] | None,
+    min_history_days: int = 1,
 ) -> dict[str, Any]:
     row = dict(contract)
     key = _contract_key(contract, index)
@@ -268,7 +278,9 @@ def _enrich_contract(
                     option_type,
                 )
             )
-            rank, percentile, points = _history_stats(iv, iv_history)
+            rank, percentile, points = _history_stats(
+                iv, iv_history, min_days=min_history_days
+            )
             row["iv_rank"] = rank
             row["iv_percentile"] = percentile
             row["iv_history_points"] = points
@@ -389,6 +401,7 @@ def analyze_options_chain(
     iv_history_by_contract: dict[str, list[float]] | None = None,
     previous_open_interest_by_contract: dict[str, float] | None = None,
     liquidity_thresholds: dict[str, float] | None = None,
+    min_history_days: int = 1,
 ) -> dict[str, Any]:
     """Enrich a chain with IV, rank/percentile, skew, term structure and OI."""
     if risk_free_rate is None or not math.isfinite(float(risk_free_rate)):
@@ -413,6 +426,7 @@ def analyze_options_chain(
             iv_history=histories.get(_contract_key(contract, index), []),
             previous_open_interest=previous.get(_contract_key(contract, index)),
             liquidity_thresholds=liquidity_thresholds,
+            min_history_days=min_history_days,
         )
         for index, contract in enumerate(contracts)
     ]
@@ -475,6 +489,7 @@ async def build_options_chain_report(
     days_to_expiry: float | None = None,
     iv_history_limit: int = DEFAULT_IV_HISTORY_LIMIT,
     liquidity_thresholds: dict[str, float] | None = None,
+    min_history_days: int = 1,
 ) -> dict[str, Any]:
     """Load a chain through ``provider`` and run the pure analyzer."""
     contracts = await provider.load_contracts(commodity=commodity, limit=limit)
@@ -520,6 +535,7 @@ async def build_options_chain_report(
             key: value for key, value in previous_cache.items() if value is not None
         },
         liquidity_thresholds=liquidity_thresholds,
+        min_history_days=min_history_days,
     )
     report["source"] = "provider"
     report["iv_history_source"] = (

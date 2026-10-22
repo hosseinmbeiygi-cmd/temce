@@ -189,6 +189,101 @@ def test_options_margin_post_hand_computed(client: TestClient) -> None:
     assert data["steps"][3]["event"] == "STOP_OUT"
 
 
+def test_options_margin_omitted_config_falls_back_to_ime_yaml(
+    monkeypatch, client: TestClient
+) -> None:
+    """STEP 5-FIX-1: omitting body.config must read derivatives.margin from
+    the IME YAML config instead of an implicit empty dict."""
+    import core.config.ime_engine as ime_engine
+
+    yaml_margin = {
+        "initial_margin_ratio": 0.10,
+        "maintenance_margin_ratio": 0.05,
+        "margin_call_equity_ratio": 1.00,
+        "stop_out_equity_ratio": 0.50,
+        "contract_size": 10.0,
+        "contract_multiplier": 1.0,
+    }
+    monkeypatch.setattr(
+        ime_engine,
+        "load_ime_config",
+        lambda *a, **k: {"derivatives": {"margin": yaml_margin}},
+    )
+
+    response = client.post(
+        f"{BASE}/options/margin",
+        json={"entry_price": 100.0, "prices": [100.0, 95.0]},
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["status"] == "ok"
+    assert data["config"]["contract_size"] == pytest.approx(10.0)
+    assert data["steps"][1]["pnl"] == pytest.approx(-50.0)
+
+
+def test_options_margin_explicit_config_overrides_ime_yaml(
+    monkeypatch, client: TestClient
+) -> None:
+    """STEP 5-FIX-1: an explicit body config wins over the YAML section."""
+    import core.config.ime_engine as ime_engine
+
+    monkeypatch.setattr(
+        ime_engine,
+        "load_ime_config",
+        lambda *a, **k: {
+            "derivatives": {
+                "margin": {
+                    "initial_margin_ratio": None,
+                    "maintenance_margin_ratio": None,
+                    "margin_call_equity_ratio": None,
+                    "stop_out_equity_ratio": None,
+                    "contract_size": None,
+                    "contract_multiplier": None,
+                }
+            }
+        },
+    )
+
+    response = client.post(
+        f"{BASE}/options/margin",
+        json={
+            "entry_price": 100.0,
+            "prices": [100.0],
+            "config": {
+                "initial_margin_ratio": 0.20,
+                "maintenance_margin_ratio": 0.10,
+                "margin_call_equity_ratio": 1.00,
+                "stop_out_equity_ratio": 0.50,
+                "contract_size": 5.0,
+                "contract_multiplier": 1.0,
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["status"] == "ok"
+    assert data["config"]["initial_margin_ratio"] == pytest.approx(0.20)
+    assert data["config"]["contract_size"] == pytest.approx(5.0)
+
+
+def test_options_margin_omitted_config_with_default_yaml_is_not_configured(
+    client: TestClient
+) -> None:
+    """Default YAML ships nulls: an omitted config must still report
+    not_configured — never invented exchange rates."""
+    response = client.post(
+        f"{BASE}/options/margin",
+        json={"entry_price": 100.0, "prices": [100.0]},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["status"] == "not_configured"
+    assert data["configured"] is False
+    assert "contract_size" in data["missing"]
+
+
 def test_options_margin_not_configured_is_reported(client: TestClient) -> None:
     response = client.post(
         f"{BASE}/options/margin",

@@ -20,6 +20,75 @@ CONFIG = {
 }
 
 
+def test_none_config_falls_back_to_ime_yaml(monkeypatch):
+    """config=None must read derivatives.margin from the IME YAML config."""
+    import core.config.ime_engine as ime_engine
+
+    monkeypatch.setattr(
+        ime_engine,
+        "load_ime_config",
+        lambda *a, **k: {"derivatives": {"margin": dict(CONFIG)}},
+    )
+
+    result = simulate_margin_path(100.0, [100.0, 95.0], config=None)
+
+    assert result["status"] == "ok"
+    assert result["configured"] is True
+    assert result["config"]["contract_size"] == pytest.approx(10.0)
+    assert result["steps"][1]["pnl"] == pytest.approx(-50.0)
+
+
+def test_none_config_with_null_yaml_reports_not_configured(monkeypatch):
+    """Unset (null) YAML values are still 'not configured', never guessed."""
+    import core.config.ime_engine as ime_engine
+
+    monkeypatch.setattr(
+        ime_engine,
+        "load_ime_config",
+        lambda *a, **k: {
+            "derivatives": {
+                "margin": {
+                    "initial_margin_ratio": None,
+                    "maintenance_margin_ratio": None,
+                    "margin_call_equity_ratio": None,
+                    "stop_out_equity_ratio": None,
+                    "contract_size": None,
+                    "contract_multiplier": None,
+                }
+            }
+        },
+    )
+
+    result = simulate_margin_path(100.0, [100.0], config=None)
+
+    assert result["status"] == "not_configured"
+    assert result["configured"] is False
+    assert "contract_size" in result["missing"]
+
+
+def test_none_config_with_partial_yaml_lists_only_missing(monkeypatch):
+    """Only the keys absent (or null) in YAML are reported as missing."""
+    import core.config.ime_engine as ime_engine
+
+    monkeypatch.setattr(
+        ime_engine,
+        "load_ime_config",
+        lambda *a, **k: {
+            "derivatives": {
+                "margin": {
+                    **{k: v for k, v in CONFIG.items() if k != "contract_size"},
+                    "contract_size": None,
+                }
+            }
+        },
+    )
+
+    result = simulate_margin_path(100.0, [100.0], config=None)
+
+    assert result["status"] == "not_configured"
+    assert result["missing"] == ["contract_size"]
+
+
 def test_not_configured_returns_missing_parameters():
     result = simulate_margin_path(100.0, [100.0, 90.0], config={})
 

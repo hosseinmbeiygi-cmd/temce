@@ -9,16 +9,6 @@ from models.corporate_action import CorporateActionModel, DailyAdjustFactorModel
 # Currency service (apps/currency_service) — manual positions tracker.
 from models.currency import CurrencyManualPositionModel
 from models.fund import FundModel
-from models.fund_enterprise import (
-    FundCapabilityModel,
-    FundHoldingModel,
-    FundIngestionQuarantineModel,
-    FundMarketQuoteCacheModel,
-    FundNavHistoryModel,
-    FundPortfolioDiffModel,
-    FundPortfolioReportModel,
-    FundScoreHistoryModel,
-)
 from models.fund_compliance import (
     FundAmlAlertModel,
     FundAmlStrReportModel,
@@ -32,6 +22,16 @@ from models.fund_compliance import (
     FundRelatedPartyTransactionModel,
     FundShariaApprovalModel,
     FundUnitClassModel,
+)
+from models.fund_enterprise import (
+    FundCapabilityModel,
+    FundHoldingModel,
+    FundIngestionQuarantineModel,
+    FundMarketQuoteCacheModel,
+    FundNavHistoryModel,
+    FundPortfolioDiffModel,
+    FundPortfolioReportModel,
+    FundScoreHistoryModel,
 )
 from models.fund_governance import (
     FundDisciplinaryCaseModel,
@@ -64,6 +64,7 @@ from models.gold_macro import (
     GoldIranManualEventModel,
     GoldMacroIndicatorModel,
 )
+from models.gold_options import GoldOptionIvHistoryModel
 from models.indicator import IndicatorModel
 from models.instrument import InstrumentModel
 from models.job_run import JobRunModel

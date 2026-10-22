@@ -74,6 +74,11 @@ def _defaults() -> dict[str, Any]:
                 "contract_size": None,
                 "contract_multiplier": None,
             },
+            # STEP 5-FIX-2: minimum days of stored IV history before
+            # iv_rank / iv_percentile are reported (else they stay null).
+            "options": {
+                "iv_history_min_days": 30,
+            },
         },
     }
 
