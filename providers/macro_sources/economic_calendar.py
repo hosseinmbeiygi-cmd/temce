@@ -97,7 +97,7 @@ def _build_default_seed_events() -> list[dict[str, Any]]:
                 "category": "CPI",
                 "importance": 3,
                 "is_high_volatility": True,
-                "source": "BLS schedule (https://www.bls.gov/schedule/news_release/cpi.htm)",
+                "source": "BLS CPI release schedule",
             }
         )
     for d in _SEEDED_NFP_DATES:
@@ -111,7 +111,7 @@ def _build_default_seed_events() -> list[dict[str, Any]]:
                 "category": "NFP",
                 "importance": 3,
                 "is_high_volatility": True,
-                "source": "BLS schedule (https://www.bls.gov/schedule/news_release/empsit.htm)",
+                "source": "BLS Employment Situation schedule",
             }
         )
     for d in _SEEDED_FOMC_DATES:
@@ -125,7 +125,7 @@ def _build_default_seed_events() -> list[dict[str, Any]]:
                 "category": "FOMC",
                 "importance": 3,
                 "is_high_volatility": True,
-                "source": "Federal Reserve (https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm)",
+                "source": "Federal Reserve FOMC calendar",
             }
         )
     return events

@@ -17,6 +17,7 @@ touching the network.
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from core.logging import get_logger
@@ -27,9 +28,22 @@ from jobs.job_result import JobResult
 logger = get_logger(__name__)
 
 FRED_API_KEY_ENV = "FRED_API_KEY"
+DEFAULT_BACKFILL_YEARS = 2
 
 
 # ── Provider factories (monkeypatch points for tests) ──────────────────────
+
+
+def _fred_key_configured() -> bool:
+    """True when FRED is configured via env *or* the repository ``.env``."""
+    if os.environ.get(FRED_API_KEY_ENV):
+        return True
+    try:
+        from core.config import get_settings
+
+        return bool(get_settings().fred_api_key)
+    except Exception:  # pragma: no cover - config failure means "not configured"
+        return False
 
 
 def _build_fred_provider() -> Any:
@@ -107,10 +121,16 @@ async def _with_session(job_name: str, run) -> JobResult:
 
 
 class GoldMacroSyncJob(BaseJob):
-    """Sync FRED macro indicators (10Y TIPS real yield + broad dollar index)."""
+    """Sync FRED macro indicators (10Y TIPS real yield + broad dollar index).
+
+    The regular run fetches the latest observation.  Pass
+    ``{"backfill": true, "years": 2}`` (or an explicit
+    ``observation_start``) to run the one-shot history backfill instead; the
+    window defaults to two years and the upsert is idempotent.
+    """
 
     async def execute(self, context: JobContext) -> JobResult:
-        if not os.environ.get(FRED_API_KEY_ENV):
+        if not _fred_key_configured():
             logger.info(
                 "GoldMacroSyncJob skipped: %s is not configured", FRED_API_KEY_ENV
             )
@@ -120,13 +140,34 @@ class GoldMacroSyncJob(BaseJob):
                 data={"skipped": True, "reason": f"{FRED_API_KEY_ENV} is not configured"},
             )
 
+        backfill = bool(context.get_param("backfill", False))
+        if not backfill:
+            backfill = (
+                context.get_param("observation_start") is not None
+                or context.get_param("years") is not None
+            )
+
+        observation_start = context.get_param("observation_start")
+        observation_end = context.get_param("observation_end")
+        if backfill and observation_start is None:
+            years = int(context.get_param("years", DEFAULT_BACKFILL_YEARS))
+            observation_start = (
+                datetime.now(UTC).date() - timedelta(days=365 * years)
+            ).isoformat()
+
         from services.gold.macro_sync import MacroSyncService
 
         async def run(session) -> JobResult:
             service = MacroSyncService(
                 session, fred_provider=_build_fred_provider()
             )
-            result = await service.sync_fred_indicators()
+            if backfill:
+                result = await service.backfill_fred_indicators(
+                    observation_start=observation_start,
+                    observation_end=observation_end,
+                )
+            else:
+                result = await service.sync_fred_indicators()
             logger.info("GoldMacroSyncJob: %s", result)
             return _result_to_job_result(result, self._name)
 

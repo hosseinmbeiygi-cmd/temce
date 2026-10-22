@@ -73,7 +73,7 @@ pytest tests/gold_desk/ -v
 # 51 passed
 ```
 
-## API Endpoints (prefix: /api/gold)
+## API Endpoints (mounted at `/api/v1/gold` — router خودش prefix=`/gold` دارد)
 
 | Method | Path | توضیح |
 |---|---|---|
@@ -89,6 +89,13 @@ pytest tests/gold_desk/ -v
 | GET | `/alerts/events?days=&unread_only=` | رویدادها |
 | POST | `/alerts/{id}/ack` | خوانده‌شده |
 | POST | `/alerts/seed` | درج قوانین پیش‌فرض |
+| GET | `/portfolio/returns` | بازده اسمی/واقعی/دلاری (XIRR) |
+| GET | `/portfolio/performance?days=90` | TWR + نوسان/شارپ/افت + مقایسه با طلا، دلار، شاخص کل |
+| GET | `/portfolio/history?days=90` | سری ارزش روزانهٔ ذخیره‌شده |
+| POST | `/portfolio/snapshot` | ثبت ارزش امروز (idempotent) |
+| GET | `/portfolio/tax` | بهای تمام‌شده و سود تحقق‌یافته (FIFO) |
+| GET | `/portfolio/export.csv` | خروجی CSV معاملات |
+| GET | `/freshness` | سلامت داده: سن/وضعیت همهٔ منابع |
 | GET | `/watchlist` | لیست شخصی |
 | PUT | `/watchlist` | جایگزینی |
 | POST | `/telegram/test` | تست ارسال |
@@ -117,8 +124,17 @@ pytest tests/gold_desk/ -v
 |---|---|---|
 | `gold_snapshot` | 5 min | snapshot + persist + cache |
 | `gold_score_persist` | 5 min | ذخیره امتیاز |
-| `gold_alert_evaluate` | 2 min | بررسی قوانین + dispatch |
+| `gold_alert_evaluate` | 2 min | بررسی قوانین (شامل تمرکز/ری‌بالانس/افت پرتفوی) + dispatch |
+| `gold_fund_nav` | 21:05 daily | ذخیرهٔ NAV/حباب صندوق‌ها |
+| `gold_portfolio_value` | 21:10 daily | ثبت ارزش روزانهٔ پرتفوی (پایهٔ TWR) |
 | `gold_daily_history` | 21:00 daily | backfill |
+
+این jobها در رجیستری مشترک BrsApi ثبت می‌شوند (`GOLD_DESK_JOBS` + `GOLD_DESK_JOB_FUNCTIONS`)
+و در حالت queue نیز worker آن‌ها را اجرا می‌کند. برای اجرای دستی/بک‌فیل:
+
+```bash
+python scripts/run_gold_desk_jobs.py --seed-rules
+```
 
 ## Self-Check
 

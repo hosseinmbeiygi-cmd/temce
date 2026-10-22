@@ -7,7 +7,6 @@ Hard-stop با محاسبه تغییرات روزانه USD/TSE/DXY.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -81,17 +80,20 @@ async def _read_brsapi_prices() -> dict[str, float]:
                         prices[sym] = float(p)
             except Exception as exc:
                 logger.warning("BrsApi commodity fetch failed: %s", exc)
-            # صندوق‌ها — اگر endpoint دارد
-            try:
-                if hasattr(svc, "get_fund_prices"):
-                    f_rows = await svc.get_fund_prices()  # type: ignore
-                    for row in f_rows or []:
-                        sym = row.get("symbol")
-                        p = row.get("price")
-                        if sym and p and p > 0:
-                            prices[sym] = float(p)
-            except Exception as exc:
-                logger.debug("BrsApi fund prices fetch failed: %s", exc)
+            # صندوق‌ها — BrsApi هیچ get_fund_prices ندارد (۷D-4): اسنپشات
+            # نماد‌به‌نمادِ همان سرویس، آخرین قیمت معامله‌شدهٔ صندوق را می‌دهد.
+            for fund_symbol in FUND_SYMBOLS:
+                if fund_symbol in prices:
+                    continue
+                try:
+                    snap = await svc.get_symbol_snapshot(fund_symbol)
+                except Exception as exc:
+                    logger.debug("BrsApi fund snapshot failed for %s: %s", fund_symbol, exc)
+                    continue
+                row = snap or {}
+                price = row.get("price_last") or row.get("price_close")
+                if price and float(price) > 0:
+                    prices[fund_symbol] = float(price)
     except Exception as exc:
         logger.error("BrsApi unavailable: %s", exc)
     return prices
@@ -132,43 +134,54 @@ async def _read_references(brsapi_prices: dict[str, float] | None = None) -> tup
 
 
 async def _calc_daily_changes(session: AsyncSession, brsapi_prices: dict[str, float]) -> dict[str, float | None]:
-    """محاسبه تغییرات روزانه برای hard-stop (USD، TSE، DXY)."""
+    """محاسبه تغییرات روزانه برای hard-stop (USD، TSE، DXY).
+
+    هر منبع جداگانه خطا/نبودِ داده را لاگ می‌کند؛ پیش‌تر کل محاسبه در
+    ``contextlib.suppress`` بود و نبود داده به سکوت تبدیل می‌شد (GS-07).
+    """
     changes: dict[str, float | None] = {"usd": None, "tse": None, "dxy": None}
-    # USD daily change از هیستوری GoldCoinHistory یا BrsApi
-    with contextlib.suppress(Exception):
+
+    # USD: تاریخچه در brsapi_gold_currency_pro_daily_history است.
+    try:
         closes = await signal_engine.fetch_closes(session, "USD", 2)
         if len(closes) >= 2 and closes[-2] > 0:
             changes["usd"] = (closes[-1] - closes[-2]) / closes[-2] * 100.0
-        elif "USD" in brsapi_prices:
-            # fallback: اگر هیستوری نیست، تغییرات را None بگذار
-            pass
-    # TSE: از برترین صندوق یا Index history اگر موجود باشد
-    with contextlib.suppress(Exception):
+        else:
+            logger.warning("USD daily history unavailable (%d rows)", len(closes))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("USD daily change failed: %s", exc)
+
+    # TSE: تغییر درصدی روز جاری شاخص کل در brsapi_index_values نگه‌داری می‌شود.
+    try:
         from sqlalchemy import desc, select
 
-        from brsapi.models.commodity import GoldCoinHistoryModel
+        from brsapi.models.tsetmc import IndexValueModel
 
-        # تلاش برای شاخص کل (نماد TSE کلی)
-        for sym in ("TSE_INDEX", "INDEX", "TEDPIX"):
-            try:
-                stmt = (
-                    select(GoldCoinHistoryModel.price_close)
-                    .where(GoldCoinHistoryModel.symbol == sym)
-                    .order_by(desc(GoldCoinHistoryModel.date))
-                    .limit(2)
-                )
-                result = await session.execute(stmt)
-                vals = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
-                if len(vals) >= 2 and vals[0] > 0:
-                    changes["tse"] = (vals[0] - vals[1]) / vals[1] * 100.0
-                    break
-            except Exception:
-                continue
-    # DXY: فعلاً از macro یا هیستوری ارز جهانی
-    with contextlib.suppress(Exception):
+        stmt = (
+            select(IndexValueModel.index_change_pct)
+            .where(IndexValueModel.name.ilike("%شاخص کل%"))
+            .order_by(desc(IndexValueModel.id))
+            .limit(1)
+        )
+        pct = (await session.execute(stmt)).scalar()
+        if pct is not None:
+            changes["tse"] = float(pct)
+        else:
+            logger.warning("TSE index change_pct unavailable (no matching index row)")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("TSE daily change failed: %s", exc)
+
+    # DXY: منبع تاریخچه‌ای در DB موجود نیست → None (و در hard-stop به‌عنوان
+    # «ارزیابی‌نشده» علامت می‌خورد).
+    try:
         closes = await signal_engine.fetch_closes(session, "DXY", 2)
         if len(closes) >= 2 and closes[-2] > 0:
             changes["dxy"] = (closes[-1] - closes[-2]) / closes[-2] * 100.0
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("DXY daily change unavailable: %s", exc)
+
+    if all(v is None for v in changes.values()):
+        logger.warning("hard-stop inputs missing: USD/DXY/TSE all None")
     return changes
 
 
@@ -280,10 +293,12 @@ async def build_snapshot(session: AsyncSession) -> SnapshotResponse:
     nav_bubble_pct = nav_status.bubble_pct if nav_status else None
     nav_7d_pct = nav_status.nav_7d_pct if nav_status else None
 
-    bpr = sum(f.bpr for f in fund_statuses) / len(fund_statuses) if fund_statuses else None
+    # BPR تجمعی = مجموع خرید/مجموع فروش (برآورد وزنی به حجم)، نه میانگین سادهٔ
+    # نسبت‌ها که صندوق بی‌داده آن را با صفر پایین می‌کشید (GS-15).
+    total_buy = sum(f.real_buy_value for f in fund_statuses)
+    total_sell = sum(f.real_sell_value for f in fund_statuses)
+    bpr = (total_buy / total_sell) if (fund_statuses and total_sell > 0) else None
     net_inflow = sum(f.net_inflow for f in fund_statuses) if fund_statuses else None
-    if bpr is not None and bpr == 0 and not fund_statuses:
-        bpr = None
 
     # ── Hard stop — با داده واقعی روزانه ──
     daily = await _calc_daily_changes(session, brsapi_prices)
@@ -341,7 +356,9 @@ async def build_snapshot(session: AsyncSession) -> SnapshotResponse:
             score_block.components.fund_flow,
         ]
     )
-    if comp_sum != score_block.total:
+    # فقط وقتی همهٔ اجزا داده دارند، جمع اجزا باید با امتیاز نهایی یکی باشد؛ در
+    # حالت پوشش ناقص، total روی وزن موجود مقیاس می‌شود (GS-02).
+    if score_result.data_coverage_pct >= 100.0 and comp_sum != score_block.total:
         logger.warning("components sum mismatch: %s vs %s", comp_sum, score_block.total)
 
     return SnapshotResponse(

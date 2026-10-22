@@ -18,7 +18,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 # ============================ تنظیمات ============================
-API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"
+# کلید فقط از محیط خوانده می‌شود (هرگز در کد هاردکد نمی‌شود).
+API_KEY = (os.environ.get("BRSAPI_API_KEY") or os.environ.get("BRSAPI_KEY") or "").strip()
+if not API_KEY:
+    raise SystemExit(
+        "BRSAPI_KEY تنظیم نشده است. کلید را در .env (یا متغیر محیطی) قرار دهید."
+    )
 
 DAILY_LIMIT = 10000
 MIN_DELAY_BETWEEN_REQUESTS = 4.0   # حداقل فاصله زمانی بین دو درخواست (تضمین عدم 429)

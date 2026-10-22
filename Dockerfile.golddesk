@@ -2,7 +2,7 @@
 # Builds alongside the main backend (shares python deps)
 # Runs only GoldDesk scheduler jobs in a focused worker
 
-FROM python:3.11-slim AS base
+FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -18,12 +18,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Python deps — install the fully pinned lock, never the loose ranges in
+# requirements.txt (the lock is what CI and every other image installs).
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
 
-# App code
-COPY . .
+# Runtime user — the service reacts to requests/jobs and never needs root.
+RUN addgroup --system app && adduser --system --ingroup app --home /app --disabled-password app
+
+# App code is copied explicitly (never `COPY . .`) so dev-only files — tests,
+# data dumps, the frontend — cannot leak into the runtime image.
+COPY pyproject.toml alembic.ini ./
+COPY json/*.json ./json/
+COPY apps/ ./apps/
+COPY backtesting/ ./backtesting/
+COPY brsapi/ ./brsapi/
+COPY config/ ./config/
+COPY contracts/ ./contracts/
+COPY core/ ./core/
+COPY domain/ ./domain/
+COPY ingestion/ ./ingestion/
+COPY integrations/ ./integrations/
+COPY jobs/ ./jobs/
+COPY migrations/ ./migrations/
+COPY ml/ ./ml/
+COPY models/ ./models/
+COPY monitoring/ ./monitoring/
+COPY orchestration/ ./orchestration/
+COPY providers/ ./providers/
+COPY repositories/ ./repositories/
+COPY schemas/ ./schemas/
+COPY services/ ./services/
+COPY src/ ./src/
+COPY *.py ./
+
+RUN chown -R app:app /app
+USER app
 
 # Healthcheck: hit GoldDesk health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \

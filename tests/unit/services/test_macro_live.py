@@ -324,4 +324,49 @@ async def test_get_gold_macro_live_high_vol_window_ignores_low_vol_category() ->
         tips=_indicator_row(0.85),
         dxy=_indicator_row(92.0),
         snapshots=[_snapshot_row(2100.0), _snapshot_row(2000.0)],
-        calendar=[_calendar_row
+        calendar=[_calendar_row(category="SPEECH", is_high_volatility=False)],
+    )
+    result = await get_gold_macro_live(session)
+
+    assert result.high_vol_window is False
+
+
+@pytest.mark.asyncio
+async def test_get_gold_macro_live_exposes_tokenized_gold_premium() -> None:
+    """The stored PAXG/XAUT premium annotates the posture as extra context."""
+    session = _make_session(
+        tips=_indicator_row(0.85),
+        dxy=_indicator_row(92.0),
+        snapshots=[_snapshot_row(2100.0), _snapshot_row(2000.0)],
+        premiums=[
+            _premium_row("PAXG_PREMIUM_VS_SPOT", -3.31),
+            _premium_row("XAUT_PREMIUM_VS_SPOT", -3.29),
+        ],
+    )
+    result = await get_gold_macro_live(session)
+
+    assert result.inputs["tokenized_gold_premium"] == {
+        "PAXG": -3.31,
+        "XAUT": -3.29,
+    }
+    # Supplementary context never gates the posture.
+    assert result.available is True
+    assert result.missing == []
+
+
+@pytest.mark.asyncio
+async def test_get_gold_macro_live_without_tokenized_gold_premium() -> None:
+    session = _make_session(
+        tips=_indicator_row(0.85),
+        dxy=_indicator_row(92.0),
+        snapshots=[_snapshot_row(2100.0), _snapshot_row(2000.0)],
+    )
+    result = await get_gold_macro_live(session)
+
+    assert "tokenized_gold_premium" not in result.inputs
+
+
+def test_constants() -> None:
+    assert FRED_TIPS_10Y_INDICATOR == "FRED_DFII10"
+    assert FRED_DXY_BROAD_INDICATOR == "FRED_DTWEXBGS"
+    assert DEFAULT_STALENESS_SECONDS == 7 * 24 * 60 * 60

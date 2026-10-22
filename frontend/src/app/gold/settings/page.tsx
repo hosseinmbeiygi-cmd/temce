@@ -33,15 +33,15 @@ export default function GoldSettingsPage() {
   const [newSymbol, setNewSymbol] = useState("");
   const onAddSymbol = async () => {
     if (!newSymbol) return;
-    const updated = [...(wl?.symbols ?? []), newSymbol];
-    await putWatchlist(updated);
+    const updated: string[] = [...(wl?.symbols ?? []), newSymbol];
+    await putWatchlist({ symbols: updated });
     qc.invalidateQueries({ queryKey: ["gold", "watchlist"] });
     setNewSymbol("");
   };
 
   const onRemoveSymbol = async (sym: string) => {
     const updated = (wl?.symbols ?? []).filter((s) => s !== sym);
-    await putWatchlist(updated);
+    await putWatchlist({ symbols: updated });
     qc.invalidateQueries({ queryKey: ["gold", "watchlist"] });
   };
 

@@ -154,7 +154,9 @@ class OrchestratorReport:
             "signals": [s.to_dict() for s in self.signals],
             "summary": self.summary,
             "reports": self.generation_reports,
-            "accuracy": self.accuracy_snapshot,
+            # مصرف‌کننده‌ها (کران/داشبورد) روی این کلید `.get("overall")` می‌زنند،
+            # پس هرگز `None` سریال نمی‌شود؛ نبودِ عکس لحظه‌ای یعنی «داده‌ای نیست».
+            "accuracy": self.accuracy_snapshot or {},
             "cross_market": self.cross_market_signals,
             "retrain": self.retrain_reports,
             "generated_at": self.generated_at,
@@ -1170,6 +1172,20 @@ class QuantSignalOrchestrator:
             released: list[EnrichedSignal] = []
             rejected: list[EnrichedSignal] = []
 
+            # Gate 9 context (audit D-03): read the portfolio risk state from
+            # the paper-trading ledger ONCE per run. ``load_portfolio_risk``
+            # returns an unapproved state when the ledger cannot be read, so
+            # Gate 9 blocks instead of approving on missing data.
+            from services.portfolio_risk import load_portfolio_risk
+
+            risk_state = await load_portfolio_risk(self._session)
+            if not risk_state.approved:
+                logger.warning(
+                    "Portfolio risk state unavailable (%s) — every candidate "
+                    "will be blocked by Gate 9 (fail-closed)",
+                    risk_state.reason,
+                )
+
             for sig in signals:
                 try:
                     # Parse string fields to numeric values
@@ -1221,17 +1237,11 @@ class QuantSignalOrchestrator:
                     liq_score = min(1.0, 0.3 + abs_change * 3)
                     fill_prob = min(1.0, 0.4 + abs_change * 2.5)
 
-                    # Gate 9 fix: no hardcoded block. Portfolio validator module
-                    # is not called here, so default to allowed with a warning
-                    # (fail-open) instead of forcing released=[].
-                    logger.warning(
-                        "Portfolio validator not invoked for %s — defaulting "
-                        "portfolio_risk_approved=True (fail-open)",
-                        sig.symbol,
-                    )
-                    portfolio_approved = True
-                    open_risk = 0.0
-                    correlated_exp = 0.0
+                    # Gate 9 (audit D-03): the portfolio figures come from the
+                    # paper-trading ledger via services.portfolio_risk — never
+                    # fabricated. An unreadable ledger yields approved=False,
+                    # which SignalDecisionEngine._gate_portfolio blocks.
+                    portfolio_approved, open_risk, correlated_exp = risk_state.for_market(sig.market)
 
                     candidate = SignalCandidate(
                         signal_id=sig.symbol + "_" + sig.market + "_" + sig.timeframe,

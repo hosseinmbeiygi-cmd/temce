@@ -113,13 +113,20 @@ class SignalGenerationReport:
 
 
 def _compute_rsi(closes: list[float], period: int = 14) -> float | None:
-    """Compute RSI from list of closing prices."""
+    """Compute RSI from list of closing prices.
+
+    Only the last ``period`` deltas are averaged, so the tail is all that is
+    needed. Callers pass whole price histories (thousands of bars) for every
+    timeframe; slicing here keeps the result bit-identical while removing the
+    rest of the loop.
+    """
     if len(closes) < period + 1:
         return None
+    tail = closes[-(period + 1):]
     gains = []
     losses = []
-    for i in range(1, len(closes)):
-        delta = closes[i] - closes[i - 1]
+    for i in range(1, len(tail)):
+        delta = tail[i] - tail[i - 1]
         gains.append(max(delta, 0))
         losses.append(max(-delta, 0))
     avg_gain = sum(gains[-period:]) / period
@@ -147,14 +154,23 @@ def _compute_ema(values: list[float], period: int) -> float | None:
 
 
 def _compute_atr(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
+    """Average true range over the last ``period`` bars.
+
+    Same tail-slicing rationale as :func:`_compute_rsi`: the previous version
+    walked the entire history and then kept only ``trs[-period:]``, which cost
+    seconds per call on long series.
+    """
     if len(closes) < period + 1:
         return None
+    tail_highs = highs[-(period + 1):]
+    tail_lows = lows[-(period + 1):]
+    tail_closes = closes[-(period + 1):]
     trs = []
-    for i in range(1, len(closes)):
+    for i in range(1, len(tail_closes)):
         tr = max(
-            highs[i] - lows[i],
-            abs(highs[i] - closes[i - 1]),
-            abs(lows[i] - closes[i - 1]),
+            tail_highs[i] - tail_lows[i],
+            abs(tail_highs[i] - tail_closes[i - 1]),
+            abs(tail_lows[i] - tail_closes[i - 1]),
         )
         trs.append(tr)
     return sum(trs[-period:]) / period
@@ -438,6 +454,28 @@ class MultiMarketSignalEngine:
                 return signals
 
             async with _db.async_session_factory() as session:
+                # The snapshot table keeps every fetch cycle ever written (3M+
+                # rows here), so ``ORDER BY trade_value DESC LIMIT 100`` over the
+                # raw table is a 39-second full sort. Restrict to the most recent
+                # window of ids first — same dedup the snapshot query service uses.
+                from brsapi.services.query_service import _SNAPSHOT_SCAN_WINDOW
+
+                max_id = (
+                    await session.execute(select(func.max(SymbolSnapshotModel.id)))
+                ).scalar_one()
+                latest = (
+                    select(
+                        SymbolSnapshotModel.symbol,
+                        func.max(SymbolSnapshotModel.id).label("max_id"),
+                    )
+                    .where(
+                        SymbolSnapshotModel.id > (max_id or 0) - _SNAPSHOT_SCAN_WINDOW,
+                        SymbolSnapshotModel.symbol.is_not(None),
+                        SymbolSnapshotModel.symbol != "",
+                    )
+                    .group_by(SymbolSnapshotModel.symbol)
+                    .subquery()
+                )
                 # Get stocks with volume
                 stmt = (
                     select(
@@ -458,9 +496,8 @@ class MultiMarketSignalEngine:
                         SymbolSnapshotModel.sell_real_volume,
                         SymbolSnapshotModel.sell_legal_volume,
                     )
+                    .join(latest, SymbolSnapshotModel.id == latest.c.max_id)
                     .where(
-                        SymbolSnapshotModel.symbol.is_not(None),
-                        SymbolSnapshotModel.symbol != "",
                         SymbolSnapshotModel.trade_volume > 0,
                         SymbolSnapshotModel.price_last > 0,
                     )

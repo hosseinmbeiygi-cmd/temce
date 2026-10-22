@@ -59,7 +59,7 @@ export default function GoldChatPage() {
     setLoading(true);
 
     try {
-      const r = await apiPost<{ success: boolean; data: { answer: string } }>("/api/gold/chat", { message: msg });
+      const r = await apiPost<{ success: boolean; data: { answer: string } }>("/gold/chat", { message: msg });
       const ans = r.data?.answer ?? "خطا در دریافت پاسخ.";
       setMessages((prev) => [...prev, { id: ++idRef.current, role: "assistant", text: ans, ts: Date.now() }]);
     } catch {

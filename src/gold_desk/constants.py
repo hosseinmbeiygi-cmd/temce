@@ -26,15 +26,17 @@ COIN_WEIGHTS: dict[str, float] = {
 }
 
 # ── کارمزد ضرابخانه (تومان، بر اساس قطع سکه) ────────────────
+# Single source of truth: services.gold.constants.COIN_MINTING_COSTS.
+# IR_COIN_EMAMI = 80,000 IRR — same full-coin weight (8.133 g) and same
+# physical mint cost as IR_COIN_BAHAR. (STEP 6-FIX-2: previously this file
+# said 80,000 while services/gold/constants.py said 0.0; unified on 80,000
+# because the two full coins share weight/purity and the services 0.0 value
+# had no documented source. Reason documented here per gate requirement.)
+from services.gold.constants import COIN_MINTING_COSTS as _CANONICAL_MINTING_COSTS
+from services.gold.constants import COIN_SPECS as _CANONICAL_COIN_SPECS  # noqa: F401  (re-export parity)
+
 MINTING_COST_TOMAN: float = 50_000.0  # میانگین (fallback)
-COIN_MINTING_COSTS: dict[str, float] = {
-    "IR_COIN_EMAMI": 80_000.0,  # تمام سکه
-    "IR_COIN_BAHAR": 80_000.0,
-    "IR_COIN_HALF": 50_000.0,  # نیم
-    "IR_COIN_QUARTER": 35_000.0,  # ربع
-    "IR_COIN_1G": 15_000.0,
-    "IR_COIN_GERAMI": 15_000.0,
-}
+COIN_MINTING_COSTS: dict[str, float] = dict(_CANONICAL_MINTING_COSTS)
 
 # ── کارمزد و مالیات ابزارها (٪) ──────────────────────────────────
 VEHICLE_FEES: dict[str, dict[str, float]] = {
@@ -68,6 +70,14 @@ NAV_GREEN_MAX: float = 0.5  # ≤ 0.5%
 NAV_YELLOW_MAX: float = 1.5  # 0.5-1.5%
 NAV_RED_MAX: float = 3.0  # 1.5-3%
 # > 3% = قرمز
+
+# ── P/NAV policy (نسخهٔ واحد برای سیگنال خرید/فروش) ────────────────
+# پیش‌تر سه مجموعهٔ آستانهٔ متناقض وجود داشت: constants (۰.۵/۱.۵/۳.۰)، antigravity
+# (فروش > +۲٪، خرید < −۱٪) و fund_scoring (حباب > +۳٪ / < −۲٪). اکنون همهٔ ماژول‌ها
+# سیگنال‌دهی را از این policy واحد می‌گیرند (GS-14).
+NAV_PREMIUM_POLICY_VERSION: str = "nav-premium-v1"
+NAV_PREMIUM_BUY_BELOW: float = -2.0  # حباب < −۲٪ → کاندید خرید
+NAV_PREMIUM_SELL_ABOVE: float = 3.0  # حباب > +۳٪ → کاندید فروش/اجتناب
 
 # ── TSETMC thresholds ──────────────────────────────────────────────
 TSETMC_BPR_GREEN: float = 2.0  # ≥ 2.0
@@ -103,10 +113,16 @@ HARDSTOP_DXY_SPIKE_PCT: float = 3.0  # جهش دلار جهانی > 3%
 HARDSTOP_USD_SPIKE_PCT: float = 5.0  # جهش دلار تهران > 5% روزانه
 
 # ── Symbol registry (canonical → BrsApi) ─────────────────────────
+# منابع قیمت BrsApi این نمادها را برمی‌گردانند:
+#   gold_coin_prices: IR_COIN_1G | IR_COIN_BAHAR | IR_COIN_EMAMI |
+#                     IR_COIN_HALF | IR_COIN_QUARTER | IR_GOLD_18K |
+#                     IR_GOLD_24K | IR_GOLD_MELTED | XAUUSD
+# پیش‌تر IR_GOLD_1G و IR_COIN_GERAMI در رجیستری بودند ولی در هیچ منبعی وجود
+# نداشتند و ۲ بلوک از ۹ بلوک snapshot همیشه خالی می‌ماند؛ در عوض IR_COIN_1G
+# (که در منبع موجود است) ثبت نشده بود (GS-20).
 GOLD_SYMBOLS: dict[str, str] = {
     "gold_18k": "IR_GOLD_18K",
     "gold_24k": "IR_GOLD_24K",
-    "gold_1g": "IR_GOLD_1G",
     "gold_melted": "IR_GOLD_MELTED",
 }
 COIN_SYMBOLS: dict[str, str] = {
@@ -114,7 +130,7 @@ COIN_SYMBOLS: dict[str, str] = {
     "coin_bahar": "IR_COIN_BAHAR",
     "coin_half": "IR_COIN_HALF",
     "coin_quarter": "IR_COIN_QUARTER",
-    "coin_gerami": "IR_COIN_GERAMI",
+    "coin_1g": "IR_COIN_1G",
 }
 FX_REFS: dict[str, str] = {
     "xau_usd": "XAUUSD",
@@ -145,6 +161,52 @@ REDIS_KEY_SNAPSHOT: str = "golddesk:snapshot:latest"
 REDIS_KEY_BUBBLE_TS: str = "golddesk:bubble:ts:{symbol}"  # سری زمانی
 REDIS_KEY_ALERT_LOCK: str = "golddesk:alert:lock:{rule_id}"  # cooldown
 REDIS_KEY_WATCHLIST: str = "golddesk:watchlist"
+
+# ── Portfolio targets (ری‌بالانس) ─────────────────────────────────
+# وزن هدف بر اساس «کلاس ابزار» (نه نماد) تا با هر ترکیب holding کار کند.
+# مجموع باید ۱۰۰ باشد؛ تغییر این dict تنها محل تغییر سیاست ری‌بالانس است.
+PORTFOLIO_TARGET_WEIGHTS: dict[str, float] = {
+    "etf": 40.0,  # صندوق طلا / گواهی
+    "melted": 40.0,  # طلای آب‌شده / فیزیکی ۱۸-۲۴ عیار
+    "coin": 20.0,  # سکه
+}
+assert abs(sum(PORTFOLIO_TARGET_WEIGHTS.values()) - 100.0) < 1e-9, "target weights must sum to 100"
+
+# انحراف مجاز هر کلاس از وزن هدف (واحد درصد) — آستانهٔ پیش‌فرض هشدار.
+PORTFOLIO_DRIFT_TOLERANCE_PCT: float = 10.0
+# آستانهٔ تمرکز: بیشترین وزن یک دارایی که بالاتر از آن پرتفوی «متمرکز» است.
+PORTFOLIO_CONCENTRATION_WARN_PCT: float = 60.0
+# آستانهٔ افت سرمایه که هشدار می‌دهد.
+PORTFOLIO_DRAWDOWN_WARN_PCT: float = 15.0
+# بازهٔ پیش‌فرض پنجرهٔ کارایی (روز) برای TWR/نوسان/افت.
+PORTFOLIO_PERFORMANCE_WINDOW_DAYS: int = 90
+# نگاشت صریح نماد → کلاس (override تشخیص خودکار در portfolio_history).
+PORTFOLIO_SYMBOL_VEHICLE_OVERRIDES: dict[str, str] = {}
+
+# ── Benchmarks (مقایسهٔ بازده پرتفوی) ─────────────────────────────
+# هر بنچمارک یک سری روزانه از یک جدول واقعی است؛ در نبود داده، مقدار None
+# برمی‌گردد (هرگز عدد جعلی ساخته نمی‌شود).
+PORTFOLIO_BENCHMARKS: dict[str, dict[str, str]] = {
+    "gold": {
+        "label": "طلای آب‌شده (بازار ایران)",
+        "kind": "gold_coin_history",
+        "symbol": "IR_GOLD_MELTED",
+    },
+    "usd": {
+        "label": "دلار آمریکا (تهران)",
+        "kind": "gcph_daily",
+        "symbol": "USD",
+    },
+    "tedpix": {
+        "label": "شاخص کل بورس تهران",
+        "kind": "index_values",
+        "name": "شاخص کل",
+    },
+}
+
+# ── Data freshness (صفحهٔ سلامت داده) ────────────────────────────
+# حداکثر سن مجاز پیش‌فرض برای منابعی که آستانهٔ اختصاصی ندارند.
+FRESHNESS_DEFAULT_MAX_AGE_MIN: int = 120
 
 # ── Validation bounds (self-check) ────────────────────────────────
 VALID_XAU_RANGE: tuple[float, float] = (1000.0, 10000.0)

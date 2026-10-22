@@ -13,10 +13,15 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { getSnapshot, subscribeGoldWS } from "@/lib/goldApi";
+import {
+  getSnapshot,
+  subscribeGoldWS,
+  putWatchlist,
+} from "@/lib/goldApi";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AssetBlock, Decision, Snapshot } from "@/types/gold";
 
-// ── Helpers (kept local — no shared utils to avoid coupling) ──────────────
+// ── Helpers ───────────────────────────────────────────────────────────────
 
 const FA = "fa-IR";
 
@@ -212,9 +217,38 @@ export default function GoldCoinsPage() {
   const [sortDesc, setSortDesc] = useState(false);
 
   useEffect(() => {
-    const unsub = subscribeGoldWS(() => refetch());
+    const unsub = subscribeGoldWS(
+      () => refetch(),
+      () => {
+        /* ws closed */
+      },
+    );
     return unsub;
   }, [refetch]);
+
+  const qc = useQueryClient();
+
+  const [newSymbol, setNewSymbol] = useState("");
+
+  const [watchlistEditing, setWatchlistEditing] = useState(false);
+
+  const onAddSymbol = async () => {
+    if (!newSymbol) return;
+    const wl = await qc.fetchQuery({
+      queryKey: ["gold", "watchlist"],
+      queryFn: async () => {
+        const { symbols } = await (await import("@/lib/goldApi")).getWatchlist();
+        return { symbols };
+      },
+      staleTime: Infinity,
+    });
+    const updated: string[] = [...(wl?.symbols ?? []), newSymbol];
+    await putWatchlist({ symbols: updated });
+    qc.invalidateQueries({ queryKey: ["gold", "watchlist"] });
+    setNewSymbol("");
+  };
+
+
 
   const rows = useMemo(() => {
     if (!data) return [] as AssetBlock[];

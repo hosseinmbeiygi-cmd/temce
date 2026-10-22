@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
 import { subscribeGoldWS } from "@/lib/goldApi";
+import type { Snapshot } from "@/types/gold";
 
 interface Signal {
   symbol: string;
@@ -54,7 +55,9 @@ export function LiveSignalBanner() {
   const { data } = useQuery({
     queryKey: ["gold", "signals", "recent"],
     queryFn: async () => {
-      const r = await apiGet<{ success: boolean; data: { signals: Signal[] } }>("/api/gold/signals/recent?limit=10");
+      const r = await apiGet<{ success: boolean; data: { signals: Signal[] } }>(
+        "/gold/signals/recent?limit=10",
+      );
       return r.data;
     },
     refetchInterval: 30_000,
@@ -66,10 +69,14 @@ export function LiveSignalBanner() {
   // WS listener برای signal جدید
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const unsub = subscribeGoldWS((snap) => {
-      // WS messages: فقط snapshot می‌فرسته. signal از API می‌آید
-      void snap;
-    });
+    const unsub = subscribeGoldWS(
+      () => {
+        /* ws connected */
+      },
+      () => {
+        /* ws closed */
+      },
+    );
     return unsub;
   }, []);
 

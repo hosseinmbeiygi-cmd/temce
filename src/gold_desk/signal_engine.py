@@ -5,27 +5,65 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = logging.getLogger(__name__)
+
+
+async def _fetch_gold_coin_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
+    """close روزانه از ``brsapi_gold_coin_history`` (شمسی)."""
+    from brsapi.models.commodity import GoldCoinHistoryModel
+
+    stmt = (
+        select(GoldCoinHistoryModel.price_close)
+        .where(GoldCoinHistoryModel.symbol == symbol)
+        .order_by(desc(GoldCoinHistoryModel.date))
+        .limit(days + 10)
+    )
+    result = await session.execute(stmt)
+    closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
+    return list(reversed(closes[-days:]))
+
+
+async def _fetch_pro_daily_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
+    """close روزانه از ``brsapi_gold_currency_pro_daily_history``.
+
+    XAUUSD و USD تاریخچه‌ای در ``brsapi_gold_coin_history`` ندارند (صفر ردیف) و
+    همین باعث می‌شد RSI/تغییرات روزانه همیشه None بمانند (GS-06).
+    """
+    from brsapi.models.commodity import GoldCurrencyProDailyHistoryModel
+
+    stmt = (
+        select(GoldCurrencyProDailyHistoryModel.price_close)
+        .where(GoldCurrencyProDailyHistoryModel.symbol == symbol)
+        .order_by(desc(GoldCurrencyProDailyHistoryModel.date))
+        .limit(days + 10)
+    )
+    result = await session.execute(stmt)
+    closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
+    return list(reversed(closes[-days:]))
+
 
 async def fetch_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
-    """آخرین N روز close prices."""
+    """آخرین N روز close prices — با انتخاب منبع درست."""
     try:
-        from brsapi.models.commodity import GoldCoinHistoryModel
-
-        stmt = (
-            select(GoldCoinHistoryModel.price_close)
-            .where(GoldCoinHistoryModel.symbol == symbol)
-            .order_by(desc(GoldCoinHistoryModel.date))
-            .limit(days + 10)
-        )
-        result = await session.execute(stmt)
-        closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
-        return list(reversed(closes[-days:]))
-    except Exception:
-        return []
+        closes = await _fetch_gold_coin_closes(session, symbol, days)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("gold_coin_history fetch failed for %s: %s", symbol, exc)
+        closes = []
+    if len(closes) < days:
+        try:
+            pro = await _fetch_pro_daily_closes(session, symbol, days)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("pro_daily_history fetch failed for %s: %s", symbol, exc)
+            pro = []
+        if len(pro) > len(closes):
+            closes = pro
+    return closes
 
 
 def calc_rsi(closes: list[float], period: int = 14) -> float | None:

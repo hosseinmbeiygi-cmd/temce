@@ -12,7 +12,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,7 +35,14 @@ def prune_ml_artifacts(
     max_age_days: int = MAX_AGE_DAYS,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    base = Path(base_dir or settings.ml_model_dir).resolve()
+    if base_dir:
+        base = Path(base_dir).resolve()
+    else:
+        # Same root resolution as the loaders (audit F-01): pruning must walk
+        # the directory the artifacts actually live in, not an empty default.
+        from ml.artifacts import resolve_artifact_root
+
+        base = resolve_artifact_root()
     if not base.exists():
         return {"deleted": 0, "kept": 0, "skipped_prod": 0}
 

@@ -265,6 +265,44 @@ async def test_gold_extractor_flags_missing_instead_of_fabricating() -> None:
 
 
 @pytest.mark.asyncio
+async def test_gold_extractor_uses_configured_bubble_min_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pipeline must pass the config minimum (30), not a hard-coded 20."""
+    from types import SimpleNamespace
+
+    import core.config as config_module
+
+    monkeypatch.setattr(
+        config_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            gold_bubble_min_observations=30,
+            gold_event_horizon_days=7,
+        ),
+    )
+
+    below = SignalFeaturePipeline(
+        market="gold",
+        gold_feature_provider=_FakeProvider(
+            GoldFeatureInputs(coin_bubble_pct=_bubble_series(count=29))
+        ),
+    )
+    enough = SignalFeaturePipeline(
+        market="gold",
+        gold_feature_provider=_FakeProvider(
+            GoldFeatureInputs(coin_bubble_pct=_bubble_series(count=30))
+        ),
+    )
+
+    below_features = await below.extract("XAUUSD", "gold", _price_data(), None, {})
+    enough_features = await enough.extract("XAUUSD", "gold", _price_data(), None, {})
+
+    assert "gold_bubble_zscore" in below_features.metadata["gold_missing"]
+    assert "gold_bubble_zscore" not in enough_features.metadata.get("gold_missing", [])
+
+
+@pytest.mark.asyncio
 async def test_gold_extractor_degrades_when_provider_raises() -> None:
     class _BrokenProvider:
         async def load(

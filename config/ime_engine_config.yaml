@@ -50,3 +50,22 @@ drift:                                   # سند §8
 disaster_recovery:                       # سند §15.2
   rto_minutes: 15
   rpo_minutes: 5
+
+physical_market:                         # فیزیکی/آربیتراژ بازار ایران
+  # حدود مالکیت/پوزیشن IME توسط بهره‌بردار تعیین می‌شود. null یعنی
+  # «پیکربندی نشده» و API آن را not_configured گزارش می‌کند، نه یک حد حدسی.
+  ime_certificate_position_limit_grams: null
+  ime_certificate_ownership_limit_grams: null
+  # آستانهٔ آماری هشدار z-score اسپرد حوالهٔ درهم.
+  aed_hawala_alert_zscore: 2.0
+
+derivatives:                             # لایهٔ مشتقه — همهٔ مفروضات عملیاتی
+  # نسبت‌های مارجین و اندازهٔ قرارداد باید توسط بهره‌بردار تعیین شوند.
+  # null یعنی «پیکربندی نشده»؛ سرویس عدد بورسی حدس نمی‌زند.
+  margin:
+    initial_margin_ratio: null
+    maintenance_margin_ratio: null
+    margin_call_equity_ratio: null
+    stop_out_equity_ratio: null
+    contract_size: null
+    contract_multiplier: null

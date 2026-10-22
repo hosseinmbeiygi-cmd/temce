@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { capturePortfolioSnapshot, getPortfolioPerformance } from "@/lib/goldApi";
 
 interface Holding {
   symbol: string;
@@ -58,17 +59,17 @@ interface Trade {
 const fmt = (n: number) => n.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
 
 async function getPortfolio(): Promise<Portfolio> {
-  const r = await apiGet<{ success: boolean; data: Portfolio }>("/api/gold/portfolio");
+  const r = await apiGet<{ success: boolean; data: Portfolio }>("/gold/portfolio");
   return r.data;
 }
 
 async function getPlans(currentScore: number): Promise<PlanStatus[]> {
-  const r = await apiGet<{ success: boolean; data: PlanStatus[] }>(`/api/gold/portfolio/dca?current_score=${currentScore}`);
+  const r = await apiGet<{ success: boolean; data: PlanStatus[] }>(`/gold/portfolio/dca?current_score=${currentScore}`);
   return r.data;
 }
 
 async function getTrades(): Promise<Trade[]> {
-  const r = await apiGet<{ success: boolean; data: Trade[] }>("/api/gold/portfolio/trades?limit=20");
+  const r = await apiGet<{ success: boolean; data: Trade[] }>("/gold/portfolio/trades?limit=20");
   return r.data;
 }
 
@@ -115,7 +116,10 @@ export default function GoldPortfolioPage() {
       </div>
 
       {tab === "overview" && portfolio && (
-        <OverviewTab portfolio={portfolio} />
+        <div className="space-y-4">
+          <OverviewTab portfolio={portfolio} />
+          <PerformancePanel />
+        </div>
       )}
 
       {tab === "add" && (
@@ -197,6 +201,155 @@ function OverviewTab({ portfolio }: { portfolio: Portfolio }) {
   );
 }
 
+type Performance = Awaited<ReturnType<typeof getPortfolioPerformance>>;
+
+function pct(value: number | null, digits = 2): string {
+  if (value === null || value === undefined) return "—";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}٪`;
+}
+
+const BENCH_LABELS: Record<string, string> = {
+  gold: "طلا",
+  usd: "دلار",
+  tedpix: "شاخص کل",
+};
+
+/** کارایی/ریسک پرتفوی: TWR، نوسان، افت، تمرکز و مقایسه با بنچمارک‌ها. */
+function PerformancePanel() {
+  const qc = useQueryClient();
+  const [saving, setSaving] = useState(false);
+
+  const { data: perf, isLoading } = useQuery<Performance>({
+    queryKey: ["gold", "portfolio", "performance"],
+    queryFn: () => getPortfolioPerformance(90),
+    refetchInterval: 120_000,
+  });
+
+  const onCapture = async () => {
+    setSaving(true);
+    try {
+      await capturePortfolioSnapshot();
+      qc.invalidateQueries({ queryKey: ["gold", "portfolio"] });
+      qc.invalidateQueries({ queryKey: ["gold", "portfolio", "performance"] });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading || !perf) {
+    return (
+      <div className="rounded-xl p-6 text-center text-sm" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)", color: "var(--gd-text-2)" }}>
+        در حال محاسبهٔ کارایی...
+      </div>
+    );
+  }
+
+  const drift = Object.entries(perf.drift_by_class ?? {});
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}>
+      <div className="px-4 py-3 flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold" style={{ color: "var(--gd-text)" }}>
+          کارایی و ریسک ({perf.points.toLocaleString("fa-IR")} روز داده)
+        </div>
+        <button
+          onClick={onCapture}
+          disabled={saving}
+          className="text-xs rounded-lg px-3 py-1.5 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 disabled:opacity-50"
+        >
+          {saving ? "در حال ثبت..." : "ثبت ارزش امروز"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px" style={{ background: "var(--gd-border)" }}>
+        {(
+          [
+            ["TWR (وزنی‌زمان)", perf.twr_pct, true],
+            ["بازده کل", perf.simple_return_pct, true],
+            ["بیشترین افت", perf.max_drawdown_pct, false],
+            ["نوسان سالانه", perf.annualized_volatility_pct, false],
+            ["شارپ", perf.sharpe_ratio, true],
+            ["سورتینو", perf.sortino_ratio, true],
+            ["VaR ۹۵٪", perf.var_95_pct, false],
+            ["تمرکز", perf.concentration_pct, false],
+          ] as const
+        ).map(([label, value, isGain]) => {
+          const isRatio = label === "شارپ" || label === "سورتینو";
+          const displayed = value === null ? "—" : isRatio ? value.toFixed(2) : pct(value);
+          const tone =
+            value === null || !isGain ? "" : value >= 0 ? "text-emerald-400" : "text-rose-400";
+          return (
+            <div key={label} className="p-3" style={{ background: "var(--gd-bg-2)" }}>
+              <div className="text-[10px]" style={{ color: "var(--gd-text-3)" }}>{label}</div>
+              <div
+                className={`font-mono font-bold text-sm ${tone}`}
+                style={value === null || !isGain ? { color: "var(--gd-text)" } : undefined}
+              >
+                {displayed}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="p-4 space-y-3" style={{ borderTop: "1px solid var(--gd-border)" }}>
+        <div className="text-xs font-semibold" style={{ color: "var(--gd-text-2)" }}>
+          مقایسه با بنچمارک ({perf.window_days.toLocaleString("fa-IR")} روز)
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[10px]" style={{ color: "var(--gd-text-3)" }}>
+              <th className="text-right pb-2">بنچمارک</th>
+              <th className="text-left pb-2">بازده</th>
+              <th className="text-left pb-2">نسبت به پرتفوی</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(perf.benchmarks ?? {}).map(([key, b]) => (
+              <tr key={key} style={{ borderTop: "1px solid var(--gd-border)" }}>
+                <td className="py-2" style={{ color: "var(--gd-text)" }}>
+                  {BENCH_LABELS[key] ?? b.label}
+                </td>
+                <td className="py-2 text-left font-mono" style={{ color: "var(--gd-text-2)" }}>{pct(b.return_pct)}</td>
+                <td
+                  className={`py-2 text-left font-mono font-bold ${
+                    b.relative_pct === null ? "" : b.relative_pct >= 0 ? "text-emerald-400" : "text-rose-400"
+                  }`}
+                  style={b.relative_pct === null ? { color: "var(--gd-text-3)" } : undefined}
+                >
+                  {pct(b.relative_pct)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {drift.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {drift.map(([cls, value]) => (
+              <span
+                key={cls}
+                className="text-[11px] rounded-lg px-2 py-1"
+                style={{ background: "var(--gd-bg-3, #18181b)", color: "var(--gd-text-2)" }}
+              >
+                {cls === "coin" ? "سکه" : cls === "melted" ? "طلا" : "صندوق"}: انحراف {pct(value, 1)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {Object.keys(perf.unavailable ?? {}).length > 0 && (
+          <div className="text-[10px] leading-5" style={{ color: "var(--gd-text-3)" }}>
+            {Object.entries(perf.unavailable).map(([k, reason]) => (
+              <div key={k}>• {reason}</div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
   const [symbol, setSymbol] = useState("IR_COIN_EMAMI");
   const [name, setName] = useState("سکه امامی");
@@ -211,7 +364,7 @@ function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
     if (quantity <= 0 || buyPrice <= 0) return;
     setSubmitting(true);
     try {
-      await apiPost("/api/gold/portfolio/holdings", {
+      await apiPost("/gold/portfolio/holdings", {
         symbol,
         display_name: name,
         vehicle,
@@ -263,7 +416,7 @@ function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanS
     if (!name.trim()) return;
     setSubmitting(true);
     try {
-      await apiPost(`/api/gold/portfolio/dca?total_capital_irt=${capital}&risk_profile=${risk}&current_score=${currentScore}&vehicle=etf&name=${encodeURIComponent(name)}`, {});
+      await apiPost(`/gold/portfolio/dca?total_capital_irt=${capital}&risk_profile=${risk}&current_score=${currentScore}&vehicle=etf&name=${encodeURIComponent(name)}`, {});
       onChange();
       setName("");
     } finally {
@@ -272,13 +425,13 @@ function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanS
   };
 
   const onExecute = async (planId: number, executed: number) => {
-    await apiPost(`/api/gold/portfolio/dca/${planId}/execute?tranche=${executed + 1}`, {});
+    await apiPost(`/gold/portfolio/dca/${planId}/execute?tranche=${executed + 1}`, {});
     onChange();
   };
 
   const onDelete = async (planId: number) => {
     if (!confirm("حذف شود؟")) return;
-    await apiDelete(`/api/gold/portfolio/dca/${planId}`);
+    await apiDelete(`/gold/portfolio/dca/${planId}`);
     onChange();
   };
 

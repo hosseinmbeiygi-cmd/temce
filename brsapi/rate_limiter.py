@@ -172,9 +172,18 @@ class RateLimiter:
         aged out of the window and must be pruned, otherwise the window can
         briefly hold limit+1 entries at the exact boundary (found by
         scripts/simulate_brsapi_usage.py).
+
+        The comparison is written as ``oldest + FIVE_MINUTES <= now`` — the same
+        arithmetic ``_wait_time_for_global_limits`` uses — rather than
+        ``oldest <= now - FIVE_MINUTES``. The two forms are equivalent in exact
+        arithmetic but not in floating point: with a full window the pruner could
+        keep an entry that the wait computation then read as "0 seconds left",
+        which the caller treats as *allowed* (``wait <= 0``). Every task already
+        waiting on that boundary admitted at once and the window held
+        ``limit + waiters`` entries (1005/1000 in the usage simulator's starvation
+        scenario). Sharing the formula removes the disagreement.
         """
-        cutoff = now - FIVE_MINUTES_SECONDS
-        while self._5min_window and self._5min_window[0] <= cutoff:
+        while self._5min_window and self._5min_window[0] + FIVE_MINUTES_SECONDS <= now:
             self._5min_window.popleft()
 
     def _wait_time_for_global_limits(self) -> float:

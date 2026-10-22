@@ -110,12 +110,17 @@ class MicrostructureEngine:
                 trade_vol, adv=1000000, price=trade_price, side="buy"
             )
 
-            trade_fills = queue.update_from_trade(trade_vol, impact_price, "buy")
+            # One print is ONE lot of shares (audit F3): handing the full
+            # volume to both resting sides fabricated twice the executed
+            # volume in fills. Each side absorbs at most its share of it.
+            buy_side_vol, sell_side_vol = self._split_trade_volume(trade_vol)
+
+            trade_fills = queue.update_from_trade(buy_side_vol, impact_price, "buy")
             for f in trade_fills:
                 f.slippage = impact_price - trade_price
             fills.extend(trade_fills)
 
-            trade_fills_sell = queue.update_from_trade(trade_vol, impact_price, "sell")
+            trade_fills_sell = queue.update_from_trade(sell_side_vol, impact_price, "sell")
             for f in trade_fills_sell:
                 f.slippage = impact_price - trade_price
             fills.extend(trade_fills_sell)
@@ -232,11 +237,27 @@ class MicrostructureEngine:
         queue.cancel_rate_bid = cancel_bid / max(queue.bid_queue_volume, 1)
         queue.cancel_rate_ask = cancel_ask / max(queue.ask_queue_volume, 1)
 
+    @staticmethod
+    def _split_trade_volume(volume: int) -> tuple[int, int]:
+        """Split one executed print across the two resting sides.
+
+        A trade event carries a single traded quantity and no aggressor side,
+        so the print is shared: half the lots are matched against the resting
+        bids and the rest against the resting asks. The odd lot goes to the ask
+        side. Summing the two halves can never exceed the executed volume — the
+        previous code passed the whole quantity to each side and produced twice
+        the real fills (audit F3).
+        """
+        volume = max(int(volume), 0)
+        half = volume // 2
+        return half, volume - half
+
     def _process_auction_fills(self, instrument_id: str, price: float, volume: int) -> list[FillEvent]:
         fills: list[FillEvent] = []
         queue = self._queues.get(instrument_id)
         if queue is None:
             return fills
-        fills.extend(queue.update_from_trade(volume, price, "buy"))
-        fills.extend(queue.update_from_trade(volume, price, "sell"))
+        buy_side_vol, sell_side_vol = self._split_trade_volume(volume)
+        fills.extend(queue.update_from_trade(buy_side_vol, price, "buy"))
+        fills.extend(queue.update_from_trade(sell_side_vol, price, "sell"))
         return fills

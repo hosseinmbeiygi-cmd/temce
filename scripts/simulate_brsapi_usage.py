@@ -217,13 +217,21 @@ def _sliding_window_max(timestamps: list[float], window: float) -> int:
 
     Mirrors the real limiter's ``_prune_5min_window`` semantics: a request
     recorded exactly ``window`` seconds ago has aged OUT (``<``, not ``<=``),
-    matching the limiter's ``<= cutoff`` pruning.
+    matching the limiter's ``<=`` pruning.
+
+    The ``_EPS`` slack exists because those two rules must agree on exactly
+    ``window`` seconds apart. The virtual clock steps in decimal increments, so a
+    300s gap lands on 299.9999999999999 in binary floating point: a strict ``<``
+    then counted the aged-out request together with the current one and reported
+    ``limit + 1`` for a limiter whose window never held more than ``limit``
+    entries (starvation scenario: 1001 reported, 1000 max deque length).
     """
+    _EPS = 1e-9
     ts = sorted(timestamps)
     max_count = 0
     j = 0
     for i in range(len(ts)):
-        while j < len(ts) and ts[j] - ts[i] < window:
+        while j < len(ts) and ts[j] - ts[i] < window - _EPS:
             j += 1
         max_count = max(max_count, j - i)
     return max_count

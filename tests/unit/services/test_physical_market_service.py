@@ -68,8 +68,9 @@ async def test_coin_report_cache_miss_computes_and_sets(monkeypatch) -> None:
     assert result["available"] is True
     assert result["history_limit"] == 50
     assert result["missing_symbols"] == ["IR_COIN_HALF"]
+    # STEP 6-FIX-2: intrinsic includes the unified 80,000 IRR emami fee.
     assert result["coins"]["emami"]["bubble_abs_irr"] == pytest.approx(
-        500_000_000.0 - 470_714_710.7878512
+        500_000_000.0 - (470_714_710.7878512 + 80_000.0)
     )
     assert result["coins"]["emami"]["history_sample_size"] == 3
 

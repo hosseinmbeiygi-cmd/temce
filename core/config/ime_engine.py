@@ -54,6 +54,27 @@ def _defaults() -> dict[str, Any]:
         },
         "drift": {"model_drift_sigma_threshold": 2.0, "model_drift_window_trades": 10},
         "disaster_recovery": {"rto_minutes": 15, "rpo_minutes": 5},
+        "physical_market": {
+            # Operator-supplied regulatory limits. ``None`` means "not
+            # configured" and is reported as such instead of guessing a limit.
+            "ime_certificate_position_limit_grams": None,
+            "ime_certificate_ownership_limit_grams": None,
+            # Statistical threshold for the AED hawala spread z-score.
+            "aed_hawala_alert_zscore": 2.0,
+        },
+        "derivatives": {
+            # Margin assumptions are operator-supplied.  ``None`` means "not
+            # configured"; the margin endpoint reports not_configured rather
+            # than inventing an exchange rate.
+            "margin": {
+                "initial_margin_ratio": None,
+                "maintenance_margin_ratio": None,
+                "margin_call_equity_ratio": None,
+                "stop_out_equity_ratio": None,
+                "contract_size": None,
+                "contract_multiplier": None,
+            },
+        },
     }
 
 

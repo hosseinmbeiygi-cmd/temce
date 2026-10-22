@@ -13,13 +13,13 @@ interface Token {
 }
 
 async function listTokens(): Promise<Token[]> {
-  const r = await fetch("/api/gold/tokens", { credentials: "include" });
+  const r = await fetch("/gold/tokens", { credentials: "include" });
   const j = await r.json();
   return j.data ?? [];
 }
 
 async function createToken(name: string, scopes: string): Promise<{ token: string; token_id: string }> {
-  const r = await fetch(`/api/gold/tokens?name=${encodeURIComponent(name)}&scopes=${encodeURIComponent(scopes)}`, {
+  const r = await fetch(`/gold/tokens?name=${encodeURIComponent(name)}&scopes=${encodeURIComponent(scopes)}`, {
     method: "POST",
     credentials: "include",
   });
@@ -28,7 +28,7 @@ async function createToken(name: string, scopes: string): Promise<{ token: strin
 }
 
 async function revokeToken(tokenId: string): Promise<boolean> {
-  const r = await fetch(`/api/gold/tokens/${tokenId}`, { method: "DELETE", credentials: "include" });
+  const r = await fetch(`/gold/tokens/${tokenId}`, { method: "DELETE", credentials: "include" });
   const j = await r.json();
   return j.success;
 }
@@ -157,9 +157,9 @@ export default function GoldTokensPage() {
       <div className="rounded-xl p-4 text-xs space-y-2" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)", color: "var(--gd-text-2)" }}>
         <div className="font-semibold" style={{ color: "var(--gd-text)" }}>نحوه استفاده:</div>
         <code className="block bg-zinc-950 p-2 rounded font-mono text-emerald-300">
-          curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; http://localhost:8000/api/gold/snapshot
+          curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; http://localhost:8000/api/v1/gold/snapshot
         </code>
-        <div>لیست کامل endpointها: <code className="text-amber-400">/api/gold/docs/endpoints</code></div>
+        <div>لیست کامل endpointها: <code className="text-amber-400">/api/v1/gold/docs/endpoints</code></div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from core.result import Result
 
@@ -27,7 +28,6 @@ class PurgedTimeSeriesCV:
         from sklearn.model_selection import TimeSeriesSplit
 
         tss = TimeSeriesSplit(n_splits=self.n_splits, gap=self.gap)
-        idx = range(n)
         # TimeSeriesSplit.split needs 2D X; use dummy
         import numpy as _np
 
@@ -48,6 +48,13 @@ class PurgedTimeSeriesCV:
             Xa = _np.asarray(X)
             ya = _np.asarray(y)
             n = len(Xa)
+            # Fail with an actionable message instead of letting TimeSeriesSplit
+            # raise a generic "Too many splits" error from deep inside sklearn.
+            if n < 2 * self.n_splits + 1:
+                return Result.fail(
+                    f"Not enough samples: {n} rows for {self.n_splits} folds "
+                    f"(need at least {2 * self.n_splits + 1})"
+                )
             tr_scores: list[float] = []
             te_scores: list[float] = []
             folds: list[dict[str, int]] = []
@@ -81,6 +88,7 @@ class PurgedTimeSeriesCV:
                     "mean_test": float(_np.mean(te_scores)),
                     "gap": self.gap,
                     "horizon": self.horizon,
+                    "cv_scheme": "time_series_split",
                     "folds": folds,
                 }
             )
@@ -88,10 +96,29 @@ class PurgedTimeSeriesCV:
             return Result.fail(str(e))
 
 
-# Back-compat name: old CrossValidator used KFold (leaky). Keep alias that
-# requires horizon so old call sites fail loudly and migrate.
+# Back-compat name: the old CrossValidator used shuffled KFold, which leaks
+# future bars into the training fold. It is now a forward-chaining validator.
 class CrossValidator(PurgedTimeSeriesCV):
-    def __init__(self, n_folds: int = 5, horizon: int | None = None, gap_extra: int = 0) -> None:
-        if horizon is None:
-            raise ValueError("CrossValidator now requires horizon=... (label look-ahead bars)")
-        super().__init__(n_splits=n_folds, horizon=horizon, gap_extra=gap_extra)
+    """Time-series-safe cross validator (ML-002).
+
+    Shuffling is not merely off by default — it is refused outright, because a
+    shuffled fold puts future bars in the training set and the resulting score
+    says nothing about live performance. ``allow_shuffle`` exists only so call
+    sites can assert on the guarantee; passing ``True`` raises.
+    """
+
+    def __init__(
+        self,
+        n_folds: int = 5,
+        horizon: int | None = None,
+        gap_extra: int = 0,
+        allow_shuffle: bool = False,
+    ) -> None:
+        if allow_shuffle:
+            raise ValueError(
+                "CrossValidator never shuffles: a shuffled fold trains on future bars (ML-002)"
+            )
+        self.allow_shuffle = False
+        # ``horizon`` stays required for the main pipeline (label look-ahead
+        # bars); 1 bar is the safe floor when a caller has nothing to purge.
+        super().__init__(n_splits=n_folds, horizon=1 if horizon is None else horizon, gap_extra=gap_extra)

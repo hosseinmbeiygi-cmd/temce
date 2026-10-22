@@ -18,7 +18,14 @@ interface InMemoryAuth {
 
 let _memoryAuth: InMemoryAuth = { access_token: null, user: null };
 
-function getStoredAccessToken(): string | null {
+/**
+ * Access token from storage, or null when nobody is signed in.
+ *
+ * Exported for the WebSocket clients: a browser cannot attach an
+ * ``Authorization`` header to a handshake, so they pass the token as a query
+ * parameter instead.
+ */
+export function getStoredAccessToken(): string | null {
   return _memoryAuth.access_token;
 }
 

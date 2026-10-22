@@ -8,7 +8,7 @@ consumable by the ModelRegistry models (LSTM, XGBoost, RandomForest, etc.).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import numpy as np
@@ -66,8 +66,17 @@ class SignalFeaturePipeline:
         "ime": "_extract_ime_features",
     }
 
-    def __init__(self, market: str = "stock") -> None:
+    def __init__(
+        self,
+        market: str = "stock",
+        *,
+        gold_feature_provider: Any = None,
+    ) -> None:
         self.market = market
+        # STEP 7B: the gold block is sourced from the real tables through a
+        # point-in-time provider. Tests inject a fake; production lazily builds
+        # ``DatabaseGoldFeatureProvider``. Non-gold markets never touch it.
+        self._gold_feature_provider = gold_feature_provider
 
     async def extract(
         self,
@@ -181,8 +190,97 @@ class SignalFeaturePipeline:
         volume_data: dict[str, Any] | None,
         extra: dict[str, Any],
     ) -> MarketFeatures:
-        # Gold uses similar features but with different parameterization
-        return await self._extract_stock_features(symbol, market, price_data, volume_data, extra)
+        # Gold uses the stock price/volume/technical block plus a dedicated
+        # point-in-time block (bubble z-score, IME spread, P/NAV, COT
+        # percentile, real yield, AED spread, event window).
+        features = await self._extract_stock_features(
+            symbol, market, price_data, volume_data, extra
+        )
+        as_of = self._resolve_gold_as_of(price_data, extra)
+
+        # Imported lazily so the non-gold path stays import-light and cannot
+        # create a cycle through ``services.gold``.
+        from services.gold.features import (
+            GOLD_FEATURE_NAMES,
+            GoldFeatureInputs,
+            compute_gold_features,
+            normalize_gold_features,
+        )
+
+        try:
+            inputs = await self._resolve_gold_provider().load(as_of, symbol)
+        except Exception as exc:  # noqa: BLE001 - features must never break extraction
+            # Type only: a traceback can contain non-ASCII text that crashes a
+            # cp1252 console while logging and would take extraction down.
+            logger.warning("Gold feature provider failed: %s", type(exc).__name__)
+            inputs = GoldFeatureInputs()
+
+        gold = compute_gold_features(
+            inputs,
+            as_of,
+            min_bubble_observations=self._gold_bubble_min_observations(),
+            event_horizon_days=self._gold_event_horizon_days(),
+        )
+        normalized = normalize_gold_features(gold.values)
+        for name in GOLD_FEATURE_NAMES:
+            features.vector.append(normalized[name])
+            features.feature_names.append(name)
+
+        features.metadata["gold_as_of"] = as_of.isoformat()
+        if gold.missing:
+            # NaN in the vector + an explicit flag — never a fabricated 0.
+            features.metadata["gold_missing"] = list(gold.missing)
+        return features
+
+    def _resolve_gold_provider(self) -> Any:
+        if self._gold_feature_provider is None:
+            from services.gold.feature_source import DatabaseGoldFeatureProvider
+
+            self._gold_feature_provider = DatabaseGoldFeatureProvider()
+        return self._gold_feature_provider
+
+    @staticmethod
+    def _gold_bubble_min_observations() -> int:
+        """Minimum coin-bubble history from the app config (safe fallback)."""
+        try:
+            from core.config import get_settings
+
+            return int(get_settings().gold_bubble_min_observations)
+        except Exception:  # pragma: no cover - config fallback is safe
+            from services.gold.features import DEFAULT_MIN_BUBBLE_OBSERVATIONS
+
+            return DEFAULT_MIN_BUBBLE_OBSERVATIONS
+
+    @staticmethod
+    def _gold_event_horizon_days() -> int:
+        """Forward-looking event horizon (days) from the app config."""
+        try:
+            from core.config import get_settings
+
+            return int(get_settings().gold_event_horizon_days)
+        except Exception:  # pragma: no cover - config fallback is safe
+            from services.gold.features import DEFAULT_EVENT_HORIZON_DAYS
+
+            return DEFAULT_EVENT_HORIZON_DAYS
+
+    @staticmethod
+    def _resolve_gold_as_of(
+        price_data: dict[str, Any], extra: dict[str, Any]
+    ) -> datetime:
+        """Injectable clock: ``as_of`` from the payload, else UTC now."""
+        raw = extra.get("as_of") or price_data.get("as_of")
+        if isinstance(raw, datetime):
+            return raw if raw.tzinfo is not None else raw.replace(tzinfo=UTC)
+        if isinstance(raw, date) and not isinstance(raw, datetime):
+            return datetime.combine(raw, datetime.min.time(), tzinfo=UTC)
+        if isinstance(raw, str):
+            try:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+            if parsed is not None:
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+        return datetime.now(UTC)
 
     async def _extract_currency_features(
         self, symbol: str, market: str,

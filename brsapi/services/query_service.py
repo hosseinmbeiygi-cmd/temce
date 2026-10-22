@@ -608,15 +608,37 @@ class BrsApiQueryService:
     # ── Commodities ────────────────────────────────
 
     async def get_commodity_prices(
-        self, category: str | None = None
+        self,
+        category: str | None = None,
+        limit: int | None = None,
+        latest_only: bool = False,
     ) -> list[dict[str, Any]]:
-        """Latest commodity prices, optionally filtered by category."""
+        """Commodity prices, optionally filtered by category.
+
+        ``latest_only`` returns only the newest row per symbol (for realtime
+        prices); otherwise the full history is returned. ``limit`` caps the
+        number of rows returned (newest first) so a caller can request history
+        without downloading the whole table (GS-24).
+        """
         stmt = select(CommodityPriceModel)
         if category:
             stmt = stmt.where(CommodityPriceModel.category == category)
         stmt = stmt.order_by(CommodityPriceModel.category, CommodityPriceModel.symbol)
         result = await self.session.execute(stmt)
-        return [self._row_dict(r) for r in result.scalars().all()]
+        rows = [self._row_dict(r) for r in result.scalars().all()]
+        if latest_only:
+            latest: dict[Any, dict[str, Any]] = {}
+            for r in rows:
+                key = r.get("symbol")
+                prev = latest.get(key)
+                if prev is None or (r.get("time_unix") or 0) >= (prev.get("time_unix") or 0):
+                    latest[key] = r
+            rows = list(latest.values())
+        elif limit is not None:
+            rows.sort(key=lambda r: (r.get("time_unix") or 0), reverse=True)
+        if limit is not None:
+            rows = rows[:limit]
+        return rows
 
     async def get_commodity_categories(self) -> list[dict[str, Any]]:
         """

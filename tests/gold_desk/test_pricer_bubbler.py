@@ -13,8 +13,13 @@ AED = 18520.0  # ~ USD / 3.6725
 
 # مقادیر صحیح مورد انتظار
 EXPECTED_GOLD_18K_PER_GRAM = (XAU * USD) / 31.1034768 * (750.0 / 999.9)
-EXPECTED_COIN_EMAMI = (XAU * USD) / 31.1034768 * (900.0 / 999.9) * 8.133
-EXPECTED_COIN_BAHAR = EXPECTED_COIN_EMAMI + 80_000
+# STEP 6-FIX-2 unified the IR_COIN_EMAMI mint fee at 80,000 IRR, the same
+# physical full-coin cost as IR_COIN_BAHAR, so both full coins now price
+# identically (emami was previously modelled fee-free).  See
+# tests/unit/test_step6_fix2.py::test_emami_mint_fee_unified.
+EXPECTED_COIN_EMAMI_GOLD = (XAU * USD) / 31.1034768 * (900.0 / 999.9) * 8.133
+EXPECTED_COIN_EMAMI = EXPECTED_COIN_EMAMI_GOLD + 80_000
+EXPECTED_COIN_BAHAR = EXPECTED_COIN_EMAMI
 
 
 # ── pricer ──────────────────────────────────────────────────────
@@ -37,15 +42,21 @@ def test_gold_24k():
 
 def test_coin_emami():
     v = pricer.fair_coin("IR_COIN_EMAMI", XAU, USD)
-    assert abs(v - EXPECTED_COIN_EMAMI) < 10.0  # tolerance for minting cost
+    assert abs(v - EXPECTED_COIN_EMAMI) < 10.0  # includes unified 80,000 IRR mint fee
 
 
 def test_coin_bahar_same_as_emami():
-    """سکه بهار و امامی وزن یکسان دارند؛ کارمزد ضرب بهار ۸۰ هزار تومان بیشتر است."""
+    """سکه بهار و امامی وزن و کارمزد ضرب یکسان دارند (STEP 6-FIX-2).
+
+    Emami and bahar are the same 8.133 g / 900-oz coin and now share the
+    unified 80,000 IRR mint fee from services.gold.constants; the two full
+    coins therefore price identically (emami was previously fee-free).
+    """
     a = pricer.fair_coin("IR_COIN_EMAMI", XAU, USD)
     b = pricer.fair_coin("IR_COIN_BAHAR", XAU, USD)
     assert abs(b - EXPECTED_COIN_BAHAR) < 0.01
-    assert abs((b - a) - 80_000) < 0.01
+    # STEP 6-FIX-2: both full coins share the same 80,000 IRR mint fee.
+    assert abs(b - a) < 0.01
 
 
 def test_coin_half_half_of_emami():
@@ -54,8 +65,10 @@ def test_coin_half_half_of_emami():
     half = pricer.fair_coin("IR_COIN_HALF", XAU, USD)
     # وزن نیم سکه ۴٫۰۶۶ گرم در برابر ۸٫۱۳۳ گرم تمام است، پس ۰٫۰۰۱ گرم
     # اختلاف وزن در نسبت ۲×نیم − تمام لحاظ می‌شود؛ کارمزد نیم ۵۰ هزار است.
-    coin_gold_per_gram = full / 8.133
-    expected = 100_000 - (8.133 - 2 * 4.066) * coin_gold_per_gram
+    # STEP 6-FIX-2: the full-coin fee is now 80,000 (emami was 0 before),
+    # so the fee-only term becomes 2*50_000 - 80_000 = 20_000.
+    coin_gold_per_gram = pricer.base_24k_per_gram(XAU, USD) * (900.0 / 999.9)
+    expected = (2 * 50_000 - 80_000) - (8.133 - 2 * 4.066) * coin_gold_per_gram
     assert (2 * half - full) == pytest.approx(expected, abs=1e-6)
 
 

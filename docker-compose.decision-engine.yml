@@ -27,7 +27,8 @@ services:
     environment:
       - POSTGRES_DB=decision_engine
       - POSTGRES_USER=decision_user
-      - POSTGRES_PASSWORD=decision_pass_456
+      # Required — set POSTGRES_PASSWORD in .env (never commit a literal).
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     ports:
       - "5433:5432"
     volumes:

@@ -94,7 +94,11 @@ def _forecast_linear(closes: list[float], horizon: int) -> float:
 
 
 def _forecast_ema_trend(closes: list[float], horizon: int, period: int = 14) -> float:
-    """پیش‌بینی با EMA drift: آخرین EMA + روند اخیر."""
+    """پیش‌بینی از لنگر EMA + روند اخیر.
+
+    پیش‌تر EMA محاسبه و سپس دور ریخته می‌شد و خروجی فقط ``closes[-1] * (1+drift)^h``
+    بود (GS-19)؛ اکنون لنگر پیش‌بینی همان EMA است.
+    """
     if len(closes) < period + 2:
         return closes[-1] if closes else 0.0
     arr = np.array(closes, dtype=float)
@@ -108,7 +112,7 @@ def _forecast_ema_trend(closes: list[float], horizon: int, period: int = 14) -> 
         return float(ema)
     rets = np.diff(recent) / recent[:-1]
     drift = float(np.mean(rets))
-    return float(closes[-1] * ((1 + drift) ** horizon))
+    return float(ema * ((1 + drift) ** horizon))
 
 
 def _forecast_drift(closes: list[float], horizon: int) -> float:
@@ -175,9 +179,10 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
     for h in (7, 30):
         pred, model = _ensemble(closes, h, w)
         ret_pct = (pred - last) / last * 100 if last else 0
-        # باند اطمینان: ± 1.96 * vol * sqrt(h) * pred (95%)
-        band_pct = 1.96 * vol * math.sqrt(h)
-        lower = pred * (1 - band_pct)
+        # باند اطمینان: ± 1.96 * vol * sqrt(h) * pred (95%). کران‌دار است تا در
+        # سری پرنوسان قیمت منفی تولید نشود (GS-19).
+        band_pct = min(1.96 * vol * math.sqrt(h), 1.0)
+        lower = max(0.0, pred * (1 - band_pct))
         upper = pred * (1 + band_pct)
         # اطمینان: R2 * (1 - vol*10) clipped
         points.append(

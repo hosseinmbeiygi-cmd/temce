@@ -19,11 +19,18 @@ LIVE_PATH = f"{BASE}/macro/live"
 
 @pytest.fixture()
 def client(app):
+    """STEP 7D-1: ``/macro/live`` is the stored posture read — JWT-gated."""
+    from core.security.tokens import create_access_token
+
     async def _session():
         yield object()
 
     app.dependency_overrides[get_db_session] = _session
-    yield TestClient(app, raise_server_exceptions=False)
+    test_client = TestClient(app, raise_server_exceptions=False)
+    test_client.headers.update(
+        {"Authorization": f"Bearer {create_access_token({'sub': 'analyst', 'roles': ['user'], 'type': 'access'})}"}
+    )
+    yield test_client
     app.dependency_overrides.pop(get_db_session, None)
 
 

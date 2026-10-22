@@ -124,7 +124,20 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--capture=no"]
+# ``needs_db`` marks tests that read live PostgreSQL data (the admin dashboard
+# scans ~5.5M rows). They stay in the tree and run with ``-m needs_db``, but the
+# default local run skips them so it stays inside a few minutes.
+addopts = ["--capture=no", "-m", "not needs_db"]
+# pytest-timeout: the ``signal`` method needs SIGALRM and therefore does not
+# exist on Windows, where the fallback ``thread`` method kills the whole
+# process when a test hangs — one native stall (OpenMP/LightGBM, asyncpg)
+# takes every remaining result with it. Recommendations:
+#   * run the long suite on Linux (CI or WSL) with ``--timeout-method=signal``
+#     so only the offending test dies;
+#   * on Windows, split the run (per-directory or ``-k``) and keep
+#     ``--timeout=120 --timeout-method=thread`` as a last-resort watchdog.
+# Recorded here so the behaviour is explicit rather than implicit.
+timeout_method = "thread"
 # One event loop for the whole session. The FastAPI app and its SQLAlchemy/asyncpg
 # pool are built once by the session-scoped ``app`` fixture, so a per-module test
 # loop left later modules reusing connections bound to a closed loop — that showed

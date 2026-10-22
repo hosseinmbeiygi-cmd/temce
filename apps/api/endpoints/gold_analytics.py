@@ -77,6 +77,24 @@ from services.gold.strategies import analyze_strategy
 
 logger = get_logger(__name__)
 
+# Auth policy for this mount (STEP 7D-1), decided per operation:
+#
+#   * JWT (``Depends(get_current_user)``) — every write, and every read that
+#     returns platform-derived analytics or a recommendation: coin bubbles,
+#     arbitrage spreads, option-chain IV rank/skew, AED-spread z-score + alert,
+#     macro posture, curated event importance tags, margin/stop-out and the
+#     stress/risk engines. The POSTs stay gated even when they are pure
+#     calculators, because ``SecurityMiddleware`` already demands a bearer token
+#     for any write under ``/api/v1/gold/``.
+#   * anonymous — four reference/price reads that carry no platform-derived
+#     signal: ``GET /summary`` (live gold price), ``GET /macro/calendar`` and
+#     ``GET /macro/iran-events`` (event dates, the same public reference class
+#     as the ``/macro`` mount) and ``GET /feed-health`` (provider telemetry).
+#     This is the contract those four routes had before, and their HTTP tests
+#     still assert it.
+#
+# The exempt list is enforced by scripts/check_router_auth.py, which resolves the
+# real dependency graph rather than grepping decorators.
 router = APIRouter()
 
 REDIS_KEY_GOLD_SUMMARY = "golddesk:gold_summary:latest"
@@ -141,6 +159,7 @@ def _calculate(func: Any, *args: Any, **kwargs: Any) -> Any:
 @router.post(
     "/physical/mesghal",
     summary="تبدیل مظنهٔ مثقال ۱۷ عیار به گرم ۱۸ عیار",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_mesghal_to_gram18(
     body: MesghalPriceRequest,
@@ -155,6 +174,7 @@ async def post_mesghal_to_gram18(
 @router.post(
     "/physical/assay",
     summary="ارزش طلای آب‌شده با عیار دلخواه بر پایهٔ گرم ۱۸ عیار",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_assay_adjustment(
     body: AssayAdjustmentRequest,
@@ -171,6 +191,7 @@ async def post_assay_adjustment(
 @router.post(
     "/physical/coin-bubbles",
     summary="حباب/تخفیف سکه‌های امامی، نیم، ربع و گرمی",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_coin_bubbles(
     body: CoinBubblesRequest,
@@ -191,6 +212,7 @@ async def post_coin_bubbles(
 @router.post(
     "/physical/ime-arbitrage",
     summary="آربیتراژ گواهی شمش بورس کالا در برابر آب‌شدهٔ تهران",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_ime_arbitrage(
     body: ImeArbitrageRequest,
@@ -206,7 +228,11 @@ async def post_ime_arbitrage(
 # ── Black-76 options ──────────────────────────────────────────────
 
 
-@router.post("/options/black76", summary="قیمت و یونانی‌های Black-76")
+@router.post(
+    "/options/black76",
+    summary="قیمت و یونانی‌های Black-76",
+    dependencies=[Depends(get_current_user)],
+)
 async def post_black76(body: Black76Request) -> ApiResponse[dict[str, Any]]:
     price = _calculate(
         black76_price, body.F, body.K, body.T, body.r, body.sigma, body.option_type
@@ -228,6 +254,7 @@ async def post_black76(body: Black76Request) -> ApiResponse[dict[str, Any]]:
 @router.post(
     "/options/implied-volatility",
     summary="استخراج نوسان ضمنی از قیمت بازار",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_implied_volatility(
     body: ImpliedVolatilityRequest,
@@ -246,13 +273,21 @@ async def post_implied_volatility(
     )
 
 
-@router.post("/options/pcr", summary="نسبت Put/Call بر پایهٔ حجم و OI")
+@router.post(
+    "/options/pcr",
+    summary="نسبت Put/Call بر پایهٔ حجم و OI",
+    dependencies=[Depends(get_current_user)],
+)
 async def post_pcr(body: OptionsChainRequest) -> ApiResponse[dict[str, Any]]:
     result = _calculate(calculate_pcr, body.options_chain)
     return ApiResponse[dict[str, Any]](success=True, data=result)
 
 
-@router.post("/options/max-pain", summary="استرایک Max Pain")
+@router.post(
+    "/options/max-pain",
+    summary="استرایک Max Pain",
+    dependencies=[Depends(get_current_user)],
+)
 async def post_max_pain(body: OptionsChainRequest) -> ApiResponse[dict[str, Any]]:
     strike = _calculate(calculate_max_pain, body.options_chain)
     return ApiResponse[dict[str, Any]](
@@ -263,6 +298,7 @@ async def post_max_pain(body: OptionsChainRequest) -> ApiResponse[dict[str, Any]
 @router.post(
     "/options/enrich",
     summary="محاسبهٔ IV، یونانی‌ها و Moneyness برای کل زنجیره",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_enrich_chain(
     body: EnrichChainRequest,
@@ -283,6 +319,7 @@ async def post_enrich_chain(
 @router.get(
     "/options/chain",
     summary="IME option chain with IV rank/percentile, skew, term structure and OI",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_options_chain(
     commodity: str | None = Query(None),
@@ -316,6 +353,7 @@ async def get_options_chain(
 @router.post(
     "/options/strategy",
     summary="Expiry payoff, pre-expiry value and P&L extrema for option strategies",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_options_strategy(
     body: OptionsStrategyRequest,
@@ -338,6 +376,7 @@ async def post_options_strategy(
 @router.post(
     "/options/margin",
     summary="Config-driven margin, margin-call and stop-out simulation",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_options_margin(
     body: OptionsMarginRequest,
@@ -360,6 +399,7 @@ async def post_options_margin(
 @router.post(
     "/futures/term-structure",
     summary="ساختار زمانی، بیسیس، رپوی ضمنی و آربیتراژ کری",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_futures_term(
     body: FuturesTermRequest,
@@ -377,7 +417,11 @@ async def post_futures_term(
 # ── Macro drivers ─────────────────────────────────────────────────
 
 
-@router.post("/macro/aed-parity", summary="سیگنال پاریتهٔ درهم دبی و اسپرد تهران")
+@router.post(
+    "/macro/aed-parity",
+    summary="سیگنال پاریتهٔ درهم دبی و اسپرد تهران",
+    dependencies=[Depends(get_current_user)],
+)
 async def post_aed_parity(body: AedParityRequest) -> ApiResponse[dict[str, Any]]:
     result = _calculate(
         calculate_aed_implied_usd, body.aed_rate, body.tehran_usd_rate
@@ -385,7 +429,11 @@ async def post_aed_parity(body: AedParityRequest) -> ApiResponse[dict[str, Any]]
     return ApiResponse[dict[str, Any]](success=True, data=result)
 
 
-@router.post("/macro/posture", summary="وضعیت کلان طلا (TIPS / DXY / روند)")
+@router.post(
+    "/macro/posture",
+    summary="وضعیت کلان طلا (TIPS / DXY / روند)",
+    dependencies=[Depends(get_current_user)],
+)
 async def post_macro_posture(
     body: MacroPostureRequest,
 ) -> ApiResponse[dict[str, Any]]:
@@ -394,6 +442,10 @@ async def post_macro_posture(
         body.tips_yield,
         body.dxy_index,
         body.gold_trend,
+        # The stateless calculator accepts a classic DXY level; the stored
+        # DTWEXBGS percentile path is used by GET /macro/live, which has
+        # history available.
+        dxy_series="DXY",
     )
     return ApiResponse[dict[str, Any]](success=True, data=result)
 
@@ -401,6 +453,7 @@ async def post_macro_posture(
 @router.get(
     "/macro/live",
     summary="وضعیت کلان طلا از داده‌های ذخیره‌شده (TIPS / DXY / روند)",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_macro_posture_live(
     session: AsyncSession = Depends(get_db_session),
@@ -436,6 +489,7 @@ async def get_macro_posture_live(
 @router.get(
     "/coins",
     summary="All coin bubbles with nominal/percent bubble and rolling history stats",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_coins(
     history_limit: int = Query(COIN_HISTORY_LIMIT, ge=1, le=1000),
@@ -453,6 +507,7 @@ async def get_coins(
 @router.get(
     "/arbitrage",
     summary="IME 995 certificate vs Tehran 750 melted spread (both legs + costs)",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_arbitrage(
     quantity_grams: float = Query(1.0, gt=0),
@@ -479,6 +534,7 @@ async def get_arbitrage(
 @router.get(
     "/aed-history",
     summary="AED hawala spread history with z-score and alert flag",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_aed_history(
     limit: int = Query(AED_HISTORY_LIMIT, ge=1, le=2000),
@@ -641,6 +697,7 @@ async def post_iran_manual_event(
 @router.get(
     "/risk/scenarios",
     summary="Built-in Iran gold stress scenarios",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_risk_scenarios() -> ApiResponse[list[dict[str, Any]]]:
     """Return the scenario catalogue used by the portfolio stress engine."""
@@ -652,6 +709,7 @@ async def get_risk_scenarios() -> ApiResponse[list[dict[str, Any]]]:
 @router.post(
     "/risk/stress",
     summary="Stress-test a gold portfolio against Iran-market scenarios",
+    dependencies=[Depends(get_current_user)],
 )
 async def post_risk_stress(
     body: RiskStressRequest,

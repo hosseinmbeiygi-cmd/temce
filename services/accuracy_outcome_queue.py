@@ -31,6 +31,37 @@ DEFAULT_MAXSIZE = 10_000
 DEFAULT_FLUSH_BATCH = 200
 DEFAULT_FLUSH_INTERVAL = 30.0
 
+# Where a failed flush spills its batch so it survives a process restart.
+REDIS_SPILL_KEY = "accuracy:outcomes:pending"
+REDIS_SPILL_MAX = 10_000
+
+
+def _serialize_outcome(outcome: Any) -> str | None:
+    """JSON-encode a ``SignalOutcome`` for the Redis spill list."""
+    import dataclasses
+    import json
+
+    if not dataclasses.is_dataclass(outcome):
+        return None
+    with contextlib.suppress(TypeError, ValueError):
+        return json.dumps(dataclasses.asdict(outcome), ensure_ascii=False, default=str)
+    return None
+
+
+def _deserialize_outcome(raw: Any) -> Any | None:
+    """Rebuild a ``SignalOutcome`` spilled by :func:`_serialize_outcome`."""
+    import dataclasses
+    import json
+
+    with contextlib.suppress(Exception):
+        from services.signal_accuracy_tracker import SignalOutcome
+
+        payload = json.loads(raw)
+        if isinstance(payload, dict):
+            allowed = {field.name for field in dataclasses.fields(SignalOutcome)}
+            return SignalOutcome(**{k: v for k, v in payload.items() if k in allowed})
+    return None
+
 
 def _inc_metric(name: str, labels: dict[str, str] | None = None, value: float = 1.0) -> None:
     """Increment a Prometheus counter via the process-wide exporter.
@@ -61,6 +92,7 @@ class AccuracyOutcomeQueue:
         self._flush_failed_total = 0
         self._flush_ok_total = 0
         self._rows_written_total = 0
+        self._redis_recovered_total = 0
 
     # ── Introspection ──────────────────────────────────────────────────────
 
@@ -79,6 +111,8 @@ class AccuracyOutcomeQueue:
             "flush_ok_total": self._flush_ok_total,
             "flush_failed_total": self._flush_failed_total,
             "rows_written_total": self._rows_written_total,
+            "redis_recovered_total": self._redis_recovered_total,
+            "redis_spill_key": REDIS_SPILL_KEY,
             "flush_batch": self._flush_batch,
             "flush_interval_seconds": self._flush_interval,
             "flusher_running": self._task is not None and not self._task.done(),
@@ -126,12 +160,88 @@ class AccuracyOutcomeQueue:
                 self._queue.appendleft(item)  # preserve original FIFO order
             self._flush_failed_total += 1
             _inc_metric("accuracy_tracking_flush_failed_total")
+            # In-memory re-queue alone loses the batch if the process dies
+            # before the next flush; spill a copy to Redis so it survives.
+            await self._spill_to_redis(batch)
             logger.error(
                 "Accuracy outcome flush failed for %d items (re-queued): %s",
                 len(batch),
                 exc,
             )
             return 0
+
+    # ── Durable spill / recovery ───────────────────────────────────────────
+
+    @staticmethod
+    def _redis() -> tuple[Any, Any]:
+        """Return ``(cache, client)`` when Redis is usable, else ``(None, None)``."""
+        with contextlib.suppress(Exception):
+            from core.cache import get_cache
+
+            cache = get_cache()
+            client = getattr(cache, "client", None)
+            if getattr(cache, "is_connected", False) and client is not None:
+                return cache, client
+        return None, None
+
+    async def _spill_to_redis(self, batch: deque[Any]) -> int:
+        """Push a failed batch onto the Redis spill list (best effort)."""
+        _, client = self._redis()
+        if client is None:
+            return 0
+        payloads = [raw for raw in (_serialize_outcome(item) for item in batch) if raw]
+        if not payloads:
+            return 0
+        try:
+            await client.rpush(REDIS_SPILL_KEY, *payloads)
+            await client.ltrim(REDIS_SPILL_KEY, -REDIS_SPILL_MAX, -1)
+            return len(payloads)
+        except Exception as exc:  # noqa: BLE001 — durability is best effort
+            logger.warning("Could not spill %d outcomes to Redis: %s", len(payloads), exc)
+            return 0
+
+    async def recover_from_redis(self) -> int:
+        """Re-queue outcomes spilled by an earlier failed flush.
+
+        Called once when the flusher starts, so a restart after a DB outage
+        drains the backlog instead of losing it. Returns how many outcomes
+        were restored (0 when Redis or the spill list is unavailable).
+        """
+        _, client = self._redis()
+        if client is None:
+            logger.debug("Outcome recovery skipped: Redis unavailable")
+            return 0
+
+        try:
+            raw_items = await client.lrange(REDIS_SPILL_KEY, 0, -1)
+            if not raw_items:
+                return 0
+            await client.delete(REDIS_SPILL_KEY)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Outcome recovery from Redis failed: %s", exc)
+            return 0
+
+        restored_items = [
+            outcome
+            for outcome in (_deserialize_outcome(raw) for raw in raw_items)
+            if outcome is not None
+        ]
+        if not restored_items:
+            return 0
+
+        # Spilled items predate everything queued since the failure, so they go
+        # back on the front in their original order.
+        self._queue.extendleft(reversed(restored_items))
+        while len(self._queue) > self._maxsize:
+            self._queue.popleft()
+            self._dropped_total += 1
+            _inc_metric("accuracy_tracking_dropped_total", {"reason": "queue_overflow"})
+
+        restored = len(restored_items)
+        self._redis_recovered_total += restored
+        if restored:
+            logger.info("Recovered %d accuracy outcomes spilled to Redis", restored)
+        return restored
 
     async def _write_batch(self, batch: deque[Any]) -> int:
         """Persist a batch of outcomes inside a single transaction."""
@@ -146,9 +256,15 @@ class AccuracyOutcomeQueue:
             raise RuntimeError("No database session factory available")
 
         now = datetime.now(UTC).replace(tzinfo=None)  # DB column is TIMESTAMP WITHOUT TZ
+        written = 0
         async with async_session_factory() as session:
             for outcome in batch:
-                await session.execute(
+                # SRV-005: the queue is flushed on a timer and re-queued on
+                # failure, so the same outcome can reach this method twice
+                # (retry after a partially applied batch, or two workers
+                # racing). An unconditional INSERT would then double-count the
+                # signal in every accuracy aggregate.
+                result = await session.execute(
                     text(
                         "INSERT INTO signal_accuracy ("
                         "id, signal_id, symbol, market, source,"
@@ -160,7 +276,7 @@ class AccuracyOutcomeQueue:
                         "signal_strength, signal_confidence,"
                         "ml_score, rule_score,"
                         "generated_at, outcome_set_at"
-                        ") VALUES ("
+                        ") SELECT "
                         ":id, :signal_id, :symbol, :market, :source,"
                         ":direction, :timeframe,"
                         ":actual_return_pct, :direction_correct,"
@@ -170,6 +286,8 @@ class AccuracyOutcomeQueue:
                         ":signal_strength, :signal_confidence,"
                         ":ml_score, :rule_score,"
                         ":generated_at, :outcome_set_at"
+                        " WHERE NOT EXISTS ("
+                        "SELECT 1 FROM signal_accuracy WHERE signal_id = :signal_id"
                         ")"
                     ),
                     {
@@ -198,8 +316,9 @@ class AccuracyOutcomeQueue:
                         "outcome_set_at": now,
                     },
                 )
+                written += result.rowcount or 0
             await session.commit()
-        return len(batch)
+        return written
 
     # ── Background flusher ─────────────────────────────────────────────────
 
@@ -219,6 +338,8 @@ class AccuracyOutcomeQueue:
         await self.flush()
 
     async def _run_flusher(self) -> None:
+        with contextlib.suppress(Exception):
+            await self.recover_from_redis()
         while True:
             await asyncio.sleep(self._flush_interval)
             try:

@@ -14,9 +14,10 @@ import {
   getKillSwitch,
   openFuturesPosition,
   postFuturesMargin,
-  type FuturesMarginResp,
-  type KillSwitchResp,
 } from "@/lib/goldApi";
+
+type FuturesMarginResp = Awaited<ReturnType<typeof postFuturesMargin>>;
+type KillSwitchResp = Awaited<ReturnType<typeof getKillSwitch>>;
 import { HealthRatioGauge } from "@/components/gold/HealthRatioGauge";
 import { KillSwitchBanner } from "@/components/gold/KillSwitchBanner";
 
@@ -55,7 +56,7 @@ export default function GoldFuturesPage() {
   const [accountEquity, setAccountEquity] = useState<number | undefined>(50_000_000);
 
   // Open-position form
-  const [contractSymbol, setContractSymbol] = useState("سکه_آتی_IME");
+  const contractSymbol = "سکه_آتی_IME";
 
   // Live prices (برای sync قیمت فعلی)
   const { data: live } = useQuery({
@@ -67,8 +68,8 @@ export default function GoldFuturesPage() {
 
   // وقتی live می‌آید، current_price را auto-fill کن (اگر خالی بود)
   useEffect(() => {
-    if (live?.coin_bahar_irr && currentPrice === undefined) {
-      setCurrentPrice(live.coin_bahar_irr);
+    if (live?.["coin_bahar_irr"] && currentPrice === undefined) {
+      setCurrentPrice(live["coin_bahar_irr"]);
     }
   }, [live, currentPrice]);
 
@@ -86,13 +87,17 @@ export default function GoldFuturesPage() {
   });
 
   // Positions + health
-  const { data: positions = [] } = useQuery({
+  const {
+    data: positions = [],
+    isError: positionsError,
+    isLoading: positionsLoading,
+  } = useQuery({
     queryKey: ["gold", "futures", "positions"],
     queryFn: () => getFuturesPositions("OPEN"),
     refetchInterval: 10_000,
     enabled: mounted,
   });
-  const { data: health } = useQuery({
+  const { data: health, isError: healthError } = useQuery({
     queryKey: ["gold", "futures", "health"],
     queryFn: getFuturesHealth,
     refetchInterval: 10_000,
@@ -140,6 +145,12 @@ export default function GoldFuturesPage() {
     directive: null,
   };
 
+  // ``live`` is undefined until the first quote response lands — indexing it
+  // unguarded crashed the whole page on its first render. The upstream feed
+  // reports 0 for an unavailable quote, so only a positive value is a price.
+  const rawLivePrice = live?.["coin_bahar_irr"];
+  const livePrice = rawLivePrice != null && rawLivePrice > 0 ? rawLivePrice : null;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -150,18 +161,19 @@ export default function GoldFuturesPage() {
             محاسبه مارجین، لیکوئیدیشن و Health Ratio — اهرم ۱۰ برابر
           </p>
         </div>
-        {live && (
-          <div className="text-left text-xs text-zinc-400">
+        <div className="text-left text-xs text-zinc-400">
+          {livePrice != null ? (
             <div>
               سکه بهار:{" "}
               <span className="text-amber-300 font-semibold tabular-nums">
-                {fmt(live.coin_bahar_irr)}
+                {fmt(livePrice)}
               </span>{" "}
               ریال
             </div>
-            {live.is_stale && <div className="text-rose-400">⚠️ داده منقضی</div>}
-          </div>
-        )}
+          ) : (
+            <div className="text-zinc-500">قیمت زندهٔ سکه در دسترس نیست</div>
+          )}
+        </div>
       </div>
 
       {/* Kill-Switch banner */}
@@ -200,25 +212,19 @@ export default function GoldFuturesPage() {
                 ))}
               </div>
             </Field>
-            <Field label="اهرم">
-              <select
-                value={leverage}
-                onChange={(e) => setLeverage(+e.target.value)}
-                className="w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100"
-              >
-                {[5, 10, 15, 20].map((l) => (
-                  <option key={l} value={l}>
-                    {l}x
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="تعداد قرارداد">
+            <Field label="حجم (کنترکت)">
               <input
                 type="number"
-                min={1}
                 value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, +e.target.value || 1))}
+                onChange={(e) => setQuantity(+e.target.value || 0)}
+                className="w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100 tabular-nums"
+              />
+            </Field>
+            <Field label="اهرم">
+              <input
+                type="number"
+                value={leverage}
+                onChange={(e) => setLeverage(+e.target.value || 0)}
                 className="w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100 tabular-nums"
               />
             </Field>
@@ -226,231 +232,166 @@ export default function GoldFuturesPage() {
               <input
                 type="number"
                 value={currentPrice ?? ""}
-                onChange={(e) => setCurrentPrice(e.target.value ? +e.target.value : undefined)}
-                placeholder="خالی = بدون Health"
+                onChange={(e) => setCurrentPrice(+e.target.value || undefined)}
                 className="w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100 tabular-nums"
               />
             </Field>
-            <Field label="موجودی حساب (ریال)">
+            <Field label="اعتبار حساب (اختیاری)">
               <input
                 type="number"
                 value={accountEquity ?? ""}
-                onChange={(e) => setAccountEquity(e.target.value ? +e.target.value : undefined)}
-                placeholder="برای Health Ratio"
+                onChange={(e) => setAccountEquity(+e.target.value || undefined)}
                 className="w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100 tabular-nums"
               />
             </Field>
           </div>
+
           <button
             onClick={() => marginMut.mutate()}
-            disabled={marginMut.isPending}
-            className="mt-4 w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 ring-1 ring-amber-500/40 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50"
+            disabled={marginMut.isPending || leverage <= 0 || quantity <= 0}
+            className="mt-4 w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 ring-1 ring-amber-500/40 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
           >
-            {marginMut.isPending ? "در حال محاسبه..." : "⚡ محاسبه"}
+            {marginMut.isPending ? "در حال محاسبه..." : "محاسبه مارجین"}
           </button>
+
+          {m && (
+            <div className="mt-4 space-y-3 border-t border-zinc-700/60 pt-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <Tile label="برداشت اولیه" value={fmt(m.initial_margin)} />
+                <Tile label="برداشت نگهداری" value={fmt(m.maintenance_margin)} />
+                <Tile label="ارزش کنترکت" value={fmt(m.contract_value)} />
+                <Tile label="فاصله به لیق" value={fmtPct(m.distance_to_liquidation_pct, 1)} />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                <Tile label="قیمت لیق" value={fmt(m.liquidation_price)} />
+                <Tile label="سلامت حساب" value={m.health_ratio?.toFixed(2) ?? "—"} />
+                <Tile label="حد ضرر پیشنهادی" value={fmtPct(m.recommended_stop_loss, 1)} />
+              </div>
+              {m.alert_message && (
+                <div
+                  className={`rounded-lg px-3 py-2 text-sm ${alertColor(m.alert_level)}`}
+                >
+                  {m.alert_message}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Health Gauge */}
+        {/* Health dashboard */}
         <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-5">
-          <h2 className="text-base font-semibold text-zinc-200 mb-4 text-center">Health Ratio</h2>
-          <HealthRatioGauge value={m?.health_ratio ?? null} />
-          {m?.alert_message && (
-            <div
-              className={`mt-3 text-center text-xs px-2 py-1.5 rounded ring-1 ${alertColor(
-                m.alert_level,
-              )}`}
-            >
-              {m.alert_message}
+          <h2 className="text-base font-semibold text-zinc-200 mb-4">🫀 سلامت حساب</h2>
+          {healthError ? (
+            <div className="rounded-lg bg-rose-950/30 ring-1 ring-rose-700/40 px-3 py-2 text-xs text-rose-300">
+              وضعیت سلامت حساب از سرور دریافت نشد — مقدار «بحرانی» نمایش داده نمی‌شود.
             </div>
+          ) : (
+            <>
+              <HealthRatioGauge value={health?.health_ratio ?? null} />
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between text-zinc-300">
+                  <span>بحرانی</span>
+                  <span className="font-mono text-rose-300">{health?.critical_count ?? "—"}</span>
+                </div>
+                <div className="flex justify-between text-zinc-300">
+                  <span>هشدارها</span>
+                  <span className="font-mono text-amber-300">{health?.warning_count ?? "—"}</span>
+                </div>
+                <div className="flex justify-between text-zinc-300">
+                  <span>وضعیت ریسک</span>
+                  <span className="font-mono text-zinc-200">{riskLabel(health?.health_ratio)}</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Results */}
-      {m && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="ارزش قرارداد" value={fmt(m.contract_value)} unit="ریال" />
-          <Stat
-            label="مارجین اولیه"
-            value={fmt(m.initial_margin)}
-            unit="ریال"
-            color="amber"
-          />
-          <Stat
-            label="مارجین نگهداری"
-            value={fmt(m.maintenance_margin)}
-            unit="ریال"
-            color="amber"
-          />
-          <Stat
-            label="قیمت لیکوئیدیشن"
-            value={fmt(m.liquidation_price)}
-            unit="ریال"
-            color="rose"
-            highlight
-          />
-          {m.distance_to_liquidation_pct !== null && (
-            <Stat
-              label="فاصله تا لیکوئید"
-              value={fmt(m.distance_to_liquidation_pct, 2)}
-              unit="٪"
-              color={m.distance_to_liquidation_pct < 5 ? "rose" : "emerald"}
-            />
-          )}
-          {m.recommended_stop_loss !== null && (
-            <Stat
-              label="Stop Loss پیشنهادی"
-              value={fmt(m.recommended_stop_loss)}
-              unit="ریال"
-              color="amber"
-            />
-          )}
-          <Stat label="اهرم" value={`${m.leverage}x`} />
-          <Stat label="نوع" value={m.position_type === "LONG" ? "لانگ" : "شورت"} />
+      {/* Positions table */}
+      <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-zinc-200">پوزیشن‌های باز</h2>
+          <button
+            onClick={() => openMut.mutate()}
+            disabled={openMut.isPending}
+            className="text-xs bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 rounded px-3 py-1.5 transition disabled:opacity-50"
+          >
+            {openMut.isPending ? "در حال ثبت..." : "باز کردن پوزیشن جدید"}
+          </button>
         </div>
-      )}
-
-      {/* Open Position Action */}
-      {m && (
-        <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-4">
-          <div className="flex flex-col md:flex-row gap-3 items-end">
-            <div className="flex-1">
-              <label className="text-xs text-zinc-400 mb-1 block">نماد قرارداد</label>
-              <input
-                type="text"
-                value={contractSymbol}
-                onChange={(e) => setContractSymbol(e.target.value)}
-                className="w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-2 text-sm text-zinc-100"
-              />
-            </div>
-            <button
-              onClick={() => openMut.mutate()}
-              disabled={openMut.isPending}
-              className="px-6 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 ring-1 ring-emerald-500/40 rounded-lg text-sm font-semibold transition disabled:opacity-50"
-            >
-              {openMut.isPending ? "..." : "✓ ثبت پوزیشن"}
-            </button>
-            {openMut.isSuccess && (
-              <div className="text-xs text-emerald-300">پوزیشن ثبت شد ✓</div>
-            )}
+        {(openMut.isError || closeMut.isError) && (
+          <div className="mb-3 rounded-lg bg-rose-950/30 ring-1 ring-rose-700/40 px-3 py-2 text-xs text-rose-300">
+            {openMut.isError ? "ثبت پوزیشن ناموفق بود" : "بستن پوزیشن ناموفق بود"} — دوباره تلاش کنید.
           </div>
-        </div>
-      )}
-
-      {/* Open Positions Table */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-zinc-200">
-            📊 پوزیشن‌های باز ({positions.length})
-          </h2>
-          {health && (health.critical_count > 0 || health.warning_count > 0) && (
-            <div className="text-xs flex gap-2">
-              {health.critical_count > 0 && (
-                <span className="px-2 py-0.5 rounded bg-rose-950/50 text-rose-300 ring-1 ring-rose-700/40">
-                  {health.critical_count} بحرانی
-                </span>
-              )}
-              {health.warning_count > 0 && (
-                <span className="px-2 py-0.5 rounded bg-amber-950/50 text-amber-300 ring-1 ring-amber-700/40">
-                  {health.warning_count} هشدار
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur overflow-hidden">
+        )}
+        {positionsError ? (
+          <div className="rounded-lg bg-rose-950/30 ring-1 ring-rose-700/40 px-3 py-2 text-xs text-rose-300">
+            فهرست پوزیشن‌ها دریافت نشد.
+          </div>
+        ) : positionsLoading ? (
+          <div className="text-zinc-500 text-sm text-center py-6">در حال بارگذاری...</div>
+        ) : positions.length === 0 ? (
+          <div className="text-zinc-500 text-sm text-center py-6">هیچ پوزیشنی باز نیست</div>
+        ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[10px] text-zinc-500 border-b border-zinc-800/60 bg-zinc-900/60">
-                <th className="text-right py-2.5 px-3">قرارداد</th>
-                <th className="text-right py-2.5 px-3">نوع</th>
-                <th className="text-right py-2.5 px-3">ورود</th>
-                <th className="text-right py-2.5 px-3">فعلی</th>
-                <th className="text-right py-2.5 px-3">مقدار</th>
-                <th className="text-right py-2.5 px-3">P&L</th>
-                <th className="text-right py-2.5 px-3">لیکوئید</th>
-                <th className="text-right py-2.5 px-3">Health</th>
-                <th className="text-right py-2.5 px-3">عملیات</th>
+              <tr className="text-xs text-zinc-500 border-b border-zinc-700/60">
+                <th className="text-left p-2">نماد</th>
+                <th className="text-right p-2">نوع</th>
+                <th className="text-right p-2">قیمت ورود</th>
+                <th className="text-right p-2">حجم</th>
+                <th className="text-right p-2">اهرم</th>
+                <th className="text-right p-2">PnL</th>
+                <th className="text-right p-2">علت خروج</th>
+                <th className="text-right p-2">سلامت</th>
+                <th className="text-right p-2">عملیات</th>
               </tr>
             </thead>
             <tbody>
-              {positions.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="text-center py-8 text-zinc-500 text-xs">
-                    پوزیشن بازی ثبت نشده
+              {positions.map((p) => (
+                <tr key={p.id} className="border-b border-zinc-700/30">
+                  <td className="p-2 text-zinc-200">{p.contract_symbol}</td>
+                  <td className="p-2 text-right font-mono">{p.position_type}</td>
+                  <td className="p-2 text-right font-mono text-zinc-200">
+                    {fmt(p.entry_price)}
+                  </td>
+                  <td className="p-2 text-right font-mono text-zinc-200">{p.quantity}</td>
+                  <td className="p-2 text-right font-mono text-zinc-200">{p.leverage}×</td>
+                  <td className="p-2 text-right font-mono">
+                    <span
+                      className={
+                        (p.unrealized_pnl ?? 0) > 0
+                          ? "text-emerald-300"
+                          : (p.unrealized_pnl ?? 0) < 0
+                          ? "text-rose-300"
+                          : "text-zinc-400"
+                      }
+                    >
+                      {fmt(p.unrealized_pnl)}
+                    </span>
+                  </td>
+                  <td className="p-2 text-right font-mono text-zinc-200">
+                    {p.exit_reason ? p.exit_reason : "—"}
+                  </td>
+                  <td className="p-2 text-right font-mono text-zinc-200">
+                    {p.health_ratio != null ? p.health_ratio.toFixed(2) : "—"}
+                  </td>
+                  <td className="p-2 text-right">
+                    <button
+                      onClick={() =>
+                        closeMut.mutate({ id: p.id, exit: p.current_price ?? p.entry_price })
+                      }
+                      disabled={closeMut.isPending}
+                      className="text-xs text-rose-300 hover:text-rose-200 transition disabled:opacity-50"
+                    >
+                      بسته شدن
+                    </button>
                   </td>
                 </tr>
-              )}
-              {positions.map((p) => {
-                const pnlTone =
-                  (p.unrealized_pnl ?? 0) > 0
-                    ? "text-emerald-300"
-                    : (p.unrealized_pnl ?? 0) < 0
-                      ? "text-rose-300"
-                      : "text-zinc-500";
-                const hrTone =
-                  (p.health_ratio ?? 99) < 1.2
-                    ? "text-rose-300"
-                    : (p.health_ratio ?? 99) < 2
-                      ? "text-amber-300"
-                      : "text-emerald-300";
-                return (
-                  <tr
-                    key={p.id}
-                    className="border-b border-zinc-800/40 hover:bg-zinc-800/20 transition"
-                  >
-                    <td className="py-2.5 px-3 text-xs text-zinc-200">{p.contract_symbol}</td>
-                    <td className="py-2.5 px-3">
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full ring-1 ${
-                          p.position_type === "LONG"
-                            ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30"
-                            : "bg-rose-500/10 text-rose-300 ring-rose-500/30"
-                        }`}
-                      >
-                        {p.position_type}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-xs tabular-nums text-zinc-300">
-                      {fmt(p.entry_price)}
-                    </td>
-                    <td className="py-2.5 px-3 text-xs tabular-nums text-zinc-400">
-                      {fmt(p.current_price)}
-                    </td>
-                    <td className="py-2.5 px-3 text-xs tabular-nums text-zinc-300">
-                      {p.quantity}
-                    </td>
-                    <td className={`py-2.5 px-3 text-xs tabular-nums font-semibold ${pnlTone}`}>
-                      {fmt(p.unrealized_pnl)} ({fmtPct(p.unrealized_pnl_pct)})
-                    </td>
-                    <td className="py-2.5 px-3 text-xs tabular-nums text-rose-300">
-                      {fmt(p.liquidation_price)}
-                    </td>
-                    <td className={`py-2.5 px-3 text-xs tabular-nums font-semibold ${hrTone}`}>
-                      {p.health_ratio?.toFixed(2) ?? "—"}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <button
-                        onClick={() => {
-                          const exit = prompt(
-                            `قیمت خروج برای ${p.contract_symbol}:`,
-                            String(p.current_price ?? p.entry_price),
-                          );
-                          if (exit && !isNaN(+exit)) {
-                            closeMut.mutate({ id: p.id, exit: +exit });
-                          }
-                        }}
-                        className="text-[10px] px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/30 rounded transition"
-                      >
-                        بستن
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -458,43 +399,27 @@ export default function GoldFuturesPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label className="text-xs text-zinc-400 mb-1 block">{label}</label>
+    <div className="space-y-1">
+      <div className="text-xs text-zinc-400">{label}</div>
       {children}
     </div>
   );
 }
 
-function Stat({
-  label,
-  value,
-  unit,
-  color = "default",
-  highlight = false,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  color?: "default" | "emerald" | "amber" | "rose";
-  highlight?: boolean;
-}) {
-  const colorClass = {
-    default: "border-zinc-700 bg-zinc-900/60",
-    emerald: "border-emerald-700/50 bg-emerald-950/30",
-    amber: "border-amber-700/50 bg-amber-950/30",
-    rose: "border-rose-700/50 bg-rose-950/30",
-  }[color];
+function riskLabel(healthRatio: number | null | undefined): string {
+  // No figure means the request failed or the book is empty — never render a
+  // fabricated "CRIT" from a missing value.
+  if (healthRatio == null) return "—";
+  if (healthRatio >= 2) return "SAFE";
+  if (healthRatio >= 1.2) return "WARN";
+  return "CRIT";
+}
+
+function Tile({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className={`rounded-lg border p-3 ${colorClass} ${
-        highlight ? "ring-2 ring-rose-500/40" : ""
-      }`}
-    >
-      <div className="text-[10px] text-zinc-400 mb-1">{label}</div>
-      <div className="text-lg font-bold text-zinc-100 tabular-nums">
-        {value}
-        {unit && <span className="text-[10px] text-zinc-500 mr-1">{unit}</span>}
-      </div>
+    <div className="rounded-lg bg-zinc-800/60 px-3 py-2">
+      <div className="text-[10px] text-zinc-500">{label}</div>
+      <div className="text-sm font-mono text-zinc-100">{value}</div>
     </div>
   );
 }

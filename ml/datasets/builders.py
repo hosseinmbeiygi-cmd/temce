@@ -40,9 +40,12 @@ class DatasetBuilder(BaseDatasetBuilder):
             raise ValueError("No data loaded - empty DataFrame returned")
         df = prices.value
         feat = FeatureMatrix(data=df)
+        close_col = df.get("close", df.get("price_close", pd.Series()))
+        open_col = df.get("open", df.get("price_open", pd.Series()))
         target = self.labeler.future_return(
-            df.get("close", df.get("price_close", pd.Series())),
+            close_col,
             horizon=config.get("horizon", 5),
+            open_prices=open_col if not open_col.empty else None,
         )
         return feat, target
 

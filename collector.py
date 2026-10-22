@@ -9,7 +9,13 @@ import logging
 import requests
 import jdatetime
 
-API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"
+# کلید فقط از محیط (BRSAPI_KEY) خوانده می‌شود — مقادیر هاردکد شده در سورس
+# از طریق git history لو می‌روند.
+API_KEY = (os.environ.get("BRSAPI_API_KEY") or os.environ.get("BRSAPI_KEY") or "").strip()
+if not API_KEY:
+    raise SystemExit(
+        "BRSAPI_KEY تنظیم نشده است. کلید را در .env (یا متغیر محیطی) قرار دهید."
+    )
 BASE_URL = "https://api.brsapi.ir"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 DATES_CACHE_DIR = "symbol_trade_days"

@@ -26,6 +26,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.gold_desk.constants import NAV_PREMIUM_BUY_BELOW, NAV_PREMIUM_SELL_ABOVE
+
 # ── وزن‌ها ──────────────────────────────────────────────────────────────────
 # پرامپت تحلیلگر: وزن‌های اصلی هر گروه جمع ۸۰٪. بقیه (۲۰٪) برای ابعاد مکمل.
 # موتور لایه‌های اضافی را با وزن کمتر اعمال می‌کند ولی اگر داده موجود نبود، خنثی (50) در نظر می‌گیرد.
@@ -334,24 +336,27 @@ def _score_capture(up: float, down: float) -> float:
 
 
 def _score_style_drift(sd: float) -> float:
-    """drift کمتر = بهتر. 0 → 95، 20% → 60، 50%+ → 30."""
+    """drift کمتر = بهتر. 0 → 95، 20% → 60، 50%+ → 30.
+
+    منحنی پیوسته است تا در آستانه‌ها پرش امتیاز نسازد (GS-23).
+    """
     if sd <= 5:
         return 95.0
     if sd <= 20:
-        return 80.0 - (sd - 5)
+        return 95.0 - (sd - 5) * (35.0 / 15.0)  # 5→95، 20→60
     if sd <= 50:
-        return 60.0 - (sd - 20) * 1.0
+        return 60.0 - (sd - 20) * 1.0  # 20→60، 50→30
     return 30.0
 
 
 def _score_ter(ter: float) -> float:
-    """کارمزد پایین = بهتر. 0.5% → 90، 2% → 50، 4%+ → 20."""
+    """کارمزد پایین = بهتر. 0.5% → 95، 2% → 50، 4% → 20 (منحنی پیوسته، GS-23)."""
     if ter <= 0.5:
         return 95.0
     if ter <= 2.0:
-        return 90.0 - (ter - 0.5) * 26.67
+        return 95.0 - (ter - 0.5) * 30.0  # 0.5→95، 2→50
     if ter <= 4.0:
-        return 50.0 - (ter - 2.0) * 15.0
+        return 50.0 - (ter - 2.0) * 15.0  # 2→50، 4→20
     return 20.0
 
 
@@ -423,12 +428,13 @@ def _score_spread(spread_pct: float) -> float:
 
 
 def _score_tracking_diff(td: float) -> float:
+    """انحراف ردیابی کمتر = بهتر؛ منحنی پیوسته (GS-23)."""
     if td <= 0.5:
         return 95.0
     if td <= 2.0:
-        return 80.0 - (td - 0.5) * 20.0
+        return 95.0 - (td - 0.5) * 30.0  # 0.5→95، 2→50
     if td <= 5.0:
-        return 50.0 - (td - 2.0) * 10.0
+        return 50.0 - (td - 2.0) * 10.0  # 2→50، 5→20
     return 20.0
 
 
@@ -634,12 +640,12 @@ def compute_fund_score(m: FundMetrics, group_avg_bubble: float | None = None) ->
     bubble_now = _calc_bubble(m.price_last, m.nav)
     bubble_status = "balanced"
     if bubble_now is not None:
-        if bubble_now > 3.0:
+        if bubble_now > NAV_PREMIUM_SELL_ABOVE:
             score = min(score, 32.0)
-            overrides.append(f"bubble={bubble_now:+.1f}٪>3% → سقف AVOID")
+            overrides.append(f"bubble={bubble_now:+.1f}٪>{NAV_PREMIUM_SELL_ABOVE}% → سقف AVOID")
             bubble_status = "high_bubble"
-        elif bubble_now < -2.0:
-            overrides.append(f"bubble={bubble_now:+.1f}٪<-2% → کاندید ورود")
+        elif bubble_now < NAV_PREMIUM_BUY_BELOW:
+            overrides.append(f"bubble={bubble_now:+.1f}٪<{NAV_PREMIUM_BUY_BELOW}% → کاندید ورود")
             bubble_status = "discounted"
         else:
             bubble_status = "balanced"
@@ -686,9 +692,9 @@ def compute_fund_score(m: FundMetrics, group_avg_bubble: float | None = None) ->
 
     # ۱. حباب
     if bubble_now is not None and abs(bubble_now) > 0.5:
-        if bubble_now > 3:
-            reasons.append(f"P/NAV {bubble_now:+.1f}٪ — حباب بالای ‎+۳٪")
-        elif bubble_now < -2:
+        if bubble_now > NAV_PREMIUM_SELL_ABOVE:
+            reasons.append(f"P/NAV {bubble_now:+.1f}٪ — حباب بالای ‎+{NAV_PREMIUM_SELL_ABOVE:.0f}٪")
+        elif bubble_now < NAV_PREMIUM_BUY_BELOW:
             reasons.append(f"P/NAV {bubble_now:+.1f}٪ — تخفیف، کاندید ورود")
         else:
             reasons.append(f"P/NAV {bubble_now:+.1f}٪ — متعادل")

@@ -30,7 +30,34 @@ PUBLIC_PREFIXES = {"", "/health", "/auth"}
 WS_PREFIXES = {"/ws"}
 
 # Swagger/ReDoc are public documentation by policy.
-PUBLIC_EXACT_PATHS = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+PUBLIC_EXACT_PATHS = {
+    "/openapi.json",
+    "/docs",
+    "/docs/oauth2-redirect",
+    "/redoc",
+    # GoldDesk's two anonymous reads, both mounted from the same module as the
+    # now-guarded personal surface (src/gold_desk/api.py::anonymous_router):
+    #   /gold/health          — container/K8s liveness probe; a probe holds no JWT.
+    #   /gold/assistant-rules — the fee/threshold card the *pre-login*
+    #                           /markets/gold and /markets/silver pages render.
+    "/gold/health",
+    "/gold/assistant-rules",
+    # Gold analytics exemptions (STEP 7D-1) — four reads on that mount carry no
+    # platform-derived signal, so they keep the anonymous contract their HTTP
+    # tests already assert:
+    #   /summary            — live gold price summary (cf. the public /quotes)
+    #   /macro/calendar     — CPI/NFP/FOMC event dates, public reference data
+    #   /macro/iran-events  — manually curated Iranian event dates, same class
+    #   /feed-health        — provider telemetry, not a market signal
+    # Everything else on the mount is JWT-gated, including the stateless
+    # calculators: SecurityMiddleware already requires a bearer token for any
+    # write under /api/v1/gold/, so marking a POST public would make this gate
+    # claim something the application does not do.
+    "/gold/analytics/summary",
+    "/gold/analytics/macro/calendar",
+    "/gold/analytics/macro/iran-events",
+    "/gold/analytics/feed-health",
+}
 
 # Mounts that let anonymous visitors read reference market data.
 PUBLIC_READ_PREFIXES = {
@@ -52,6 +79,11 @@ PUBLIC_READ_PREFIXES = {
     "/codal-professional",
     "/options",
     "/funds",
+    # Mounted with ``_public_read`` (anonymous reads, writes need a token), the
+    # same policy as ``/options`` above — the prefixes just spell the mount path
+    # rather than the route name, so the gate has to recognise them.
+    "/api/options",
+    "/pre-buy",
 }
 
 # Dependencies that actually reject an anonymous request.
@@ -90,6 +122,10 @@ def _top_prefix(path: str) -> str:
         return ""
     if parts[0] == "funds" and len(parts) > 1 and parts[1] == "v2":
         return "/funds/v2"
+    if parts[0] == "api" and len(parts) > 1 and parts[1] == "options":
+        # The options-frontend router is mounted at ``/api/options`` and its
+        # routes are declared relative to that mount.
+        return "/api/options"
     return "/" + parts[0]
 
 

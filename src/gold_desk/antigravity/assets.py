@@ -63,11 +63,13 @@ PHYSICAL_MARKET: dict[str, dict] = {
         "weight": "8.133g",
         "weight_grams": 8.133,
         "purity": "900/1000",
-        "purity_ratio": 0.915,  # 900/1000 + اجرت ضرب per spec
+        # عیار اعلامی؛ کارمزد ضرب جداگانه در pricer/COIN_MINTING_COSTS مدل می‌شود
+        # (قبلاً ۰.۹۱۵ بود و با GoldDesk اختلاف حباب می‌ساخت — GS-12).
+        "purity_ratio": 0.900,
         "reference_source": "BrsApi.ir",
     },
-    "نیم_سکه": {"weight": "4.066g", "weight_grams": 4.066, "purity": "900/1000", "purity_ratio": 0.915},
-    "ربع_سکه": {"weight": "2.033g", "weight_grams": 2.033, "purity": "900/1000", "purity_ratio": 0.915},
+    "نیم_سکه": {"weight": "4.066g", "weight_grams": 4.066, "purity": "900/1000", "purity_ratio": 0.900},
+    "ربع_سکه": {"weight": "2.033g", "weight_grams": 2.033, "purity": "900/1000", "purity_ratio": 0.900},
     "گرم_طلای_18_عیار": {"weight": "1.0g", "weight_grams": 1.0, "purity": "750/1000", "purity_ratio": 0.750},
     "مثقال": {"weight": "4.608g", "weight_grams": 4.608, "purity": "1000/1000", "purity_ratio": 1.0},
 }

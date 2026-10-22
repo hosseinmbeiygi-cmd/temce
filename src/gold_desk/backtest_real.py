@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utc_now_naive
+from .dates import jalali_days_ago
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,8 @@ async def _fetch_daily_data(session: AsyncSession, symbol: str, days: int) -> li
     try:
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        cutoff = (utc_now_naive() - timedelta(days=days)).strftime("%Y-%m-%d")
+        # ستون date شمسی است؛ cutoff میلادی همیشه صفر ردیف مطابقت می‌داد (GS-03).
+        cutoff = jalali_days_ago(days)
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(

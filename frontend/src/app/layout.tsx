@@ -78,9 +78,18 @@ const THEME_SCRIPT = `
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Nonce generated per-request in middleware.ts and forwarded via the
-  // `x-nonce` header; the CSP script-src nonce directive matches it so only
-  // scripts carrying this nonce (like the theme bootstrap below) execute.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // `x-nonce` header; the production CSP script-src nonce directive matches it
+  // so only scripts carrying this nonce (like the theme bootstrap below) run.
+  //
+  // Only production gets the nonce: `next dev` serves DEV_CSP, which allows
+  // 'unsafe-inline' and has no nonce directive, so a nonce there grants nothing.
+  // It does cost something — the browser blanks the attribute after parsing it
+  // (HTML "nonce hiding"), so the served HTML and the hydrated props differ and
+  // React logs a hydration error on every dev page load (vercel/next.js#77952).
+  const nonce =
+    process.env.NODE_ENV === "production"
+      ? ((await headers()).get("x-nonce") ?? undefined)
+      : undefined;
 
   return (
     <html lang="fa" dir="rtl" data-scroll-behavior="smooth" suppressHydrationWarning

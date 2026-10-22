@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
 from datetime import datetime
@@ -37,8 +37,17 @@ GOLD_REPRICING_SPREAD_THRESHOLD: float = 1.5  # درصد
 # ── آستانه‌های کلان ───────────────────────────────────────────────
 TIPS_ACCOMMODATIVE_MAX: float = 1.0  # ≤ ۱٪ = محرک صعودی طلا
 TIPS_RESTRICTIVE_MIN: float = 2.0  # ≥ ۲٪ = محرک نزولی طلا
-DXY_WEAK_MAX: float = 95.0  # ≤ ۹۵ = دلار ضعیف
-DXY_STRONG_MIN: float = 105.0  # ≥ ۱۰۵ = دلار قوی
+# Classic DXY levels are only meaningful for a *true* DXY series.  DTWEXBGS
+# (broad dollar index) lives on a different scale, so it uses percentiles of
+# its own stored history instead (see ``evaluate_gold_macro_posture``).
+DXY_WEAK_MAX: float = 95.0  # ≤ ۹۵ = دلار ضعیف (فقط DXY کلاسیک)
+DXY_STRONG_MIN: float = 105.0  # ≥ ۱۰۵ = دلار قوی (فقط DXY کلاسیک)
+DXY_CLASSIC_SERIES: frozenset[str] = frozenset({"DXY", "USDX", "DXY_INDEX"})
+DEFAULT_DXY_SERIES: str = "DTWEXBGS"
+DEFAULT_DXY_PERCENTILE_LOW: float = 20.0
+DEFAULT_DXY_PERCENTILE_HIGH: float = 80.0
+DEFAULT_DXY_MIN_SAMPLES: int = 30
+POSTURE_INSUFFICIENT_HISTORY: str = "insufficient_history"
 _GOLD_TRENDS = ("up", "down", "sideways")
 
 # ── فید قیمت ──────────────────────────────────────────────────────
@@ -120,14 +129,47 @@ def calculate_aed_implied_usd(aed_rate: float, tehran_usd_rate: float) -> dict[s
     }
 
 
+def percentile(values: list[float], percentile_value: float) -> float:
+    """Linear-interpolated percentile (``percentile_value`` in ``[0, 100]``)."""
+    ordered = sorted(values)
+    if not ordered:
+        raise ValueError("cannot take a percentile of an empty sample")
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * (percentile_value / 100.0)
+    lower = math.floor(rank)
+    upper = math.ceil(rank)
+    if lower == upper:
+        return ordered[lower]
+    weight = rank - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
 def evaluate_gold_macro_posture(
-    tips_yield: float, dxy_index: float, gold_trend: str
+    tips_yield: float,
+    dxy_index: float,
+    gold_trend: str,
+    *,
+    dxy_history: Sequence[float] | None = None,
+    dxy_series: str = DEFAULT_DXY_SERIES,
+    percentile_low: float = DEFAULT_DXY_PERCENTILE_LOW,
+    percentile_high: float = DEFAULT_DXY_PERCENTILE_HIGH,
+    min_samples: int = DEFAULT_DXY_MIN_SAMPLES,
 ) -> dict[str, Any]:
     """جمع‌بندی محرک‌های کلان طلا با مدل رابطهٔ معکوس بازده واقعی.
 
     امتیاز هر محرک: +۱ صعودی، -۱ نزولی، ۰ خنثی. جمع سه محرک
     posture نهایی را می‌سازد. ``divergence`` وقتی روشن می‌شود که
     بازده واقعی و روند طلا خلاف رابطهٔ معکوس حرکت کنند.
+
+    ``dxy_series`` selects the threshold model:
+
+    * a true DXY series (``DXY`` / ``USDX`` / ``DXY_INDEX``) keeps the
+      classic 95/105 levels,
+    * anything else — notably the FRED broad index ``DTWEXBGS`` — uses the
+      ``percentile_low`` / ``percentile_high`` thresholds computed from
+      ``dxy_history``.  Fewer than ``min_samples`` observations yields the
+      explicit ``insufficient_history`` posture instead of a misleading call.
     """
     if tips_yield is None or not math.isfinite(tips_yield):
         raise ValueError(
@@ -141,6 +183,15 @@ def evaluate_gold_macro_posture(
             f"gold_trend must be one of {_GOLD_TRENDS}, got {gold_trend!r}"
         )
 
+    series = str(dxy_series or DEFAULT_DXY_SERIES).strip().upper()
+    if not (0.0 <= percentile_low < percentile_high <= 100.0):
+        raise ValueError(
+            "percentile thresholds must satisfy 0 <= low < high <= 100, "
+            f"got {percentile_low!r} and {percentile_high!r}"
+        )
+    if min_samples < 2:
+        raise ValueError(f"min_samples must be >= 2, got {min_samples!r}")
+
     if tips_yield <= TIPS_ACCOMMODATIVE_MAX:
         real_yield_score, real_yield_signal = 1, "ACCOMMODATIVE"
     elif tips_yield >= TIPS_RESTRICTIVE_MIN:
@@ -148,12 +199,62 @@ def evaluate_gold_macro_posture(
     else:
         real_yield_score, real_yield_signal = 0, "NEUTRAL"
 
-    if dxy_index <= DXY_WEAK_MAX:
-        dxy_score, dxy_signal = 1, "WEAK"
-    elif dxy_index >= DXY_STRONG_MIN:
-        dxy_score, dxy_signal = -1, "STRONG"
+    history: list[float] = []
+    for raw in dxy_history or ():
+        try:
+            number = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number) and number > 0:
+            history.append(number)
+
+    classic = series in DXY_CLASSIC_SERIES
+    low_threshold: float | None = None
+    high_threshold: float | None = None
+
+    if classic:
+        threshold_mode = "classic"
+        if dxy_index <= DXY_WEAK_MAX:
+            dxy_score, dxy_signal = 1, "WEAK"
+        elif dxy_index >= DXY_STRONG_MIN:
+            dxy_score, dxy_signal = -1, "STRONG"
+        else:
+            dxy_score, dxy_signal = 0, "NEUTRAL"
     else:
-        dxy_score, dxy_signal = 0, "NEUTRAL"
+        threshold_mode = "percentile"
+        if len(history) < min_samples:
+            return {
+                "tips_yield": float(tips_yield),
+                "dxy_index": float(dxy_index),
+                "dxy_series": series,
+                "dxy_threshold_mode": threshold_mode,
+                "dxy_percentile_low": None,
+                "dxy_percentile_high": None,
+                "dxy_history_samples": len(history),
+                "gold_trend": trend,
+                "real_yield_score": real_yield_score,
+                "real_yield_signal": real_yield_signal,
+                "dxy_score": 0,
+                "dxy_signal": "INSUFFICIENT_HISTORY",
+                "trend_score": {"up": 1, "down": -1, "sideways": 0}[trend],
+                "composite_score": None,
+                "posture": POSTURE_INSUFFICIENT_HISTORY,
+                "inverse_correlation_expected": True,
+                "divergence": None,
+                "reasons": [
+                    f"تاریخ کافی برای شاخص دلار گسترده وجود ندارد "
+                    f"({len(history)} از حداقل {min_samples} نمونه)؛ "
+                    "وضعیت جهت‌دار گزارش نمی‌شود."
+                ],
+            }
+        low_threshold = percentile(history, percentile_low)
+        high_threshold = percentile(history, percentile_high)
+        if dxy_index <= low_threshold:
+            dxy_score, dxy_signal = 1, "WEAK"
+        elif dxy_index >= high_threshold:
+            dxy_score, dxy_signal = -1, "STRONG"
+        else:
+            dxy_score, dxy_signal = 0, "NEUTRAL"
 
     trend_score = {"up": 1, "down": -1, "sideways": 0}[trend]
     composite_score = real_yield_score + dxy_score + trend_score
@@ -184,6 +285,11 @@ def evaluate_gold_macro_posture(
     return {
         "tips_yield": float(tips_yield),
         "dxy_index": float(dxy_index),
+        "dxy_series": series,
+        "dxy_threshold_mode": threshold_mode,
+        "dxy_percentile_low": low_threshold,
+        "dxy_percentile_high": high_threshold,
+        "dxy_history_samples": len(history),
         "gold_trend": trend,
         "real_yield_score": real_yield_score,
         "real_yield_signal": real_yield_signal,

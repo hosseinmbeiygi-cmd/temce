@@ -59,7 +59,10 @@ def test_options_chain_get_uses_service(monkeypatch, client: TestClient) -> None
     assert captured["liquidity_thresholds"] == {"min_volume": 10}
 
 
-def test_options_chain_get_is_public(app, monkeypatch) -> None:
+def test_options_chain_requires_jwt(app, monkeypatch, auth_headers) -> None:
+    """STEP 7D-1: IV rank/percentile, skew and term structure are derived
+    analytics, so the chain read is no longer anonymous."""
+
     async def fake_report(session, **kwargs):
         return {
             "available": True,
@@ -71,7 +74,10 @@ def test_options_chain_get_is_public(app, monkeypatch) -> None:
     monkeypatch.setattr(gold_analytics, "get_options_chain_report", fake_report)
     public_client = TestClient(app, raise_server_exceptions=False)
     response = public_client.get(f"{BASE}/options/chain")
-    assert response.status_code == 200, response.text
+    assert response.status_code == 401, response.text
+
+    authed = TestClient(app, raise_server_exceptions=False, headers=auth_headers)
+    assert authed.get(f"{BASE}/options/chain").status_code == 200
 
 
 def test_options_strategy_post_hand_computed(client: TestClient) -> None:

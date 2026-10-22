@@ -1,3 +1,4 @@
+import os
 import sys
 
 from openai import OpenAI
@@ -5,7 +6,13 @@ from openai import OpenAI
 # ---------------------------------------------------------------------------
 # کلید API و تنظیمات اتصال به سرویس AvalAI
 # ---------------------------------------------------------------------------
-API_KEY = "aa-cwf9gL3WJ73ISkDP0cZCOwPMsefdYJsNcssmhhOZ4StLrs9B"
+# کلید فقط از محیط خوانده می‌شود (AVALAI_API_KEY) — کلید هاردکد شده یک بار در
+# git history ثبت شده است و همین دلیل کافی برای rotation و حذف از سورس است.
+API_KEY = os.environ.get("AVALAI_API_KEY", "").strip()
+if not API_KEY:
+    raise SystemExit(
+        "AVALAI_API_KEY تنظیم نشده است. کلید را در .env (یا متغیر محیطی) قرار دهید."
+    )
 BASE_URL = "https://api.avalai.ir/v1"
 MODEL_NAME = "gpt-4o-mini"
 

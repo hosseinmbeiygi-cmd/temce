@@ -51,6 +51,12 @@ class ScoreResult:
     components: dict[str, ScoreComponent]
     hard_stop_active: bool
     hard_stop_reason: str | None
+    # مجموع خام امتیازها پیش از نرمال‌سازی؛ ``total`` روی وزنِ *موجود* مقیاس می‌شود
+    # تا جزءهای بی‌داده (nav/technical/fund_flow در محیط فعلی) امتیاز را بی‌صدا
+    # صفر نکنند (GS-02).
+    raw_total: int = 0
+    available_weight: int = 100
+    data_coverage_pct: float = 100.0
 
 
 def _clip(x: int, lo: int, hi: int) -> int:
@@ -143,7 +149,7 @@ def score_parity(aed_gap_pct: float | None) -> ScoreComponent:
     if gap < PARITY_GREEN_MAX:
         return ScoreComponent(max_v, max_v, f"|gap|={gap:.2f}٪ — متعادل")
     if gap < PARITY_YELLOW_MAX:
-        return ScoreComponent(int(max_v * 0.7), max_v, f"|gap|={gap:.2f}٪ — کمی偏离")
+        return ScoreComponent(int(max_v * 0.7), max_v, f"|gap|={gap:.2f}٪ — کمی انحراف")
     if gap < PARITY_RED_MAX:
         return ScoreComponent(int(max_v * 0.3), max_v, f"|gap|={gap:.2f}٪ — انحراف")
     return ScoreComponent(0, max_v, f"|gap|={gap:.2f}٪ — آربیتراژ شدید")
@@ -187,7 +193,21 @@ def compute_score(
         "parity": score_parity(aed_gap_pct),
         "fund_flow": score_fund_flow(nav_7d_pct),
     }
-    total = sum(c.value for c in comps.values())
+    raw_total = sum(c.value for c in comps.values())
+
+    # وزن جزء‌هایی که دادهٔ ورودی دارند. تصمیم روی همین وزن مقیاس می‌شود تا
+    # نبود یک منبع، سقف امتیاز را زیر آستانهٔ تصمیم نکشاند (GS-02).
+    available = {
+        "bubble": bubble_pct is not None,
+        "nav": nav_bubble_pct is not None,
+        "tsetmc": bpr is not None,
+        "technical": xau_rsi is not None,
+        "parity": aed_gap_pct is not None,
+        "fund_flow": nav_7d_pct is not None,
+    }
+    available_weight = sum(SCORE_WEIGHTS[k] for k, ok in available.items() if ok)
+    total = round(raw_total * 100 / available_weight) if available_weight else 0
+    data_coverage_pct = float(available_weight)
 
     if hard_stop_active:
         decision = "RED"
@@ -204,4 +224,7 @@ def compute_score(
         components=comps,
         hard_stop_active=hard_stop_active,
         hard_stop_reason=hard_stop_reason,
+        raw_total=raw_total,
+        available_weight=available_weight,
+        data_coverage_pct=data_coverage_pct,
     )

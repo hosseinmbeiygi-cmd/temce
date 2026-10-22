@@ -400,13 +400,16 @@ class BrsApiJobRegistry:
         """
         result = []
         for job in self._jobs.values():
+            # Jobs with endpoint_config=None are direct-function jobs (GoldDesk);
+            # they have no endpoint path/category.
+            config = job.endpoint_config
             result.append({
                 "name": job.name,
                 "enabled": job.enabled,
                 "cron": str(job.cron),
                 "description": job.description,
-                "endpoint": job.endpoint_config.path,
-                "category": job.category or job.endpoint_config.category.value,
+                "endpoint": config.path if config else None,
+                "category": job.category or (config.category.value if config else "gold_desk"),
                 "market_hours_only": job.market_hours_only,
             })
         return result
@@ -465,12 +468,23 @@ class BrsApiJobRegistry:
                         "message": f"Job '{job_name}' skipped: outside Tehran market hours",
                     }
                 return {"name": job_name, "success": False, "message": f"Unknown or failed job: {job_name}"}
+            # A failed report must not read as "completed" — surface the error.
+            if report.success:
+                message = (
+                    f"Job '{job_name}' completed: {report.items_count} "
+                    f"items in {report.duration_ms:.0f}ms"
+                )
+            else:
+                message = (
+                    f"Job '{job_name}' failed: {report.error or 'unknown error'} "
+                    f"({report.items_count} items in {report.duration_ms:.0f}ms)"
+                )
             return {
                 "name": job_name,
                 "success": report.success,
                 "items_count": report.items_count,
                 "duration_ms": report.duration_ms,
-                "message": f"Job '{job_name}' completed: {report.items_count} items in {report.duration_ms:.0f}ms",
+                "message": message,
             }
         except Exception as exc:
             logger.exception("Failed to run job '%s'", job_name)
@@ -529,6 +543,41 @@ class BrsApiJobRegistry:
         for job in self.enabled:
             self._add_job_to_scheduler(job)
             logger.info("Registered APScheduler job: %s (cron=%s)", job.name, job.cron)
+
+    async def _run_direct_job(self, job_name: str, *, force: bool = False) -> SyncReport | None:
+        """Execute a job whose ``endpoint_config`` is None (direct function).
+
+        The function map lives in ``brsapi.jobs.gold_desk_jobs`` and is imported
+        lazily to avoid a circular import at module load time.
+        """
+        try:
+            from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOB_FUNCTIONS
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Direct job registry unavailable: %s", exc)
+            return None
+
+        fn = GOLD_DESK_JOB_FUNCTIONS.get(job_name)
+        if fn is None:
+            logger.warning("Unknown direct job: %s", job_name)
+            return None
+
+        logger.info("Running direct job: %s", job_name)
+        start = time.monotonic()
+        success = True
+        error: str | None = None
+        try:
+            await fn(force=force)
+        except Exception as exc:  # noqa: BLE001
+            success = False
+            error = str(exc)
+            logger.exception("Direct job '%s' failed", job_name)
+        return SyncReport(
+            endpoint=job_name,
+            success=success,
+            items_count=0,
+            duration_ms=(time.monotonic() - start) * 1000,
+            error=error,
+        )
 
     # ── Helpers ───────────────────────────────
 
@@ -589,6 +638,12 @@ class BrsApiJobRegistry:
                     "Codal office-hours" if job.codal_window else "market hours",
                 )
                 return None
+
+        # ── Direct-function jobs (endpoint_config=None) ────────────
+        # GoldDesk jobs run a Python function instead of calling a BrsApi
+        # endpoint, so they bypass the HTTP client entirely.
+        if job.endpoint_config is None:
+            return await self._run_direct_job(job_name, force=force)
 
         logger.info("Running BrsApi job: %s", job_name)
 
@@ -1760,6 +1815,15 @@ def get_brsapi_job_registry() -> BrsApiJobRegistry:
     if _registry is None:
         _registry = BrsApiJobRegistry()
         _registry.register_many(BRsAPI_SYNC_JOBS)
+        # GoldDesk jobs are function-based (``endpoint_config=None``) and were
+        # previously defined but never registered anywhere — which is why the
+        # ``gold_*`` tables stayed empty. Lazy import avoids a circular import.
+        try:
+            from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOBS
+
+            _registry.register_many(GOLD_DESK_JOBS)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("GoldDesk jobs not registered: %s", exc)
     return _registry
 
 

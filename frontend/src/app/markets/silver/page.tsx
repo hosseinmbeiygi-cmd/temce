@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, extractArray } from "@/lib/api";
 import {
@@ -19,6 +19,7 @@ import PriceChart, { type Candle } from "./components/PriceChart";
 import ForecastTab from "./components/ForecastTab";
 import BacktestTab from "./components/BacktestTab";
 import MlTab from "./components/MlTab";
+import { AssistantRulesPanel } from "@/components/gold/SpecRulesCard";
 import { fa, faDateTime, faPct, fmtTr, isGoldText, isSilverText } from "./components/helpers";
 
 interface PriceItem {
@@ -47,6 +48,13 @@ interface SilverFund {
   market_value?: number;
   base_volume?: number;
   trade_value?: number;
+}
+
+interface SilverNavRow {
+  symbol?: string;
+  nav_issue?: number;
+  nav_redemption?: number;
+  date?: string;
 }
 
 interface FutureRow {
@@ -109,7 +117,11 @@ export default function SilverMarketPage() {
   const pricesQ = useQuery({
     queryKey: ["silver-spot"],
     queryFn: async () => {
-      const r = await apiGet<{ success?: boolean; data?: PriceItem[] }>("/brsapi/commodities?category=precious_metal&limit=2000");
+      // فقط آخرین ردیف هر نماد (سمت سرور) — قبلاً ۱۸٬۵۳۲ ردیف کامل دانلود و در
+      // مرورگر فیلتر می‌شد (GS-24).
+      const r = await apiGet<{ success?: boolean; data?: PriceItem[] }>(
+        "/brsapi/commodities?category=precious_metal&latest_only=true",
+      );
       const list: PriceItem[] = extractArray<PriceItem>(r?.data ?? r);
       const bySymbol = latestBySymbol(list, (x) => Number(x.time_unix ?? 0));
       return [...bySymbol.values()].filter(
@@ -132,9 +144,25 @@ export default function SilverMarketPage() {
   const fundsQ = useQuery({
     queryKey: ["silver-funds"],
     queryFn: async () => {
-      const r = await apiGet<{ items?: SilverFund[]; data?: SilverFund[] }>("/funds?market=ime&limit=200");
-      const items: SilverFund[] = extractArray<SilverFund>((r as { items?: SilverFund[] })?.items ?? (r as { data?: SilverFund[] })?.data ?? r);
-      return items.filter((f) => {
+      // صندوق‌های نقره با market="tse" و fund_type="سهامی" برمی‌گردند، پس فیلتر
+      // market=ime آن‌ها را حذف می‌کرد و نتیجه همیشه خالی بود (GS-09). حالا بر پایهٔ
+      // نام (search) هم می‌پرسیم و نتایج را ادغام می‌کنیم.
+      const requests = [
+        "/funds?market=ime&limit=200",
+        ...["سیلور", "سیمین", "نقره"].map((q) => `/funds?search=${encodeURIComponent(q)}&limit=50`),
+      ];
+      const responses = await Promise.all(
+        requests.map((u) => apiGet<{ items?: SilverFund[]; data?: SilverFund[] }>(u)),
+      );
+      const bySymbol = new Map<string, SilverFund>();
+      for (const r of responses) {
+        const items: SilverFund[] = extractArray<SilverFund>((r as { items?: SilverFund[] })?.items ?? (r as { data?: SilverFund[] })?.data ?? r);
+        for (const f of items) {
+          const key = f.symbol ?? f.name ?? "";
+          if (key && !bySymbol.has(key)) bySymbol.set(key, f);
+        }
+      }
+      return [...bySymbol.values()].filter((f) => {
         const n = `${f.name ?? ""} ${f.symbol ?? ""}`;
         const silver = isSilverText(n) || f.fund_type === "نقره";
         const commodity = f.fund_type === "کالایی" || /کالایی|کالا/.test(n);
@@ -142,6 +170,26 @@ export default function SilverMarketPage() {
       });
     },
     refetchInterval: 60_000,
+  });
+
+  // §۶/§۱۷: NAV صدور و ابطال باید جدا دیده شوند. اندپوینت `/funds` فقط یک `nav`
+  // دارد، پس مثل صفحهٔ طلا از اندپوینت nav به‌ازای هر نماد می‌خوانیم.
+  const navsQ = useQueries({
+    queries: (fundsQ.data ?? [])
+      .map((f) => f.symbol)
+      .filter((s): s is string => Boolean(s))
+      .map((symbol) => ({
+        queryKey: ["silver-fund-nav", symbol],
+        queryFn: () =>
+          apiGet<unknown>(`/brsapi/manage/download/nav?symbol=${encodeURIComponent(symbol)}&limit=1`),
+        staleTime: 5 * 60_000,
+      })),
+  });
+
+  const navBySymbol = new Map<string, SilverNavRow>();
+  (fundsQ.data ?? []).forEach((f, i) => {
+    const row = extractArray<SilverNavRow>(navsQ[i]?.data)[0];
+    if (f.symbol && row) navBySymbol.set(f.symbol, row);
   });
 
   const futQ = useQuery({
@@ -368,6 +416,8 @@ export default function SilverMarketPage() {
           </section>
         )}
 
+        {tab === "overview" && <AssistantRulesPanel defaultFeeKind="commodity_fund" />}
+
         {tab === "forecast" && <ForecastTab />}
         {tab === "backtest" && <BacktestTab />}
         {tab === "ml" && <MlTab />}
@@ -377,7 +427,7 @@ export default function SilverMarketPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-black text-ink">صندوق‌های نقره و کالایی</h3>
-                <p className="mt-1 text-[11px] text-ink-3">قیمت و NAV از TSETMC · حباب = قیمت/NAV − ۱</p>
+                <p className="mt-1 text-[11px] text-ink-3">قیمت و NAV صدور/ابطال از TSETMC · حباب طبق §۶ نسبت به NAV ابطال محاسبه می‌شود</p>
               </div>
               <Gem className="size-5 text-primary-500" />
             </div>
@@ -391,8 +441,10 @@ export default function SilverMarketPage() {
                       <th className="p-2">نام</th>
                       <th className="p-2">نماد</th>
                       <th className="p-2">قیمت</th>
-                      <th className="p-2">NAV</th>
-                      <th className="p-2">حباب</th>
+                      <th className="p-2">NAV صدور</th>
+                      <th className="p-2">NAV ابطال</th>
+                      <th className="p-2">حباب (ابطال)</th>
+                      <th className="p-2">حباب (صدور)</th>
                       <th className="p-2">تغییر NAV</th>
                       <th className="p-2">ارزش معاملات</th>
                     </tr>
@@ -400,16 +452,23 @@ export default function SilverMarketPage() {
                   <tbody>
                     {fundsQ.data.map((f) => {
                       const price = f.price_last ?? 0;
-                      const nav = f.nav ?? 0;
-                      const bubble = nav > 0 ? (price / nav - 1) * 100 : 0;
+                      const navRow = f.symbol ? navBySymbol.get(f.symbol) : undefined;
+                      const navIssue = navRow?.nav_issue ?? f.nav ?? 0;
+                      const navRedemption = navRow?.nav_redemption ?? f.nav ?? 0;
+                      // §۶: مرجع حباب NAV ابطال است؛ حباب صدور جدا نشان داده می‌شود تا
+                      // قاطی نشود. نبودِ داده ⇒ «—» نه صفر.
+                      const bubbleRedemption = navRedemption > 0 ? (price / navRedemption - 1) * 100 : null;
+                      const bubbleIssue = navIssue > 0 ? (price / navIssue - 1) * 100 : null;
                       const navCh = f.nav_change_pct ?? f.change_percent ?? 0;
                       return (
                         <tr key={f.symbol} className="border-t border-line">
                           <td className="p-2 font-bold text-ink-2">{f.name}</td>
                           <td className="p-2 font-mono">{f.symbol}</td>
                           <td className="p-2 font-mono">{fa(price)}</td>
-                          <td className="p-2 font-mono">{fa(nav)}</td>
-                          <td className={`p-2 font-mono font-bold ${bubble >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(bubble)}</td>
+                          <td className="p-2 font-mono">{fa(navIssue)}</td>
+                          <td className="p-2 font-mono">{fa(navRedemption)}</td>
+                          <td className={`p-2 font-mono font-bold ${(bubbleRedemption ?? 0) >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(bubbleRedemption)}</td>
+                          <td className={`p-2 font-mono ${(bubbleIssue ?? 0) >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(bubbleIssue)}</td>
                           <td className={`p-2 font-mono ${navCh >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(navCh)}</td>
                           <td className="p-2 font-mono">{fmtTr(f.trade_value ?? f.base_volume)}</td>
                         </tr>

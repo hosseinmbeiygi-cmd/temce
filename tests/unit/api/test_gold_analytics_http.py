@@ -61,8 +61,9 @@ def test_coin_bubbles(client: TestClient) -> None:
             "coin_prices": {"emami": 500_000_000, "gerami": 60_000_000},
         },
     )
+    # STEP 6-FIX-2: emami intrinsic includes the unified 80,000 IRR fee.
     assert data["emami"]["intrinsic_value_irr"] == pytest.approx(
-        470_714_710.7878512, rel=1e-9
+        470_714_710.7878512 + 80_000.0, rel=1e-9
     )
     assert data["gerami"]["minting_fee_irr"] == pytest.approx(15_000)
     assert data["emami"]["bubble_pct"] > 0

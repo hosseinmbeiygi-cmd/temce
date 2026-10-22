@@ -372,8 +372,8 @@ class BacktestService:
         Load OHLCV data from database.
 
         Sources:
-        - "auto": try brsapi_historical_daily -> quotes -> generated
-        - "historical": brsapi_historical_daily only (multi-year daily)
+        - "auto": try adjusted_price_reader (adjusted) -> quotes -> generated
+        - "historical": adjusted_price_reader only (multi-year daily, corporate-action adjusted)
         - "quotes": quotes table only (imported from CSV/JSON)
         - "intraday": aggregate brsapi_intraday_trades to daily OHLCV
         """
@@ -391,26 +391,18 @@ class BacktestService:
             jalali_end = jdatetime.date.fromgregorian(date=end).strftime("%Y-%m-%d")
 
             async with _db.async_session_factory() as session:
-                # Source: historical daily
+                # Source: historical daily - USE ADJUSTED PRICE READER
                 if source in ("auto", "historical"):
-                    result = await session.execute(
-                        text("""
-                            SELECT date, price_first, price_max, price_min, price_close,
-                                   trade_volume, trade_value
-                            FROM brsapi_historical_daily
-                            WHERE symbol = :symbol
-                              AND date >= :start AND date <= :end
-                              AND price_close IS NOT NULL AND price_close > 0
-                            ORDER BY date ASC
-                        """),
-                        {"symbol": symbol, "start": jalali_start, "end": jalali_end},
+                    from services.adjusted_price_reader import load_daily_candles_range
+
+                    bars = await load_daily_candles_range(
+                        session, symbol, jalali_start, jalali_end, adjusted=True
                     )
-                    rows = result.fetchall()
-                    if rows:
-                        logger.info("Loaded %d bars from brsapi_historical_daily for %s", len(rows), symbol)
-                        bars = [self._row_to_ohlcv(r) for r in rows]
+                    if bars:
+                        logger.info("Loaded %d adjusted bars from adjusted_price_reader for %s", len(bars), symbol)
                         for b in bars:
                             b["instrument_id"] = symbol
+                            b["timestamp"] = b["date"] + "T09:00:00"
                         return bars
 
                 # Source: quotes table

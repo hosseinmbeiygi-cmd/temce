@@ -1,15 +1,72 @@
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated, Any
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# Anchor the env file to the repository, not the process CWD: services started
+# from a different directory (tests, scripts, Docker WORKDIR) must still read
+# the same repository `.env` without callers pre-processing it.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_ENV_FILE = _REPO_ROOT / ".env"
+
+
+def _strip_inline_comment(value: str) -> str:
+    """Strip an unquoted trailing ``# comment`` (quotes protect ``#``)."""
+    quote: str | None = None
+    escaped = False
+    for index, char in enumerate(value):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if quote is not None:
+            if char == quote:
+                quote = None
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            continue
+        if char == "#" and (index == 0 or value[index - 1].isspace()):
+            return value[:index]
+    return value
+
+
+def _parse_origin_list(value: Any) -> Any:
+    """Parse ``["a", "b"]``, ``'["a"]'`` or ``a, b`` into a list of strings.
+
+    ``python-dotenv`` strips comments for ordinary values, but a value passed
+    programmatically (or a quoted scalar) may still carry one; handle both.
+    """
+    if not isinstance(value, str):
+        return value
+    raw = _strip_inline_comment(value).strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
+        raw = raw[1:-1].strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"CORS_ORIGINS is not a valid JSON list: {raw!r}"
+            ) from exc
+        if not isinstance(parsed, list):
+            raise ValueError(f"CORS_ORIGINS must be a list, got {type(parsed).__name__}")
+        return [str(item).strip() for item in parsed if str(item).strip()]
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
         populate_by_name=True,
@@ -54,9 +111,16 @@ class Settings(BaseSettings):
     screener_v2_rate_max: int = Field(default=30, ge=1)
     # Safe-by-default: restricted to the documented local dev origin.
     # Set CORS_ORIGINS explicitly for other origins (e.g. ["https://yourdomain.com"]).
-    cors_origins: list[str] = Field(default=["http://localhost:3000"], alias="CORS_ORIGINS")
+    # ``NoDecode`` keeps the raw string so the validator can accept a JSON
+    # list, a single quoted origin, or a comma-separated list.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default=["http://localhost:3000"], alias="CORS_ORIGINS"
+    )
 
     secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
+    # Explicit, auditable auth bypass (API-008). Never inferred from ENV.
+    auth_disabled: bool = Field(default=False, alias="AUTH_DISABLED")
+    default_currency: str = Field(default="TOMAN", alias="DEFAULT_CURRENCY")
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 30
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
@@ -159,6 +223,9 @@ class Settings(BaseSettings):
     codal_api_key: str = ""
     codal_excel_dir: str = Field(default="", alias="CODAL_EXCEL_DIR")
     fipiran_api_key: str = ""
+    # FRED (St. Louis Fed) key used by the gold macro sync/backfill. Read from
+    # the same repository `.env` as every other setting.
+    fred_api_key: str = Field(default="", alias="FRED_API_KEY")
 
     ml_model_dir: str = str(Path.cwd() / "data" / "models")
     ml_default_batch_size: int = 2048
@@ -282,6 +349,47 @@ class Settings(BaseSettings):
         default=True, alias="INDICATOR_ADJUSTED_PRICES"
     )
 
+    # ── Gold feature block (STEP 7B) ──────────────────────────────────────
+    # Forward-looking horizon (days) for ``gold_event_in_next_N_days``: how
+    # far ahead a *scheduled* high-volatility calendar event counts.  The
+    # schedule is known in advance (with provenance), so a forward window is
+    # not a look-ahead — but a row that was revealed or rescheduled after
+    # the feature's timestamp is refused.
+    gold_event_horizon_days: int = Field(
+        default=7, ge=0, le=60, alias="GOLD_EVENT_HORIZON_DAYS"
+    )
+    # Minimum observations before a rolling z-score is meaningful.  A short
+    # window produces a huge, unstable z-score; below this the feature is
+    # reported as missing instead of a fabricated number.
+    gold_bubble_min_observations: int = Field(
+        default=30, ge=2, le=10_000, alias="GOLD_BUBBLE_MIN_OBSERVATIONS"
+    )
+    # DTWEXBGS is a broad index (levels are not the classic DXY 95/105 scale),
+    # so its posture thresholds come from the stored history's percentiles.
+    gold_dxy_min_samples: int = Field(
+        default=30, ge=2, le=10_000, alias="GOLD_DXY_MIN_SAMPLES"
+    )
+    gold_dxy_percentile_low: float = Field(
+        default=20.0, gt=0, lt=100, alias="GOLD_DXY_PERCENTILE_LOW"
+    )
+    gold_dxy_percentile_high: float = Field(
+        default=80.0, gt=0, le=100, alias="GOLD_DXY_PERCENTILE_HIGH"
+    )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def validate_cors_origins(cls, value: Any) -> Any:
+        return _parse_origin_list(value)
+
+    @model_validator(mode="after")
+    def validate_dxy_percentiles(self) -> Settings:
+        if self.gold_dxy_percentile_low >= self.gold_dxy_percentile_high:
+            raise ValueError(
+                "GOLD_DXY_PERCENTILE_LOW must be lower than "
+                "GOLD_DXY_PERCENTILE_HIGH"
+            )
+        return self
+
     @field_validator("ml_device")
     @classmethod
     def validate_ml_device(cls, value: str) -> str:
@@ -324,11 +432,15 @@ class Settings(BaseSettings):
         return self.environment == "development"
 
     def validate_production(self) -> None:
-        if not self.is_production:
+        # Staging is reachable from the network too; it must not run with the
+        # insecure development defaults (audit CFG-02 / SEC-05).
+        if self.environment not in {"production", "staging"}:
             return
         errors: list[str] = []
         if not self.secret_key.strip() or self.secret_key == "change-me-in-production":
             errors.append("SECRET_KEY must be changed from default in production")
+        if self.auth_disabled:
+            errors.append("AUTH_DISABLED must be false in production/staging")
         if self.cors_origins == ["*"]:
             errors.append("CORS_ORIGINS must be restricted in production")
         if self.database_url.startswith("sqlite"):

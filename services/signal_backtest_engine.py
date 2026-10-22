@@ -21,11 +21,8 @@ from core.db_utils import safe_row_str
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
 from domain.trading.iran_costs import (
-    BROKER_PCT,
-    CLEARING_FEE_PCT,
     OPTION_BUY_PCT,
     OPTION_SELL_PCT,
-    SELL_TAX_PCT,
 )
 from services.signal_accuracy_tracker import SignalAccuracyTracker
 
@@ -169,7 +166,7 @@ class SignalBacktestEngine:
             from core.database import async_session_factory
 
             if async_session_factory is None:
-                return Result.err("No database session available")
+                return Result.fail("No database session available")
 
             async with async_session_factory() as session:
                 outcomes: list[BacktestedSignal] = []
@@ -275,7 +272,7 @@ class SignalBacktestEngine:
 
         except Exception as e:
             logger.error("Signal backtest failed: %s", e, exc_info=True)
-            return Result.err(str(e))
+            return Result.fail(str(e))
 
     async def _fetch_future_prices(
         self,

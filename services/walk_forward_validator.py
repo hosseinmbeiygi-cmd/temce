@@ -125,7 +125,7 @@ class WalkForwardValidator:
         try:
             n = len(feature_sequence)
             if n < 100:
-                return Result.err(f"Not enough data: need at least 100 samples, got {n}")
+                return Result.fail(f"Not enough data: need at least 100 samples, got {n}")
 
             window_size = n // num_windows
             train_size = int(window_size * train_ratio)
@@ -205,7 +205,7 @@ class WalkForwardValidator:
                     continue
 
             if not windows:
-                return Result.err("No windows completed successfully")
+                return Result.fail("No windows completed successfully")
 
             # Aggregate
             result = WalkForwardResult(
@@ -272,7 +272,7 @@ class WalkForwardValidator:
 
         except Exception as e:
             logger.error("Walk-forward validation failed: %s", e, exc_info=True)
-            return Result.err(str(e))
+            return Result.fail(str(e))
 
     async def validate_multiple_models(
         self,

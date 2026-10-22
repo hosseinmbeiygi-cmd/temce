@@ -183,14 +183,75 @@ async def load_daily_candles(
     return build_candles(rows)
 
 
+async def load_daily_candles_range(
+    session: AsyncSession,
+    symbol: str,
+    start: str,
+    end: str,
+    *,
+    adjusted: bool | None = None,
+) -> list[dict[str, Any]]:
+    """OHLCV candles for one symbol over a date range, corporate-action adjusted by default.
+
+    Args:
+        session: Async DB session
+        symbol: Symbol/ticker to load
+        start: Start date (inclusive) as 'YYYY-MM-DD'
+        end: End date (inclusive) as 'YYYY-MM-DD'
+        adjusted: Override the adjustment dial. None = use dial.
+
+    Returns:
+        List of candle dicts with keys: date, date_shamsi, open, high, low, close, volume, value
+    """
+    if adjusted is None:
+        source, use_adjusted = await resolve_price_source(session)
+    else:
+        use_adjusted = bool(adjusted)
+        source = ADJUSTED_VIEW if use_adjusted else RAW_SOURCE
+
+    sql = build_range_query(source, use_adjusted)
+    rows = (await session.execute(text(sql), {"sym": symbol, "start": start, "end": end})).fetchall()
+    return build_candles(rows)
+
+
+def build_range_query(source: str, adjusted: bool) -> str:
+    """Render the candle SQL for a source (view/table) and adjustment mode with date range."""
+    if adjusted and source == ADJUSTED_VIEW:
+        return """
+        SELECT d.trade_date, d.trade_date_shamsi,
+               d.price_first_adj, d.price_max_adj, d.price_min_adj, d.price_last_adj,
+               d.trade_volume, d.trade_value
+        FROM vw_daily_history_adjusted d
+        WHERE d.symbol = :sym
+          AND d.price_last IS NOT NULL
+          AND d.trade_date_shamsi IS NOT NULL
+          AND d.trade_date >= :start AND d.trade_date <= :end
+        ORDER BY d.trade_date ASC
+        """
+    elif not adjusted and source == RAW_SOURCE:
+        return """
+        SELECT d.trade_date, NULL AS trade_date_shamsi,
+               d.price_first, d.price_max, d.price_min, d.price_last,
+               d.trade_volume, d.trade_value
+        FROM daily_history d
+        WHERE d.symbol = :sym AND d.price_last IS NOT NULL
+          AND d.trade_date >= :start AND d.trade_date <= :end
+        ORDER BY d.trade_date ASC
+        """
+    else:
+        raise ValueError(f"no candle query for source={source!r} adjusted={adjusted}")
+
+
 __all__ = [
     "ADJUSTED_VIEW",
     "RAW_SOURCE",
     "adjusted_view_available",
     "adjustment_enabled",
     "build_candle_query",
+    "build_range_query",
     "build_candles",
     "load_daily_candles",
+    "load_daily_candles_range",
     "reset_adjusted_source_cache",
     "resolve_price_source",
 ]

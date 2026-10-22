@@ -160,6 +160,101 @@ async def test_sync_fred_provider_error_recorded() -> None:
 
 
 @pytest.mark.asyncio
+async def test_backfill_fred_indicators_iterates_the_full_window() -> None:
+    """The one-shot backfill fetches every observation in the window."""
+    session = _make_session()
+    fred = MagicMock()
+    fred.fetch_range.side_effect = lambda series_id, **_: {
+        "DFII10": [
+            _obs("DFII10", "2024-10-21", 1.1),
+            _obs("DFII10", "2024-10-22", 1.2),
+        ],
+        "DTWEXBGS": [
+            _obs("DTWEXBGS", "2024-10-21", 101.0),
+            _obs("DTWEXBGS", "2024-10-22", 101.5),
+        ],
+    }[series_id]
+    service = MacroSyncService(session, fred_provider=fred)
+    result = await service.backfill_fred_indicators(
+        observation_start="2024-10-21"
+    )
+
+    assert result.ok
+    assert result.upserted == 4
+    assert result.skipped == 0
+    assert result.job_type == "fred_macro_backfill"
+    # One range request per series, bounded by the requested start date.
+    assert fred.fetch_range.call_count == 2
+    for call in fred.fetch_range.call_args_list:
+        assert call.kwargs["observation_start"] == "2024-10-21"
+    session.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_backfill_fred_is_idempotent() -> None:
+    """Re-running the backfill skips every already-stored observation."""
+    existing = MagicMock()
+    session = _make_session()
+    session.execute = AsyncMock(
+        return_value=MagicMock(
+            scalars=MagicMock(
+                return_value=MagicMock(first=MagicMock(return_value=existing))
+            )
+        )
+    )
+    fred = MagicMock()
+    fred.fetch_range.side_effect = lambda series_id, **_: [
+        _obs(series_id, "2024-10-21", 1.1 if series_id == "DFII10" else 101.0)
+    ]
+    service = MacroSyncService(session, fred_provider=fred)
+    result = await service.backfill_fred_indicators(
+        observation_start="2024-10-21"
+    )
+
+    assert result.ok
+    assert result.upserted == 0
+    assert result.skipped == 2
+    session.add.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_backfill_fred_provider_error_recorded() -> None:
+    session = _make_session()
+    fred = MagicMock()
+    fred.fetch_range.side_effect = RuntimeError("FRED down")
+    service = MacroSyncService(
+        session, fred_provider=fred, retry_attempts=1, retry_base_delay=0.0
+    )
+    result = await service.backfill_fred_indicators(
+        observation_start="2024-10-21"
+    )
+
+    assert not result.ok
+    assert "FRED down" in result.errors[0]
+
+
+def test_indicator_summary_reports_count_min_max_and_percentiles() -> None:
+    from services.gold.macro_sync import summarize_indicator_values
+
+    summary = summarize_indicator_values(
+        [100.0, 101.0, 102.0, 103.0, 104.0]
+    )
+
+    assert summary["count"] == 5
+    assert summary["min"] == 100.0
+    assert summary["max"] == 104.0
+    assert summary["p20"] == pytest.approx(100.8)
+    assert summary["p80"] == pytest.approx(103.2)
+    assert summary["p50"] == pytest.approx(102.0)
+
+    empty = summarize_indicator_values([])
+    assert empty["count"] == 0
+    assert empty["min"] is None
+    assert empty["max"] is None
+    assert empty["p20"] is None
+
+
+@pytest.mark.asyncio
 async def test_sync_cftc_upserts_with_percentile() -> None:
     session = _make_session()
     cftc = MagicMock()

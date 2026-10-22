@@ -1,11 +1,11 @@
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --user -r requirements.lock
 
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
 RUN apt-get update && apt-get install -y --no-install-recommends libpq5 && rm -rf /var/lib/apt/lists/* \
     && addgroup --system app && adduser --system --ingroup app --home /app --disabled-password app
@@ -15,7 +15,41 @@ WORKDIR /app
 COPY --from=builder /root/.local /home/app/.local
 ENV PATH=/home/app/.local/bin:$PATH
 
-COPY --chown=app:app . .
+# App code is copied explicitly (never `COPY . .`), so tests, local databases
+# and other dev artifacts cannot leak into the runtime image.
+COPY --chown=app:app pyproject.toml alembic.ini ./
+COPY --chown=app:app json/*.json ./json/
+COPY --chown=app:app api/ ./api/
+COPY --chown=app:app apps/ ./apps/
+COPY --chown=app:app backtesting/ ./backtesting/
+COPY --chown=app:app brsapi/ ./brsapi/
+COPY --chown=app:app bulk_importer/ ./bulk_importer/
+COPY --chown=app:app config/ ./config/
+COPY --chown=app:app contracts/ ./contracts/
+COPY --chown=app:app core/ ./core/
+COPY --chown=app:app domain/ ./domain/
+COPY --chown=app:app ingestion/ ./ingestion/
+COPY --chown=app:app integrations/ ./integrations/
+COPY --chown=app:app jobs/ ./jobs/
+COPY --chown=app:app migrations/ ./migrations/
+COPY --chown=app:app ml/ ./ml/
+COPY --chown=app:app models/ ./models/
+COPY --chown=app:app monitoring/ ./monitoring/
+COPY --chown=app:app orchestration/ ./orchestration/
+COPY --chown=app:app precompute/ ./precompute/
+COPY --chown=app:app providers/ ./providers/
+COPY --chown=app:app reports/__init__.py ./reports/
+COPY --chown=app:app reports/builders/ ./reports/builders/
+COPY --chown=app:app reports/exporters/ ./reports/exporters/
+COPY --chown=app:app reports/templates/ ./reports/templates/
+COPY --chown=app:app repositories/ ./repositories/
+COPY --chown=app:app schemas/ ./schemas/
+COPY --chown=app:app scripts/ ./scripts/
+COPY --chown=app:app services/ ./services/
+COPY --chown=app:app src/ ./src/
+COPY --chown=app:app storage/ ./storage/
+COPY --chown=app:app tabdeal/ ./tabdeal/
+COPY --chown=app:app *.py ./
 
 EXPOSE 8001
 

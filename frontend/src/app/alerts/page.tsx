@@ -210,12 +210,29 @@ export default function AlertsPage() {
               <div key={alert.id} className="glass-card p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <button onClick={() => toggleAlert(alert)} className={`w-10 h-6 rounded-full transition relative ${alert.enabled ? "bg-emerald-600" : "bg-surface-700"}`}>
-                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition ${alert.enabled ? "left-0.5" : "right-0.5"}`} />
+                    {/* سوییچ با برچسب عملیاتی: هم نام قابل‌خواندن برای صفحه‌خوان دارد و
+                        هم کاربر می‌داند کلیک چه کاری انجام می‌دهد. */}
+                    <button
+                      type="button"
+                      onClick={() => toggleAlert(alert)}
+                      aria-label={alert.enabled ? "غیرفعال کردن" : "فعال کردن"}
+                      className="flex items-center gap-2"
+                    >
+                      <span className={`relative block h-6 w-10 rounded-full transition ${alert.enabled ? "bg-emerald-600" : "bg-surface-700"}`}>
+                        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${alert.enabled ? "left-0.5" : "right-0.5"}`} />
+                      </span>
+                      <span className="whitespace-nowrap text-xs text-gray-400">
+                        {alert.enabled ? "غیرفعال کردن" : "فعال کردن"}
+                      </span>
                     </button>
                     <div>
-                      <p className="font-medium">{alert.symbol} — {ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type}</p>
-                      <p className="text-xs text-gray-500">آستانه: {String(alert.condition?.threshold ?? "-")} | فعال‌سازی: {alert.triggered_count} بار</p>
+                      {/* نماد در عنصر خودش می‌نشیند تا مستقل از نوع هشدار قابل‌خواندن باشد. */}
+                      <p className="font-medium">
+                        <span>{alert.symbol}</span>
+                        <span className="text-gray-400"> — {ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type}</span>
+                      </p>
+                      {/* \u200c نیم‌فاصلهٔ عمدی در «فعال‌شده» است. */}
+                      <p className="text-xs text-gray-500">آستانه: {String(alert.condition?.threshold ?? "-")} | {alert.triggered_count}{" بار فعال\u200cشده"}</p>
                       {(alert.market || alert.timeframe || alert.signal_id) && (
                         <p className="text-[10px] text-primary-300/80 mt-0.5">
                           {[alert.market, alert.timeframe, alert.signal_id ? `سیگنال ${alert.signal_id.slice(0, 8)}` : ""].filter(Boolean).join(" • ")}

@@ -20,6 +20,89 @@ async_session_factory: async_sessionmaker[AsyncSession] | None = None
 replica_engine: Any = None
 replica_session_factory: async_sessionmaker[AsyncSession] | None = None
 
+# Marker set on the ``Session.info`` of replica-backed sessions.
+READONLY_FLAG = "_readonly"
+
+_READONLY_MESSAGE = (
+    "write attempted on a read-only (replica) session — route writes to the primary session"
+)
+
+# First keyword of a raw SQL string that means "this mutates data".
+_WRITE_KEYWORDS = frozenset(
+    {
+        "insert",
+        "update",
+        "delete",
+        "merge",
+        "replace",
+        "upsert",
+        "truncate",
+        "alter",
+        "create",
+        "drop",
+        "grant",
+        "revoke",
+        "comment",
+        "copy",
+        "refresh",
+    }
+)
+
+
+def _statement_is_write(statement: Any) -> bool:
+    """True when a statement handed to ``Session.execute`` mutates data.
+
+    ORM statements carry ``is_insert``/``is_update``/``is_delete`` flags, but a
+    Core ``text()`` statement reaches the ORM executor with every flag set to
+    ``False``, so the rendered SQL has to be inspected as well.
+    """
+    if getattr(statement, "is_insert", False):
+        return True
+    if getattr(statement, "is_update", False):
+        return True
+    if getattr(statement, "is_delete", False):
+        return True
+
+    if isinstance(statement, str):
+        sql = statement
+    else:
+        try:
+            sql = str(statement)
+        except Exception:  # noqa: BLE001 — an unrenderable statement is not a write
+            return False
+    head = sql.lstrip().split(None, 1)[0].lower() if sql.strip() else ""
+    return head in _WRITE_KEYWORDS
+
+
+def _install_readonly_session_guard() -> None:
+    """Refuse writes on sessions marked with ``READONLY_FLAG`` (CFG-05).
+
+    A read replica that silently accepts a write is worse than no replica at
+    all: the change either fails inside the replica or is discarded later,
+    while the caller has already been told it succeeded. Attaching the guard to
+    the ``Session`` class means every session created after this import is
+    covered, including ones built directly by background jobs.
+    """
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+
+    @event.listens_for(Session, "before_flush")
+    def _block_flush(session: Any, _flush_context: Any, _instances: Any) -> None:
+        if not session.info.get(READONLY_FLAG):
+            return
+        if session.new or session.dirty or session.deleted:
+            raise RuntimeError(_READONLY_MESSAGE)
+
+    @event.listens_for(Session, "do_orm_execute")
+    def _block_raw_write(state: Any) -> None:
+        if not state.session.info.get(READONLY_FLAG):
+            return
+        if _statement_is_write(state.statement):
+            raise RuntimeError(_READONLY_MESSAGE)
+
+
+_install_readonly_session_guard()
+
 
 def _get_pool_config(url: str | None = None) -> dict[str, Any]:
     use_url = url or settings.database_url
@@ -141,6 +224,10 @@ async def get_replica_session() -> AsyncGenerator[AsyncSession, None]:
     if factory is None:
         raise RuntimeError("Database not initialized")
     async with factory() as session:
+        # Marked so the session-level guard rejects any write that reaches this
+        # session — a read handler must never mutate data, and silently
+        # discarding the write would be the worst possible outcome.
+        session.info[READONLY_FLAG] = True
         yield session
 
 

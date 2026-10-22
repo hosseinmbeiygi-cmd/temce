@@ -9,15 +9,28 @@
 
 from __future__ import annotations
 
-from .constants import (
-    COIN_MINTING_COSTS,
-    COIN_WEIGHTS,
-    GOLD_PURITY_18K,
-    GOLD_PURITY_24K,
-    GOLD_PURITY_COIN,
-    MINTING_COST_TOMAN,
-    TROY_OUNCE_GRAMS,
-)
+try:
+    from services.gold.constants import (
+        COIN_MINTING_COSTS,
+        COIN_WEIGHTS,
+        GOLD_PURITY_18K,
+        GOLD_PURITY_24K,
+        GOLD_PURITY_COIN,
+        MESGHAL_GRAMS,
+        MINTING_COST_TOMAN,
+        TROY_OUNCE_GRAMS,
+    )
+except Exception:
+    from .constants import (
+        COIN_MINTING_COSTS,
+        COIN_WEIGHTS,
+        GOLD_PURITY_18K,
+        GOLD_PURITY_24K,
+        GOLD_PURITY_COIN,
+        MESGHAL_GRAMS,
+        MINTING_COST_TOMAN,
+        TROY_OUNCE_GRAMS,
+    )
 
 
 def base_24k_per_gram(xau_usd: float, usd_irt: float) -> float:
@@ -65,8 +78,14 @@ def fair_value(symbol: str, xau_usd: float, usd_irt: float) -> float:
     symbol: IR_GOLD_18K | IR_GOLD_24K | IR_GOLD_1G | IR_GOLD_MELTED
             | IR_COIN_EMAMI | IR_COIN_BAHAR | IR_COIN_HALF
             | IR_COIN_QUARTER | IR_COIN_1G | IR_COIN_GERAMI
+
+    توجه: بازار «طلای آب‌شده» (IR_GOLD_MELTED) را **مثقالی** قیمت می‌زند، پس
+    ارزش ذاتی آن هم باید مثقالی باشد؛ پیش‌تر یک گرم ۱۸ عیار برگردانده می‌شد و
+    حباب +۳۱۲٪ تولید می‌کرد (GS-05).
     """
-    if symbol in ("IR_GOLD_18K", "IR_GOLD_MELTED"):
+    if symbol == "IR_GOLD_MELTED":
+        return MESGHAL_GRAMS * fair_gold_18k(xau_usd, usd_irt)
+    if symbol == "IR_GOLD_18K":
         return fair_gold_18k(xau_usd, usd_irt)
     if symbol in ("IR_GOLD_24K", "IR_GOLD_1G"):
         return fair_gold_24k(xau_usd, usd_irt)
@@ -76,8 +95,10 @@ def fair_value(symbol: str, xau_usd: float, usd_irt: float) -> float:
 
 
 def fair_gram_weight(symbol: str) -> float:
-    """وزن طلای خالص (برای implied USD)."""
-    if symbol in ("IR_GOLD_18K", "IR_GOLD_MELTED"):
+    """وزن طلای خالص یک واحد نقل‌شده (برای implied USD)."""
+    if symbol == "IR_GOLD_MELTED":
+        return MESGHAL_GRAMS * (GOLD_PURITY_18K / GOLD_PURITY_24K)
+    if symbol == "IR_GOLD_18K":
         return 1.0 * (GOLD_PURITY_18K / GOLD_PURITY_24K)
     if symbol in ("IR_GOLD_24K", "IR_GOLD_1G"):
         return 1.0

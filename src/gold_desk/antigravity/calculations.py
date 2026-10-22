@@ -1,11 +1,18 @@
 """موتور محاسباتی Antigravity — پیاده‌سازی دقیق فرمول‌های پرامپت جامع.
 
-همه ضرایب مطابق spec: وزن 8.133g، عیار 0.915، اونس 31.1035g
+محاسبهٔ ارزش ذاتی سکه و آستانه‌های P/NAV از SSOT واحد (``..pricer`` و
+``..constants``) می‌آید تا با GoldDesk هم‌خوان باشد (GS-12، GS-14).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from ..constants import (
+    NAV_PREMIUM_BUY_BELOW,
+    NAV_PREMIUM_SELL_ABOVE,
+)
+from ..pricer import fair_coin
 
 # ── 1. NAV Premium/Discount ───────────────────────────────────────
 
@@ -23,10 +30,10 @@ def calculate_nav_premium(market_price: float, nav: float) -> NavPremiumResult:
         raise ValueError(f"NAV must be >0, got {nav}")
     premium_pct = ((market_price - nav) / nav) * 100
 
-    if premium_pct > 2:
+    if premium_pct > NAV_PREMIUM_SELL_ABOVE:
         signal = "SELL"
         reason = f"صندوق {premium_pct:.2f}% بیش از NAV معامله می‌شود (اشباع خرید)"
-    elif premium_pct < -1:
+    elif premium_pct < NAV_PREMIUM_BUY_BELOW:
         signal = "BUY"
         reason = f"صندوق {abs(premium_pct):.2f}% زیر NAV معامله می‌شود (فرصت خرید)"
     else:
@@ -48,20 +55,18 @@ class CoinBubbleResult:
     reason: str
 
 
-# ثابت‌های spec
-_TROY_OZ_GRAMS: float = 31.1035
-_COIN_WEIGHT_GRAMS: float = 8.133
-_COIN_PURITY: float = 0.915
-
-
 def calculate_coin_bubble(
     coin_price_irr: float,
     gold_oz_usd: float,
     usd_rate: float,
 ) -> CoinBubbleResult:
-    """محاسبه حباب/دیسکانت سکه — دقیقاً فرمول spec."""
-    coin_gold_weight_oz = _COIN_WEIGHT_GRAMS / _TROY_OZ_GRAMS
-    coin_intrinsic = gold_oz_usd * coin_gold_weight_oz * _COIN_PURITY * usd_rate
+    """محاسبه حباب/دیسکانت سکه.
+
+    ارزش ذاتی از ``pricer.fair_coin`` (عیار ۹۰۰ + کارمزد ضرابخانهٔ جداگانه) گرفته
+    می‌شود؛ پیش‌تر این ماژول عیار را ۰.۹۱۵ می‌گرفت و برای یک قیمت، حباب ۳.۳٪
+    گزارش می‌کرد در حالی که GoldDesk ۵.۰٪ می‌داد (GS-12).
+    """
+    coin_intrinsic = fair_coin("IR_COIN_EMAMI", gold_oz_usd, usd_rate)
     bubble_pct = ((coin_price_irr - coin_intrinsic) / coin_intrinsic) * 100 if coin_intrinsic > 0 else 0.0
 
     if bubble_pct > 5:

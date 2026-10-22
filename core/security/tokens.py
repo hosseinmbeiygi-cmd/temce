@@ -65,8 +65,16 @@ async def is_token_revoked(jti: str | None) -> bool:
     """Return True if the access token with this jti has been revoked.
 
     Uses Redis when available; in-memory blacklist is not supported, so a
-    missing jti or unavailable Redis means "not revoked" (safe default —
-    tokens only get revoked when Redis was reachable at logout time).
+    missing jti or unavailable Redis means "not revoked".
+
+    Security note (fail-open, deliberate): this is an availability-first
+    choice. When Redis is down — or the cache circuit breaker is open, or the
+    client belongs to a closed event loop and was detached — revocation checks
+    are skipped and a revoked token stays usable until it expires
+    (``access_token_expire_minutes``, 60 by default). The alternative
+    (fail-closed) would lock every user out during a Redis outage. Keep the
+    access-token TTL short if that window matters, and treat Redis as part of
+    the auth path's availability budget.
     """
     if not jti:
         return False

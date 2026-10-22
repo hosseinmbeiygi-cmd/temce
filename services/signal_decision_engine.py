@@ -12,6 +12,7 @@ Gates (in order):
   5. Consensus Gate        — do ensemble models agree on the direction?
   6. Liquidity Gate        — can this signal be filled without excessive slippage?
   7. Risk/Reward Gate      — is the reward/risk ratio above minimum?
+  7b. Net-Profit Gate      — does the target clear the §۲۶ net-profit floor?
   8. Expectancy Gate       — is the net expected value positive after costs?
   9. Portfolio Gate        — does this signal respect portfolio risk limits?
   10. Execution Gate       — can the signal be executed in the current market?
@@ -42,6 +43,18 @@ from services.decision_gate import GateOverride, SmartDecisionGate
 _cached_regime_data: dict[str, dict[str, Any]] = {}
 
 logger = get_logger(__name__)
+
+
+def _value_filter() -> dict[str, Any]:
+    """§۲۶ — آستانه‌های فیلتر ارزش معامله از ``acceptance.yaml`` (منبع واحد).
+
+    عمداً هیچ عدد پیش‌فرضی در این ماژول نیست: صفحه‌های طلا و نقره و همین گیت
+    باید یک عدد را نشان دهند. پیکربندی معیوب بی‌صدا عبور نمی‌کند و با خطای
+    صریح شکست می‌خورد (هم‌راستا با بند §۱۳ سند).
+    """
+    from core.config.acceptance_loader import get_signal_filter
+
+    return get_signal_filter()
 
 
 # ── Enums & Data Structures ──────────────────────────────────────────────────
@@ -460,6 +473,9 @@ class SignalDecisionEngine:
         # ── Gate 7: Risk/Reward ─────────────────────────────────────────────
         gate_results.append(await self._gate_risk_reward(candidate, market))
 
+        # ── Gate 7b: §۲۶ net-profit floor ────────────────────────────────────
+        gate_results.append(await self._gate_net_profit(candidate, market))
+
         # ── Gate 8: Expectancy ──────────────────────────────────────────────
         gate_results.append(await self._gate_expectancy(candidate, market))
 
@@ -820,10 +836,16 @@ class SignalDecisionEngine:
         )
 
     async def _gate_risk_reward(self, candidate: SignalCandidate, market: str) -> GateResult:
-        """Gate 7: Risk/Reward — is the reward/risk ratio acceptable?"""
+        """Gate 7: Risk/Reward — is the reward/risk ratio acceptable?
+
+        کف نسبت از ``acceptance.yaml`` (‏§۲۶ سند: «حداقل ۲ به ۱») می‌آید. پالیسی
+        هر بازار فقط می‌تواند سخت‌گیرتر کند، نه آسان‌تر — چون سند می‌گوید این
+        فیلتر در **همهٔ بازارها** اعمال می‌شود (§۲۸.۱).
+        """
         cfg = self._policy.get_gate_config("risk_reward", market)
-        min_trade = cfg.get("minimum_trade", 1.0)
-        min_watchlist = cfg.get("minimum_watchlist", 0.5)
+        floor = float(_value_filter()["min_risk_reward"])
+        min_trade = max(float(cfg.get("minimum_trade", 1.0)), floor)
+        min_watchlist = max(float(cfg.get("minimum_watchlist", 0.5)), floor)
 
         rr = candidate.risk_reward
 
@@ -851,6 +873,48 @@ class SignalDecisionEngine:
             score=min(1.0, rr / 3.0),
             reason=f"نسبت ریسک/پاداش مطلوب: {rr:.2f}",
             details={"risk_reward": rr},
+        )
+
+    async def _gate_net_profit(self, candidate: SignalCandidate, market: str) -> GateResult:
+        """§۲۶ — سود خالص هدف باید از حداقل سند کمتر نباشد.
+
+        ``target_pct`` و ``stop_loss_pct`` کسرند (۰٫۰۵ = ۵٪). هزینهٔ رفت‌وبرگشت از
+        همان پیکربندی گیت امید ریاضی خوانده می‌شود تا دو منبع هزینه نداشته باشیم؛
+        وقتی جدول تعرفهٔ §۲۷.۱ به این مسیر وصل شود، فقط همین یک محل عوض می‌شود.
+        """
+        required_pct = float(_value_filter()["min_net_profit_pct"])
+        costs_pct = float(
+            self._policy.get_gate_config("expectancy", market).get("costs_pct", 0.003)
+        )
+        net_profit_pct = (candidate.target_pct - costs_pct) * 100
+
+        if net_profit_pct < required_pct:
+            return GateResult(
+                gate_name="net_profit",
+                verdict=GateVerdict.BLOCK,
+                score=0.0,
+                reason=(
+                    f"سود خالص هدف {net_profit_pct:.2f}٪ کمتر از حداقل {required_pct:.2f}٪ است (§۲۶)"
+                ),
+                details={
+                    "net_profit_pct": round(net_profit_pct, 4),
+                    "target_pct": candidate.target_pct,
+                    "costs_pct": costs_pct,
+                    "min_net_profit_pct": required_pct,
+                },
+            )
+
+        return GateResult(
+            gate_name="net_profit",
+            verdict=GateVerdict.PASS,
+            score=min(1.0, net_profit_pct / (required_pct * 2)) if required_pct > 0 else 1.0,
+            reason=(
+                f"سود خالص هدف {net_profit_pct:.2f}٪ از حداقل {required_pct:.2f}٪ عبور کرد (§۲۶)"
+            ),
+            details={
+                "net_profit_pct": round(net_profit_pct, 4),
+                "min_net_profit_pct": required_pct,
+            },
         )
 
     async def _gate_expectancy(self, candidate: SignalCandidate, market: str) -> GateResult:
@@ -1081,11 +1145,15 @@ class SignalDecisionEngine:
             return "A+"
 
         # A
+        # درجهٔ A/B هم باید سیگنالِ قابل‌انتشار باشد: بدون این شرط، یک کاندید که
+        # گیت §۲۶ آن را BLOCK کرده (پس verdict=REJECT) می‌توانست برچسب «A» بگیرد،
+        # چون warning_count() فقط WARNها را می‌شمارد.
         a_grade = grades.get("a", {})
         if (prob >= a_grade.get("min_probability", 0.65)
                 and rr >= a_grade.get("min_rr", 1.5)
                 and net_exp >= a_grade.get("min_expectancy", 0.12)
-                and warnings <= a_grade.get("max_warnings", 1)):
+                and warnings <= a_grade.get("max_warnings", 1)
+                and decision.is_releasable()):
             return "A"
 
         # B
@@ -1093,7 +1161,8 @@ class SignalDecisionEngine:
         if (prob >= b_grade.get("min_probability", 0.60)
                 and rr >= b_grade.get("min_rr", 1.0)
                 and net_exp >= b_grade.get("min_expectancy", 0.05)
-                and warnings <= b_grade.get("max_warnings", 2)):
+                and warnings <= b_grade.get("max_warnings", 2)
+                and decision.is_releasable()):
             return "B"
 
         # Watchlist / Reject

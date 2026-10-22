@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -194,6 +195,26 @@ class GoldTradeModel(GoldDeskBase):
     traded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
+class GoldPortfolioValueModel(GoldDeskBase):
+    """ارزش روزانهٔ پرتفوی — یک ردیف برای هر روز (کلید = as_of).
+
+    ستون ``net_flow_irt`` جریان نقدی بیرونی همان روز است (واریز مثبت، برداشت
+    منفی) و به TWR اجازه می‌دهد مستقل از زمان‌بندی واریز/برداشت زنجیره شود.
+    """
+
+    __tablename__ = "gold_portfolio_values"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    as_of: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
+    total_value_irt: Mapped[float] = mapped_column(Float, nullable=False)
+    total_cost_irt: Mapped[float] = mapped_column(Float, default=0.0)
+    net_flow_irt: Mapped[float] = mapped_column(Float, default=0.0)
+    unpriced_holdings: Mapped[int] = mapped_column(Integer, default=0)
+    snapshot_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 # ── Helper: تشخیص اینکه آیا جداول در Base هستند (برای Alembic) ──
 __all__ = [
     "GoldDeskBase",
@@ -205,4 +226,5 @@ __all__ = [
     "GoldHoldingModel",
     "GoldDCAPlanModel",
     "GoldTradeModel",
+    "GoldPortfolioValueModel",
 ]

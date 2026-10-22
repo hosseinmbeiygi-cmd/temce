@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utc_now_naive
+from .dates import jalali_days_ago
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,8 @@ async def _daily_bubble_pct(session: AsyncSession, symbol: str, days: int) -> li
 
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        cutoff = (utc_now_naive() - timedelta(days=days + 60)).strftime("%Y-%m-%d")
+        # ستون date شمسی است؛ cutoff میلادی همیشه صفر ردیف مطابقت می‌داد (GS-03).
+        cutoff = jalali_days_ago(days + 60)
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(

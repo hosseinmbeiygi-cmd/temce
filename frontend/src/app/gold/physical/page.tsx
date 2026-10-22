@@ -8,9 +8,10 @@ import {
   getArbitrage,
   getGoldLivePrices,
   postCoinBubble,
-  type ArbitrageResp,
-  type CoinBubbleResp,
 } from "@/lib/goldApi";
+
+type ArbitrageResp = NonNullable<Awaited<ReturnType<typeof getArbitrage>>>;
+type CoinBubbleResp = Awaited<ReturnType<typeof postCoinBubble>>;
 
 const fmt = (n: number | null | undefined, digits = 0): string => {
   if (n === null || n === undefined) return "—";

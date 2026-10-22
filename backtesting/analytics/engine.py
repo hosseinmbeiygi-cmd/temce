@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from backtesting.metrics.trade_metrics import profit_factor
 from backtesting.types import BacktestResult
 
 
@@ -133,7 +134,7 @@ class AnalyticsEngine:
         ar.win_rate = (len(wins) / len(round_trip_pnls)) * 100
         ar.avg_win = sum(wins) / len(wins) if wins else 0.0
         ar.avg_loss = sum(losses) / len(losses) if losses else 0.0
-        ar.profit_factor = sum(wins) / max(abs(sum(losses)), 1.0)
+        ar.profit_factor = profit_factor(wins, losses)
 
     def _compute_turnover(self, ar: AnalyticsResult, navs: list[float], trades: list) -> None:
         if len(navs) > 1 and trades:

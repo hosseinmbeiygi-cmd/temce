@@ -32,9 +32,16 @@ def _coin(exposure_irr: float = 500_000_000) -> dict:
     }
 
 
-def test_risk_scenarios_are_public(app) -> None:
+def test_risk_scenarios_require_jwt(app) -> None:
+    """STEP 7D-1: everything under ``risk/*`` is JWT-gated by decision."""
     public_client = TestClient(app, raise_server_exceptions=False)
     response = public_client.get(f"{BASE}/risk/scenarios")
+
+    assert response.status_code == 401, response.text
+
+
+def test_risk_scenarios_catalogue_for_a_user(client: TestClient) -> None:
+    response = client.get(f"{BASE}/risk/scenarios")
 
     assert response.status_code == 200, response.text
     body = response.json()

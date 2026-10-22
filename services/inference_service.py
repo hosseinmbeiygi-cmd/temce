@@ -275,11 +275,14 @@ class InferenceService:
         """Load a model pipeline registered in ml_model_versions (DB).
 
         Returns (model, feature_names, from_path) or None when not found.
-        Handles both ``model_pipeline.pkl`` (new format) and ``model.pkl``.
+        Handles both ``model_pipeline.pkl`` (new format) and ``model.pkl``, and
+        both container formats the artifacts use — bare pickle and the
+        zlib-wrapped joblib dump the training toolchain writes (audit F-01).
         """
         import json as json_lib
-        import pickle
         from pathlib import Path
+
+        from ml.artifacts import load_artifact_file
 
         try:
             from sqlalchemy import select
@@ -309,8 +312,7 @@ class InferenceService:
                 return None
 
             def _read_pickle() -> Any:
-                with open(pipeline_file, "rb") as f:
-                    return pickle.load(f)
+                return load_artifact_file(pipeline_file)
 
             loaded = await asyncio.to_thread(_read_pickle)
 

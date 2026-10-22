@@ -606,6 +606,7 @@ class EventBacktestEngine:
                 bid_queue=bar.get("bid_queue", 0), ask_queue=bar.get("ask_queue", 0),
                 limit_up=bar.get("limit_up", bar.get("close", 0) * 1.05),
                 limit_down=bar.get("limit_down", bar.get("close", 0) * 0.95),
+                is_halted=bar.get("is_halted", False),
                 yesterday_close=bar.get("yesterday_close", bar.get("close", 0)),
             )
 

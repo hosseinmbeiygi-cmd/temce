@@ -62,6 +62,7 @@ def _patched_service(sync_result: SyncResult):
     service_cls = MagicMock()
     service = service_cls.return_value
     service.sync_fred_indicators = AsyncMock(return_value=sync_result)
+    service.backfill_fred_indicators = AsyncMock(return_value=sync_result)
     service.sync_cftc_cot_gold = AsyncMock(return_value=sync_result)
     service.sync_economic_calendar = AsyncMock(return_value=sync_result)
     service.sync_tokenized_gold_premium = AsyncMock(return_value=sync_result)
@@ -78,6 +79,12 @@ class TestGoldMacroSyncJob:
         with (
             patch("core.database.get_session", _make_get_session(session)),
             patch("services.gold.macro_sync.MacroSyncService", service_cls),
+            # A developer's repository .env normally supplies the key; this
+            # test is explicitly about the unconfigured deployment path.
+            patch(
+                "jobs.definitions.gold_macro_jobs._fred_key_configured",
+                return_value=False,
+            ),
         ):
             result = await GoldMacroSyncJob().execute(_make_context())
 
@@ -113,6 +120,63 @@ class TestGoldMacroSyncJob:
         # The session and the provider must both reach the sync service.
         _, kwargs = service_cls.call_args
         assert kwargs["fred_provider"] is fred_provider
+
+    @pytest.mark.asyncio
+    async def test_backfill_params_call_the_backfill(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``context.params`` can request the one-shot history backfill."""
+        monkeypatch.setenv(FRED_API_KEY_ENV, "test-key")
+        session = MagicMock()
+        service_cls, service = _patched_service(_make_sync_result(upserted=500))
+
+        context = JobContext(
+            job_id="macro-backfill-1",
+            job_name="GoldMacroSyncJob",
+            params={"backfill": True, "observation_start": "2024-10-21"},
+        )
+        with (
+            patch("core.database.get_session", _make_get_session(session)),
+            patch("services.gold.macro_sync.MacroSyncService", service_cls),
+            patch(
+                "jobs.definitions.gold_macro_jobs._build_fred_provider",
+                return_value=MagicMock(),
+            ),
+        ):
+            result = await GoldMacroSyncJob().execute(context)
+
+        assert result.success is True
+        assert result.data["upserted"] == 500
+        service.backfill_fred_indicators.assert_awaited_once()
+        service.sync_fred_indicators.assert_not_awaited()
+        _, kwargs = service.backfill_fred_indicators.call_args
+        assert kwargs["observation_start"] == "2024-10-21"
+
+    @pytest.mark.asyncio
+    async def test_years_param_defaults_the_backfill_window(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(FRED_API_KEY_ENV, "test-key")
+        session = MagicMock()
+        service_cls, service = _patched_service(_make_sync_result(upserted=2))
+
+        context = JobContext(
+            job_id="macro-backfill-2",
+            job_name="GoldMacroSyncJob",
+            params={"years": 2},
+        )
+        with (
+            patch("core.database.get_session", _make_get_session(session)),
+            patch("services.gold.macro_sync.MacroSyncService", service_cls),
+            patch(
+                "jobs.definitions.gold_macro_jobs._build_fred_provider",
+                return_value=MagicMock(),
+            ),
+        ):
+            await GoldMacroSyncJob().execute(context)
+
+        service.backfill_fred_indicators.assert_awaited_once()
+        _, kwargs = service.backfill_fred_indicators.call_args
+        assert isinstance(kwargs["observation_start"], str)
+        assert len(kwargs["observation_start"]) == 10  # ISO date
 
     @pytest.mark.asyncio
     async def test_no_session_returns_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:

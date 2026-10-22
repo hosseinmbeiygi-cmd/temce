@@ -12,17 +12,28 @@ from fastapi.testclient import TestClient
 
 from apps.api.dependencies import get_db_session
 from apps.api.endpoints import gold_analytics
+from core.security.tokens import create_access_token
 
 BASE = "/api/v1/gold/analytics"
 
 
 @pytest.fixture()
-def client(app):
+def auth_headers() -> dict[str, str]:
+    """STEP 7D-1: bubbles, arbitrage and the AED series are signal-bearing
+    reads, so they now resolve to a real user."""
+    token = create_access_token({"sub": "analyst", "roles": ["user"], "type": "access"})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture()
+def client(app, auth_headers):
     async def _session():
         yield object()
 
     app.dependency_overrides[get_db_session] = _session
-    yield TestClient(app, raise_server_exceptions=False)
+    test_client = TestClient(app, raise_server_exceptions=False)
+    test_client.headers.update(auth_headers)
+    yield test_client
     app.dependency_overrides.pop(get_db_session, None)
 
 
@@ -115,7 +126,10 @@ def test_aed_history_endpoint_returns_series_and_alert(client, monkeypatch) -> N
     assert seen["limit"] == 10
 
 
-def test_physical_reports_are_public(client, monkeypatch) -> None:
+def test_physical_reports_require_jwt(client, monkeypatch) -> None:
+    """STEP 7D-1: coin bubbles, the arbitrage spread and the AED z-score series
+    are platform-derived analytics, so anonymous callers no longer get them.
+    The authenticated cases are covered by the tests above via ``client``."""
     async def coins(session, history_limit=200):
         return {"available": True, "coins": {}}
 
@@ -137,9 +151,9 @@ def test_physical_reports_are_public(client, monkeypatch) -> None:
 
     bare = TestClient(client.app, raise_server_exceptions=False)
 
-    assert bare.get(f"{BASE}/coins").status_code == 200
-    assert bare.get(f"{BASE}/arbitrage").status_code == 200
-    assert bare.get(f"{BASE}/aed-history").status_code == 200
+    for path in ("/coins", "/arbitrage", "/aed-history"):
+        response = bare.get(f"{BASE}{path}")
+        assert response.status_code == 401, f"{path} -> {response.status_code}"
 
 
 def test_empty_data_is_reported_without_fabrication(client, monkeypatch) -> None:

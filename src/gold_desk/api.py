@@ -26,7 +26,9 @@ from .backtest_real import run_real_backtest
 from .backtest_runner import run_strategy_backtest
 from .black76 import price_option, protective_collar
 from .chat import ask_gold_assistant
+from .constants import PORTFOLIO_PERFORMANCE_WINDOW_DAYS
 from .crypto import fetch_crypto_prices, fetch_fx_rates
+from .freshness import build_freshness_report
 from .hotpath import build_hotpath_response, get_hot_snapshot
 from .live_signals import detect_and_broadcast
 from .macro_news import compute_macro_multiplier, fetch_macro_events, scrape_cbi_news
@@ -34,10 +36,19 @@ from .metrics import render_prometheus
 from .models import AlertEventModel, AlertRuleModel, GoldScoreHistoryModel, GoldSnapshotModel
 from .pattern_detector import detect_patterns
 from .portfolio import (
+    build_portfolio_returns,
+    build_tax_summary,
+    build_trades_csv,
     get_current_prices,
     get_holdings_grouped,
     get_plan_status,
+    load_holdings_and_trades,  # noqa: F401 — برای monkeypatch در تست قرارداد API
     record_trade,
+)
+from .portfolio_history import (
+    build_performance_report,
+    capture_portfolio_value,
+    load_value_history,
 )
 from .schemas import (
     AlertRuleCreate,
@@ -54,6 +65,18 @@ from .ws_hub import ws_endpoint
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/gold", tags=["GoldDesk"])
+
+# Anonymous-by-policy routes, kept on their own router so the personal surface
+# can be mounted behind a real authenticated user (see ``apps/api/router.py``).
+# Three routes and why each one is exempt:
+#   * ``/gold/health``          — container/K8s liveness probe; a probe holds no JWT.
+#   * ``/gold/assistant-rules`` — the spec card the *pre-login* ``/markets/gold``
+#                                and ``/markets/silver`` pages render.
+#   * ``/gold/ws``              — a socket, so it verifies its own token inside
+#                                the handler instead of via the router dependency.
+# Everything else on ``router`` (portfolio, alerts, tokens, chats, trades, …) is
+# personal data and must resolve an authenticated user.
+anonymous_router = APIRouter(prefix="/gold", tags=["GoldDesk"])
 
 # ── Antigravity sub-router ────────────────────────────────────────
 try:
@@ -91,6 +114,29 @@ async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict:
     except Exception as exc:
         logger.exception("score failed")
         return {"success": False, "error": {"message": str(exc)}}
+
+
+# ── 2b. قواعد دستیار طلا و نقره (منبع واحد: ``acceptance.yaml``) ──
+
+
+@anonymous_router.get(
+    "/assistant-rules",
+    response_model=None,
+    summary="Gold/silver assistant rules — fees, value filter, market hours",
+)
+async def get_gold_assistant_rules() -> dict:
+    """قواعد بخش‌های ۲۰، ۲۶، ۲۷.۱ و ۲۷.۳ سند، از ``acceptance.yaml``.
+
+    صفحه‌های طلا و نقره همین را می‌خوانند تا هیچ نرخ یا آستانه‌ای در فرانت‌اند
+    هاردکد نشود و گیت سمت سرور هم همان اعداد را داشته باشد.
+    """
+    try:
+        from core.config.acceptance_loader import get_assistant_rules
+
+        return {"success": True, "data": get_assistant_rules()}
+    except Exception as exc:  # noqa: BLE001 — شکل پاسخ، مطابق بقیهٔ این ماژول
+        logger.exception("assistant rules failed")
+        return {"success": False, "data": None, "error": {"message": str(exc)}}
 
 
 # ── 3. History ────────────────────────────────────────────────────
@@ -359,7 +405,7 @@ async def telegram_status() -> dict:
 # ── 8. Health + Backtest ──────────────────────────────────────────
 
 
-@router.get("/health", response_model=HealthResponse, summary="GoldDesk health")
+@anonymous_router.get("/health", response_model=HealthResponse, summary="GoldDesk health")
 async def health(session: AsyncSession = Depends(get_db_session)):
     """
     Health check برای Docker/K8s.
@@ -414,11 +460,30 @@ async def health(session: AsyncSession = Depends(get_db_session)):
         redis_ok=redis_ok,
         db_ok=db_ok,
         last_snapshot_at=last_snap,
-        scheduler_jobs=4,
+        scheduler_jobs=_scheduled_job_count(),
         telegram_configured=TelegramConfig.from_env().is_configured(),
         active_alert_rules=int(active_rules),
         unread_alerts=int(unread),
     )
+
+
+def _scheduled_job_count() -> int:
+    """تعداد jobهای واقعی GoldDesk (fallback وقتی رجیستری قابل import نیست)."""
+    try:
+        from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOBS
+
+        return len(GOLD_DESK_JOBS)
+    except Exception:  # noqa: BLE001
+        logger.debug("gold job registry unavailable", exc_info=True)
+        return 4
+
+
+@router.get("/freshness", summary="Data-freshness report for every GoldDesk source")
+async def get_freshness(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """صفحهٔ سلامت داده: آخرین به‌روزرسانی، سن و وضعیت هر منبع در یک پاسخ."""
+    report = await build_freshness_report(session)
+    report["scheduler_jobs"] = _scheduled_job_count()
+    return {"success": True, "data": report}
 
 
 @router.get("/backtest", summary="Run backtest on coin_emami")
@@ -623,9 +688,23 @@ async def protective_collar_endpoint(
 # ── 11. WebSocket Live Stream ─────────────────────────────────
 
 
-@router.websocket("/ws")
+@anonymous_router.websocket("/ws")
 async def gold_websocket(websocket: WebSocket) -> None:
-    """WebSocket — پخش زنده snapshot هر ۵ ثانیه."""
+    """WebSocket — پخش زنده snapshot هر ۵ ثانیه.
+
+    Authenticated the same way as ``/ws/market`` (audit API-003): a browser
+    cannot attach an ``Authorization`` header to a WebSocket handshake, so the
+    access token is read from the ``token`` query parameter. The route lives on
+    ``anonymous_router`` because the HTTP auth dependency would reject the
+    handshake before this check ever ran.
+    """
+    from apps.api.endpoints.websocket import verify_websocket_token
+
+    if not await verify_websocket_token(websocket):
+        logger.warning("GoldDesk WebSocket rejected: missing or invalid token")
+        await websocket.close(code=1008)  # policy violation, before accept
+        return
+
     await ws_endpoint(websocket)
 
 
@@ -734,12 +813,110 @@ class TradeCreate(BaseModel):
     note: str | None = None
 
 
+def _returns_payload(returns) -> dict:
+    """سریال‌سازی بازده پورتفوی (اسمی / واقعی / دلاری)."""
+    return {
+        "nominal_pnl_irt": returns.nominal_pnl_irt,
+        "nominal_pnl_pct": returns.nominal_pnl_pct,
+        "nominal_xirr": returns.nominal_xirr,
+        "real_xirr": returns.real_xirr,
+        "usd_xirr": returns.usd_xirr,
+        "cpi_basis": returns.cpi_basis,
+        "usd_basis": returns.usd_basis,
+        "unavailable": returns.unavailable,
+    }
+
+
+@router.get("/portfolio/history", summary="Persisted portfolio value history")
+async def get_portfolio_history(
+    days: int = Query(90, ge=2, le=730),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """سری ارزش روزانهٔ پرتفوی (جدول ``gold_portfolio_values``)."""
+    rows = await load_value_history(session, days=days)
+    return {
+        "success": True,
+        "data": {
+            "days": days,
+            "points": len(rows),
+            "items": [
+                {
+                    "as_of": r.as_of.isoformat(),
+                    "total_value_irt": r.total_value_irt,
+                    "total_cost_irt": r.total_cost_irt,
+                    "net_flow_irt": r.net_flow_irt,
+                    "unpriced_holdings": r.unpriced_holdings,
+                }
+                for r in rows
+            ],
+        },
+    }
+
+
+@router.get(
+    "/portfolio/performance",
+    summary="TWR + risk metrics + benchmark vs gold / USD / TEDPIX",
+)
+async def get_portfolio_performance(
+    days: int = Query(PORTFOLIO_PERFORMANCE_WINDOW_DAYS, ge=2, le=730),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """بازده وزنی‌زمان (TWR) + نوسان/شارپ/افت + مقایسه با طلا، دلار و شاخص کل."""
+    snap = await get_hot_snapshot()
+    report = await build_performance_report(session, days=days, snapshot=snap)
+    return {"success": True, "data": report.as_dict()}
+
+
+@router.post("/portfolio/snapshot", summary="Persist today's portfolio value")
+async def post_portfolio_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """ثبت فوری ارزش پرتفوی برای امروز (idempotent) — پر کردن تاریخچه بدون انتظار برای scheduler."""
+    snap = await get_hot_snapshot()
+    row = await capture_portfolio_value(session, snapshot=snap)
+    return {
+        "success": True,
+        "data": {
+            "as_of": row.as_of.isoformat(),
+            "total_value_irt": row.total_value_irt,
+            "total_cost_irt": row.total_cost_irt,
+            "net_flow_irt": row.net_flow_irt,
+            "unpriced_holdings": row.unpriced_holdings,
+        },
+    }
+
+
+@router.get("/portfolio/returns", summary="Portfolio returns (nominal / real / USD)")
+async def get_portfolio_returns(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """بازده پورتفوی: اسمی (XIRR) + واقعی (تعدیل تورم) + دلاری."""
+    snap = await get_hot_snapshot()
+    returns = await build_portfolio_returns(session, snapshot=snap)
+    return {"success": True, "data": {"returns": _returns_payload(returns)}}
+
+
+@router.get("/portfolio/tax", summary="Portfolio FIFO cost basis and realized P&L")
+async def get_portfolio_tax(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """بهای تمام‌شده و سود/زیان تحقق‌یافتهٔ معاملات با روش FIFO."""
+    summary = await build_tax_summary(session)
+    return {"success": True, "data": summary}
+
+
+@router.get("/portfolio/export.csv", summary="Export recorded trades as CSV")
+async def export_portfolio_trades_csv(session: AsyncSession = Depends(get_db_session)) -> Response:
+    """خروجی CSV معاملات ثبت‌شده (برای گزارش و مالیات)."""
+    csv_text = await build_trades_csv(session)
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="gold_trades.csv"'},
+    )
+
+
 @router.get("/portfolio", summary="Get portfolio summary with P&L")
 async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict:
     """خلاصه portfolio با P&L بر اساس قیمت‌های فعلی از snapshot."""
     snap = await get_hot_snapshot()
     prices = get_current_prices(snap)
     summary = await get_holdings_grouped(session, prices)
+    returns = await build_portfolio_returns(session, snapshot=snap)
     return {
         "success": True,
         "data": {
@@ -747,6 +924,7 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
             "total_value": summary.total_value,
             "total_pnl": summary.total_pnl,
             "total_pnl_pct": summary.total_pnl_pct,
+            "unpriced_holdings": getattr(summary, "unpriced_holdings", 0),
             "holdings": [
                 {
                     "symbol": h.symbol,
@@ -762,6 +940,7 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
                 }
                 for h in summary.holdings
             ],
+            "returns": _returns_payload(returns),
             "snapshot_at": snap.get("snapshot_at") if snap else None,
         },
     }

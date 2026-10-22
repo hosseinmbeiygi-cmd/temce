@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from typing import Any
@@ -47,6 +49,7 @@ from providers.macro_sources.tokenized_gold import (
     TokenizedGoldProvider,
     compute_tokenized_gold_premium,
 )
+from services.gold.macro_indicators import percentile
 
 logger = get_logger(__name__)
 
@@ -117,6 +120,37 @@ async def _run_with_retry(fn, attempts: int = 3, base_delay: float = 0.5, **kwar
             if attempt < attempts:
                 await asyncio.sleep(base_delay * attempt)
     raise last_exc or RuntimeError("sync job failed with no recorded error")
+
+
+def summarize_indicator_values(
+    values: Iterable[float | None],
+    percentiles: tuple[float, ...] = (10.0, 20.0, 50.0, 80.0, 90.0),
+) -> dict[str, Any]:
+    """Count/min/max plus percentiles for a stored indicator series.
+
+    Used by the backfill CLI to prove the fetched window is large and its
+    thresholds are stable (``count``, ``min``, ``max``, ``p20``, ``p80``...).
+    """
+    cleaned: list[float] = []
+    for raw in values:
+        if raw is None:
+            continue
+        try:
+            number = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number):
+            cleaned.append(number)
+
+    summary: dict[str, Any] = {
+        "count": len(cleaned),
+        "min": min(cleaned) if cleaned else None,
+        "max": max(cleaned) if cleaned else None,
+    }
+    for pct in percentiles:
+        key = f"p{int(pct) if float(pct).is_integer() else pct}"
+        summary[key] = percentile(cleaned, pct) if cleaned else None
+    return summary
 
 
 # ── Sync service ───────────────────────────────────────────────────────
@@ -200,6 +234,78 @@ class MacroSyncService:
                 result.skipped = 0
 
         await self.session.commit()
+        result.ok = not result.errors or result.upserted > 0
+        result.duration_ms = (_utc_now() - started).total_seconds() * 1000
+        return result
+
+    async def backfill_fred_indicators(
+        self,
+        *,
+        observation_start: str | date,
+        observation_end: str | date | None = None,
+        indicators: tuple[str, ...] = (FRED_TIPS_10Y_SERIES, FRED_DXY_BROAD_SERIES),
+    ) -> SyncResult:
+        """One-shot historical backfill of FRED macro observations.
+
+        Fetches every observation from ``observation_start`` (the caller uses
+        today − 2 years) and upserts by ``(indicator, as_of)``.  Re-running the
+        same window is a no-op: existing rows are counted as ``skipped``.
+        """
+        started = _utc_now()
+        result = SyncResult(job_type="fred_macro_backfill")
+        start = (
+            observation_start.isoformat()
+            if isinstance(observation_start, date)
+            else str(observation_start)
+        )
+        end = (
+            observation_end.isoformat()
+            if isinstance(observation_end, date)
+            else (str(observation_end) if observation_end is not None else None)
+        )
+        result.details = {
+            "observation_start": start,
+            "observation_end": end,
+            "indicators": list(indicators),
+        }
+
+        for series_id in indicators:
+            try:
+                observations = await _run_with_retry(
+                    self.fred_provider.fetch_range,
+                    attempts=self.retry_attempts,
+                    base_delay=self.retry_base_delay,
+                    series_id=series_id,
+                    observation_start=start,
+                    observation_end=end,
+                )
+            except Exception as exc:  # noqa: BLE001 - never crash the scheduler
+                result.errors.append(f"{series_id}: {exc}")
+                continue
+
+            series_upserted = 0
+            series_skipped = 0
+            for obs in observations:
+                try:
+                    if await self._upsert_macro_indicator(obs):
+                        series_upserted += 1
+                    else:
+                        series_skipped += 1
+                except Exception as exc:  # noqa: BLE001 - one bad row shouldn't kill the job
+                    result.errors.append(f"{series_id}: {exc}")
+                    await self._safe_rollback()
+                    # The rollback discarded this series' uncommitted inserts.
+                    series_upserted = 0
+                    series_skipped = 0
+                    break
+
+            result.upserted += series_upserted
+            result.skipped += series_skipped
+            result.details[f"{series_id}_rows"] = len(observations)
+            # Commit per series so a later series failure cannot discard an
+            # already-completed backfill.
+            await self.session.commit()
+
         result.ok = not result.errors or result.upserted > 0
         result.duration_ms = (_utc_now() - started).total_seconds() * 1000
         return result

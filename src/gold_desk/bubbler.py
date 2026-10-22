@@ -16,6 +16,7 @@ from .constants import (
     GOLD_PURITY_18K,
     GOLD_PURITY_24K,
     GOLD_PURITY_COIN,
+    MESGHAL_GRAMS,
     TROY_OUNCE_GRAMS,
 )
 
@@ -42,9 +43,12 @@ def _purity_for_symbol(symbol: str) -> float:
 
 
 def _pure_gold_weight(symbol: str) -> float:
-    """وزن طلای خالص (گرم) — برای سکه وزن×عیار، برای طلای وزنی 1×عیار."""
+    """وزن طلای خالص (گرم) یک واحد نقل‌شده — برای سکه وزن×عیار، برای طلای وزنی
+    ۱ گرم×عیار و برای طلای آب‌شده یک مثقال×عیار (بازار مثقالی قیمت می‌زند)."""
     if symbol in COIN_WEIGHTS:
         return COIN_WEIGHTS[symbol] * (_purity_for_symbol(symbol))
+    if "MELTED" in symbol:
+        return MESGHAL_GRAMS * _purity_for_symbol(symbol)
     # طلای وزنی: هر گرم با عیار مربوطه
     return 1.0 * _purity_for_symbol(symbol)
 

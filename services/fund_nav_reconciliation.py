@@ -165,8 +165,14 @@ class FundNavReconciliationService:
     # ── Loaders ─────────────────────────────────────────────────────────────
 
     async def _load_reference(
-        self, fund_id: str, nav_type: str
+        self, fund_id: str, nav_type: str, as_of: date | None = None
     ) -> dict[str, Any] | None:
+        """مرجع NAV برای همان تاریخ.
+
+        پیش‌تر بدون فیلتر تاریخ همیشه جدیدترین ردیف خوانده می‌شد و برای ``as_of``
+        گذشته ``same_date=False`` می‌شد؛ در نتیجه تطبیق تاریخی هرگز COMPARABLE
+        نمی‌شد (GS-11).
+        """
         row = (
             await self.session.execute(
                 text(
@@ -175,11 +181,12 @@ class FundNavReconciliationService:
                            units_outstanding, data_source, payload_version
                     FROM fund_nav_history
                     WHERE fund_id = :fid
+                      AND (CAST(:as_of AS date) IS NULL OR nav_date <= CAST(:as_of AS date))
                     ORDER BY nav_date DESC
                     LIMIT 1
                     """
                 ),
-                {"fid": fund_id},
+                {"fid": fund_id, "as_of": as_of},
             )
         ).first()
         if row is None:
@@ -309,7 +316,7 @@ class FundNavReconciliationService:
         p99_abs = percentile(abs_values, 99.0) or DEFAULT_THRESHOLDS["abs_breach"]
         p95_bps = percentile(bps_values, 95.0) if bps_values else DEFAULT_THRESHOLDS["bps_warn"]
         p99_bps = percentile(bps_values, 99.0) if bps_values else DEFAULT_THRESHOLDS["bps_breach"]
-        version = f"cal-{datetime.utcnow():%Y%m%d%H%M%S}"
+        version = f"cal-{now_tehran():%Y%m%d%H%M%S}"
 
         await self.session.execute(
             text(
@@ -442,7 +449,7 @@ class FundNavReconciliationService:
             date.fromisoformat(str(internal["valuation_date"])) if internal else as_of
         )
 
-        reference = await self._load_reference(fund_id, nav_type)
+        reference = await self._load_reference(fund_id, nav_type, as_of)
         reference_nav = reference.get("nav_value") if reference else None
         reference_date = reference.get("nav_date") if reference else None
 

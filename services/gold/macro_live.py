@@ -21,7 +21,12 @@ from core.logging import get_logger
 from models.gold_macro import GoldMacroIndicatorModel
 from providers.macro_sources.tokenized_gold import PREMIUM_INDICATOR_SUFFIX
 from services.gold.economic_calendar import is_high_vol_window
-from services.gold.macro_indicators import evaluate_gold_macro_posture
+from services.gold.macro_indicators import (
+    DEFAULT_DXY_MIN_SAMPLES,
+    DEFAULT_DXY_PERCENTILE_HIGH,
+    DEFAULT_DXY_PERCENTILE_LOW,
+    evaluate_gold_macro_posture,
+)
 
 logger = get_logger(__name__)
 
@@ -29,6 +34,8 @@ FRED_TIPS_10Y_INDICATOR = "FRED_DFII10"
 FRED_DXY_BROAD_INDICATOR = "FRED_DTWEXBGS"
 DEFAULT_STALENESS_SECONDS = 7 * 24 * 60 * 60  # 7 days
 TREND_CHANGE_THRESHOLD = 0.02  # ±2% → up/down
+#: Enough DTWEXBGS history for stable p20/p80 thresholds (daily, ~2 years).
+DXY_HISTORY_LIMIT = 2_000
 
 
 @dataclass
@@ -55,6 +62,50 @@ async def _get_latest_indicator(
     )
     result = await session.execute(statement)
     return result.scalars().first()
+
+
+async def _get_indicator_history(
+    session: AsyncSession, indicator: str, limit: int = DXY_HISTORY_LIMIT
+) -> list[float]:
+    """Stored values of one indicator, newest first, for percentile thresholds."""
+    statement = (
+        select(GoldMacroIndicatorModel)
+        .where(GoldMacroIndicatorModel.indicator == indicator)
+        .order_by(desc(GoldMacroIndicatorModel.as_of))
+        .limit(limit)
+    )
+    result = await session.execute(statement)
+    values: list[float] = []
+    for row in result.scalars().all():
+        # Accept both ORM rows (production) and bare floats (test doubles).
+        raw = getattr(row, "value", row)
+        if raw is None:
+            continue
+        try:
+            number = float(raw)
+        except (TypeError, ValueError):
+            continue
+        values.append(number)
+    return values
+
+
+def _dxy_threshold_config() -> tuple[float, float, int]:
+    """Percentile thresholds and minimum history from the app config."""
+    try:
+        from core.config import get_settings
+
+        settings = get_settings()
+        return (
+            float(settings.gold_dxy_percentile_low),
+            float(settings.gold_dxy_percentile_high),
+            int(settings.gold_dxy_min_samples),
+        )
+    except Exception:  # pragma: no cover - config fallback is deliberately safe
+        return (
+            DEFAULT_DXY_PERCENTILE_LOW,
+            DEFAULT_DXY_PERCENTILE_HIGH,
+            DEFAULT_DXY_MIN_SAMPLES,
+        )
 
 
 async def _derive_gold_trend(session: AsyncSession) -> tuple[str | None, float | None]:
@@ -159,6 +210,7 @@ async def get_gold_macro_live(session: AsyncSession) -> MacroLiveResult:
         if tips_staleness is not None and tips_staleness > DEFAULT_STALENESS_SECONDS:
             missing.append("tips_yield_stale")
 
+    dxy_history: list[float] = []
     if dxy_row is None:
         missing.append("dxy_index")
     else:
@@ -166,6 +218,12 @@ async def get_gold_macro_live(session: AsyncSession) -> MacroLiveResult:
         dxy_staleness = (now - dxy_row.fetched_at).total_seconds() if dxy_row.fetched_at else None
         if dxy_staleness is not None and dxy_staleness > DEFAULT_STALENESS_SECONDS:
             missing.append("dxy_index_stale")
+        # DTWEXBGS levels are not on the classic DXY scale; rank the current
+        # value against the stored history instead of fixed 95/105 levels.
+        dxy_history = await _get_indicator_history(
+            session, FRED_DXY_BROAD_INDICATOR
+        )
+        inputs["dxy_history_samples"] = len(dxy_history)
 
     if trend is None:
         missing.append("gold_trend")
@@ -181,17 +239,28 @@ async def get_gold_macro_live(session: AsyncSession) -> MacroLiveResult:
     error: str | None = None
     if not missing:
         try:
+            low, high, min_samples = _dxy_threshold_config()
             posture = evaluate_gold_macro_posture(
                 tips_yield=float(inputs["tips_yield"]),
                 dxy_index=float(inputs["dxy_index"]),
                 gold_trend=str(inputs["gold_trend"]),
+                dxy_history=dxy_history,
+                dxy_series=FRED_DXY_BROAD_INDICATOR,
+                percentile_low=low,
+                percentile_high=high,
+                min_samples=min_samples,
             )
+            if posture.get("posture") == "insufficient_history":
+                missing.append("dxy_history")
         except (TypeError, ValueError) as exc:
             error = str(exc)
             missing.append("posture_computation_failed")
 
     return MacroLiveResult(
-        available=posture is not None,
+        available=(
+            posture is not None
+            and posture.get("posture") != "insufficient_history"
+        ),
         missing=missing,
         posture=posture,
         inputs=inputs,

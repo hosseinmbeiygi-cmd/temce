@@ -41,8 +41,45 @@ def test_fred_handles_missing_value() -> None:
     assert obs == []
 
 
+def test_fred_fetch_range_returns_every_observation() -> None:
+    """Backfill needs the whole window, not just the latest observation."""
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(dict(request.url.params))
+        return httpx.Response(
+            200,
+            json={
+                "observations": [
+                    {"date": "2024-10-21", "value": "1.10"},
+                    {"date": "2024-10-22", "value": "1.20"},
+                    {"date": "2024-10-23", "value": "."},  # holiday/missing
+                ]
+            },
+        )
+
+    client = FREDClient(
+        api_key="test-key",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    rows = client.fetch_range(
+        FRED_TIPS_10Y_SERIES,
+        observation_start="2024-10-21",
+        observation_end="2024-10-23",
+    )
+
+    assert [row["value"] for row in rows] == [1.1, 1.2]
+    assert all(row["series_id"] == FRED_TIPS_10Y_SERIES for row in rows)
+    assert seen["observation_start"] == "2024-10-21"
+    assert seen["observation_end"] == "2024-10-23"
+    assert seen["sort_order"] == "asc"
+    assert int(seen["limit"]) > 1
+
+
 def test_fred_no_api_key_raises() -> None:
-    client = FREDClient(api_key=None)
+    # ``None`` means "look at env/repository .env"; ``""`` is an explicit,
+    # unconfigured key and must still fail fast.
+    client = FREDClient(api_key="")
     with pytest.raises(Exception):
         client.fetch()
 

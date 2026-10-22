@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import time
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from core.config import settings
 from core.logging import get_logger
@@ -32,11 +34,29 @@ class NullCache:
 
 
 class CacheService:
+    #: Without these the redis client waits far longer than any HTTP request
+    #: budget when a connection goes bad (defaults are seconds, not fractions).
+    socket_timeout: float = 0.3
+    #: First TCP connect attempt. On Windows ``localhost`` resolves to ``::1``
+    #: before ``127.0.0.1``, and the refused IPv6 attempt alone can burn ~2 s,
+    #: so a 0.3 s budget is retried once with :attr:`socket_connect_timeout_fallback`
+    #: instead of leaving Redis permanently disabled.
+    socket_connect_timeout: float = 0.3
+    socket_connect_timeout_fallback: float = 2.5
+    #: After a failure, stop calling Redis at all for this long. One dead
+    #: connection otherwise costs every caller the full socket timeout.
+    breaker_seconds: float = 30.0
+
     def __init__(self, redis_url: str | None = None, default_ttl: int = 300) -> None:
         self._default_ttl = default_ttl
         self._redis: Any = None
         self._redis_url = redis_url or settings.redis_url
         self._null_cache = NullCache()
+        #: Event loop the client was created on. redis.asyncio transports are
+        #: bound to it; awaiting them from another (later) loop raises
+        #: ``RuntimeError: Event loop is closed``.
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._unavailable_until: float = 0.0
 
     async def initialize(self) -> None:
         # Idempotent: never create a second connection when already connected.
@@ -46,49 +66,129 @@ class CacheService:
         # Note: if the live connection drops (e.g. Redis restart) initialize()
         # will not re-create it — use ping() as the liveness check.
         if self._redis is not None:
-            return
-        try:
-            import redis.asyncio as aioredis
+            loop = self._running_loop()
+            if loop is None or self._loop is None or loop is self._loop:
+                return
+            # Client from a previous loop: start over on this one.
+            self.reset()
+        from redis.asyncio import from_url
+        from redis.asyncio.retry import Retry
+        from redis.backoff import NoBackoff
 
-            self._redis = aioredis.from_url(
+        last_exc: BaseException | None = None
+        for connect_timeout in (
+            self.socket_connect_timeout,
+            self.socket_connect_timeout_fallback,
+        ):
+            # ``redis.asyncio.from_url`` ships without type hints.
+            client = cast(Any, from_url)(
                 self._redis_url,
                 decode_responses=True,
+                # One attempt only: rate limiting and token revocation both
+                # have local fallbacks, so retrying is worse than failing fast.
+                retry=Retry(NoBackoff(), 1),
+                retry_on_error=[],
+                socket_timeout=self.socket_timeout,
+                socket_connect_timeout=connect_timeout,
+                health_check_interval=0,
             )
-            await self._redis.ping()
+            try:
+                await client.ping()
+            except Exception as exc:  # noqa: BLE001 — try the wider budget
+                last_exc = exc
+                # Failed connect: nothing to drain.
+                with contextlib.suppress(Exception):
+                    await client.aclose()
+                continue
+            self._redis = client
+            self._loop = asyncio.get_running_loop()
+            self._unavailable_until = 0.0
             logger.info("Connected to Redis at %s", self._redis_url)
-        except Exception:
-            logger.warning("Redis unavailable, using null cache")
-            self._redis = None
+            return
+
+        logger.warning("Redis unavailable, using null cache: %s", last_exc)
+        self._redis = None
+        self._loop = None
+
+    def reset(self) -> None:
+        """Detach the client without awaiting it.
+
+        Safe to call from a *different* event loop than the one that created
+        the client (``close()`` is not: awaiting a transport bound to a closed
+        loop is exactly what hangs). The old socket is left for the garbage
+        collector; a later ``initialize()`` creates a fresh client on the
+        current loop.
+        """
+        self._redis = None
+        self._loop = None
+        self._unavailable_until = 0.0
+
+    @staticmethod
+    def _running_loop() -> asyncio.AbstractEventLoop | None:
+        try:
+            return asyncio.get_running_loop()
+        except RuntimeError:
+            return None
+
+    def _record_failure(self, exc: BaseException) -> None:
+        self._unavailable_until = time.monotonic() + self.breaker_seconds
+        logger.warning(
+            "Redis disabled for %.0fs after %s: %s",
+            self.breaker_seconds,
+            type(exc).__name__,
+            exc,
+        )
+
+    def _client(self) -> Any | None:
+        """Return the client only when it is safe to await right now."""
+        if self._redis is None:
+            return None
+        if time.monotonic() < self._unavailable_until:
+            return None
+        loop = self._running_loop()
+        if loop is not None and self._loop is not None and loop is not self._loop:
+            # The client belongs to a previous (closed) loop — pytest creates
+            # one loop per test. Reusing it raises "Event loop is closed"
+            # after a multi-second stall, so detach and fall back instead.
+            logger.debug("Redis client belongs to a stale event loop; detaching")
+            self.reset()
+            return None
+        return self._redis
 
     @property
     def is_connected(self) -> bool:
-        """Return True if Redis is connected and reachable."""
-        return self._redis is not None
+        """True only when the client exists, no breaker is open and the loop matches."""
+        return self._client() is not None
 
     @property
     def client(self) -> Any | None:
-        """Raw redis.asyncio client, or None when Redis is unavailable.
+        """Raw redis.asyncio client, or None when Redis cannot be used.
 
         Used by distributed components (e.g. JobLocking) that need direct
         access to SET NX PX / Lua primitives rather than the serialized
-        get/set helpers.
+        get/set helpers. Breaker- and loop-aware, so callers get ``None``
+        instead of a client that will hang.
         """
-        return self._redis
+        return self._client()
 
     async def ping(self) -> bool:
         """Ping Redis. Returns True if reachable, False otherwise."""
-        if self._redis is None:
+        client = self._client()
+        if client is None:
             return False
         try:
-            await self._redis.ping()
+            await client.ping()
             return True
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 — liveness check
+            self._record_failure(exc)
             return False
 
     async def close(self) -> None:
         if self._redis is not None:
-            await self._redis.close()
-            self._redis = None
+            # Already-closed loop/transport must not raise on shutdown.
+            with contextlib.suppress(Exception):
+                await self._redis.aclose()
+        self.reset()
 
     def _serialize(self, value: Any) -> str:
         return json.dumps(value, default=str)
@@ -102,17 +202,26 @@ class CacheService:
             return value
 
     async def get(self, key: str) -> Any | None:
-        if self._redis is None:
+        client = self._client()
+        if client is None:
             return await self._null_cache.get(key)
-        val = await self._redis.get(key)
+        try:
+            val = await client.get(key)
+        except Exception as exc:  # noqa: BLE001 — cache must never break a request
+            self._record_failure(exc)
+            return None
         return self._deserialize(val)
 
     async def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        if self._redis is None:
+        client = self._client()
+        if client is None:
             return
         ttl = ttl if ttl is not None else self._default_ttl
         serialized = self._serialize(value)
-        await self._redis.setex(key, ttl, serialized)
+        try:
+            await client.setex(key, ttl, serialized)
+        except Exception as exc:  # noqa: BLE001
+            self._record_failure(exc)
 
     async def set_persistent(self, key: str, value: Any) -> None:
         """Set a key with no expiry.
@@ -120,14 +229,22 @@ class CacheService:
         Used for durable shared state (e.g. the orchestrator cron state)
         that must survive the default TTL and be visible across workers.
         """
-        if self._redis is None:
+        client = self._client()
+        if client is None:
             return
-        await self._redis.set(key, self._serialize(value))
+        try:
+            await client.set(key, self._serialize(value))
+        except Exception as exc:  # noqa: BLE001
+            self._record_failure(exc)
 
     async def delete(self, key: str) -> None:
-        if self._redis is None:
+        client = self._client()
+        if client is None:
             return
-        await self._redis.delete(key)
+        try:
+            await client.delete(key)
+        except Exception as exc:  # noqa: BLE001
+            self._record_failure(exc)
 
     async def pop(self, key: str) -> Any | None:
         """Atomically return and delete a key (single-use tokens, leases).
@@ -136,14 +253,19 @@ class CacheService:
         read the same value — exactly one caller gets it. Falls back to a
         plain get+delete for compatibility with older servers.
         """
-        if self._redis is None:
+        client = self._client()
+        if client is None:
             return None
         try:
-            val = await self._redis.getdel(key)
+            val = await client.getdel(key)
         except Exception:  # noqa: BLE001 — server may not support GETDEL
-            val = await self._redis.get(key)
-            if val is not None:
-                await self._redis.delete(key)
+            try:
+                val = await client.get(key)
+                if val is not None:
+                    await client.delete(key)
+            except Exception as exc:  # noqa: BLE001
+                self._record_failure(exc)
+                return None
         return self._deserialize(val)
 
     async def remember(self, key: str, ttl: int, factory: Callable[[], T]) -> T:
@@ -166,3 +288,15 @@ def get_cache() -> CacheService:
             default_ttl=settings.redis_default_ttl,
         )
     return _cache_instance
+
+
+def reset_cache() -> None:
+    """Drop the process-wide cache singleton (tests only).
+
+    Unit tests each run on a fresh event loop, so a client created by an
+    earlier test is unusable: it must never be carried across the boundary.
+    """
+    global _cache_instance
+    if _cache_instance is not None:
+        _cache_instance.reset()
+    _cache_instance = None

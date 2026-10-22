@@ -38,6 +38,16 @@ export interface FundBlock {
   real_sell_value: number;
   net_inflow: number;
   nav_change_7d_pct: number | null;
+  // ETF / antigravity pages use these too; keep them on the shared FundBlock
+  // so getETFSnapshot and getArbitrage can reuse one shared FundBlock shape.
+  signal?: string;
+  name_fa?: string;
+  isin?: string;
+  nav?: number;
+  premium_pct?: number;
+  liquidity?: string;
+  management_fee?: string;
+  reason?: string;
 }
 
 export interface ScoreComponents {
@@ -130,6 +140,76 @@ export interface HealthResponse {
   unread_alerts: number;
 }
 
+export type FreshnessStatus = "ok" | "stale" | "empty" | "missing";
+
+export interface FreshnessSource {
+  key: string;
+  label: string;
+  table: string;
+  column: string;
+  max_age_minutes: number;
+  last_at: string | null;
+  age_minutes: number | null;
+  rows: number | null;
+  status: FreshnessStatus;
+  detail: string | null;
+}
+
+export interface FreshnessReport {
+  generated_at: string;
+  overall: FreshnessStatus;
+  counts: { ok: number; stale: number; empty: number; missing: number };
+  sources: FreshnessSource[];
+  scheduler_jobs?: number;
+}
+
+export interface KillSwitchResp {
+  status: "NORMAL" | "WARNING" | "ACTIVE";
+  reason: string | null;
+  directive: string | null;
+  triggered_at: string | null;
+  active_rules: string[];
+}
+
+export interface BenchmarkComparison {
+  label: string;
+  points: number;
+  return_pct: number | null;
+  relative_pct: number | null;
+  unavailable?: string;
+}
+
+export interface PortfolioPerformance {
+  window_days: number;
+  start: string | null;
+  end: string | null;
+  points: number;
+  total_value_irt: number;
+  total_cost_irt: number;
+  unpriced_holdings: number;
+  twr_pct: number | null;
+  simple_return_pct: number | null;
+  annualized_volatility_pct: number | null;
+  sharpe_ratio: number | null;
+  sortino_ratio: number | null;
+  max_drawdown_pct: number | null;
+  var_95_pct: number | null;
+  cvar_95_pct: number | null;
+  concentration_pct: number | null;
+  max_drift_pct: number | null;
+  drift_by_class: Record<string, number>;
+  benchmarks: Record<string, BenchmarkComparison>;
+  unavailable: Record<string, string>;
+}
+
+export interface PortfolioValuePoint {
+  as_of: string;
+  total_value_irt: number;
+  total_cost_irt: number;
+  net_flow_irt: number;
+  unpriced_holdings: number;
+}
+
 export interface BacktestResult {
   total_days: number;
   signal_days: number;
@@ -143,4 +223,155 @@ export interface BacktestResult {
 export interface Watchlist {
   symbols: string[];
   updated_at: string | null;
+}
+
+// ── Economic calendar (``/gold/analytics/macro/calendar``) ───────────────
+
+export interface MacroCalendarEvent {
+  event_id: string;
+  event_date: string;
+  event_time: string | null;
+  title: string | null;
+  country: string | null;
+  category: string | null;
+  importance: number | null;
+  is_high_volatility: boolean;
+  source: string | null;
+}
+
+// ── Macro posture (``GET /gold/analytics/macro/live``) ───────────────────
+//
+// Only the latest stored TIPS / DXY observation is exposed by the API; there
+// is no historical series endpoint for either indicator yet, so the UI must
+// not draw a time-series chart from these numbers.
+
+export interface MacroPostureInputs {
+  tips_yield?: number | null;
+  dxy_index?: number | null;
+  gold_trend?: "up" | "down" | "sideways" | string | null;
+  tokenized_gold_premium?: Record<string, number>;
+}
+
+export interface MacroPosture {
+  tips_yield: number;
+  dxy_index: number;
+  gold_trend: string;
+  real_yield_score: number;
+  real_yield_signal: "ACCOMMODATIVE" | "RESTRICTIVE" | "NEUTRAL" | string;
+  dxy_score: number;
+  dxy_signal: "WEAK" | "STRONG" | "NEUTRAL" | string;
+  trend_score: number;
+  composite_score: number;
+  posture: "BULLISH" | "BEARISH" | "NEUTRAL" | string;
+  inverse_correlation_expected: boolean;
+  divergence: boolean;
+  reasons: string[];
+}
+
+export interface MacroLiveResponse {
+  available: boolean;
+  missing: string[];
+  posture: MacroPosture | null;
+  inputs: MacroPostureInputs;
+  tips_staleness_seconds: number | null;
+  dxy_staleness_seconds: number | null;
+  trend_staleness_seconds: number | null;
+  high_vol_window: boolean;
+  error: string | null;
+}
+
+// ── IME options-chain analytics (``GET /gold/analytics/options/chain``) ───
+//
+// ``iv_history_source`` is ``"unavailable"`` because no historical IV series
+// is persisted, so IV rank/percentile stay null and must be shown as "—".
+
+export interface OptionsChainContract {
+  contract_key: string;
+  symbol?: string | null;
+  option_type: string;
+  strike: number;
+  market_price: number;
+  expiry?: string | null;
+  days_to_expiry?: number | null;
+  forward_price?: number | null;
+  volume?: number | null;
+  open_interest?: number | null;
+  oi_change?: number | null;
+  oi_change_pct?: number | null;
+  bid?: number | null;
+  ask?: number | null;
+  iv: number | null;
+  iv_error: string | null;
+  iv_rank: number | null;
+  iv_percentile: number | null;
+  delta?: number | null;
+  gamma?: number | null;
+  theta?: number | null;
+  vega?: number | null;
+  rho?: number | null;
+  is_liquid: boolean;
+  liquidity_reasons: string[];
+}
+
+export interface IvTermPoint {
+  expiry: string | null;
+  days_to_expiry: number | null;
+  forward_price: number;
+  atm_strike: number;
+  atm_iv: number;
+  contract_key: string | null;
+}
+
+export interface IvSkewRow {
+  expiry: string | null;
+  days_to_expiry: number | null;
+  forward_price: number | null;
+  put_strike: number | null;
+  put_iv: number | null;
+  call_strike: number | null;
+  call_iv: number | null;
+  skew: number | null;
+  reason: string | null;
+}
+
+export interface OptionsChainReport {
+  available: boolean;
+  reason: string | null;
+  source?: string;
+  commodity?: string | null;
+  forward_price?: number | null;
+  contracts: OptionsChainContract[];
+  contracts_count: number;
+  skew_by_expiry: IvSkewRow[];
+  iv_term_structure: IvTermPoint[];
+  iv_available: boolean;
+  iv_history_available: boolean;
+  iv_history_source?: "unavailable" | "provider";
+  iv_history_reason?: string;
+}
+
+// ── IME option strategy (``POST /gold/analytics/options/strategy``) ──────
+
+export interface OptionsStrategyLeg {
+  asset_type?: "option" | "underlying";
+  option_type: "call" | "put";
+  strike: number;
+  quantity: number;
+  premium: number;
+  iv?: number;
+  entry_price?: number;
+}
+
+export interface OptionsStrategyAnalysis {
+  strategy?: string;
+  net_debit: number;
+  net_credit: number;
+  breakevens: number[];
+  max_profit: number | null;
+  max_loss: number | null;
+  max_profit_unbounded: boolean;
+  max_loss_unbounded: boolean;
+  pre_expiry_value?: number | null;
+  pre_expiry_pnl?: number | null;
+  pre_expiry_error?: string | null;
 }

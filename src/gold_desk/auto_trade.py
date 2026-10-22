@@ -25,7 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.time import utc_now_naive
 
-from .models import GoldTradeModel
 from .portfolio import get_current_prices, get_holdings_grouped
 
 logger = logging.getLogger(__name__)
@@ -155,7 +154,9 @@ async def generate_signal(
 
     # استفاده از coin_emami به‌عنوان default symbol
     symbol = "IR_COIN_EMAMI"
-    amount = min(config.max_position_irt, 50_000_000)
+    # مبلغ = سقف پیکربندی؛ پیش‌تر با سقف ثابت ۵۰M بریده می‌شد و مقدار config
+    # (مثلاً ۵۰۰M) نادیده می‌رفت (GS-18).
+    amount = config.max_position_irt
 
     return TradeSignal(
         action=action,
@@ -172,29 +173,31 @@ async def execute_signal(
     session: AsyncSession,
     signal: TradeSignal,
 ) -> dict:
-    """اجرای سیگنال (dry-run یا live)."""
-    if signal.dry_run:
-        # فقط لاگ + ثبت در DB به‌عنوان trade
-        trade = GoldTradeModel(
-            symbol=signal.symbol,
-            action=signal.action,
-            quantity=0,  # dry-run: actual amount pending
-            price=0,
-            amount_irt=signal.amount_irt,
-            fee_irt=0,
-            pnl_irt=0,
-            note=f"[DRY-RUN] {signal.reason}",
-        )
-        session.add(trade)
-        await session.commit()
-        logger.info(f"[DRY-RUN] {signal.action} {signal.symbol} {signal.amount_irt:,.0f}")
-        return {"status": "dry_run", "executed": False, "logged": True}
+    """اجرای سیگنال (dry-run یا live).
 
-    # Live: نیاز broker API
+    dry-run هیچ معامله‌ای ثبت نمی‌کند — پیش‌تر یک ردیف ``gold_trades`` با
+    ``quantity=0, price=0`` درج می‌کرد که داده معامله‌گر را آلوده می‌کرد (GS-18).
+    """
+    if signal.dry_run:
+        logger.info(
+            "[DRY-RUN] %s %s %s", signal.action, signal.symbol, f"{signal.amount_irt:,.0f}"
+        )
+        return {
+            "status": "dry_run",
+            "executed": False,
+            "persisted": False,
+            "simulated": signal.to_dict(),
+        }
+
+    # Live: نیاز broker API واقعی که پیاده‌سازی نشده است؛ هرگز اجرا/موفق گزارش نمی‌شود.
     broker = os.getenv("GOLD_BROKER_API", "").strip()
     if not broker:
         logger.warning("GOLD_BROKER_API not set, skipping live trade")
-        return {"status": "skipped", "reason": "no broker configured"}
-
-    # TODO: implement broker-specific call
-    return {"status": "live_placeholder", "broker": broker, "executed": False}
+        return {"status": "skipped", "reason": "no broker configured", "executed": False}
+    logger.error("live trading is not implemented; refusing to report execution (broker=%s)", broker)
+    return {
+        "status": "not_implemented",
+        "broker": broker,
+        "executed": False,
+        "reason": "live broker adapter is not implemented",
+    }

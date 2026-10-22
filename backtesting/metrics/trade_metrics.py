@@ -1,10 +1,77 @@
 from __future__ import annotations
 
 from collections import deque
+from typing import Any
 
 import numpy as np
 
 from backtesting.types import BacktestResult
+
+
+def profit_factor(winning: list[float], losing: list[float]) -> float:
+    """Gross wins over gross losses, with the loss side floored at 1.0.
+
+    The single definition of profit factor for every engine (audit D-04):
+    ``services/signal_backtest_engine`` used to return ``float("inf")`` when a
+    sample had no losing trade, which serialised as the non-standard JSON value
+    ``Infinity`` and disagreed with ``AnalyticsEngine``. Returning the ratio
+    over a floor of 1.0 keeps the figure finite and identical everywhere.
+
+    ``losing`` may carry negative values (the analytics engine keeps the sign)
+    — only their absolute sum matters. :meth:`TradeMetrics.compute` keeps its
+    own historical rule for the composer's quality filter; this helper is what
+    ``AnalyticsEngine`` and ``SignalBacktestEngine`` now share.
+    """
+    return sum(winning) / max(abs(sum(losing)), 1.0)
+
+
+def round_trip_pnls(trades: list[Any]) -> list[float]:
+    """Realised PnL for every FIFO round trip in ``trades``.
+
+    Buy and sell fills are paired per instrument with a deque, so FIFO opening
+    is O(1) instead of O(n) with ``pop(0)``. The buy-side commission is spread
+    over the matched share and included in the cost basis (audit F4):
+
+        cost_basis = buy_price + buy_commission_used / matched_qty
+        pnl = (sell_price - cost_basis) * matched_qty - sell_commission_used
+
+    Falls back to the signed per-fill notional when no buy/sell pair exists
+    (e.g. a series that only buys or only sells), so callers always get a
+    usable sample. This is the single source of truth for cost-basis PnL:
+    :meth:`TradeMetrics.compute` and the walk-forward metrics both read it.
+    """
+    round_trips: list[float] = []
+    # inst_id -> deque[(price, qty_remaining, commission_remaining)]
+    open_buys: dict[str, deque] = {}
+    for t in trades:
+        key = t.instrument_id or "default"
+        if t.side == "buy":
+            open_buys.setdefault(key, deque()).append((t.price, t.quantity, t.commission))
+        elif t.side == "sell":
+            buys = open_buys.get(key)
+            remaining_sell = max(t.quantity, 0)
+            sell_comm_per_unit = t.commission / max(t.quantity, 1)
+            while buys and remaining_sell > 0:
+                buy_price, buy_qty, buy_commission = buys.popleft()
+                matched_qty = min(buy_qty, remaining_sell)
+                buy_comm_used = buy_commission * (matched_qty / max(buy_qty, 1))
+                cost_basis = buy_price + buy_comm_used / max(matched_qty, 1)
+                sell_comm_used = sell_comm_per_unit * matched_qty
+                pnl = (t.price - cost_basis) * matched_qty - sell_comm_used
+                round_trips.append(pnl)
+                remaining_sell -= matched_qty
+                if buy_qty > matched_qty:
+                    buys.appendleft((
+                        buy_price,
+                        buy_qty - matched_qty,
+                        buy_commission - buy_comm_used,
+                    ))
+
+    # Fallback: if no round trips (e.g., only buys or only sells), use raw values
+    if not round_trips:
+        round_trips = [t.price * t.quantity * (1 if t.side == "sell" else -1) for t in trades]
+
+    return round_trips
 
 
 class TradeMetrics:
@@ -20,42 +87,8 @@ class TradeMetrics:
         metrics["buy_trades"] = float(len(buy_trades))
         metrics["sell_trades"] = float(len(sell_trades))
 
-        # BUG FIX #7: Compute PnL by pairing buys with sells per instrument
-        # Each buy-sell pair forms one round-trip trade.
-        # FIFO cost-basis PnL (audit F4): the buy-side commission is spread over
-        # the matched share and included in the PnL (not only the sell side).
-        #   cost_basis = buy_price + buy_commission_used / matched_qty
-        #   pnl = (sell_price - cost_basis) * matched_qty - sell_commission_used
-        # A deque keeps FIFO opening O(1) instead of O(n) with pop(0).
-        round_trips: list[float] = []
-        open_buys: dict[str, deque] = {}  # inst_id -> deque[(price, qty_remaining, commission_remaining)]
-        for t in trades:
-            key = t.instrument_id or "default"
-            if t.side == "buy":
-                open_buys.setdefault(key, deque()).append((t.price, t.quantity, t.commission))
-            elif t.side == "sell":
-                buys = open_buys.get(key)
-                remaining_sell = max(t.quantity, 0)
-                sell_comm_per_unit = t.commission / max(t.quantity, 1)
-                while buys and remaining_sell > 0:
-                    buy_price, buy_qty, buy_commission = buys.popleft()
-                    matched_qty = min(buy_qty, remaining_sell)
-                    buy_comm_used = buy_commission * (matched_qty / max(buy_qty, 1))
-                    cost_basis = buy_price + buy_comm_used / max(matched_qty, 1)
-                    sell_comm_used = sell_comm_per_unit * matched_qty
-                    pnl = (t.price - cost_basis) * matched_qty - sell_comm_used
-                    round_trips.append(pnl)
-                    remaining_sell -= matched_qty
-                    if buy_qty > matched_qty:
-                        buys.appendleft((
-                            buy_price,
-                            buy_qty - matched_qty,
-                            buy_commission - buy_comm_used,
-                        ))
-
-        # Fallback: if no round trips (e.g., only buys or only sells), use raw values
-        if not round_trips:
-            round_trips = [t.price * t.quantity * (1 if t.side == "sell" else -1) for t in trades]
+        # BUG FIX #7: pair buys with sells per instrument into round trips.
+        round_trips = round_trip_pnls(trades)
 
         winning = [p for p in round_trips if p > 0]
         losing = [p for p in round_trips if p < 0]

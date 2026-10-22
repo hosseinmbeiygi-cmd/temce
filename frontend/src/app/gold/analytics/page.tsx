@@ -51,7 +51,7 @@ export default function GoldAnalyticsPage() {
       {/* Score over time */}
       <section className="rounded-2xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-6">
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">نمودار امتیاز در زمان</h3>
-        <ScoreChart points={scoreHist?.data?.items ?? []} />
+        <ScoreChart points={scoreHist ?? []} />
       </section>
 
       {/* Compare assets */}
@@ -170,7 +170,7 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
     refetchInterval: 60_000,
   });
 
-  const points = (hist?.data?.items ?? []).map((p) => ({
+  const points = (hist ?? []).map((p) => ({
     date: (p.snapshot_at || "").slice(0, 16).replace("T", " "),
     value: p.bubble_pct ?? 0,
   }));
@@ -225,9 +225,11 @@ function FundsHeatmap() {
 
   // محاسبه heat: bubble + BPR
   const funds = snap.funds.map((f) => {
-    let heat: "hot" | "warm" | "cold" = "cold";
-    if (f.bubble_pct > 3 || f.bpr < 1) heat = "hot"; // اشباع خرید یا فروش
-    else if (f.bubble_pct > 1.5 || f.bpr < 1.5) heat = "warm";
+    const heat = (() => {
+      if (f.bubble_pct > 3 || f.bpr < 1) return "hot"; // اشباع خرید یا فروش
+      if (f.bubble_pct > 1.5 || f.bpr < 1.5) return "warm";
+      return "cold";
+    })();
     return { ...f, heat };
   });
 

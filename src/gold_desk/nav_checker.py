@@ -8,14 +8,21 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utc_now_naive
+from .dates import jalali_days_ago
+
+logger = logging.getLogger(__name__)
+
+# آخرین ردیف real/legal قدیمی‌تر از این تعداد روز «کهنه» تلقی می‌شود و BPR/Inflow
+# آن صفر می‌ماند (audit GS-16) — پیش از این هیچ سقف تازگی اعمال نمی‌شد و نماد
+# «عیار» با سه هفته تأخیر همان عدد را به امتیاز TSETMC می‌داد.
+MAX_MARKET_DATA_AGE_DAYS: int = 7
 
 
 @dataclass(frozen=True)
@@ -36,41 +43,49 @@ class FundNAVStatus:
     nav_7d_pct: float | None
 
 
+def _pick_nav(row: Any) -> float | None:
+    """انتخاب مقدار NAV از ردیف (nav_issue سپس nav_redemption).
+
+    ``brsapi_nav_records`` هیچ ستون ``nav`` ندارد؛ فقط ``nav_issue`` و
+    ``nav_redemption``. انتخاب ستون اشتباه پیش‌تر در یک ``except Exception``
+    بی‌صدا خورده می‌شد و برای هر ۱۰ صندوق طلا ``None`` برمی‌گرداند (GS-01).
+    """
+    if row is None:
+        return None
+    for value in row:
+        if value:
+            return float(value)
+    return None
+
+
 async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
     """آخرین NAV ثبت‌شده برای یک صندوق."""
-    try:
-        from brsapi.models import NavRecordModel
+    from brsapi.models import NavRecordModel
 
-        stmt = (
-            select(NavRecordModel.nav)
-            .where(NavRecordModel.symbol == symbol)
-            .order_by(desc(NavRecordModel.date))
-            .limit(1)
-        )
-        result = await session.execute(stmt)
-        row = result.first()
-        return float(row[0]) if row and row[0] else None
-    except Exception:
-        return None
+    stmt = (
+        select(NavRecordModel.nav_issue, NavRecordModel.nav_redemption)
+        .where(NavRecordModel.symbol == symbol)
+        .order_by(desc(NavRecordModel.date))
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return _pick_nav(result.first())
 
 
 async def _nav_7d_ago(session: AsyncSession, symbol: str) -> float | None:
     """NAV ۷ روز قبل."""
-    try:
-        from brsapi.models import NavRecordModel
+    from brsapi.models import NavRecordModel
 
-        cutoff = utc_now_naive() - timedelta(days=7)
-        stmt = (
-            select(NavRecordModel.nav)
-            .where(NavRecordModel.symbol == symbol, NavRecordModel.date <= cutoff)
-            .order_by(desc(NavRecordModel.date))
-            .limit(1)
-        )
-        result = await session.execute(stmt)
-        row = result.first()
-        return float(row[0]) if row and row[0] else None
-    except Exception:
-        return None
+    # date در این جدول شمسی ذخیره می‌شود؛ cutoff هم باید شمسی باشد.
+    cutoff = jalali_days_ago(7)
+    stmt = (
+        select(NavRecordModel.nav_issue, NavRecordModel.nav_redemption)
+        .where(NavRecordModel.symbol == symbol, NavRecordModel.date <= cutoff)
+        .order_by(desc(NavRecordModel.date))
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return _pick_nav(result.first())
 
 
 async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any] | None:
@@ -88,6 +103,13 @@ async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any
         result = await session.execute(stmt)
         row = result.scalars().first()
         if row is None:
+            return None
+        # سقف تازگی: داده کهنه نباید مثل داده امروز در امتیاز TSETMC بنشیند.
+        cutoff = jalali_days_ago(MAX_MARKET_DATA_AGE_DAYS)
+        if row.date and str(row.date) < cutoff:
+            logger.warning(
+                "stale real/legal data for %s: %s (cutoff %s)", symbol, row.date, cutoff
+            )
             return None
         buy_val = int(row.buy_real_value or 0)
         sell_val = int(row.sell_real_value or 0)

@@ -62,7 +62,10 @@ GOLD_FEATURE_TRANSFORMS: dict[str, tuple[float, float]] = {
 }
 
 DEFAULT_BUBBLE_WINDOW = 120
-DEFAULT_MIN_BUBBLE_OBSERVATIONS = 20
+#: A z-score from a short sample is dominated by one observation.  Production
+#: passes ``settings.gold_bubble_min_observations`` (default 30); below the
+#: minimum the feature is reported as missing.
+DEFAULT_MIN_BUBBLE_OBSERVATIONS = 30
 DEFAULT_EVENT_WINDOW_DAYS = 1
 #: Forward-looking horizon (days) used when the caller does not pass one.
 #: The production value comes from ``settings.gold_event_horizon_days``.

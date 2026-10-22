@@ -34,8 +34,25 @@ from core import database
 from core.time import now_tehran, now_utc
 
 REPORT = Path("data") / "top50_funds_intraday" / "sync_gss.json"
+NEGATIVE_CACHE = Path("data") / "top50_funds_intraday" / "negative_cache.json"
 CONCURRENCY = 4
 WALKBACK_DAYS = 14
+
+
+def _load_negative_cache() -> set[str]:
+    """نمادهایی که در اجراهای قبل هیچ داده‌ای برنگرداندند (کش منفی، GS-30)."""
+    try:
+        data = json.loads(NEGATIVE_CACHE.read_text(encoding="utf-8"))
+        return {str(s) for s in data}
+    except Exception:
+        return set()
+
+
+def _save_negative_cache(symbols: set[str]) -> None:
+    NEGATIVE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    NEGATIVE_CACHE.write_text(
+        json.dumps(sorted(symbols), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def _jalali_dates_back(n: int) -> list[str]:
@@ -75,18 +92,29 @@ async def _classify_funds(s) -> tuple[list[str], list[str], list[str]]:
     return gold, silver, sectoral
 
 
-async def _missing_for(s, symbols: list[str]) -> list[str]:
+async def _missing_for(
+    s, symbols: list[str], negative_cache: set[str] | None = None
+) -> list[str]:
+    """نمادهایی که آخرین روز معاملاتی موجودِ بازار را ندارند.
+
+    معیار «آخرین تاریخ» است، نه «هر تیک تاریخی»؛ پیش‌تر نمادی که یک‌بار تیک
+    گرفته بود «موجود» شمرده می‌شد و دادهٔ امروزش هرگز sync نمی‌شد (GS-30).
+    """
     if not symbols:
         return []
     rows = (
         await s.execute(
-            select(IntradayTradeModel.symbol, func.count(IntradayTradeModel.id))
+            select(IntradayTradeModel.symbol, func.max(IntradayTradeModel.trade_date))
             .where(IntradayTradeModel.symbol.in_(symbols))
             .group_by(IntradayTradeModel.symbol)
         )
     ).all()
-    have = {s_ for s_, n in rows if n > 0}
-    return [sym for sym in symbols if sym not in have]
+    have = {sym: (d or "") for sym, d in rows}
+    latest = max(have.values(), default="")
+    cache = negative_cache or set()
+    if not latest:
+        return [sym for sym in symbols if sym not in cache]
+    return [sym for sym in symbols if sym not in cache and have.get(sym, "") < latest]
 
 
 async def _sync_one(svc: BrsApiSyncService, s, sym: str, dates: list[str]) -> tuple[str, int, str]:
@@ -121,7 +149,10 @@ async def main() -> None:
         gold, silver, sectoral = await _classify_funds(s)
         all_syms = gold + silver + sectoral
         print(f"total classified: gold={len(gold)}  silver={len(silver)}  sectoral={len(sectoral)}")
-        missing = await _missing_for(s, all_syms)
+        negative_cache = _load_negative_cache()
+        if negative_cache:
+            print(f"negative cache: {len(negative_cache)} symbols skipped")
+        missing = await _missing_for(s, all_syms, negative_cache)
         print(f"need sync: {len(missing)} funds")
         if not missing:
             print("nothing to do")
@@ -133,6 +164,7 @@ async def main() -> None:
     sem = asyncio.Semaphore(CONCURRENCY)
     counters: Counter = Counter()
     failures: list[tuple[str, str]] = []
+    empties: list[str] = []
     progress_lock = asyncio.Lock()
     done = 0
 
@@ -146,6 +178,7 @@ async def main() -> None:
                 counters["ticks"] += n
             else:
                 counters["empty"] += 1
+                empties.append(sym_)
             if err:
                 failures.append((sym_, err))
             async with progress_lock:
@@ -158,9 +191,14 @@ async def main() -> None:
 
     await asyncio.gather(*[_run(s) for s in missing])
 
+    # نمادهایی که با ۱۴ روز walkback هم داده ندادند به کش منفی می‌روند تا هر اجرا
+    # درخواست تکراری برای نماد مرده نفرستد (GS-30).
+    negative_cache |= set(empties)
+    _save_negative_cache(negative_cache)
+
     # Verify final coverage.
     async with factory() as s:
-        still_missing = await _missing_for(s, all_syms)
+        still_missing = await _missing_for(s, all_syms, negative_cache)
 
     report = {
         "ran_at": now_utc().isoformat(),
@@ -171,6 +209,7 @@ async def main() -> None:
         "ticks_inserted": counters["ticks"],
         "failures": failures[:50],
         "still_missing": still_missing,
+        "negative_cache_size": len(negative_cache),
     }
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

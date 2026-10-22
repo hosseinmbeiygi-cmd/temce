@@ -645,13 +645,50 @@ class DatabaseGoldFeatureProvider:
         if not self.fund_symbol:
             return []
         points: list[DatedValue] = []
+        placeholder_rows: list[tuple[Any, ...]] = []
         for row in rows:
-            if row.date is None or row.bubble_pct is None:
+            if row.date is None:
                 continue
             observed = _to_utc(row.date)
             if observed > as_of:
                 continue
-            points.append(DatedValue(as_of=observed, value=float(row.bubble_pct)))
+
+            nav_raw = getattr(row, "nav_per_unit", None)
+            price_raw = getattr(row, "market_price", None)
+            try:
+                nav = float(nav_raw) if nav_raw is not None else None
+                price = float(price_raw) if price_raw is not None else None
+            except (TypeError, ValueError):
+                nav = price = None
+            if nav is None or price is None or nav <= 0 or price <= 0:
+                # A missing quote was historically persisted as 0.0, which
+                # would otherwise surface as an exact 0% premium.
+                placeholder_rows.append(
+                    (row.symbol, nav_raw, price_raw, row.date, row.bubble_pct)
+                )
+                continue
+            if price == nav:
+                # ``NAV == price`` with the column default is the placeholder
+                # written when the fund had no independent market quote; a
+                # genuine 0.00% premium is indistinguishable and is treated as
+                # missing rather than as a signal.
+                placeholder_rows.append(
+                    (row.symbol, nav, price, row.date, row.bubble_pct)
+                )
+                continue
+
+            # Recompute from the two primary fields instead of trusting a
+            # possibly-defaulted ``bubble_pct`` column.
+            premium_pct = (price - nav) / nav * 100.0
+            points.append(DatedValue(as_of=observed, value=float(premium_pct)))
+
+        if placeholder_rows:
+            sample = placeholder_rows[:3]
+            logger.debug(
+                "fund P/NAV skipped %d placeholder rows (symbol, nav, price, date, bubble): %s",
+                len(placeholder_rows),
+                sample,
+            )
         points.sort(key=lambda item: item.as_of)
         return points[-self.history_limit :]
 

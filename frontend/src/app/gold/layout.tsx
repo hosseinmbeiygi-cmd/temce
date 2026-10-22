@@ -14,6 +14,8 @@ import { NativeBridge } from "@/components/gold/NativeBridge";
 const TABS = [
   { href: "/gold", label: "داشبورد", exact: true, icon: "📊" },
   { href: "/gold/futures", label: "آتی IME", exact: false, icon: "⚡" },
+  { href: "/gold/options", label: "مشتقه و ریسک", exact: false, icon: "📉" },
+  { href: "/gold/macro", label: "کلان", exact: false, icon: "🌍" },
   { href: "/gold/etf", label: "صندوق ETF", exact: false, icon: "🏦" },
   { href: "/gold/physical", label: "فیزیکی", exact: false, icon: "🪙" },
   { href: "/gold/antigravity", label: "Antigravity", exact: false, icon: "🚀" },
@@ -23,6 +25,7 @@ const TABS = [
   { href: "/gold/alerts", label: "هشدارها", exact: false, icon: "🔔" },
   { href: "/gold/backtest", label: "بک‌تست", exact: false, icon: "🧪" },
   { href: "/gold/tokens", label: "API", exact: false, icon: "🔑" },
+  { href: "/gold/health", label: "سلامت داده", exact: false, icon: "🩺" },
   { href: "/gold/settings", label: "تنظیمات", exact: false, icon: "⚙️" },
 ];
 

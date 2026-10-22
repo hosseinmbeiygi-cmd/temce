@@ -32,6 +32,14 @@ import {
   weeklyCloses,
   windowSignals,
 } from "@/lib/market";
+import { AssistantRulesPanel } from "@/components/gold/SpecRulesCard";
+import {
+  SIGNAL_VERDICT_LABEL,
+  evaluateTrade,
+  minimumTargetForFilter,
+  roundTripFeePct,
+} from "@/lib/gold-silver-spec";
+import { useAssistantRules } from "@/hooks/useAssistantRules";
 
 type Timeframe = "1D" | "1W";
 
@@ -590,9 +598,23 @@ function EtfAnalysisTable() {
     .filter((f) => f.data.row && (f.data.row.price_last ?? 0) > 0)
     .map((f) => {
       const price = f.data.row!.price_last as number;
-      const nav = f.data.navRow?.nav_issue ?? f.data.navRow?.nav_redemption ?? null;
-      const premium = nav ? (price / nav - 1) * 100 : null;
-      return { symbol: f.symbol, name: f.data.row?.name ?? f.symbol, price, nav, premium, volume: f.data.row?.trade_value ?? null, change: f.data.row?.price_last_change_pct ?? null };
+      // §۶: حباب نسبت به NAV ابطال محاسبه می‌شود و تفاوت صدور/ابطال نمایش داده می‌شود.
+      const navIssue = f.data.navRow?.nav_issue ?? null;
+      const navRedemption = f.data.navRow?.nav_redemption ?? null;
+      const bubbleRedemption = navRedemption ? (price / navRedemption - 1) * 100 : null;
+      const bubbleIssue = navIssue ? (price / navIssue - 1) * 100 : null;
+      return {
+        symbol: f.symbol,
+        name: f.data.row?.name ?? f.symbol,
+        price,
+        navIssue,
+        navRedemption,
+        bubbleRedemption,
+        bubbleIssue,
+        navDate: f.data.navRow?.date ?? null,
+        volume: f.data.row?.trade_value ?? null,
+        change: f.data.row?.price_last_change_pct ?? null,
+      };
     });
   return (
     <SectionCard title="صندوق‌های طلا — قیمت، NAV و حباب" subtitle="NAV از TSETMC (BrsApi) · حباب = قیمت/NAV − ۱" icon={Layers3}>
@@ -603,26 +625,27 @@ function EtfAnalysisTable() {
           <table className="w-full min-w-[680px] text-right text-xs">
             <thead>
               <tr className="border-b border-line text-[10px] text-ink-3">
-                <th className="pb-3">نماد</th><th className="pb-3">قیمت (ریال)</th><th className="pb-3">NAV (ریال)</th><th className="pb-3">حباب</th><th className="pb-3">تغییر</th><th className="pb-3">ارزش معامله</th>
+                <th className="pb-3">نماد</th><th className="pb-3">قیمت (ریال)</th><th className="pb-3">NAV صدور</th><th className="pb-3">NAV ابطال</th><th className="pb-3">حباب (ابطال)</th><th className="pb-3">تغییر</th><th className="pb-3">ارزش معامله</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.symbol} className="border-b border-line/60 last:border-0">
-                  <td colSpan={6} className="p-0">
-                    <button type="button" onClick={() => setExpanded(expanded === row.symbol ? null : row.symbol)} className="grid w-full grid-cols-[1.35fr_.9fr_.9fr_.8fr_.7fr_.9fr] items-center gap-2 py-3 text-right hover:bg-soft/60">
+                  <td colSpan={7} className="p-0">
+                    <button type="button" onClick={() => setExpanded(expanded === row.symbol ? null : row.symbol)} className="grid w-full grid-cols-[1.2fr_.8fr_.85fr_.85fr_.85fr_.7fr_.85fr] items-center gap-2 py-3 text-right hover:bg-soft/60">
                       <span className="font-bold text-ink">{row.symbol}<span className="mr-2 text-[10px] font-normal text-ink-3">{row.name}</span></span>
                       <span className="font-mono text-ink-2">{faPrice(row.price)}</span>
-                      <span className="font-mono text-ink-2">{faPrice(row.nav)}</span>
-                      <span className={`font-mono font-bold ${row.premium !== null && row.premium > 2 ? "text-warn" : row.premium !== null && row.premium < 0 ? "text-up" : "text-ink-2"}`}>
-                        {faPct(row.premium, 1)}{row.premium !== null && Math.abs(row.premium) > 2 && " ⚠️"}
+                      <span className="font-mono text-ink-2">{faPrice(row.navIssue)}</span>
+                      <span className="font-mono text-ink-2">{faPrice(row.navRedemption)}</span>
+                      <span className={`font-mono font-bold ${row.bubbleRedemption !== null && row.bubbleRedemption > 2 ? "text-warn" : row.bubbleRedemption !== null && row.bubbleRedemption < 0 ? "text-up" : "text-ink-2"}`}>
+                        {faPct(row.bubbleRedemption, 1)}{row.bubbleRedemption !== null && Math.abs(row.bubbleRedemption) > 2 && " ⚠️"}
                       </span>
                       <span className={`font-mono ${row.change !== null && row.change >= 0 ? "text-up" : "text-down"}`}>{faPct(row.change, 1)}</span>
                       <span className="font-mono text-ink-2">{row.volume !== null ? faNumber(row.volume / 1e9) + "B" : "—"}</span>
                     </button>
                     {expanded === row.symbol && (
                       <div className="mb-3 rounded-xl bg-soft/70 px-3 py-2 text-[11px] leading-6 text-ink-2">
-                        <span className="font-bold text-ink">جزئیات:</span> NAV گزارش‌شده در {funds.find((f) => f.symbol === row.symbol)?.data.navRow?.date ?? "—"} — حباب مثبت یعنی قیمت بازار بالاتر از ارزش خالص دارایی.
+                        <span className="font-bold text-ink">جزئیات:</span> تاریخ NAV: {row.navDate ?? "—"} — حباب طبق §۶ نسبت به <b>NAV ابطال</b> = {faPct(row.bubbleRedemption, 2)} و نسبت به <b>NAV صدور</b> = {faPct(row.bubbleIssue, 2)}. تفاوت صدور/ابطال باید دیده شود، نه پنهان؛ حباب مثبت یعنی قیمت بازار بالاتر از ارزش خالص دارایی.
                       </div>
                     )}
                   </td>
@@ -649,8 +672,12 @@ function IntrinsicDeviationCard({ live }: { live: ReturnType<typeof useLiveMarke
     gold18 && xau && usd
       ? { label: "طلای ۱۸ گرمی vs انس", value: (gold18 / ((xau * usd * 0.75) / 31.1035) - 1) * 100, note: "انس × دلار × عیار ۷۵۰ ÷ ۳۱٫۱ گرم" }
       : null,
-    fund.row?.price_last && fund.navRow?.nav_issue
-      ? { label: "صندوق طلا vs NAV", value: (fund.row.price_last / fund.navRow.nav_issue - 1) * 100, note: `NAV گزارش ${fund.navRow.date ?? "—"}` }
+    // §۶: مرجع حباب، NAV ابطال است؛ تفاوت صدور/ابطال هم نشان داده می‌شود.
+    fund.row?.price_last && (fund.navRow?.nav_redemption ?? fund.navRow?.nav_issue)
+      ? { label: "صندوق طلا vs NAV ابطال", value: (fund.row.price_last / (fund.navRow?.nav_redemption ?? fund.navRow?.nav_issue ?? 0) - 1) * 100, note: `حباب طبق §۶ نسبت به NAV ابطال — گزارش ${fund.navRow?.date ?? "—"}` }
+      : null,
+    fund.row?.price_last && fund.navRow?.nav_redemption && fund.navRow?.nav_issue
+      ? { label: "صندوق طلا vs NAV صدور", value: (fund.row.price_last / fund.navRow.nav_issue - 1) * 100, note: `تفاوت صدور/ابطال: ${faPct(((fund.navRow.nav_redemption - fund.navRow.nav_issue) / fund.navRow.nav_issue) * 100)}` }
       : null,
   ].filter((r): r is NonNullable<typeof r> => r !== null && Number.isFinite(r.value));
   return (
@@ -768,6 +795,47 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
       windows,
     };
   }, [history, xauusd.pairs, live.bySymbol, sekke]);
+
+  // §۲۶ — آستانه‌های فیلتر از همان endpointی می‌آید که گیت `signal_decision_engine`
+  // از آن می‌خواند (`GET /gold/assistant-rules` → `acceptance.yaml`). پس این کارت
+  // نمی‌تواند برنامهٔ معاملاتی‌ای نشان دهد که موتور سمت سرور ردش می‌کند.
+  const { rules, error: rulesError } = useAssistantRules();
+  const tripPct = rules ? roundTripFeePct(rules, "commodity_fund") : null;
+
+  const filterCheck = useMemo(() => {
+    if (!signal || !rules || tripPct === null) return null;
+    const entry = signal.last;
+    const direction = signal.action === "SELL" ? "short" : "long";
+    const riskPct = (Math.abs(entry - signal.stopLoss) / entry) * 100;
+    const requirement = minimumTargetForFilter({
+      entry,
+      riskPct,
+      costPct: tripPct,
+      filter: rules.signal_filter,
+      direction,
+    });
+    if (requirement === null) return null;
+    const judge = (target: number) =>
+      evaluateTrade({
+        entry,
+        target,
+        stop: signal.stopLoss,
+        costPct: tripPct,
+        direction,
+        probability: null,
+        filter: rules.signal_filter,
+      });
+    return {
+      requirement,
+      riskPct,
+      costPct: tripPct,
+      filter: rules.signal_filter,
+      ruleTarget: judge(signal.target1),
+      ruleTarget2: judge(signal.target2),
+      requiredTarget: judge(requirement.target),
+    };
+  }, [signal, rules, tripPct]);
+
   if (!signal) {
     return (
       <SectionCard title="سیگنال ساختاریافتهٔ طلا" subtitle="خروجی محاسبه‌شده از دادهٔ واقعی" icon={Sparkles}>
@@ -776,6 +844,9 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
     );
   }
   const tone = signal.action === "BUY" ? "up" : signal.action === "SELL" ? "warn" : "neutral";
+  // هدفِ قانون (۲×ATR) از فیلتر رد می‌شود ⇒ «سیگنال» نامیدنِ آن، وعدهٔ موتور را
+  // خلاف واقع نشان می‌دهد؛ پس عنوان کارت هم همان حکم فیلتر را می‌گوید (§۲۶).
+  const ruleBlocked = filterCheck?.ruleTarget.verdict === "reject";
   return (
     <SectionCard title="سیگنال ساختاریافتهٔ طلا (IR_GOLD_18K)" subtitle="محاسبه از تاریخچهٔ واقعی + قیمت لحظه‌ای — ATR-based" icon={Sparkles}>
       <div className="grid gap-3 lg:grid-cols-[1.1fr_1.4fr]">
@@ -785,7 +856,9 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
               <p className="text-[10px] text-ink-3">دارایی</p>
               <p className="mt-1 font-bold text-ink">طلای ۱۸ عیار · IME/BrsApi</p>
             </div>
-            <StatusPill tone={tone}>{signal.action}</StatusPill>
+            <StatusPill tone={ruleBlocked ? "neutral" : tone}>
+              {ruleBlocked ? "بدون سیگنال §۲۶" : signal.action}
+            </StatusPill>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
             <div><span className="text-ink-3">{live.bySymbol.get("IR_GOLD_18K")?.price ? "قیمت زنده" : "آخرین بسته"}</span><b className="mr-2 font-mono text-ink">{faPrice(signal.last / 10)}</b></div>
@@ -795,10 +868,10 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-line p-2 text-center"><p className="text-[9px] text-ink-3">ورود (آخرین)</p><p className="mt-1 font-mono text-[11px] font-bold text-ink">{faPrice(signal.last / 10)}</p></div>
-          <div className="rounded-xl border border-down/20 bg-down/5 p-2 text-center"><p className="text-[9px] text-ink-3">حد ضرر ۲×ATR</p><p className="mt-1 font-mono text-[11px] font-bold text-down">{faPrice(signal.stopLoss / 10)}</p></div>
-          <div className="rounded-xl border border-up/20 bg-up/5 p-2 text-center"><p className="text-[9px] text-ink-3">هدف ۱</p><p className="mt-1 font-mono text-[11px] font-bold text-up">{faPrice(signal.target1 / 10)}</p></div>
-          <div className="rounded-xl border border-up/20 bg-up/5 p-2 text-center"><p className="text-[9px] text-ink-3">هدف ۲</p><p className="mt-1 font-mono text-[11px] font-bold text-up">{faPrice(signal.target2 / 10)}</p></div>
+          <div className="rounded-xl border border-line p-2 text-center"><p className="text-[9px] text-ink-3">ورود (آخرین)</p><p data-testid="gold-signal-entry" className="mt-1 font-mono text-[11px] font-bold text-ink">{faPrice(signal.last / 10)}</p></div>
+          <div className="rounded-xl border border-down/20 bg-down/5 p-2 text-center"><p className="text-[9px] text-ink-3">حد ضرر ۲×ATR</p><p data-testid="gold-signal-stop" className="mt-1 font-mono text-[11px] font-bold text-down">{faPrice(signal.stopLoss / 10)}</p></div>
+          <div className="rounded-xl border border-up/20 bg-up/5 p-2 text-center"><p className="text-[9px] text-ink-3">هدف ۱ (قانون ۲×ATR)</p><p data-testid="gold-signal-rule-target" className="mt-1 font-mono text-[11px] font-bold text-up">{faPrice(signal.target1 / 10)}</p></div>
+          <div className="rounded-xl border border-up/20 bg-up/5 p-2 text-center"><p className="text-[9px] text-ink-3">هدف ۲ (قانون ۴×ATR)</p><p data-testid="gold-signal-rule-target2" className="mt-1 font-mono text-[11px] font-bold text-up">{faPrice(signal.target2 / 10)}</p></div>
         </div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-4">
@@ -807,8 +880,83 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
         <span className="rounded-lg bg-soft px-2 py-1.5 text-[10px] text-ink-2">همبستگی با انس: <b className="text-primary-600">{signal.corr === null ? "—" : faNumber(signal.corr, 2)}</b></span>
         <span className="rounded-lg bg-soft px-2 py-1.5 text-[10px] text-ink-2">مومنتوم ۲۰ روزه: <b className={(signal.momentum20 ?? 0) >= 0 ? "text-up" : "text-down"}>{faPct(signal.momentum20, 1)}</b></span>
       </div>
+      {/* §۲۶ — همان دو کفی که گیت `signal_decision_engine` اجرا می‌کند. */}
+      <div
+        data-testid="gold-signal-filter"
+        className="mt-3 rounded-xl border border-line bg-soft/60 p-3 text-[11px] leading-5"
+      >
+        {filterCheck === null ? (
+          <p data-testid="gold-signal-filter-unavailable" className="text-ink-3">
+            {rules
+              ? "قواعد بازار از API ناقص رسید؛ هزینهٔ رفت‌وبرگشت قابل‌اتکا نیست"
+              : `آستانه‌های فیلتر §۲۶ در دسترس نیست${rulesError ? ` (${rulesError})` : ""}`}{" "}
+            — تا دریافت آن، هیچ عدد آستانه‌ای روی این کارت نشان داده نمی‌شود و سیگنالی تأیید
+            نمی‌گردد (§۱۳ و §۲۸.۲).
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-black text-ink">فیلتر ارزش معامله (§۲۶)</span>
+              <span
+                data-testid="gold-signal-filter-thresholds"
+                className="rounded-md bg-card px-1.5 py-0.5 text-[10px] text-ink-3"
+              >
+                سود خالص ≥ {faNumber(filterCheck.filter.min_net_profit_pct, 0)}٪ · RR ≥{" "}
+                {faNumber(filterCheck.filter.min_risk_reward, 0)}
+              </span>
+              <span
+                data-testid="gold-signal-filter-verdict"
+                className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                  ruleBlocked ? "bg-down/15 text-down" : "bg-warn/15 text-warn"
+                }`}
+              >
+                {ruleBlocked
+                  ? SIGNAL_VERDICT_LABEL.reject
+                  : SIGNAL_VERDICT_LABEL[filterCheck.requiredTarget.verdict]}
+              </span>
+            </div>
+            <p className="mt-1.5 text-ink-3">
+              حداقل هدفی که هر دو کف را رد می‌کند:{" "}
+              <b
+                data-testid="gold-signal-required-target"
+                className="font-mono text-ink"
+                dir="ltr"
+              >
+                {faPrice(filterCheck.requirement.target / 10)}
+              </b>{" "}
+              تومان — حرکت ناخالص{" "}
+              <b
+                data-testid="gold-signal-required-gross"
+                className="font-mono text-ink"
+                dir="ltr"
+              >
+                {faNumber(filterCheck.requirement.grossPct, 2)}
+              </b>
+              ٪ (ریسک ناخالص {faNumber(filterCheck.riskPct, 2)}٪ + هزینهٔ رفت‌وبرگشت{" "}
+              {faNumber(filterCheck.costPct, 2)}٪؛ قید غالب:{" "}
+              {filterCheck.requirement.binding === "risk_reward"
+                ? "نسبت ریسک/ریوارد"
+                : "سود خالص"}
+              ).
+            </p>
+            <p
+              data-testid="gold-signal-rule-target-verdict"
+              className={ruleBlocked ? "mt-1 text-down" : "mt-1 text-up"}
+            >
+              هدف ۱ قانون: {SIGNAL_VERDICT_LABEL[filterCheck.ruleTarget.verdict]}
+              {filterCheck.ruleTarget.reasons.length > 0 &&
+                ` — ${filterCheck.ruleTarget.reasons.join(" · ")}`}{" "}
+              · هدف ۲ قانون: {SIGNAL_VERDICT_LABEL[filterCheck.ruleTarget2.verdict]}
+              {filterCheck.ruleTarget2.reasons.length > 0 &&
+                ` — ${filterCheck.ruleTarget2.reasons.join(" · ")}`}
+            </p>
+          </>
+        )}
+      </div>
       <p className="mt-3 rounded-xl border border-line bg-card p-3 text-[10px] leading-5 text-ink-3">
-        این کارت یک قانون محاسبهٔ شفاف روی دادهٔ واقعی است (مومنتوم + میانگین + ATR)؛ سیگنال معاملاتی توصیه‌شده توسط مدل ML نیست.
+        این کارت یک قانون محاسبهٔ شفاف روی دادهٔ واقعی است (مومنتوم + میانگین + ATR)؛ سیگنال
+        معاملاتی توصیه‌شده توسط مدل ML نیست و سطوح هدفش پیش از نمایش با فیلتر §۲۶ (سود خالص و
+        ریسک/ریوارد) سنجیده می‌شود.
       </p>
     </SectionCard>
   );
@@ -1229,6 +1377,7 @@ export default function GoldMarketPage() {
               <FuturesMonitorCard futures={futures} />
             </section>
             <NewsCard news={news} />
+            <AssistantRulesPanel defaultFeeKind="commodity_fund" />
             <StructuredSignalCard history={history} live={live} />
           </>
         )}

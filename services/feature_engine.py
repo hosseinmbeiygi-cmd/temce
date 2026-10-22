@@ -30,6 +30,32 @@ from core.time import now_utc, utc_now_naive
 
 logger = get_logger(__name__)
 
+# ── Leakage guard (audit F-04) ─────────────────────────────────────────────────
+# Name fragments that mean a feature was computed from data at or after the
+# label horizon. A future-return canary feature rode through the whole pipeline
+# with an IC of 0.999 because nothing rejected it. Take-profit levels
+# (``target_profit``) are legitimate — they come from the *current* price — so a
+# bare ``target`` is deliberately not listed here.
+LEAKAGE_NAME_FRAGMENTS = (
+    "future",
+    "fwd_",
+    "forward_",
+    "next_",
+    "lookahead",
+    "look_ahead",
+    "label",
+    "actual_return",
+    "outcome",
+    "leak",
+)
+
+
+def is_leakage_feature(name: str) -> bool:
+    """True when a feature name says it looks beyond the decision bar."""
+    lowered = str(name).lower()
+    return any(fragment in lowered for fragment in LEAKAGE_NAME_FRAGMENTS)
+
+
 # ── Default constants (loaded from config/macroeconomics.yaml at runtime) ──────
 _DEFAULT_MACRO_ECONOMICS = {
     "base_fx_current": 28500.0,
@@ -175,6 +201,9 @@ class FeatureEngine:
         features.update(block_g)
         features.update(block_h)
 
+        # ── 5. Canary guard (F-04): validate feature pipeline output ──
+        canary = self._canary_check(features, enriched)
+
         elapsed = (now_utc() - start_time).total_seconds()
 
         return {
@@ -185,6 +214,7 @@ class FeatureEngine:
             "total_features": len(features),
             "version": self._features_schema.get("meta", {}).get("version", "unknown"),
             "features": features,
+            "canary": canary,
             "metadata": {
                 "data_sources": {
                     "enriched_detail": bool(enriched),
@@ -193,6 +223,134 @@ class FeatureEngine:
                     "queue_analysis": bool(queue_result),
                 },
             },
+        }
+
+    def _canary_check(
+        self,
+        features: dict[str, Any],
+        enriched: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Canary guard for feature pipeline (F-04).
+
+        Validates that computed features are within expected ranges and
+        that critical data sources are present. Returns a status dict
+        with pass/fail details.
+
+        Returns:
+            dict with keys:
+                - status: "PASS" | "FAIL" | "DEGRADED"
+                - checks: list of individual check results
+                - failed_count: int
+                - warning_count: int
+        """
+        checks: list[dict[str, Any]] = []
+        failed = 0
+        warned = 0
+
+        # ── Check 1: Feature count ──
+        expected_min = 100
+        if len(features) < expected_min:
+            checks.append({"check": "feature_count", "status": "FAIL",
+                           "message": f"Only {len(features)} features (expected >= {expected_min})"})
+            failed += 1
+        else:
+            checks.append({"check": "feature_count", "status": "PASS",
+                           "message": f"{len(features)} features"})
+
+        # ── Check 2: Critical feature presence ──
+        critical_features = [
+            "ticker", "eps_ttm", "last_price", "volume", "rsi_14",
+            "final_score", "final_decision", "stop_loss",
+        ]
+        missing_critical = [f for f in critical_features if f not in features]
+        if missing_critical:
+            checks.append({"check": "critical_features", "status": "FAIL",
+                           "message": f"Missing: {missing_critical}"})
+            failed += 1
+        else:
+            checks.append({"check": "critical_features", "status": "PASS",
+                           "message": "All critical features present"})
+
+        # ── Check 3: Price sanity ──
+        last_price = float(features.get("last_price", 0) or 0)
+        if last_price <= 0:
+            checks.append({"check": "price_sanity", "status": "FAIL",
+                           "message": f"Invalid last_price: {last_price}"})
+            failed += 1
+        elif last_price > 1_000_000:
+            checks.append({"check": "price_sanity", "status": "WARN",
+                           "message": f"Suspiciously high price: {last_price}"})
+            warned += 1
+        else:
+            checks.append({"check": "price_sanity", "status": "PASS",
+                           "message": f"Price OK: {last_price}"})
+
+        # ── Check 4: Score range ──
+        final_score = float(features.get("final_score", 0) or 0)
+        if not (0 <= final_score <= 100):
+            checks.append({"check": "score_range", "status": "FAIL",
+                           "message": f"final_score out of range: {final_score}"})
+            failed += 1
+        else:
+            checks.append({"check": "score_range", "status": "PASS",
+                           "message": f"Score OK: {final_score}"})
+
+        # ── Check 5: Data freshness ──
+        if not enriched:
+            checks.append({"check": "data_freshness", "status": "FAIL",
+                           "message": "No enriched data available"})
+            failed += 1
+        else:
+            checks.append({"check": "data_freshness", "status": "PASS",
+                           "message": "Enriched data present"})
+
+        # ── Check 6: Volume sanity ──
+        volume = int(features.get("volume", 0) or 0)
+        if volume < 0:
+            checks.append({"check": "volume_sanity", "status": "FAIL",
+                           "message": f"Negative volume: {volume}"})
+            failed += 1
+        elif volume == 0:
+            checks.append({"check": "volume_sanity", "status": "WARN",
+                           "message": "Zero volume"})
+            warned += 1
+        else:
+            checks.append({"check": "volume_sanity", "status": "PASS",
+                           "message": f"Volume OK: {volume}"})
+
+        # ── Check 7: RSI range ──
+        rsi = float(features.get("rsi_14", 50) or 50)
+        if not (0 <= rsi <= 100):
+            checks.append({"check": "rsi_range", "status": "FAIL",
+                           "message": f"RSI out of range: {rsi}"})
+            failed += 1
+        else:
+            checks.append({"check": "rsi_range", "status": "PASS",
+                           "message": f"RSI OK: {rsi}"})
+
+        # ── Check 8: Leakage (audit F-04) ──
+        leak_keys = sorted(k for k in features if is_leakage_feature(k))
+        if leak_keys:
+            checks.append({"check": "leakage", "status": "FAIL",
+                           "message": f"Forward-looking feature names present: {leak_keys}"})
+            failed += 1
+        else:
+            checks.append({"check": "leakage", "status": "PASS",
+                           "message": "No forward-looking feature names"})
+
+        # ── Determine overall status ──
+        if failed > 0:
+            status = "FAIL"
+        elif warned > 0:
+            status = "DEGRADED"
+        else:
+            status = "PASS"
+
+        return {
+            "status": status,
+            "checks": checks,
+            "failed_count": failed,
+            "warning_count": warned,
         }
 
     # ═══════════════════════════════════════════════════════════════

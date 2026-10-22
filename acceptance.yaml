@@ -31,3 +31,70 @@ thresholds:
     max_drawdown: 0.20          # حداکثر افت سرمایه مجاز: ۲۰٪
     min_profit_factor: 1.30     # حداقل نسبت سود به زیان ناخالص
     min_trade_count: 50         # حداقل تعداد معاملات جهت اطمینان از معناداری نمونه
+
+# ─────────────────────────────────────────────────────────────────────────────
+# سند تجمیعی دستیار طلا و نقره — بخش‌های ۲۰، ۲۶، ۲۷.۱ و ۲۷.۳
+#
+# منبع واحد این اعداد همین فایل است: گیت سیگنال سمت سرور و صفحه‌های طلا/نقره
+# هر دو از اینجا می‌خوانند تا عددی در کد یا فرانت‌اند هاردکد نشود.
+#
+# `provenance` این معنا را می‌رساند:
+#   spec        = عدد صریحاً در سند آمده است
+#   assumption  = پیشنهاد نویسندهٔ سند، منتظر تأیید مالک (§۲۸.۲)
+#   unavailable = عدد قابل‌اتکا پیدا نشد؛ نباید به‌جایش صفر گذاشت
+# ─────────────────────────────────────────────────────────────────────────────
+
+# §۲۷.۱ — جدول تعرفهٔ نسخه‌دار. `fee_per_side` کسر است (۰٫۱۲٪ → 0.0012).
+fee_schedule:
+  version: "1.0"
+  last_updated: "1405-07-22"
+  instruments:
+    commodity_fund:
+      label_fa: "صندوق کالایی طلا و نقره"
+      fee_per_side: 0.0012
+      fee_cap_irr: null
+      tax_exempt: true
+      provenance: assumption      # چند منبع تازه ۰٫۱۲٪؛ منابع قدیمی‌تر ۰٫۱۵٪
+    coin_certificate:
+      label_fa: "گواهی سپردهٔ سکهٔ طلا"
+      fee_per_side: 0.00125
+      fee_cap_irr: 300000000
+      tax_exempt: true
+      provenance: spec
+    bullion_certificate:
+      label_fa: "گواهی سپردهٔ شمش و سایر"
+      fee_per_side: 0.0024
+      fee_cap_irr: 450000000      # در معاملهٔ بلوک دو برابر می‌شود
+      tax_exempt: true
+      provenance: spec
+    futures:
+      label_fa: "آتی"
+      fee_per_side: null          # عدد قابل‌اتکا پیدا نشد (§۲۷.۱)
+      fee_cap_irr: null
+      tax_exempt: false
+      provenance: unavailable
+    option:
+      label_fa: "اختیار معامله"
+      fee_per_side: null
+      fee_cap_irr: null
+      tax_exempt: false
+      provenance: unavailable
+
+# §۲۶ — فیلتر ارزش معامله. آستانه‌ها پس از کسر همهٔ هزینه‌ها اعمال می‌شوند.
+signal_filter:
+  min_net_profit_pct: 2.0         # خواستهٔ مالک، در همهٔ بازارها (§۲۶)
+  min_risk_reward: 2.0            # پیشنهاد نویسندهٔ سند، منتظر تأیید (§۲۸.۲)
+  require_positive_ev: true
+  provenance:
+    min_net_profit_pct: spec
+    min_risk_reward: assumption
+
+# §۲۷.۳ — ساعت، دامنهٔ نوسان و تسویهٔ بازار ایران.
+market_hours:
+  sat_to_wed: { pre_open: "11:45", open: "12:00", close: "18:00" }
+  thursday: { pre_open: "11:45", open: "12:00", close: "15:00" }
+  friday_closed: true
+  price_band_pct: 10.0
+  emergency_band_pcts: [1, 2, 5]
+  settlement_days: 1              # T+1 برای صندوق و گواهی
+  provenance: assumption          # ساعت شروع در منابع ۱۱:۳۰ یا ۱۱:۴۵ آمده

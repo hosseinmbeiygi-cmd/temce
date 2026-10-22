@@ -45,7 +45,14 @@ OUNCE_USD = 2_000.0
 USD_IRR = 1_000_000.0
 
 # Reference intrinsic values for OUNCE_USD / USD_IRR (independent arithmetic).
+# STEP 6-FIX-2 unified the IR_COIN_EMAMI mint fee at 80,000 IRR (the
+# same physical full-coin cost as bahar) and calculate_coin_bubbles
+# folds that fee into intrinsic_value_irr.  EMAMI_INTRINSIC stays the
+# gold-only component; the fee-inclusive value adds EMAMI_MINTING_FEE_IRR.
+# Gate: tests/unit/test_step6_fix2.py::test_emami_mint_fee_unified.
+EMAMI_MINTING_FEE_IRR = 80_000.0
 EMAMI_INTRINSIC = 470_714_710.7878512
+EMAMI_INTRINSIC_WITH_FEE = EMAMI_INTRINSIC + EMAMI_MINTING_FEE_IRR
 HALF_INTRINSIC = 235_328_416.82815728
 QUARTER_INTRINSIC = 117_664_208.41407864
 GERAMI_GOLD_VALUE = 58_455_902.85205087
@@ -150,8 +157,10 @@ class TestCalculateCoinBubbles:
 
     def test_emami_intrinsic_matches_ounce_formula(self):
         result = self._bubbles({"emami": 500_000_000.0})
+        # intrinsic includes the unified 80,000 IRR mint fee; the gold-only
+        # component is unchanged (STEP 6-FIX-2).
         assert result["emami"]["intrinsic_value_irr"] == pytest.approx(
-            EMAMI_INTRINSIC, rel=1e-9
+            EMAMI_INTRINSIC_WITH_FEE, rel=1e-9
         )
         assert result["emami"]["gold_value_irr"] == pytest.approx(
             EMAMI_INTRINSIC, rel=1e-9
@@ -205,16 +214,24 @@ class TestCalculateCoinBubbles:
             GERAMI_GOLD_VALUE, rel=1e-9
         )
 
-    def test_emami_has_no_minting_fee(self):
+    def test_emami_includes_unified_minting_fee(self):
+        """STEP 6-FIX-2: emami carries the same 80,000 IRR fee as bahar.
+
+        Emami and bahar are the same 8.133 g / 900-oz coin; previously
+        emami was modelled fee-free while bahar carried 80,000 IRR.  Both
+        now read services.gold.constants.COIN_MINTING_COSTS.
+        """
         result = self._bubbles({"emami": 500_000_000.0})
-        assert result["emami"]["minting_fee_irr"] == pytest.approx(0.0)
+        assert result["emami"]["minting_fee_irr"] == pytest.approx(
+            EMAMI_MINTING_FEE_IRR
+        )
         assert result["emami"]["intrinsic_value_irr"] == pytest.approx(
-            result["emami"]["gold_value_irr"]
+            result["emami"]["gold_value_irr"] + EMAMI_MINTING_FEE_IRR
         )
 
     def test_zero_bubble_when_market_equals_intrinsic(self):
         prices = {
-            "emami": EMAMI_INTRINSIC,
+            "emami": EMAMI_INTRINSIC_WITH_FEE,
             "half": HALF_INTRINSIC + 50_000.0,
             "quarter": QUARTER_INTRINSIC + 35_000.0,
             "gerami": GERAMI_GOLD_VALUE + GERAMI_MINTING_FEE_IRR,
@@ -225,12 +242,12 @@ class TestCalculateCoinBubbles:
             assert row["is_discount"] is False
 
     def test_positive_bubble_is_percentage_over_intrinsic(self):
-        result = self._bubbles({"emami": EMAMI_INTRINSIC * 1.5})
+        result = self._bubbles({"emami": EMAMI_INTRINSIC_WITH_FEE * 1.5})
         assert result["emami"]["bubble_pct"] == pytest.approx(50.0)
         assert result["emami"]["is_discount"] is False
 
     def test_negative_bubble_marks_discount(self):
-        result = self._bubbles({"emami": EMAMI_INTRINSIC * 0.8})
+        result = self._bubbles({"emami": EMAMI_INTRINSIC_WITH_FEE * 0.8})
         assert result["emami"]["bubble_pct"] == pytest.approx(-20.0)
         assert result["emami"]["is_discount"] is True
 
@@ -245,9 +262,9 @@ class TestCalculateCoinBubbles:
     def test_symbol_aliases_are_normalised(self):
         result = self._bubbles(
             {
-                "IR_COIN_EMAMI": EMAMI_INTRINSIC,
+                "IR_COIN_EMAMI": EMAMI_INTRINSIC_WITH_FEE,
                 "coin_half": HALF_INTRINSIC + 50_000.0,
-                "bahar": EMAMI_INTRINSIC + 80_000.0,
+                "bahar": EMAMI_INTRINSIC_WITH_FEE,
                 "IR_COIN_QUARTER": QUARTER_INTRINSIC + 35_000.0,
             }
         )
@@ -303,7 +320,7 @@ class TestCoinSpecConsistency:
     @pytest.mark.parametrize(
         "symbol, arb_input, expected",
         [
-            ("IR_COIN_EMAMI", "emami", 470714710.7878512),
+            ("IR_COIN_EMAMI", "emami", 470714710.7878512 + 80000.0),
             ("IR_COIN_BAHAR", "bahar", 470714710.7878512 + 80000.0),
             ("IR_COIN_HALF", "half", 235328416.82815728 + 50000.0),
             ("IR_COIN_QUARTER", "quarter", 117664208.41407864 + 35000.0),

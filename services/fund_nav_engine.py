@@ -30,6 +30,20 @@ POLICY_VERSION = "valuation-policy-v1"
 DEFAULT_NAV_TYPE = "STATISTICAL"
 NAV_TYPES = ("STATISTICAL", "ISSUANCE", "REDEMPTION")
 
+# حداکثر عمر قیمت لایو که هنوز «LIVE» شمرده می‌شود. فراتر از آن به STALE تنزل
+# می‌کند تا کیفیت/پوشش بر پایه داده کهنه گزارش نشود (GS-21).
+LIVE_PRICE_MAX_AGE_DAYS = 1
+
+
+def _price_is_stale(price_at: datetime | None, valuation_date: date) -> bool:
+    if price_at is None:
+        return False
+    try:
+        day = price_at.date() if isinstance(price_at, datetime) else price_at
+    except Exception:  # noqa: BLE001
+        return False
+    return (valuation_date - day).days > LIVE_PRICE_MAX_AGE_DAYS
+
 # ── Pure helpers (قابل تست بدون DB) ─────────────────────────────────────────
 
 
@@ -286,31 +300,41 @@ class FundNavEngine:
             [h.get("instrument_symbol") for h in holdings if h.get("instrument_symbol")]
         )
 
-        equity_reported = 0.0
+        # پوشش = وزن ارزشی دارایی‌هایی که قیمت‌گذاری مستقل (LIVE) دارند.
+        # پیش‌تر فقط سهام حائز شرط بودند و در نبود سهام ۱۰۰٪ فرض می‌شد، پس
+        # کیفیت COMPLETE بدون هیچ قیمت‌گذاری مستقلی صادر می‌شد (GS-22).
         covered = 0.0
         total = 0.0
         for h in holdings:
             sym = h.get("instrument_symbol")
             live = prices.get(sym or "")
             pos = value_position(h, live[0] if live else None, live[1] if live else None)
+            # گیت عمر قیمت: قیمت لایو قدیمی‌تر از TTL نباید LIVE بماند.
+            if pos["quality"] == "LIVE" and _price_is_stale(live[1] if live else None, valuation_date):
+                pos["quality"] = "STALE"
+                pos["note"] = "قیمت لایو قدیمی‌تر از TTL است؛ از ارزش در دسترس استفاده شد"
             payload.positions.append(pos)
-            total += float(pos.get("value") or 0.0)
-            if (h.get("holding_type") or "").lower() == "equity":
-                equity_reported += float(h.get("market_value") or 0.0)
-                if pos["quality"] == "LIVE":
-                    covered += float(pos.get("value") or 0.0)
+            value = float(pos.get("value") or 0.0)
+            total += value
+            if pos["quality"] == "LIVE":
+                covered += value
 
         if not holdings and report and report.get("net_asset_value"):
-            # Fallback: فقط سربرگ گزارش — بدون ریز موقعیت (کیفیت پایین)
-            total = float(report["net_asset_value"])
+            # Fallback: فقط سربرگ گزارش — بدون ریز موقعیت (کیفیت پایین).
+            # ``net_asset_value`` خودش «دارایی − بدهی» است؛ برای اینکه ``compute_nav``
+            # بدهی را دوباره کم نکند باید بدهی را به دارایی برگردانیم (GS-04).
+            liabilities = float(report.get("total_liabilities") or 0.0)
+            total = float(report["net_asset_value"]) + liabilities
             payload.warnings.append("holdings_missing_used_report_net_assets")
             payload.quality = "BLOCKED"
         elif not holdings:
             payload.warnings.append("holdings_missing")
+        else:
+            # نقد و معادل نقد هم بخشی از دارایی صندوق است؛ پیش‌تر خوانده می‌شد
+            # و هرگز به total_assets اضافه نمی‌شد (GS-08).
+            total += float((report or {}).get("cash_and_equivalents") or 0.0)
 
-        payload.coverage_pct = (
-            (covered / equity_reported * 100.0) if equity_reported > 0 else (100.0 if holdings else 0.0)
-        )
+        payload.coverage_pct = (covered / total * 100.0) if total > 0 else 0.0
         payload.units = await self._load_units(fund_id, report)
         payload.total_assets = total
         payload.total_liabilities = float((report or {}).get("total_liabilities") or 0.0)
@@ -621,116 +645,9 @@ class FundNavEngine:
         payload = await self._build_payload(fund_id, valuation_date, nav_type, mode)
         input_hash = self._hash_of(payload)
 
-        source_json = json.dumps(
-            {
-                "holdings_period": str(payload.holdings_period),
-                "has_report": payload.has_report,
-                "coverage_pct": round(payload.coverage_pct, 2),
-                "warnings": payload.warnings,
-            },
-            ensure_ascii=False,
-        )
-
-        row = (
-            await self.session.execute(
-                text(
-                    """
-                    INSERT INTO fund_nav_runs
-                        (fund_id, valuation_date, nav_type, mode, engine_version,
-                         policy_version, input_hash, run_status, quality_status,
-                         holdings_period, coverage_pct, units_outstanding,
-                         total_assets, total_liabilities, net_assets, nav_per_unit,
-                         positions_count, source_json)
-                    VALUES
-                        (:fid, :vd, :nt, :mode, :eng, :pol, :hash, 'SUCCESS', :quality,
-                         :hp, :cov, :units, :ta, :tl, :na, :navpu, :pc, :src)
-                    ON CONFLICT (fund_id, valuation_date, nav_type, input_hash) DO NOTHING
-                    RETURNING id
-                    """
-                ),
-                {
-                    "fid": fund_id,
-                    "vd": valuation_date,
-                    "nt": nav_type,
-                    "mode": mode,
-                    "eng": ENGINE_VERSION,
-                    "pol": POLICY_VERSION,
-                    "hash": input_hash,
-                    "quality": payload.quality,
-                    "hp": payload.holdings_period,
-                    "cov": payload.coverage_pct,
-                    "units": payload.units,
-                    "ta": payload.total_assets,
-                    "tl": payload.total_liabilities,
-                    "na": payload.net_assets,
-                    "navpu": payload.nav_per_unit,
-                    "pc": len(payload.positions),
-                    "src": source_json,
-                },
-            )
-        ).first()
-
-        created = row is not None
-        if row is not None:
-            run_id = int(row[0])
-            for p in payload.positions:
-                await self.session.execute(
-                    text(
-                        """
-                        INSERT INTO fund_position_valuations
-                            (run_id, fund_id, instrument_symbol, instrument_name,
-                             holding_type, quantity, price, price_source, price_at,
-                             value, weight_pct, quality, reported_market_value, note)
-                        VALUES
-                            (:rid, :fid, :sym, :name, :ht, :qty, :price, :src, :pat,
-                             :val, :w, :quality, :rmv, :note)
-                        """
-                    ),
-                    {
-                        "rid": run_id,
-                        "fid": fund_id,
-                        "sym": p.get("instrument_symbol"),
-                        "name": p.get("instrument_name"),
-                        "ht": p.get("holding_type"),
-                        "qty": p.get("quantity"),
-                        "price": p.get("price"),
-                        "src": p.get("price_source"),
-                        "pat": p.get("price_at"),
-                        "val": p.get("value"),
-                        "w": (
-                            (float(p.get("value") or 0) / payload.total_assets * 100.0)
-                            if payload.total_assets
-                            else None
-                        ),
-                        "quality": p.get("quality"),
-                        "rmv": p.get("reported_market_value"),
-                        "note": p.get("note"),
-                    },
-                )
-            await self.session.execute(
-                text(
-                    """
-                    INSERT INTO fund_nav_results
-                        (run_id, fund_id, nav_type, valuation_date, net_assets,
-                         units_outstanding, nav_per_unit, quality_status)
-                    VALUES (:rid, :fid, :nt, :vd, :na, :units, :navpu, :quality)
-                    ON CONFLICT (run_id) DO NOTHING
-                    """
-                ),
-                {
-                    "rid": run_id,
-                    "fid": fund_id,
-                    "nt": nav_type,
-                    "vd": valuation_date,
-                    "na": payload.net_assets,
-                    "units": payload.units,
-                    "navpu": payload.nav_per_unit,
-                    "quality": payload.quality,
-                },
-            )
-            await self.session.commit()
-        else:
-            run_id = await self._existing_run_id(fund_id, valuation_date, nav_type, input_hash)
+        # درج/ذخیره در یک متد مشترک با ``_persist_payload`` (قبلاً ~۱۰۰ خط SQL
+        # دقیقاً تکرار می‌شد و خطر واگرایی دو مسیر داشت — GS-31).
+        run_id, created = await self._persist_payload(payload, input_hash)
 
         freshness = {
             "COMPLETE": "live",

@@ -18,6 +18,7 @@ from services.gold.constants import (
     IME_BULLION_ASSAY,
     PURITY_18K,
 )
+from services.gold.physical_arbitrage import calculate_coin_bubbles
 from services.gold.physical_market import (
     aed_hawala_spread,
     calculate_assay_variance_scenarios,
@@ -135,16 +136,18 @@ class TestCoinBubbleCompleteness:
 
         emami = result["emami"]
         assert emami["gold_value_irr"] == pytest.approx(470_714_710.7878512)
-        assert emami["minting_fee_irr"] == pytest.approx(0.0)
+        # STEP 6-FIX-2: emami now carries the unified 80,000 IRR mint fee,
+        # so the intrinsic and bubble references fold the fee in.
+        assert emami["minting_fee_irr"] == pytest.approx(80_000.0)
         assert emami["intrinsic_value_irr"] == pytest.approx(
             emami["gold_value_irr"] + emami["minting_fee_irr"]
         )
         assert emami["bubble_abs_irr"] == pytest.approx(
-            500_000_000.0 - 470_714_710.7878512
+            500_000_000.0 - (470_714_710.7878512 + 80_000.0)
         )
         assert emami["bubble_pct"] == pytest.approx(
-            (500_000_000.0 - 470_714_710.7878512)
-            / 470_714_710.7878512
+            (500_000_000.0 - (470_714_710.7878512 + 80_000.0))
+            / (470_714_710.7878512 + 80_000.0)
             * 100.0
         )
 
@@ -159,10 +162,15 @@ class TestCoinBubbleCompleteness:
         assert gerami["is_discount"] is False
 
     def test_history_adds_zscore_and_percentile(self) -> None:
+        # Price derived from the fee-inclusive intrinsic so the bubble is
+        # exactly +30% (STEP 6-FIX-2 added the 80,000 IRR emami fee).
+        intrinsic = calculate_coin_bubbles(
+            OUNCE_USD, USD_IRR, {"IR_COIN_EMAMI": 1.0}
+        )["emami"]["intrinsic_value_irr"]
         result = calculate_coin_bubbles_with_history(
             OUNCE_USD,
             USD_IRR,
-            {"IR_COIN_EMAMI": 611_929_124.0242066},
+            {"IR_COIN_EMAMI": intrinsic * 1.3},
             history_by_coin={"IR_COIN_EMAMI": [10.0, 20.0, 30.0]},
         )
 
