@@ -25,6 +25,15 @@ import type {
 
 export type { KillSwitchResp } from "@/types/gold";
 
+/**
+ * STEP 8: shared 503 detection so every gold surface can render an explicit
+ * "service unavailable" state instead of a generic failure.
+ */
+export function isServiceUnavailable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /\b503\b/.test(message);
+}
+
 // ── Snapshot-backed reads ────────────────────────────────────────
 
 export async function getSnapshot(): Promise<Snapshot> {
@@ -71,8 +80,12 @@ export async function getGoldLivePrices(): Promise<Record<string, number>> {
 // ── Health / freshness ──────────────────────────────────────────
 
 export async function getHealth(): Promise<HealthResponse> {
-  const r = await apiGet<{ success: boolean; data: HealthResponse }>("/gold/health");
-  return r.data;
+  // The GoldDesk route returns the report object directly (no {success,data}
+  // envelope); tolerate an enveloped payload too so neither shape yields
+  // `undefined` (react-query rejects undefined query data).
+  const r = await apiGet<HealthResponse | { success: boolean; data: HealthResponse }>("/gold/health");
+  if (r && typeof r === "object" && "data" in r && r.data) return r.data;
+  return r as HealthResponse;
 }
 
 export async function getFreshness(): Promise<FreshnessReport> {
@@ -164,6 +177,15 @@ class GoldWSManager {
   }
 
   private connect() {
+    // The backend rejects an unauthenticated handshake with 403, and the token
+    // only exists after the session is hydrated/logged in. Dialing early just
+    // burns a doomed socket (and a console error), so wait for a token and
+    // retry once the session appears.
+    if (!getStoredAccessToken()) {
+      this.scheduleReconnect();
+      return;
+    }
+
     const url = goldWebSocketUrl();
     if (!url) return;
 
@@ -445,12 +467,18 @@ export async function closeFuturesPosition(
 // ── Physical / arbitrage ────────────────────────────────────────
 
 export type ArbitrageResp = {
-  pair: string;
-  gross_spread_pct: number;
-  net_spread_pct: number;
-  action: string;
-  strategy: string;
-  estimated_profit_pct: number;
+  // STEP 8: the endpoint answers ``{available: false, reason, ...}`` when its
+  // inputs are missing — that payload carries NO spread fields, so treating
+  // them as guaranteed numbers crashed the command center and physical page.
+  available: boolean;
+  reason?: string | null;
+  missing_symbols?: string[];
+  pair?: string | null;
+  gross_spread_pct?: number | null;
+  net_spread_pct?: number | null;
+  action?: string | null;
+  strategy?: string | null;
+  estimated_profit_pct?: number | null;
 };
 
 export async function getArbitrage(): Promise<ArbitrageResp | null> {
@@ -676,8 +704,12 @@ export async function getBacktest(days: number, threshold: number): Promise<{
 // ── Watchlist ───────────────────────────────────────────────────
 
 export async function getWatchlist(): Promise<{ symbols: string[] }> {
-  const r = await apiGet<{ success: boolean; data: { symbols: string[] } }>("/gold/watchlist");
-  return r.data;
+  // Same story as getHealth: the route returns `{symbols, updated_at}` bare.
+  const r = await apiGet<{
+    symbols?: string[];
+    data?: { symbols?: string[] };
+  }>("/gold/watchlist");
+  return { symbols: r?.symbols ?? r?.data?.symbols ?? [] };
 }
 
 export async function putWatchlist(input: { symbols: string[] }): Promise<void> {

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshot } from "@/lib/goldApi";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 // ── Helpers ──────────────────────────────────────────────────────
 function fmt(n: number | null | undefined, d = 0): string {
@@ -157,8 +157,15 @@ export default function AntigravityPage() {
   const tp2 = sigAction === "BUY" ? entryMid * 1.06 : sigAction === "SELL" ? entryMid * 0.94 : entryMid * 1.04;
   const rr = Math.abs(tp1 - entryMid) / Math.abs(entryMid - sl);
 
+  // Generated after mount: a timestamp baked into the SSR HTML can never match
+  // the client render, which made this page fail hydration on every load.
+  const [generatedAt, setGeneratedAt] = useState("");
+  useEffect(() => {
+    setGeneratedAt(new Date().toISOString());
+  }, []);
+
   const outputJson = {
-    timestamp: new Date().toISOString(),
+    timestamp: generatedAt,
     asset: { symbol: chosenEtf.sym, market: "TSE", current_price: entryMid },
     signal: { action: sigAction, confidence_score: sigConf, timeframe: sigAction === "CLOSE" ? "SCALP" : sigAction === "BUY" ? "SWING" : sigAction === "SELL" ? "INTRADAY" : "SWING" },
     trade_parameters: { entry_range: [+(entryMid * 0.995).toFixed(0), +(entryMid * 1.005).toFixed(0)], stop_loss: +sl.toFixed(0), target_1: +tp1.toFixed(0), target_2: +tp2.toFixed(0), risk_reward_ratio: +rr.toFixed(2) },

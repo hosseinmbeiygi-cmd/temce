@@ -48,35 +48,36 @@ function writeStoredAuth(data: { access_token: string }) {
 // Session restore after a page reload: the access token is gone from memory
 // but the refresh cookie survives — exchange it for a fresh access token.
 export async function hydrateSession(): Promise<InMemoryAuth> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // The refresh token is read server-side from the httpOnly cookie.
-      body: JSON.stringify({}),
-      credentials: "include",
-    });
-    if (!res.ok) {
-      clearStoredAuth();
-      return _memoryAuth;
-    }
-    const json = await res.json();
-    const data = json.data ?? json;
-    if (data?.access_token) {
-      _memoryAuth.access_token = data.access_token;
-      if (data.user) _memoryAuth.user = data.user as Record<string, unknown>;
-    } else {
-      clearStoredAuth();
-    }
-  } catch {
-    clearStoredAuth();
-  }
+  await restoreSession();
   return _memoryAuth;
+}
+
+/**
+ * Exchange the refresh cookie for an access token — at most once per document.
+ *
+ * Runs exactly once per page load, no matter who asks first: the auth provider
+ * on mount, or an API call that fires before it. That ordering matters for two
+ * reasons — the backend revokes the refresh token on every rotation, so two
+ * parallel refreshes would log the user out on a plain reload; and a request
+ * sent with no token 401s and can clear a perfectly good session.
+ */
+function restoreSession(): Promise<string | null> {
+  if (!_sessionRestore) {
+    _sessionRestore = _silentRefresh().then((token) => {
+      if (!token) clearStoredAuth();
+      return token;
+    });
+  }
+  return _sessionRestore;
 }
 
 // ── Silent Token Refresh ────────────────────────────────────────
 
 let _refreshPromise: Promise<string | null> | null = null;
+// Per-document session restore (see restoreSession). Request paths await it
+// instead of firing a request with no token — those 401s are what used to
+// clear a healthy session.
+let _sessionRestore: Promise<string | null> | null = null;
 
 async function _silentRefresh(): Promise<string | null> {
   // Deduplicate concurrent refresh attempts
@@ -201,7 +202,18 @@ async function apiRequest<T>(
   token?: string | null,
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> | undefined) };
-  const authToken = token ?? getStoredAccessToken();
+  let authToken = token ?? getStoredAccessToken();
+  // Auth endpoints never need a token; everything else may be reached on a
+  // fresh document where the session is still being restored from the cookie.
+  const sessionOptional = endpoint.includes("/auth/");
+  let restoreAttempted = false;
+  if (!authToken && !sessionOptional && typeof window !== "undefined") {
+    // Restore before sending: a request sent with no token 401s, triggers its
+    // own refresh, and races the one the auth provider is already starting.
+    restoreAttempted = true;
+    await restoreSession();
+    authToken = token ?? getStoredAccessToken();
+  }
   if (authToken) (headers as Record<string, string>).Authorization = `Bearer ${authToken}`;
 
   const timeoutMs = init.timeoutMs ?? REQUEST_TIMEOUT_MS;
@@ -210,7 +222,9 @@ async function apiRequest<T>(
 
   let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { ...fetchInit, headers }, timeoutMs);
 
-  if (response.status === 401 && !endpoint.includes('/auth/')) {
+  // If the restore just failed there is no session to refresh — retrying the
+  // refresh would only burn a second rotation on a dead cookie.
+  if (response.status === 401 && !endpoint.includes('/auth/') && !(restoreAttempted && !authToken)) {
     const newToken = await _silentRefresh();
     if (newToken) {
       (headers as Record<string, string>).Authorization = `Bearer ${newToken}`;

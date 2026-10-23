@@ -205,13 +205,23 @@ describe("Silent Token Refresh", () => {
     it("redirects to login when no access token exists in memory", async () => {
       const { apiGet } = await importApi();
 
-      // No auth stored at all
+      // No auth stored at all: the first call restores the session from the
+      // httpOnly cookie (no cookie here → 401), then the request itself 401s.
       const fetchMock = vi.fn()
+        .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }))
         .mockResolvedValueOnce(mockFetchResponse({ ok: false, status: 401 }));
 
       globalThis.fetch = fetchMock;
 
       await expect(apiGet("/signals")).rejects.toThrow("HTTP 401");
+
+      // The cookie-only restore is attempted before the request …
+      expect(fetchMock.mock.calls[0][0]).toContain("/auth/refresh");
+      // … and the failed restore is not retried as a second rotation.
+      const refreshCalls = fetchMock.mock.calls.filter(
+        (call: string[]) => call[0].includes("/auth/refresh")
+      );
+      expect(refreshCalls).toHaveLength(1);
 
       expect(getStoredAuth()).toBeNull();
       expect(window.location.href).toContain("/auth/login");
