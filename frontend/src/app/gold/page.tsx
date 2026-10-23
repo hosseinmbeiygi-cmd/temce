@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getSnapshot } from "@/lib/goldApi";
+import { getSnapshot, isServiceUnavailable } from "@/lib/goldApi";
 import GoldSummarySection from "./components/SummarySection";
 import CoinBubbleTable from "./components/CoinBubbleTable";
 import ImeSpreadSection from "./components/ImeSpreadSection";
@@ -13,7 +13,7 @@ import GoldCommandCenterHeader from "./components/CommandCenterHeader";
 export default function GoldCommandCenterPage() {
   // One snapshot query for the whole page: every section below is either fed
   // from this response or owns its own (smaller) query.
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["gold", "snapshot"],
     queryFn: getSnapshot,
     refetchInterval: 60_000,
@@ -26,7 +26,9 @@ export default function GoldCommandCenterPage() {
       <main className="gold-command-center__main space-y-6">
         {isError && (
           <div className="rounded-lg border border-rose-700/40 bg-rose-950/30 px-4 py-3 text-sm text-rose-300">
-            دریافت اسنپ‌شات بازار ناموفق بود.
+            {isServiceUnavailable(error)
+              ? "سرویس دادهٔ طلا موقتاً در دسترس نیست (۵۰۳)؛ چند لحظه دیگر دوباره تلاش کنید."
+              : "دریافت اسنپ‌شات بازار ناموفق بود."}
           </div>
         )}
 

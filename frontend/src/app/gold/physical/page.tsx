@@ -33,7 +33,7 @@ const bubbleTone = (signal: string) => {
   return { text: "text-amber-300", bg: "bg-amber-500/10", ring: "ring-amber-500/40", label: "خنثی" };
 };
 
-const arbTone = (action: string) => {
+const arbTone = (action?: string | null) => {
   if (action === "BUY_ETF_SELL_PHYSICAL")
     return { text: "text-emerald-300", bg: "bg-emerald-500/10", ring: "ring-emerald-500/40" };
   if (action === "BUY_PHYSICAL_SELL_ETF")
@@ -152,8 +152,15 @@ export default function GoldPhysicalPage() {
       {/* Arbitrage */}
       <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-5">
         <h2 className="text-base font-semibold text-zinc-200 mb-4">⚡ اسکنر آربیتراژ</h2>
-        {arb ? (
+        {arb && arb.available !== false ? (
           <ArbitrageCard a={arb} />
+        ) : arb ? (
+          <div
+            className="text-zinc-500 text-sm text-center py-4"
+            data-testid="arbitrage-unavailable"
+          >
+            داده آربیتراژ در دسترس نیست{arb.reason ? `: ${arb.reason}` : ""}
+          </div>
         ) : (
           <div className="text-zinc-500 text-sm text-center py-4">
             در حال بررسی بازار...
@@ -230,13 +237,13 @@ function ArbitrageCard({ a }: { a: ArbitrageResp }) {
     <div className={`rounded-lg ring-1 ${t.ring} ${t.bg} p-4`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="text-sm font-semibold text-zinc-100">{a.pair}</div>
+          <div className="text-sm font-semibold text-zinc-100">{a.pair ?? "—"}</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">Spread Analysis</div>
         </div>
         <span
           className={`text-[10px] px-2 py-1 rounded ring-1 ${t.ring} ${t.text} font-semibold`}
         >
-          {a.action.replace(/_/g, " ")}
+          {(a.action ?? "").replace(/_/g, " ") || "—"}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3 mb-3">
@@ -254,7 +261,7 @@ function ArbitrageCard({ a }: { a: ArbitrageResp }) {
         </div>
       </div>
       <div className="text-xs text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2">
-        {a.strategy}
+        {a.strategy ?? "—"}
       </div>
     </div>
   );

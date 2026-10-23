@@ -30,16 +30,25 @@ export function FundNAVTable({ funds, className = "" }: Props) {
         </thead>
         <tbody>
           {funds.map((f) => {
+            // STEP 8: backend bubble_pct is nullable — render as no-data,
+            // never as a color-coded 0٪.
             const navPctColor =
-              f.bubble_pct <= 1.5 ? "text-emerald-400" : f.bubble_pct <= 3 ? "text-amber-400" : "text-rose-400";
+              f.bubble_pct === null || f.bubble_pct === undefined
+                ? "text-zinc-500"
+                : f.bubble_pct <= 1.5
+                  ? "text-emerald-400"
+                  : f.bubble_pct <= 3
+                    ? "text-amber-400"
+                    : "text-rose-400";
             return (
               <tr key={f.symbol} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                 <td className="p-3 text-zinc-200">{f.fund_name}</td>
                 <td className="p-3 text-left text-zinc-100 font-mono">{f.nav_per_unit.toLocaleString("fa-IR")}</td>
                 <td className="p-3 text-left text-zinc-100 font-mono">{f.market_price.toLocaleString("fa-IR")}</td>
                 <td className={`p-3 text-left font-mono font-bold ${navPctColor}`}>
-                  {f.bubble_pct > 0 ? "+" : ""}
-                  {f.bubble_pct.toFixed(2)}٪
+                  {f.bubble_pct === null || f.bubble_pct === undefined
+                    ? "—"
+                    : `${f.bubble_pct > 0 ? "+" : ""}${f.bubble_pct.toFixed(2)}٪`}
                 </td>
                 <td className="p-3 text-left text-zinc-300 font-mono">{f.bpr.toFixed(2)}</td>
                 <td className="p-3 text-left text-zinc-300 font-mono">

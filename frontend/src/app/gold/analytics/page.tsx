@@ -223,14 +223,17 @@ function FundsHeatmap() {
     return <div className="text-zinc-500 text-sm text-center py-4">صندوقی موجود نیست</div>;
   }
 
-  // محاسبه heat: bubble + BPR
+  // محاسبه heat: bubble + BPR — STEP 8: a missing bubble is "بدون داده",
+  // never folded into a heat bucket as if it were 0٪.
   const funds = snap.funds.map((f) => {
+    const bubble = f.bubble_pct;
     const heat = (() => {
-      if (f.bubble_pct > 3 || f.bpr < 1) return "hot"; // اشباع خرید یا فروش
-      if (f.bubble_pct > 1.5 || f.bpr < 1.5) return "warm";
+      if (bubble === null || bubble === undefined) return "nodata";
+      if (bubble > 3 || f.bpr < 1) return "hot"; // اشباع خرید یا فروش
+      if (bubble > 1.5 || f.bpr < 1.5) return "warm";
       return "cold";
     })();
-    return { ...f, heat };
+    return { ...f, heat, bubble };
   });
 
   return (
@@ -240,12 +243,15 @@ function FundsHeatmap() {
           hot: "from-rose-500/30 to-rose-600/10 ring-rose-500/40 text-rose-200",
           warm: "from-amber-500/30 to-amber-600/10 ring-amber-500/40 text-amber-200",
           cold: "from-emerald-500/30 to-emerald-600/10 ring-emerald-500/40 text-emerald-200",
+          nodata: "from-zinc-600/20 to-zinc-700/10 ring-zinc-600/40 text-zinc-300",
         }[f.heat];
-        const label = { hot: "پرریسک", warm: "محتاط", cold: "فرصت" }[f.heat];
+        const label = { hot: "پرریسک", warm: "محتاط", cold: "فرصت", nodata: "بدون داده" }[f.heat];
         return (
           <div key={f.symbol} className={`rounded-lg bg-gradient-to-br ${colors} ring-1 p-3 text-center`}>
             <div className="text-xs font-semibold mb-1">{f.fund_name}</div>
-            <div className="text-2xl font-bold tabular-nums">{f.bubble_pct.toFixed(1)}٪</div>
+            <div className="text-2xl font-bold tabular-nums">
+              {f.bubble === null || f.bubble === undefined ? "—" : `${f.bubble.toFixed(1)}٪`}
+            </div>
             <div className="text-[10px] opacity-70 mt-1">{label}</div>
             <div className="text-[10px] opacity-60 mt-0.5">BPR {f.bpr.toFixed(2)}</div>
           </div>

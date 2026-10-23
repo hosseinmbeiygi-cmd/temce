@@ -32,7 +32,9 @@ export interface FundBlock {
   fund_name: string;
   nav_per_unit: number;
   market_price: number;
-  bubble_pct: number;
+  // Backend schema (src/gold_desk/schemas.py FundBlock) declares
+  // ``bubble_pct: float | None`` — NAV/price gaps make it null on the wire.
+  bubble_pct: number | null;
   bpr: number;
   real_buy_value: number;
   real_sell_value: number;
