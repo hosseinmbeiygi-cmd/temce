@@ -1,0 +1,25 @@
+report bytes: 43381 | lines: 590
+  header 'بخش A': 1
+  header 'بخش B': 1
+  header 'بخش C': 1
+  header 'بخش D': 1
+  header 'بخش E': 1
+  header 'بخش F': 1
+  header 'بخش G': 1
+  header 'پیوست الف': 1
+  header 'پیوست ب': 1
+rows: 33 unique: 33 missing: []
+bad cell counts: []
+  section 'بحرانی (۵)': 1
+  section 'بالا (۷)': 1
+  section 'متوسط (۱۲)': 1
+  section 'پایین (۶)': 1
+  section 'اطلاعاتی (۳)': 1
+  stale-claim '۵ پایین': 0
+  stale-claim '۴ اطلاعاتی': 0
+  stale-claim 'نقره **۵**': 0
+csv rows: 33 bad cols: []
+csv severity: {'critical': 5, 'high': 7, 'medium': 12, 'low': 6, 'info': 3}
+csv area: {'gold-funds': 1, 'gold': 19, 'funds': 9, 'silver': 4}
+severity mismatches report-vs-csv: []
+DONE

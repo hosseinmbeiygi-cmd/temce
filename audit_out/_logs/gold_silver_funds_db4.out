@@ -1,0 +1,33 @@
+2026-10-11 12:29:03 [info     ] Database connected: localhost:5432/my_first_db
+========================================================================
+A) مسیر واقعی /funds (apps/api/endpoints/funds.py::_load_merged_funds)
+========================================================================
+2026-10-11 12:29:07 [info     ] Real NAV applied to 330 funds from nav_records
+   merged funds: 636
+   by market: {'tse': 631, 'ime': 5}
+   market=ime (چیزی که صفحه نقره می‌خواند): 5
+   silver-matching funds در کل merged: 3
+     symbol='سیلور' market='tse' fund_type='سهامی' nav=13824.0 price_last=None
+     symbol='سیلور2' market='tse' fund_type='سهامی' nav=None price_last=None
+     symbol='سیمین' market='tse' fund_type='سهامی' nav=13549.0 price_last=None
+   silver در market=ime: 0
+   silver با nav/price>0 (شرط فیلتر صفحه): 2
+   طلا/زر در market=ime: 1
+   از این‌ها price_last>0: 1   nav>0: 1
+     symbol='زر4' nav=950000.0 price_last=950000.0 bubble? nav/price=950000.0/950000.0
+========================================================================
+B) منابع قیمت GoldDesk snapshot
+========================================================================
+   hasattr(BrsApiQueryService, 'get_fund_prices') = False
+   get_gold_coin_prices(): 9 rows; symbols=['IR_COIN_1G', 'IR_COIN_BAHAR', 'IR_COIN_EMAMI', 'IR_COIN_HALF', 'IR_COIN_QUARTER', 'IR_GOLD_18K', 'IR_GOLD_24K', 'IR_GOLD_MELTED', 'XAUUSD']
+   get_currency_prices(): 28 rows; symbols=['AED', 'AFN', 'AMD', 'AUD', 'AZN', 'BHD', 'CAD', 'CHF', 'CNY', 'EUR', 'GBP', 'GEL', 'INR', 'IQD', 'JPY', 'KWD', 'MYR', 'OMR', 'PKR', 'QAR']
+   get_commodity_prices(precious_metal): 18532 rows; symbols=['XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD', 'XAGUSD']
+========================================================================
+C) جداول زیربنایی
+========================================================================
+   brsapi_commodity_prices    rows=64862
+   brsapi_currency_prices     rows=28
+   brsapi_ime_funds           rows=55016
+    [('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3256.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3322.25), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3253.6), ('Al', 'base_metal', 3256.6), ('Al', 'base_metal', 3253.6)]
+    [('AED',), ('AFN',), ('AMD',), ('AUD',), ('AZN',), ('BHD',), ('CAD',), ('CHF',), ('CNY',), ('EUR',), ('GBP',), ('GEL',), ('INR',), ('IQD',), ('JPY',), ('KWD',), ('MYR',), ('OMR',), ('PKR',), ('QAR',), ('RUB',), ('SAR',), ('SEK',), ('SYP',), ('THB',)]
+   ERROR ProgrammingError (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedColumn

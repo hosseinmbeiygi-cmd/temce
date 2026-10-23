@@ -333,64 +333,68 @@ export default function GoldFuturesPage() {
         ) : positions.length === 0 ? (
           <div className="text-zinc-500 text-sm text-center py-6">هیچ پوزیشنی باز نیست</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-zinc-500 border-b border-zinc-700/60">
-                <th className="text-left p-2">نماد</th>
-                <th className="text-right p-2">نوع</th>
-                <th className="text-right p-2">قیمت ورود</th>
-                <th className="text-right p-2">حجم</th>
-                <th className="text-right p-2">اهرم</th>
-                <th className="text-right p-2">PnL</th>
-                <th className="text-right p-2">علت خروج</th>
-                <th className="text-right p-2">سلامت</th>
-                <th className="text-right p-2">عملیات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((p) => (
-                <tr key={p.id} className="border-b border-zinc-700/30">
-                  <td className="p-2 text-zinc-200">{p.contract_symbol}</td>
-                  <td className="p-2 text-right font-mono">{p.position_type}</td>
-                  <td className="p-2 text-right font-mono text-zinc-200">
-                    {fmt(p.entry_price)}
-                  </td>
-                  <td className="p-2 text-right font-mono text-zinc-200">{p.quantity}</td>
-                  <td className="p-2 text-right font-mono text-zinc-200">{p.leverage}×</td>
-                  <td className="p-2 text-right font-mono">
-                    <span
-                      className={
-                        (p.unrealized_pnl ?? 0) > 0
-                          ? "text-emerald-300"
-                          : (p.unrealized_pnl ?? 0) < 0
-                          ? "text-rose-300"
-                          : "text-zinc-400"
-                      }
-                    >
-                      {fmt(p.unrealized_pnl)}
-                    </span>
-                  </td>
-                  <td className="p-2 text-right font-mono text-zinc-200">
-                    {p.exit_reason ? p.exit_reason : "—"}
-                  </td>
-                  <td className="p-2 text-right font-mono text-zinc-200">
-                    {p.health_ratio != null ? p.health_ratio.toFixed(2) : "—"}
-                  </td>
-                  <td className="p-2 text-right">
-                    <button
-                      onClick={() =>
-                        closeMut.mutate({ id: p.id, exit: p.current_price ?? p.entry_price })
-                      }
-                      disabled={closeMut.isPending}
-                      className="text-xs text-rose-300 hover:text-rose-200 transition disabled:opacity-50"
-                    >
-                      بسته شدن
-                    </button>
-                  </td>
+          // Nine columns do not fit a phone; scroll the table instead of squeezing
+          // it (same treatment as /gold/options).
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="text-xs text-zinc-500 border-b border-zinc-700/60">
+                  <th className="text-left p-2">نماد</th>
+                  <th className="text-right p-2">نوع</th>
+                  <th className="text-right p-2">قیمت ورود</th>
+                  <th className="text-right p-2">حجم</th>
+                  <th className="text-right p-2">اهرم</th>
+                  <th className="text-right p-2">PnL</th>
+                  <th className="text-right p-2">علت خروج</th>
+                  <th className="text-right p-2">سلامت</th>
+                  <th className="text-right p-2">عملیات</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {positions.map((p) => (
+                  <tr key={p.id} className="border-b border-zinc-700/30">
+                    <td className="p-2 text-zinc-200">{p.contract_symbol}</td>
+                    <td className="p-2 text-right font-mono">{p.position_type}</td>
+                    <td className="p-2 text-right font-mono text-zinc-200">
+                      {fmt(p.entry_price)}
+                    </td>
+                    <td className="p-2 text-right font-mono text-zinc-200">{p.quantity}</td>
+                    <td className="p-2 text-right font-mono text-zinc-200">{p.leverage}×</td>
+                    <td className="p-2 text-right font-mono">
+                      <span
+                        className={
+                          (p.unrealized_pnl ?? 0) > 0
+                            ? "text-emerald-300"
+                            : (p.unrealized_pnl ?? 0) < 0
+                            ? "text-rose-300"
+                            : "text-zinc-400"
+                        }
+                      >
+                        {fmt(p.unrealized_pnl)}
+                      </span>
+                    </td>
+                    <td className="p-2 text-right font-mono text-zinc-200">
+                      {p.exit_reason ? p.exit_reason : "—"}
+                    </td>
+                    <td className="p-2 text-right font-mono text-zinc-200">
+                      {p.health_ratio != null ? p.health_ratio.toFixed(2) : "—"}
+                    </td>
+                    <td className="p-2 text-right">
+                      <button
+                        onClick={() =>
+                          closeMut.mutate({ id: p.id, exit: p.current_price ?? p.entry_price })
+                        }
+                        disabled={closeMut.isPending}
+                        className="text-xs text-rose-300 hover:text-rose-200 transition disabled:opacity-50"
+                      >
+                        بسته شدن
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

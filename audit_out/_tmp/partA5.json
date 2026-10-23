@@ -1,0 +1,37 @@
+{
+  "symbol": "خودرو",
+  "n_bars": 239,
+  "signal": "random seed7, long/flat, positions=1 if pred>0",
+  "n_position_changes": 93,
+  "cost_model_SSOT": {
+    "buy": 0.00485,
+    "sell": 0.009850000000000001
+  },
+  "simulator": {
+    "return_pct": 28.2465,
+    "sharpe": 0.201,
+    "max_drawdown_pct": 38.73,
+    "trades": 93,
+    "total_cost": 21079467.9,
+    "cost_model": "native IranTransactionCosts (SSOT) + ADV-fallback slippage"
+  },
+  "vectorized_engine_gross": {
+    "method": "vectorized",
+    "total_return_pct": -20.94,
+    "annualized_return_pct": -21.98,
+    "sharpe_ratio": -1.4,
+    "sortino_ratio": -0.69,
+    "calmar_ratio": -0.69,
+    "max_drawdown_pct": 30.43,
+    "final_equity": 790637345.0
+  },
+  "vectorized_harness_net_SSOT": {
+    "total_return_pct": -60.1726,
+    "sharpe": -5.1921,
+    "final_equity": 398274109.79
+  },
+  "vectorized_note": "engine has no cost parameter (backtest_framework.py:41-63)",
+  "signal_backtest_engine_stock_rate": 0.003,
+  "signal_backtest_engine_ssot_round_trip": 0.0147,
+  "signal_backtest_engine_ratio": 4.9
+}

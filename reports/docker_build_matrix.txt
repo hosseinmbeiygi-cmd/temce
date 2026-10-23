@@ -1,0 +1,8 @@
+Dockerfile.admin|rc=0|tag=qa-admin:final
+Dockerfile.api|rc=0|tag=qa-api:final
+Dockerfile.currency|rc=0|tag=qa-currency:final
+Dockerfile.decision-engine|rc=0|tag=qa-decision-engine:final
+Dockerfile.golddesk|rc=0|tag=qa-golddesk:final
+Dockerfile.scheduler|rc=0|tag=qa-scheduler:final
+Dockerfile.worker|rc=0|tag=qa-worker:final
+Dockerfile|rc=0|tag=qa-base:final

@@ -1,0 +1,187 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*
+!.env.example
+!frontend/.env.sentry.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Docker
+pgdata/
+timescaledata/
+miniodata/
+promdata/
+grafanadata/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+node_modules
+.aider*
+nul
+
+# Runtime artifacts
+*.pid
+*.rdb
+*.whl
+*.pkl
+*.pth
+
+# ML training artifacts & model outputs
+ml_artifacts/
+train_all_models_results.json
+catboost_info/
+
+# Data dumps / fetched history
+history_data/
+crypto_history/
+code_dump/
+test_results/
+
+# Local DB / TimescaleDB install
+pgdata/
+timescaledb_temp/
+dump.rdb
+
+# Charts / diagnostics outputs
+charts/*.png
+diagnostics/*.json
+
+# Backtest reports & temp benchmark scripts
+backtest_report_*.json
+bench_schema_temp.py
+bench_schema2_temp.py
+
+# Agent tool internals (mimocode / freebuff)
+.mimocode/
+.freebuff/
+
+# Misc local tooling
+frontend-all-code.txt
+scripts/frontend-all-code.txt
+funds-all-code.txt
+*_all-code.txt
+*_all_codes.txt
+/output_texts/
+go
+go.cmd
+go.ps1
+start
+stop
+
+# Dual-date backfill progress
+scripts/.dual_dates_progress.json
+scripts/.db_deep_issues.md
+scripts/.codal_checkpoint.json
+
+# Local install archives
+timescaledb.zip
+tree.txt
+frontend/.tmp_routes.txt
+
+# Separate projects (not part of trading system)
+claw-code/
+mimicode-go/
+
+# Chrome debug profiles (automation leftovers)
+tmp-chrome-profile*/
+
+# Ad-hoc API response dumps at repo root (c3.json, com.json, f.json, ...)
+/c[0-9].json
+/com.json
+/cur.json
+/f.json
+/f[cdul].json
+/fo.json
+/ful.json
+/h[2x].json
+/[nnt].json
+/n[qps].json
+/resp.json
+/test_sections.json
+
+# Diagnostic dump files at repo root
+/_tmp_check.txt
+/*_all_codes.txt
+/ruff_*.txt
+/project_summary.txt
+/temp_*.txt
+/pilot*.txt
+/symdist.txt
+/index_done.txt
+
+# Runtime state churn — brsapi budget governor / readiness tracker rewrite
+# these every few minutes when Redis is unavailable (brsapi/budget.py, brsapi/readiness.py)
+json/brsapi/*_state.json
+
+# Security cleanup (2026-09): sensitive & unknown files
+*.bin
+/checkpoint.json
+
+# Ad-hoc temp/debug scripts at repo root
+/_*
+
+# AI coding assistant memory / plans
+.dmcode-memory.json
+.zcode/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+coverage/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

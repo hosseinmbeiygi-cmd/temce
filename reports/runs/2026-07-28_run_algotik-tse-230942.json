@@ -1,0 +1,5 @@
+{
+  "library": "algotik-tse",
+  "status": "failed",
+  "error": "cannot import name 'TSE' from 'algotik_tse' (C:\\Users\\Iran\\Desktop\\temce\\venv\\Lib\\site-packages\\algotik_tse\\__init__.py)"
+}

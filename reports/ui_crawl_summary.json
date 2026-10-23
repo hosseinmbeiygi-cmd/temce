@@ -1,0 +1,49 @@
+{
+  "base": "http://localhost:3101/",
+  "total_routes": 148,
+  "verdicts": {
+    "OK": 147,
+    "NOT_FOUND_CONTENT": 1
+  },
+  "rendered_ok": 147,
+  "render_ok_share": 0.9932,
+  "blank": 0,
+  "runtime_errors": 0,
+  "routes_with_real_console_errors": 0,
+  "total_real_console_errors": 0,
+  "total_backend_unavailable_errors": 519,
+  "latency_ms": {
+    "firstContentfulPaint": {
+      "n": 62,
+      "p50": 780,
+      "p90": 980,
+      "max": 1448
+    },
+    "domContentLoaded": {
+      "n": 148,
+      "p50": 108,
+      "p90": 300,
+      "max": 417
+    },
+    "loadEventEnd": {
+      "n": 148,
+      "p50": 388,
+      "p90": 531,
+      "max": 834
+    },
+    "crawl_wallclock_includes_settle_sleep": {
+      "p50": 2620,
+      "p90": 2659,
+      "p95": 2673,
+      "max": 2827,
+      "min": 2599
+    }
+  },
+  "rendered_route_latency_p50_ms": 2620,
+  "notes": [
+    "Backend was not running during this crawl; Next.js returns 500 for every proxied API call. Those errors are counted separately and do NOT indicate a broken page.",
+    "Use firstContentfulPaint / loadEventEnd as the real UI latency. The crawl_wallclock_* figures include a deliberate 2500 ms settle sleep and are NOT valid latency measurements.",
+    "Measured against a local production build (next start) on the same machine, not a deployed/CDN environment.",
+    "firstContentfulPaint n < total because Chromium only emits a paint entry for pages that paint before the observation window closes."
+  ]
+}

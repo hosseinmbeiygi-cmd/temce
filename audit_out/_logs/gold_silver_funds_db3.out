@@ -1,0 +1,36 @@
+2026-10-11 12:26:37 [info     ] Database connected: localhost:5432/my_first_db
+========================================================================
+A) نمادهای نقره در brsapi_symbol_snapshots
+========================================================================
+   symbol ILIKE 'XAG%'       → 0
+   symbol ILIKE '%نقره%'     → 732
+   symbol ILIKE '%SILVER%'   → 0
+    ('سیلور2', 'صندوق س.بازده نقره نوا', 1.0)
+    ('سیلور', 'صندوق س.بازده نقره نوا', 11625.0)
+    ('سیمین', 'صندوق س.نقره سیمین هوبر', 11362.0)
+    ('سیلور2', 'صندوق س.بازده نقره نوا', 1.0)
+    ('سیلور', 'صندوق س.بازده نقره نوا', 11633.0)
+    ('سیمین', 'صندوق س.نقره سیمین هوبر', 11370.0)
+    ('سیلور2', 'صندوق س.بازده نقره نوا', 1.0)
+    ('سیلور', 'صندوق س.بازده نقره نوا', 11635.0)
+    ('سیلور', 'صندوق س.بازده نقره نوا', 11635.0)
+    ('سیمین', 'صندوق س.نقره سیمین هوبر', 11371.0)
+========================================================================
+B) ستون‌های جدول funds و بازارها
+========================================================================
+   cols: id, symbol, name, isin, fund_type, nav, nav_change, nav_change_pct, price_last, price_close, price_yesterday, price_max, price_min, trade_volume, trade_value, trade_count, shares_count, base_volume, market_value, buy_real_volume, buy_legal_volume, sell_real_volume, sell_legal_volume, time, data_source, snapshot_date, extra, created_at, updated_at, gregorian_date, shamsi_date, sub_type, national_id, manager_name, custodian_name, trading_status, is_etf, discovered_at, last_synced_at
+   SELECT id, symbol, name, fund_type FROM funds LIMIT 5 → [('fund_9a6687170222410cb46aba94', 'البرز', 'بیمه البرز', 'سهامی'), ('tse:تمشک4', 'تمشک4', 'صندوق س تمشک نماد رشد-در صندوق', 'سهامی'), ('tse:صنم2', 'صنم2', 'ص.س.صندوق در صندوق صنم', 'سهامی'), ('tse:تستواحدصندوق', 'تستواحدصندوق', 'صندوق تست واحد', 'سهامی'), ('tse:فردا4', 'فردا4', 'صندوق س آوای فردای زاگرس-ثابت', 'درآمد ثابت')]
+   SELECT COUNT(*) FROM funds WHERE name ILIKE '%نقره%' OR symbol ILIKE '%نقره%' → [(3,)]
+   SELECT COUNT(*) FROM funds WHERE name ILIKE '%طلا%' OR symbol ILIKE '%طلا%' → [(12,)]
+   SELECT COUNT(*) FROM funds WHERE name ILIKE '%کالا%' → [(67,)]
+   SELECT symbol, name, fund_type, nav, price_last FROM funds WHERE name ILIKE '%نق → [('سیلور2', 'صندوق س.بازده نقره نوا', 'سهامی', None, None), ('سیلور', 'صندوق س.بازده نقره نوا', 'سهامی', None, None), ('سیمین', 'صندوق س.نقره سیمین هوبر', 'سهامی', None, None)]
+   SELECT COUNT(*) FROM brsapi_symbol_snapshots WHERE symbol ILIKE '%XAU%' → [(0,)]
+========================================================================
+C) gold_fund_nav / gold field در gold_snapshots برای صندوق‌ها
+========================================================================
+   (جدول gold_snapshots خالی است — شمارش با شرط asset_type)
+    (no rows)
+========================================================================
+D) brsapi_historical_real_legal: نماد متشکل از نقره
+========================================================================
+    ('فنقره', '1405-06-31', '1405-07-08')

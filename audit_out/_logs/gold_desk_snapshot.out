@@ -1,0 +1,39 @@
+========================================================================
+A) NavRecordModel — وجود ستون nav که nav_checker می‌خواند
+========================================================================
+   hasattr(NavRecordModel, 'nav') = False
+   hasattr(NavRecordModel, 'nav_issue') = True
+   attribute access: AttributeError: type object 'NavRecordModel' has no attribute 'nav'
+2026-10-11 12:31:43 [info     ] Database connected: localhost:5432/my_first_db
+IR_GOLD_MELTED bubble out of range: 312.6528697857819 not in [-50.0, 100.0]
+bubble outlier IR_GOLD_MELTED: 312.65%
+========================================================================
+B) nav_checker.get_all_funds_status برای ۱۰ صندوق طلا (DB زنده، فقط SELECT)
+========================================================================
+   returned: 0 funds (از 10 نماد درخواستی)
+========================================================================
+C) ceil امتیاز با ورودی‌های بهینه (bubble=0، RSI/NAV ناموجود)
+========================================================================
+   weights: {'bubble': 20, 'nav': 18, 'tsetmc': 18, 'technical': 15, 'parity': 15, 'fund_flow': 14} (sum=100)
+   components: {'bubble': (20, 20, 'حباب 0.0٪ < 8.0٪ — عالی'), 'nav': (0, 18, 'NAV موجود نیست'), 'tsetmc': (18, 18, 'BPR=10.00، Inflow=1,000,000,000,000'), 'technical': (0, 15, 'RSI موجود نیست'), 'parity': (15, 15, '|gap|=0.00٪ — متعادل'), 'fund_flow': (0, 14, 'NAV 7d موجود نیست')}
+   total=53  decision=RED  (GREEN>=80، YELLOW>=55)
+   [سناریوی فرضی با داده کامل] total=100 decision=GREEN
+========================================================================
+D) build_snapshot واقعی (فقط SELECT)
+========================================================================
+   snapshot_at=2026-10-11 09:01:45.400580+00:00  source=brsapi  quality=clean
+   refs: xau=4346.66 usd=265100.0 aed=72588.0 gap=-0.555%
+   gold blocks=3 coins=4 funds=0
+     coin coin_emami: market=269310000.0 fair=271282178.4753282 bubble=-0.7269841632842708
+     coin coin_bahar: market=260150000.0 fair=271282178.4753282 bubble=-4.103542126465423
+     coin coin_half: market=141980000.0 fair=135634416.28927636 bubble=4.6784465803944615
+     gold gold_18k: market=26496100.0 fair=27788247.3129358 bubble=-4.649977734775261
+     gold gold_24k: market=35327800.0 fair=37047291.31760601 bubble=-4.641341529843113
+     gold gold_melted: market=114669000.0 fair=27788247.3129358 bubble=312.6528697857819
+   score total=30 decision=RED hard_stop=False
+     bubble=20 (حباب -0.7٪ < 8.0٪ — عالی)
+     nav=0 (NAV موجود نیست)
+     tsetmc=0 (BPR موجود نیست)
+     technical=0 (RSI موجود نیست)
+     parity=10 (|gap|=0.55٪ — کمی偏离)
+     fund_flow=0 (NAV 7d موجود نیست)

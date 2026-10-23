@@ -1,0 +1,46 @@
+# acceptance.yaml — فقط مالک پر و ثبت می‌کند. Claude Code فقط می‌خواند و حق تغییر ندارد.
+# قاعده: قبل از اولین اجرای مدل ثبت شود؛ بعد از دیدن نتایج تغییر نمی‌کند؛ هر تغییر = فرضیه‌ی جدید و شمارش آزمایش.
+# هیچ عددی در این فایل پیشنهاد نشده؛ همه null هستند. null باقی‌مانده = اجرا مجاز نیست.
+
+acceptance_registered_at: null        # زمان‌مهر ثبت (قبل از اولین اجرا)
+registered_by: null
+hypothesis_id: null
+
+thresholds:
+  # --- از SPEC_ML بخش ۷ ---
+  min_rank_ic_mean: null
+  min_icir: null
+  min_net_sharpe_vs_baseline_delta: null
+  max_mdd: null
+  max_avg_days_to_exit: null
+  min_positive_regime_share: null
+  max_pbo: null
+  min_deflated_sharpe: null
+  n_trials_counted: auto
+  # --- بازار ایران (SPEC_IRAN_MARKET) ---
+  min_net_return_real_vs_benchmark: null     # بازده واقعی (تعدیل تورم) نسبت به بنچمارک
+  min_net_return_usd_vs_benchmark: null      # بازده دلاری نسبت به بنچمارک
+  min_fillable_rate: null                    # بخش ۳: نرخ سفارش قابل‌اجرا
+  max_profit_share_from_unfillable: null     # سهم سود از سیگنال‌های غیرقابل‌اجرا
+  min_independent_epochs_positive: null      # بخش ۱۴: حداقل epoch مستقل با نتیجه‌ی مثبت
+  leave_one_epoch_out_required: null         # true/false
+  max_joint_lock_stress_loss: null           # بخش ۴
+  max_beta_to_market: null                   # بخش ۲
+  min_n_eff: null                            # بخش ۲: تعداد مؤثر نمادها
+
+holdout_policy: single_look
+holdout_period: {start: null, end: null}     # آخرین دوره‌ی پیوسته و معنادار (تصمیم مالک)
+
+benchmarks:                                  # مالک ویرایش می‌کند؛ بنچمارک‌های بدون داده تعلیق می‌شوند
+  - buy_and_hold
+  - equal_weight_index
+  - gold_or_coin
+  - usd
+  - fixed_income_fund
+  - bank_deposit
+
+reference_rates:                             # SPEC_VALUATION بخش ۱۰؛ تغییر فقط با ADR
+  fx_reference: null
+  risk_free: null
+  inflation_index: null
+  inflation_publication_lag_days: null

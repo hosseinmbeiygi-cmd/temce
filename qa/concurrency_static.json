@@ -1,0 +1,31 @@
+{
+ "idempotency": {
+  "idempotency_key": 7,
+  "unique_constraint": 21,
+  "mutex_lock": 109,
+  "files_with_post": 5
+ },
+ "post_endpoints_sample": [
+  "src\\gold_desk\\api.py",
+  "src\\gold_desk\\antigravity\\api.py",
+  "api\\ws_manager.py",
+  "api\\routers\\precompute_router.py",
+  "services\\alert_service.py"
+ ],
+ "alert_files": [
+  "src\\gold_desk\\alert_engine.py",
+  "core\\enums\\alerts.py",
+  "services\\alert_service.py",
+  "services\\smart_money\\phase_alerts.py",
+  "app\\alert_hub\\assessment.py",
+  "app\\alert_hub\\models.py",
+  "app\\alert_hub\\repository.py",
+  "app\\alert_hub\\schemas.py",
+  "app\\alert_hub\\services\\backtest.py",
+  "app\\alert_hub\\services\\codal.py",
+  "app\\alert_hub\\services\\market.py",
+  "app\\alert_hub\\services\\ml.py",
+  "app\\alert_hub\\services\\__init__.py"
+ ],
+ "verdict": "partial"
+}

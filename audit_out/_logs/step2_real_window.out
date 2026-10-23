@@ -1,0 +1,402 @@
+{
+  "purpose": "step2 tests a/b/c re-run on the real step-1 window (no synthetic data)",
+  "window_gregorian": [
+    "2024-01-01",
+    "2024-12-29"
+  ],
+  "jalali_window": [
+    "1402-10-11",
+    "1403-10-09"
+  ],
+  "cost_rates": {
+    "buy": 0.00485,
+    "sell": 0.009850000000000001,
+    "source": "domain/trading/iran_costs.py"
+  },
+  "per_symbol": {
+    "وپترو": {
+      "n_bars": 238,
+      "first": "1402-10-11",
+      "last": "1403-10-09",
+      "buy_hold_pct": 45.1152,
+      "a_random_long_flat": {
+        "n_transitions": 121,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 48.14,
+          "annualized_return_pct": 50.76,
+          "sharpe_ratio": 1.91,
+          "sortino_ratio": 1.63,
+          "calmar_ratio": 3.2,
+          "max_drawdown_pct": 15.02,
+          "final_equity": 1481375893.0
+        },
+        "harness_gross": {
+          "total_return_pct": 48.1376,
+          "sharpe": 1.9113,
+          "max_drawdown_pct": 15.0249,
+          "final_equity": 1481375892.83
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": -39.4828,
+          "sharpe": -2.0466,
+          "max_drawdown_pct": 53.6514,
+          "final_equity": 605171743.51
+        }
+      },
+      "b_future_seeing": {
+        "n_transitions": 87,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 634.71,
+          "annualized_return_pct": 669.23,
+          "sharpe_ratio": 10.61,
+          "sortino_ratio": 0.13,
+          "calmar_ratio": 0,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 7347089618.0
+        },
+        "harness_gross": {
+          "total_return_pct": 634.709,
+          "sharpe": 10.6057,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 7347089618.27
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": 288.599,
+          "sharpe": 7.3587,
+          "max_drawdown_pct": 4.1638,
+          "final_equity": 3885990084.59
+        }
+      },
+      "c_data_shift": {
+        "baseline_net": {
+          "total_return_pct": -39.4828,
+          "sharpe": -2.0466,
+          "max_drawdown_pct": 53.6514,
+          "final_equity": 605171743.51
+        },
+        "prices_shifted_plus1_net": {
+          "total_return_pct": -41.9008,
+          "sharpe": -1.8777,
+          "max_drawdown_pct": 52.5915,
+          "final_equity": 580991730.14
+        },
+        "prices_shifted_minus1_net": {
+          "total_return_pct": -50.8501,
+          "sharpe": -2.2045,
+          "max_drawdown_pct": 63.2069,
+          "final_equity": 491499261.88
+        }
+      }
+    },
+    "وساخت": {
+      "n_bars": 239,
+      "first": "1402-10-11",
+      "last": "1403-10-09",
+      "buy_hold_pct": -28.3673,
+      "a_random_long_flat": {
+        "n_transitions": 122,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 1.97,
+          "annualized_return_pct": 2.06,
+          "sharpe_ratio": 0.22,
+          "sortino_ratio": 0.16,
+          "calmar_ratio": 0.06,
+          "max_drawdown_pct": 31.97,
+          "final_equity": 1019664235.0
+        },
+        "harness_gross": {
+          "total_return_pct": 1.9664,
+          "sharpe": 0.2198,
+          "max_drawdown_pct": 31.9717,
+          "final_equity": 1019664235.33
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": -58.6414,
+          "sharpe": -2.7857,
+          "max_drawdown_pct": 66.4583,
+          "final_equity": 413586148.97
+        }
+      },
+      "b_future_seeing": {
+        "n_transitions": 80,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 771.72,
+          "annualized_return_pct": 810.31,
+          "sharpe_ratio": 10.26,
+          "sortino_ratio": 0.15,
+          "calmar_ratio": 0,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 8717220324.0
+        },
+        "harness_gross": {
+          "total_return_pct": 771.722,
+          "sharpe": 10.2614,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 8717220324.33
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": 387.1649,
+          "sharpe": 7.7857,
+          "max_drawdown_pct": 1.6916,
+          "final_equity": 4871649156.78
+        }
+      },
+      "c_data_shift": {
+        "baseline_net": {
+          "total_return_pct": -58.6414,
+          "sharpe": -2.7857,
+          "max_drawdown_pct": 66.4583,
+          "final_equity": 413586148.97
+        },
+        "prices_shifted_plus1_net": {
+          "total_return_pct": -56.9913,
+          "sharpe": -2.9918,
+          "max_drawdown_pct": 61.8505,
+          "final_equity": 430086531.16
+        },
+        "prices_shifted_minus1_net": {
+          "total_return_pct": -66.6373,
+          "sharpe": -3.5585,
+          "max_drawdown_pct": 71.9223,
+          "final_equity": 333627023.99
+        }
+      }
+    },
+    "خودرو": {
+      "n_bars": 239,
+      "first": "1402-10-11",
+      "last": "1403-10-09",
+      "buy_hold_pct": 36.6254,
+      "a_random_long_flat": {
+        "n_transitions": 122,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 19.27,
+          "annualized_return_pct": 20.23,
+          "sharpe_ratio": 0.89,
+          "sortino_ratio": 0.66,
+          "calmar_ratio": 0.85,
+          "max_drawdown_pct": 22.75,
+          "final_equity": 1192709973.0
+        },
+        "harness_gross": {
+          "total_return_pct": 19.271,
+          "sharpe": 0.8876,
+          "max_drawdown_pct": 22.7518,
+          "final_equity": 1192709972.58
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": -51.5783,
+          "sharpe": -2.8388,
+          "max_drawdown_pct": 62.7254,
+          "final_equity": 484216699.61
+        }
+      },
+      "b_future_seeing": {
+        "n_transitions": 86,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 658.24,
+          "annualized_return_pct": 691.15,
+          "sharpe_ratio": 10.54,
+          "sortino_ratio": 0.14,
+          "calmar_ratio": 0,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 7582411269.0
+        },
+        "harness_gross": {
+          "total_return_pct": 658.2411,
+          "sharpe": 10.5433,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 7582411268.87
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": 304.1233,
+          "sharpe": 7.0065,
+          "max_drawdown_pct": 5.0583,
+          "final_equity": 4041232843.13
+        }
+      },
+      "c_data_shift": {
+        "baseline_net": {
+          "total_return_pct": -51.5783,
+          "sharpe": -2.8388,
+          "max_drawdown_pct": 62.7254,
+          "final_equity": 484216699.61
+        },
+        "prices_shifted_plus1_net": {
+          "total_return_pct": -35.8192,
+          "sharpe": -1.9154,
+          "max_drawdown_pct": 50.0754,
+          "final_equity": 641807790.67
+        },
+        "prices_shifted_minus1_net": {
+          "total_return_pct": -57.0651,
+          "sharpe": -3.6603,
+          "max_drawdown_pct": 63.3222,
+          "final_equity": 429348935.78
+        }
+      }
+    },
+    "وسپه": {
+      "n_bars": 238,
+      "first": "1402-10-11",
+      "last": "1403-10-09",
+      "buy_hold_pct": 18.1992,
+      "a_random_long_flat": {
+        "n_transitions": 121,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 17.2,
+          "annualized_return_pct": 18.14,
+          "sharpe_ratio": 1.13,
+          "sortino_ratio": 0.97,
+          "calmar_ratio": 2.25,
+          "max_drawdown_pct": 7.64,
+          "final_equity": 1172013053.0
+        },
+        "harness_gross": {
+          "total_return_pct": 17.2013,
+          "sharpe": 1.1348,
+          "max_drawdown_pct": 7.6411,
+          "final_equity": 1172013053.3
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": -52.127,
+          "sharpe": -4.3894,
+          "max_drawdown_pct": 56.0671,
+          "final_equity": 478730346.85
+        }
+      },
+      "b_future_seeing": {
+        "n_transitions": 64,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 263.85,
+          "annualized_return_pct": 278.2,
+          "sharpe_ratio": 8.97,
+          "sortino_ratio": 0.09,
+          "calmar_ratio": 0,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 3638510880.0
+        },
+        "harness_gross": {
+          "total_return_pct": 263.8511,
+          "sharpe": 8.9729,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 3638510880.2
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": 127.4311,
+          "sharpe": 5.376,
+          "max_drawdown_pct": 6.4558,
+          "final_equity": 2274310940.71
+        }
+      },
+      "c_data_shift": {
+        "baseline_net": {
+          "total_return_pct": -52.127,
+          "sharpe": -4.3894,
+          "max_drawdown_pct": 56.0671,
+          "final_equity": 478730346.85
+        },
+        "prices_shifted_plus1_net": {
+          "total_return_pct": -54.0811,
+          "sharpe": -2.6339,
+          "max_drawdown_pct": 59.1743,
+          "final_equity": 459189455.7
+        },
+        "prices_shifted_minus1_net": {
+          "total_return_pct": -60.4977,
+          "sharpe": -3.1331,
+          "max_drawdown_pct": 64.056,
+          "final_equity": 395023212.13
+        }
+      }
+    },
+    "خبهمن": {
+      "n_bars": 239,
+      "first": "1402-10-11",
+      "last": "1403-10-09",
+      "buy_hold_pct": -2.5273,
+      "a_random_long_flat": {
+        "n_transitions": 122,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 14.01,
+          "annualized_return_pct": 14.71,
+          "sharpe_ratio": 0.72,
+          "sortino_ratio": 0.59,
+          "calmar_ratio": 0.66,
+          "max_drawdown_pct": 21.08,
+          "final_equity": 1140089589.0
+        },
+        "harness_gross": {
+          "total_return_pct": 14.009,
+          "sharpe": 0.724,
+          "max_drawdown_pct": 21.0756,
+          "final_equity": 1140089588.61
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": -53.6358,
+          "sharpe": -3.3445,
+          "max_drawdown_pct": 58.3208,
+          "final_equity": 463642076.4
+        }
+      },
+      "b_future_seeing": {
+        "n_transitions": 78,
+        "engine_vectorized": {
+          "method": "vectorized",
+          "total_return_pct": 439.79,
+          "annualized_return_pct": 461.77,
+          "sharpe_ratio": 9.13,
+          "sortino_ratio": 0.11,
+          "calmar_ratio": 0,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 5397852204.0
+        },
+        "harness_gross": {
+          "total_return_pct": 439.7852,
+          "sharpe": 9.1327,
+          "max_drawdown_pct": 0.0,
+          "final_equity": 5397852203.51
+        },
+        "harness_net_with_tse_costs": {
+          "total_return_pct": 205.2519,
+          "sharpe": 6.0665,
+          "max_drawdown_pct": 5.2863,
+          "final_equity": 3052519346.88
+        }
+      },
+      "c_data_shift": {
+        "baseline_net": {
+          "total_return_pct": -53.6358,
+          "sharpe": -3.3445,
+          "max_drawdown_pct": 58.3208,
+          "final_equity": 463642076.4
+        },
+        "prices_shifted_plus1_net": {
+          "total_return_pct": -57.0438,
+          "sharpe": -4.2991,
+          "max_drawdown_pct": 58.8086,
+          "final_equity": 429562125.96
+        },
+        "prices_shifted_minus1_net": {
+          "total_return_pct": -64.302,
+          "sharpe": -4.6527,
+          "max_drawdown_pct": 65.85,
+          "final_equity": 356979508.91
+        }
+      }
+    }
+  },
+  "d_label_shuffle": {
+    "run": false,
+    "reason": "needs a trained ML model; step1 proved ArtifactManager has none ('No ML model available for <symbol>, using zero predictions')"
+  }
+}

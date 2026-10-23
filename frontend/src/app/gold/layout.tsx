@@ -167,7 +167,10 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8 pb-24 md:pb-8">
+      {/* gold-main carries the mobile bottom padding in globals.css: the fixed
+          nav is 130px tall (three rows of five tabs) and a Tailwind `pb-[130px]`
+          here is defeated by that file's unlayered `* { padding: 0 }` reset. */}
+      <main className="gold-main max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8 pb-24 md:pb-8 pb-[130px]">
         <LiveSignalBanner />
         {children}
       </main>

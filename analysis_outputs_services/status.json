@@ -1,0 +1,303 @@
+{
+  "schema_version": "1.0",
+  "repo": "C:\\Users\\Iran\\Desktop\\temce\\services",
+  "status": "analyzed",
+  "task_family": "time-series-backtest-ml",
+  "entrypoints": {
+    "train": [
+      "auto_retrain_pipeline.py",
+      "global_training_service.py",
+      "training_service.py"
+    ],
+    "infer": [
+      "gap_prediction.py",
+      "inference_service.py"
+    ],
+    "eval": [
+      "options_backtest_service.py",
+      "backtest/cost_model.py",
+      "backtest_framework.py",
+      "backtest_service.py",
+      "codal_analysis/audit_control_testing.py",
+      "codal_analysis/benchmark.py",
+      "codal_analysis/validation.py",
+      "evaluation_suite.py",
+      "event_backtest.py",
+      "risk_metrics.py",
+      "signal_backtest_engine.py"
+    ],
+    "model": [
+      "fund_api_adapter.py",
+      "ime_signal_adapter.py",
+      "backtest/cost_model.py"
+    ],
+    "config": [
+      "smart_money/config_loader.py"
+    ]
+  },
+  "task_relevant_files": [
+    "chat/sentiment_analyzer.py",
+    "codal_analysis/point_in_time.py",
+    "fund_api_adapter.py",
+    "fund_circuit_breaker.py",
+    "fund_class_nav.py",
+    "fund_compliance.py",
+    "fund_discovery.py",
+    "fund_explainer.py",
+    "fund_fof.py",
+    "fund_identity.py",
+    "fund_ledger.py",
+    "fund_nav_engine.py",
+    "fund_nav_reconciliation.py",
+    "fund_quant_engine.py",
+    "fund_read_through.py",
+    "fund_scoring.py",
+    "fund_service.py",
+    "fund_sync_service.py",
+    "fund_tax.py",
+    "fundamental_service.py"
+  ],
+  "research_map": {
+    "task_family": "time-series-backtest-ml",
+    "readme_present": true,
+    "train_entrypoints": [
+      "auto_retrain_pipeline.py",
+      "global_training_service.py",
+      "training_service.py"
+    ],
+    "inference_entrypoints": [
+      "gap_prediction.py",
+      "inference_service.py"
+    ],
+    "evaluation_entrypoints": [
+      "options_backtest_service.py",
+      "backtest/cost_model.py",
+      "backtest_framework.py",
+      "backtest_service.py",
+      "codal_analysis/audit_control_testing.py",
+      "codal_analysis/benchmark.py",
+      "codal_analysis/validation.py",
+      "evaluation_suite.py"
+    ],
+    "model_entrypoints": [
+      "fund_api_adapter.py",
+      "ime_signal_adapter.py",
+      "backtest/cost_model.py"
+    ],
+    "config_entrypoints": [
+      "smart_money/config_loader.py"
+    ],
+    "task_relevant_files": [
+      "chat/sentiment_analyzer.py",
+      "codal_analysis/point_in_time.py",
+      "fund_api_adapter.py",
+      "fund_circuit_breaker.py",
+      "fund_class_nav.py",
+      "fund_compliance.py",
+      "fund_discovery.py",
+      "fund_explainer.py",
+      "fund_fof.py",
+      "fund_identity.py"
+    ],
+    "output_hints": [],
+    "checkpoint_chain_hints": [],
+    "repo_root": "C:\\Users\\Iran\\Desktop\\temce\\services"
+  },
+  "change_map": {
+    "allowed_change_zones": [
+      "fund_api_adapter.py",
+      "ime_signal_adapter.py",
+      "backtest/cost_model.py",
+      "smart_money/config_loader.py",
+      "auto_retrain_pipeline.py",
+      "global_training_service.py",
+      "training_service.py",
+      "chat/sentiment_analyzer.py",
+      "codal_analysis/point_in_time.py",
+      "fund_circuit_breaker.py",
+      "fund_class_nav.py",
+      "fund_compliance.py"
+    ],
+    "protected_eval_zones": [
+      "tests",
+      "options_backtest_service.py",
+      "backtest/cost_model.py",
+      "backtest_framework.py",
+      "backtest_service.py",
+      "codal_analysis/audit_control_testing.py"
+    ],
+    "data_interface_zones": [
+      "data_layer.py",
+      "data_mesh/__init__.py",
+      "historical_data_service.py",
+      "smart_money/config_loader.py",
+      "smart_money/data_quality.py"
+    ],
+    "single_variable_high_risk_zones": [
+      "tests",
+      "options_backtest_service.py",
+      "backtest/cost_model.py",
+      "backtest_framework.py",
+      "backtest_service.py",
+      "codal_analysis/audit_control_testing.py",
+      "smart_money/config_loader.py"
+    ]
+  },
+  "eval_contract": {
+    "task_family": "time-series-backtest-ml",
+    "dataset": "",
+    "benchmark": "",
+    "evaluation_command": "pytest tests/unit/backtesting tests/unit/ml -v",
+    "evaluation_path": "tests",
+    "primary_metric": "rank_ic",
+    "metric_goal": "maximize",
+    "expected_artifacts": [],
+    "notes": []
+  },
+  "symbol_hints": [
+    "fund_api_adapter.py:RecordVerdict",
+    "fund_api_adapter.py:QuarantineSink",
+    "fund_api_adapter.py:_fingerprint",
+    "fund_api_adapter.py:parse_jalali",
+    "fund_api_adapter.py:parse_gregorian",
+    "fund_api_adapter.py:normalize_date",
+    "fund_api_adapter.py:validate_nav_record",
+    "fund_api_adapter.py:validate_holding",
+    "fund_api_adapter.py:validate_portfolio_weights",
+    "fund_api_adapter.py:validate_quote",
+    "fund_api_adapter.py:FundApiAdapter",
+    "fund_api_adapter.py:_ensure_list",
+    "fund_api_adapter.py:_safe_float",
+    "fund_api_adapter.py:_safe_int",
+    "fund_api_adapter.py:_hint_type",
+    "fund_api_adapter.py:_map_holding_type",
+    "fund_api_adapter.py:map_ime_fund",
+    "fund_api_adapter.py:map_codal_holdings",
+    "ime_signal_adapter.py:_parse_persian_number",
+    "ime_signal_adapter.py:_infer_strategy_type",
+    "ime_signal_adapter.py:_build_market_state",
+    "ime_signal_adapter.py:_infer_tick_size",
+    "ime_signal_adapter.py:_infer_gross_edge",
+    "ime_signal_adapter.py:market_signal_to_candidate",
+    "ime_signal_adapter.py:AdapterResult",
+    "ime_signal_adapter.py:filter_ime_market_signals",
+    "ime_signal_adapter.py:_trade_card_to_dict",
+    "ime_signal_adapter.py:is_releasable",
+    "ime_signal_adapter.py:to_dict",
+    "backtest/cost_model.py:apply_costs",
+    "auto_retrain_pipeline.py:RetrainReport",
+    "auto_retrain_pipeline.py:AutoRetrainPipeline",
+    "auto_retrain_pipeline.py:to_dict",
+    "auto_retrain_pipeline.py:__init__",
+    "global_training_service.py:_create_seeded_service",
+    "global_training_service.py:get_training_service",
+    "training_service.py:TrainingService",
+    "training_service.py:__init__",
+    "training_service.py:_prepare_target",
+    "training_service.py:_build_features",
+    "training_service.py:_split_time_series",
+    "training_service.py:_invalidate_model_cache",
+    "chat/sentiment_analyzer.py:SentimentAnalyzer",
+    "chat/sentiment_analyzer.py:analyze",
+    "chat/sentiment_analyzer.py:analyze_market_sentiment",
+    "chat/sentiment_analyzer.py:analyze_symbol_sentiment",
+    "chat/sentiment_analyzer.py:sentiment_to_emoji",
+    "codal_analysis/point_in_time.py:PointInTimeSnapshot",
+    "codal_analysis/point_in_time.py:RestatementChain",
+    "codal_analysis/point_in_time.py:PointInTimeEngine"
+  ],
+  "constructor_candidates": [
+    "auto_retrain_pipeline.py:AutoRetrainPipeline",
+    "training_service.py:TrainingService",
+    "codal_analysis/point_in_time.py:PointInTimeEngine",
+    "fund_circuit_breaker.py:FundCircuitBreaker",
+    "fund_class_nav.py:FundClassNavService",
+    "fund_compliance.py:FundComplianceService",
+    "fund_discovery.py:FundDiscoveryService",
+    "fund_fof.py:FundFofService",
+    "fund_ledger.py:FundLedgerService",
+    "fund_nav_engine.py:FundNavEngine",
+    "fund_nav_reconciliation.py:FundNavReconciliationService",
+    "fund_read_through.py:DistributedMutex",
+    "fund_read_through.py:FundReadThroughService",
+    "fund_read_through.py:_MutexHandle",
+    "options_backtest_service.py:OptionsBacktestService",
+    "backtest_framework.py:WalkForwardEngine",
+    "backtest_framework.py:CPCV",
+    "backtest_framework.py:MonteCarloEngine",
+    "backtest_service.py:BacktestService",
+    "codal_analysis/audit_control_testing.py:ControlTester"
+  ],
+  "forward_candidates": [],
+  "config_binding_hints": [
+    "smart_money/config_loader.py",
+    "fund_api_adapter.py",
+    "fund_circuit_breaker.py",
+    "fund_class_nav.py",
+    "fund_compliance.py",
+    "fund_discovery.py",
+    "fund_ledger.py",
+    "fund_nav_reconciliation.py",
+    "fund_quant_engine.py",
+    "fund_read_through.py"
+  ],
+  "module_files": [
+    "fund_api_adapter.py",
+    "ime_signal_adapter.py",
+    "backtest/cost_model.py",
+    "auto_retrain_pipeline.py",
+    "global_training_service.py",
+    "training_service.py",
+    "chat/sentiment_analyzer.py",
+    "codal_analysis/point_in_time.py",
+    "fund_circuit_breaker.py",
+    "fund_class_nav.py",
+    "fund_compliance.py",
+    "fund_discovery.py",
+    "fund_explainer.py",
+    "fund_fof.py",
+    "fund_identity.py",
+    "fund_ledger.py",
+    "fund_nav_engine.py",
+    "fund_nav_reconciliation.py",
+    "fund_quant_engine.py",
+    "fund_read_through.py"
+  ],
+  "metric_files": [
+    "options_backtest_service.py",
+    "backtest/cost_model.py",
+    "backtest_framework.py",
+    "backtest_service.py",
+    "codal_analysis/audit_control_testing.py",
+    "codal_analysis/benchmark.py",
+    "codal_analysis/validation.py",
+    "evaluation_suite.py",
+    "event_backtest.py",
+    "risk_metrics.py",
+    "signal_backtest_engine.py"
+  ],
+  "suspicious_patterns": [
+    "adaptive_engine.py: verify optimizer parameter coverage if custom freezing is expected.",
+    "cascade_engine.py: verify optimizer parameter coverage if custom freezing is expected.",
+    "ensemble_optimizer.py: verify optimizer parameter coverage if custom freezing is expected.",
+    "strategy_generator.py: verify optimizer parameter coverage if custom freezing is expected.",
+    "quantitative/normalizer.py: repeated `sigmoid` usage detected; review for duplicated post-processing.",
+    "quantitative/__init__.py: repeated `sigmoid` usage detected; review for duplicated post-processing.",
+    "smart_money/__init__.py: repeated `sigmoid` usage detected; review for duplicated post-processing.",
+    "Repository contains attention-like code but no obvious positional encoding signal was detected; review sequence-order handling."
+  ],
+  "conservative_suggestions": [
+    "Read the main model or backbone file before changing configs.",
+    "Verify the train entrypoint and config loading path before inserting new modules.",
+    "Treat suspicious patterns as heuristics until confirmed by command-level evidence.",
+    "Freeze one evaluation contract before comparing any candidate result against SOTA."
+  ],
+  "outputs": {
+    "summary": "analysis_outputs/SUMMARY.md",
+    "risks": "analysis_outputs/RISKS.md",
+    "research_map": "analysis_outputs/RESEARCH_MAP.md",
+    "change_map": "analysis_outputs/CHANGE_MAP.md",
+    "eval_contract": "analysis_outputs/EVAL_CONTRACT.md",
+    "status": "analysis_outputs/status.json"
+  }
+}

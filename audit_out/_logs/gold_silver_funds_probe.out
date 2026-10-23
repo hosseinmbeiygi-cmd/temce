@@ -1,0 +1,76 @@
+
+========================================================================
+1) coin purity: gold_desk.constants vs antigravity.calculations
+========================================================================
+constants.GOLD_PURITY_COIN        = 900.0  (= 0.9000)
+antigravity.calculations._COIN_PURITY = 0.915
+ratio = 1.016667  (1.6667% اختلاف)
+
+inputs: XAU=4000.0 USD/oz, usd_irt=900,000
+gold_desk.pricer.fair_coin(IR_COIN_EMAMI) = 847,366,479
+antigravity intrinsic                     = 861,321,137
+diff = 13,954,658  (+1.647%)
+
+market=889,734,803
+bubble via gold_desk (bubbler)      = +5.000%   signal=(n/a)
+bubble via antigravity.calculations = +3.299%   signal=NEUTRAL
+
+========================================================================
+2) P/NAV thresholds: constants vs antigravity vs fund_scoring
+========================================================================
+gold_desk.constants: NAV_GREEN_MAX=0.5  NAV_YELLOW_MAX=1.5  NAV_RED_MAX=3.0
+antigravity.calculations.calculate_nav_premium: BUY<int(-1.0)  SELL>2.0
+services/fund_scoring.py docstring: bubble > +3% → سقف سیگنال «اجتناب از خرید»
+  premium=-2.00%  antigravity=BUY       gold_desk_scorer_nav=کامل
+  premium=-0.50%  antigravity=NEUTRAL   gold_desk_scorer_nav=کامل
+  premium=+0.00%  antigravity=NEUTRAL   gold_desk_scorer_nav=کامل
+  premium=+1.00%  antigravity=NEUTRAL   gold_desk_scorer_nav=75%
+  premium=+1.80%  antigravity=NEUTRAL   gold_desk_scorer_nav=30%
+  premium=+2.00%  antigravity=NEUTRAL   gold_desk_scorer_nav=30%
+  premium=+3.00%  antigravity=SELL      gold_desk_scorer_nav=30%
+  premium=+5.00%  antigravity=SELL      gold_desk_scorer_nav=0
+
+========================================================================
+3) alert_engine message direction vs rule_type
+========================================================================
+  rule_type=bubble_above       threshold=22.0   msg_operator='>'  name=حباب سکه بالا (سبز→قرمز)
+  rule_type=bubble_below       threshold=3.0    msg_operator='>'  name=حباب سکه پایین (فرصت خرید)
+  rule_type=nav_bubble_above   threshold=3.0    msg_operator='>'  name=NAV صندوق عیار بالا
+  rule_type=parity_gap_above   threshold=3.0    msg_operator='>'  name=شکاف درهم شدید
+  rule_type=score_above        threshold=80     msg_operator='>'  name=امتیاز سبز شد
+
+  _check_condition('bubble_below', value=2.0, threshold=3.0) = True
+  اما پیام ساخته‌شده با threshold=3.0 به‌صورت '>' رندر می‌شود (نگاه بالا).
+
+========================================================================
+4) FundNavEngine.compute_nav — double subtraction در مسیر holdings_missing
+========================================================================
+  مسیر A (assets - liabilities)          : net=900,000,000  nav/unit=900.00
+  مسیر B (net_asset_value - liabilities) : net=800,000,000  nav/unit=800.00
+  اختلاف nav/unit = -100.00 (-11.111%)
+
+========================================================================
+5) forecaster — band و EMA trend
+========================================================================
+  quiet  : vol=0.0%  h=30 lower=109 pred=109
+  volatile: vol=12.1%  band_pct(30d)=1.299  h=30 pred=64 lower=-19 upper=147
+  EMA(14) واقعی=111.07   اما _forecast_ema_trend(h=7)=114.10  (خروجی بر مبنای drift است نه EMA)
+
+========================================================================
+6) fund_scoring — discontinuity در آستانه‌ها
+========================================================================
+  style_drift            f(5.0)=95.000  f(5.01)=79.990  jump=-15.010
+  style_drift            f(20.0)=65.000  f(20.01)=59.990  jump=-5.010
+  ter                    f(0.5)=95.000  f(0.51)=89.733  jump=-5.267
+  ter                    f(2.0)=49.995  f(2.01)=49.850  jump=-0.145
+  information_ratio      f(0.5)=60.000  f(0.5001)=60.004  jump=+0.004
+  information_ratio      f(1.4999)=94.996  f(1.5)=95.000  jump=+0.004
+  tracking_difference    f(0.5)=95.000  f(0.51)=79.800  jump=-15.200
+
+========================================================================
+7) auto_trade — سقف مبلغ و ثبت dry-run
+========================================================================
+  config.max_position_irt=500,000,000  → amount=min(cfg, 50_000_000)=50,000,000
+  default_config(): AutoTradeConfig(enabled=False, dry_run=True, max_position_irt=50000000, min_score_to_buy=80, min_score_to_sell=20, cooldown_hours=24)
+
+DONE

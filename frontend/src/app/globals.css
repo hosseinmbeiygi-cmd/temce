@@ -1992,3 +1992,23 @@ body.dark-theme .glass-card:hover {
     margin: 8mm;
   }
 }
+
+
+/* ── /gold shell ────────────────────────────────────────────────────────────
+   The fixed bottom nav is 130px tall on phones (three rows of five tabs), so
+   `main` needs that much bottom padding or the last block of a long page ends
+   up under the nav at maximum scroll.
+
+   Plain CSS on purpose: the `* { margin: 0; padding: 0 }` reset above is
+   unlayered, and unlayered rules win over Tailwind v4's @layer utilities
+   regardless of specificity — a `pb-[130px]` utility on the element has no
+   effect. A class selector here beats the universal reset. */
+.gold-main {
+  padding-bottom: 130px;
+}
+
+@media (min-width: 768px) {
+  .gold-main {
+    padding-bottom: 2rem;
+  }
+}

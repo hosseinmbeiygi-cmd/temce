@@ -1,0 +1,24 @@
+rule_key,scope,value,unit,effective_from,effective_to,source_ref,confidence,verified_by,notes
+short_allowed,global,,bool,,,,D,,پیش‌فرض طراحی false؛ فقط با اطلاعیه‌ی رسمی تغییر کند (SPEC_IRAN_MARKET بخش ۱)
+price_limit,<market/segment/symbol>,,fraction,,,,D,,دامنه‌ی نوسان؛ همه‌ی تغییرات تاریخی؛ مقدار placeholder ممنوع
+base_volume_rule,<market/segment/symbol>,,formula,,,,D,,حجم مبنا و حداقل ارزش مبنا و استثناها
+tick_size,<market/segment>,,rial,,,,D,,
+lot_size,<market/segment>,,shares,,,,D,,
+session_phases,<market/segment>,,phase_table,,,,D,,پیش‌گشایش/مزایده/پیوسته/پس‌از‌بسته؛ ساعت‌ها و تاریخچه‌ی ساعت تابستانی
+order_types,<market/segment/phase>,,enum_list,,,,D,,
+order_size_limit,<market/segment/symbol>,,shares_or_value,,,,D,,
+position_limit,<market/segment/symbol>,,shares_or_pct,,,,D,,
+commission_rate,<broker/market>,,fraction,,,,D,,کارمزد کارگزار خرید/فروش (جدا)
+exchange_fee,<market>,,fraction,,,,D,,
+depository_fee,<market>,,fraction,,,,D,,کارمزد سپرده‌گذاری/تسویه
+sell_tax,<instrument_class>,,fraction,,,,D,,مالیات فروش؛ به‌تفکیک کلاس ابزار
+min_commission,<broker>,,rial,,,,D,,
+settlement_days,<instrument_class>,,business_days,,,,D,,T+n؛ استثنای تعطیلی غیرعادی جدا
+buy_cash_timing,<market>,,enum,,,,D,,
+credit_allowed,<broker>,,bool,,,,D,,
+valuation_price,<instrument_class>,,enum,,,,D,,پایانی/آخرین/NAV
+auction_matching,<market/segment>,,enum,,,,D,,تا تأیید، مزایده فقط مشاهده
+market_status,<market/segment/date>,,enum,,,,D,,open/closed_holiday/closed_unscheduled/halted_symbol؛ تعطیلی‌های غیرعادی
+trading_week,<market>,,weekday_set,,,,D,,روزهای کاری هفته از تقویم رسمی
+option_settlement_style,<contract>,,enum,,,,D,,نقدی/فیزیکی/ترکیبی؛ فقط وقتی ماژول مشتقه فعال شد
+option_margin_formula,<contract>,,formula,,,,D,,فرمول وجه تضمین؛ فقط از دستورالعمل رسمی

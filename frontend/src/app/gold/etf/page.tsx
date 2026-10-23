@@ -145,8 +145,10 @@ export default function GoldETFPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur overflow-hidden">
-        <table className="w-full text-sm">
+      {/* overflow-x-auto: nine columns cannot fit a 390px phone, so the table
+          scrolls horizontally instead of squeezing (same treatment as /gold/options). */}
+      <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="text-xs text-zinc-500 border-b border-zinc-700/60">
               <th className="text-left p-3">نام صندوق</th>

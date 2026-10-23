@@ -1,0 +1,36 @@
+report bytes: 43659 | lines: 592
+all 9 headers present: OK
+finding rows: 33 unique: 33 missing: []
+rows with wrong cell count: []
+severity section headers: OK
+csv rows: 33 cols: 8 bad: []
+severity: {'critical': 5, 'high': 7, 'medium': 12, 'low': 6, 'info': 3} | area: {'gold-funds': 1, 'gold': 19, 'funds': 9, 'silver': 4}
+  OK   '0 از 10'                                    log[snap]
+  OK   'total=53'                                   log[snap]
+  OK   'total=30'                                   log[snap]
+  OK   '-11.111%'                                   log[probe]
+  OK   '312.65'                                     log[snap]
+  OK   'rows matching date >= cutoff : 0'           log[db2]
+  OK   '4869'                                       log[db2]
+  OK   'merged funds: 636'                          log[db4]
+  OK   'silver-matching funds در کل merged: 3'      log[db4]
+  OK   '18532'                                      log[db4]
+  FAIL 'fund_nav_history 1 row (tse:آگاس 2026-09-20)' log[db]
+  FAIL "('tse:آگاس'"                                log[db]
+  OK   "hasattr(NavRecordModel 'nav') = False"      log[snap]
+  OK   '149 passed'                                 log[t1]
+  OK   '281 passed 1 skipped'                       log[t2]
+  OK   '165 passed 21 skipped'                      log[t3]
+  OK   'vol=12.1%'                                  log[probe]
+  OK   'lower=-19'                                  log[probe]
+  OK   '+5.000%'                                    log[probe]
+  OK   '+3.299%'                                    log[probe]
+  OK   '+1.647%'                                    log[probe]
+  OK   '-15.010'                                    log[probe]
+  OK   '-5.267'                                     log[probe]
+  OK   '-15.200'                                    log[probe]
+  FAIL '1405-06-23'                                 log[db2]
+  FAIL '1405-07-15'                                 log[db2]
+
+FAILED: [('fund_nav_history 1 row (tse:آگاس 2026-09-20)', 'db', True, False), ("('tse:آگاس'", 'db', False, True), ('1405-06-23', 'db2', True, False), ('1405-07-15', 'db2', True, False)]
+DONE

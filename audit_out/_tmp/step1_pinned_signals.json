@@ -1,0 +1,26 @@
+[
+  {
+    "signal_id": "step1-001",
+    "symbol": "\u0622 \u0633 \u067e",
+    "market": "stock",
+    "direction": "buy",
+    "timeframe": "daily",
+    "date": "2026-09-16",
+    "price": 3140.0,
+    "source": "rule_based",
+    "targets": "",
+    "stop_loss": ""
+  },
+  {
+    "signal_id": "step1-002",
+    "symbol": "\u0622 \u0633 \u067e3",
+    "market": "stock",
+    "direction": "buy",
+    "timeframe": "daily",
+    "date": "2026-09-16",
+    "price": 3163.0,
+    "source": "rule_based",
+    "targets": "",
+    "stop_loss": ""
+  }
+]

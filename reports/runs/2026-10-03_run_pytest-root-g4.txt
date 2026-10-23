@@ -1,0 +1,10 @@
+tests/unit/test_security_hardening.py | rc=0 | 17 passed, 1 warning in 6.07s
+tests/unit/test_security_middleware.py | rc=0 | 44 passed in 8.13s
+tests/unit/test_signals_rate_limit.py | rc=0 | 4 passed in 13.71s
+tests/unit/test_statistical_acceptance_gate.py | rc=0 | 23 passed in 2.28s
+tests/unit/test_structlog_migration.py | rc=0 | 12 passed in 2.22s
+tests/unit/test_summary_hot_layer_first.py | rc=0 | 7 passed in 3.24s
+tests/unit/test_symbols_page_size.py | rc=124 | (Background on this error at: https://sqlalche.me/e/20/f405)
+tests/unit/test_system_endpoints.py | rc=124 | 
+tests/unit/test_totp_mfa.py | rc=0 | 30 passed, 1 warning in 18.81s
+tests/unit/test_trades_e2e.py | rc=124 | 2026-10-03 08:33:40 [error    ] Failed to fetch trades for فولاد

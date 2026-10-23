@@ -1,0 +1,46 @@
+# acceptance.yaml — filled and registered by the OWNER only. Claude Code may read it but may not change it.
+# Rule: register before the first model run; never change after seeing results; any change = a new hypothesis and a new trial count.
+# No numbers are suggested in this file; everything is null. Any remaining null = the run is not allowed.
+
+acceptance_registered_at: null        # timestamp of registration (before the first run)
+registered_by: null
+hypothesis_id: null
+
+thresholds:
+  # --- from SPEC_ML section 7 ---
+  min_rank_ic_mean: null
+  min_icir: null
+  min_net_sharpe_vs_baseline_delta: null
+  max_mdd: null
+  max_avg_days_to_exit: null
+  min_positive_regime_share: null
+  max_pbo: null
+  min_deflated_sharpe: null
+  n_trials_counted: auto
+  # --- Iranian market (SPEC_IRAN_MARKET) ---
+  min_net_return_real_vs_benchmark: null     # inflation-adjusted return vs benchmark
+  min_net_return_usd_vs_benchmark: null      # USD return vs benchmark
+  min_fillable_rate: null                    # section 3: share of executable orders
+  max_profit_share_from_unfillable: null     # share of profit from non-executable signals
+  min_independent_epochs_positive: null      # section 14: minimum independent epochs with a positive result
+  leave_one_epoch_out_required: null         # true/false
+  max_joint_lock_stress_loss: null           # section 4
+  max_beta_to_market: null                   # section 2
+  min_n_eff: null                            # section 2: effective number of symbols
+
+holdout_policy: single_look
+holdout_period: {start: null, end: null}     # last continuous, meaningful period (owner decision)
+
+benchmarks:                                  # owner edits; benchmarks without data are suspended
+  - buy_and_hold
+  - equal_weight_index
+  - gold_or_coin
+  - usd
+  - fixed_income_fund
+  - bank_deposit
+
+reference_rates:                             # SPEC_VALUATION section 10; change only via ADR
+  fx_reference: null
+  risk_free: null
+  inflation_index: null
+  inflation_publication_lag_days: null

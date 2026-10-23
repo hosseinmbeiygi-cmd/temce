@@ -1,0 +1,592 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="19" failures="0" skipped="1" tests="20" time="413.259" timestamp="2026-10-06T21:36:39.042629+03:30" hostname="DESKTOP-J1H9BD4"><testcase classname="" name="tests.legacy.root.test_screener_api" time="0.000"><error message="collection failure">ImportError while importing test module 'C:\Users\Iran\Desktop\temce\tests\legacy\root\test_screener_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\AppData\Local\Programs\Python\Python311\Lib\importlib\__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\legacy\root\test_screener_api.py:16: in &lt;module&gt;
+    from main import app
+E   ImportError: cannot import name 'app' from 'main' (C:\Users\Iran\Desktop\temce\main.py)</error></testcase><testcase classname="" name="tests.legacy.root.test_signal_api" time="0.000"><error message="collection failure">venv\Lib\site-packages\urllib3\connection.py:204: in _new_conn
+    sock = connection.create_connection(
+venv\Lib\site-packages\urllib3\util\connection.py:85: in create_connection
+    raise err
+venv\Lib\site-packages\urllib3\util\connection.py:73: in create_connection
+    sock.connect(sa)
+E   ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\urllib3\connectionpool.py:787: in urlopen
+    response = self._make_request(
+venv\Lib\site-packages\urllib3\connectionpool.py:493: in _make_request
+    conn.request(
+venv\Lib\site-packages\urllib3\connection.py:500: in request
+    self.endheaders()
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1298: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1058: in _send_output
+    self.send(msg)
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:996: in send
+    self.connect()
+venv\Lib\site-packages\urllib3\connection.py:331: in connect
+    self.sock = self._new_conn()
+                ^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\urllib3\connection.py:219: in _new_conn
+    raise NewConnectionError(
+E   urllib3.exceptions.NewConnectionError: HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\requests\adapters.py:644: in send
+    resp = conn.urlopen(
+venv\Lib\site-packages\urllib3\connectionpool.py:841: in urlopen
+    retries = retries.increment(
+venv\Lib\site-packages\urllib3\util\retry.py:535: in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/multi-market-signals?min_confidence=0.0&amp;limit=10 (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+
+During handling of the above exception, another exception occurred:
+tests\legacy\root\test_signal_api.py:3: in &lt;module&gt;
+    r = requests.get("http://localhost:8000/api/v1/multi-market-signals?min_confidence=0.0&amp;limit=10")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\adapters.py:677: in send
+    raise ConnectionError(e, request=request)
+E   requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/multi-market-signals?min_confidence=0.0&amp;limit=10 (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</error></testcase><testcase classname="" name="tests.legacy.scripts.test_backtest_runs" time="0.000"><error message="collection failure">venv\Lib\site-packages\urllib3\connection.py:204: in _new_conn
+    sock = connection.create_connection(
+venv\Lib\site-packages\urllib3\util\connection.py:85: in create_connection
+    raise err
+venv\Lib\site-packages\urllib3\util\connection.py:73: in create_connection
+    sock.connect(sa)
+E   ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\urllib3\connectionpool.py:787: in urlopen
+    response = self._make_request(
+venv\Lib\site-packages\urllib3\connectionpool.py:493: in _make_request
+    conn.request(
+venv\Lib\site-packages\urllib3\connection.py:500: in request
+    self.endheaders()
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1298: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1058: in _send_output
+    self.send(msg)
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:996: in send
+    self.connect()
+venv\Lib\site-packages\urllib3\connection.py:331: in connect
+    self.sock = self._new_conn()
+                ^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\urllib3\connection.py:219: in _new_conn
+    raise NewConnectionError(
+E   urllib3.exceptions.NewConnectionError: HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\requests\adapters.py:644: in send
+    resp = conn.urlopen(
+venv\Lib\site-packages\urllib3\connectionpool.py:841: in urlopen
+    retries = retries.increment(
+venv\Lib\site-packages\urllib3\util\retry.py:535: in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/backtests/runs?limit=5 (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+
+During handling of the above exception, another exception occurred:
+tests\legacy\scripts\test_backtest_runs.py:5: in &lt;module&gt;
+    r = requests.get("http://localhost:8000/api/v1/backtests/runs?limit=5", timeout=30)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\adapters.py:677: in send
+    raise ConnectionError(e, request=request)
+E   requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/backtests/runs?limit=5 (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</error></testcase><testcase classname="" name="tests.legacy.scripts.test_codal_api" time="0.000"><error message="collection failure">venv\Lib\site-packages\urllib3\connectionpool.py:464: in _make_request
+    self._validate_conn(conn)
+venv\Lib\site-packages\urllib3\connectionpool.py:1093: in _validate_conn
+    conn.connect()
+venv\Lib\site-packages\urllib3\connection.py:796: in connect
+    sock_and_verified = _ssl_wrap_socket_and_match_hostname(
+venv\Lib\site-packages\urllib3\connection.py:975: in _ssl_wrap_socket_and_match_hostname
+    ssl_sock = ssl_wrap_socket(
+venv\Lib\site-packages\urllib3\util\ssl_.py:483: in ssl_wrap_socket
+    ssl_sock = _ssl_wrap_socket_impl(sock, context, tls_in_tls, server_hostname)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\urllib3\util\ssl_.py:527: in _ssl_wrap_socket_impl
+    return ssl_context.wrap_socket(sock, server_hostname=server_hostname)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\ssl.py:517: in wrap_socket
+    return self.sslsocket_class._create(
+..\..\AppData\Local\Programs\Python\Python311\Lib\ssl.py:1104: in _create
+    self.do_handshake()
+..\..\AppData\Local\Programs\Python\Python311\Lib\ssl.py:1382: in do_handshake
+    self._sslobj.do_handshake()
+E   TimeoutError: _ssl.c:989: The handshake operation timed out
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\requests\adapters.py:644: in send
+    resp = conn.urlopen(
+venv\Lib\site-packages\urllib3\connectionpool.py:841: in urlopen
+    retries = retries.increment(
+venv\Lib\site-packages\urllib3\util\retry.py:490: in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\urllib3\util\util.py:39: in reraise
+    raise value
+venv\Lib\site-packages\urllib3\connectionpool.py:787: in urlopen
+    response = self._make_request(
+venv\Lib\site-packages\urllib3\connectionpool.py:488: in _make_request
+    raise new_e
+venv\Lib\site-packages\urllib3\connectionpool.py:466: in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=conn.timeout)
+venv\Lib\site-packages\urllib3\connectionpool.py:367: in _raise_timeout
+    raise ReadTimeoutError(
+E   urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='api.brsapi.ir', port=443): Read timed out. (read timeout=30)
+
+During handling of the above exception, another exception occurred:
+tests\legacy\scripts\test_codal_api.py:9: in &lt;module&gt;
+    r = requests.get(
+venv\Lib\site-packages\requests\api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\adapters.py:690: in send
+    raise ReadTimeout(e, request=request)
+E   requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='api.brsapi.ir', port=443): Read timed out. (read timeout=30)</error></testcase><testcase classname="" name="tests.legacy.scripts.test_excel_parser" time="0.000"><error message="collection failure">tests\legacy\scripts\test_excel_parser.py:13: in &lt;module&gt;
+    files = sorted(os.listdir(base))
+                   ^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [WinError 3] The system cannot find the path specified: 'codal_excel_files/آباد'</error></testcase><testcase classname="" name="tests.legacy.scripts.test_excel_parser2" time="0.000"><error message="collection failure">tests\legacy\scripts\test_excel_parser2.py:7: in &lt;module&gt;
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ValueError: I/O operation on closed file</error></testcase><testcase classname="" name="tests.legacy.scripts.test_ml_full" time="0.000"><error message="collection failure">tests\legacy\scripts\test_ml_full.py:13: in &lt;module&gt;
+    print("=== Training with all feature groups ===")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.legacy.scripts.test_ml_inference" time="0.000"><error message="collection failure">tests\legacy\scripts\test_ml_inference.py:7: in &lt;module&gt;
+    print("=== Testing inference with model_id=lightgbm ===")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.legacy.scripts.test_ml_train" time="0.000"><error message="collection failure">venv\Lib\site-packages\urllib3\connection.py:204: in _new_conn
+    sock = connection.create_connection(
+venv\Lib\site-packages\urllib3\util\connection.py:85: in create_connection
+    raise err
+venv\Lib\site-packages\urllib3\util\connection.py:73: in create_connection
+    sock.connect(sa)
+E   ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\urllib3\connectionpool.py:787: in urlopen
+    response = self._make_request(
+venv\Lib\site-packages\urllib3\connectionpool.py:493: in _make_request
+    conn.request(
+venv\Lib\site-packages\urllib3\connection.py:500: in request
+    self.endheaders()
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1298: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1058: in _send_output
+    self.send(msg)
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:996: in send
+    self.connect()
+venv\Lib\site-packages\urllib3\connection.py:331: in connect
+    self.sock = self._new_conn()
+                ^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\urllib3\connection.py:219: in _new_conn
+    raise NewConnectionError(
+E   urllib3.exceptions.NewConnectionError: HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\requests\adapters.py:644: in send
+    resp = conn.urlopen(
+venv\Lib\site-packages\urllib3\connectionpool.py:841: in urlopen
+    retries = retries.increment(
+venv\Lib\site-packages\urllib3\util\retry.py:535: in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/ml/train (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+
+During handling of the above exception, another exception occurred:
+tests\legacy\scripts\test_ml_train.py:12: in &lt;module&gt;
+    r = requests.post("http://localhost:8000/api/v1/ml/train", json=payload, timeout=120)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:115: in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:589: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\sessions.py:703: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\requests\adapters.py:677: in send
+    raise ConnectionError(e, request=request)
+E   requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/v1/ml/train (Caused by NewConnectionError("HTTPConnection(host='localhost', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))</error></testcase><testcase classname="" name="tests.legacy.scripts.test_real_legal_insert" time="0.000"><error message="collection failure">tests\legacy\scripts\test_real_legal_insert.py:15: in &lt;module&gt;
+    sys.stdout.reconfigure(encoding="utf-8")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.legacy.scripts.test_train_foolad" time="0.000"><error message="collection failure">tests\legacy\scripts\test_train_foolad.py:12: in &lt;module&gt;
+    sys.stdout.reconfigure(encoding="utf-8")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.legacy.scripts.test_train_quick" time="0.000"><error message="collection failure">tests\legacy\scripts\test_train_quick.py:11: in &lt;module&gt;
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_all_modules" time="0.000"><error message="collection failure">tests\test_all_modules.py:26: in &lt;module&gt;
+    print("=== Module Import Test ===")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_backtest" time="0.000"><error message="collection failure">tests\test_backtest.py:50: in &lt;module&gt;
+    print(f"Data: {len(data)} bars, Price: {data[0]['close']:.0f} -&gt; {data[-1]['close']:.0f}")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_indicators_smoke" time="0.000"><error message="collection failure">tests\test_indicators_smoke.py:28: in &lt;module&gt;
+    print(f"Half Trend OK: {n} bars, buys={sum(ht['buy_signal'])}, sells={sum(ht['sell_signal'])}")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_kiss" time="0.000"><skipped message="collection skipped">('C:\\Users\\Iran\\Desktop\\temce\\tests\\test_kiss.py', 4, 'Skipped: kiss_agent_framework is not installed')</skipped></testcase><testcase classname="" name="tests.test_runner_e2e" time="0.000"><error message="collection failure">+ Exception Group Traceback (most recent call last):
+  |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 81, in collapse_excgroups
+  |     yield
+  |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 192, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 783, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\apps\api\middleware.py", line 79, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\apps\api\middleware.py", line 496, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(typ, value, traceback)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\apps\api\middleware.py", line 117, in dispatch
+    |     logger.debug("Request: %s %s [trace=%s]", request.method, request.url.path, trace_id)
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_native.py", line 172, in meth
+    |     return self._proxy_to_logger(
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_base.py", line 224, in _proxy_to_logger
+    |     return getattr(self._logger, method_name)(*args, **kw)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_output.py", line 113, in msg
+    |     print(message, file=f, flush=True)
+    | ValueError: I/O operation on closed file.
+    +------------------------------------
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\apps\api\middleware.py", line 79, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\apps\api\middleware.py", line 496, in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\apps\api\middleware.py", line 117, in dispatch
+    logger.debug("Request: %s %s [trace=%s]", request.method, request.url.path, trace_id)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_native.py", line 172, in meth
+    return self._proxy_to_logger(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_base.py", line 224, in _proxy_to_logger
+    return getattr(self._logger, method_name)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_output.py", line 113, in msg
+    print(message, file=f, flush=True)
+ValueError: I/O operation on closed file.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Iran\Desktop\temce\tests\test_runner_e2e.py", line 29, in &lt;module&gt;
+    asyncio.run(t())
+  File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\tests\test_runner_e2e.py", line 14, in t
+    r = await c.post("/api/v1/tests/run")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_client.py", line 1859, in post
+    return await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_client.py", line 1540, in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\httpx\_transports\asgi.py", line 170, in handle_async_request
+    await self.app(scope, receive, send)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\fastapi\applications.py", line 1138, in __call__
+    await super().__call__(scope, receive, send)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\starlette\middleware\errors.py", line 176, in __call__
+    response = await self.handler(request, exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\apps\api\error_handlers.py", line 95, in generic_error_handler
+    logger.error("Unhandled exception on %s %s [trace=%s]: %s", request.method, request.url.path, trace_id, exc)
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_native.py", line 172, in meth
+    return self._proxy_to_logger(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_base.py", line 224, in _proxy_to_logger
+    return getattr(self._logger, method_name)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\structlog\_output.py", line 113, in msg
+    print(message, file=f, flush=True)
+ValueError: I/O operation on closed file.
+
+The above exception was the direct cause of the following exception:
+venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+venv\Lib\site-packages\starlette\middleware\base.py:191: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+venv\Lib\site-packages\starlette\_utils.py:87: in collapse_excgroups
+    raise exc
+venv\Lib\site-packages\starlette\middleware\base.py:193: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+apps\api\middleware.py:79: in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\starlette\middleware\base.py:168: in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+venv\Lib\site-packages\starlette\middleware\base.py:144: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+venv\Lib\site-packages\starlette\middleware\base.py:191: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+venv\Lib\site-packages\starlette\_utils.py:87: in collapse_excgroups
+    raise exc
+venv\Lib\site-packages\starlette\middleware\base.py:193: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+apps\api\middleware.py:496: in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\starlette\middleware\base.py:168: in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+venv\Lib\site-packages\starlette\middleware\base.py:144: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+venv\Lib\site-packages\starlette\middleware\base.py:191: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+..\..\AppData\Local\Programs\Python\Python311\Lib\contextlib.py:158: in __exit__
+    self.gen.throw(typ, value, traceback)
+venv\Lib\site-packages\starlette\_utils.py:87: in collapse_excgroups
+    raise exc
+venv\Lib\site-packages\starlette\middleware\base.py:193: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+apps\api\middleware.py:117: in dispatch
+    logger.debug("Request: %s %s [trace=%s]", request.method, request.url.path, trace_id)
+venv\Lib\site-packages\structlog\_native.py:172: in meth
+    return self._proxy_to_logger(
+venv\Lib\site-packages\structlog\_base.py:224: in _proxy_to_logger
+    return getattr(self._logger, method_name)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\structlog\_output.py:113: in msg
+    print(message, file=f, flush=True)
+E   ValueError: I/O operation on closed file.
+
+During handling of the above exception, another exception occurred:
+tests\test_runner_e2e.py:29: in &lt;module&gt;
+    asyncio.run(t())
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_runner_e2e.py:14: in t
+    r = await c.post("/api/v1/tests/run")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\httpx\_client.py:1859: in post
+    return await self.request(
+venv\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+venv\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+venv\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\httpx\_transports\asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+venv\Lib\site-packages\fastapi\applications.py:1138: in __call__
+    await super().__call__(scope, receive, send)
+venv\Lib\site-packages\starlette\applications.py:107: in __call__
+    await self.middleware_stack(scope, receive, send)
+venv\Lib\site-packages\starlette\middleware\errors.py:176: in __call__
+    response = await self.handler(request, exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+apps\api\error_handlers.py:95: in generic_error_handler
+    logger.error("Unhandled exception on %s %s [trace=%s]: %s", request.method, request.url.path, trace_id, exc)
+venv\Lib\site-packages\structlog\_native.py:172: in meth
+    return self._proxy_to_logger(
+venv\Lib\site-packages\structlog\_base.py:224: in _proxy_to_logger
+    return getattr(self._logger, method_name)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\structlog\_output.py:113: in msg
+    print(message, file=f, flush=True)
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_screener_api" time="0.000"><error message="collection failure">tests\test_screener_api.py:38: in &lt;module&gt;
+    asyncio.run(test())
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_screener_api.py:20: in test
+    print("=== GET /screener ===")
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_screener_flow" time="0.000"><error message="collection failure">tests\test_screener_flow.py:83: in &lt;module&gt;
+    asyncio.run(test())
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_screener_flow.py:16: in test
+    async for session in get_session():
+core\database.py:245: in get_session
+    await init_database()
+core\database.py:204: in init_database
+    logger.info("Database connected: %s", url.split("@")[-1] if "@" in url else url)
+venv\Lib\site-packages\structlog\_native.py:172: in meth
+    return self._proxy_to_logger(
+venv\Lib\site-packages\structlog\_base.py:224: in _proxy_to_logger
+    return getattr(self._logger, method_name)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv\Lib\site-packages\structlog\_output.py:113: in msg
+    print(message, file=f, flush=True)
+E   ValueError: I/O operation on closed file.</error></testcase><testcase classname="" name="tests.test_sync_2" time="0.000"><error message="collection failure">tests\test_sync_2.py:95: in &lt;module&gt;
+    asyncio.run(test())
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:190: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py:654: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_sync_2.py:50: in test
+    print(f"  {sym}: API error: {result.error}")
+E   ValueError: I/O operation on closed file.</error></testcase></testsuite></testsuites>

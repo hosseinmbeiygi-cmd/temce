@@ -1,0 +1,21 @@
+{
+  "label": "EXPLORATORY — not the project model",
+  "n_rows": 1068,
+  "n_features": 5,
+  "n_test": 321,
+  "pooled_spearman_ic": 0.118,
+  "daily_rank_ic_mean": 0.3047,
+  "daily_rank_ic_std": 0.4488,
+  "icir": 0.679,
+  "n_ic_days": 64,
+  "ridge_coef": [
+    0.0323,
+    0.0127,
+    0.0127,
+    0.0267,
+    -0.0001
+  ],
+  "strat_final_dev_pct": 0.0,
+  "bh_avg_pct": 13.8091,
+  "random_ic_expected": 0.0
+}

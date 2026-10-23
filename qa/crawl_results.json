@@ -1,0 +1,1204 @@
+[
+ {
+  "route": "/",
+  "url": "http://localhost:3000/",
+  "status": 200,
+  "final_url": "http://localhost:3000/",
+  "redirected_to_login": false,
+  "dom_nodes": 553,
+  "text_len": 2416,
+  "corrupt_tokens": [],
+  "verdict": "OK",
+  "shot": "000_root.png",
+  "console_errors": 1,
+  "req_failed": 0
+ },
+ {
+  "route": "/admin",
+  "url": "http://localhost:3000/admin",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/admin\", waiting until \"domconten",
+  "console_errors": 37,
+  "req_failed": 0
+ },
+ {
+  "route": "/admin/users",
+  "url": "http://localhost:3000/admin/users",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/admin/users\", waiting until \"dom",
+  "console_errors": 2,
+  "req_failed": 1
+ },
+ {
+  "route": "/alerts",
+  "url": "http://localhost:3000/alerts",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/alerts\", waiting until \"domconte",
+  "console_errors": 2,
+  "req_failed": 1
+ },
+ {
+  "route": "/alpha",
+  "url": "http://localhost:3000/alpha",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/alpha\", waiting until \"domconten",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/analysis",
+  "url": "http://localhost:3000/analysis",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/analysis\", waiting until \"domcon",
+  "console_errors": 15,
+  "req_failed": 1
+ },
+ {
+  "route": "/anomalies",
+  "url": "http://localhost:3000/anomalies",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/anomalies\", waiting until \"domco",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/armor",
+  "url": "http://localhost:3000/armor",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/armor\", waiting until \"domconten",
+  "console_errors": 10,
+  "req_failed": 1
+ },
+ {
+  "route": "/auth/login",
+  "url": "http://localhost:3000/auth/login",
+  "status": 200,
+  "final_url": "http://localhost:3000/auth/login",
+  "redirected_to_login": true,
+  "dom_nodes": 163,
+  "text_len": 500,
+  "corrupt_tokens": [],
+  "verdict": "REDIRECT-login(expected-protected-or-auth)",
+  "shot": "008_auth-login.png",
+  "console_errors": 1,
+  "req_failed": 1
+ },
+ {
+  "route": "/auth/register",
+  "url": "http://localhost:3000/auth/register",
+  "status": 200,
+  "final_url": "http://localhost:3000/auth/register",
+  "redirected_to_login": false,
+  "dom_nodes": 169,
+  "text_len": 532,
+  "corrupt_tokens": [],
+  "verdict": "OK",
+  "shot": "009_auth-register.png",
+  "console_errors": 1,
+  "req_failed": 0
+ },
+ {
+  "route": "/backtest",
+  "url": "http://localhost:3000/backtest",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest\", waiting until \"domcon",
+  "console_errors": 0,
+  "req_failed": 0
+ },
+ {
+  "route": "/backtest/adaptive",
+  "url": "http://localhost:3000/backtest/adaptive",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/adaptive\", waiting unti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/cascade",
+  "url": "http://localhost:3000/backtest/cascade",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/cascade\", waiting until",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/compose",
+  "url": "http://localhost:3000/backtest/compose",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/compose\", waiting until",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/decision",
+  "url": "http://localhost:3000/backtest/decision",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/decision\", waiting unti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/engine",
+  "url": "http://localhost:3000/backtest/engine",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/engine\", waiting until ",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/full-scan",
+  "url": "http://localhost:3000/backtest/full-scan",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/full-scan\", waiting unt",
+  "console_errors": 5,
+  "req_failed": 0
+ },
+ {
+  "route": "/backtest/generate",
+  "url": "http://localhost:3000/backtest/generate",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/generate\", waiting unti",
+  "console_errors": 2,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/methods",
+  "url": "http://localhost:3000/backtest/methods",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/methods\", waiting until",
+  "console_errors": 2,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/monte-carlo",
+  "url": "http://localhost:3000/backtest/monte-carlo",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/monte-carlo\", waiting u",
+  "console_errors": 1,
+  "req_failed": 1
+ },
+ {
+  "route": "/backtest/walk-forward",
+  "url": "http://localhost:3000/backtest/walk-forward",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/backtest/walk-forward\", waiting ",
+  "console_errors": 1,
+  "req_failed": 1
+ },
+ {
+  "route": "/brsapi",
+  "url": "http://localhost:3000/brsapi",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/brsapi\", waiting until \"domconte",
+  "console_errors": 2,
+  "req_failed": 1
+ },
+ {
+  "route": "/brsapi/codal",
+  "url": "http://localhost:3000/brsapi/codal",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/brsapi/codal\", waiting until \"do",
+  "console_errors": 1,
+  "req_failed": 1
+ },
+ {
+  "route": "/brsapi/history/:param",
+  "url": "http://localhost:3000/brsapi/history/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/brsapi/history/test\", waiting un",
+  "console_errors": 1,
+  "req_failed": 1
+ },
+ {
+  "route": "/chat",
+  "url": "http://localhost:3000/chat",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/chat\nCall log:\n  - navigating to \"http://localhost:3000/chat\", waiti",
+  "console_errors": 0,
+  "req_failed": 2
+ },
+ {
+  "route": "/codal",
+  "url": "http://localhost:3000/codal",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/codal\nCall log:\n  - navigating to \"http://localhost:3000/codal\", wai",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/codal/:param",
+  "url": "http://localhost:3000/codal/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/codal/test\nCall log:\n  - navigating to \"http://localhost:3000/codal/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/codal/accounting/:param",
+  "url": "http://localhost:3000/codal/accounting/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/codal/accounting/test\nCall log:\n  - navigating to \"http://localhost:",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/codal/analysis/:param",
+  "url": "http://localhost:3000/codal/analysis/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/codal/analysis/test\nCall log:\n  - navigating to \"http://localhost:30",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/codal/audit",
+  "url": "http://localhost:3000/codal/audit",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/codal/audit\nCall log:\n  - navigating to \"http://localhost:3000/codal",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/codal/import",
+  "url": "http://localhost:3000/codal/import",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/codal/import\nCall log:\n  - navigating to \"http://localhost:3000/coda",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/commodities",
+  "url": "http://localhost:3000/commodities",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/commodities\nCall log:\n  - navigating to \"http://localhost:3000/commo",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/correlations",
+  "url": "http://localhost:3000/correlations",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/correlations\nCall log:\n  - navigating to \"http://localhost:3000/corr",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/crypto",
+  "url": "http://localhost:3000/crypto",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/crypto\nCall log:\n  - navigating to \"http://localhost:3000/crypto\", w",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/crypto-exchange",
+  "url": "http://localhost:3000/crypto-exchange",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/crypto-exchange\nCall log:\n  - navigating to \"http://localhost:3000/c",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/crypto-market",
+  "url": "http://localhost:3000/crypto-market",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/crypto-market\nCall log:\n  - navigating to \"http://localhost:3000/cry",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/data",
+  "url": "http://localhost:3000/data",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/data\nCall log:\n  - navigating to \"http://localhost:3000/data\", waiti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/data-health",
+  "url": "http://localhost:3000/data-health",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/data-health\nCall log:\n  - navigating to \"http://localhost:3000/data-",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/data-import",
+  "url": "http://localhost:3000/data-import",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/data-import\nCall log:\n  - navigating to \"http://localhost:3000/data-",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/data-transfer",
+  "url": "http://localhost:3000/data-transfer",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/data-transfer\nCall log:\n  - navigating to \"http://localhost:3000/dat",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/decision-engine",
+  "url": "http://localhost:3000/decision-engine",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/decision-engine\nCall log:\n  - navigating to \"http://localhost:3000/d",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/economic-calendar",
+  "url": "http://localhost:3000/economic-calendar",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/economic-calendar\nCall log:\n  - navigating to \"http://localhost:3000",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/experiments",
+  "url": "http://localhost:3000/experiments",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/experiments\nCall log:\n  - navigating to \"http://localhost:3000/exper",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental",
+  "url": "http://localhost:3000/fundamental",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental\nCall log:\n  - navigating to \"http://localhost:3000/funda",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/balance-sheet",
+  "url": "http://localhost:3000/fundamental/balance-sheet",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/balance-sheet\nCall log:\n  - navigating to \"http://localh",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/capital-increase",
+  "url": "http://localhost:3000/fundamental/capital-increase",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/capital-increase\nCall log:\n  - navigating to \"http://loc",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/cashflow",
+  "url": "http://localhost:3000/fundamental/cashflow",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/cashflow\nCall log:\n  - navigating to \"http://localhost:3",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/dps",
+  "url": "http://localhost:3000/fundamental/dps",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/dps\nCall log:\n  - navigating to \"http://localhost:3000/f",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/eps",
+  "url": "http://localhost:3000/fundamental/eps",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/eps\nCall log:\n  - navigating to \"http://localhost:3000/f",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/income",
+  "url": "http://localhost:3000/fundamental/income",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/income\nCall log:\n  - navigating to \"http://localhost:300",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/production",
+  "url": "http://localhost:3000/fundamental/production",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/production\nCall log:\n  - navigating to \"http://localhost",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/fundamental/ratios",
+  "url": "http://localhost:3000/fundamental/ratios",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/fundamental/ratios\nCall log:\n  - navigating to \"http://localhost:300",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/funds",
+  "url": "http://localhost:3000/funds",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/funds\nCall log:\n  - navigating to \"http://localhost:3000/funds\", wai",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/funds/:param",
+  "url": "http://localhost:3000/funds/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/funds/test\nCall log:\n  - navigating to \"http://localhost:3000/funds/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/funds/intraday",
+  "url": "http://localhost:3000/funds/intraday",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/funds/intraday\nCall log:\n  - navigating to \"http://localhost:3000/fu",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold",
+  "url": "http://localhost:3000/gold",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold\nCall log:\n  - navigating to \"http://localhost:3000/gold\", waiti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/alerts",
+  "url": "http://localhost:3000/gold/alerts",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/alerts\nCall log:\n  - navigating to \"http://localhost:3000/gold/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/analytics",
+  "url": "http://localhost:3000/gold/analytics",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/analytics\nCall log:\n  - navigating to \"http://localhost:3000/go",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/antigravity",
+  "url": "http://localhost:3000/gold/antigravity",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/antigravity\nCall log:\n  - navigating to \"http://localhost:3000/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/backtest",
+  "url": "http://localhost:3000/gold/backtest",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/backtest\nCall log:\n  - navigating to \"http://localhost:3000/gol",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/chat",
+  "url": "http://localhost:3000/gold/chat",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/chat\nCall log:\n  - navigating to \"http://localhost:3000/gold/ch",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/coins",
+  "url": "http://localhost:3000/gold/coins",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/coins\nCall log:\n  - navigating to \"http://localhost:3000/gold/c",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/dashboard",
+  "url": "http://localhost:3000/gold/dashboard",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/dashboard\nCall log:\n  - navigating to \"http://localhost:3000/go",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/dca",
+  "url": "http://localhost:3000/gold/dca",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/dca\nCall log:\n  - navigating to \"http://localhost:3000/gold/dca",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/etf",
+  "url": "http://localhost:3000/gold/etf",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/etf\nCall log:\n  - navigating to \"http://localhost:3000/gold/etf",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/funds",
+  "url": "http://localhost:3000/gold/funds",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/funds\nCall log:\n  - navigating to \"http://localhost:3000/gold/f",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/futures",
+  "url": "http://localhost:3000/gold/futures",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/futures\nCall log:\n  - navigating to \"http://localhost:3000/gold",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/options",
+  "url": "http://localhost:3000/gold/options",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/options\nCall log:\n  - navigating to \"http://localhost:3000/gold",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/physical",
+  "url": "http://localhost:3000/gold/physical",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/physical\nCall log:\n  - navigating to \"http://localhost:3000/gol",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/portfolio",
+  "url": "http://localhost:3000/gold/portfolio",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/portfolio\nCall log:\n  - navigating to \"http://localhost:3000/go",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/settings",
+  "url": "http://localhost:3000/gold/settings",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/settings\nCall log:\n  - navigating to \"http://localhost:3000/gol",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/technical",
+  "url": "http://localhost:3000/gold/technical",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/technical\nCall log:\n  - navigating to \"http://localhost:3000/go",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/gold/tokens",
+  "url": "http://localhost:3000/gold/tokens",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/gold/tokens\nCall log:\n  - navigating to \"http://localhost:3000/gold/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/health",
+  "url": "http://localhost:3000/health",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/health\nCall log:\n  - navigating to \"http://localhost:3000/health\", w",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/heatmap",
+  "url": "http://localhost:3000/heatmap",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/heatmap\nCall log:\n  - navigating to \"http://localhost:3000/heatmap\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/indicators",
+  "url": "http://localhost:3000/indicators",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/indicators\nCall log:\n  - navigating to \"http://localhost:3000/indica",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/instruments",
+  "url": "http://localhost:3000/instruments",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/instruments\nCall log:\n  - navigating to \"http://localhost:3000/instr",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/instruments/import",
+  "url": "http://localhost:3000/instruments/import",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/instruments/import\nCall log:\n  - navigating to \"http://localhost:300",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/jobs",
+  "url": "http://localhost:3000/jobs",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/jobs\nCall log:\n  - navigating to \"http://localhost:3000/jobs\", waiti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/macro",
+  "url": "http://localhost:3000/macro",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/macro\nCall log:\n  - navigating to \"http://localhost:3000/macro\", wai",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/market-depth",
+  "url": "http://localhost:3000/market-depth",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/market-depth\nCall log:\n  - navigating to \"http://localhost:3000/mark",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/market-insights",
+  "url": "http://localhost:3000/market-insights",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/market-insights\nCall log:\n  - navigating to \"http://localhost:3000/m",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/market-watch",
+  "url": "http://localhost:3000/market-watch",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/market-watch\nCall log:\n  - navigating to \"http://localhost:3000/mark",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets",
+  "url": "http://localhost:3000/markets",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets\nCall log:\n  - navigating to \"http://localhost:3000/markets\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/bonds",
+  "url": "http://localhost:3000/markets/bonds",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/bonds\nCall log:\n  - navigating to \"http://localhost:3000/mar",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/commodities-market",
+  "url": "http://localhost:3000/markets/commodities-market",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/commodities-market\nCall log:\n  - navigating to \"http://local",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/commodity",
+  "url": "http://localhost:3000/markets/commodity",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/commodity\nCall log:\n  - navigating to \"http://localhost:3000",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/futures",
+  "url": "http://localhost:3000/markets/futures",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/futures\nCall log:\n  - navigating to \"http://localhost:3000/m",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/futures/salaf",
+  "url": "http://localhost:3000/markets/futures/salaf",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/futures/salaf\nCall log:\n  - navigating to \"http://localhost:",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/fx",
+  "url": "http://localhost:3000/markets/fx",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/fx\nCall log:\n  - navigating to \"http://localhost:3000/market",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/gold",
+  "url": "http://localhost:3000/markets/gold",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/gold\nCall log:\n  - navigating to \"http://localhost:3000/mark",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/gold-fx",
+  "url": "http://localhost:3000/markets/gold-fx",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/gold-fx\nCall log:\n  - navigating to \"http://localhost:3000/m",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/indices",
+  "url": "http://localhost:3000/markets/indices",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/indices\nCall log:\n  - navigating to \"http://localhost:3000/m",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/options-market",
+  "url": "http://localhost:3000/markets/options-market",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/options-market\nCall log:\n  - navigating to \"http://localhost",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/sales",
+  "url": "http://localhost:3000/markets/sales",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/sales\nCall log:\n  - navigating to \"http://localhost:3000/mar",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/search",
+  "url": "http://localhost:3000/markets/search",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/search\nCall log:\n  - navigating to \"http://localhost:3000/ma",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/silver",
+  "url": "http://localhost:3000/markets/silver",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/silver\nCall log:\n  - navigating to \"http://localhost:3000/ma",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/bonds",
+  "url": "http://localhost:3000/markets/stocks/bonds",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/bonds\nCall log:\n  - navigating to \"http://localhost:3",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/closing",
+  "url": "http://localhost:3000/markets/stocks/closing",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/closing\nCall log:\n  - navigating to \"http://localhost",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/dividends",
+  "url": "http://localhost:3000/markets/stocks/dividends",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/dividends\nCall log:\n  - navigating to \"http://localho",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/maskan",
+  "url": "http://localhost:3000/markets/stocks/maskan",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/maskan\nCall log:\n  - navigating to \"http://localhost:",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/rights",
+  "url": "http://localhost:3000/markets/stocks/rights",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/rights\nCall log:\n  - navigating to \"http://localhost:",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/suspended",
+  "url": "http://localhost:3000/markets/stocks/suspended",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/suspended\nCall log:\n  - navigating to \"http://localho",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/stocks/tal",
+  "url": "http://localhost:3000/markets/stocks/tal",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/stocks/tal\nCall log:\n  - navigating to \"http://localhost:300",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/markets/tabaei",
+  "url": "http://localhost:3000/markets/tabaei",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/markets/tabaei\nCall log:\n  - navigating to \"http://localhost:3000/ma",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/ml",
+  "url": "http://localhost:3000/ml",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/ml\nCall log:\n  - navigating to \"http://localhost:3000/ml\", waiting u",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/multi-asset",
+  "url": "http://localhost:3000/multi-asset",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/multi-asset\nCall log:\n  - navigating to \"http://localhost:3000/multi",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/multi-market-signals",
+  "url": "http://localhost:3000/multi-market-signals",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/multi-market-signals\nCall log:\n  - navigating to \"http://localhost:3",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/news",
+  "url": "http://localhost:3000/news",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/news\nCall log:\n  - navigating to \"http://localhost:3000/news\", waiti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/options",
+  "url": "http://localhost:3000/options",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/options\nCall log:\n  - navigating to \"http://localhost:3000/options\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/paper-trading",
+  "url": "http://localhost:3000/paper-trading",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/paper-trading\nCall log:\n  - navigating to \"http://localhost:3000/pap",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/personal",
+  "url": "http://localhost:3000/personal",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/personal\nCall log:\n  - navigating to \"http://localhost:3000/personal",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/plugins",
+  "url": "http://localhost:3000/plugins",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/plugins\nCall log:\n  - navigating to \"http://localhost:3000/plugins\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/plugins/rahavard",
+  "url": "http://localhost:3000/plugins/rahavard",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/plugins/rahavard\nCall log:\n  - navigating to \"http://localhost:3000/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/portfolio",
+  "url": "http://localhost:3000/portfolio",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/portfolio\nCall log:\n  - navigating to \"http://localhost:3000/portfol",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/pre-buy",
+  "url": "http://localhost:3000/pre-buy",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/pre-buy\nCall log:\n  - navigating to \"http://localhost:3000/pre-buy\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/pre-buy/print/:param",
+  "url": "http://localhost:3000/pre-buy/print/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/pre-buy/print/test\nCall log:\n  - navigating to \"http://localhost:300",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/predictions",
+  "url": "http://localhost:3000/predictions",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/predictions\nCall log:\n  - navigating to \"http://localhost:3000/predi",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/profile",
+  "url": "http://localhost:3000/profile",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/profile\nCall log:\n  - navigating to \"http://localhost:3000/profile\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/quotes",
+  "url": "http://localhost:3000/quotes",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/quotes\nCall log:\n  - navigating to \"http://localhost:3000/quotes\", w",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/quotes/import",
+  "url": "http://localhost:3000/quotes/import",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/quotes/import\nCall log:\n  - navigating to \"http://localhost:3000/quo",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/recommendations",
+  "url": "http://localhost:3000/recommendations",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/recommendations\nCall log:\n  - navigating to \"http://localhost:3000/r",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/reports",
+  "url": "http://localhost:3000/reports",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/reports\nCall log:\n  - navigating to \"http://localhost:3000/reports\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/results",
+  "url": "http://localhost:3000/results",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/results\nCall log:\n  - navigating to \"http://localhost:3000/results\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/risk",
+  "url": "http://localhost:3000/risk",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/risk\nCall log:\n  - navigating to \"http://localhost:3000/risk\", waiti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/scheduler",
+  "url": "http://localhost:3000/scheduler",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/scheduler\nCall log:\n  - navigating to \"http://localhost:3000/schedul",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/screener",
+  "url": "http://localhost:3000/screener",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/screener\nCall log:\n  - navigating to \"http://localhost:3000/screener",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/screener110",
+  "url": "http://localhost:3000/screener110",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/screener110\nCall log:\n  - navigating to \"http://localhost:3000/scree",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/settings",
+  "url": "http://localhost:3000/settings",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/settings\nCall log:\n  - navigating to \"http://localhost:3000/settings",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/settings/security",
+  "url": "http://localhost:3000/settings/security",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/settings/security\nCall log:\n  - navigating to \"http://localhost:3000",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/signals",
+  "url": "http://localhost:3000/signals",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/signals\nCall log:\n  - navigating to \"http://localhost:3000/signals\",",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/signals/all",
+  "url": "http://localhost:3000/signals/all",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/signals/all\nCall log:\n  - navigating to \"http://localhost:3000/signa",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/signals/dashboard",
+  "url": "http://localhost:3000/signals/dashboard",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/signals/dashboard\nCall log:\n  - navigating to \"http://localhost:3000",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/signals/register",
+  "url": "http://localhost:3000/signals/register",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/signals/register\nCall log:\n  - navigating to \"http://localhost:3000/",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/signals/stocks",
+  "url": "http://localhost:3000/signals/stocks",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/signals/stocks\nCall log:\n  - navigating to \"http://localhost:3000/si",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/smart-money",
+  "url": "http://localhost:3000/smart-money",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/smart-money\nCall log:\n  - navigating to \"http://localhost:3000/smart",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/smart-money/monitor",
+  "url": "http://localhost:3000/smart-money/monitor",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/smart-money/monitor\nCall log:\n  - navigating to \"http://localhost:30",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/smart-screener",
+  "url": "http://localhost:3000/smart-screener",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/smart-screener\nCall log:\n  - navigating to \"http://localhost:3000/sm",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/symbol-details",
+  "url": "http://localhost:3000/symbol-details",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/symbol-details\nCall log:\n  - navigating to \"http://localhost:3000/sy",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/symbol/:param",
+  "url": "http://localhost:3000/symbol/test",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/symbol/test\nCall log:\n  - navigating to \"http://localhost:3000/symbo",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/sync",
+  "url": "http://localhost:3000/sync",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/sync\nCall log:\n  - navigating to \"http://localhost:3000/sync\", waiti",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/sync-manager",
+  "url": "http://localhost:3000/sync-manager",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/sync-manager\nCall log:\n  - navigating to \"http://localhost:3000/sync",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/sync-settings",
+  "url": "http://localhost:3000/sync-settings",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/sync-settings\nCall log:\n  - navigating to \"http://localhost:3000/syn",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/tabdeal-api",
+  "url": "http://localhost:3000/tabdeal-api",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/tabdeal-api\nCall log:\n  - navigating to \"http://localhost:3000/tabde",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/tables",
+  "url": "http://localhost:3000/tables",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/tables\nCall log:\n  - navigating to \"http://localhost:3000/tables\", w",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/trades",
+  "url": "http://localhost:3000/trades",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/trades\nCall log:\n  - navigating to \"http://localhost:3000/trades\", w",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/watchlist",
+  "url": "http://localhost:3000/watchlist",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/watchlist\nCall log:\n  - navigating to \"http://localhost:3000/watchli",
+  "console_errors": 0,
+  "req_failed": 1
+ },
+ {
+  "route": "/widgets",
+  "url": "http://localhost:3000/widgets",
+  "status": -1,
+  "verdict": "LOAD-FAIL: Page.goto: net::ERR_FAILED at http://localhost:3000/widgets\nCall log:\n  - navigating to \"http://localhost:3000/widgets\",",
+  "console_errors": 0,
+  "req_failed": 1
+ }
+]

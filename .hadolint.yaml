@@ -1,0 +1,10 @@
+# hadolint configuration (see https://github.com/hadolint/hadolint#configure)
+#
+# DL3008 (pin apt package versions) is disabled: Debian apt packages are
+# only used as build tooling (gcc, libpq-dev) in the builder stage or as the
+# thin runtime shim (libpq5); pinning them would break security patch uptake
+# while images are rebuilt from digest-pinned bases on every release anyway.
+failure-threshold: warning
+
+ignored:
+  - DL3008

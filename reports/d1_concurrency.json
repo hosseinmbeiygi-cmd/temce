@@ -1,0 +1,49 @@
+{
+ "summary": {
+  "passed": 5,
+  "total": 5,
+  "all_ok": true
+ },
+ "invariants": [
+  {
+   "invariant": "INV1 alert cooldown: N parallel evaluations fire the alert exactly once",
+   "ok": true,
+   "detail": "30 workers -> 1 history row(s), triggered_count=1",
+   "workers": 30,
+   "history_rows": 1,
+   "triggered_count": 1
+  },
+  {
+   "invariant": "INV2 no duplicate open: N concurrent open_trade() on one snapshot -> 1 trade",
+   "ok": true,
+   "detail": "20 workers -> 1 trade(s)",
+   "workers": 20,
+   "trades": 1
+  },
+  {
+   "invariant": "INV3 no double-close: N concurrent close_trade() -> one close, one P&L",
+   "ok": true,
+   "detail": "20 workers -> 1 ok / status=closed exit=1100.00000000 pnl=1000.00000000 (expected 1000.0)",
+   "workers": 20,
+   "successes": 1
+  },
+  {
+   "invariant": "INV4 cash check: allocation beyond simulated capital is refused",
+   "ok": true,
+   "detail": "success=False error=Insufficient simulated capital: requested 99,000,000,000,000, available 0",
+   "success": false,
+   "error": "Insufficient simulated capital: requested 99,000,000,000,000, available 0"
+  },
+  {
+   "invariant": "INV5 idempotent replay: 3 identical requests with the same key -> 1 trade",
+   "ok": true,
+   "detail": "3 replays -> 1 row(s), returned ids=['ptrade_befba3fba68b42d192a8384a', 'ptrade_befba3fba68b42d192a8384a', 'ptrade_befba3fba68b42d192a8384a']",
+   "rows": 1,
+   "ids": [
+    "ptrade_befba3fba68b42d192a8384a",
+    "ptrade_befba3fba68b42d192a8384a",
+    "ptrade_befba3fba68b42d192a8384a"
+   ]
+  }
+ ]
+}

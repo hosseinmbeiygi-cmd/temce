@@ -1,0 +1,10 @@
+{
+  "task_family": "time-series-backtest-ml",
+  "current_research": "Iranian market (TSE/IFB/IME) backtesting and ML platform with equity fund metals options modules",
+  "evaluation_source": {
+    "command": "pytest tests/unit/backtesting tests/unit/ml -v",
+    "path": "tests",
+    "primary_metric": "rank_ic",
+    "metric_goal": "maximize"
+  }
+}

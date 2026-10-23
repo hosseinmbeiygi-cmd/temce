@@ -1,0 +1,20 @@
+# Resolver overrides for requirements.lock generation (DEP-001/DEP-002).
+#
+# Why this file exists:
+#   tehran-stocks==2.0.0 declares an upper bound `sqlalchemy<2.0` in its
+#   package metadata, but this project uses SQLAlchemy 2.x (and pip, which
+#   does not enforce declared bounds strictly, installs both happily).
+#   These overrides tell uv's resolver to accept the combination that the
+#   runtime actually uses, instead of failing the resolution.
+#
+# Usage (inside the project root):
+#   uv pip compile requirements.txt \
+#     -o requirements.lock \
+#     --python-version 3.11 \
+#     --override requirements-overrides.txt
+#
+# NOTE: a bare `sqlalchemy>=2.0` here REPLACES the constraint declared in
+# requirements.txt, silently discarding the `<2.1` upper bound. Always restate
+# the full range in this file (see below) so the two stay in sync.
+tehran-stocks==2.0.0
+sqlalchemy>=2.0,<2.1

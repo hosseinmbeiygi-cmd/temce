@@ -1,0 +1,25 @@
+grpc:
+  port: 50051
+  host: "0.0.0.0"
+
+services:
+  inference:
+    image: gold-desk-inference
+    port: 50051
+    command: ["uvicorn", "src.inference_service:app", "--host", "0.0.0.0", "--port", "8000"]
+  paper_trading:
+    image: gold-desk-paper-trading
+    port: 50051
+    command: ["uvicorn", "src.paper_trading_service:app", "--host", "0.0.0.0", "--port", "8000"]
+  backtest:
+    image: gold-desk-backtest
+    port: 50051
+    command: ["uvicorn", "src.backtest_service:app", "--host", "0.0.0.0", "--port", "8000"]
+  alert:
+    image: gold-desk-alert
+    port: 50051
+    command: ["uvicorn", "src.alert_service:app", "--host", "0.0.0.0", "--port", "8000"]
+  broker:
+    image: gold-desk-broker
+    port: 50051
+    command: ["uvicorn", "src.broker.paper_broker:app", "--host", "0.0.0.0", "--port", "8000"]

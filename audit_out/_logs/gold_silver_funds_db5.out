@@ -1,0 +1,38 @@
+2026-10-11 12:29:39 [info     ] Database connected: localhost:5432/my_first_db
+cols: id:bigint, symbol:character varying, name:character varying, price:double precision, change_value:double precision, change_percent:double precision, unit:character varying, category:character varying, date:character varying, time:character varying, time_unix:bigint, fetched_at:character varying, raw_json:text, created_at:timestamp without time zone, ins_id:character varying, instrument_id:character varying, updated_at:timestamp without time zone, gregorian_date:date, shamsi_date:character varying
+======================================================================
+XAUUSD
+======================================================================
+   rows in precious_metal: 4633
+   by id DESC: (65078, 4193.87, '1405/07/18', 1791577800)
+   by id DESC: (65064, 4193.87, '1405/07/18', 1791577800)
+   by id DESC: (65050, 4193.87, '1405/07/18', 1791577800)
+   by id ASC : (1, 4021.21, '1405/04/24', 1784101290)
+   by id ASC : (15, 4019.98, '1405/04/24', 1784101352)
+   by id ASC : (29, 4020.46, '1405/04/24', 1784101391)
+   first rows with ORDER BY category,symbol: [(7516, 4247.97, '1405/05/15', 1786040846), (7572, 4246.62, '1405/05/15', 1786041163)]
+   row #2001 in that order (id=26478, price=4400.37, date=1405/06/18)
+======================================================================
+XAGUSD
+======================================================================
+   rows in precious_metal: 4633
+   by id DESC: (65079, 60.8, '1405/07/18', 1791577800)
+   by id DESC: (65065, 60.8, '1405/07/18', 1791577800)
+   by id DESC: (65051, 60.8, '1405/07/18', 1791577800)
+   by id ASC : (2, 58.04, '1405/04/24', 1784101290)
+   by id ASC : (16, 58.01, '1405/04/24', 1784101352)
+   by id ASC : (30, 58.02, '1405/04/24', 1784101391)
+   first rows with ORDER BY category,symbol: [(7519, 61.53, '1405/05/15', 1786040846), (7573, 61.51, '1405/05/15', 1786041164)]
+   row #2001 in that order (id=33521, price=64.27, date=1405/06/21)
+======================================================================
+سرشماری category=precious_metal
+======================================================================
+    ('XAGUSD', 4633, '1405/04/24', '1405/07/18', 58)
+    ('XAUUSD', 4633, '1405/04/24', '1405/07/18', 57)
+    ('XPDUSD', 4633, '1405/04/24', '1405/07/18', 57)
+    ('XPTUSD', 4633, '1405/04/24', '1405/07/18', 57)
+======================================================================
+شبیه‌سازی dict نهایی GoldDesk._read_brsapi_prices برای XAUUSD
+======================================================================
+   تعداد ردیف‌های اسکن‌شده: 4633   مقدار نهایی dict: 4193.87
+   جدیدترین ردیف (by id): price=4193.87 date=1405/07/18
