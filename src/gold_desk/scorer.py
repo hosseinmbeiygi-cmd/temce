@@ -2,6 +2,8 @@
 
 هر component حداکثر weight خود. جمع = 100.
 Decision: GREEN >= 80, YELLOW >= 55, RED < 55.
+اگر پوشش داده کمتر از ``MIN_SCORE_COVERAGE_WEIGHT`` باشد → NO_DATA و تصمیم از
+عدد ساخته نمی‌شود (E-C5)؛ خودِ عدد برای نمودار باقی می‌ماند.
 
 اگر hard_stop فعال باشد → RED مطلق (score حفظ می‌شود ولی decision قرمز).
 """
@@ -16,6 +18,7 @@ from .constants import (
     BUBBLE_YELLOW_MAX,
     FUND_FLOW_GREEN_MIN,
     FUND_FLOW_YELLOW_MIN,
+    MIN_SCORE_COVERAGE_WEIGHT,
     NAV_GREEN_MAX,
     NAV_RED_MAX,
     NAV_YELLOW_MAX,
@@ -209,8 +212,13 @@ def compute_score(
     total = round(raw_total * 100 / available_weight) if available_weight else 0
     data_coverage_pct = float(available_weight)
 
+    # ترتیب اهمیت: hard stop (ایمنی) > کفایت داده > باند امتیاز. hard stop فعال
+    # یعنی یک رویداد بحرانی واقعی مشاهده شده است، پس حتی با پوشش ناقص RED
+    # اعلام می‌شود، نه NO_DATA.
     if hard_stop_active:
         decision = "RED"
+    elif available_weight < MIN_SCORE_COVERAGE_WEIGHT:
+        decision = "NO_DATA"
     elif total >= SCORE_GREEN_MIN:
         decision = "GREEN"
     elif total >= SCORE_YELLOW_MIN:

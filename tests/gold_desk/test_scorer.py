@@ -198,6 +198,42 @@ def test_compute_hard_stop_overrides():
     assert r.hard_stop_reason == "TSE crash"
 
 
+def test_low_coverage_gives_no_data():
+    """E-C5: با یک کامپوننت از شش، امتیاز نباید GREEN شود.
+
+    پیش از این نرمال‌سازی روی وزن موجود، ``bubble=7.9`` تنها را به ۱۰۰/GREEN می‌رساند.
+    """
+    r = compute_score(
+        bubble_pct=7.9,
+        nav_bubble_pct=None,
+        bpr=None,
+        net_inflow=None,
+        xau_rsi=None,
+        aed_gap_pct=None,
+        nav_7d_pct=None,
+    )
+    assert r.available_weight == 20
+    assert r.decision == "NO_DATA"
+    # total عددی می‌ماند (برای نمودار) ولی مبنای تصمیم نیست
+    assert isinstance(r.total, int)
+
+
+def test_full_coverage_still_decides():
+    """پوشش کامل نباید دست‌کاری شود."""
+    r = compute_score(
+        bubble_pct=3.0,
+        nav_bubble_pct=0.3,
+        bpr=2.5,
+        net_inflow=6e9,
+        xau_rsi=35.0,
+        aed_gap_pct=0.3,
+        nav_7d_pct=2.0,
+    )
+    assert r.available_weight == 100
+    assert r.data_coverage_pct == 100.0
+    assert r.decision == "GREEN"
+
+
 def test_compute_score_bounds():
     """امتحان edge cases: داده None یا صفر."""
     r = compute_score(
@@ -210,4 +246,6 @@ def test_compute_score_bounds():
         nav_7d_pct=None,
     )
     assert 0 <= r.total <= 100
-    assert r.decision == "RED"  # total = 0
+    # E-C5: پوشش صفر یعنی «داده نیست»، نه «قرمز» — تصمیم نباید از عدد ساخته شود.
+    assert r.decision == "NO_DATA"
+    assert r.available_weight == 0
