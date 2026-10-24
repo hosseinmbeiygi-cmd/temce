@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from . import indicators
+from .constants import SMA_BUBBLE_WINDOW
 from .dates import jalali_days_ago
 
 logger = logging.getLogger(__name__)
@@ -50,14 +52,20 @@ async def _daily_bubble_pct(session: AsyncSession, symbol: str, days: int) -> li
         if len(closes) < 35:
             return []
         prices = np.array([p for _, p in closes], dtype=float)
-        # SMA30 برای حباب تکنیکال
-        sma30 = np.convolve(prices, np.ones(30) / 30, mode="same")
+        # حباب تکنیکال نسبت به SMA trailing (فقط گذشته). پیش‌تر
+        # np.convolve(..., mode="same") پانزده قیمت **آینده** را در میانگین
+        # می‌آورد و حباب را در روند صعودی کم‌برآورد می‌کرد (E-C2).
+        window = SMA_BUBBLE_WINDOW
+        sma_series = indicators.sma(prices, window)
+        bubble_series = indicators.bubble_pct(prices, window)
         # forward + bubble
         out: list[tuple[str, float, float]] = []
         for i, (d, p) in enumerate(closes):
-            if i < 30 or i + 30 >= len(closes):
+            if i < window or i + 30 >= len(closes):
                 continue
-            bubble = (p - sma30[i]) / sma30[i] * 100.0 if sma30[i] else 0.0
+            if np.isnan(sma_series[i]) or np.isnan(bubble_series[i]):
+                continue
+            bubble = float(bubble_series[i])
             fwd = (closes[i + 30][1] - p) / p * 100.0
             out.append((d, bubble, fwd))
         return out
