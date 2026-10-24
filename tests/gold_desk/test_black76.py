@@ -6,6 +6,7 @@ import math
 from datetime import date, timedelta
 
 import pytest
+from core.time import now_tehran
 
 from src.gold_desk.black76 import (
     IRAN_RISK_FREE_RATE,
@@ -58,11 +59,18 @@ def test_years_to_expiry():
     assert 0.48 < t < 0.51
 
 
-def test_years_to_expiry_past():
-    """تاریخ گذشته = حداقل 1 روز."""
+def test_years_to_expiry_past_raises():
+    """E-L6: قرارداد منقضی نباید «یک روز تا سررسید» قیمت‌گذاری شود."""
     expiry = date.today() - timedelta(days=10)
-    t = years_to_expiry(expiry)
-    assert t > 0
+    with pytest.raises(ValueError):
+        years_to_expiry(expiry)
+
+
+def test_years_to_expiry_uses_tehran_today():
+    """مبنا تاریخ تهران است، نه منطقهٔ زمانی سیستم (اختلاف یک‌روزه)."""
+    today_tehran = now_tehran().date()
+    t = years_to_expiry(today_tehran + timedelta(days=365))
+    assert t == pytest.approx(1.0, abs=1e-3)
 
 
 def test_price_option():
@@ -103,6 +111,17 @@ def test_greeks_gamma_positive():
 def test_greeks_vega_positive():
     g = black76_greeks(100, 100, 0.5, 0.20, 0.10)
     assert g.vega > 0
+
+
+def test_theta_matches_finite_difference():
+    """E-H5: theta باید با مشتق عددی قیمت call هم‌خوان باشد (خطای نسبی < ۱٪)."""
+    fwd, strike, t_years, iv, rate = 100.0, 100.0, 0.25, 0.25, 0.30
+    theta = black76_greeks(fwd, strike, t_years, iv, rate).theta
+    dt = 1.0 / 365.0
+    c_now, _, _, _ = black76_price(fwd, strike, t_years, iv, rate)
+    c_next, _, _, _ = black76_price(fwd, strike, t_years + dt, iv, rate)
+    finite_difference = -(c_next - c_now) / 1.0
+    assert theta == pytest.approx(finite_difference, rel=0.01)
 
 
 def test_greeks_theta_negative():
