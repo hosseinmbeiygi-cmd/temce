@@ -51,7 +51,25 @@
 - توجه: مقدار تجمعیِ امتیازدهی (`total_buy / total_sell` در
   `snapshot_service`) از قبل با `None` امن است و باید بدون تغییر بماند.
 
-## 4. `src/gold_desk/api.py` — نمایش `NO_DATA` در پاسخ‌ها (اطلاعی)
+## 4. `src/gold_desk/api.py` — `GET /macro` باید `"affects_score": false` بدهد
+
+- خط: بلوک `@router.get("/macro" ...)` (حدود خطوط ۱۳۶۰–۱۳۹۰)
+- تغییر مطلوب: در هر دو مسیر پاسخ (با داده و بدون داده) فیلد
+  `"affects_score": False` اضافه شود.
+- دلیل: قرارداد C6 و رفع E-M10. تحلیل کلان اطلاعاتی است و به امتیاز ۰-۱۰۰ وصل
+  نمی‌شود؛ فیلد صریح باید این را به مصرف‌کننده (UI) بگوید، وگرنه کاربر فرض
+  می‌کند `macro_multiplier` در امتیاز ضرب می‌شود.
+
+## 5. `src/gold_desk/api.py` — `ValueError` در مسیر آپشن‌ها باید 400 شود
+
+- خط: `price_gold_option` (حدود ۶۲۷) و `protective_collar` endpoint (حدود ۶۷۳)
+- تغییر مطلوب: فراخوانی `price_option(...)` / `protective_collar(...)` داخل
+  `try/except ValueError as exc: raise HTTPException(400, str(exc))`
+- دلیل: رفع E-L6. `years_to_expiry` حالا برای سررسید گذشته `ValueError` می‌دهد
+  (قبلاً عدد تقریباً صفر برمی‌گرداند). بدون این تغییر، درخواست با تاریخ گذشته
+  به 500 تبدیل می‌شود، در حالی که خطای کاربر است.
+
+## 6. `src/gold_desk/api.py` — نمایش `NO_DATA` در پاسخ‌ها (اطلاعی)
 
 - هیچ تغییری لازم نیست مگر جایی که `decision` را به `Literal` محدود کرده‌اید
   یا در فرانت به سه رنگ map کرده‌اید. `NO_DATA` یعنی «امتیاز محاسبه شد ولی
