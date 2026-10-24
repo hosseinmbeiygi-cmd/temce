@@ -35,8 +35,19 @@ COIN_WEIGHTS: dict[str, float] = {
 from services.gold.constants import COIN_MINTING_COSTS as _CANONICAL_MINTING_COSTS
 from services.gold.constants import COIN_SPECS as _CANONICAL_COIN_SPECS  # noqa: F401  (re-export parity)
 
-MINTING_COST_TOMAN: float = 50_000.0  # میانگین (fallback)
+# واحد: **تومان** بر هر سکه (نه ریال). fallback برای نمادهایی که در جدول
+# canonical نیستند؛ جدول واقعی از ``services.gold.constants`` می‌آید (که در
+# کامنتش «IRR» نوشته بود). برای جلوگیری از خطای مقیاس ۱۰×، هر دو در بازهٔ
+# تومانی زیر assert می‌شوند (E-M18).
+MINTING_COST_TOMAN: float = 50_000.0  # میانگین (fallback)، تومان
 COIN_MINTING_COSTS: dict[str, float] = dict(_CANONICAL_MINTING_COSTS)
+_MINTING_COST_MAX_TOMAN: float = 5_000_000.0
+assert 0 <= MINTING_COST_TOMAN <= _MINTING_COST_MAX_TOMAN, (
+    "MINTING_COST_TOMAN must be in toman scale (0..5,000,000)"
+)
+assert all(0 <= c <= _MINTING_COST_MAX_TOMAN for c in COIN_MINTING_COSTS.values()), (
+    "COIN_MINTING_COSTS must be in toman scale (0..5,000,000); check for a 10x rial/toman mix-up"
+)
 
 # ── کارمزد و مالیات ابزارها (٪) ──────────────────────────────────
 VEHICLE_FEES: dict[str, dict[str, float]] = {

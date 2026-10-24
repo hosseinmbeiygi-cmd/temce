@@ -19,6 +19,7 @@ from .constants import (
     MESGHAL_GRAMS,
     TROY_OUNCE_GRAMS,
 )
+from .pricer import purity_ratio
 
 
 @dataclass(frozen=True)
@@ -34,13 +35,17 @@ class BubbleResult:
 
 
 def _purity_for_symbol(symbol: str) -> float:
-    """عیار به صورت کسری (۰.۷۵۰۹، ۰.۹۰۰۹، ۰.۹۹۹۹)."""
+    """عیار به صورت کسر نسبت به ۲۴ عیار (۰.۷۵۰۰۸، ۰.۹۰۰۰۹، ۱.۰).
+
+    از ``pricer.purity_ratio`` استفاده می‌کند تا تعریف عیار در pricer و bubbler
+    یکی باشد (E-M17).
+    """
     if "GOLD_18K" in symbol or "MELTED" in symbol:
-        return GOLD_PURITY_18K / 1000.0
+        return purity_ratio(GOLD_PURITY_18K)
     if "GOLD_24K" in symbol or "GOLD_1G" in symbol:
-        return GOLD_PURITY_24K / 1000.0
+        return purity_ratio(GOLD_PURITY_24K)
     if symbol in COIN_WEIGHTS:
-        return GOLD_PURITY_COIN / 1000.0
+        return purity_ratio(GOLD_PURITY_COIN)
     raise ValueError(symbol)
 
 

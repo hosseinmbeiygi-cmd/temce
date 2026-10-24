@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from src.gold_desk import pricer
+from src.gold_desk import bubbler, pricer
 from src.gold_desk.bubbler import calc_bubble
+from src.gold_desk.constants import COIN_MINTING_COSTS, GOLD_PURITY_18K, GOLD_PURITY_COIN, MINTING_COST_TOMAN
 
 XAU = 2750.0
 USD = 68000.0
@@ -133,6 +134,23 @@ def test_implied_usd_coin_above_market():
     r = calc_bubble("IR_COIN_EMAMI", market, fair, XAU)
     # implied_usd بالاتر از USD بازار است (minting باعث بالاتر رفتن می‌شود)
     assert r.implied_usd > USD
+
+
+def test_pricer_and_bubbler_share_one_purity_definition():
+    """E-M17: یک تعریف عیار، نه دو تا (750/999.9 در برابر 750/1000)."""
+    assert bubbler._purity_for_symbol("IR_GOLD_18K") == pytest.approx(pricer.purity_ratio(GOLD_PURITY_18K))
+    assert bubbler._purity_for_symbol("IR_GOLD_MELTED") == pytest.approx(pricer.purity_ratio(GOLD_PURITY_18K))
+    assert bubbler._purity_for_symbol("IR_GOLD_24K") == pytest.approx(1.0)
+    assert bubbler._purity_for_symbol("IR_COIN_EMAMI") == pytest.approx(
+        pricer.purity_ratio(GOLD_PURITY_COIN)
+    )
+
+
+def test_minting_costs_are_in_toman_scale():
+    """E-M18: جدول کارمزد ضرب در مقیاس تومان است، نه ریال (خطای ۱۰×)."""
+    assert 0 <= MINTING_COST_TOMAN <= 5_000_000
+    for _symbol, cost in COIN_MINTING_COSTS.items():
+        assert 0 <= cost <= 5_000_000
 
 
 def test_bubble_pct_none_when_fair_invalid():

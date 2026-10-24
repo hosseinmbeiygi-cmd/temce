@@ -40,9 +40,18 @@ def base_24k_per_gram(xau_usd: float, usd_irt: float) -> float:
     return (xau_usd * usd_irt) / TROY_OUNCE_GRAMS
 
 
+def purity_ratio(purity_per_mille: float) -> float:
+    """کسر عیار نسبت به طلای ۲۴ عیار (۹۹۹.۹) — **تعریف واحد عیار** در موتور.
+
+    پیش‌تر pricer از ``750/999.9`` و bubbler از ``750/1000`` استفاده می‌کرد؛ دو
+    تعریف از یک کمیت با اختلاف ~۰.۰۱٪ در fair و implied_usd (E-M17).
+    """
+    return purity_per_mille / GOLD_PURITY_24K
+
+
 def fair_gold_18k(xau_usd: float, usd_irt: float) -> float:
     """هر گرم طلای ۱۸ عیار."""
-    return base_24k_per_gram(xau_usd, usd_irt) * (GOLD_PURITY_18K / GOLD_PURITY_24K)
+    return base_24k_per_gram(xau_usd, usd_irt) * purity_ratio(GOLD_PURITY_18K)
 
 
 def fair_gold_24k(xau_usd: float, usd_irt: float) -> float:
@@ -55,7 +64,7 @@ def fair_coin(symbol: str, xau_usd: float, usd_irt: float) -> float:
     weight = COIN_WEIGHTS.get(symbol)
     if weight is None:
         raise ValueError(f"unknown coin symbol: {symbol}")
-    pure_gram = weight * (GOLD_PURITY_COIN / GOLD_PURITY_24K)
+    pure_gram = weight * purity_ratio(GOLD_PURITY_COIN)
     mint = COIN_MINTING_COSTS.get(symbol, MINTING_COST_TOMAN)
     return pure_gram * base_24k_per_gram(xau_usd, usd_irt) + mint
 
@@ -66,7 +75,7 @@ def fair_coin_breakdown(symbol: str, xau_usd: float, usd_irt: float) -> dict[str
     if weight is None:
         raise ValueError(f"unknown coin symbol: {symbol}")
     b24 = base_24k_per_gram(xau_usd, usd_irt)
-    pure_gram = weight * (GOLD_PURITY_COIN / GOLD_PURITY_24K)
+    pure_gram = weight * purity_ratio(GOLD_PURITY_COIN)
     gold_value = pure_gram * b24
     mint = COIN_MINTING_COSTS.get(symbol, MINTING_COST_TOMAN)
     return {"gold_value": gold_value, "minting_cost": mint, "fair_value": gold_value + mint}
@@ -97,11 +106,11 @@ def fair_value(symbol: str, xau_usd: float, usd_irt: float) -> float:
 def fair_gram_weight(symbol: str) -> float:
     """وزن طلای خالص یک واحد نقل‌شده (برای implied USD)."""
     if symbol == "IR_GOLD_MELTED":
-        return MESGHAL_GRAMS * (GOLD_PURITY_18K / GOLD_PURITY_24K)
+        return MESGHAL_GRAMS * purity_ratio(GOLD_PURITY_18K)
     if symbol == "IR_GOLD_18K":
-        return 1.0 * (GOLD_PURITY_18K / GOLD_PURITY_24K)
+        return 1.0 * purity_ratio(GOLD_PURITY_18K)
     if symbol in ("IR_GOLD_24K", "IR_GOLD_1G"):
         return 1.0
     if symbol in COIN_WEIGHTS:
-        return COIN_WEIGHTS[symbol] * (GOLD_PURITY_COIN / GOLD_PURITY_24K)
+        return COIN_WEIGHTS[symbol] * purity_ratio(GOLD_PURITY_COIN)
     raise ValueError(symbol)
