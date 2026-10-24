@@ -135,6 +135,21 @@ def test_implied_usd_coin_above_market():
     assert r.implied_usd > USD
 
 
+def test_bubble_pct_none_when_fair_invalid():
+    """E-M16: fair<=0 یعنی «ورودی نامعتبر»، نه «حباب صفر».
+
+    صفر سکوتی در scorer امتیاز کامل (GREEN) می‌سازد؛ None در scorer «کامپوننت
+    گمشده» شمرده می‌شود و وزنش از available_weight خارج می‌شود (C2).
+    """
+    r = calc_bubble("IR_GOLD_18K", 100.0, 0.0, XAU)
+    assert r.bubble_pct is None
+
+
+def test_implied_usd_none_when_xau_invalid():
+    r = calc_bubble("IR_GOLD_18K", 100.0, 100.0, 0.0)
+    assert r.implied_usd is None
+
+
 def test_implied_usd_high_bubble():
     """اگه حباب 20% باشه، implied_usd بالاتر از USD بازار."""
     fair = pricer.fair_coin("IR_COIN_EMAMI", XAU, USD)
