@@ -85,6 +85,12 @@ def test_ema_uses_latest_value():
 # ── E-L5: سری بدون تغییر ──────────────────────────────────────
 
 
+def test_rsi_flat_series_is_neutral():
+    """سری بدون تغییر: نه ۱۰۰ (اشباع خرید کاذب) و نه امتیاز صفر."""
+    rsi = calc_rsi([100.0] * 30, 14)
+    assert rsi == 50.0
+
+
 def test_rsi_all_gains_is_100():
     rsi = calc_rsi([100.0 + i for i in range(30)], 14)
     assert rsi == 100.0

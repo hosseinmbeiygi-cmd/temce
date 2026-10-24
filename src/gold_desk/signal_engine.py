@@ -89,6 +89,10 @@ def calc_rsi(closes: list[float], period: int = 14) -> float | None:
     for i in range(period, len(gains)):
         avg_gain = (avg_gain * (period - 1) + gains[i]) / period
         avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+    # سری بدون تغییر: نه avg_gain و نه avg_loss حرکت نداشته‌اند. RSI=۱۰۰ در این
+    # حالت «اشباع خرید» کاذب می‌سازد و امتیاز صفر می‌دهد؛ خنثی (۵۰) درست است (E-L5).
+    if avg_loss == 0 and avg_gain == 0:
+        return 50.0
     if avg_loss == 0:
         return 100.0
     rs = avg_gain / avg_loss
