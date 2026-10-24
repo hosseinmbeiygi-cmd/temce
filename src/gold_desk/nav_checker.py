@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import jdatetime
@@ -273,19 +273,215 @@ async def get_fund_status(
     )
 
 
+async def _latest_rows_by_symbol(session, model, columns, symbols, extra_where=None):
+    """آخرین ردیف هر نماد را با **یک** کوئری برمی‌گرداند (batch).
+
+    الگو: ``GROUP BY symbol`` روی `max(date)` در یک subquery و join به جدول اصلی.
+    پیش‌تر ``get_all_funds_status`` برای هر صندوق ۴ کوئری می‌زد (N+1) و با ۱۰
+    صندوق، ساخت snapshot را کند می‌کرد (E-L8).
+    """
+    if not symbols:
+        return []
+    conditions = [model.symbol.in_(list(symbols))]
+    if extra_where is not None:
+        conditions.append(extra_where)
+    latest = (
+        select(model.symbol.label("symbol"), func.max(model.date).label("max_date"))
+        .where(*conditions)
+        .group_by(model.symbol)
+        .subquery()
+    )
+    stmt = select(*columns).join(
+        latest,
+        and_(model.symbol == latest.c.symbol, model.date == latest.c.max_date),
+    )
+    result = await session.execute(stmt)
+    return result.all()
+
+
+async def _latest_nav_batch(session: AsyncSession, symbols: list[str]) -> dict[str, float]:
+    from brsapi.models import NavRecordModel
+
+    rows = await _latest_rows_by_symbol(
+        session,
+        NavRecordModel,
+        (NavRecordModel.symbol, NavRecordModel.nav_issue, NavRecordModel.nav_redemption),
+        symbols,
+    )
+    out: dict[str, float] = {}
+    for symbol, issue, redemption in rows:
+        nav = _resolve_nav(issue, redemption, label=symbol)
+        if nav is not None:
+            out[symbol] = nav
+    return out
+
+
+async def _nav_7d_ago_batch(session: AsyncSession, symbols: list[str]) -> dict[str, float]:
+    from brsapi.models import NavRecordModel
+
+    rows = await _latest_rows_by_symbol(
+        session,
+        NavRecordModel,
+        (NavRecordModel.symbol, NavRecordModel.nav_issue, NavRecordModel.nav_redemption),
+        symbols,
+        extra_where=NavRecordModel.date <= jalali_days_ago(7),
+    )
+    return {r[0]: _resolve_nav(r[1], r[2]) for r in rows}
+
+
+async def _fund_market_data_batch(
+    session: AsyncSession, symbols: list[str]
+) -> dict[str, dict[str, Any]]:
+    """BPR/جریان خالص همهٔ صندوق‌ها با یک کوئری + همان قاعدهٔ تازگی."""
+    try:
+        from brsapi.models.tsetmc import HistoricalRealLegalModel
+
+        rows = await _latest_rows_by_symbol(
+            session,
+            HistoricalRealLegalModel,
+            (
+                HistoricalRealLegalModel.symbol,
+                HistoricalRealLegalModel.date,
+                HistoricalRealLegalModel.buy_real_value,
+                HistoricalRealLegalModel.sell_real_value,
+            ),
+            symbols,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fund market data batch fetch failed: %s", exc, exc_info=True)
+        return {}
+
+    out: dict[str, dict[str, Any]] = {}
+    for symbol, row_date, buy_raw, sell_raw in rows:
+        age_days = _jalali_days_old(row_date)
+        if age_days is None or age_days > MAX_MARKET_DATA_AGE_DAYS:
+            logger.warning(
+                "stale real/legal data for %s: %s (%s days old, max %s)",
+                symbol,
+                row_date,
+                age_days,
+                MAX_MARKET_DATA_AGE_DAYS,
+            )
+            continue
+        buy_val = int(buy_raw or 0)
+        sell_val = int(sell_raw or 0)
+        out[symbol] = {
+            "buy_value": buy_val,
+            "sell_value": sell_val,
+            "bpr": (buy_val / sell_val) if sell_val > 0 else None,
+            "net_inflow": buy_val - sell_val,
+        }
+    return out
+
+
+async def _live_fund_prices(session: AsyncSession) -> dict[str, float]:
+    """قیمت‌های لحظه‌ای صندوق‌ها از QueryService — یک بار برای همه، نهN بار."""
+    prices: dict[str, float] = {}
+    with contextlib.suppress(Exception):
+        from brsapi.services.query_service import BrsApiQueryService
+
+        svc = BrsApiQueryService(session=session)
+        if hasattr(svc, "get_fund_prices"):
+            for row in await svc.get_fund_prices() or []:  # type: ignore[misc]
+                price = row.get("price")
+                if row.get("symbol") and price and float(price) > 0:
+                    prices[str(row["symbol"])] = float(price)
+    return prices
+
+
+async def _snapshot_prices_batch(session: AsyncSession, symbols: list[str]) -> dict[str, float]:
+    """آخرین قیمت بازار ذخیره‌شده در snapshot قبلی — batch."""
+    if not symbols:
+        return {}
+    from .models import GoldSnapshotModel
+
+    latest = (
+        select(
+            GoldSnapshotModel.symbol.label("symbol"),
+            func.max(GoldSnapshotModel.snapshot_at).label("max_at"),
+        )
+        .where(GoldSnapshotModel.symbol.in_(list(symbols)))
+        .group_by(GoldSnapshotModel.symbol)
+        .subquery()
+    )
+    stmt = select(GoldSnapshotModel.symbol, GoldSnapshotModel.market_price).join(
+        latest,
+        and_(
+            GoldSnapshotModel.symbol == latest.c.symbol,
+            GoldSnapshotModel.snapshot_at == latest.c.max_at,
+        ),
+    )
+    result = await session.execute(stmt)
+    out: dict[str, float] = {}
+    for symbol, price in result.all():
+        if price and float(price) > 0:
+            out[str(symbol)] = float(price)
+    return out
+
+
 async def get_all_funds_status(
     session: AsyncSession,
     symbols: list[str],
     market_prices: dict[str, float] | None = None,
 ) -> list[FundNAVStatus]:
-    """وضعیت همه صندوق‌های مورد نظر.
+    """وضعیت همه صندوق‌های مورد نظر با تعداد کوئری ثابت (مستقل از تعداد نمادها).
 
     market_prices: دیکشنری symbol→market_price از snapshot BrsApi (اختیاری).
     """
+    if not symbols:
+        return []
+
+    navs = await _latest_nav_batch(session, symbols)
+    if not navs:
+        return []
+
+    nav_7d = await _nav_7d_ago_batch(session, [s for s in symbols if s in navs])
+    market_data = await _fund_market_data_batch(session, [s for s in symbols if s in navs])
+
+    prices: dict[str, float] = {
+        sym: float(price)
+        for sym, price in (market_prices or {}).items()
+        if sym in navs and price and float(price) > 0
+    }
+    missing = [s for s in navs if s not in prices]
+    if missing:
+        prices.update({s: p for s, p in (await _live_fund_prices(session)).items() if s in missing})
+        missing = [s for s in navs if s not in prices]
+    if missing:
+        prices.update(await _snapshot_prices_batch(session, missing))
+
     out: list[FundNAVStatus] = []
-    for sym in symbols:
-        override = (market_prices or {}).get(sym)
-        st = await get_fund_status(session, sym, market_price_override=override)
-        if st:
-            out.append(st)
+    for symbol in symbols:
+        nav = navs.get(symbol)
+        if nav is None:
+            continue
+        data = market_data.get(symbol) or {}
+        buy_val = int(data.get("buy_value", 0))
+        sell_val = int(data.get("sell_value", 0))
+        net = int(data.get("net_inflow", 0))
+        market_price = prices.get(symbol)
+
+        nav_7d_value = nav_7d.get(symbol)
+        nav_7d_pct: float | None = None
+        if nav_7d_value and nav_7d_value > 0:
+            nav_7d_pct = ((nav - nav_7d_value) / nav_7d_value) * 100.0
+
+        bubble_abs = None if market_price is None else market_price - nav
+        bubble_pct = None if bubble_abs is None or nav <= 0 else bubble_abs / nav * 100.0
+
+        out.append(
+            FundNAVStatus(
+                symbol=symbol,
+                fund_name=symbol,
+                nav_per_unit=nav,
+                market_price=market_price,
+                bubble_abs=bubble_abs,
+                bubble_pct=bubble_pct,
+                bpr=data.get("bpr"),
+                real_buy_value=buy_val,
+                real_sell_value=sell_val,
+                net_inflow=net,
+                nav_7d_pct=nav_7d_pct,
+            )
+        )
     return out

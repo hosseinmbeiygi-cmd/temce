@@ -134,8 +134,32 @@ def test_pick_nav_falls_back_to_redemption():
 # ── E-L8: یک کوئری batch به‌جای N+1 ─────────────────────────────
 
 
+class _RoutedSession(_Session):
+    """کوئری را از متن SQL تشخیص می‌دهد (برای تست batch واقعی)."""
+
+    def __init__(self, nav_rows):
+        super().__init__(rows=[])
+        self._nav_rows = nav_rows
+
+    async def execute(self, stmt):
+        self.calls += 1
+        sql = str(stmt)
+        if "historical_real_legal" in sql or "gold_snapshots" in sql:
+            return _Res([])
+        return _Res(self._nav_rows)
+
+
 def test_all_funds_status_uses_batch_queries():
-    """با ۳ نماد نباید ۳ برابر کوئری زده شود."""
-    session = _Session(rows=[])
-    asyncio.run(get_all_funds_status(session, ["عیار", "طلا", "زر"], market_prices={}))
-    assert session.calls <= 4, f"{session.calls} queries for 3 symbols"
+    """تعداد کوئری باید مستقل از تعداد نمادها باشد (نه N+1)."""
+    symbols = [f"f{i}" for i in range(10)]
+    session = _RoutedSession(nav_rows=[])
+    asyncio.run(get_all_funds_status(session, symbols, market_prices={}))
+    assert session.calls <= 2, f"{session.calls} queries for 10 symbols"
+
+
+def test_all_funds_status_maps_batched_nav_rows_to_symbols():
+    rows = [("عیار", 1_000.0, 1_100.0), ("طلا", 2_000.0, 2_100.0), ("زر", 3_000.0, 3_100.0)]
+    session = _RoutedSession(nav_rows=rows)
+    out = asyncio.run(get_all_funds_status(session, ["عیار", "طلا", "زر"], market_prices={}))
+    assert [s.symbol for s in out] == ["عیار", "طلا", "زر"]
+    assert [s.nav_per_unit for s in out] == [1_000.0, 2_000.0, 3_000.0]
