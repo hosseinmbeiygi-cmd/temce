@@ -220,23 +220,26 @@ def compute_returns(
 def fifo_realized(trades: Iterable[object]) -> dict:
     """بهای تمام‌شده و سود/زیان تحقق‌یافته با روش FIFO از مجموع معاملات.
 
-    هر فروش، قدیمی‌ترین لات‌های باز را مصرف می‌کند (FIFO) و سود تحقق‌یافته را
-    می‌سازد؛ لات‌های باقی‌مانده و بهای تمام‌شدهٔ آن‌ها گزارش می‌شود.
+    هر فروش، لات‌های تمام‌شدهٔ قدیمی‌ترین خریدِ خود نماد را مصرف می‌کند (FIFO
+    per-symbol). اگر فروش از نمادی بدون لات باز شود، استثنای صریح raise می‌شود
+    به‌جای اینکه بای تحقق‌یافته را صفر بگیرد و از اعداد مالیاتی درست نباشد.
     """
     ordered = sorted(
         (t for t in trades if getattr(t, "traded_at", None) is not None),
         key=attrgetter("traded_at"),
     )
-    lots: list[list[float]] = []  # [qty, price]
+    lots_by_symbol: dict[str, list[list[float]]] = {}
     realized = 0.0
     sold_qty = 0.0
     for t in ordered:
         action = str(getattr(t, "action", "") or "").lower()
+        symbol = str(getattr(t, "symbol", "") or "")
         qty = float(getattr(t, "quantity", 0) or 0.0)
         price = float(getattr(t, "price", 0) or 0.0)
-        if qty <= 0:
+        if qty <= 0 or not symbol:
             continue
         if action == "sell":
+            lots = lots_by_symbol.setdefault(symbol, [])
             remaining = qty
             while remaining > 1e-9 and lots:
                 lot = lots[0]
@@ -246,15 +249,23 @@ def fifo_realized(trades: Iterable[object]) -> dict:
                 remaining -= take
                 if lot[0] <= 1e-9:
                     lots.pop(0)
+            if remaining > 1e-9:
+                raise ValueError(
+                    "FifoError: فروش به مقدار "
+                    f"{qty} از نماد '{symbol}' متولد شد؛ لات‌های باز فراهم نیستند، "
+                    f"{remaining} واحد لحاظ به‌دست نمی‌آید (بدون لات برای تحقیق)"
+                )
             sold_qty += qty
         else:
-            lots.append([qty, price])
+            lots_by_symbol.setdefault(symbol, []).append([qty, price])
+
+    open_lots = [lot for sym_lots in lots_by_symbol.values() for lot in sym_lots]
     return {
         "realized_pnl_irt": realized,
         "sold_quantity": sold_qty,
-        "open_lots": [{"quantity": q, "price": p} for q, p in lots],
-        "open_quantity": sum(lot[0] for lot in lots),
-        "open_cost_basis_irt": sum(lot[0] * lot[1] for lot in lots),
+        "open_lots": [{"quantity": q, "price": p} for q, p in open_lots],
+        "open_quantity": sum(lot[0] for lot in open_lots),
+        "open_cost_basis_irt": sum(lot[0] * lot[1] for lot in open_lots),
     }
 
 
@@ -304,12 +315,18 @@ def _live_prices_from_snapshot(snap: dict | None) -> dict[str, float]:
 
 
 async def load_holdings_and_trades(session: AsyncSession) -> tuple[list, list]:
-    """خواندن holdings و معاملات برای ساخت جریان‌های نقدی."""
+    """خواندن holdings (حذف‌نشده) و معاملات برای ساخت جریان‌های نقدی.
+
+    دارایی‌های soft-delete شده (deleted_at null نیست) از نمای پورتفوی خارج می‌شوند،
+    اما معامله‌های آن‌ها برای گزارش مالیاتی remain می‌مانند.
+    """
     holdings = (
-        (await session.execute(select(GoldHoldingModel).order_by(GoldHoldingModel.bought_at)))
-        .scalars()
-        .all()
-    )
+        await session.execute(
+            select(GoldHoldingModel)
+            .where(GoldHoldingModel.deleted_at.is_(None))
+            .order_by(GoldHoldingModel.bought_at)
+        )
+    ).scalars().all()
     trades = (
         (await session.execute(select(GoldTradeModel).order_by(GoldTradeModel.traded_at)))
         .scalars()
@@ -391,7 +408,11 @@ async def get_holdings_grouped(
     current_prices: dict[str, float],
 ) -> PortfolioSummary:
     """Holdings گروه‌شده بر اساس symbol با P&L."""
-    stmt = select(GoldHoldingModel).order_by(GoldHoldingModel.symbol, GoldHoldingModel.bought_at)
+    stmt = (
+        select(GoldHoldingModel)
+        .where(GoldHoldingModel.deleted_at.is_(None))
+        .order_by(GoldHoldingModel.symbol, GoldHoldingModel.bought_at)
+    )
     rows = (await session.execute(stmt)).scalars().all()
 
     by_symbol: dict[str, list] = {}

@@ -151,6 +151,10 @@ class GoldHoldingModel(GoldDeskBase):
     buy_fee_pct: Mapped[float] = mapped_column(Float, default=0)
     bought_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     note: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="زمان حذف نرم (soft-delete) دارایی؛ معامله‌های وابسته remains سالم می‌مانند",
+    )
 
 
 class GoldDCAPlanModel(GoldDeskBase):
@@ -179,7 +183,7 @@ class GoldTradeModel(GoldDeskBase):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     holding_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("gold_holdings.id", ondelete="CASCADE"), nullable=True
+        BigInteger, ForeignKey("gold_holdings.id", ondelete="SET NULL"), nullable=True
     )
     plan_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("gold_dca_plans.id", ondelete="SET NULL"), nullable=True

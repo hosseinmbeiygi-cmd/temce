@@ -963,14 +963,27 @@ async def add_holding(
 @router.delete("/portfolio/holdings/{holding_id}", summary="Remove a holding")
 async def delete_holding(
     holding_id: int,
+    force: bool = Query(False, description="حذف سخت فقط با ?force=true"),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
+    """حذف دارایی.
+
+    پیش‌فرض: حذف نرم (soft-delete) — ستون ``deleted_at`` تنظیم می‌شود و ردیف
+    دارایی و معامله‌های وابسته آن (از طریق FK با ``ondelete="SET NULL"``) سالم
+    می‌مانند، بنابراین گزارش مالیاتی (/portfolio/tax) آسیب نمی‌بیند.
+    با ``?force=true`` حذف سخت (hard-delete) انجام می‌شود.
+    """
     from .models import GoldHoldingModel
 
     h = await session.get(GoldHoldingModel, holding_id)
     if not h:
         raise HTTPException(404, "holding not found")
-    await session.delete(h)
+    if h.deleted_at is not None and not force:
+        return {"success": True, "deleted": False, "reason": "already_deleted"}
+    if force:
+        await session.delete(h)  # سخت: holding_id معامله‌ها ⇒ SET NULL
+    else:
+        h.deleted_at = utc_now_naive()  # نرم: ردیف و معامله‌ها remain
     await session.commit()
     return {"success": True}
 
