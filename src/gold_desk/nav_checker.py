@@ -15,6 +15,9 @@ from typing import Any
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import jdatetime
+from core.time import now_tehran
+
 from .dates import jalali_days_ago
 
 logger = logging.getLogger(__name__)
@@ -118,6 +121,27 @@ async def _nav_7d_ago(session: AsyncSession, symbol: str) -> float | None:
     return _pick_nav(result.first())
 
 
+def _jalali_days_old(value: Any) -> int | None:
+    """سنِ یک تاریخ شمسیِ ذخیره‌شده به **روز**؛ ``None`` اگر پارس نشود.
+
+    مقایسهٔ رشته‌ای (``str(row.date) < cutoff``) به فرمت دقیق و صفرپیشوند وابسته
+    بود؛ اگر منبع تاریخ را «۱۴۰۵-۷-۳» یا با اسلش می‌داد، سقف تازگی بی‌اثر می‌شد
+    و دادهٔ ماه‌ها قبل مثل دادهٔ امروز در امتیاز می‌نشست (E-M5).
+    """
+    if value is None:
+        return None
+    parts = str(value).strip().replace("/", "-").split("-")
+    if len(parts) != 3:
+        logger.warning("unparsable jalali date %r", value)
+        return None
+    try:
+        jalali = jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+    except (TypeError, ValueError):
+        logger.warning("unparsable jalali date %r", value)
+        return None
+    return (now_tehran().date() - jalali.togregorian()).days
+
+
 async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any] | None:
     """آخرین اطلاعات بازار صندوق (real/legal volume)."""
     try:
@@ -135,10 +159,14 @@ async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any
         if row is None:
             return None
         # سقف تازگی: داده کهنه نباید مثل داده امروز در امتیاز TSETMC بنشیند.
-        cutoff = jalali_days_ago(MAX_MARKET_DATA_AGE_DAYS)
-        if row.date and str(row.date) < cutoff:
+        age_days = _jalali_days_old(row.date)
+        if age_days is None or age_days > MAX_MARKET_DATA_AGE_DAYS:
             logger.warning(
-                "stale real/legal data for %s: %s (cutoff %s)", symbol, row.date, cutoff
+                "stale real/legal data for %s: %s (%s days old, max %s)",
+                symbol,
+                row.date,
+                age_days,
+                MAX_MARKET_DATA_AGE_DAYS,
             )
             return None
         buy_val = int(row.buy_real_value or 0)
