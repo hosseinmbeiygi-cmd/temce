@@ -180,7 +180,10 @@ async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any
             "bpr": bpr,
             "net_inflow": buy_val - sell_val,
         }
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        # سکوت کامل این بلوک باعث می‌شد نبودِ جدول/ستون فقط با «BPR نیست» در
+        # خروجی دیده شود و ریشه‌یابی غیرممکن باشد (E-L7).
+        logger.warning("fund market data fetch failed for %s: %s", symbol, exc, exc_info=True)
         return None
 
 
