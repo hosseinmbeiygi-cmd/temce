@@ -97,6 +97,17 @@ TSETMC_BPR_ORANGE: float = 1.0  # 1.0-1.5
 TSETMC_INFLOW_GREEN: float = 5e9  # 5 میلیارد تومان
 TSETMC_INFLOW_YELLOW: float = 1e9
 
+# توزیع امتیاز کامپوننت TSETMC: ۱۱ نقطهٔ BPR + ۷ نقطهٔ inflow.
+# جمعشان باید برابر وزن کامپوننت باشد (assert پایین‌تر) تا تغییر وزن جمع را نشکند (E-L2).
+TSETMC_BPR_GREEN_PTS: int = 11
+TSETMC_BPR_YELLOW_PTS: int = 8
+TSETMC_BPR_ORANGE_PTS: int = 4
+TSETMC_INFLOW_GREEN_PTS: int = 7
+TSETMC_INFLOW_YELLOW_PTS: int = 4
+assert TSETMC_BPR_GREEN_PTS + TSETMC_INFLOW_GREEN_PTS == SCORE_WEIGHTS["tsetmc"], (
+    "TSETMC point split must sum to SCORE_WEIGHTS['tsetmc']"
+)
+
 # ── Technical (XAU RSI 14) ────────────────────────────────────────
 RSI_GREEN_MIN: float = 30.0
 RSI_GREEN_MAX: float = 45.0
@@ -112,6 +123,13 @@ PARITY_RED_MAX: float = 3.0
 FUND_FLOW_GREEN_MIN: float = 1.0  # ≥ 1% در ۷ روز
 FUND_FLOW_YELLOW_MIN: float = 0.0
 # < 0% = قرمز
+
+# ── قاعدهٔ مرزها (E-L4) ───────────────────────────────────────
+# همهٔ مقایسه‌ها یکدست‌اند: هر ``*_MAX`` به‌صورة «تا و شامل» (<=) و هر
+# ``*_MIN`` به‌صورة «از و شامل» (>=) تفسیر می‌شود؛ پس مقدار دقیقاً برابر
+# آستانه در خوشهٔ بهترِ خودش می‌ماند و رفتار روی مرز قابل پیش‌بینی است.
+# باند سوم fund_flow: افت جزئی تا این مقدار (درصد ۷ روزه) هنوز امتیاز دارد.
+FUND_FLOW_MINOR_DROP_MAX: float = -1.0
 
 # ── Score Bands ───────────────────────────────────────────────────
 SCORE_GREEN_MIN: int = 80

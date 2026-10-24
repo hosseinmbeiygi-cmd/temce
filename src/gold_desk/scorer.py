@@ -17,6 +17,7 @@ from .constants import (
     BUBBLE_ORANGE_MAX,
     BUBBLE_YELLOW_MAX,
     FUND_FLOW_GREEN_MIN,
+    FUND_FLOW_MINOR_DROP_MAX,
     FUND_FLOW_YELLOW_MIN,
     MIN_SCORE_COVERAGE_WEIGHT,
     NAV_GREEN_MAX,
@@ -33,10 +34,15 @@ from .constants import (
     SCORE_WEIGHTS,
     SCORE_YELLOW_MIN,
     TSETMC_BPR_GREEN,
+    TSETMC_BPR_GREEN_PTS,
     TSETMC_BPR_ORANGE,
+    TSETMC_BPR_ORANGE_PTS,
     TSETMC_BPR_YELLOW,
+    TSETMC_BPR_YELLOW_PTS,
     TSETMC_INFLOW_GREEN,
+    TSETMC_INFLOW_GREEN_PTS,
     TSETMC_INFLOW_YELLOW,
+    TSETMC_INFLOW_YELLOW_PTS,
 )
 
 
@@ -71,12 +77,12 @@ def score_bubble(bubble_pct: float | None) -> ScoreComponent:
     max_v = SCORE_WEIGHTS["bubble"]
     if bubble_pct is None:
         return ScoreComponent(0, max_v, "داده حباب موجود نیست")
-    if bubble_pct < BUBBLE_GREEN_MAX:
+    if bubble_pct <= BUBBLE_GREEN_MAX:
         return ScoreComponent(max_v, max_v, f"حباب {bubble_pct:.1f}٪ < {BUBBLE_GREEN_MAX}٪ — عالی")
-    if bubble_pct < BUBBLE_YELLOW_MAX:
+    if bubble_pct <= BUBBLE_YELLOW_MAX:
         v = _clip(int(max_v * 0.75), 0, max_v)
         return ScoreComponent(v, max_v, f"حباب {bubble_pct:.1f}٪ — سبز کم‌رنگ")
-    if bubble_pct < BUBBLE_ORANGE_MAX:
+    if bubble_pct <= BUBBLE_ORANGE_MAX:
         v = _clip(int(max_v * 0.4), 0, max_v)
         return ScoreComponent(v, max_v, f"حباب {bubble_pct:.1f}٪ — نارنجی (احتیاط)")
     return ScoreComponent(0, max_v, f"حباب {bubble_pct:.1f}٪ > {BUBBLE_ORANGE_MAX}٪ — قرمز")
@@ -104,22 +110,21 @@ def score_tsetmc(bpr: float | None, net_inflow: float | None) -> ScoreComponent:
     if bpr is None:
         return ScoreComponent(0, max_v, "BPR موجود نیست")
 
-    # توزیع ثابت: 11 امتیاز BPR + 7 امتیاز inflow = 18 (max)
-    bpr_pts = 0
+    # توزیع امتیاز در constants نام‌دار شد؛ جمعشان برابر وزن کامپوننت است (E-L2).
     if bpr >= TSETMC_BPR_GREEN:
-        bpr_pts = 11
+        bpr_pts = TSETMC_BPR_GREEN_PTS
     elif bpr >= TSETMC_BPR_YELLOW:
-        bpr_pts = 8
+        bpr_pts = TSETMC_BPR_YELLOW_PTS
     elif bpr >= TSETMC_BPR_ORANGE:
-        bpr_pts = 4
+        bpr_pts = TSETMC_BPR_ORANGE_PTS
     else:
         bpr_pts = 0
 
     inflow_pts = 0
-    if net_inflow is not None and net_inflow > TSETMC_INFLOW_GREEN:
-        inflow_pts = 7
-    elif net_inflow is not None and net_inflow > TSETMC_INFLOW_YELLOW:
-        inflow_pts = 4
+    if net_inflow is not None and net_inflow >= TSETMC_INFLOW_GREEN:
+        inflow_pts = TSETMC_INFLOW_GREEN_PTS
+    elif net_inflow is not None and net_inflow >= TSETMC_INFLOW_YELLOW:
+        inflow_pts = TSETMC_INFLOW_YELLOW_PTS
 
     total = _clip(bpr_pts + inflow_pts, 0, max_v)
     reason = f"BPR={bpr:.2f}، Inflow={net_inflow or 0:,.0f}"
@@ -149,11 +154,11 @@ def score_parity(aed_gap_pct: float | None) -> ScoreComponent:
     if aed_gap_pct is None:
         return ScoreComponent(0, max_v, "AED gap موجود نیست")
     gap = abs(aed_gap_pct)
-    if gap < PARITY_GREEN_MAX:
+    if gap <= PARITY_GREEN_MAX:
         return ScoreComponent(max_v, max_v, f"|gap|={gap:.2f}٪ — متعادل")
-    if gap < PARITY_YELLOW_MAX:
+    if gap <= PARITY_YELLOW_MAX:
         return ScoreComponent(int(max_v * 0.7), max_v, f"|gap|={gap:.2f}٪ — کمی انحراف")
-    if gap < PARITY_RED_MAX:
+    if gap <= PARITY_RED_MAX:
         return ScoreComponent(int(max_v * 0.3), max_v, f"|gap|={gap:.2f}٪ — انحراف")
     return ScoreComponent(0, max_v, f"|gap|={gap:.2f}٪ — آربیتراژ شدید")
 
@@ -167,7 +172,7 @@ def score_fund_flow(nav_7d_pct: float | None) -> ScoreComponent:
         return ScoreComponent(max_v, max_v, f"NAV 7d: +{nav_7d_pct:.2f}٪ — صعودی")
     if nav_7d_pct >= FUND_FLOW_YELLOW_MIN:
         return ScoreComponent(int(max_v * 0.6), max_v, f"NAV 7d: {nav_7d_pct:.2f}٪ — خنثی")
-    if nav_7d_pct >= -1.0:
+    if nav_7d_pct >= FUND_FLOW_MINOR_DROP_MAX:
         return ScoreComponent(int(max_v * 0.3), max_v, f"NAV 7d: {nav_7d_pct:.2f}٪ — کاهش جزئی")
     return ScoreComponent(0, max_v, f"NAV 7d: {nav_7d_pct:.2f}٪ — نزولی")
 

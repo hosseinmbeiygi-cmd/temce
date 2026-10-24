@@ -198,6 +198,42 @@ def test_compute_hard_stop_overrides():
     assert r.hard_stop_reason == "TSE crash"
 
 
+# ── E-L2/L3/L4: ثابت‌ها و مرزها ─────────────────
+
+
+def test_tsetmc_point_split_matches_component_weight():
+    """E-L2: ۱۱/۷ نباید جادویی باشد؛ جمعشان = وزن کامپوننت."""
+    from src.gold_desk import constants
+
+    assert (
+        constants.TSETMC_BPR_GREEN_PTS + constants.TSETMC_INFLOW_GREEN_PTS
+        == constants.SCORE_WEIGHTS["tsetmc"]
+    )
+    c = score_tsetmc(2.5, 6e9)
+    assert c.value == constants.SCORE_WEIGHTS["tsetmc"]
+    assert c.max_value == constants.SCORE_WEIGHTS["tsetmc"]
+
+
+def test_threshold_boundaries_are_inclusive():
+    """E-L4: مقدار دقیقاً برابر آستانهٔ *_MAX باید در خوشهٔ بهتر بماند."""
+    from src.gold_desk import constants
+
+    assert score_bubble(constants.BUBBLE_GREEN_MAX).value == constants.SCORE_WEIGHTS["bubble"]
+    assert score_nav(constants.NAV_GREEN_MAX).value == constants.SCORE_WEIGHTS["nav"]
+    assert score_parity(constants.PARITY_GREEN_MAX).value == constants.SCORE_WEIGHTS["parity"]
+    assert score_technical(constants.RSI_GREEN_MIN).value == constants.SCORE_WEIGHTS["technical"]
+    assert score_fund_flow(constants.FUND_FLOW_GREEN_MIN).value == constants.SCORE_WEIGHTS["fund_flow"]
+
+
+def test_fund_flow_minor_drop_band_is_named():
+    """E-L3: مرز -۱٪ باید از constants بیاید، نه عدد جادویی."""
+    from src.gold_desk import constants
+
+    assert -2.0 < constants.FUND_FLOW_MINOR_DROP_MAX < 0.0
+    assert score_fund_flow(constants.FUND_FLOW_MINOR_DROP_MAX).value > 0
+    assert score_fund_flow(constants.FUND_FLOW_MINOR_DROP_MAX - 0.1).value == 0
+
+
 def test_low_coverage_gives_no_data():
     """E-C5: با یک کامپوننت از شش، امتیاز نباید GREEN شود.
 
