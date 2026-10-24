@@ -36,7 +36,8 @@ class FundNAVStatus:
     market_price: float | None
     bubble_abs: float | None
     bubble_pct: float | None
-    bpr: float
+    # None = نسبت خرید/فروش تعریف‌ناپذیر است (سمت فروش صفر/موجود نیست)، نه «۱ برابر».\n    # صفر سکوتی وزن ۱۸ امتیازی TSETMC را با «دادهٔ ناموجود» یکسان می‌کرد (E-M4).
+    bpr: float | None
     real_buy_value: int
     real_sell_value: int
     net_inflow: int
@@ -113,7 +114,9 @@ async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any
             return None
         buy_val = int(row.buy_real_value or 0)
         sell_val = int(row.sell_real_value or 0)
-        bpr = (buy_val / sell_val) if sell_val > 0 else 0
+        # سمت فروش صفر ⇒ نسبت تعریف‌ناپذیر است؛ ۰ برگرداندن یعنی «خریدار=فروشنده»
+        # که کامپوننت TSETMC را با وزن کامل ۱۸ صفر امتیاز می‌کرد (E-M4).
+        bpr = (buy_val / sell_val) if sell_val > 0 else None
         return {
             "buy_value": buy_val,
             "sell_value": sell_val,
@@ -176,7 +179,8 @@ async def get_fund_status(
             market_price = None
 
     market_data = await _fund_market_data(session, symbol) or {}
-    bpr = float(market_data.get("bpr", 0))
+    bpr_raw = market_data.get("bpr")
+    bpr = float(bpr_raw) if bpr_raw is not None else None
     buy_val = int(market_data.get("buy_value", 0))
     sell_val = int(market_data.get("sell_value", 0))
     net = int(market_data.get("net_inflow", 0))
