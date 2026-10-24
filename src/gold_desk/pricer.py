@@ -101,16 +101,3 @@ def fair_value(symbol: str, xau_usd: float, usd_irt: float) -> float:
     if symbol in COIN_WEIGHTS:
         return fair_coin(symbol, xau_usd, usd_irt)
     raise ValueError(f"unknown symbol: {symbol}")
-
-
-def fair_gram_weight(symbol: str) -> float:
-    """وزن طلای خالص یک واحد نقل‌شده (برای implied USD)."""
-    if symbol == "IR_GOLD_MELTED":
-        return MESGHAL_GRAMS * purity_ratio(GOLD_PURITY_18K)
-    if symbol == "IR_GOLD_18K":
-        return 1.0 * purity_ratio(GOLD_PURITY_18K)
-    if symbol in ("IR_GOLD_24K", "IR_GOLD_1G"):
-        return 1.0
-    if symbol in COIN_WEIGHTS:
-        return COIN_WEIGHTS[symbol] * purity_ratio(GOLD_PURITY_COIN)
-    raise ValueError(symbol)

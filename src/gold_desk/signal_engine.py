@@ -165,18 +165,6 @@ def calc_ema_bubble(closes: list[float], period: int = 20) -> float | None:
     return float((closes[-1] - ema) / ema * 100.0)
 
 
-async def get_xau_rsi(session: AsyncSession, days: int = 30) -> float | None:
-    """RSI 14 روزه XAUUSD."""
-    closes = await fetch_closes(session, "XAUUSD", days)
-    return calc_rsi(closes, 14) if closes else None
-
-
-async def get_xau_ema(session: AsyncSession, days: int = 30) -> float | None:
-    """EMA 14 روزه XAUUSD."""
-    closes = await fetch_closes(session, "XAUUSD", days)
-    return calc_ema(closes, 14) if closes else None
-
-
 async def get_xau_indicators(session: AsyncSession, days: int = 40) -> dict:
     """همه اندیکاتورهای XAUUSD به‌صورت یکجا."""
     closes = await fetch_closes(session, "XAUUSD", days)

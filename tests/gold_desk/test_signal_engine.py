@@ -123,6 +123,18 @@ def test_macd_bullish_on_uptrend():
     assert macd["bullish"] is True
 
 
+# ── E-L1: کد مرده حذف شده باشد ────────────────────────
+
+
+def test_dead_helpers_stay_removed():
+    """توابع بدون مصرف‌کننده (grep در کل ریپو) نباید برگردند."""
+    from src.gold_desk import pricer, signal_engine
+
+    assert not hasattr(pricer, "fair_gram_weight")
+    assert not hasattr(signal_engine, "get_xau_rsi")
+    assert not hasattr(signal_engine, "get_xau_ema")
+
+
 def test_ema_bubble_positive_on_spike():
     closes = [100.0] * 25 + [130.0]
     bubble = calc_ema_bubble(closes, 20)
