@@ -102,10 +102,18 @@ def plan_dca(
     vehicle = preferred_vehicle or _recommend_vehicle(current_score)
     pattern = LADDER_PATTERNS[risk_profile]
 
+    # بودجهٔ هر پله شامل کارمزد خودش است: amount_i = C·pct_i/(1+r). پس
+    #   Σ amount_i = net_investable،  Σ fee_i = total_fee،  و
+    #   net_investable + total_fee = C.
+    # پیش‌تر پله‌ها ۱۰۰٪ سرمایه را می‌خواستند و کارمزد روی مسیر جداگانه می‌آمد
+    # (۱۰۰M سرمایه ⇒ ۱۰۰M پله + ۱۵۰k کارمزد) و پلن قابل اجرا نبود (E-M15).
+    buy_pct = VEHICLE_FEES.get(vehicle, VEHICLE_FEES["etf"])["buy_pct"] / 100.0
+    net_total = total_capital_irt / (1.0 + buy_pct)
+
     ladder: list[Tranche] = []
     total_fee = 0.0
     for i, (pct, trigger) in enumerate(pattern, start=1):
-        amount = total_capital_irt * pct
+        amount = net_total * pct
         fee = _calc_fee(amount, vehicle)
         total_fee += fee
         ladder.append(
@@ -132,7 +140,7 @@ def plan_dca(
         ladder=ladder,
         recommended_vehicle=vehicle,
         total_fee_irt=total_fee,
-        net_investable_irt=total_capital_irt - total_fee,
+        net_investable_irt=net_total,
         stop_loss_pct=stop_loss,
         take_profit_pct=take_profit,
     )
