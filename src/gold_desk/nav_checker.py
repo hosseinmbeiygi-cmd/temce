@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 # «عیار» با سه هفته تأخیر همان عدد را به امتیاز TSETMC می‌داد.
 MAX_MARKET_DATA_AGE_DAYS: int = 7
 
+# اختلاف نسبی NAV صدور و NAV ابطال که از آن به بعد «ناهمخوانی» باور می‌شود و
+# لاگ می‌شود. واحد: درصد نسبت به NAV صدور. صفر یعنی همان NAV؛ مقدار کوچک طبیعی
+# است، پس آستانه ۱٪ گرفته شده تا فقط شکاف واقعی گزارش شود (E-M3).
+NAV_ISSUE_REDEMPTION_WARN_PCT: float = 1.0
+
 
 @dataclass(frozen=True)
 class FundNAVStatus:
@@ -44,8 +49,32 @@ class FundNAVStatus:
     nav_7d_pct: float | None
 
 
+def _resolve_nav(nav_issue: Any, nav_redemption: Any, label: str = "") -> float | None:
+    """NAV مرجع را **صریحاً از nav_issue** برمی‌دارد و اختلافش با nav_redemption را گزارش می‌کند.
+
+    انتخاب «اولین مقدار truthy» باعث می‌شد صندوقی که NAV صدورش تهی است بی‌سر‌و‌صدا
+    با NAV ابطال قیمت‌گذاری شود و هیچ‌جا معلوم نشود دو NAV چقدر فاصله دارند (E-M3).
+    """
+    issue = float(nav_issue) if nav_issue else None
+    redemption = float(nav_redemption) if nav_redemption else None
+    if issue is not None and redemption is not None and issue > 0 and redemption > 0:
+        diff_pct = abs(issue - redemption) / issue * 100.0
+        if diff_pct >= NAV_ISSUE_REDEMPTION_WARN_PCT:
+            logger.warning(
+                "NAV issue/redemption divergence%s: issue=%.2f redemption=%.2f (%.2f%%, threshold %.2f%%)",
+                f" for {label}" if label else "",
+                issue,
+                redemption,
+                diff_pct,
+                NAV_ISSUE_REDEMPTION_WARN_PCT,
+            )
+    if issue is not None and issue > 0:
+        return issue
+    return redemption
+
+
 def _pick_nav(row: Any) -> float | None:
-    """انتخاب مقدار NAV از ردیف (nav_issue سپس nav_redemption).
+    """انتخاب مقدار NAV از ردیف ``(nav_issue, nav_redemption)``.
 
     ``brsapi_nav_records`` هیچ ستون ``nav`` ندارد؛ فقط ``nav_issue`` و
     ``nav_redemption``. انتخاب ستون اشتباه پیش‌تر در یک ``except Exception``
@@ -53,10 +82,10 @@ def _pick_nav(row: Any) -> float | None:
     """
     if row is None:
         return None
-    for value in row:
-        if value:
-            return float(value)
-    return None
+    values = list(row)
+    issue = values[0] if len(values) > 0 else None
+    redemption = values[1] if len(values) > 1 else None
+    return _resolve_nav(issue, redemption)
 
 
 async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
