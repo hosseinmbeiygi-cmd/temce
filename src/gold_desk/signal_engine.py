@@ -14,6 +14,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 
+def _newest_window_ascending(desc_closes: list[float], days: int) -> list[float]:
+    """آخرین ``days`` مقدار را از سریِ نزولی بردار و صعودی (قدیم→جدید) برگردان.
+
+    پیش‌تر ``reversed(closes[-days:])`` نوشته شده بود که قدیمی‌ترین بخش پنجره را
+    نگه می‌داشت و جدیدترین `days` ردیف را دور می‌ریخت؛ نتیجه: RSI/EMA حدود ۱۰ سشن
+    کهنه و «تغییر روزانهٔ دلار/DXY» برای hard stop هم بی‌اعتبار (E-H1).
+    """
+    return list(reversed(desc_closes[:days]))
+
+
 async def _fetch_gold_coin_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
     """close روزانه از ``brsapi_gold_coin_history`` (شمسی)."""
     from brsapi.models.commodity import GoldCoinHistoryModel
@@ -26,7 +36,7 @@ async def _fetch_gold_coin_closes(session: AsyncSession, symbol: str, days: int)
     )
     result = await session.execute(stmt)
     closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
-    return list(reversed(closes[-days:]))
+    return _newest_window_ascending(closes, days)
 
 
 async def _fetch_pro_daily_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
@@ -45,7 +55,7 @@ async def _fetch_pro_daily_closes(session: AsyncSession, symbol: str, days: int)
     )
     result = await session.execute(stmt)
     closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
-    return list(reversed(closes[-days:]))
+    return _newest_window_ascending(closes, days)
 
 
 async def fetch_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
