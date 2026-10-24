@@ -170,6 +170,22 @@ DISPLAY_LABELS: dict[str, str] = {
     "AED": "درهم امارات",
 }
 
+# ── Live signals (مقایسهٔ snapshot قبلی/فعلی) ─────────────────────
+# فاصلهٔ تولید snapshot (ثانیه) — مرجع TTL مقایسه و «کهنگی» prev.
+LIVE_SNAPSHOT_INTERVAL_SEC: int = 300
+# TTL snapshot قبلی: دو برابر بازهٔ تولید، تا مقایسه هرگز با دادهٔ دیروز انجام نشود.
+LIVE_PREV_SNAPSHOT_TTL_SEC: int = 2 * LIVE_SNAPSHOT_INTERVAL_SEC
+# فاصلهٔ تکرار همان سیگنال (ثانیه).
+LIVE_SIGNAL_COOLDOWN_SEC: int = 600
+# آستانه‌های درصدی تغییر (٪) در یک بازهٔ snapshot.
+LIVE_PRICE_SPIKE_PCT: float = 1.5  # تغییر قیمت طلا/سکه
+LIVE_PRICE_SPIKE_CRITICAL_PCT: float = 3.0  # مرز severity=critical
+LIVE_USD_SPIKE_PCT: float = 2.0  # دلار تهران
+LIVE_AED_SPIKE_PCT: float = 3.0  # درهم
+LIVE_BUBBLE_EXTREME_PCT: float = 25.0  # قدرمطلق حباب (٪)
+# تغییر امتیاز کل (نقطه از ۱۰۰) که سیگنال می‌سازد.
+LIVE_SCORE_DELTA: int = 10
+
 # ── Redis keys ────────────────────────────────────────────────────
 REDIS_KEY_SNAPSHOT: str = "golddesk:snapshot:latest"
 REDIS_KEY_BUBBLE_TS: str = "golddesk:bubble:ts:{symbol}"  # سری زمانی

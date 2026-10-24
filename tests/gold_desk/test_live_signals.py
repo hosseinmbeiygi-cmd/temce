@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from src.gold_desk.live_signals import Signal, detect_signals, detect_spike
+import json
+import time
+
+from src.gold_desk import live_signals
+from src.gold_desk.live_signals import (
+    Signal,
+    _unwrap_prev_snapshot,
+    detect_signals,
+    detect_spike,
+)
 
 
 def test_detect_spike_up():
@@ -93,6 +102,70 @@ def test_detect_signals_bubble_extreme():
     }
     sigs = detect_signals(prev, curr)
     assert any(s.signal_type == "bubble_extreme" for s in sigs)
+
+
+# ── E-M8: score گم‌شده ⇒ skip، نه دلتا = امتیاز فعلی ────
+
+
+def test_missing_prev_score_skips_score_signal():
+    prev = {"coins": {}, "score": {}, "references": {}}  # total ندارد
+    curr = {"coins": {}, "score": {"total": 80}, "references": {}}
+    sigs = detect_signals(prev, curr)
+    assert not any(s.signal_type == "score_change" for s in sigs)
+
+
+def test_missing_curr_score_skips_score_signal():
+    prev = {"coins": {}, "score": {"total": 80}, "references": {}}
+    curr = {"coins": {}, "score": {}, "references": {}}
+    sigs = detect_signals(prev, curr)
+    assert not any(s.signal_type == "score_change" for s in sigs)
+
+
+# ── E-M6: آستانه‌ها از constants می‌آیند ─────────────────
+
+
+def test_price_spike_threshold_is_configurable(monkeypatch):
+    monkeypatch.setattr(live_signals, "LIVE_PRICE_SPIKE_PCT", 5.0)
+    prev = {
+        "coins": {"coin_emami": {"symbol": "X", "market_price": 100.0, "display_name": "Y"}},
+        "score": {"total": 70},
+        "references": {},
+    }
+    curr = {
+        "coins": {"coin_emami": {"symbol": "X", "market_price": 103.0, "display_name": "Y"}},
+        "score": {"total": 70},
+        "references": {},
+    }
+    assert not any(s.signal_type.startswith("spike") for s in detect_signals(prev, curr))
+
+
+def test_bubble_extreme_threshold_is_configurable(monkeypatch):
+    monkeypatch.setattr(live_signals, "LIVE_BUBBLE_EXTREME_PCT", 40.0)
+    prev = {"coins": {}, "score": {"total": 70}, "references": {}}
+    curr = {
+        "coins": {"coin_emami": {"symbol": "X", "market_price": 1, "bubble_pct": 30, "display_name": "Y"}},
+        "score": {"total": 70},
+        "references": {},
+    }
+    assert not any(s.signal_type == "bubble_extreme" for s in detect_signals(prev, curr))
+
+
+# ── E-M7: کهنگی snapshot قبلی ─────────────────────────────
+
+
+def test_stale_prev_snapshot_is_discarded():
+    payload = json.dumps({"ts": time.time() - 3600, "snapshot": {"coins": {}}})
+    assert _unwrap_prev_snapshot(payload) is None
+
+
+def test_fresh_prev_snapshot_is_unwrapped():
+    payload = json.dumps({"ts": time.time() - 5, "snapshot": {"coins": {"a": 1}}})
+    assert _unwrap_prev_snapshot(payload) == {"coins": {"a": 1}}
+
+
+def test_legacy_prev_snapshot_still_readable():
+    payload = json.dumps({"coins": {"a": 1}})
+    assert _unwrap_prev_snapshot(payload) == {"coins": {"a": 1}}
 
 
 def test_signal_to_dict():
