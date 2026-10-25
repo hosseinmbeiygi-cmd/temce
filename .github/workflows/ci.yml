@@ -22,6 +22,10 @@ on:
       - "frontend/tsconfig.json"
       - "frontend/next.config.*"
       - "frontend/eslint.config.mjs"
+      - "frontend/vitest.config.ts"
+      - "frontend/public/golddesk-sw.js"
+      - "nginx-golddesk.conf"
+      - "monitoring/golddesk-prometheus.yml"
       - "Dockerfile*"
       - "docker-compose*.yml"
       - "docs/**"
@@ -42,6 +46,10 @@ on:
       - "frontend/tsconfig.json"
       - "frontend/next.config.*"
       - "frontend/eslint.config.mjs"
+      - "frontend/vitest.config.ts"
+      - "frontend/public/golddesk-sw.js"
+      - "nginx-golddesk.conf"
+      - "monitoring/golddesk-prometheus.yml"
       - "Dockerfile*"
       - "docker-compose*.yml"
       - "docs/**"
@@ -140,6 +148,48 @@ jobs:
       - name: Typecheck TypeScript (tsc --noEmit)
         run: cd frontend && npx tsc --noEmit
 
+      # I5 — این مرحله نبود: درخت frontend ۴۶ فایل تست vitest دارد که هیچ‌وقت
+      # در CI اجرا نمی‌شدند، پس شکستن رندر/لایهٔ API فقط محلی کشف می‌شد.
+      - name: Frontend unit tests (vitest)
+        run: cd frontend && npx vitest run --reporter=basic
+
+      # ── S3 — اسکن secret ───────────────────────────────────────────
+      # `secrets-scan.yml` از قبل gitleaks را اجرا می‌کند، ولی آن اقدام
+      # commit-محور است: secretهایی که پیش از وجودش commit شده‌اند را هرگز
+      # نمی‌بیند. `.gitleaks.toml` در ریشهٔ repo را همان اقدام برمی‌دارد.
+      # این قدم **بلاک‌کننده** است و فقط محدودهٔ gold/frontend/infra را می‌سنجد؛
+      # بدهی تاریخی سرویس‌های دیگر (k8s/decision-engine-secret.yaml و دو فایل
+      # compose آن‌ها) عمداً در قدم advisory پایین نگه داشته شده تا CI بی‌دلیل
+      # قرمز نشود — راهنمای رفع: docs/security/secret_rotation.md
+      - name: Secret scan — owned scope (blocking)
+        run: |
+          python scripts/scan_secrets.py --fail-on-real \
+            --exclude '(^|/)docs/analysis/' \
+            --files \
+              frontend/src \
+              frontend/public \
+              monitoring \
+              scripts \
+              docs \
+              .github/workflows \
+              .gitleaks.toml \
+              docker-compose.yml \
+              nginx-golddesk.conf \
+              .env.example \
+              PLAN_GOLD.md
+
+      # gitleaks روی runnerهای پیش‌فرض GitHub نیست؛ اگر نصب بود، درخت کامل را
+      # بدون git history و با --redact می‌زند. اگر نبود، فقط اطلاع می‌دهد.
+      - name: Secret scan — full tree (advisory)
+        continue-on-error: true
+        run: |
+          if command -v gitleaks >/dev/null 2>&1; then
+            gitleaks detect --source . --no-git --config .gitleaks.toml --redact
+          else
+            echo "gitleaks on this runner is not installed; .gitleaks.toml is still" \
+                 "used by secrets-scan.yml (commit mode). Advisory step skipped."
+          fi
+
   # ── Mermaid docs syntax check ─────────────────────────────
   docs:
     name: Mermaid Syntax (docs)
@@ -222,6 +272,21 @@ jobs:
           DATABASE_URL: postgresql://market:market@localhost:5432/market_test
           REDIS_URL: redis://localhost:6379/0
           ENV: test
+
+      # I5 — تست‌های موتور طلا (tests/gold_desk) در هیچ مرحله‌ای اجرا نمی‌شدند:
+      # `pytest tests/unit` این پوشه را پوشش نمی‌دهد. تست‌هایی که DB واقعی
+      # می‌خواهند با skip خودشان علامت می‌دهند؛ service های postgres/redis بالا
+      # هستند پس آن‌ها هم اجرا می‌شوند.
+      - name: GoldDesk tests (engine + API surface)
+        run: |
+          pytest tests/gold_desk \
+            --timeout=120 \
+            -v
+        env:
+          DATABASE_URL: postgresql://market:market@localhost:5432/market_test
+          REDIS_URL: redis://localhost:6379/0
+          ENV: test
+          GOLD_API_TOKEN_SALT: ci-only-salt-not-a-real-secret
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

@@ -1,12 +1,29 @@
-# Prometheus scrape config for GoldDesk
-# Add to prometheus.yml
+# ── Prometheus scrape config for GoldDesk ─────────────────────────────────
+# I2 / C9 — مسیر `/metrics` با token دارای scope «metrics» باز می‌شود (نه JWT)،
+# تا Prometheus بتواند scrape کند.
+#
+# واقعیت کد امروز (برای اینکه این فایل توهم ایجاد نکند):
+#   * `src/gold_desk/api_token.py:32` هنوز `Scope = Literal["read","write","admin"]`
+#     است و «metrics» وجود ندارد → درخواست در docs/fixes/handoff_frontend_to_backend.md
+#     ثبت شده. تا قبل از آن، scrape این job با token فعلی ۴۰۱ می‌گیرد.
+#   * مسیر واقعی: `/api/v1/gold/metrics` (پایهٔ v1 + router طلا)، پس
+#     `metrics_path` در پایین همان است — نه `/metrics` خالی که در نسخهٔ قبل بود.
 
 scrape_configs:
   - job_name: "golddesk-api"
-    metrics_path: "/metrics"
+    metrics_path: "/api/v1/gold/metrics"
     scrape_interval: 30s
+    scrape_timeout: 10s
+    # C9: token از فایل خوانده می‌شود، نه از env یا inline — تا در
+    # prometheus.yml (که زیر version control است) هیچ رازی نوشته نشود.
+    # فایل باید فقط-read برای کاربر prometheus باشد (مثلاً 0444 در کانتینر).
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/golddesk_metrics_token
     static_configs:
       - targets: ["backend:8000"]
+        labels:
+          service: golddesk
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance
@@ -14,7 +31,23 @@ scrape_configs:
         replacement: "$1"
 
   - job_name: "golddesk-worker"
-    metrics_path: "/metrics"
+    metrics_path: "/api/v1/gold/metrics"
     scrape_interval: 30s
+    scrape_timeout: 10s
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/golddesk_metrics_token
     static_configs:
       - targets: ["golddesk-worker:9090"]
+        labels:
+          service: golddesk-worker
+
+  # سلامت سرویس: /health با HTTP 503 جواب می‌دهد اگر Redis یا DB قطع باشد (C8)،
+  # پس blackbox/HTTP probe روی همین مسیر معنادار است؛ `up` بودنِ target کافی نیست.
+  - job_name: "golddesk-health"
+    metrics_path: "/api/v1/gold/health"
+    scrape_interval: 60s
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          service: golddesk-health

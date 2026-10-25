@@ -55,9 +55,20 @@ COPY *.py ./
 RUN chown -R app:app /app
 USER app
 
-# Healthcheck: hit GoldDesk health endpoint
+# Healthcheck — I2 / C8
+#
+# دو ایراد در نسخهٔ قبل:
+#   ۱) مسیر `/api/gold/health` بود؛ surface واقعی `/api/v1/gold/health` است
+#      (router طلا زیر prefix v1 در apps/api/router.py:287-297 نصب می‌شود).
+#   ۲) این image فقط scheduler را اجرا می‌کند (CMD پایین) و اصلاً پورت HTTP
+#      باز نمی‌کند — `apps/scheduler/app.py` یک AsyncIOScheduler است، نه سرور.
+#      پس probe روی `localhost:8000` همیشه شکست می‌خورد و کانتینر برای همیشه
+#      unhealthy علامت می‌خورد.
+# راه‌حل: وابستگی‌های مشترک (DB/Redis) را از طریق health خودِ سرویس API می‌سنجیم.
+# `-f` عمداً مانده: طبق C8 قطعی Redis یا DB با 503 جواب می‌دهد و باید همین
+# اینجا unhealthy شود، نه اینکه سبز بماند.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD curl -fsS http://localhost:8000/api/gold/health || exit 1
+    CMD curl -fsS http://backend:8000/api/v1/gold/health || exit 1
 
 # Default: run only GoldDesk scheduler jobs
 CMD ["python", "-m", "apps.scheduler.app", "--only", "gold_desk"]

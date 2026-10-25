@@ -45,11 +45,18 @@ services:
         condition: service_started
     environment:
       - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
       # Scheduler inside the API: in multi-replica deployments enable queue
       # mode so jobs are pushed to Redis instead of running in every replica.
       - JOB_QUEUE_ENABLED=true
-      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}
+      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:?DEV_JOB_QUEUE_TOKEN must be set in .env}
+      # I3 — salt برای hash کردن API tokenهای GoldDesk. کد هنوز پیش‌فرض committed
+      # دارد (`src/gold_desk/api_token.py:28`) که مخفف « هیچ salt ست نشده» است؛
+      # این‌جا با `:?` اجباری می‌شود تا در مسیر container هرگز آن پیش‌فرض استفاده
+      # نشود. حذف پیش‌فرضِ سمت کد در docs/fixes/handoff_frontend_to_backend.md
+      # درخواست شده. هشداشت: ست کردن یک salt تازه، tokenهای صادرشده با
+      # پیش‌فرضِ قبلی را بازمی‌گرداند (باید بازصدور شوند).
+      - GOLD_API_TOKEN_SALT=${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set as a secret}
       # Optional error tracking — unset/empty keeps the app Sentry-free.
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
@@ -71,9 +78,12 @@ services:
         condition: service_started
     environment:
       - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
       - JOB_QUEUE_ENABLED=true
-      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}
+      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:?DEV_JOB_QUEUE_TOKEN must be set in .env}
+      # همان دلایل backend: اگر این‌جا ست نشود، کد به پیش‌فرض committed می‌افتد و
+      # دو سرویس salt متفاوت خواهند داشت.
+      - GOLD_API_TOKEN_SALT=${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set as a secret}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
@@ -95,7 +105,7 @@ services:
         condition: service_started
     environment:
       - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
       # Live Tgju/Nobitex rates (per-venue fixture fallback on failure):
       - CURRENCY_USE_LIVE=true
       - SENTRY_DSN=${SENTRY_DSN:-}
