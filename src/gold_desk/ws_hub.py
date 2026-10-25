@@ -4,6 +4,9 @@
 - ``hot`` هر ۱۰ ثانیه، ساخته‌شده از ``hotpath.get_hot_snapshot()`` (Redis).
 - ``snapshot`` هر ۳۰۰ ثانیه، خوانده‌شده از Redis (نه از حافظهٔ همین process).
 
+به‌علاوه یک subscriber روی ``GOLD_WS_CHANNEL``: رویدادهای process job
+(``signal``/``snapshot_ready``) را به کلاینت‌های همین process می‌رساند.
+
 قواعد:
 - هر پیام فیلد ``as_of`` دارد: زمان واقعی داده به شکل ISO UTC.
 - اگر داده‌ای نباشد، هیچ پیامی فرستاده نمی‌شود (نه ``{}``).
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -30,6 +34,13 @@ logger = logging.getLogger(__name__)
 HOT_INTERVAL_SECONDS = 10.0
 SNAPSHOT_INTERVAL_SECONDS = 300.0
 SEND_TIMEOUT_SECONDS = 5.0
+
+# کانال مشترک job (scheduler/worker) و API؛ job در process دیگری اجرا می‌شود و
+# کلاینت WebSocket ندارد، پس رویداد را از این کانال به API می‌رساند.
+GOLD_WS_CHANNEL = "golddesk:ws_events"
+# بازهٔ تلاش دوبارهٔ subscriber؛ نمایی و سقف‌دار (ثانیه).
+SUBSCRIBER_BACKOFF_SECONDS = 1.0
+SUBSCRIBER_BACKOFF_MAX_SECONDS = 30.0
 
 SnapshotProvider = Callable[[], Awaitable[dict[str, Any] | None]]
 Sleep = Callable[[float], Awaitable[None]]
@@ -83,6 +94,30 @@ def with_as_of(payload: dict[str, Any]) -> dict[str, Any] | None:
 async def _redis_snapshot() -> dict[str, Any] | None:
     """snapshot منتشرشده در Redis؛ در صورت نبود/خطا None."""
     return await get_hot_snapshot()
+
+
+async def publish_ws_event(payload: dict[str, Any]) -> bool:
+    """انتشار یک رویداد WS در Redis برای process API.
+
+    از همان کلاینت async و همان کانفیگ ``core.cache`` استفاده می‌کند. نبود Redis،
+    نبود ``as_of`` یا هر خطای انتشار فقط لاگ/``False`` است و job را نمی‌شکند.
+    """
+    message = with_as_of(payload)
+    if message is None:
+        logger.debug("WS publish skipped: payload has no data timestamp")
+        return False
+    try:
+        from core.cache import get_cache
+
+        client = get_cache().client
+        if client is None:
+            logger.warning("WS publish skipped: Redis is unavailable")
+            return False
+        await client.publish(GOLD_WS_CHANNEL, json.dumps(message, default=str))
+        return True
+    except Exception as exc:  # noqa: BLE001 — job نباید به‌خاطر Redis بمیرد
+        logger.warning("WS publish failed: %s", type(exc).__name__)
+        return False
 
 
 class GoldWebSocketHub:
@@ -144,6 +179,84 @@ class GoldWebSocketHub:
         async with self._lock:
             self._clients.discard(ws)
         logger.info("GoldDesk WS client dropped (total: %d)", self.client_count())
+
+    # ── Redis pub/sub ────────────────────────────────────────
+
+    async def _subscriber_loop(self) -> None:
+        """دریافت رویدادهای job از Redis و پخش در همین process.
+
+        اتصال با backoff نمایی دوباره برقرار می‌شود؛ توقف با cancel شدن task.
+        """
+        backoff = SUBSCRIBER_BACKOFF_SECONDS
+        while not self._stopping:
+            pubsub = None
+            try:
+                from core.cache import get_cache
+
+                client = get_cache().client
+                if client is None:
+                    raise RuntimeError("Redis client is unavailable")
+                pubsub = client.pubsub()
+                await pubsub.subscribe(GOLD_WS_CHANNEL)
+                backoff = SUBSCRIBER_BACKOFF_SECONDS
+                logger.info("GoldDesk WS subscribed to %s", GOLD_WS_CHANNEL)
+                async for message in pubsub.listen():
+                    if self._stopping:
+                        return
+                    await self._handle_pubsub_message(message)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 — با backoff دوباره وصل می‌شویم
+                logger.warning(
+                    "GoldDesk WS subscriber disconnected: %s", type(exc).__name__
+                )
+            finally:
+                if pubsub is not None:
+                    with contextlib.suppress(Exception):
+                        await pubsub.aclose()
+            if self._stopping:
+                break
+            await self._sleep(backoff)
+            backoff = min(backoff * 2, SUBSCRIBER_BACKOFF_MAX_SECONDS)
+
+    async def _handle_pubsub_message(self, message: Any) -> None:
+        """یک پیام Redis را به فریم WS تبدیل می‌کند (شکل فریم‌ها تغییر نمی‌کند)."""
+        if not isinstance(message, dict) or message.get("type") != "message":
+            return
+        raw = message.get("data")
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", "replace")
+        if not isinstance(raw, str):
+            logger.warning("GoldDesk WS pub/sub: non-text message ignored")
+            return
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            logger.warning("GoldDesk WS pub/sub: malformed JSON ignored")
+            return
+        if not isinstance(payload, dict):
+            logger.warning("GoldDesk WS pub/sub: non-object payload ignored")
+            return
+        if payload_as_of(payload) is None:
+            logger.debug("GoldDesk WS pub/sub: payload without as_of ignored")
+            return
+        if payload.get("type") == "snapshot_ready":
+            # snapshot تازه از همان مسیر Redis/hotpath خوانده می‌شود تا as_of
+            # واقعی باشد، نه زمان رویداد.
+            try:
+                snapshot_message = await self._snapshot_message()
+            except Exception as exc:  # noqa: BLE001 — subscriber نباید بمیرد
+                logger.warning("snapshot refresh failed: %s", type(exc).__name__)
+                return
+            if snapshot_message is not None:
+                await self.broadcast(snapshot_message)
+            return
+        if payload.get("type") != "signal":
+            logger.debug(
+                "GoldDesk WS pub/sub: unknown event type %r ignored", payload.get("type")
+            )
+            return
+        await self.broadcast(payload)
 
     # ── Send ─────────────────────────────────────────────────
 
@@ -243,8 +356,9 @@ class GoldWebSocketHub:
         self._tasks = [
             loop.create_task(self._hot_loop(), name="golddesk-ws-hot"),
             loop.create_task(self._snapshot_loop(), name="golddesk-ws-snapshot"),
+            loop.create_task(self._subscriber_loop(), name="golddesk-ws-subscriber"),
         ]
-        logger.info("GoldDesk WS broadcast loops started")
+        logger.info("GoldDesk WS broadcast loops + pub/sub subscriber started")
 
     async def stop(self) -> None:
         """توقف تمیز حلقه‌ها (shutdown یا تست)."""

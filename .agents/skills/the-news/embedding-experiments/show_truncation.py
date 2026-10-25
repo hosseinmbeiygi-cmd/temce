@@ -47,7 +47,7 @@ sections = []
 for m in re.finditer(r"^## (.+)$", emb_input, re.MULTILINE):
     sections.append((m.start(), m.group(1)))
 
-print(f"\nSection map (byte offset of '## Heading' in embedding input):")
+print("\nSection map (byte offset of '## Heading' in embedding input):")
 print(f"{'byte':>6}  {'side':<5}  section")
 print("-" * 60)
 cut_byte = len(kept.encode("utf-8"))

@@ -242,10 +242,9 @@ def run_backtest(symbol, bars, timing, market, rates="1405") -> dict:
     sys.path.insert(0, os.getcwd())
     import inspect
 
+    import domain.trading.iran_costs as _m
     from backtesting.engine.broker import Broker
     from backtesting.engine.simulator import BacktestSimulator
-
-    import domain.trading.iran_costs as _m
 
     if rates == "legacy":
         # Pre-1405 schedule: 0.4%/side + 0.085% clearing, 0.5% sell tax.

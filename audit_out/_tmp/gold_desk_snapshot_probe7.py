@@ -36,8 +36,8 @@ async def main() -> None:
         print("no db factory")
         return
 
-    from gold_desk.constants import FUND_SYMBOLS, SCORE_WEIGHTS, SCORE_GREEN_MIN, SCORE_YELLOW_MIN  # noqa: E402
     from gold_desk import nav_checker, scorer  # noqa: E402
+    from gold_desk.constants import FUND_SYMBOLS, SCORE_GREEN_MIN, SCORE_WEIGHTS, SCORE_YELLOW_MIN  # noqa: E402
 
     async with f() as s:
         print("=" * 72)

@@ -3,12 +3,13 @@ Test the current local SKILL.md (restructured to front-load semantic content
 before the 7,500-byte cut) against the published v1.0.8 (multilingual at bottom,
 cut off).
 """
+import json
 import os
 import re
 import sys
-import json
-import urllib.request
 import urllib.parse
+import urllib.request
+
 import numpy as np
 from openai import OpenAI
 

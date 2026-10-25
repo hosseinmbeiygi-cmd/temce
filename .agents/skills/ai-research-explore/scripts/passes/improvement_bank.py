@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from lookup.record_schema import normalize_evidence_class
 
 
-def tokenize(value: str) -> List[str]:
+def tokenize(value: str) -> list[str]:
     return [token for token in re.split(r"[^a-z0-9]+", str(value).lower()) if len(token) > 2]
 
 
@@ -21,13 +22,13 @@ def clamp(value: Any, default: float = 0.5) -> float:
     return max(0.0, min(1.0, numeric))
 
 
-def record_evidence_class(record: Dict[str, Any]) -> str:
+def record_evidence_class(record: dict[str, Any]) -> str:
     if record.get("evidence_class"):
         return normalize_evidence_class(record.get("evidence_class"))
     return "seed_only" if str(record.get("provider_type") or "seed") == "seed" else "external_provider"
 
 
-def record_evidence_weight(record: Dict[str, Any]) -> float:
+def record_evidence_weight(record: dict[str, Any]) -> float:
     if record.get("evidence_weight") is not None:
         return clamp(record.get("evidence_weight"), default=0.2)
     evidence = record_evidence_class(record)
@@ -40,7 +41,7 @@ def record_evidence_weight(record: Dict[str, Any]) -> float:
     return 0.2
 
 
-def baseline_distance_score(baseline_gate: Dict[str, Any]) -> float:
+def baseline_distance_score(baseline_gate: dict[str, Any]) -> float:
     gap = baseline_gate.get("gap_to_sota")
     relative = baseline_gate.get("relative_gap_to_sota")
     if gap is not None:
@@ -50,13 +51,13 @@ def baseline_distance_score(baseline_gate: Dict[str, Any]) -> float:
     return 0.0
 
 
-def match_sources(idea: Dict[str, Any], source_records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def match_sources(idea: dict[str, Any], source_records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     tokens = set(
         tokenize(idea.get("summary"))
         + tokenize(idea.get("target_component"))
         + tokenize(idea.get("change_scope"))
     )
-    matches: List[tuple[int, float, Dict[str, Any]]] = []
+    matches: list[tuple[int, float, dict[str, Any]]] = []
     for record in source_records:
         haystack = " ".join(
             [
@@ -72,7 +73,7 @@ def match_sources(idea: Dict[str, Any], source_records: Sequence[Dict[str, Any]]
     return [record for _, _weight, record in matches[:4]]
 
 
-def matched_sources_for_idea(idea: Dict[str, Any], lookup_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
+def matched_sources_for_idea(idea: dict[str, Any], lookup_bundle: dict[str, Any]) -> list[dict[str, Any]]:
     source_records = lookup_bundle.get("records", [])
     support_bundle = lookup_bundle.get("support_bundle", {})
     support_index = support_bundle.get("support_index_by_candidate_idea", {})
@@ -84,9 +85,9 @@ def matched_sources_for_idea(idea: Dict[str, Any], lookup_bundle: Dict[str, Any]
 
 
 def interface_fit_seed(
-    idea: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
+    idea: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
 ) -> float:
     tokens = set(tokenize(idea.get("target_component")) + tokenize(idea.get("summary")))
     score = 0.50
@@ -106,13 +107,13 @@ def interface_fit_seed(
     return clamp(score, default=0.5)
 
 
-def patch_surface_score(code_plan: Dict[str, Any], idea: Dict[str, Any]) -> float:
+def patch_surface_score(code_plan: dict[str, Any], idea: dict[str, Any]) -> float:
     target_count = len(code_plan.get("candidate_edit_targets", []))
     support_count = len(idea.get("supporting_changes", []) or [])
     return clamp(0.15 + 0.08 * target_count + 0.05 * support_count, default=0.4)
 
 
-def dependency_drag_score(idea: Dict[str, Any], matched_sources: Sequence[Dict[str, Any]]) -> float:
+def dependency_drag_score(idea: dict[str, Any], matched_sources: Sequence[dict[str, Any]]) -> float:
     return clamp(
         0.10
         + 0.08 * len(idea.get("supporting_changes", []) or [])
@@ -121,7 +122,7 @@ def dependency_drag_score(idea: Dict[str, Any], matched_sources: Sequence[Dict[s
     )
 
 
-def source_support_strength(matched_sources: Sequence[Dict[str, Any]]) -> float:
+def source_support_strength(matched_sources: Sequence[dict[str, Any]]) -> float:
     external_weight = sum(
         record_evidence_weight(item)
         for item in matched_sources
@@ -169,7 +170,7 @@ def groundedness_score(
     )
 
 
-def novelty_estimate(idea: Dict[str, Any], matched_sources: Sequence[Dict[str, Any]]) -> float:
+def novelty_estimate(idea: dict[str, Any], matched_sources: Sequence[dict[str, Any]]) -> float:
     summary_tokens = set(tokenize(idea.get("summary")))
     novelty_terms = {"novel", "cross", "adapter", "transplant", "hybrid", "augment", "replace", "rank"}
     origin = str(idea.get("seed_origin") or "researcher")
@@ -202,7 +203,7 @@ def implementation_story_clarity(
     interface_fit: float,
     patch_surface: float,
     target_component: str,
-    matched_sources: Sequence[Dict[str, Any]],
+    matched_sources: Sequence[dict[str, Any]],
 ) -> float:
     score = 0.20 + 0.35 * interface_fit + 0.20 * (1.0 - patch_surface)
     if target_component and target_component != "unspecified":
@@ -213,8 +214,8 @@ def implementation_story_clarity(
 
 
 def innovation_story_strength(
-    idea: Dict[str, Any],
-    matched_sources: Sequence[Dict[str, Any]],
+    idea: dict[str, Any],
+    matched_sources: Sequence[dict[str, Any]],
     novelty: float,
     story_clarity: float,
 ) -> float:
@@ -226,7 +227,7 @@ def innovation_story_strength(
     return clamp(base, default=0.5)
 
 
-def build_rationale(idea: Dict[str, Any], baseline_gate: Dict[str, Any], matched_sources: Sequence[Dict[str, Any]]) -> str:
+def build_rationale(idea: dict[str, Any], baseline_gate: dict[str, Any], matched_sources: Sequence[dict[str, Any]]) -> str:
     source_ids = ", ".join(item["source_id"] for item in matched_sources[:3]) or "no-source-id"
     external_ids = ", ".join(
         item["source_id"]
@@ -246,27 +247,27 @@ def build_rationale(idea: Dict[str, Any], baseline_gate: Dict[str, Any], matched
     return f"Use source references {source_ids} to keep the candidate auditable and bounded."
 
 
-def build_validation_path(campaign: Dict[str, Any], idea: Dict[str, Any]) -> str:
+def build_validation_path(campaign: dict[str, Any], idea: dict[str, Any]) -> str:
     evaluation_source = campaign.get("evaluation_source", {})
     command = str(evaluation_source.get("command") or "frozen-eval-command")
     return f"Preserve `{command}` and verify `{idea.get('change_scope') or 'candidate change'}` via short-run gate before any wider run."
 
 
-def candidate_list(campaign: Dict[str, Any], candidate_ideas: Optional[Sequence[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+def candidate_list(campaign: dict[str, Any], candidate_ideas: Sequence[dict[str, Any]] | None) -> list[dict[str, Any]]:
     if candidate_ideas is not None:
         return [dict(item) for item in candidate_ideas]
     return [dict(item) for item in campaign.get("candidate_ideas", [])]
 
 
 def build_improvement_bank(
-    campaign: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
-    baseline_gate: Dict[str, Any],
-    candidate_ideas: Optional[Sequence[Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
-    bank: List[Dict[str, Any]] = []
+    campaign: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+    lookup_bundle: dict[str, Any],
+    baseline_gate: dict[str, Any],
+    candidate_ideas: Sequence[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    bank: list[dict[str, Any]] = []
     baseline_distance = baseline_distance_score(baseline_gate)
     for idea in candidate_list(campaign, candidate_ideas):
         matched_sources = matched_sources_for_idea(idea, lookup_bundle)
@@ -389,7 +390,7 @@ def build_improvement_bank(
     return bank
 
 
-def write_improvement_bank(output_dir: Path, bank: Sequence[Dict[str, Any]]) -> Path:
+def write_improvement_bank(output_dir: Path, bank: Sequence[dict[str, Any]]) -> Path:
     lines = [
         "# Improvement Bank",
         "",
@@ -433,13 +434,13 @@ def write_improvement_bank(output_dir: Path, bank: Sequence[Dict[str, Any]]) -> 
 def run_improvement_bank_pass(
     *,
     analysis_output_dir: Path,
-    campaign: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
-    baseline_gate: Dict[str, Any],
-    candidate_ideas: Optional[Sequence[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    campaign: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+    lookup_bundle: dict[str, Any],
+    baseline_gate: dict[str, Any],
+    candidate_ideas: Sequence[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     bank = build_improvement_bank(
         campaign,
         analysis_data,

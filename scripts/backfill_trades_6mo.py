@@ -17,13 +17,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 import jdatetime
 from sqlalchemy import text
 
-import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 PROGRESS_FILE = Path("data/backfill_trades_progress.json")
@@ -47,8 +47,8 @@ async def main() -> None:
 
     from core.database import init_database
     await init_database()
-    from core.database import async_session_factory
     from brsapi.services.sync_service import BrsApiSyncService
+    from core.database import async_session_factory
 
     days = trading_days(args.months)
     print(f"TRADING DAYS ({args.months}mo): {len(days)} from {days[0]} to {days[-1]}", flush=True)

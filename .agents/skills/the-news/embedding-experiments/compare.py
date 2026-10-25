@@ -14,12 +14,12 @@ Usage:
   set OPENAI_API_KEY=sk-...
   python compare.py
 """
+import json
 import os
 import re
 import sys
-import json
-import urllib.request
 import urllib.parse
+import urllib.request
 
 import numpy as np
 from openai import OpenAI

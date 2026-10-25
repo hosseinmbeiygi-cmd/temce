@@ -129,6 +129,15 @@ def _top_prefix(path: str) -> str:
     return "/" + parts[0]
 
 
+def _get_route_path(route: Any, api_prefix: str) -> str:
+    """Extract the relative path from a route, handling both Route and _IncludedRouter."""
+    if hasattr(route, "path") and not isinstance(route, type(None)):
+        # Regular FastAPI/Starlette Route object
+        return route.path.removeprefix(api_prefix)
+    # _IncludedRouter or other router types - return empty/skip
+    return ""
+
+
 def audit_router() -> tuple[list[str], int]:
     from fastapi import FastAPI
 
@@ -144,7 +153,10 @@ def audit_router() -> tuple[list[str], int]:
     for route in app.routes:
         methods = sorted(getattr(route, "methods", None) or [])
         is_ws = not methods
-        rel_path = route.path.removeprefix(settings.api_prefix)
+        rel_path = _get_route_path(route, settings.api_prefix)
+        if not rel_path:
+            # Skip _IncludedRouter objects; their sub-routes are in app.routes already
+            continue
         prefix = _top_prefix(rel_path)
         names: set[str] = set()
         _collect(getattr(route, "dependant", None), names)

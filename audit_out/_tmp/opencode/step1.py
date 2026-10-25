@@ -1,6 +1,11 @@
-import asyncio, io, json, sys, time
+import asyncio
+import json
+import sys
+import time
+
 sys.path.insert(0, "C:/Users/Iran/Desktop/temce")
 from datetime import date
+
 import core.database as d
 from services.backtest_service import BacktestService
 
@@ -38,7 +43,7 @@ async def main():
         res = await one(svc, s)
         out["results"].append(res)
         print(json.dumps(res, ensure_ascii=False))
-    with io.open("C:/Users/Iran/AppData/Local/Temp/opencode/step1_raw.json",
+    with open("C:/Users/Iran/AppData/Local/Temp/opencode/step1_raw.json",
                  "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print("SAVED step1_raw.json")

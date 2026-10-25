@@ -4,6 +4,7 @@ field that goes into buildEmbeddingText. See how much cosine vs "news" moves.
 """
 import os
 import sys
+
 import numpy as np
 from openai import OpenAI
 

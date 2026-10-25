@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 
 from services.smart_money.normalizer import MinMaxClipped
-from services.smart_money.stats import extract_columns, nz_or_one, open_return, zscore
+from services.smart_money.stats import extract_columns, open_return, zscore
 
 norm = MinMaxClipped()
 

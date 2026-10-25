@@ -22,6 +22,7 @@ const TABS = [
   { href: "/gold/options", label: "مشتقه و ریسک", exact: false, icon: "📉" },
   { href: "/gold/macro", label: "کلان", exact: false, icon: "🌍" },
   { href: "/gold/etf", label: "صندوق ETF", exact: false, icon: "🏦" },
+  { href: "/gold/funds", label: "صندوق‌های طلا", exact: false, icon: "🪙" },
   { href: "/gold/physical", label: "فیزیکی", exact: false, icon: "🪙" },
   { href: "/gold/antigravity", label: "Antigravity", exact: false, icon: "🚀" },
   { href: "/gold/chat", label: "دستیار", exact: false, icon: "💬" },

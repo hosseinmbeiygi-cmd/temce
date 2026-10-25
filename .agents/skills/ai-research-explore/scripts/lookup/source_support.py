@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any
 
 from .record_schema import normalize_evidence_class
 
 
-def _tokenize(value: Any) -> List[str]:
+def _tokenize(value: Any) -> list[str]:
     return [token for token in re.split(r"[^a-z0-9]+", str(value or "").lower()) if len(token) > 2]
 
 
-def _record_haystack(record: Dict[str, Any]) -> str:
+def _record_haystack(record: dict[str, Any]) -> str:
     return " ".join(
         [
             str(record.get("title") or ""),
@@ -30,8 +31,8 @@ def _record_haystack(record: Dict[str, Any]) -> str:
     ).lower()
 
 
-def _match_records(tokens: Sequence[str], records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    matches: List[tuple[int, float, Dict[str, Any]]] = []
+def _match_records(tokens: Sequence[str], records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    matches: list[tuple[int, float, dict[str, Any]]] = []
     for record in records:
         haystack = _record_haystack(record)
         score = sum(1 for token in tokens if token in haystack)
@@ -42,21 +43,21 @@ def _match_records(tokens: Sequence[str], records: Sequence[Dict[str, Any]]) -> 
 
 
 def build_source_support(
-    campaign: Dict[str, Any],
-    records: Sequence[Dict[str, Any]],
-    repo_local_extractions: Sequence[Dict[str, Any]],
-    cache_stats: Dict[str, Any],
-) -> Dict[str, Any]:
-    by_evidence_class: Dict[str, List[str]] = {}
-    by_type: Dict[str, List[str]] = {}
+    campaign: dict[str, Any],
+    records: Sequence[dict[str, Any]],
+    repo_local_extractions: Sequence[dict[str, Any]],
+    cache_stats: dict[str, Any],
+) -> dict[str, Any]:
+    by_evidence_class: dict[str, list[str]] = {}
+    by_type: dict[str, list[str]] = {}
     for item in records:
         evidence = normalize_evidence_class(item.get("evidence_class"))
         by_evidence_class.setdefault(evidence, []).append(str(item.get("source_id")))
         source_type = str(item.get("source_type") or "unknown")
         by_type.setdefault(source_type, []).append(str(item.get("source_id")))
 
-    support_index_by_candidate_idea: Dict[str, Dict[str, Any]] = {}
-    support_index_by_target_component: Dict[str, Dict[str, Any]] = {}
+    support_index_by_candidate_idea: dict[str, dict[str, Any]] = {}
+    support_index_by_target_component: dict[str, dict[str, Any]] = {}
     for idea in campaign.get("candidate_ideas", []):
         idea_id = str(idea.get("id") or "idea")
         tokens = _tokenize(idea.get("summary")) + _tokenize(idea.get("target_component")) + _tokenize(idea.get("change_scope"))
@@ -97,7 +98,7 @@ def build_source_support(
     }
 
 
-def write_source_support(analysis_output_dir: Path, support_bundle: Dict[str, Any]) -> Path:
+def write_source_support(analysis_output_dir: Path, support_bundle: dict[str, Any]) -> Path:
     path = analysis_output_dir / "SOURCE_SUPPORT.json"
     path.write_text(json.dumps(support_bundle, indent=2, ensure_ascii=False), encoding="utf-8")
     return path

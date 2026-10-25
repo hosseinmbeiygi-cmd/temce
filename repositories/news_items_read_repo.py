@@ -24,7 +24,7 @@ Domain mapping (``news_items`` -> ``domain.news.NewsItem``):
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import Select, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession

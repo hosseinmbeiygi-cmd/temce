@@ -1,8 +1,12 @@
-import asyncio, sys
+import asyncio
+import sys
+
 sys.path.insert(0, "C:/Users/Iran/Desktop/temce")
 from datetime import date
+
 import core.database as d
 from services.backtest_service import BacktestService
+
 
 async def main():
     await d.init_database()

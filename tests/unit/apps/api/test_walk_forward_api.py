@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import AsyncClient

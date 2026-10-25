@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
-
+from typing import Any
 
 VERIFICATION_MODE_BY_LEVEL = {
     "not_checked": "not_checked",
@@ -16,8 +16,8 @@ VERIFICATION_MODE_BY_LEVEL = {
 }
 
 
-def unique_preserving(values: Sequence[str]) -> List[str]:
-    ordered: List[str] = []
+def unique_preserving(values: Sequence[str]) -> list[str]:
+    ordered: list[str] = []
     for value in values:
         text = str(value or "").strip()
         if not text or text in ordered:
@@ -26,8 +26,8 @@ def unique_preserving(values: Sequence[str]) -> List[str]:
     return ordered
 
 
-def prefixed_site_entries(values: Sequence[str], *, label: str, source: str) -> List[Dict[str, str]]:
-    entries: List[Dict[str, str]] = []
+def prefixed_site_entries(values: Sequence[str], *, label: str, source: str) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
     for value in values:
         text = str(value or "").strip()
         if not text:
@@ -42,7 +42,7 @@ def prefixed_site_entries(values: Sequence[str], *, label: str, source: str) -> 
     return entries
 
 
-def expected_files_for_unit(unit: Dict[str, Any]) -> List[str]:
+def expected_files_for_unit(unit: dict[str, Any]) -> list[str]:
     return unique_preserving(str(item) for item in unit.get("target_file_candidates", []))
 
 
@@ -52,13 +52,13 @@ def path_matches_expected(path: str, expected_files: Sequence[str]) -> bool:
     return bool(normalized_path and normalized_path in expected_lookup)
 
 
-def filter_path_entries(entries: Sequence[Dict[str, str]], expected_files: Sequence[str]) -> List[Dict[str, str]]:
+def filter_path_entries(entries: Sequence[dict[str, str]], expected_files: Sequence[str]) -> list[dict[str, str]]:
     return [entry for entry in entries if path_matches_expected(entry.get("path", ""), expected_files)]
 
 
-def collect_run_path_entries(executed_runs: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
-    diff_entries: List[Dict[str, str]] = []
-    touched_entries: List[Dict[str, str]] = []
+def collect_run_path_entries(executed_runs: Sequence[dict[str, Any]]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    diff_entries: list[dict[str, str]] = []
+    touched_entries: list[dict[str, str]] = []
     for item in executed_runs:
         run_id = str(item.get("id") or "executed-run")
         diff_entries.extend(
@@ -93,11 +93,11 @@ def collect_run_path_entries(executed_runs: Sequence[Dict[str, Any]]) -> Tuple[L
 
 
 def planned_site_entries(
-    unit: Dict[str, Any],
+    unit: dict[str, Any],
     *,
-    source_mapping: Dict[str, Any],
-    code_plan: Dict[str, Any],
-) -> List[Dict[str, str]]:
+    source_mapping: dict[str, Any],
+    code_plan: dict[str, Any],
+) -> list[dict[str, str]]:
     expected_files = expected_files_for_unit(unit)
     entries = prefixed_site_entries(
         expected_files,
@@ -143,7 +143,7 @@ def planned_site_entries(
             expected_files,
         )
     )
-    deduped: List[Dict[str, str]] = []
+    deduped: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for entry in entries:
         marker = (entry["site"], entry["source"])
@@ -155,15 +155,15 @@ def planned_site_entries(
 
 
 def heuristic_site_entries(
-    unit: Dict[str, Any],
+    unit: dict[str, Any],
     *,
-    selected_idea: Dict[str, Any],
-    experiment_manifest: Dict[str, Any],
-    executed_runs: Sequence[Dict[str, Any]],
-) -> List[Dict[str, str]]:
+    selected_idea: dict[str, Any],
+    experiment_manifest: dict[str, Any],
+    executed_runs: Sequence[dict[str, Any]],
+) -> list[dict[str, str]]:
     change_scope = str(selected_idea.get("change_scope") or "").strip()
     surface = str(unit.get("expected_code_surface") or "")
-    entries: List[Dict[str, str]] = []
+    entries: list[dict[str, str]] = []
     if surface == "config" and change_scope:
         config_overrides = experiment_manifest.get("config_overrides", {}) or {}
         if change_scope in config_overrides:
@@ -186,7 +186,7 @@ def heuristic_site_entries(
                         "source": f"executed_runs[{run_id}].axes",
                     }
                 )
-    deduped: List[Dict[str, str]] = []
+    deduped: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for entry in entries:
         marker = (entry["site"], entry["source"])
@@ -197,7 +197,7 @@ def heuristic_site_entries(
     return deduped
 
 
-def observed_site_entries(unit: Dict[str, Any], executed_runs: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, str]], str]:
+def observed_site_entries(unit: dict[str, Any], executed_runs: Sequence[dict[str, Any]]) -> tuple[list[dict[str, str]], str]:
     expected_files = expected_files_for_unit(unit)
     diff_entries, touched_entries = collect_run_path_entries(executed_runs)
     matched_diff_entries = filter_path_entries(diff_entries, expected_files)
@@ -209,7 +209,7 @@ def observed_site_entries(unit: Dict[str, Any], executed_runs: Sequence[Dict[str
     return [], "not_checked"
 
 
-def common_failure_mode(unit: Dict[str, Any]) -> str:
+def common_failure_mode(unit: dict[str, Any]) -> str:
     surface = str(unit.get("expected_code_surface") or "model")
     if surface == "config":
         return "runtime override exists but no repo-local config/code diff was verified"
@@ -224,12 +224,12 @@ def unit_state(
     *,
     phase: str,
     surface: str,
-    planned_entries: Sequence[Dict[str, str]],
-    heuristic_entries: Sequence[Dict[str, str]],
-    observed_entries: Sequence[Dict[str, str]],
+    planned_entries: Sequence[dict[str, str]],
+    heuristic_entries: Sequence[dict[str, str]],
+    observed_entries: Sequence[dict[str, str]],
     observed_level: str,
-    executed_runs: Sequence[Dict[str, Any]],
-) -> Tuple[str, str, str]:
+    executed_runs: Sequence[dict[str, Any]],
+) -> tuple[str, str, str]:
     if observed_entries:
         if observed_level == "diff_verified":
             return (
@@ -295,10 +295,10 @@ def unit_state(
     )
 
 
-def summarize_fidelity(units: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
-    states: Dict[str, int] = {}
-    verification_levels: Dict[str, int] = {}
-    verification_modes: Dict[str, int] = {}
+def summarize_fidelity(units: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    states: dict[str, int] = {}
+    verification_levels: dict[str, int] = {}
+    verification_modes: dict[str, int] = {}
     for unit in units:
         state = str(unit.get("fidelity_state") or "unknown")
         states[state] = states.get(state, 0) + 1
@@ -314,11 +314,11 @@ def summarize_fidelity(units: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def site_values(entries: Sequence[Dict[str, str]]) -> List[str]:
+def site_values(entries: Sequence[dict[str, str]]) -> list[str]:
     return unique_preserving(entry.get("site", "") for entry in entries)
 
 
-def write_fidelity_markdown(output_dir: Path, payload: Dict[str, Any]) -> Path:
+def write_fidelity_markdown(output_dir: Path, payload: dict[str, Any]) -> Path:
     lines = [
         "# Implementation Fidelity",
         "",
@@ -363,15 +363,15 @@ def write_fidelity_markdown(output_dir: Path, payload: Dict[str, Any]) -> Path:
 def run_implementation_fidelity_pass(
     *,
     analysis_output_dir: Path,
-    selected_idea: Dict[str, Any],
-    atomic_bundle: Dict[str, Any],
-    source_mapping: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    experiment_manifest: Dict[str, Any],
-    executed_runs: Sequence[Dict[str, Any]],
+    selected_idea: dict[str, Any],
+    atomic_bundle: dict[str, Any],
+    source_mapping: dict[str, Any],
+    code_plan: dict[str, Any],
+    experiment_manifest: dict[str, Any],
+    executed_runs: Sequence[dict[str, Any]],
     phase: str,
-) -> Dict[str, Any]:
-    fidelity_units: List[Dict[str, Any]] = []
+) -> dict[str, Any]:
+    fidelity_units: list[dict[str, Any]] = []
     for unit in atomic_bundle.get("atomic_units", []):
         planned_entries = planned_site_entries(unit, source_mapping=source_mapping, code_plan=code_plan)
         heuristic_entries = heuristic_site_entries(

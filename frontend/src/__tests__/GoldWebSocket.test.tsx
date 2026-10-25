@@ -176,6 +176,105 @@ describe("GoldWSManager (C10)", () => {
   });
 });
 
+describe("useGoldWS staleness from as_of (backend 731de301)", () => {
+  async function mountHook() {
+    vi.resetModules();
+    const api = await import("@/lib/api");
+    api.storeAuth({ user: {}, access_token: "tok" });
+    const { useGoldWS } = await import("@/hooks/useGoldWS");
+    return renderHook(() => useGoldWS());
+  }
+
+  it("uses the frame's as_of, so an old data timestamp is stale on arrival", async () => {
+    const now = Date.now();
+    const { result } = await mountHook();
+    const socket = FakeWebSocket.instances[0];
+
+    act(() => {
+      socket.open();
+      socket.frame({
+        type: "hot",
+        as_of: new Date(now - 30_000).toISOString(),
+        data: HOT_FRAME.data,
+      });
+    });
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(result.current.ageSeconds).toBe(31);
+    expect(result.current.stale).toBe(true);
+  });
+
+  it("falls back to arrival time when as_of is missing or not ISO", async () => {
+    const { result } = await mountHook();
+    const socket = FakeWebSocket.instances[0];
+
+    act(() => {
+      socket.open();
+      socket.frame({ type: "hot", as_of: "not-a-date", data: HOT_FRAME.data });
+    });
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(result.current.ageSeconds).toBe(1);
+    expect(result.current.stale).toBe(false);
+  });
+
+  it("allows a snapshot-only stream the 600s snapshot threshold", async () => {
+    const now = Date.now();
+    const { result } = await mountHook();
+    const socket = FakeWebSocket.instances[0];
+
+    act(() => {
+      socket.open();
+      socket.frame({
+        type: "snapshot",
+        as_of: new Date(now - 500_000).toISOString(),
+        data: SNAPSHOT_FRAME.data,
+      });
+    });
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(result.current.ageSeconds).toBe(501);
+    expect(result.current.stale).toBe(false);
+  });
+
+  it("marks a snapshot-only stream stale past 600s", async () => {
+    const now = Date.now();
+    const { result } = await mountHook();
+    const socket = FakeWebSocket.instances[0];
+
+    act(() => {
+      socket.open();
+      socket.frame({
+        type: "snapshot",
+        as_of: new Date(now - 601_000).toISOString(),
+        data: SNAPSHOT_FRAME.data,
+      });
+    });
+    act(() => vi.advanceTimersByTime(1_000));
+
+    expect(result.current.stale).toBe(true);
+  });
+
+  it("exposes the parsed as_of on the manager's info", async () => {
+    const { gold } = await freshManager();
+    const seen: Array<Record<string, unknown>> = [];
+    gold.getGoldWSManager().subscribe((_state, _snap, info) => {
+      seen.push(info as unknown as Record<string, unknown>);
+    });
+    const socket = FakeWebSocket.instances[0];
+    const asOf = new Date(Date.now() - 5_000).toISOString();
+
+    act(() => {
+      socket.open();
+      socket.frame({ type: "hot", as_of: asOf, data: HOT_FRAME.data });
+    });
+
+    const last = seen[seen.length - 1];
+    expect(last.lastAsOfAt).toBe(Date.parse(asOf));
+    expect(last.lastHotAsOfAt).toBe(Date.parse(asOf));
+  });
+});
+
 describe("useGoldWS staleness (F6)", () => {
   it("marks the stream stale once no frame has arrived for more than 2× the hot interval", async () => {
     vi.resetModules();

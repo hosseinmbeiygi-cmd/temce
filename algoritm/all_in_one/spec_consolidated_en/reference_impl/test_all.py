@@ -1,7 +1,15 @@
-import random, unittest
+import random
+import unittest
 from datetime import date, timedelta
+
+import adjust
+import labels
 import pandas as pd
-import pit, rules, adjust, purged_cv, returns, queue_tracker, labels
+import pit
+import purged_cv
+import queue_tracker
+import returns
+import rules
 
 
 class TestPIT(unittest.TestCase):

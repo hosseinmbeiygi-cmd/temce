@@ -7,7 +7,9 @@ sys.path.insert(0, os.getcwd())
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
 from core.config import settings
+
 
 async def main():
     url = settings.database_url_async
@@ -22,7 +24,7 @@ async def main():
             print("--- Sample snapshot volumes ---")
             for r in rows:
                 print(f"  {r[0]}: volume={r[1]}, value={r[2]}")
-            
+
             rows2 = (await conn.execute(text(
                 "SELECT symbol, AVG(trade_volume) FROM brsapi_historical_daily "
                 "WHERE symbol IN ('MSF', 'IKCO', 'SPAS') AND trade_volume > 0 "

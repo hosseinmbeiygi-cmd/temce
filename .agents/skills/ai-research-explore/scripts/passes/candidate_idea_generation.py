@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
-
+from typing import Any
 
 DEFAULT_POLICY = {
     "allow_synthesized_seed_ideas": True,
@@ -25,12 +25,12 @@ def clamp(value: Any, default: float = 0.5) -> float:
     return max(0.0, min(1.0, numeric))
 
 
-def tokenize(value: Any) -> List[str]:
+def tokenize(value: Any) -> list[str]:
     return [token for token in re.split(r"[^a-z0-9]+", str(value or "").lower()) if len(token) > 2]
 
 
-def unique_preserving(values: Sequence[str], *, limit: int | None = None) -> List[str]:
-    ordered: List[str] = []
+def unique_preserving(values: Sequence[str], *, limit: int | None = None) -> list[str]:
+    ordered: list[str] = []
     for value in values:
         if not value or value in ordered:
             continue
@@ -40,7 +40,7 @@ def unique_preserving(values: Sequence[str], *, limit: int | None = None) -> Lis
     return ordered
 
 
-def normalize_policy(raw: Any) -> Dict[str, Any]:
+def normalize_policy(raw: Any) -> dict[str, Any]:
     policy = dict(DEFAULT_POLICY)
     if isinstance(raw, dict):
         policy.update(raw)
@@ -66,7 +66,7 @@ def stringify_binding(value: Any) -> str:
     return text or "unspecified"
 
 
-def evaluation_binding_text(evaluation_source: Dict[str, Any]) -> str:
+def evaluation_binding_text(evaluation_source: dict[str, Any]) -> str:
     command = str(evaluation_source.get("command") or "").strip()
     path = str(evaluation_source.get("path") or "").strip()
     metric = str(evaluation_source.get("primary_metric") or "").strip()
@@ -85,8 +85,8 @@ def normalize_context_bindings(
     current_research: str,
     task_family: str,
     dataset: Any,
-    evaluation_source: Dict[str, Any],
-) -> Dict[str, Any]:
+    evaluation_source: dict[str, Any],
+) -> dict[str, Any]:
     dataset_binding = stringify_binding(dataset)
     evaluation_binding = evaluation_binding_text(evaluation_source)
     task_binding = str(task_family or "").strip() or "unspecified"
@@ -108,7 +108,7 @@ def normalize_context_bindings(
     }
 
 
-def context_constraint_notes(context: Dict[str, Any], *, axis: str, target_component: str) -> List[str]:
+def context_constraint_notes(context: dict[str, Any], *, axis: str, target_component: str) -> list[str]:
     notes = [
         f"Anchor all generated work to current_research `{context['context_anchor']}`.",
         f"Keep the candidate inside task family `{context['task_family_binding']}` and dataset `{context['dataset_binding']}`.",
@@ -118,9 +118,9 @@ def context_constraint_notes(context: Dict[str, Any], *, axis: str, target_compo
     return unique_preserving(notes, limit=4)
 
 
-def module_component_candidates(analysis_data: Dict[str, Any]) -> List[str]:
-    all_candidates: List[str] = []
-    preferred_candidates: List[str] = []
+def module_component_candidates(analysis_data: dict[str, Any]) -> list[str]:
+    all_candidates: list[str] = []
+    preferred_candidates: list[str] = []
     for path in analysis_data.get("module_files", []):
         stem = Path(str(path)).stem.replace("_", "-")
         if not stem:
@@ -143,11 +143,11 @@ def module_component_candidates(analysis_data: Dict[str, Any]) -> List[str]:
 
 
 def component_pool(
-    researcher_candidate_ideas: Sequence[Dict[str, Any]],
-    analysis_data: Dict[str, Any],
-    improvement_bank: Sequence[Dict[str, Any]],
-) -> List[str]:
-    candidates: List[str] = []
+    researcher_candidate_ideas: Sequence[dict[str, Any]],
+    analysis_data: dict[str, Any],
+    improvement_bank: Sequence[dict[str, Any]],
+) -> list[str]:
+    candidates: list[str] = []
     for idea in researcher_candidate_ideas:
         candidates.append(str(idea.get("target_component") or ""))
     for item in improvement_bank:
@@ -156,11 +156,11 @@ def component_pool(
     return unique_preserving([item for item in candidates if item and item != "unspecified"], limit=10)
 
 
-def contextual_component_pool(components: Sequence[str], context: Dict[str, Any]) -> List[str]:
+def contextual_component_pool(components: Sequence[str], context: dict[str, Any]) -> list[str]:
     task_tokens = set(context.get("task_tokens", []))
     evaluation_tokens = set(context.get("evaluation_tokens", []))
 
-    def score(component: str) -> Tuple[int, int, str]:
+    def score(component: str) -> tuple[int, int, str]:
         tokens = set(tokenize(component))
         task_overlap = len(tokens & task_tokens)
         evaluation_overlap = len(tokens & evaluation_tokens)
@@ -175,7 +175,7 @@ def contextual_component_pool(components: Sequence[str], context: Dict[str, Any]
     return [fallback]
 
 
-def source_hint_for_component(component: str, improvement_bank: Sequence[Dict[str, Any]], analysis_data: Dict[str, Any]) -> str:
+def source_hint_for_component(component: str, improvement_bank: Sequence[dict[str, Any]], analysis_data: dict[str, Any]) -> str:
     lowered = component.lower()
     for item in improvement_bank:
         if lowered and lowered in str(item.get("target_component") or "").lower():
@@ -188,7 +188,7 @@ def source_hint_for_component(component: str, improvement_bank: Sequence[Dict[st
     return "Anchored to repo-local structure and frozen evaluation constraints."
 
 
-def feasibility_hint_for_scope(change_scope: str, variant_spec: Dict[str, Any], analysis_data: Dict[str, Any]) -> str:
+def feasibility_hint_for_scope(change_scope: str, variant_spec: dict[str, Any], analysis_data: dict[str, Any]) -> str:
     if change_scope in (variant_spec.get("variant_axes") or {}):
         return f"Variant axis `{change_scope}` already exists in variant_spec, so short-run feasibility can stay command-level."
     if analysis_data.get("config_binding_hints"):
@@ -219,9 +219,9 @@ def axis_seed(
     feasibility_hint: str,
     index: int,
     seed_origin: str,
-    context: Dict[str, Any],
+    context: dict[str, Any],
     campaign_idea_id: str = "",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     value_summary = ", ".join(str(value) for value in list(axis_values)[:3]) or "bounded values"
     return {
         "id": make_seed_id("idea-seed", index),
@@ -255,8 +255,8 @@ def fallback_seed(
     source_support_hint: str,
     feasibility_hint: str,
     index: int,
-    context: Dict[str, Any],
-) -> Dict[str, Any]:
+    context: dict[str, Any],
+) -> dict[str, Any]:
     axis = f"single-variable-{target_component.replace(' ', '-').lower()}"
     return {
         "id": make_seed_id("idea-seed", index),
@@ -284,13 +284,13 @@ def fallback_seed(
     }
 
 
-def reject_seed(seed: Dict[str, Any], reason: str) -> Dict[str, Any]:
+def reject_seed(seed: dict[str, Any], reason: str) -> dict[str, Any]:
     rejected = dict(seed)
     rejected["rejection_reason"] = reason
     return rejected
 
 
-def existing_signatures(researcher_candidate_ideas: Sequence[Dict[str, Any]]) -> set[Tuple[str, str]]:
+def existing_signatures(researcher_candidate_ideas: Sequence[dict[str, Any]]) -> set[tuple[str, str]]:
     return {
         (
             str(item.get("change_scope") or "").lower(),
@@ -305,13 +305,13 @@ def build_generated_ideas(
     current_research: str,
     task_family: str,
     dataset: Any,
-    evaluation_source: Dict[str, Any],
-    variant_spec: Dict[str, Any],
-    researcher_candidate_ideas: Sequence[Dict[str, Any]],
-    improvement_bank: Sequence[Dict[str, Any]],
-    analysis_data: Dict[str, Any],
-    policy: Dict[str, Any],
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    evaluation_source: dict[str, Any],
+    variant_spec: dict[str, Any],
+    researcher_candidate_ideas: Sequence[dict[str, Any]],
+    improvement_bank: Sequence[dict[str, Any]],
+    analysis_data: dict[str, Any],
+    policy: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     context = normalize_context_bindings(
         current_research=current_research,
         task_family=task_family,
@@ -321,8 +321,8 @@ def build_generated_ideas(
     if not policy["allow_synthesized_seed_ideas"] or policy["max_generated_ideas"] <= 0:
         return [], [], context
 
-    generated: List[Dict[str, Any]] = []
-    rejected: List[Dict[str, Any]] = []
+    generated: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
     existing = existing_signatures(researcher_candidate_ideas)
     used_targets: set[str] = set()
     axis_map = {
@@ -432,11 +432,11 @@ def build_generated_ideas(
     return generated, rejected, context
 
 
-def diversity_summary(researcher_ideas: Sequence[Dict[str, Any]], generated: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def diversity_summary(researcher_ideas: Sequence[dict[str, Any]], generated: Sequence[dict[str, Any]]) -> dict[str, Any]:
     all_ideas = list(researcher_ideas) + list(generated)
     targets = unique_preserving([str(item.get("target_component") or "") for item in all_ideas if item.get("target_component")])
     scopes = unique_preserving([str(item.get("change_scope") or "") for item in all_ideas if item.get("change_scope")])
-    by_origin: Dict[str, int] = {}
+    by_origin: dict[str, int] = {}
     for item in all_ideas:
         origin = str(item.get("seed_origin") or "researcher")
         by_origin[origin] = by_origin.get(origin, 0) + 1
@@ -454,11 +454,11 @@ def diversity_summary(researcher_ideas: Sequence[Dict[str, Any]], generated: Seq
 def write_seed_artifact(
     output_dir: Path,
     *,
-    policy: Dict[str, Any],
-    researcher_ideas: Sequence[Dict[str, Any]],
-    generated: Sequence[Dict[str, Any]],
-    rejected: Sequence[Dict[str, Any]],
-    diversity: Dict[str, Any],
+    policy: dict[str, Any],
+    researcher_ideas: Sequence[dict[str, Any]],
+    generated: Sequence[dict[str, Any]],
+    rejected: Sequence[dict[str, Any]],
+    diversity: dict[str, Any],
 ) -> Path:
     payload = {
         "schema_version": "1.0",
@@ -480,13 +480,13 @@ def run_candidate_idea_generation_pass(
     current_research: str,
     task_family: str,
     dataset: Any,
-    evaluation_source: Dict[str, Any],
-    variant_spec: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    improvement_bank: Dict[str, Any],
-    researcher_candidate_ideas: Sequence[Dict[str, Any]],
+    evaluation_source: dict[str, Any],
+    variant_spec: dict[str, Any],
+    analysis_data: dict[str, Any],
+    improvement_bank: dict[str, Any],
+    researcher_candidate_ideas: Sequence[dict[str, Any]],
     idea_generation: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     policy = normalize_policy(idea_generation)
     generated, rejected, context = build_generated_ideas(
         current_research=current_research,

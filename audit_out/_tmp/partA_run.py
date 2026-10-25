@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import csv
-import io
 import json
 import os
 import random
@@ -205,7 +204,7 @@ async def main():
                 "cost_as_pct_of_notional": round((tot_comm + tot_slip) / tot_notional * 100, 4),
             }
 
-    with io.open("audit_out/_tmp/partA_raw.json", "w", encoding="utf-8") as f:
+    with open("audit_out/_tmp/partA_raw.json", "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(json.dumps({k: v for k, v in out.items() if not k.endswith("_fills")}, ensure_ascii=False, indent=2))
     print("B_fill_count:", len(out.get("B_fills", [])))

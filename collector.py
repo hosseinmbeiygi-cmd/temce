@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 دانلود هوشمند ریزمعاملات بورس: فقط روزهایی که معامله واقعی داشته‌اند
 """
 
-import os
 import json
 import logging
+import os
+
 import requests
-import jdatetime
 
 # کلید فقط از محیط (BRSAPI_KEY) خوانده می‌شود — مقادیر هاردکد شده در سورس
 # از طریق git history لو می‌روند.
@@ -28,12 +27,12 @@ def get_active_trade_dates(symbol: str) -> list:
     با ۱ درخواست، کل تاریخچه روزهای معاملاتی استخراج و کش می‌شود.
     """
     cache_path = os.path.join(DATES_CACHE_DIR, f"{symbol}_days.json")
-    
+
     # ۱. اگر قبلاً کش شده، از کش بخوانیم تا سهمیه مصرف نشود
     if os.path.exists(cache_path):
-        with open(cache_path, "r", encoding="utf-8") as f:
+        with open(cache_path, encoding="utf-8") as f:
             return json.load(f)
-            
+
     logging.info(f"دریافت روزهای معاملاتی واقعی نماد {symbol}...")
     try:
         # فراخوانی سابقه قیمت سهم (کندل‌های روزانه)
@@ -46,12 +45,12 @@ def get_active_trade_dates(symbol: str) -> list:
         if resp.status_code != 200:
             logging.error(f"خطا در دریافت سابقه {symbol}: کد {resp.status_code}")
             return []
-            
+
         data = resp.json()
-        
+
         # استخراج روزهایی با حجم بیشتر از صفر
         active_dates = []
-        
+
         # بسته به ساختار جیسون خروجی BrsApi (لیست سوابق)
         items = data.get("data", []) if isinstance(data, dict) else data
         if isinstance(items, list):
@@ -67,11 +66,11 @@ def get_active_trade_dates(symbol: str) -> list:
                         active_dates.append(raw_date)
 
         active_dates = sorted(list(set(active_dates)))
-        
+
         # ذخیره در فایل کش
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(active_dates, f, ensure_ascii=False)
-            
+
         logging.info(f"نماد {symbol} مجموعاً {len(active_dates)} روز معاملاتی واقعی دارد.")
         return active_dates
 

@@ -1,11 +1,11 @@
 
-import sys
-import requests
-from bs4 import BeautifulSoup
-import urllib3
 import re
+import sys
 import time
-from datetime import datetime
+
+import requests
+import urllib3
+from bs4 import BeautifulSoup
 
 # Suppress insecure request warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -22,18 +22,18 @@ def parse_rss_content(content, source_name, limit=5):
     Parses RSS/Atom content string (XML or HTML) and returns items.
     """
     try:
-        # Use html.parser which is built-in and lenient 
+        # Use html.parser which is built-in and lenient
         soup = BeautifulSoup(content, 'html.parser')
-        
+
         items = []
         entries = soup.find_all(['item', 'entry'])
-        
+
         for entry in entries:
             # --- Title ---
             title_tag = entry.find('title')
             if not title_tag: continue
             title = clean_text(title_tag.get_text())
-            
+
             # --- Link ---
             link = ""
             link_tag = entry.find('link')
@@ -44,7 +44,7 @@ def parse_rss_content(content, source_name, limit=5):
                     link = link_tag.get_text(strip=True)
                 if not link:
                     link = str(link_tag.next_sibling).strip()
-            
+
             if not link:
                 guid = entry.find('guid')
                 if guid and guid.get_text(strip=True).startswith('http'):
@@ -53,29 +53,29 @@ def parse_rss_content(content, source_name, limit=5):
             # --- Time ---
             pub = entry.find(['pubdate', 'published', 'updated', 'dc:date'])
             time_str = clean_text(pub.get_text()) if pub else ""
-            
+
             # --- Summary / Content ---
             content_encoded = entry.find('content:encoded')
             description = entry.find('description')
             summary = entry.find('summary')
             content = entry.find('content')
-            
+
             raw_summary = ""
             if content_encoded: raw_summary = content_encoded.get_text()
             elif description: raw_summary = description.get_text()
             elif summary: raw_summary = summary.get_text()
             elif content: raw_summary = content.get_text()
-            
+
             soup_desc = BeautifulSoup(raw_summary, 'html.parser')
             _summary_text = soup_desc.get_text(separator=' ', strip=True)
             clean_summary = (_summary_text[:300] + "...") if len(_summary_text) > 300 else _summary_text
-            
+
             # --- Heat ---
             heat = ""
             comments = entry.find('slash:comments')
             if comments:
                 heat = f"{comments.get_text(strip=True)} comments"
-            
+
             items.append({
                 "source": source_name,
                 "title": title,
@@ -85,7 +85,7 @@ def parse_rss_content(content, source_name, limit=5):
                 "summary": clean_summary
             })
             if len(items) >= limit: break
-            
+
         return items
     except Exception as e:
         print(f"Content Parse failed: {e}", file=sys.stderr)

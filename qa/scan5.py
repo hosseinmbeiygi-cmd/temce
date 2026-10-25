@@ -1,4 +1,7 @@
-import pathlib, re, json
+import json
+import pathlib
+import re
+
 roots=["src","core","api","services","app","gold_desk" if pathlib.Path("src/gold_desk").exists() else "src"]
 files=[]
 for r in ["src","core","api","services","app"]:

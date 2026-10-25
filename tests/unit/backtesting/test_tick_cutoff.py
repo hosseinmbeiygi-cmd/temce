@@ -75,9 +75,8 @@ def test_real_files_respect_cutoff():
 
 
 def test_per_market_close_no_single_default():
-    from domain.trading import iran_costs as m
-
     import scripts.compare_backtest as cb
+    from domain.trading import iran_costs as m
 
     assert m.market_close("tse_equity") == "12:30:00"
     assert m.market_close("etf_equity") == "12:30:00"

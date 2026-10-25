@@ -4,16 +4,15 @@ import io
 import json
 import re
 import warnings
-from dataclasses import dataclass, field
-from datetime import datetime, date, timedelta
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from html import escape
 from pathlib import Path
 from typing import Literal
 
-import pandas as pd
-
 import html_charts
+import pandas as pd
 
 REPORT_FILE: Path | None = None  # resolved per run via resolve_report_file()
 POSITIONS_SHEET = "Closed Positions"
@@ -2927,7 +2926,7 @@ def main(
         print("=" * 80)
         print(f"Period: {meta.get('period_from', '?')} -> {meta.get('period_to', '?')}")
         print(f"Valuation date: {as_of.isoformat() if as_of else meta.get('period_to', '?')}")
-        print(f"Portfolio Value Index: 100.00")
+        print("Portfolio Value Index: 100.00")
         print(f"Total return: {perf['total_return_pct']:.2f}%")
         if perf.get("money_weighted_return_pct") is not None:
             print(f"Money-weighted return: {perf['money_weighted_return_pct']:.2f}%")

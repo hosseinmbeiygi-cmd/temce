@@ -3,7 +3,11 @@
 Uses synthetic alert (__QATEST__ symbol), counts history rows, cleans up.
 Run: python qa/concurrency_proof.py [workers=30]
 """
-import asyncio, json, os, sys
+import asyncio
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 SYM = "__QATEST_RACE__"
@@ -12,11 +16,12 @@ async def main():
     workers = int(sys.argv[1]) if len(sys.argv) > 1 else 30
     from core.database import init_database
     await init_database()
-    from core.database import async_session_factory
     from sqlalchemy import select, text
-    from models.alert import AlertModel, AlertHistoryModel
-    from services.alert_service import AlertService
+
+    from core.database import async_session_factory
     from core.ids import new_id
+    from models.alert import AlertHistoryModel, AlertModel
+    from services.alert_service import AlertService
 
     async with async_session_factory() as s:
         await s.execute(text(

@@ -1,6 +1,8 @@
 """Signal Composer (Layer 5): rank + dedupe + cap + idempotency (5.2). Output = direct input of store/API."""
 from __future__ import annotations
+
 from sqlalchemy import select
+
 
 def rank(signals: list[dict], max_n: int = 20) -> list[dict]:
     for s in signals:

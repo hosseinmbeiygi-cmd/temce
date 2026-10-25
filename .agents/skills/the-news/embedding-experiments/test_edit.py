@@ -2,13 +2,14 @@
 Compare SKILL.md (current draft) vs SKILL-edit.md (action-verb + news-source variant)
 against top 'news' competitors. Show cosine on key queries and predicted final score.
 """
+import json
+import math
 import os
 import re
 import sys
-import json
-import urllib.request
 import urllib.parse
-import math
+import urllib.request
+
 import numpy as np
 from openai import OpenAI
 
@@ -134,7 +135,7 @@ def main():
         comp_vecs[slug] = embed(text)
         comp_dl[slug] = dl
 
-    print(f"\nCOSINE on each query:")
+    print("\nCOSINE on each query:")
     print(f"  {'query':<22}{'V1':<10}{'V2':<10}{'delta':<10}"
           + "".join(f"{s.split('-')[0]:<10}" for s in COMPETITORS))
     print("  " + "-" * (22 + 30 + 10 * len(COMPETITORS)))
@@ -149,7 +150,7 @@ def main():
 
     # Final-score projection for query "news" assuming +2.5 lexical for all top slugs
     # (they all have 'news' as a slug token, name token, etc — confirmed earlier)
-    print(f"\nPROJECTED FINAL SCORE for query 'news' (vector + 2.5 lex + 0.08*log1p(dl))")
+    print("\nPROJECTED FINAL SCORE for query 'news' (vector + 2.5 lex + 0.08*log1p(dl))")
     print(f"  {'skill':<26}{'vec':<10}{'pop':<10}{'projected':<12}")
     print("  " + "-" * 60)
     rows = [

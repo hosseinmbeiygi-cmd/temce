@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,9 +32,9 @@ class NewsRepository:
         # per services.news_read_canary, with shadow comparison in non-full
         # modes. Writes ALWAYS stay on the legacy repo + dual-write, so any
         # mode flip is data-safe both ways.
-        self._items_read: "NewsItemsReadRepo | None" = None
+        self._items_read: NewsItemsReadRepo | None = None
 
-    async def _route(self, discriminator: str) -> "tuple[ReadPathDecision, Any, Any]":
+    async def _route(self, discriminator: str) -> tuple[ReadPathDecision, Any, Any]:
         """Resolve the canary decision and return (decision, legacy_repo,
         items_repo) for one read request. Legacy/mem repo may be None only
         when neither exists (degenerate test setups)."""
@@ -220,7 +220,7 @@ class NewsRepository:
 
     async def _record_parity(
         self,
-        decision: "ReadPathDecision",
+        decision: ReadPathDecision,
         served: Result[PaginatedResult[NewsItem]] | None,
         probed: Result[PaginatedResult[NewsItem]] | None,
     ) -> None:

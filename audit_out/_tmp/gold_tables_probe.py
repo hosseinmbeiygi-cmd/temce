@@ -53,8 +53,9 @@ async def main() -> None:
         print("unavailable:", d["unavailable"])
         for k, v in d["benchmarks"].items():
             print("  bench", k, v)
-        from src.gold_desk.portfolio_history import load_benchmark_series
         from datetime import date
+
+        from src.gold_desk.portfolio_history import load_benchmark_series
 
         series = await load_benchmark_series(s, "gold", start=date(2026, 7, 1), end=date(2026, 10, 14))
         print("gold bench points:", len(series))

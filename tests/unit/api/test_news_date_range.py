@@ -27,7 +27,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from apps.api.endpoints import news as news_endpoint
 from apps.api.endpoints.news import (
     list_news,
     news_by_category,
@@ -300,7 +299,7 @@ class TestPublishedRangeClauses:
 
     def test_clauses_reference_coalesce(self):
         from sqlalchemy import func
-        from models.news import NewsArticleModel
+
         from repositories.news_repository import _NewsDbRepo
 
         clauses = _NewsDbRepo._published_range(datetime(2026, 1, 1), datetime(2026, 9, 1))

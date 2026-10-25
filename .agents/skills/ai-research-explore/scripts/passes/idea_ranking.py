@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
-
+from typing import Any
 
 POSITIVE_WEIGHTS = {
     "expected_upside": 14.0,
@@ -37,8 +37,8 @@ def clamp(value: Any, default: float = 0.5) -> float:
     return max(0.0, min(1.0, numeric))
 
 
-def hard_gate_failures(card: Dict[str, Any], baseline_gate: Dict[str, Any]) -> List[str]:
-    failures: List[str] = []
+def hard_gate_failures(card: dict[str, Any], baseline_gate: dict[str, Any]) -> list[str]:
+    failures: list[str] = []
     if baseline_gate.get("decision") == "abandon":
         failures.append("baseline-gate-abandon")
     if clamp(card.get("single_variable_fit"), default=0.8) < 0.6:
@@ -62,7 +62,7 @@ def normalized_score(score_points: float) -> float:
     return round((score_points + max_negative) / (max_positive + max_negative), 4)
 
 
-def score_payload(value: float, weight: float, direction: str) -> Dict[str, Any]:
+def score_payload(value: float, weight: float, direction: str) -> dict[str, Any]:
     signed = round(weight * value, 4)
     contribution = signed if direction == "positive" else -signed
     return {
@@ -73,9 +73,9 @@ def score_payload(value: float, weight: float, direction: str) -> Dict[str, Any]
     }
 
 
-def evaluate_card(card: Dict[str, Any], baseline_gate: Dict[str, Any]) -> Dict[str, Any]:
-    raw_scores: Dict[str, float] = {}
-    breakdown: Dict[str, Dict[str, Any]] = {}
+def evaluate_card(card: dict[str, Any], baseline_gate: dict[str, Any]) -> dict[str, Any]:
+    raw_scores: dict[str, float] = {}
+    breakdown: dict[str, dict[str, Any]] = {}
     score_points = 0.0
     execution_feasibility = card.get("execution_feasibility_score", 1.0 - clamp(card.get("execution_cost"), default=0.5))
     for key, weight in POSITIVE_WEIGHTS.items():
@@ -102,7 +102,7 @@ def evaluate_card(card: Dict[str, Any], baseline_gate: Dict[str, Any]) -> Dict[s
     return evaluated
 
 
-def selection_pool(eligible: Sequence[Dict[str, Any]]) -> Tuple[str, List[Dict[str, Any]], str]:
+def selection_pool(eligible: Sequence[dict[str, Any]]) -> tuple[str, list[dict[str, Any]], str]:
     researcher_eligible = [
         item
         for item in eligible
@@ -121,7 +121,7 @@ def selection_pool(eligible: Sequence[Dict[str, Any]]) -> Tuple[str, List[Dict[s
     )
 
 
-def ranking_sort_key(item: Dict[str, Any]) -> Tuple[int, float, float, float, float, str]:
+def ranking_sort_key(item: dict[str, Any]) -> tuple[int, float, float, float, float, str]:
     return (
         1 if item["hard_gate_passed"] else 0,
         item["idea_score"],
@@ -132,7 +132,7 @@ def ranking_sort_key(item: Dict[str, Any]) -> Tuple[int, float, float, float, fl
     )
 
 
-def pool_priority(item: Dict[str, Any], active_pool: str) -> int:
+def pool_priority(item: dict[str, Any], active_pool: str) -> int:
     if active_pool == "researcher":
         return 1 if str(item.get("seed_origin") or "researcher") == "researcher" else 0
     return 1 if item.get("hard_gate_passed") else 0
@@ -140,10 +140,10 @@ def pool_priority(item: Dict[str, Any], active_pool: str) -> int:
 
 def write_evaluation_markdown(
     output_dir: Path,
-    ranked_cards: Sequence[Dict[str, Any]],
-    baseline_gate: Dict[str, Any],
+    ranked_cards: Sequence[dict[str, Any]],
+    baseline_gate: dict[str, Any],
     *,
-    selected_idea: Dict[str, Any] | None,
+    selected_idea: dict[str, Any] | None,
     active_selection_pool: str,
     selection_reason: str,
 ) -> Path:
@@ -181,9 +181,9 @@ def write_evaluation_markdown(
 def run_idea_ranking_pass(
     *,
     analysis_output_dir: Path,
-    cards: Sequence[Dict[str, Any]],
-    baseline_gate: Dict[str, Any],
-) -> Dict[str, Any]:
+    cards: Sequence[dict[str, Any]],
+    baseline_gate: dict[str, Any],
+) -> dict[str, Any]:
     ranked = [evaluate_card(card, baseline_gate) for card in cards]
     eligible = [item for item in ranked if item["hard_gate_passed"]]
     active_selection_pool, active_candidates, selection_reason = selection_pool(eligible)

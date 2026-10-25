@@ -1,8 +1,9 @@
 
-import sys
 import json
-import time
+import sys
+
 from playwright.sync_api import sync_playwright
+
 
 def fetch_bensbites():
     results = []
@@ -10,30 +11,30 @@ def fetch_bensbites():
         try:
             # Launch Chromium (headless)
             browser = p.chromium.launch(headless=True)
-            
+
             # Use specific context with real UA
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
             )
             page = context.new_page()
-            
+
             # Go to new Substack homepage
             url = "https://www.bensbites.com/"
             print(f"Navigating to {url}...", file=sys.stderr)
-            
+
             # Use the API endpoint for archive - much more reliable
             api_url = "https://www.bensbites.com/api/v1/archive?sort=new&limit=12"
             print(f"Fetching archive from API: {api_url}", file=sys.stderr)
-            
+
             try:
                 page.goto(api_url, timeout=60000)
                 # Substack API returns JSON often wrapped in a <pre> or just raw
                 content = page.inner_text("body")
                 data = json.loads(content)
-                
+
                 # Substack API can return a list directly or a dict with 'posts'
                 posts = data if isinstance(data, list) else data.get('posts', [])
-                
+
                 for post in posts:
                     results.append({
                         "source": "Ben's Bites",
@@ -57,10 +58,10 @@ def fetch_bensbites():
                         full_url = href if href.startswith("http") else f"https://www.bensbites.com{href}"
                         if full_url in seen_urls: continue
                         seen_urls.add(full_url)
-                        
+
                         title_el = link.query_selector("h1, h2, h3, h4, .post-title")
                         link_text = title_el.inner_text().strip() if title_el else link.inner_text().strip()
-                        
+
                         if len(link_text) > 10:
                             results.append({
                                 "source": "Ben's Bites",
@@ -77,13 +78,13 @@ def fetch_bensbites():
                     "source": "Ben's Bites",
                     "title": "Ben's Bites (Latest)",
                     "url": url,
-                    "time": "Today", 
+                    "time": "Today",
                     "summary": "Daily AI Digest. Content protected, visit link.",
                 })
 
             browser.close()
-            
-        except Exception as e:
+
+        except Exception:
             # sys.stderr.write(f"Playwright Error: {str(e)}\n")
             # Return a safe fallback instead of failing
             if not results:
@@ -97,8 +98,8 @@ def fetch_bensbites():
             try:
                 if 'browser' in locals(): browser.close()
             except: pass
-            
+
     print(json.dumps(results, indent=2))
-    
+
 if __name__ == "__main__":
     fetch_bensbites()

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, Sequence
+from typing import Any
 
 
-def write_sources_summary(sources_dir: Path, records: Sequence[Dict[str, Any]]) -> Path:
+def write_sources_summary(sources_dir: Path, records: Sequence[dict[str, Any]]) -> Path:
     lines = [
         "# Sources Summary",
         "",
@@ -39,11 +40,11 @@ def write_sources_summary(sources_dir: Path, records: Sequence[Dict[str, Any]]) 
 def write_source_inventory(
     analysis_output_dir: Path,
     *,
-    records: Sequence[Dict[str, Any]],
-    repo_local_extractions: Sequence[Dict[str, Any]],
-    cache_stats: Dict[str, Any],
+    records: Sequence[dict[str, Any]],
+    repo_local_extractions: Sequence[dict[str, Any]],
+    cache_stats: dict[str, Any],
 ) -> Path:
-    by_class: Dict[str, int] = {}
+    by_class: dict[str, int] = {}
     for item in records:
         key = str(item.get("evidence_class") or "unknown")
         by_class[key] = by_class.get(key, 0) + 1

@@ -4,11 +4,12 @@ Each sample has a decision index and a label_end index (when its label is fully 
 A training sample is kept only if label_end + embargo < test_start  (past-only training).
 """
 from __future__ import annotations
-from typing import Iterator, Sequence, Tuple
+
+from collections.abc import Iterator, Sequence
 
 
 def purged_walk_forward(decision: Sequence[int], label_end: Sequence[int], n_splits: int,
-                        min_train: int, embargo: int) -> Iterator[Tuple[list, list]]:
+                        min_train: int, embargo: int) -> Iterator[tuple[list, list]]:
     n = len(decision)
     order = sorted(range(n), key=lambda i: decision[i])
     start = min_train

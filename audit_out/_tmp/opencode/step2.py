@@ -1,11 +1,16 @@
-import asyncio, io, json, random, sys
+import asyncio
+import json
+import random
+import sys
+
 sys.path.insert(0, "C:/Users/Iran/Desktop/temce")
 from datetime import date
+
 import core.database as d
-from services.backtest_service import BacktestService, _compute_metrics
-from services.ml_signal_connector import _heuristic_trend_predict
 from backtesting.engine.simulator import BacktestSimulator
 from backtesting.strategies.ml_based.ml_signal_strategy import MlSignalStrategy
+from services.backtest_service import BacktestService, _compute_metrics
+from services.ml_signal_connector import _heuristic_trend_predict
 
 SYM = "\u062e\u0648\u062f\u0631\u0648"
 START = date(2024, 1, 1); END = date(2024, 12, 29); CAP = 1_000_000_000
@@ -72,7 +77,7 @@ async def main():
         out["E_sensitivity"][f"th_{th}"] = run_strat(
             bars, preds_h, buy_threshold=th, sell_threshold=-th)
 
-    with io.open("C:/Users/Iran/AppData/Local/Temp/opencode/step2_raw.json",
+    with open("C:/Users/Iran/AppData/Local/Temp/opencode/step2_raw.json",
                  "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print(json.dumps(out, ensure_ascii=False))

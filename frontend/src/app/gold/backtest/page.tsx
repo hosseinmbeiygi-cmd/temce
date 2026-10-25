@@ -24,24 +24,26 @@ export default function GoldBacktestPage() {
     queryFn: () => getBacktest(days, 8),
   });
 
-  // F7: متریک out-of-sample فقط وقتی رندر می‌شود که API آن را بفرستد.
-  // `BacktestMetrics` در موتور این فیلدها را دارد (`backtest_runner.py:77-81`)
-  // ولی route `/backtest/strategy` فعلاً آن‌ها را serialize نمی‌کند
-  // (`api.py:534-562`) ⇒ امروز این تراشه‌ها دیده نمی‌شوند و نباید هم بشود.
-  const oos = strategy?.oos_total_return_pct !== undefined ||
-    strategy?.oos_alpha_pct !== undefined ||
-    strategy?.oos_buy_hold_return_pct !== undefined ||
-    strategy?.oos_max_drawdown_pct !== undefined;
+  // F7: پنج فیلد oos_* ممکن است حاضر و null باشند (پاسخ جدید) یا اصلاً نباشند
+  // (پاسخ قدیمی). «حاضر بودن کلید» با `!== undefined` تشخیص داده می‌شود تا null
+  // به‌عنوان «نامشخص» رندر شود، نه صفر.
+  const OOS_FIELDS = [
+    "oos_start",
+    "oos_total_return_pct",
+    "oos_buy_hold_return_pct",
+    "oos_alpha_pct",
+    "oos_max_drawdown_pct",
+  ] as const;
+  const hasOos = strategy ? OOS_FIELDS.some((key) => strategy[key] !== undefined) : false;
 
-  const Oos = ({ value, digits = 1 }: { value: number | null | undefined; digits?: number }) => {
-    if (value === null || value === undefined) return null;
-    return (
-      <div className="text-[10px] font-mono mt-1 text-zinc-500">
-        out-of-sample: {value > 0 ? "+" : ""}
-        {value.toFixed(digits)}٪
-      </div>
-    );
-  };
+  const pctText = (value: number | null | undefined): string =>
+    value === null || value === undefined || !Number.isFinite(value)
+      ? "نامشخص"
+      : `${value > 0 ? "+" : ""}${value.toFixed(1)}٪`;
+  const drawdownText = (value: number | null | undefined): string =>
+    value === null || value === undefined || !Number.isFinite(value)
+      ? "نامشخص"
+      : `-${Math.abs(value).toFixed(1)}٪`;
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -123,17 +125,14 @@ export default function GoldBacktestPage() {
             </div>
           )}
 
-          {!oos && (
+          {!hasOos && (
             <div
               className="rounded-lg px-3 py-2 text-[11px] leading-5"
               style={{ background: "var(--gd-bg-2)", color: "var(--gd-text-2)", border: "1px solid var(--gd-border)" }}
             >
               بک‌تست روی دورهٔ گذشته است و نتیجهٔ آینده را تضمین نمی‌کند؛ ابزار تحلیلی
-              است، نه توصیهٔ مالی. متریک جداگانهٔ out-of-sample نمایش داده نمی‌شود:
-              موتور آن را در <code>BacktestMetrics</code> محاسبه می‌کند
-              (<code>backtest_runner.py:77-81</code>) ولی پاسخ{" "}
-              <code>/backtest/strategy</code> فعلاً آن را serialize نمی‌کند —
-              درخواست در <code>docs/fixes/handoff_frontend_to_backend.md §۷</code>.
+              است، نه توصیهٔ مالی. متریک جداگانهٔ out-of-sample در این پاسخ نیست؛
+              فقط اعداد کل دوره نمایش داده می‌شوند.
             </div>
           )}
 
@@ -148,7 +147,6 @@ export default function GoldBacktestPage() {
                 {strategy.total_return_pct > 0 ? "+" : ""}
                 {strategy.total_return_pct}٪
               </div>
-              <Oos value={strategy.oos_total_return_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">Buy & Hold</div>
@@ -156,7 +154,6 @@ export default function GoldBacktestPage() {
                 {strategy.buy_hold_return_pct > 0 ? "+" : ""}
                 {strategy.buy_hold_return_pct}٪
               </div>
-              <Oos value={strategy.oos_buy_hold_return_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">آلفا (DCA − BH)</div>
@@ -168,7 +165,6 @@ export default function GoldBacktestPage() {
                 {strategy.alpha_pct > 0 ? "+" : ""}
                 {strategy.alpha_pct}٪
               </div>
-              <Oos value={strategy.oos_alpha_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">Hit Rate</div>
@@ -181,7 +177,6 @@ export default function GoldBacktestPage() {
               <div className="text-xl font-bold font-mono text-rose-400 mt-1">
                 -{strategy.max_drawdown_pct}٪
               </div>
-              <Oos value={strategy.oos_max_drawdown_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">Sharpe Ratio</div>
@@ -202,6 +197,65 @@ export default function GoldBacktestPage() {
               </div>
             </div>
           </div>
+
+          {hasOos && (
+            <div className="rounded-lg border border-zinc-700 bg-zinc-900 overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-700 text-sm font-semibold text-zinc-300">
+                مقایسهٔ کل دوره با بازهٔ آزمایش بیرون‌نمونه (OOS)
+                {strategy.oos_start ? (
+                  <span className="text-[11px] font-normal text-zinc-500 mr-2">
+                    شروع: {strategy.oos_start}
+                  </span>
+                ) : null}
+              </div>
+              <table className="w-full text-sm" aria-label="بازهٔ آزمایش بیرون‌نمونه (OOS)">
+                <thead>
+                  <tr className="text-xs text-zinc-500 border-b border-zinc-800">
+                    <th className="text-right p-3">متریک</th>
+                    <th className="text-left p-3">کل دوره</th>
+                    <th className="text-left p-3">OOS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    {
+                      label: "بازده DCA",
+                      full: pctText(strategy.total_return_pct),
+                      oos: pctText(strategy.oos_total_return_pct),
+                    },
+                    {
+                      label: "Buy & Hold",
+                      full: pctText(strategy.buy_hold_return_pct),
+                      oos: pctText(strategy.oos_buy_hold_return_pct),
+                    },
+                    {
+                      label: "آلفا (DCA − BH)",
+                      full: pctText(strategy.alpha_pct),
+                      oos: pctText(strategy.oos_alpha_pct),
+                    },
+                    {
+                      label: "Max Drawdown",
+                      full: drawdownText(strategy.max_drawdown_pct),
+                      oos: drawdownText(strategy.oos_max_drawdown_pct),
+                    },
+                  ].map((row) => (
+                    <tr key={row.label} className="border-b border-zinc-800/50">
+                      <td className="p-3 text-zinc-300">{row.label}</td>
+                      <td className="p-3 text-left font-mono text-zinc-200">{row.full}</td>
+                      <td className="p-3 text-left font-mono text-zinc-200">{row.oos}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td className="p-3 text-zinc-300">شروع بازهٔ OOS</td>
+                    <td className="p-3 text-left font-mono text-zinc-500">—</td>
+                    <td className="p-3 text-left font-mono text-zinc-200">
+                      {strategy.oos_start ?? "نامشخص"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {strategy.trades.length > 0 && (
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 overflow-hidden">

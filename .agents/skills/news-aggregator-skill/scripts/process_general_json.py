@@ -1,11 +1,11 @@
 import json
-import sys
+
 
 def process_data():
     try:
-        with open('reports/2026-02-02/general_data_raw.json', 'r') as f:
+        with open('reports/2026-02-02/general_data_raw.json') as f:
             data = json.load(f)
-            
+
         # Global Scan
         print("=== GLOBAL SCAN (Top 20) ===")
         global_scan = data.get('global_scan', [])
@@ -38,7 +38,7 @@ def process_data():
             print(f"{i+1}. Time: {item.get('time')}")
             print(f"   Title: {item.get('title')}")
             print(f"   URL: {item.get('url')}")
-            # Stats are usually in title or content for github fetcher? 
+            # Stats are usually in title or content for github fetcher?
             # Let's inspect content.
             print(f"   Content Snippet: {item.get('content', '')[:300]}...")
             print()

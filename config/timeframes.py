@@ -1,8 +1,10 @@
 """Central timeframe enum + evaluation horizons (Layer 0.2).
 Single source of truth for model, schema, signal store, UI."""
 from __future__ import annotations
+
 from datetime import timedelta
 from enum import Enum
+
 
 class Timeframe(str, Enum):
     M5 = "5m"; M15 = "15m"; H1 = "1h"; H4 = "4h"

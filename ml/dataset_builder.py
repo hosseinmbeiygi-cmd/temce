@@ -75,7 +75,7 @@ class DatasetBuilder:
         stats.update(
             {
                 "version": "v1",
-                "fitted_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                "fitted_at": _dt.datetime.now(_dt.UTC).isoformat(),
                 "n_train": len(train),
             }
         )

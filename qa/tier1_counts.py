@@ -1,6 +1,8 @@
-import asyncio, os
-from sqlalchemy.ext.asyncio import create_async_engine
+import asyncio
+import os
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 TABLES = ["signals", "paper_trades", "paper_equity_history",
           "gold_alert_rules", "gold_alert_events",

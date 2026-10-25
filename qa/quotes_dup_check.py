@@ -1,6 +1,9 @@
-import asyncio, os
-from sqlalchemy.ext.asyncio import create_async_engine
+import asyncio
+import os
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
 
 async def main():
     url = os.environ.get("DATABASE_URL", "")

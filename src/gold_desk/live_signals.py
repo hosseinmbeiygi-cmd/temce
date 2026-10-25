@@ -224,16 +224,16 @@ async def detect_and_broadcast(curr_snap: dict) -> list[Signal]:
 
         await cache.set(REDIS_KEY_RECENT_SIGNALS, json.dumps(recent, default=str), ttl=3600)
 
-        # broadcast از طریق WS hub
+        # publish در Redis؛ process API آن را به کلاینت‌های WebSocket می‌رساند
+        # (این process کلاینتی ندارد و broadcast محلی بی‌اثر بود).
         if unique:
             try:
-                from .ws_hub import get_hub
+                from .ws_hub import publish_ws_event
 
-                hub = get_hub()
                 for s in unique:
-                    await hub.broadcast({"type": "signal", "data": s.to_dict()})
+                    await publish_ws_event({"type": "signal", "data": s.to_dict()})
             except Exception as exc:
-                logger.debug("signal broadcast failed: %s", exc)
+                logger.debug("signal publish failed: %s", exc)
 
         return unique
     except Exception as exc:

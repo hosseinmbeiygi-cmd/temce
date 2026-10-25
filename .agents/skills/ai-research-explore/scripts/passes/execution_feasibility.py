@@ -13,9 +13,9 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
-
+from typing import Any
 
 UNSAFE_RUNTIME_IMPORT_FILES = {
     "train.py",
@@ -40,7 +40,7 @@ def safe_float(value: Any) -> float:
         return 0.0
 
 
-def memory_info() -> Dict[str, Any]:
+def memory_info() -> dict[str, Any]:
     try:
         import psutil  # type: ignore
 
@@ -58,7 +58,7 @@ def memory_info() -> Dict[str, Any]:
         }
 
 
-def disk_info(root: Path) -> Dict[str, Any]:
+def disk_info(root: Path) -> dict[str, Any]:
     usage = shutil.disk_usage(root)
     return {
         "total_gb": round(usage.total / (1024 ** 3), 2),
@@ -67,7 +67,7 @@ def disk_info(root: Path) -> Dict[str, Any]:
     }
 
 
-def detect_nvidia() -> List[Dict[str, Any]]:
+def detect_nvidia() -> list[dict[str, Any]]:
     try:
         result = subprocess.run(
             [
@@ -81,7 +81,7 @@ def detect_nvidia() -> List[Dict[str, Any]]:
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return []
-    gpus: List[Dict[str, Any]] = []
+    gpus: list[dict[str, Any]] = []
     for line in result.stdout.splitlines():
         if not line.strip():
             continue
@@ -98,7 +98,7 @@ def detect_nvidia() -> List[Dict[str, Any]]:
     return gpus
 
 
-def detect_rocm() -> List[Dict[str, Any]]:
+def detect_rocm() -> list[dict[str, Any]]:
     try:
         result = subprocess.run(
             ["rocm-smi", "--showproductname"],
@@ -108,7 +108,7 @@ def detect_rocm() -> List[Dict[str, Any]]:
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         return []
-    gpus: List[Dict[str, Any]] = []
+    gpus: list[dict[str, Any]] = []
     for line in result.stdout.splitlines():
         lowered = line.lower()
         if "card series" in lowered:
@@ -116,7 +116,7 @@ def detect_rocm() -> List[Dict[str, Any]]:
     return gpus
 
 
-def detect_resources(root: Path) -> Dict[str, Any]:
+def detect_resources(root: Path) -> dict[str, Any]:
     nvidia_gpus = detect_nvidia()
     rocm_gpus = detect_rocm()
     available_backends = sorted({gpu["backend"] for gpu in nvidia_gpus + rocm_gpus})
@@ -141,8 +141,8 @@ def detect_resources(root: Path) -> Dict[str, Any]:
     }
 
 
-def parse_command_paths(command: str) -> List[str]:
-    paths: List[str] = []
+def parse_command_paths(command: str) -> list[str]:
+    paths: list[str] = []
     for token in re.findall(r"[\w./\\-]+\.(?:py|ya?ml|json|toml|ini)", command):
         cleaned = token.strip().strip("\"'").replace("\\", "/")
         if cleaned and cleaned not in paths:
@@ -150,17 +150,17 @@ def parse_command_paths(command: str) -> List[str]:
     return paths
 
 
-def syntax_check(repo_path: Path, smoke_plan: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
-    python_files: List[str] = []
+def syntax_check(repo_path: Path, smoke_plan: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    python_files: list[str] = []
     for check in smoke_plan:
         if check.get("name") == "syntax-parse":
             python_files.extend(check.get("scope", []))
-    unique_files: List[str] = []
+    unique_files: list[str] = []
     for item in python_files:
         if item not in unique_files:
             unique_files.append(item)
-    blockers: List[str] = []
-    passed: List[str] = []
+    blockers: list[str] = []
+    passed: list[str] = []
     for rel in unique_files:
         path = repo_path / rel
         if not path.exists():
@@ -179,9 +179,9 @@ def syntax_check(repo_path: Path, smoke_plan: Sequence[Dict[str, Any]]) -> Dict[
     }
 
 
-def config_check(repo_path: Path, base_command: str) -> Dict[str, Any]:
-    blockers: List[str] = []
-    passed: List[str] = []
+def config_check(repo_path: Path, base_command: str) -> dict[str, Any]:
+    blockers: list[str] = []
+    passed: list[str] = []
     for rel in parse_command_paths(base_command):
         path = repo_path / rel
         if path.exists():
@@ -196,7 +196,7 @@ def config_check(repo_path: Path, base_command: str) -> Dict[str, Any]:
     }
 
 
-def surface_check(name: str, values: Sequence[str], *, optional: bool = False) -> Dict[str, Any]:
+def surface_check(name: str, values: Sequence[str], *, optional: bool = False) -> dict[str, Any]:
     if values:
         return {
             "name": name,
@@ -220,7 +220,7 @@ def surface_check(name: str, values: Sequence[str], *, optional: bool = False) -
     }
 
 
-def import_resolution_check(target_location_map: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def import_resolution_check(target_location_map: Sequence[dict[str, Any]]) -> dict[str, Any]:
     scopes = [item["file"] for item in target_location_map if str(item["file"]).endswith(".py")]
     return {
         "name": "import-resolution",
@@ -230,8 +230,8 @@ def import_resolution_check(target_location_map: Sequence[Dict[str, Any]]) -> Di
     }
 
 
-def safe_runtime_targets(target_location_map: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    targets: List[Dict[str, Any]] = []
+def safe_runtime_targets(target_location_map: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
     for item in target_location_map:
         file_name = Path(str(item.get("file") or "")).name.lower()
         if str(item.get("role") or "") != "code":
@@ -244,7 +244,7 @@ def safe_runtime_targets(target_location_map: Sequence[Dict[str, Any]]) -> List[
     return targets
 
 
-def import_probe_check(repo_path: Path, target_location_map: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def import_probe_check(repo_path: Path, target_location_map: Sequence[dict[str, Any]]) -> dict[str, Any]:
     targets = safe_runtime_targets(target_location_map)
     if not targets:
         return {
@@ -254,8 +254,8 @@ def import_probe_check(repo_path: Path, target_location_map: Sequence[Dict[str, 
             "blockers": [],
             "notes": ["no-safe-import-targets"],
         }
-    passed: List[str] = []
-    blockers: List[str] = []
+    passed: list[str] = []
+    blockers: list[str] = []
     sys_path_added = False
     repo_root = str(repo_path)
     if repo_root not in sys.path:
@@ -300,7 +300,7 @@ def import_probe_check(repo_path: Path, target_location_map: Sequence[Dict[str, 
     }
 
 
-def constructor_probe_check(repo_path: Path, target_location_map: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def constructor_probe_check(repo_path: Path, target_location_map: Sequence[dict[str, Any]]) -> dict[str, Any]:
     targets = safe_runtime_targets(target_location_map)
     if not targets:
         return {
@@ -310,9 +310,9 @@ def constructor_probe_check(repo_path: Path, target_location_map: Sequence[Dict[
             "blockers": [],
             "notes": ["constructor-probe-not-applicable"],
         }
-    passed: List[str] = []
-    blockers: List[str] = []
-    soft_notes: List[str] = []
+    passed: list[str] = []
+    blockers: list[str] = []
+    soft_notes: list[str] = []
     sys_path_added = False
     repo_root = str(repo_path)
     if repo_root not in sys.path:
@@ -363,7 +363,7 @@ def constructor_probe_check(repo_path: Path, target_location_map: Sequence[Dict[
     }
 
 
-def short_run_check(executed_runs: Sequence[Dict[str, Any]], variant_matrix: Dict[str, Any]) -> Dict[str, Any]:
+def short_run_check(executed_runs: Sequence[dict[str, Any]], variant_matrix: dict[str, Any]) -> dict[str, Any]:
     if executed_runs:
         statuses = [item.get("status", "unknown") for item in executed_runs]
         return {
@@ -387,7 +387,7 @@ def short_run_check(executed_runs: Sequence[Dict[str, Any]], variant_matrix: Dic
     }
 
 
-def recommend_strategy(resources: Dict[str, Any]) -> Dict[str, Any]:
+def recommend_strategy(resources: dict[str, Any]) -> dict[str, Any]:
     logical_cores = resources["cpu"].get("logical_cores") or 1
     available_memory = resources["memory"].get("available_gb") or 0.0
     backends = resources["gpu"].get("available_backends", [])
@@ -416,10 +416,10 @@ def recommend_strategy(resources: Dict[str, Any]) -> Dict[str, Any]:
 
 def feasibility_decision(
     *,
-    campaign: Dict[str, Any],
-    variant_matrix: Dict[str, Any],
-    resources: Dict[str, Any],
-) -> Dict[str, Any]:
+    campaign: dict[str, Any],
+    variant_matrix: dict[str, Any],
+    resources: dict[str, Any],
+) -> dict[str, Any]:
     budget_hours = safe_float((campaign.get("compute_budget") or {}).get("max_runtime_hours")) or 0.0
     executed_budget = safe_float((campaign.get("execution_policy") or {}).get("max_executed_variants")) * safe_float(
         (campaign.get("execution_policy") or {}).get("variant_timeout")
@@ -427,7 +427,7 @@ def feasibility_decision(
     estimated_hours = executed_budget / 3600.0 if executed_budget else 0.0
     short_run_status = "proceed"
     full_run_status = "proceed"
-    blockers: List[str] = []
+    blockers: list[str] = []
     if not variant_matrix.get("base_command"):
         short_run_status = "blocked"
         full_run_status = "blocked"
@@ -445,7 +445,7 @@ def feasibility_decision(
     }
 
 
-def write_resource_plan(output_dir: Path, resources: Dict[str, Any], recommendations: Dict[str, Any], feasibility: Dict[str, Any]) -> Path:
+def write_resource_plan(output_dir: Path, resources: dict[str, Any], recommendations: dict[str, Any], feasibility: dict[str, Any]) -> Path:
     lines = [
         "# Resource Plan",
         "",
@@ -471,7 +471,7 @@ def write_resource_plan(output_dir: Path, resources: Dict[str, Any], recommendat
     return path
 
 
-def summarize_smoke(checks: Sequence[Dict[str, Any]], ignored_blockers: Sequence[str]) -> Dict[str, Any]:
+def summarize_smoke(checks: Sequence[dict[str, Any]], ignored_blockers: Sequence[str]) -> dict[str, Any]:
     blockers = [
         blocker
         for item in checks
@@ -496,12 +496,12 @@ def run_execution_feasibility_pass(
     *,
     analysis_output_dir: Path,
     repo_path: Path,
-    campaign: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    variant_matrix: Dict[str, Any],
-    source_mapping: Dict[str, Any],
-    executed_runs: Sequence[Dict[str, Any]],
-) -> Dict[str, Any]:
+    campaign: dict[str, Any],
+    analysis_data: dict[str, Any],
+    variant_matrix: dict[str, Any],
+    source_mapping: dict[str, Any],
+    executed_runs: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
     resources = detect_resources(analysis_output_dir.parent)
     recommendations = recommend_strategy(resources)
     feasibility = feasibility_decision(campaign=campaign, variant_matrix=variant_matrix, resources=resources)

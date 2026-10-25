@@ -1,4 +1,6 @@
-import re, pathlib
+import pathlib
+import re
+
 log = pathlib.Path("qa/upgrade_head.log").read_text(encoding="utf-8", errors="ignore")
 print("log_bytes=", len(log))
 # find Running upgrade lines and first error

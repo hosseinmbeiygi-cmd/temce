@@ -1,7 +1,10 @@
-import asyncio, os
+import asyncio
+import os
 from pathlib import Path
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
 for line in Path(".env").read_text(encoding="utf-8", errors="replace").splitlines():
     line = line.strip()
     if line and not line.startswith("#") and "=" in line:

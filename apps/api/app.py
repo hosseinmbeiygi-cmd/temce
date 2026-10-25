@@ -30,6 +30,11 @@ from core.database import close_database, get_session, init_database
 from core.logging import get_logger, setup_logging
 from ml.models import register_all_models
 
+# Fail fast: GoldDesk API-token hashing has no default salt. Importing this
+# module raises RuntimeError when GOLD_API_TOKEN_SALT is unset, so the API
+# process refuses to boot instead of failing on the first token request.
+from src.gold_desk.api_token import SALT as _GOLD_TOKEN_SALT  # noqa: F401
+
 logger = get_logger(__name__)
 
 

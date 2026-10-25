@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any
 
 from .normalizers import slugify, stable_digest, stable_filename
 from .record_schema import normalize_record, record_priority
 
 
-def _normalized_id_from_index_item(item: Dict[str, Any]) -> str:
+def _normalized_id_from_index_item(item: dict[str, Any]) -> str:
     if item.get("normalized_id"):
         return str(item.get("normalized_id"))
     provider_type = str(item.get("provider_type") or "seed")
@@ -19,7 +20,7 @@ def _normalized_id_from_index_item(item: Dict[str, Any]) -> str:
     return f"{provider_type}:{identifier}".strip(":")
 
 
-def load_cache_index(sources_dir: Path) -> Dict[str, Any]:
+def load_cache_index(sources_dir: Path) -> dict[str, Any]:
     index_path = sources_dir / "index.json"
     if not index_path.exists():
         return {
@@ -39,8 +40,8 @@ def load_cache_index(sources_dir: Path) -> Dict[str, Any]:
     return payload
 
 
-def _merge_lists(left: Iterable[Any], right: Iterable[Any]) -> List[Any]:
-    merged: List[Any] = []
+def _merge_lists(left: Iterable[Any], right: Iterable[Any]) -> list[Any]:
+    merged: list[Any] = []
     for item in list(left) + list(right):
         if item not in merged and item not in ("", None, []):
             merged.append(item)
@@ -53,7 +54,7 @@ def _prefer_value(existing: Any, incoming: Any) -> Any:
     return existing
 
 
-def merge_records(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+def merge_records(existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
     normalized_existing = normalize_record(existing)
     normalized_incoming = normalize_record(incoming)
     if record_priority(normalized_incoming) >= record_priority(normalized_existing):
@@ -85,14 +86,14 @@ def merge_records(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[st
     return normalize_record(merged)
 
 
-def store_records(sources_dir: Path, records: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+def store_records(sources_dir: Path, records: Iterable[dict[str, Any]]) -> dict[str, Any]:
     sources_dir.mkdir(parents=True, exist_ok=True)
     records_dir = sources_dir / "records"
     records_dir.mkdir(parents=True, exist_ok=True)
 
     existing_index = load_cache_index(sources_dir)
     existing_lookup = existing_index.get("record_lookup", {})
-    stored_by_id: Dict[str, Dict[str, Any]] = {}
+    stored_by_id: dict[str, dict[str, Any]] = {}
     cache_hits = 0
     cache_misses = 0
     merge_upgrades = 0
@@ -134,9 +135,9 @@ def store_records(sources_dir: Path, records: Iterable[Dict[str, Any]]) -> Dict[
             record["cache_hit"] = False
             stored_by_id[normalized_id] = record
 
-    timestamp = datetime.now(timezone.utc).isoformat()
-    stored_records: List[Dict[str, Any]] = []
-    index_records: List[Dict[str, Any]] = []
+    timestamp = datetime.now(UTC).isoformat()
+    stored_records: list[dict[str, Any]] = []
+    index_records: list[dict[str, Any]] = []
     for normalized_id in sorted(stored_by_id):
         record = normalize_record(stored_by_id[normalized_id])
         if not record.get("resolved_at"):

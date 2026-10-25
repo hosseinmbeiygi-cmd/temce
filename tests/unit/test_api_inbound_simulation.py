@@ -121,7 +121,6 @@ def test_window_slides_after_60s(client) -> None:
     assert client.get("/api/v1/funds").status_code == 429
 
     # Force the sliding window to age by rewinding the limiter's clock.
-    limiter = get_rate_limiter()
     with patch.object(time, "monotonic", return_value=time.monotonic() + 61):
         r = client.get("/api/v1/funds")
     assert r.status_code == 200, r.text

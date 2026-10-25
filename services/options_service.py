@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.logging import get_logger
-from domain.trading import iran_costs as _iran_costs
 
 logger = get_logger(__name__)
 

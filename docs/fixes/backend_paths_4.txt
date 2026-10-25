@@ -1,0 +1,11 @@
+apps/api/app.py
+brsapi/jobs/gold_desk_jobs.py
+docs/fixes/backend_CHANGELOG_4.md
+docs/fixes/backend_paths_4.txt
+docs/golddesk_test_db.md
+src/gold_desk/live_signals.py
+src/gold_desk/ws_hub.py
+tests/gold_desk/test_api_token_boot.py
+tests/gold_desk/test_holding_soft_delete.py
+tests/gold_desk/test_ws_hub.py
+tests/gold_desk/test_ws_pubsub.py

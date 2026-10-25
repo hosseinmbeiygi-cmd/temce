@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from backtesting.engine.clock import TEHRAN_TZ
-
 from backtesting.market.policies import (
     AuctionRules,
     MarketPolicy,

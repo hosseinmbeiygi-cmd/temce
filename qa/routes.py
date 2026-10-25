@@ -1,4 +1,6 @@
-import pathlib, re, json
+import json
+import pathlib
+import re
 
 pages = sorted(pathlib.Path("frontend/src/app").rglob("page.tsx"))
 routes = []

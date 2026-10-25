@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import Any, Dict
+from typing import Any
 
 from lookup.normalizers import canonicalize_url
 
 from .base import MetadataHTMLParser, http_get
 
 
-def resolve_url_record(locator_info: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_url_record(locator_info: dict[str, Any]) -> dict[str, Any]:
     url = canonicalize_url(locator_info.get("url") or locator_info.get("raw_locator") or "")
     parsed = urllib.parse.urlsplit(url) if url else None
     record = {

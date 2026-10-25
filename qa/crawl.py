@@ -1,5 +1,10 @@
 """Live UI crawl: 148 routes, status+console+blank heuristics+screenshots."""
-import asyncio, json, os, re, sys
+import asyncio
+import json
+import os
+import re
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from playwright.async_api import async_playwright
 

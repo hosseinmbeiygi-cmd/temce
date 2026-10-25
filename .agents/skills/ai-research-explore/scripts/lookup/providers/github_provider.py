@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import base64
-from typing import Any, Dict, List
+from typing import Any
 
 from lookup.normalizers import extract_urls
 
 from .base import http_get_json
 
 
-def _paper_links(links: List[str]) -> List[str]:
+def _paper_links(links: list[str]) -> list[str]:
     return [
         link
         for link in links
@@ -18,7 +18,7 @@ def _paper_links(links: List[str]) -> List[str]:
     ]
 
 
-def _fetch_readme(owner: str, repo: str) -> Dict[str, Any]:
+def _fetch_readme(owner: str, repo: str) -> dict[str, Any]:
     try:
         payload = http_get_json(f"https://api.github.com/repos/{owner}/{repo}/readme")
     except Exception:
@@ -37,7 +37,7 @@ def _fetch_readme(owner: str, repo: str) -> Dict[str, Any]:
     }
 
 
-def resolve_github_record(locator_info: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_github_record(locator_info: dict[str, Any]) -> dict[str, Any]:
     repo_full_name = str(locator_info.get("repo_full_name") or locator_info.get("identifier") or "").strip()
     owner = str(locator_info.get("owner") or "").strip()
     repo = str(locator_info.get("repo") or "").strip()

@@ -6,8 +6,7 @@ import hashlib
 import json
 import re
 import urllib.parse
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 ARXIV_ID_RE = re.compile(r"(?:arxiv:|arxiv\.org/(?:abs|pdf)/)?(?P<id>\d{4}\.\d{4,5}(?:v\d+)?)", re.IGNORECASE)
 DOI_RE = re.compile(r"(?:https?://(?:dx\.)?doi\.org/)?(?P<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", re.IGNORECASE)
@@ -24,7 +23,7 @@ def slugify(value: str) -> str:
     return slug[:48] or "source"
 
 
-def stable_digest(payload: Dict[str, Any]) -> str:
+def stable_digest(payload: dict[str, Any]) -> str:
     text = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
 
@@ -70,7 +69,7 @@ def extract_urls(text: str) -> list[str]:
     return found
 
 
-def parse_arxiv_locator(locator: str) -> Optional[Dict[str, Any]]:
+def parse_arxiv_locator(locator: str) -> dict[str, Any] | None:
     text = str(locator or "").strip()
     match = ARXIV_ID_RE.search(text)
     if not match:
@@ -89,7 +88,7 @@ def parse_arxiv_locator(locator: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def parse_doi_locator(locator: str) -> Optional[Dict[str, Any]]:
+def parse_doi_locator(locator: str) -> dict[str, Any] | None:
     text = str(locator or "").strip()
     match = DOI_RE.search(text)
     if not match:
@@ -108,7 +107,7 @@ def parse_doi_locator(locator: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def parse_github_repo_locator(locator: str) -> Optional[Dict[str, Any]]:
+def parse_github_repo_locator(locator: str) -> dict[str, Any] | None:
     text = canonicalize_url(locator)
     match = GITHUB_URL_RE.match(text)
     if not match:
@@ -136,7 +135,7 @@ def parse_github_repo_locator(locator: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def parse_generic_url(locator: str) -> Optional[Dict[str, Any]]:
+def parse_generic_url(locator: str) -> dict[str, Any] | None:
     text = canonicalize_url(locator)
     if not HTTP_URL_RE.match(text):
         return None
@@ -153,7 +152,7 @@ def parse_generic_url(locator: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def detect_locator(locator: str) -> Optional[Dict[str, Any]]:
+def detect_locator(locator: str) -> dict[str, Any] | None:
     for parser in (parse_github_repo_locator, parse_arxiv_locator, parse_doi_locator, parse_generic_url):
         parsed = parser(locator)
         if parsed:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Build audit_out/REPORT_FULL.md — یک فایل واحد و خودبسنده از کل ممیزی.
 
 Sources (read-only):

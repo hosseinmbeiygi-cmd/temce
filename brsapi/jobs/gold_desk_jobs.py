@@ -92,19 +92,16 @@ async def job_gold_snapshot(force: bool = False) -> None:
             except Exception as sig_exc:
                 logger.debug("live signals failed: %s", sig_exc)
 
-            # WebSocket broadcast
-            try:
-                from src.gold_desk.ws_hub import get_hub
+            # رویداد آماده‌بودن snapshot را در Redis منتشر کن؛ این process
+            # کلاینت WebSocket ندارد، پس broadcast محلی بی‌اثر بود.
+            from src.gold_desk.ws_hub import publish_ws_event
 
-                hub = get_hub()
-                hub.cache_snapshot(snap_dict)
-                await hub.broadcast({"type": "snapshot", "data": snap_dict})
-            except Exception as ws_exc:
-                logger.debug("WS broadcast skipped: %s", ws_exc)
+            await publish_ws_event(
+                {"type": "snapshot_ready", "as_of": snap.snapshot_at.isoformat()}
+            )
             # Publish canonical quote events to the shared WebSocket +
             # Redis Pub/Sub channel used by the multi-asset dashboard. The
-            # dedicated GoldDesk hub above remains available for consumers
-            # that need the complete snapshot payload.
+            # GoldDesk snapshot_ready event was published above.
             try:
                 from services.realtime_service import get_realtime_service
 
@@ -126,10 +123,9 @@ async def job_gold_snapshot(force: bool = False) -> None:
                 logger.debug("Shared realtime publish skipped: %s", rt_exc)
             elapsed = (time.monotonic() - start) * 1000
             logger.info(
-                "gold_snapshot: OK in %.0fms (score=%d, ws_clients=%d)",
+                "gold_snapshot: OK in %.0fms (score=%d)",
                 elapsed,
                 snap.score.total,
-                get_hub().client_count(),
             )
             break
     except Exception as exc:

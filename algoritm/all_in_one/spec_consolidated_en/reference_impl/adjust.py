@@ -4,9 +4,11 @@ adjusted_close[t] = raw_close[t] * prod(f_j for events with ex_date > t)
 Reference price P for an event = last raw close strictly before ex_date.
 """
 from __future__ import annotations
+
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional, Sequence
+
 import pandas as pd
 
 
@@ -14,10 +16,10 @@ import pandas as pd
 class Event:
     ex_date: date
     kind: str                       # bonus | cash_dividend | rights | split
-    g: Optional[float] = None       # bonus: new shares per old; rights: new shares per old
-    dividend: Optional[float] = None
-    subscription_price: Optional[float] = None
-    split_ratio: Optional[float] = None   # 1 old share -> r new shares
+    g: float | None = None       # bonus: new shares per old; rights: new shares per old
+    dividend: float | None = None
+    subscription_price: float | None = None
+    split_ratio: float | None = None   # 1 old share -> r new shares
 
 
 def event_factor(ev: Event, ref_price: float) -> float:

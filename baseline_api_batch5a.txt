@@ -1,0 +1,92 @@
+﻿...............2026-10-23 18:39:39 [warning  ] Rate limit exceeded: GET /api/v1/forecast from 198.51.100.23 (limit: 30/min)
+.2026-10-23 18:39:39 [warning  ] Rate limit exceeded: GET /api/v1/forecast-engine/gold_18k from 198.51.100.99 (limit: 30/min)
+.2026-10-23 18:39:39 [warning  ] Rate limit exceeded: GET /api/v1/forecast from 10.0.0.1 (limit: 30/min)
+..............................2026-10-23 18:39:39 [error    ] Asset allocation failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\apps\api\endpoints\market.py:579 in             │
+│ market_asset_allocation                                                     │
+│                                                                             │
+│   576 │   │   │   return ApiResponse[list[dict[str, Any]]](success=True, da │
+│   577 │   │   # Plain snapshots (no heavy detail JOIN) — classification and │
+│   578 │   │   # market_value both come from SymbolSnapshotModel itself.     │
+│ > 579 │   │   snapshots = await brsapi.get_latest_snapshots(limit=limit)    │
+│   580 │   │   buckets: dict[str, float] = {}                                │
+│   581 │   │   for s in snapshots:                                           │
+│   582 │   │   │   mv = s.get("market_value") or 0                           │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ brsapi = namespace(get_latest_snapshots=<AsyncMock id='1992177027120'>) │ │
+│ │ cached = None                                                           │ │
+│ │    exc = RuntimeError('db down')                                        │ │
+│ │  limit = 2000                                                           │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────── locals ─────────────────┐                                 │
+│ │  _call = call(limit=2000)               │                                 │
+│ │   args = ()                             │                                 │
+│ │ effect = RuntimeError('db down')        │                                 │
+│ │ kwargs = {'limit': 2000}                │                                 │
+│ │   self = <AsyncMock id='1992177027120'> │                                 │
+│ └─────────────────────────────────────────┘                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: db down
+
+....2026-10-23 18:39:39 [error    ] Cashflow by sector failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\apps\api\endpoints\market.py:623 in             │
+│ market_cashflow_by_sector                                                   │
+│                                                                             │
+│   620 │   │   │   return ApiResponse[list[dict[str, Any]]](success=True, da │
+│   621 │   │   # Plain snapshots (no heavy detail JOIN) — sector/flow fields │
+│   622 │   │   # already on SymbolSnapshotModel.                             │
+│ > 623 │   │   snapshots = await brsapi.get_latest_snapshots(limit=limit)    │
+│   624 │   │   sectors: dict[str, float] = {}                                │
+│   625 │   │   for s in snapshots:                                           │
+│   626 │   │   │   price = s.get("price_last") or 0                          │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ brsapi = namespace(get_latest_snapshots=<AsyncMock id='1992417750256'>) │ │
+│ │ cached = None                                                           │ │
+│ │    exc = RuntimeError('db down')                                        │ │
+│ │  limit = 500                                                            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────── locals ─────────────────┐                                 │
+│ │  _call = call(limit=500)                │                                 │
+│ │   args = ()                             │                                 │
+│ │ effect = RuntimeError('db down')        │                                 │
+│ │ kwargs = {'limit': 500}                 │                                 │
+│ │   self = <AsyncMock id='1992417750256'> │                                 │
+│ └─────────────────────────────────────────┘                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: db down
+
+.....
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+56 passed, 1 warning in 5.51s

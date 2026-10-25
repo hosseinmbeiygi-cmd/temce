@@ -1,10 +1,12 @@
 """Nominal / real / USD reporting helpers. Cash-flow convention: investor outflow < 0, inflow > 0."""
 from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
 from datetime import date
-from typing import Mapping, Sequence, Tuple
+
 from scipy.optimize import brentq
 
-Flow = Tuple[date, float]
+Flow = tuple[date, float]
 
 
 def nominal_pnl(ending_value: float, contributions: float, withdrawals: float) -> float:

@@ -20,6 +20,7 @@ const baseSnapshot = (scoreOverrides: Record<string, unknown>): Snapshot => ({
     aed_irt: 245000,
     aed_parity_usd: 3.6725,
     aed_gap_pct: 1.25,
+    dxy_index: 102.5,
     source: "brsapi",
     age_seconds: 12,
   },

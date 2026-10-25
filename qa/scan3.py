@@ -1,4 +1,7 @@
-import json, pathlib
+import json
+import pathlib
+
+
 # Edge-case simulation: pure-math sanity (no app mutation)
 def max_dd(equity):
     peak=e=equity[0]; mdd=0.0

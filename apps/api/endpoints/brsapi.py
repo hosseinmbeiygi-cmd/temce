@@ -17,14 +17,12 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-
-from apps.api.dependencies import require_roles
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func as sa_func
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_brsapi_query_service, get_db_session
+from apps.api.dependencies import get_brsapi_query_service, get_db_session, require_roles
 from brsapi.services.query_service import BrsApiQueryService
 from core.db_utils import safe_row_str
 from core.result import PaginatedResult

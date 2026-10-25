@@ -5,8 +5,7 @@ from __future__ import annotations
 import json
 import urllib.request
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 REQUEST_TIMEOUT_SECONDS = 6
 USER_AGENT = "ai-research-explore-lookup/2.0"
@@ -16,11 +15,11 @@ class MetadataHTMLParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.in_title = False
-        self.title_parts: List[str] = []
-        self.meta: Dict[str, str] = {}
-        self.links: Dict[str, str] = {}
+        self.title_parts: list[str] = []
+        self.meta: dict[str, str] = {}
+        self.links: dict[str, str] = {}
 
-    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         lowered = tag.lower()
         attr_map = {key.lower(): (value or "") for key, value in attrs}
         if lowered == "title":
@@ -69,14 +68,14 @@ def http_get(url: str, *, accept: str = "application/json, text/plain;q=0.9, tex
         return response.read()
 
 
-def http_get_json(url: str, *, accept: str = "application/json") -> Dict[str, Any]:
+def http_get_json(url: str, *, accept: str = "application/json") -> dict[str, Any]:
     payload = http_get(url, accept=accept)
     loaded = json.loads(payload.decode("utf-8", errors="ignore"))
     return loaded if isinstance(loaded, dict) else {}
 
 
-def coerce_author_list(values: Any) -> List[str]:
-    authors: List[str] = []
+def coerce_author_list(values: Any) -> list[str]:
+    authors: list[str] = []
     if isinstance(values, list):
         for item in values:
             if isinstance(item, dict):

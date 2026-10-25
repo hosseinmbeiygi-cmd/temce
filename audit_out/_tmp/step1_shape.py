@@ -6,13 +6,13 @@ SignalBacktestEngine fetches (LIMIT days_forward ordered by date).
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import date
 from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
-import asyncio
 
 
 def load_env() -> str:

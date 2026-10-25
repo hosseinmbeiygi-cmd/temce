@@ -426,7 +426,6 @@ def _heuristic_regime_only(monkeypatch: pytest.MonkeyPatch):
     ادعاها همان هیوریستیکی را بسنجند که موضوع تست است.
     """
     import core.database as database
-
     from services import signal_decision_engine as engine_module
 
     monkeypatch.setattr(database, "async_session_factory", None, raising=False)

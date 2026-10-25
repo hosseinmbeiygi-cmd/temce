@@ -4,13 +4,10 @@ For each doc, count occurrences of news-flavored tokens per 1000 bytes
 of embedded text, and show what fraction of bytes are 'news-adjacent'
 vs structural/reference content.
 """
-import os
-import re
-import sys
 import json
-import urllib.request
+import re
 import urllib.parse
-
+import urllib.request
 
 MAX_BYTES = 7_500
 COMPETITORS = ["the-news", "cctv-news-fetcher", "news", "news-summary",
@@ -131,7 +128,7 @@ def main():
 
     # Also dump first 300 bytes of each so we can see what the high-weight zone holds
     print("\n--- HIGH-WEIGHT REGION (first 300 bytes of each embedded text) ---")
-    print(f"\n[NEW CANDIDATE]")
+    print("\n[NEW CANDIDATE]")
     print(cand_text[:300])
     for slug in COMPETITORS:
         fm, body, other = fetch_skill(slug)

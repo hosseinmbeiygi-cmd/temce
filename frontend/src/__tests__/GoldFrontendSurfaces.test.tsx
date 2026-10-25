@@ -106,11 +106,11 @@ describe("gold layout tabs (F8 review)", () => {
         <p>content</p>
       </GoldLayout>,
     );
-    // دسکتاپ: هر ۱۵ تب (گزارش ۱۳ گفته بود؛ واقعیت کد ۱۵ است)
+    // دسکتاپ: ۱۶ تب (۱۵ تب قبلی + تب مستقل «صندوق‌های طلا»)
     const desktop = await screen.findAllByRole("link", { name: /آتی IME|Antigravity|دستیار/ });
     expect(desktop.length).toBeGreaterThan(0);
     const desktopNav = document.querySelector("nav.hidden.md\\:flex");
-    expect(desktopNav?.querySelectorAll("a")).toHaveLength(15);
+    expect(desktopNav?.querySelectorAll("a")).toHaveLength(16);
 
     // موبایل: فقط ۵ مقصد اصلی — قبلاً ۱۵ تا در ۳ سطر ≈۱۳۰px جا می‌شد
     const bottomNav = document.querySelector("nav.fixed.bottom-0");

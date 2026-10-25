@@ -22,8 +22,6 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import text
 
-from core.result import Result
-
 _MARK = "test_rd"  # row marker for cleanup
 
 
@@ -59,8 +57,8 @@ class TestFlagDefaults:
         from unittest.mock import MagicMock
 
         from core.config import settings as real_settings
-        from repositories.news_repository import NewsRepository
         from repositories.news_items_read_repo import NewsItemsReadRepo
+        from repositories.news_repository import NewsRepository
 
         # flag explicitly False
         monkeypatch.setattr(real_settings, "news_read_from_items", False, raising=False)
@@ -94,7 +92,6 @@ class TestItemsReadPath:
         url = os.environ.get("DATABASE_URL") or ""
         if not url:
             pytest.skip("DATABASE_URL not set")
-        from unittest.mock import MagicMock
 
         from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 

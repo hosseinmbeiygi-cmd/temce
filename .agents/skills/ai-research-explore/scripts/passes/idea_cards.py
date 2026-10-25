@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
-
+from typing import Any
 
 REQUIRED_FIELDS = [
     "id",
@@ -31,8 +31,8 @@ ALLOWED_PATCH_CLASSES = {
 }
 
 
-def build_cards(improvement_items: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    cards: List[Dict[str, Any]] = []
+def build_cards(improvement_items: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    cards: list[dict[str, Any]] = []
     for item in improvement_items:
         card = dict(item)
         missing = [field for field in REQUIRED_FIELDS if field not in card]
@@ -46,7 +46,7 @@ def build_cards(improvement_items: Sequence[Dict[str, Any]]) -> List[Dict[str, A
     return cards
 
 
-def run_idea_card_pass(*, analysis_output_dir: Path, improvement_items: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def run_idea_card_pass(*, analysis_output_dir: Path, improvement_items: Sequence[dict[str, Any]]) -> dict[str, Any]:
     cards = build_cards(improvement_items)
     path = analysis_output_dir / "IDEA_CARDS.json"
     path.write_text(json.dumps(cards, indent=2, ensure_ascii=False), encoding="utf-8")

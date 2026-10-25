@@ -3,9 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from schemas.api.legal import LEGAL_DISCLAIMER_FA
-
 from core.logging import get_logger
+from schemas.api.legal import LEGAL_DISCLAIMER_FA
 from schemas.common.responses import ApiResponse
 from src.forecasting.service import ALLOWED_HORIZONS, forecast_from_history
 

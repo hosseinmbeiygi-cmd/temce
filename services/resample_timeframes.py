@@ -1,5 +1,6 @@
 """Resample daily OHLC -> 1w/1mo/3mo/6mo/1y (1.1). Intraday (5m..4h) collected incrementally (no fake backfill)."""
 from __future__ import annotations
+
 import pandas as pd
 
 RULES = {"1w":"W","1mo":"ME","3mo":"QE","6mo":"2QE","1y":"YE"}

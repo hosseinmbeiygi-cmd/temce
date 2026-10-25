@@ -1,0 +1,564 @@
+﻿...2026-10-23 18:31:57 [error    ] Accuracy outcome flush failed for 2 items (re-queued): db down
+.2026-10-23 18:31:57 [debug    ] Outcome recovery skipped: Redis unavailable
+.2026-10-23 18:31:58 [info     ] Queued outcome for signal sig-1: correct=True return=2.50%
+..2026-10-23 18:31:58 [info     ] Queued outcome for signal first: correct=True return=2.50%
+2026-10-23 18:31:58 [error    ] Accuracy outcome queue overflow — dropped oldest outcome for signal second
+.............2026-10-23 18:31:58 [warning  ] vw_daily_history_adjusted not found — indicators fall back to RAW prices until migration 0108 is applied and the process restarts
+...2026-10-23 18:31:58 [warning  ] adjusted-price view probe failed (catalog unavailable); using raw prices
+.....s.....2026-10-23 18:32:00 [error    ] List alerts failed: DB error
+..2026-10-23 18:32:00 [info     ] Alert created: alr_8a00659851564352a0c08b30 (فولاد — price_above)
+.2026-10-23 18:32:00 [info     ] Alert created: alr_368c0764896843db907befee (فولاد — price_above)
+.2026-10-23 18:32:00 [error    ] Create alert failed: Constraint violation
+..........2026-10-23 18:32:00 [error    ] Get alert history failed: DB error
+..2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 5100 (threshold: 5000.0)
+..2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 4900 (threshold: 5000.0)
+...2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 5100 (threshold: 5000.0)
+..2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 5100 (threshold: 5000.0)
+.2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 5100 (threshold: 5000.0)
+.2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 5100 (threshold: 5000.0)
+..2026-10-23 18:32:00 [info     ] [ALERT] فولاد price reached 5100 (threshold: 5000.0)
+..2026-10-23 18:32:00 [info     ] [ALERT] فولاد sma_cross_above reached 1.0 (threshold: 1.0)
+.2026-10-23 18:32:00 [info     ] [ALERT] Test message
+.2026-10-23 18:32:00 [info     ] [ALERT][SOUND] Notification sound would play: Test message
+.2026-10-23 18:32:00 [info     ] [ALERT][EMAIL] Email would be sent: Test message
+.2026-10-23 18:32:00 [info     ] [ALERT] Test message
+2026-10-23 18:32:00 [info     ] [ALERT][SOUND] Notification sound would play: Test message
+2026-10-23 18:32:00 [info     ] [ALERT][EMAIL] Email would be sent: Test message
+..2026-10-23 18:32:00 [info     ] [ALERT] Test message
+.......2026-10-23 18:32:00 [warning  ] Alert alr_001 evaluation skipped: Expecting value: line 1 column 1 (char 0)
+.2026-10-23 18:32:00 [info     ] Alert created: alr_3fcff5cd8f1d49008f459c22 (فولاد — price_above)
+.............................2026-10-23 18:32:00 [error    ] Failed to get overview from BrsApi
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\market_service.py:35 in get_overview   │
+│                                                                             │
+│    32 │   │   # Try BrsApi snapshots first (realtime data)                  │
+│    33 │   │   if self._brsapi:                                              │
+│    34 │   │   │   try:                                                      │
+│ >  35 │   │   │   │   snapshots = await self._brsapi.get_latest_snapshots(l │
+│    36 │   │   │   │   if snapshots:                                         │
+│    37 │   │   │   │   │   # Compute market stats from snapshots             │
+│    38 │   │   │   │   │   total = len(snapshots)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ self = <services.market_service.MarketService object at                 │ │
+│ │        0x00000200EE8F3ED0>                                              │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call(limit=500)                                                │ │
+│ │   args = ()                                                             │ │
+│ │ effect = Exception('DB down')                                           │ │
+│ │ kwargs = {'limit': 500}                                                 │ │
+│ │   self = <AsyncMock name='mock.get_latest_snapshots'                    │ │
+│ │          id='2203028473904'>                                            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+Exception: DB down
+
+...........................2026-10-23 18:32:01 [info     ] Created fund صندوق جدید (fund_4f519a38c30e485398416d2a)
+.2026-10-23 18:32:01 [info     ] Updated fund Updated Fund (fund_001)
+........2026-10-23 18:32:01 [info     ] Fund DB is empty — seeding 78 sample funds...
+2026-10-23 18:32:01 [info     ] Seeded 78 sample funds
+.2026-10-23 18:32:01 [info     ] Fund DB already populated (50 funds), skipping seed
+.2026-10-23 18:32:01 [info     ] Alert created: alr_a7a95a82b2ab4a0f8fd1bec9 (فولاد — price_above)
+.....2026-10-23 18:32:01 [info     ] [ALERT] فولاد price reached 55000 (threshold: 50000.0)
+.......2026-10-23 18:32:01 [error    ] Failed to fetch trades for فولاد
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\trade_service.py:19 in get_trades      │
+│                                                                             │
+│    16 │   async def get_trades(self, symbol: str, limit: int = 100) -> Resu │
+│       Any]]]:                                                               │
+│    17 │   │   try:                                                          │
+│    18 │   │   │   # ── Step 1: Try local DB (BrsApiQueryService) ──         │
+│ >  19 │   │   │   trades = await self._brsapi.get_intraday_trades(symbol, l │
+│    20 │   │   │   if trades:                                                │
+│    21 │   │   │   │   return Result.ok(trades)                              │
+│    22                                                                       │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  limit = 100                                                            │ │
+│ │   self = <services.trade_service.TradeService object at                 │ │
+│ │          0x00000200EE9C42B0>                                            │ │
+│ │ symbol = 'فولاد'                                                        │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call('فولاد', limit=100)                                       │ │
+│ │   args = ('فولاد',)                                                     │ │
+│ │ effect = Exception('DB error')                                          │ │
+│ │ kwargs = {'limit': 100}                                                 │ │
+│ │   self = <AsyncMock name='mock.get_intraday_trades' id='2202323197232'> │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+Exception: DB error
+
+.2026-10-23 18:32:01 [info     ] Smart Money config loaded: version=2.0.0 profile=default
+........................................................................................................................2026-10-23 18:32:02 [debug    ] Registered 15 strategies
+.............2026-10-23 18:32:02 [warning  ] Failed to list from DB: 'builtin_function_or_method' object is not iterable
+.2026-10-23 18:32:02 [warning  ] Failed to get result from DB: 'MagicMock' object can't be awaited
+.2026-10-23 18:32:02 [warning  ] Failed to get result from DB: 'MagicMock' object can't be awaited
+.2026-10-23 18:32:02 [warning  ] Failed to update cancel status in DB: 'MagicMock' object can't be awaited
+...2026-10-23 18:32:02 [warning  ] Failed to persist backtest result: 'MagicMock' object can't be awaited
+.....................................................................2026-10-23 18:32:02 [debug    ] circuit-breaker cache read failed; falling through to live eval
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\signal_circuit_breaker.py:287 in       │
+│ evaluate_cached                                                             │
+│                                                                             │
+│   284 │                                                                     │
+│   285 │   if cache.is_connected:                                            │
+│   286 │   │   try:                                                          │
+│ > 287 │   │   │   cached = await cache.get(key)                             │
+│   288 │   │   │   if isinstance(cached, dict):                              │
+│   289 │   │   │   │   return _dict_to_state(cached)                         │
+│   290 │   │   except Exception:                                             │
+│                                                                             │
+│ ┌──────────────────────────── locals ─────────────────────────────┐         │
+│ │ accuracy_threshold_pct = None                                   │         │
+│ │                  cache = <MagicMock id='2203049363840'>         │         │
+│ │                    key = 'signal:circuit_breaker:v1:w3:t50:m20' │         │
+│ │                  min_n = 20                                     │         │
+│ │            min_samples = None                                   │         │
+│ │              threshold = 50.0                                   │         │
+│ │                    ttl = 60                                     │         │
+│ │            ttl_seconds = None                                   │         │
+│ │                 window = 3                                      │         │
+│ │            window_days = None                                   │         │
+│ └─────────────────────────────────────────────────────────────────┘         │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────── locals ─────────────────────────┐                 │
+│ │  _call = call('signal:circuit_breaker:v1:w3:t50:m20')   │                 │
+│ │   args = ('signal:circuit_breaker:v1:w3:t50:m20',)      │                 │
+│ │ effect = ConnectionError('redis down')                  │                 │
+│ │ kwargs = {}                                             │                 │
+│ │   self = <AsyncMock name='mock.get' id='2203049367872'> │                 │
+│ └─────────────────────────────────────────────────────────┘                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+ConnectionError: redis down
+
+................................................2026-10-23 18:32:03 [info     ] No unprocessed Codal announcements found
+.2026-10-23 18:32:03 [info     ] Found 2 unprocessed Codal announcements
+2026-10-23 18:32:03 [info     ] Financial import: 2 imported, 0 updated
+2026-10-23 18:32:03 [info     ] Codal download complete: 2/2 downloaded, 2 parsed, 0 failed in 0.0s
+.2026-10-23 18:32:03 [info     ] Found 2 unprocessed Codal announcements
+2026-10-23 18:32:03 [info     ] Financial import: 0 imported, 0 updated
+2026-10-23 18:32:03 [info     ] Codal download complete: 2/2 downloaded, 2 parsed, 0 failed in 0.0s
+.2026-10-23 18:32:03 [info     ] Found 1 unprocessed Codal announcements
+2026-10-23 18:32:03 [info     ] Financial import: 0 imported, 0 updated
+2026-10-23 18:32:03 [info     ] Codal download complete: 0/1 downloaded, 0 parsed, 1 failed in 0.0s
+.2026-10-23 18:32:03 [info     ] Found 1 unprocessed Codal announcements
+2026-10-23 18:32:03 [info     ] Financial import: 1 imported, 0 updated
+2026-10-23 18:32:03 [info     ] Codal download complete: 1/1 downloaded, 1 parsed, 0 failed in 0.0s
+.2026-10-23 18:32:03 [info     ] Found 1 unprocessed Codal announcements
+2026-10-23 18:32:03 [info     ] Financial import: 0 imported, 0 updated
+2026-10-23 18:32:03 [info     ] Codal download complete: 1/1 downloaded, 0 parsed, 0 failed in 0.0s
+.........................................................2026-10-23 18:32:06 [warning  ] dividend without close price at ex-date; factor=1 (no adjustment)
+..2026-10-23 18:32:07 [info     ] Auto-seeded architecture vEnterprise-Final-1.0 from JSON (merged)
+.2026-10-23 18:32:07 [info     ] Auto-seeded architecture vEnterprise-Final-1.0 from JSON (merged)
+..2026-10-23 18:32:07 [info     ] Auto-seeded architecture vEnterprise-Final-1.0 from JSON (merged)
+..2026-10-23 18:32:07 [info     ] Dynamic weights: {'fundamental': 0.1943, 'valuation': 0.1403, 'institutional': 0.1766, 'technical': 0.0667, 'macro': 0.0785, 'gov_support': 0.1276, 'liquidity': 0.0491, 'farabourse': 0.0687, 'feedstock': 0.0981} ({'regime': 'low_volatility'})
+.2026-10-23 18:32:07 [info     ] Dynamic weights: {'fundamental': 0.1726, 'valuation': 0.1246, 'institutional': 0.1985, 'technical': 0.092, 'macro': 0.0767, 'gov_support': 0.1246, 'liquidity': 0.0479, 'farabourse': 0.0671, 'feedstock': 0.0959} ({'volume': 'spike'})
+.2026-10-23 18:32:07 [info     ] Dynamic weights: {'fundamental': 0.181, 'valuation': 0.1307, 'institutional': 0.181, 'technical': 0.0804, 'macro': 0.0804, 'gov_support': 0.1176, 'liquidity': 0.0578, 'farabourse': 0.0704, 'feedstock': 0.1006} ({'trend': 'bearish'})
+.2026-10-23 18:32:07 [info     ] Dynamic weights: {'fundamental': 0.18, 'valuation': 0.13, 'institutional': 0.18, 'technical': 0.08, 'macro': 0.08, 'gov_support': 0.13, 'liquidity': 0.05, 'farabourse': 0.07, 'feedstock': 0.1} (no adjustment)
+.2026-10-23 18:32:07 [info     ] Dynamic weights: {'fundamental': 0.18, 'valuation': 0.13, 'institutional': 0.18, 'technical': 0.08, 'macro': 0.08, 'gov_support': 0.13, 'liquidity': 0.05, 'farabourse': 0.07, 'feedstock': 0.1} (no adjustment)
+...........................................................................................................................................................................................................2026-10-23 18:32:08 [error    ] Queue analysis failed for فولاد, continuing without queue
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\feature_engine.py:177 in               │
+│ compute_all_features                                                        │
+│                                                                             │
+│    174 │   │   queue_result: dict[str, Any] = {}                            │
+│    175 │   │   if use_queue_service:                                        │
+│    176 │   │   │   try:                                                     │
+│ >  177 │   │   │   │   queue_result = await use_queue_service.analyze_symbo │
+│    178 │   │   │   except Exception:                                        │
+│    179 │   │   │   │   logger.exception("Queue analysis failed for %s, cont │
+│        queue", symbol)                                                      │
+│    180                                                                      │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │           candles = [                                                   │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20000,                       │ │
+│ │                     │   │   'price_min': 19950.0,                       │ │
+│ │                     │   │   'price_max': 20050.0,                       │ │
+│ │                     │   │   'trade_volume': 3000000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20100,                       │ │
+│ │                     │   │   'price_min': 20050.0,                       │ │
+│ │                     │   │   'price_max': 20150.0,                       │ │
+│ │                     │   │   'trade_volume': 3010000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20200,                       │ │
+│ │                     │   │   'price_min': 20150.0,                       │ │
+│ │                     │   │   'price_max': 20250.0,                       │ │
+│ │                     │   │   'trade_volume': 3020000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20300,                       │ │
+│ │                     │   │   'price_min': 20250.0,                       │ │
+│ │                     │   │   'price_max': 20350.0,                       │ │
+│ │                     │   │   'trade_volume': 3030000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20400,                       │ │
+│ │                     │   │   'price_min': 20350.0,                       │ │
+│ │                     │   │   'price_max': 20450.0,                       │ │
+│ │                     │   │   'trade_volume': 3040000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20500,                       │ │
+│ │                     │   │   'price_min': 20450.0,                       │ │
+│ │                     │   │   'price_max': 20550.0,                       │ │
+│ │                     │   │   'trade_volume': 3050000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20600,                       │ │
+│ │                     │   │   'price_min': 20550.0,                       │ │
+│ │                     │   │   'price_max': 20650.0,                       │ │
+│ │                     │   │   'trade_volume': 3060000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20700,                       │ │
+│ │                     │   │   'price_min': 20650.0,                       │ │
+│ │                     │   │   'price_max': 20750.0,                       │ │
+│ │                     │   │   'trade_volume': 3070000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20800,                       │ │
+│ │                     │   │   'price_min': 20750.0,                       │ │
+│ │                     │   │   'price_max': 20850.0,                       │ │
+│ │                     │   │   'trade_volume': 3080000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20900,                       │ │
+│ │                     │   │   'price_min': 20850.0,                       │ │
+│ │                     │   │   'price_max': 20950.0,                       │ │
+│ │                     │   │   'trade_volume': 3090000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   ... +20                                         │ │
+│ │                     ]                                                   │ │
+│ │          enriched = {                                                   │ │
+│ │                     │   'symbol': 'فولاد',                              │ │
+│ │                     │   'name': 'فولاد مبارکه اصفهان',                  │ │
+│ │                     │   'isin': 'IRO1FOLD0001',                         │ │
+│ │                     │   'sector': 'فلزات اساسی',                        │ │
+│ │                     │   'sector_id': 14,                                │ │
+│ │                     │   'board': 'بورس',                                │ │
+│ │                     │   'shares_count': 50000000000,                    │ │
+│ │                     │   'free_float_pct': 20.0,                         │ │
+│ │                     │   'eps': 500,                                     │ │
+│ │                     │   'pe_ratio': 6.5,                                │ │
+│ │                     │   ... +20                                         │ │
+│ │                     }                                                   │ │
+│ │        historical = [                                                   │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20000,                       │ │
+│ │                     │   │   'price_min': 19950.0,                       │ │
+│ │                     │   │   'price_max': 20050.0,                       │ │
+│ │                     │   │   'trade_volume': 3000000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20100,                       │ │
+│ │                     │   │   'price_min': 20050.0,                       │ │
+│ │                     │   │   'price_max': 20150.0,                       │ │
+│ │                     │   │   'trade_volume': 3010000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20200,                       │ │
+│ │                     │   │   'price_min': 20150.0,                       │ │
+│ │                     │   │   'price_max': 20250.0,                       │ │
+│ │                     │   │   'trade_volume': 3020000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20300,                       │ │
+│ │                     │   │   'price_min': 20250.0,                       │ │
+│ │                     │   │   'price_max': 20350.0,                       │ │
+│ │                     │   │   'trade_volume': 3030000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20400,                       │ │
+│ │                     │   │   'price_min': 20350.0,                       │ │
+│ │                     │   │   'price_max': 20450.0,                       │ │
+│ │                     │   │   'trade_volume': 3040000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20500,                       │ │
+│ │                     │   │   'price_min': 20450.0,                       │ │
+│ │                     │   │   'price_max': 20550.0,                       │ │
+│ │                     │   │   'trade_volume': 3050000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20600,                       │ │
+│ │                     │   │   'price_min': 20550.0,                       │ │
+│ │                     │   │   'price_max': 20650.0,                       │ │
+│ │                     │   │   'trade_volume': 3060000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20700,                       │ │
+│ │                     │   │   'price_min': 20650.0,                       │ │
+│ │                     │   │   'price_max': 20750.0,                       │ │
+│ │                     │   │   'trade_volume': 3070000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20800,                       │ │
+│ │                     │   │   'price_min': 20750.0,                       │ │
+│ │                     │   │   'price_max': 20850.0,                       │ │
+│ │                     │   │   'trade_volume': 3080000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   {                                               │ │
+│ │                     │   │   'price_close': 20900,                       │ │
+│ │                     │   │   'price_min': 20850.0,                       │ │
+│ │                     │   │   'price_max': 20950.0,                       │ │
+│ │                     │   │   'trade_volume': 3090000                     │ │
+│ │                     │   },                                              │ │
+│ │                     │   ... +20                                         │ │
+│ │                     ]                                                   │ │
+│ │      queue_result = {}                                                  │ │
+│ │     queue_service = None                                                │ │
+│ │              self = <services.feature_engine.FeatureEngine object at    │ │
+│ │                     0x00000200F0678D70>                                 │ │
+│ │        start_time = datetime.datetime(2026, 10, 23, 15, 2, 8, 607241,   │ │
+│ │                     tzinfo=datetime.timezone.utc)                       │ │
+│ │            symbol = 'فولاد'                                             │ │
+│ │ use_queue_service = <MagicMock id='2203032183744'>                      │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌────────────────────────────── locals ──────────────────────────────┐      │
+│ │  _call = call('فولاد')                                             │      │
+│ │   args = ('فولاد',)                                                │      │
+│ │ effect = Exception('Queue service down')                           │      │
+│ │ kwargs = {}                                                        │      │
+│ │   self = <AsyncMock name='mock.analyze_symbol' id='2203032190464'> │      │
+│ └────────────────────────────────────────────────────────────────────┘      │
+└─────────────────────────────────────────────────────────────────────────────┘
+Exception: Queue service down
+
+..............................................2026-10-23 18:32:09 [warning  ] Fund circuit OPEN for tse:تست (failures=5, cooldown=900s): boom
+................................................................................................................2026-10-23 18:32:09 [info     ] Created fund صندوق جدید (fund_c56f489bfd9242ff917ffa73)
+.2026-10-23 18:32:09 [info     ] Created fund Test Fund (fund_f2a37787fb56474e8b2e2666)
+.2026-10-23 18:32:09 [info     ] Created fund Fund (fund_3a69cfe477b14e2486a07058)
+.2026-10-23 18:32:09 [info     ] Updated fund <MagicMock name='صندوق آزمایشی.name' id='2203032186096'> (fund_001)
+..2026-10-23 18:32:09 [info     ] Updated fund <MagicMock name='صندوق آزمایشی.name' id='2203028479616'> (fund_001)
+........2026-10-23 18:32:09 [info     ] Fund DB is empty — seeding 78 sample funds...
+2026-10-23 18:32:09 [info     ] Seeded 78 sample funds
+.2026-10-23 18:32:09 [info     ] Fund DB already populated (10 funds), skipping seed
+............2026-10-23 18:32:09 [info     ] Created fund آگاس from BrsApi
+.2026-10-23 18:32:09 [info     ] Updated fund آگاس from BrsApi
+.....2026-10-23 18:32:09 [info     ] Created fund آتیه‌اندیشان اقتصاد پایدار (fund_34e749586f4d4c10b609e8cd)
+2026-10-23 18:32:09 [info     ] Updated fund آگاس from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund Old (fund_8b95dcc80894454a9bfeda24)
+2026-10-23 18:32:09 [info     ] Updated fund OLD from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund Test (fund_dd28d1e4aa6748d7bf37c428)
+2026-10-23 18:32:09 [info     ] Updated fund TST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund Up Fund (fund_0d8774ef1bbf400cb37cced7)
+2026-10-23 18:32:09 [info     ] Updated fund UP from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund Down Fund (fund_f5aeb3d8c95048078bf77b2a)
+2026-10-23 18:32:09 [info     ] Updated fund DOWN from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund No Yesterday (fund_ab91abd538ae4332aab2dca4)
+2026-10-23 18:32:09 [info     ] Updated fund NY from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund NEWFUND from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund GOLD from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund UNKNOWN from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund FUND_A from BrsApi
+2026-10-23 18:32:09 [info     ] Created fund FUND_B from BrsApi
+..2026-10-23 18:32:09 [info     ] Created fund Empty (fund_c18527957508415b9729822e)
+..2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TEST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TST from BrsApi
+.2026-10-23 18:32:09 [info     ] Created fund TST from BrsApi
+2026-10-23 18:32:09 [error    ] Failed to commit fund update for TST
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\fund_service.py:303 in                 │
+│ update_from_brsapi                                                          │
+│                                                                             │
+│   300 │   │   # Commit if we have a session                                 │
+│   301 │   │   if self._session:                                             │
+│   302 │   │   │   try:                                                      │
+│ > 303 │   │   │   │   await self._session.commit()                          │
+│   304 │   │   │   except Exception:                                         │
+│   305 │   │   │   │   await self._session.rollback()                        │
+│   306 │   │   │   │   logger.exception("Failed to commit fund update for %s │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │     base_volume = None                                                  │ │
+│ │          brsapi = <MagicMock id='2203056821248'>                        │ │
+│ │       buy_legal = 100000                                                │ │
+│ │        buy_real = 200000                                                │ │
+│ │        enriched = {                                                     │ │
+│ │                   │   'symbol': 'آگاس',                                 │ │
+│ │                   │   'name': 'آتیه\u200cاندیشان اقتصاد پایدار',        │ │
+│ │                   │   'isin': 'IRAGAS0001',                             │ │
+│ │                   │   'price_last': 15500,                              │ │
+│ │                   │   'price_yesterday': 15000,                         │ │
+│ │                   │   'price_close': 15400,                             │ │
+│ │                   │   'price_max': 15800,                               │ │
+│ │                   │   'price_min': 15100,                               │ │
+│ │                   │   'trade_volume': 500000,                           │ │
+│ │                   │   'trade_value': 7750000000,                        │ │
+│ │                   │   ... +7                                            │ │
+│ │                   }                                                     │ │
+│ │        existing = Result(                                               │ │
+│ │                   │   value=None,                                       │ │
+│ │                   │   error='Fund not found with symbol: TST',          │ │
+│ │                   │   success=False                                     │ │
+│ │                   )                                                     │ │
+│ │            fund = Fund(                                                 │ │
+│ │                   │   name='آتیه\u200cاندیشان اقتصاد پایدار',           │ │
+│ │                   │   symbol='TST',                                     │ │
+│ │                   │   isin='IRAGAS0001',                                │ │
+│ │                   │   fund_type='سهامی',                                │ │
+│ │                   │   manager='',                                       │ │
+│ │                   │   custodian='',                                     │ │
+│ │                   │   currency='IRR',                                   │ │
+│ │                   │   nav=15500.0,                                      │ │
+│ │                   │   total_units=10000000,                             │ │
+│ │                   │   unit_price=0.0,                                   │ │
+│ │                   │   status='active',                                  │ │
+│ │                   │   extra={                                           │ │
+│ │                   │   │   'nav_change': 500.0,                          │ │
+│ │                   │   │   'nav_change_pct': 3.33,                       │ │
+│ │                   │   │   'price_last': 15500.0,                        │ │
+│ │                   │   │   'price_close': 15400.0,                       │ │
+│ │                   │   │   'price_yesterday': 15000.0,                   │ │
+│ │                   │   │   'price_max': 15800.0,                         │ │
+│ │                   │   │   'price_min': 15100.0,                         │ │
+│ │                   │   │   'trade_volume': 500000,                       │ │
+│ │                   │   │   'trade_value': 7750000000.0,                  │ │
+│ │                   │   │   'trade_count': 120,                           │ │
+│ │                   │   │   ... +10                                       │ │
+│ │                   │   }                                                 │ │
+│ │                   )                                                     │ │
+│ │       fund_type = 'سهامی'                                               │ │
+│ │            isin = 'IRAGAS0001'                                          │ │
+│ │    market_value = 155000000000.0                                        │ │
+│ │            name = 'آتیه\u200cاندیشان اقتصاد پایدار'                     │ │
+│ │             nav = 15500.0                                               │ │
+│ │       nav_basis = 'price_last'                                          │ │
+│ │      nav_change = 500.0                                                 │ │
+│ │  nav_change_pct = 3.33                                                  │ │
+│ │     price_close = 15400.0                                               │ │
+│ │      price_last = 15500.0                                               │ │
+│ │       price_max = 15800.0                                               │ │
+│ │       price_min = 15100.0                                               │ │
+│ │ price_yesterday = 15000.0                                               │ │
+│ │ raw_base_volume = None                                                  │ │
+│ │        real_nav = 0.0                                                   │ │
+│ │          result = Result(                                               │ │
+│ │                   │   value=Fund(                                       │ │
+│ │                   │   │   name='آتیه\u200cاندیشان اقتصاد پایدار',       │ │
+│ │                   │   │   symbol='TST',                                 │ │
+│ │                   │   │   isin='IRAGAS0001',                            │ │
+│ │                   │   │   fund_type='سهامی',                            │ │
+│ │                   │   │   manager='',                                   │ │
+│ │                   │   │   custodian='',                                 │ │
+│ │                   │   │   currency='IRR',                               │ │
+│ │                   │   │   nav=15500.0,                                  │ │
+│ │                   │   │   total_units=10000000,                         │ │
+│ │                   │   │   unit_price=0.0,                               │ │
+│ │                   │   │   status='active',                              │ │
+│ │                   │   │   extra={                                       │ │
+│ │                   │   │   │   'nav_change': 500.0,                      │ │
+│ │                   │   │   │   'nav_change_pct': 3.33,                   │ │
+│ │                   │   │   │   'price_last': 15500.0,                    │ │
+│ │                   │   │   │   'price_close': 15400.0,                   │ │
+│ │                   │   │   │   'price_yesterday': 15000.0,               │ │
+│ │                   │   │   │   'price_max': 15800.0,                     │ │
+│ │                   │   │   │   'price_min': 15100.0,                     │ │
+│ │                   │   │   │   'trade_volume': 500000,                   │ │
+│ │                   │   │   │   'trade_value': 7750000000.0,              │ │
+│ │                   │   │   │   'trade_count': 120,                       │ │
+│ │                   │   │   │   ... +9                                    │ │
+│ │                   │   │   }                                             │ │
+│ │                   │   ),                                                │ │
+│ │                   │   error=None,                                       │ │
+│ │                   │   success=True                                      │ │
+│ │                   )                                                     │ │
+│ │            self = <services.fund_service.FundService object at          │ │
+│ │                   0x00000200EB7EFC40>                                   │ │
+│ │      sell_legal = 50000                                                 │ │
+│ │       sell_real = 150000                                                │ │
+│ │    shares_count = 10000000                                              │ │
+│ │          symbol = 'TST'                                                 │ │
+│ │     trade_count = 120                                                   │ │
+│ │     trade_value = 7750000000.0                                          │ │
+│ │    trade_volume = 500000                                                │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │  _call = call()                                            │              │
+│ │   args = ()                                                │              │
+│ │ effect = Exception('DB error')                             │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <AsyncMock name='mock.commit' id='2203056820912'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+└─────────────────────────────────────────────────────────────────────────────┘
+Exception: DB error
+
+.2026-10-23 18:32:10 [info     ] Created fund NEW from BrsApi
+.2026-10-23 18:32:10 [info     ] Created fund ZERO from BrsApi
+.2026-10-23 18:32:10 [info     ] Created fund BASE from BrsApi
+2026-10-23 18:32:10 [info     ] Created fund BASE2 from BrsApi
+.2026-10-23 18:32:10 [info     ] Created fund فولاد from BrsApi
+.2026-10-23 18:32:10 [info     ] Created fund MINIMAL from BrsApi

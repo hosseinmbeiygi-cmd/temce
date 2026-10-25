@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from lookup import (
     build_source_support,
@@ -28,9 +28,9 @@ from lookup.providers import (
 from lookup.record_schema import normalize_record
 
 
-def dedupe_preserving_order(items: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def dedupe_preserving_order(items: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: set[str] = set()
-    ordered: List[Dict[str, Any]] = []
+    ordered: list[dict[str, Any]] = []
     for item in items:
         key = stable_digest(item)
         if key in seen:
@@ -40,8 +40,8 @@ def dedupe_preserving_order(items: Sequence[Dict[str, Any]]) -> List[Dict[str, A
     return ordered
 
 
-def command_paths(command: str) -> List[str]:
-    paths: List[str] = []
+def command_paths(command: str) -> list[str]:
+    paths: list[str] = []
     for token in re.findall(r"[\w./\\-]+\.(?:py|ya?ml|json|toml|ini|csv|md)", command):
         cleaned = token.strip().strip("\"'").replace("\\", "/")
         if cleaned and cleaned not in paths:
@@ -50,14 +50,14 @@ def command_paths(command: str) -> List[str]:
 
 
 def collect_seed_records(
-    campaign: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    campaign: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+) -> list[dict[str, Any]]:
     evaluation_source = campaign.get("evaluation_source", {})
     benchmark = campaign.get("benchmark")
     benchmark_name = benchmark.get("name") if isinstance(benchmark, dict) else benchmark
-    records: List[Dict[str, Any]] = [
+    records: list[dict[str, Any]] = [
         {
             "kind": "benchmark",
             "title": str(benchmark_name or "frozen-benchmark"),
@@ -212,8 +212,8 @@ def collect_seed_records(
     return dedupe_preserving_order(records)
 
 
-def candidate_locators(raw: Dict[str, Any]) -> List[str]:
-    locators: List[str] = []
+def candidate_locators(raw: dict[str, Any]) -> list[str]:
+    locators: list[str] = []
     for value in [
         raw.get("raw_locator"),
         raw.get("source_url"),
@@ -226,8 +226,8 @@ def candidate_locators(raw: Dict[str, Any]) -> List[str]:
     return locators
 
 
-def resolve_provider_record(raw: Dict[str, Any], lookup_config: Dict[str, Any]) -> Dict[str, Any]:
-    locator_info: Optional[Dict[str, Any]] = None
+def resolve_provider_record(raw: dict[str, Any], lookup_config: dict[str, Any]) -> dict[str, Any]:
+    locator_info: dict[str, Any] | None = None
     for locator in candidate_locators(raw):
         locator_info = detect_locator(locator)
         if locator_info:
@@ -316,11 +316,11 @@ def run_lookup_pass(
     *,
     sources_dir: Path,
     repo_path: Path,
-    analysis_output_dir: Optional[Path],
-    campaign: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-) -> Dict[str, Any]:
+    analysis_output_dir: Path | None,
+    campaign: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+) -> dict[str, Any]:
     sources_dir.mkdir(parents=True, exist_ok=True)
     output_dir = analysis_output_dir or (sources_dir.parent / "analysis_outputs")
     output_dir.mkdir(parents=True, exist_ok=True)

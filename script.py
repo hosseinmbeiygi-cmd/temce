@@ -1,21 +1,16 @@
-# -*- coding: utf-8 -*-
 """
 نسخه اصلاح‌شده و پایدار استخراج هوشمند ریزمعاملات بورس
 """
 
-import os
-import re
-import time
 import json
 import logging
-import threading
+import os
+import re
 import sqlite3
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # ============================ تنظیمات ============================
 # کلید فقط از محیط خوانده می‌شود (هرگز در کد هاردکد نمی‌شود).
@@ -61,7 +56,7 @@ class StrictRateLimiter:
         default = {"current_day": today, "requests_today": 0}
         if os.path.exists(STATE_FILE):
             try:
-                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                with open(STATE_FILE, encoding="utf-8") as f:
                     data = json.load(f)
                 if data.get("current_day") == today:
                     return data
@@ -186,7 +181,7 @@ def get_active_trade_dates(symbol: str, limiter: StrictRateLimiter, session: req
     cache_path = os.path.join(DATES_CACHE_DIR, f"{symbol}_active_days.json")
     if os.path.exists(cache_path):
         try:
-            with open(cache_path, "r", encoding="utf-8") as f:
+            with open(cache_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -275,7 +270,7 @@ def test_single_symbol(test_symbol="فولاد"):
 if __name__ == "__main__":
     # مرحله اول: اجرای تست برای اطمینان ۱۰۰٪
     test_passed = test_single_symbol("فولاد")
-    
+
     if test_passed:
         # در صورت تأیید، می‌توانید فراخوانی کل نمادها را در ادامه قرار دهید:
         print("برای اجرای کامل، کلاس SmartTradeCollector را با لیست نمادها فراخوانی کنید.")

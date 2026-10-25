@@ -1,5 +1,7 @@
 """Cleanup synthetic QA artifacts (no app source touched)."""
-import pathlib, shutil
+import pathlib
+import shutil
+
 for d in ["qa/tmp_orders","qa/tmp_alerts","test-screenshots/tmp"]:
     p=pathlib.Path(d)
     if p.exists(): shutil.rmtree(p,ignore_errors=True)

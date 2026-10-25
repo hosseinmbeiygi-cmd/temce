@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 async def get_codal_signals(symbol: str) -> dict[str, Any]:
     """Return the latest Codal-derived signals for the symbol.
 

@@ -1,8 +1,10 @@
 """Alembic-style migration: extend signals + create data_freshness/data_quality_log/data_gaps."""
 revision = "0099"
 down_revision = "0066"
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
+
+
 def upgrade():
     for col in ["market","model_version","status"]:
         try: op.add_column("signals", sa.Column(col, sa.String(64)))

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any
 
 from lookup.record_schema import normalize_evidence_class
 
@@ -15,8 +16,8 @@ ALLOWED_PATCH_CLASSES = {
 }
 
 
-def first_items(values: Sequence[Any], limit: int) -> List[Any]:
-    ordered: List[Any] = []
+def first_items(values: Sequence[Any], limit: int) -> list[Any]:
+    ordered: list[Any] = []
     for item in values:
         if item not in ordered:
             ordered.append(item)
@@ -25,14 +26,14 @@ def first_items(values: Sequence[Any], limit: int) -> List[Any]:
     return ordered
 
 
-def select_source_record(selected_idea: Dict[str, Any], lookup_bundle: Dict[str, Any]) -> Dict[str, Any]:
+def select_source_record(selected_idea: dict[str, Any], lookup_bundle: dict[str, Any]) -> dict[str, Any]:
     source_lookup = {item["source_id"]: item for item in lookup_bundle.get("records", [])}
     references = list(selected_idea.get("source_reference", []) or [])
     matched = [source_lookup[source_id] for source_id in references if source_id in source_lookup]
     for item in matched:
         if item.get("source_repo") and item.get("source_file") and item.get("source_symbol"):
             return item
-    tokens: List[str] = []
+    tokens: list[str] = []
     for raw in [
         str(selected_idea.get("summary") or ""),
         str(selected_idea.get("target_component") or ""),
@@ -41,7 +42,7 @@ def select_source_record(selected_idea: Dict[str, Any], lookup_bundle: Dict[str,
         for token in re.split(r"[^a-z0-9]+", raw.lower()):
             if len(token) > 2 and token not in tokens:
                 tokens.append(token)
-    scored_candidates: List[tuple[int, int, float, Dict[str, Any]]] = []
+    scored_candidates: list[tuple[int, int, float, dict[str, Any]]] = []
     for item in lookup_bundle.get("records", []):
         if not (item.get("source_repo") and item.get("source_file") and item.get("source_symbol")):
             continue
@@ -71,8 +72,8 @@ def select_source_record(selected_idea: Dict[str, Any], lookup_bundle: Dict[str,
     return matched[0] if matched else {}
 
 
-def source_blockers(source_record: Dict[str, Any]) -> List[str]:
-    blockers: List[str] = []
+def source_blockers(source_record: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
     if not source_record.get("source_repo"):
         blockers.append("missing-source-repo")
     if not source_record.get("source_file"):
@@ -87,7 +88,7 @@ def normalize_patch_class(value: Any) -> str:
     return text if text in ALLOWED_PATCH_CLASSES else ""
 
 
-def best_target_symbol(selected_idea: Dict[str, Any], analysis_data: Dict[str, Any]) -> str:
+def best_target_symbol(selected_idea: dict[str, Any], analysis_data: dict[str, Any]) -> str:
     component = str(selected_idea.get("target_component") or "").lower()
     for item in analysis_data.get("constructor_candidates", []):
         if component and component in str(item).lower():
@@ -103,15 +104,15 @@ def best_target_symbol(selected_idea: Dict[str, Any], analysis_data: Dict[str, A
 
 
 def build_target_location_map(
-    selected_idea: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    selected_idea: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+) -> list[dict[str, Any]]:
     target_symbol = best_target_symbol(selected_idea, analysis_data)
     config_hints = list(analysis_data.get("config_binding_hints", []))
     target_component = str(selected_idea.get("target_component") or "").lower()
     prefer_config_only = "config" in target_component
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     candidate_paths = first_items(code_plan.get("candidate_edit_targets", []), 4)
     if not config_hints:
         config_hints = [
@@ -137,18 +138,18 @@ def build_target_location_map(
 
 
 def build_module_candidates(
-    selected_idea: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    selected_idea: dict[str, Any],
+    lookup_bundle: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+) -> list[dict[str, Any]]:
     target_location_map = build_target_location_map(selected_idea, analysis_data, code_plan)
     target_symbol = target_location_map[0]["target_symbol"] if target_location_map else "unspecified-symbol"
     module_files = analysis_data.get("module_files", []) or code_plan.get("candidate_edit_targets", [])
     source_record = select_source_record(selected_idea, lookup_bundle)
     source_reference = [source_record.get("source_id")] if source_record.get("source_id") else []
     transplant_ready = not source_blockers(source_record)
-    candidates: List[Dict[str, Any]] = []
+    candidates: list[dict[str, Any]] = []
     for path in first_items(module_files, 3):
         candidates.append(
             {
@@ -177,10 +178,10 @@ def build_module_candidates(
 
 
 def build_interface_diff(
-    selected_idea: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    module_candidates: Sequence[Dict[str, Any]],
-) -> Dict[str, Any]:
+    selected_idea: dict[str, Any],
+    analysis_data: dict[str, Any],
+    module_candidates: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
     transplant_ready = bool(module_candidates[0].get("source_triple_ready")) if module_candidates else False
     return {
         "selected_idea": selected_idea.get("id"),
@@ -204,14 +205,14 @@ def build_interface_diff(
 
 
 def build_minimal_patch_plan(
-    selected_idea: Dict[str, Any],
-    target_location_map: Sequence[Dict[str, Any]],
-    interface_diff: Dict[str, Any],
-    selected_source_record: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    selected_idea: dict[str, Any],
+    target_location_map: Sequence[dict[str, Any]],
+    interface_diff: dict[str, Any],
+    selected_source_record: dict[str, Any],
+) -> list[dict[str, Any]]:
     if not target_location_map:
         return []
-    plan: List[Dict[str, Any]] = []
+    plan: list[dict[str, Any]] = []
     config_targets = [item for item in target_location_map if item["role"] == "config"]
     code_targets = [item for item in target_location_map if item["role"] == "code"]
     triple_blockers = source_blockers(selected_source_record)
@@ -269,10 +270,10 @@ def build_minimal_patch_plan(
 
 
 def build_smoke_plan(
-    selected_idea: Dict[str, Any],
-    target_location_map: Sequence[Dict[str, Any]],
-    variant_matrix: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    selected_idea: dict[str, Any],
+    target_location_map: Sequence[dict[str, Any]],
+    variant_matrix: dict[str, Any],
+) -> list[dict[str, Any]]:
     return [
         {
             "name": "syntax-parse",
@@ -308,9 +309,9 @@ def build_smoke_plan(
 
 
 def resolve_patch_class(
-    selected_idea: Dict[str, Any],
-    minimal_patch_plan: Sequence[Dict[str, Any]],
-) -> Dict[str, Any]:
+    selected_idea: dict[str, Any],
+    minimal_patch_plan: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
     change_types = {str(item.get("change_type") or "") for item in minimal_patch_plan}
     requested_patch_class = normalize_patch_class(selected_idea.get("patch_class"))
     # A researcher-requested class the plan can satisfy must not be escalated
@@ -345,7 +346,7 @@ def resolve_patch_class(
     }
 
 
-def write_module_candidates(output_dir: Path, module_candidates: Sequence[Dict[str, Any]]) -> Path:
+def write_module_candidates(output_dir: Path, module_candidates: Sequence[dict[str, Any]]) -> Path:
     lines = [
         "# Module Candidates",
         "",
@@ -373,7 +374,7 @@ def write_module_candidates(output_dir: Path, module_candidates: Sequence[Dict[s
     return path
 
 
-def write_interface_diff(output_dir: Path, interface_diff: Dict[str, Any]) -> Path:
+def write_interface_diff(output_dir: Path, interface_diff: dict[str, Any]) -> Path:
     constructor_surface = [f"- {item}" for item in interface_diff.get("constructor_surface", [])] or ["- none"]
     forward_surface = [f"- {item}" for item in interface_diff.get("forward_surface", [])] or ["- none"]
     config_surface = [f"- {item}" for item in interface_diff.get("config_surface", [])] or ["- none"]
@@ -408,12 +409,12 @@ def write_interface_diff(output_dir: Path, interface_diff: Dict[str, Any]) -> Pa
 def run_source_mapping_pass(
     *,
     analysis_output_dir: Path,
-    selected_idea: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
-    variant_matrix: Dict[str, Any],
-) -> Dict[str, Any]:
+    selected_idea: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+    lookup_bundle: dict[str, Any],
+    variant_matrix: dict[str, Any],
+) -> dict[str, Any]:
     target_location_map = build_target_location_map(selected_idea, analysis_data, code_plan)
     selected_source_record = select_source_record(selected_idea, lookup_bundle)
     module_candidates = build_module_candidates(selected_idea, lookup_bundle, analysis_data, code_plan)

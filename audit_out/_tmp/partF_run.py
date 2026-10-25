@@ -108,7 +108,7 @@ async def main():
     for s, bars in data.items():
         c = [b["close"] for b in bars]
         sym_daily[s] = {bars[i]["timestamp"]: (c[i] / c[i - 1] - 1 if i > 0 else 0) for i in range(len(bars))}
-    prev_pos = {s: 0 for s in SYMBOLS}
+    prev_pos = dict.fromkeys(SYMBOLS, 0)
     strat_eq = [1.0]; bh_eq = [1.0]
     first_close = {s: data[s][0]["close"] for s in SYMBOLS}
     for dt in dates:

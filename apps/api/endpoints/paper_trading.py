@@ -43,7 +43,7 @@ async def get_dashboard(
 ) -> ApiResponse[dict[str, Any]]:
     try:
         return ApiResponse(success=True, data=await svc.get_dashboard(user_id=_user_id(user)))
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper dashboard failed")
         return ApiResponse(success=False, data=None, error={"message": "Internal error"})
 
@@ -55,7 +55,7 @@ async def get_equity(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         return ApiResponse(success=True, data=await svc.get_equity_history(limit=limit))
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper equity failed")
         return ApiResponse(success=False, data=[], error={"message": "Internal error"})
 
@@ -72,7 +72,7 @@ async def list_trades(
     try:
         result = await svc.list_trades(status=status, symbol=symbol, page=page, page_size=page_size, user_id=_user_id(user))
         return ApiResponse(success=result.success, data=result.value)
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper trades list failed")
         return ApiResponse(
             success=False,
@@ -101,7 +101,7 @@ async def open_trade(
             data=result.value,
             error={"message": result.error} if not result.success else None,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper open trade failed")
         return ApiResponse(success=False, data=None, error={"message": "Internal error"})
 
@@ -127,7 +127,7 @@ async def close_trade(
             data=result.value,
             error={"message": result.error} if not result.success else None,
         )
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper close trade failed")
         return ApiResponse(success=False, data=None, error={"message": "Internal error"})
 
@@ -137,7 +137,7 @@ async def auto_close(svc: PaperTradingService = Depends(_svc)) -> ApiResponse[di
     try:
         result = await svc.auto_close_due_trades()
         return ApiResponse(success=True, data={"closed": result.value})
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper auto-close failed")
         return ApiResponse(success=False, data=None, error={"message": "Internal error"})
 
@@ -156,7 +156,7 @@ async def list_signals(
             page=page, page_size=page_size, symbol=symbol, market=market, direction=direction
         )
         return ApiResponse(success=result.success, data=result.value)
-    except Exception as exc:
+    except Exception:
         logger.exception("Paper signals list failed")
         return ApiResponse(
             success=False,

@@ -1,0 +1,57 @@
+﻿2026-10-23 18:42:48 [warning  ] feedparser not installed — RSS news fetching disabled
+2026-10-23 18:42:54 [debug    ] Request: GET /api/v1/news/symbol/وبانك [trace=d320ee58a6294139be4e17e34f8b0484]
+2026-10-23 18:42:56 [info     ] GET /api/v1/news/symbol/وبانك -> 200 (1.518s) [trace=d320ee58a6294139be4e17e34f8b0484]
+2026-10-23 18:42:56 [debug    ] Response: 200 [trace=d320ee58a6294139be4e17e34f8b0484]
+.2026-10-23 18:42:56 [debug    ] Request: GET /api/v1/news/symbol/وبانك [trace=50fbe2848233426da352a9ccf39dea39]
+2026-10-23 18:42:56 [info     ] GET /api/v1/news/symbol/وبانك -> 200 (0.008s) [trace=50fbe2848233426da352a9ccf39dea39]
+2026-10-23 18:42:56 [debug    ] Response: 200 [trace=50fbe2848233426da352a9ccf39dea39]
+.2026-10-23 18:42:56 [debug    ] Request: GET /api/v1/news/symbol/وبانك [trace=f99da3f4025945709f7751e553d5b130]
+2026-10-23 18:42:56 [debug    ] symbol match meta unavailable
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\apps\api\endpoints\news.py:288 in               │
+│ _symbol_match_meta                                                          │
+│                                                                             │
+│   285 │   try:                                                              │
+│   286 │   │   from services.news_tag_symbol_mapper import NewsTagSymbolMapp │
+│   287 │   │                                                                 │
+│ > 288 │   │   maps = await NewsTagSymbolMapper(session).explain_symbol(symb │
+│   289 │   │   return SymbolMatchMeta(symbol=symbol, matched=matched, maps=m │
+│   290 │   except Exception:  # noqa: BLE001 — transparency only, never brea │
+│   291 │   │   logger.debug("symbol match meta unavailable", exc_info=True)  │
+│                                                                             │
+│ ┌───────────────── locals ─────────────────┐                                │
+│ │ matched = ['وبانک']                      │                                │
+│ │ session = <AsyncMock id='1619663930432'> │                                │
+│ │  symbol = 'وبانك'                        │                                │
+│ └──────────────────────────────────────────┘                                │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\api\test_news_symbol_meta_http.py:12 │
+│ 3 in _boom                                                                  │
+│                                                                             │
+│   120 │   │   from services.news_tag_symbol_mapper import NewsTagSymbolMapp │
+│   121 │   │                                                                 │
+│   122 │   │   async def _boom(self, symbol):  # noqa: ANN001                │
+│ > 123 │   │   │   raise RuntimeError("mapping table gone")                  │
+│   124 │   │                                                                 │
+│   125 │   │   monkeypatch.setattr(NewsTagSymbolMapper, "explain_symbol", _b │
+│   126 │   │   resp = client.get("/api/v1/news/symbol/وبانك")                │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   self = <services.news_tag_symbol_mapper.NewsTagSymbolMapper object at │ │
+│ │          0x0000017942C63890>                                            │ │
+│ │ symbol = 'وبانك'                                                        │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: mapping table gone
+
+2026-10-23 18:42:56 [info     ] GET /api/v1/news/symbol/وبانك -> 200 (0.124s) [trace=f99da3f4025945709f7751e553d5b130]
+2026-10-23 18:42:56 [debug    ] Response: 200 [trace=f99da3f4025945709f7751e553d5b130]
+.ssss2026-10-23 18:42:56 [debug    ] Request: GET /api/v1/news-tag-map [trace=18aa04b3901d429382e11763c85628cc]
+2026-10-23 18:42:56 [info     ] GET /api/v1/news-tag-map -> 401 (0.041s) [trace=18aa04b3901d429382e11763c85628cc]
+2026-10-23 18:42:56 [debug    ] Response: 401 [trace=18aa04b3901d429382e11763c85628cc]
+.2026-10-23 18:42:56 [debug    ] Request: GET /api/v1/news-tag-map [trace=b3a6b5a302e2464695c63ccbb937674c]
+2026-10-23 18:42:56 [warning  ] Revocation check skipped: Redis unavailable for jti=19b954ec9b584b0e94d2a22ff42d7b20
+2026-10-23 18:42:56 [info     ] GET /api/v1/news-tag-map -> 403 (0.007s) [trace=b3a6b5a302e2464695c63ccbb937674c]
+2026-10-23 18:42:56 [debug    ] Response: 403 [trace=b3a6b5a302e2464695c63ccbb937674c]
+.2026-10-23 18:42:56 [debug    ] Request: GET /api/v1/news-tag-map [trace=7d2ece2dc1c844c6bc274abcec5fc368]
+2026-10-23 18:42:56 [warning  ] Revocation check skipped: Redis unavailable for jti=70bfc09a9ad44a5c80a2c4f34bde0a9b

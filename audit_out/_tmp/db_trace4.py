@@ -1,6 +1,8 @@
 """Read-only aggregates for the consolidated report. No credentials printed."""
-import asyncio, os
+import asyncio
+import os
 from pathlib import Path
+
 for line in Path(".env").read_text(encoding="utf-8", errors="replace").splitlines():
     line = line.strip()
     if line and not line.startswith("#") and "=" in line:
@@ -8,6 +10,8 @@ for line in Path(".env").read_text(encoding="utf-8", errors="replace").splitline
 url = os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+asyncpg://", 1)
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
+
 async def main():
     eng = create_async_engine(url, future=True)
     async with eng.connect() as c:

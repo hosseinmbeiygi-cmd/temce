@@ -54,6 +54,7 @@ export default function GoldSummarySection({ snapshot, isLoading }: SummarySecti
     },
     { label: "طلای ۱۸ عیار (گرم)", value: fmt(gold18k), hint: "ریال" },
     { label: "مثقال طلای آب‌شده", value: fmt(melted), hint: "ریال" },
+    { label: " شاخص دلار (DXY)", value: refs.dxy_index !== undefined ? fmt(refs.dxy_index, 2) : "—", hint: " شاخص دلار美国" },
   ];
 
   return (
@@ -77,7 +78,7 @@ export default function GoldSummarySection({ snapshot, isLoading }: SummarySecti
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {cards.map((card) => (
           <div
             key={card.label}

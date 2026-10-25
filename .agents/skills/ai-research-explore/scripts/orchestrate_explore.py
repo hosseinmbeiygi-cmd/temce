@@ -11,8 +11,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from passes import (
     run_atomic_idea_decomposition_pass,
@@ -39,7 +40,6 @@ if str(SHARED_SCRIPTS) not in sys.path:
 
 from model_adapter import ModelAdapterError, load_model_profile, missing_capabilities
 
-
 DURABLE_ANCHOR_HASH_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 EXTERNAL_REFERENCE_PREFIXES = ("run:", "checkpoint:", "branch:", "commit:", "model:", "state:")
 DEFAULT_BASELINE_GATE = {
@@ -59,12 +59,12 @@ DEFAULT_IDEA_GENERATION_POLICY = {
 }
 
 
-def run_json(script: Path, args: List[str]) -> Dict[str, Any]:
+def run_json(script: Path, args: list[str]) -> dict[str, Any]:
     result = subprocess.run([sys.executable, str(script), *args], check=True, capture_output=True, text=True)
     return json.loads(result.stdout)
 
 
-def add_model_profile_args(args: List[str], profile_json: str, required_capabilities: List[str]) -> List[str]:
+def add_model_profile_args(args: list[str], profile_json: str, required_capabilities: list[str]) -> list[str]:
     rendered = list(args)
     if profile_json:
         rendered.extend(["--model-profile-json", profile_json])
@@ -73,12 +73,12 @@ def add_model_profile_args(args: List[str], profile_json: str, required_capabili
     return rendered
 
 
-def run_text(command: List[str], cwd: Optional[Path] = None) -> str:
+def run_text(command: list[str], cwd: Path | None = None) -> str:
     result = subprocess.run(command, check=True, capture_output=True, text=True, cwd=str(cwd) if cwd else None)
     return result.stdout.strip()
 
 
-def write_bundle(script: Path, output_dir: Path, context: Dict[str, Any]) -> None:
+def write_bundle(script: Path, output_dir: Path, context: dict[str, Any]) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
         context_path = Path(handle.name)
@@ -112,7 +112,7 @@ def choose_experiment_branch(current_research: str, explicit_branch: str) -> str
     return f"exp/ai-research-explore-{slugify(current_research)}"
 
 
-def maybe_git_root(repo_path: Path) -> Optional[Path]:
+def maybe_git_root(repo_path: Path) -> Path | None:
     try:
         return Path(run_text(["git", "rev-parse", "--show-toplevel"], cwd=repo_path)).resolve()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -120,7 +120,7 @@ def maybe_git_root(repo_path: Path) -> Optional[Path]:
 
 
 def build_context_id(current_research: str, experiment_branch: str) -> str:
-    digest = hashlib.sha1(f"{current_research}::{experiment_branch}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(f"{current_research}::{experiment_branch}".encode()).hexdigest()[:12]
     return f"ai-research-explore-{digest}"
 
 
@@ -129,7 +129,7 @@ def experiment_worktree_root(git_root: Path, experiment_branch: str) -> Path:
     return base_dir / git_root.name
 
 
-def validate_current_research(repo_path: Path, current_research: str) -> Dict[str, Any]:
+def validate_current_research(repo_path: Path, current_research: str) -> dict[str, Any]:
     value = current_research.strip()
     if not value:
         raise ValueError("`current_research` is required.")
@@ -168,7 +168,7 @@ def validate_current_research(repo_path: Path, current_research: str) -> Dict[st
     )
 
 
-def validate_existing_worktree(worktree_root: Path, expected_branch: str) -> Dict[str, Any]:
+def validate_existing_worktree(worktree_root: Path, expected_branch: str) -> dict[str, Any]:
     actual_root = Path(run_text(["git", "rev-parse", "--show-toplevel"], cwd=worktree_root)).resolve()
     actual_branch = run_text(["git", "symbolic-ref", "--quiet", "--short", "HEAD"], cwd=worktree_root)
     if actual_root != worktree_root.resolve():
@@ -184,7 +184,7 @@ def validate_existing_worktree(worktree_root: Path, expected_branch: str) -> Dic
     }
 
 
-def ensure_experiment_workspace(repo_path: Path, experiment_branch: str) -> Dict[str, Any]:
+def ensure_experiment_workspace(repo_path: Path, experiment_branch: str) -> dict[str, Any]:
     git_root = maybe_git_root(repo_path)
     if git_root is None:
         raise ValueError("Explore orchestration requires a git repository so the isolated experiment branch can be created.")
@@ -246,12 +246,12 @@ def ensure_experiment_workspace(repo_path: Path, experiment_branch: str) -> Dict
     }
 
 
-def normalize_task_family(value: Any) -> Optional[str]:
+def normalize_task_family(value: Any) -> str | None:
     text = str(value or "").strip().lower()
     return text or None
 
 
-def safe_float(value: Any) -> Optional[float]:
+def safe_float(value: Any) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
@@ -262,7 +262,7 @@ def safe_float(value: Any) -> Optional[float]:
         return None
 
 
-def clamp_score(value: Optional[float], default: float = 0.5) -> float:
+def clamp_score(value: float | None, default: float = 0.5) -> float:
     if value is None:
         return default
     return max(0.0, min(1.0, float(value)))
@@ -275,7 +275,7 @@ def normalize_metric_goal(value: Any) -> str:
     return "maximize"
 
 
-def load_structured_file(path: Path) -> Dict[str, Any]:
+def load_structured_file(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8-sig")
     if path.suffix.lower() in {".yaml", ".yml"}:
         try:
@@ -290,7 +290,7 @@ def load_structured_file(path: Path) -> Dict[str, Any]:
     return payload
 
 
-def normalize_variant_spec(spec: Dict[str, Any], current_research: str) -> Dict[str, Any]:
+def normalize_variant_spec(spec: dict[str, Any], current_research: str) -> dict[str, Any]:
     normalized = dict(spec)
     explicit_value = normalized.get("current_research") or normalized.get("baseline_ref")
     if explicit_value and explicit_value != current_research:
@@ -311,11 +311,11 @@ def normalize_variant_spec(spec: Dict[str, Any], current_research: str) -> Dict[
     return normalized
 
 
-def load_variant_spec(path: Path, current_research: str) -> Dict[str, Any]:
+def load_variant_spec(path: Path, current_research: str) -> dict[str, Any]:
     return normalize_variant_spec(load_structured_file(path), current_research)
 
 
-def normalize_evaluation_source(raw: Any, variant_spec: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_evaluation_source(raw: Any, variant_spec: dict[str, Any]) -> dict[str, Any]:
     if isinstance(raw, str):
         source = {"command": raw}
     elif isinstance(raw, dict):
@@ -339,9 +339,9 @@ def normalize_evaluation_source(raw: Any, variant_spec: Dict[str, Any]) -> Dict[
 
 
 def bind_evaluation_command_to_variant_spec(
-    variant_spec: Dict[str, Any],
-    evaluation_source: Dict[str, Any],
-) -> Dict[str, Any]:
+    variant_spec: dict[str, Any],
+    evaluation_source: dict[str, Any],
+) -> dict[str, Any]:
     if variant_spec.get("base_command") or not evaluation_source.get("command"):
         return variant_spec
 
@@ -357,10 +357,10 @@ def bind_evaluation_command_to_variant_spec(
     return normalized
 
 
-def normalize_sota_reference(items: Any, primary_metric: Optional[str], metric_goal: str) -> List[Dict[str, Any]]:
+def normalize_sota_reference(items: Any, primary_metric: str | None, metric_goal: str) -> list[dict[str, Any]]:
     if not isinstance(items, list):
         return []
-    normalized: List[Dict[str, Any]] = []
+    normalized: list[dict[str, Any]] = []
     for index, item in enumerate(items, start=1):
         if isinstance(item, (int, float)):
             normalized.append(
@@ -394,7 +394,7 @@ def normalize_sota_reference(items: Any, primary_metric: Optional[str], metric_g
     return normalized
 
 
-def normalize_compute_budget(raw: Any) -> Dict[str, Any]:
+def normalize_compute_budget(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {}
     budget = dict(raw)
@@ -405,7 +405,7 @@ def normalize_compute_budget(raw: Any) -> Dict[str, Any]:
     return budget
 
 
-def normalize_baseline_gate(raw: Any, metric_goal: str) -> Dict[str, Any]:
+def normalize_baseline_gate(raw: Any, metric_goal: str) -> dict[str, Any]:
     gate = dict(raw) if isinstance(raw, dict) else {}
     defaults = DEFAULT_BASELINE_GATE[metric_goal]
     normalized = {
@@ -426,7 +426,7 @@ def normalize_baseline_gate(raw: Any, metric_goal: str) -> Dict[str, Any]:
     return normalized
 
 
-def normalize_execution_policy(raw: Any, args: argparse.Namespace) -> Dict[str, Any]:
+def normalize_execution_policy(raw: Any, args: argparse.Namespace) -> dict[str, Any]:
     policy = dict(DEFAULT_EXECUTION_POLICY)
     if isinstance(raw, dict):
         policy.update(raw)
@@ -467,7 +467,7 @@ def stringify_campaign_binding(value: Any) -> str:
     return text or "unspecified"
 
 
-def evaluation_binding_text(evaluation_source: Dict[str, Any]) -> str:
+def evaluation_binding_text(evaluation_source: dict[str, Any]) -> str:
     command = str(evaluation_source.get("command") or "").strip()
     path = str(evaluation_source.get("path") or "").strip()
     metric = str(evaluation_source.get("primary_metric") or "").strip()
@@ -483,20 +483,20 @@ def evaluation_binding_text(evaluation_source: Dict[str, Any]) -> str:
 
 def normalize_candidate_ideas(
     raw: Any,
-    variant_spec: Dict[str, Any],
+    variant_spec: dict[str, Any],
     *,
     current_research: str,
     task_family: str,
     dataset: Any,
-    evaluation_source: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    evaluation_source: dict[str, Any],
+) -> list[dict[str, Any]]:
     if not isinstance(raw, list) or not raw:
         return []
 
     dataset_binding = stringify_campaign_binding(dataset)
     evaluation_binding = evaluation_binding_text(evaluation_source)
     task_binding = str(task_family or "").strip() or "unspecified"
-    normalized: List[Dict[str, Any]] = []
+    normalized: list[dict[str, Any]] = []
     for index, item in enumerate(raw, start=1):
         if not isinstance(item, dict):
             continue
@@ -540,7 +540,7 @@ def normalize_candidate_ideas(
     return normalized
 
 
-def normalize_idea_generation(raw: Any) -> Dict[str, Any]:
+def normalize_idea_generation(raw: Any) -> dict[str, Any]:
     policy = dict(DEFAULT_IDEA_GENERATION_POLICY)
     if isinstance(raw, dict):
         policy.update(raw)
@@ -553,7 +553,7 @@ def normalize_idea_generation(raw: Any) -> Dict[str, Any]:
     return policy
 
 
-def normalize_campaign(args: argparse.Namespace) -> Tuple[Dict[str, Any], bool]:
+def normalize_campaign(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
     if args.research_campaign_json:
         raw_campaign = load_structured_file(Path(args.research_campaign_json).resolve())
         compatibility_mode = False
@@ -612,7 +612,7 @@ def normalize_campaign(args: argparse.Namespace) -> Tuple[Dict[str, Any], bool]:
     return campaign, compatibility_mode
 
 
-def build_stage_trace_entry(stage: str, tool: str, summary: str, status: str = "completed") -> Dict[str, Any]:
+def build_stage_trace_entry(stage: str, tool: str, summary: str, status: str = "completed") -> dict[str, Any]:
     return {"stage": stage, "tool": tool, "status": status, "summary": summary}
 
 
@@ -633,7 +633,7 @@ def maybe_append_cli_arg(command: str, flag: Any, value: Any) -> str:
     return f"{command} {flag} {quote_cli_value(value)}"
 
 
-def compose_variant_command(base_command: str, variant: Dict[str, Any], spec: Dict[str, Any]) -> str:
+def compose_variant_command(base_command: str, variant: dict[str, Any], spec: dict[str, Any]) -> str:
     command = base_command.strip()
     axis_flag_map = spec.get("axis_flag_map") or {}
     for key, value in sorted(variant.get("axes", {}).items()):
@@ -645,14 +645,14 @@ def compose_variant_command(base_command: str, variant: Dict[str, Any], spec: Di
     return command
 
 
-def summarize_variant_result(result: Dict[str, Any]) -> str:
+def summarize_variant_result(result: dict[str, Any]) -> str:
     metric = result.get("best_metric")
     if metric:
         return f"status={result.get('status', 'unknown')}, stop={result.get('stop_reason', 'unknown')}, metric={metric['name']}={metric['value']}"
     return f"status={result.get('status', 'unknown')}, stop={result.get('stop_reason', 'unknown')}"
 
 
-def infer_execution_kind(base_command: Optional[str], spec_or_source: Dict[str, Any]) -> str:
+def infer_execution_kind(base_command: str | None, spec_or_source: dict[str, Any]) -> str:
     explicit = str(spec_or_source.get("execution_kind") or "").strip().lower()
     if explicit in {"train", "training"}:
         return "training"
@@ -665,7 +665,7 @@ def infer_execution_kind(base_command: Optional[str], spec_or_source: Dict[str, 
     return "non_training"
 
 
-def extract_metric_policy(variant_matrix: Dict[str, Any], variant_spec: Dict[str, Any], campaign: Dict[str, Any]) -> Dict[str, Any]:
+def extract_metric_policy(variant_matrix: dict[str, Any], variant_spec: dict[str, Any], campaign: dict[str, Any]) -> dict[str, Any]:
     matrix_policy = dict(variant_matrix.get("metric_policy", {}))
     evaluation_source = campaign.get("evaluation_source", {})
     primary_metric = matrix_policy.get("primary_metric") or evaluation_source.get("primary_metric") or variant_spec.get("primary_metric")
@@ -675,7 +675,7 @@ def extract_metric_policy(variant_matrix: Dict[str, Any], variant_spec: Dict[str
     return {"primary_metric": primary_metric, "metric_goal": metric_goal}
 
 
-def extract_comparison_metric_policy(campaign: Dict[str, Any], metric_policy: Dict[str, Any]) -> Dict[str, Any]:
+def extract_comparison_metric_policy(campaign: dict[str, Any], metric_policy: dict[str, Any]) -> dict[str, Any]:
     evaluation_source = campaign.get("evaluation_source", {})
     return {
         "primary_metric": evaluation_source.get("primary_metric") or metric_policy.get("primary_metric"),
@@ -683,14 +683,14 @@ def extract_comparison_metric_policy(campaign: Dict[str, Any], metric_policy: Di
     }
 
 
-def default_metric_payload(item: Dict[str, Any]) -> Tuple[Optional[float], Optional[str]]:
+def default_metric_payload(item: dict[str, Any]) -> tuple[float | None, str | None]:
     metric = item.get("best_metric")
     if isinstance(metric, dict):
         return safe_float(metric.get("value")), metric.get("name")
     return None, None
 
 
-def metric_payload_for_policy(item: Dict[str, Any], primary_metric: Optional[str]) -> Tuple[Optional[float], Optional[str], bool]:
+def metric_payload_for_policy(item: dict[str, Any], primary_metric: str | None) -> tuple[float | None, str | None, bool]:
     observed_metrics = item.get("observed_metrics", {})
     if primary_metric and isinstance(observed_metrics, dict) and primary_metric in observed_metrics:
         return safe_float(observed_metrics[primary_metric]), primary_metric, True
@@ -703,7 +703,7 @@ def metric_payload_for_policy(item: Dict[str, Any], primary_metric: Optional[str
     return fallback_value, fallback_name, False
 
 
-def decorate_run_with_metric_policy(item: Dict[str, Any], metric_policy: Dict[str, Any]) -> Dict[str, Any]:
+def decorate_run_with_metric_policy(item: dict[str, Any], metric_policy: dict[str, Any]) -> dict[str, Any]:
     primary_metric = metric_policy.get("primary_metric")
     metric_goal = normalize_metric_goal(metric_policy.get("metric_goal"))
     ranking_value, ranking_name, matched_primary_metric = metric_payload_for_policy(item, primary_metric)
@@ -721,11 +721,11 @@ def decorate_run_with_metric_policy(item: Dict[str, Any], metric_policy: Dict[st
     return decorated
 
 
-def rank_executed_runs(executed_runs: List[Dict[str, Any]], metric_policy: Dict[str, Any]) -> List[Dict[str, Any]]:
+def rank_executed_runs(executed_runs: list[dict[str, Any]], metric_policy: dict[str, Any]) -> list[dict[str, Any]]:
     status_rank = {"success": 3, "partial": 2, "blocked": 1, "not_run": 0}
     metric_goal = normalize_metric_goal(metric_policy.get("metric_goal"))
 
-    def adjust_for_goal(value: Optional[float]) -> float:
+    def adjust_for_goal(value: float | None) -> float:
         numeric_value = safe_float(value)
         if numeric_value is None:
             return float("-inf")
@@ -733,7 +733,7 @@ def rank_executed_runs(executed_runs: List[Dict[str, Any]], metric_policy: Dict[
 
     decorated = [decorate_run_with_metric_policy(item, metric_policy) for item in executed_runs]
 
-    def sort_key(item: Dict[str, Any]) -> Tuple[int, int, float, float]:
+    def sort_key(item: dict[str, Any]) -> tuple[int, int, float, float]:
         ranking_metric = item.get("ranking_metric")
         ranking_value = ranking_metric.get("value") if isinstance(ranking_metric, dict) else None
         fallback_value, _fallback_name = default_metric_payload(item)
@@ -747,7 +747,7 @@ def rank_executed_runs(executed_runs: List[Dict[str, Any]], metric_policy: Dict[
     return sorted(decorated, key=sort_key, reverse=True)
 
 
-def build_variant_matrix(planner_script: Path, variant_spec: Dict[str, Any]) -> Dict[str, Any]:
+def build_variant_matrix(planner_script: Path, variant_spec: dict[str, Any]) -> dict[str, Any]:
     if not variant_spec.get("base_command"):
         current_research = variant_spec["current_research"]
         return {
@@ -790,17 +790,17 @@ def execute_variant_candidates(
     train_execute_script: Path,
     run_execute_script: Path,
     repo_path: Path,
-    variant_matrix: Dict[str, Any],
-    variant_spec: Dict[str, Any],
+    variant_matrix: dict[str, Any],
+    variant_spec: dict[str, Any],
     current_research: str,
     timeout: int,
     max_executed_variants: int,
     runtime_root: Path,
     model_profile_json: str,
-    required_model_capabilities: List[str],
+    required_model_capabilities: list[str],
     gpu_monitor_enabled: bool,
-    campaign: Optional[Dict[str, Any]] = None,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    campaign: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     base_command = variant_matrix.get("base_command")
     variants = variant_matrix.get("variants", [])
     if not base_command or not variants or max_executed_variants <= 0:
@@ -808,8 +808,8 @@ def execute_variant_candidates(
 
     execution_kind = infer_execution_kind(base_command, variant_spec)
     metric_policy = extract_metric_policy(variant_matrix, variant_spec, campaign or {"evaluation_source": {}})
-    executed_runs: List[Dict[str, Any]] = []
-    stage_trace: List[Dict[str, Any]] = []
+    executed_runs: list[dict[str, Any]] = []
+    stage_trace: list[dict[str, Any]] = []
     for variant in variants[:max_executed_variants]:
         command = compose_variant_command(base_command, variant, variant_spec)
         if execution_kind == "training":
@@ -900,7 +900,7 @@ def execute_variant_candidates(
     return rank_executed_runs(executed_runs, metric_policy), stage_trace
 
 
-def build_analysis_context(campaign: Dict[str, Any], metric_policy: Dict[str, Any], current_research: str) -> Dict[str, Any]:
+def build_analysis_context(campaign: dict[str, Any], metric_policy: dict[str, Any], current_research: str) -> dict[str, Any]:
     evaluation_source = dict(campaign.get("evaluation_source", {}))
     if metric_policy.get("primary_metric") and not evaluation_source.get("primary_metric"):
         evaluation_source["primary_metric"] = metric_policy["primary_metric"]
@@ -919,8 +919,8 @@ def run_analysis_pass(
     analysis_script: Path,
     workspace_repo_path: Path,
     analysis_output_dir: Path,
-    analysis_context: Dict[str, Any],
-) -> Dict[str, Any]:
+    analysis_context: dict[str, Any],
+) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
         context_path = Path(handle.name)
         handle.write(json.dumps(analysis_context, indent=2, ensure_ascii=False))
@@ -949,11 +949,11 @@ def run_code_plan_pass(
     current_research: str,
     experiment_branch: str,
     task_family: str,
-    variant_spec: Dict[str, Any],
-    selected_idea: Optional[Dict[str, Any]] = None,
-    analysis_data: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    temp_paths: List[Path] = []
+    variant_spec: dict[str, Any],
+    selected_idea: dict[str, Any] | None = None,
+    analysis_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    temp_paths: list[Path] = []
     args = [
         "--repo",
         str(workspace_repo_path),
@@ -994,7 +994,7 @@ def run_code_plan_pass(
                 path.unlink()
 
 
-def best_sota_reference(sota_reference: Sequence[Dict[str, Any]], metric_policy: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def best_sota_reference(sota_reference: Sequence[dict[str, Any]], metric_policy: dict[str, Any]) -> dict[str, Any] | None:
     primary_metric = metric_policy.get("primary_metric")
     metric_goal = normalize_metric_goal(metric_policy.get("metric_goal"))
     candidates = [
@@ -1014,13 +1014,13 @@ def run_baseline_evaluation(
     run_execute_script: Path,
     repo_path: Path,
     current_research: str,
-    evaluation_source: Dict[str, Any],
-    baseline_gate_cfg: Dict[str, Any],
+    evaluation_source: dict[str, Any],
+    baseline_gate_cfg: dict[str, Any],
     runtime_root: Path,
     model_profile_json: str,
-    required_model_capabilities: List[str],
+    required_model_capabilities: list[str],
     gpu_monitor_enabled: bool,
-) -> Tuple[Dict[str, Any], Dict[str, Any], float]:
+) -> tuple[dict[str, Any], dict[str, Any], float]:
     command = str(evaluation_source.get("command") or "").strip()
     if not command:
         return (
@@ -1096,12 +1096,12 @@ def run_baseline_evaluation(
 
 
 def compare_baseline_to_sota(
-    baseline_gate: Dict[str, Any],
-    baseline_payload: Dict[str, Any],
-    metric_policy: Dict[str, Any],
-    sota_reference: Sequence[Dict[str, Any]],
-    baseline_gate_cfg: Dict[str, Any],
-) -> Dict[str, Any]:
+    baseline_gate: dict[str, Any],
+    baseline_payload: dict[str, Any],
+    metric_policy: dict[str, Any],
+    sota_reference: Sequence[dict[str, Any]],
+    baseline_gate_cfg: dict[str, Any],
+) -> dict[str, Any]:
     baseline_value = safe_float(baseline_gate.get("metric_value"))
     metric_name = baseline_gate.get("metric_name") or metric_policy.get("primary_metric")
     if baseline_value is None or not metric_name:
@@ -1148,7 +1148,7 @@ def compare_baseline_to_sota(
     return baseline_gate
 
 
-def score_candidate_idea(idea: Dict[str, Any]) -> float:
+def score_candidate_idea(idea: dict[str, Any]) -> float:
     score = (
         0.40 * clamp_score(safe_float(idea.get("expected_upside")), default=0.5)
         + 0.20 * clamp_score(safe_float(idea.get("single_variable_fit")), default=0.8)
@@ -1160,7 +1160,7 @@ def score_candidate_idea(idea: Dict[str, Any]) -> float:
     return round(score, 4)
 
 
-def build_idea_gate(candidate_ideas: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def build_idea_gate(candidate_ideas: Sequence[dict[str, Any]]) -> dict[str, Any]:
     ranked = [dict(item, idea_score=score_candidate_idea(item)) for item in candidate_ideas]
     ranked.sort(
         key=lambda item: (
@@ -1186,13 +1186,13 @@ def human_checkpoint_state(
     *,
     compatibility_mode: bool,
     eval_contract_complete: bool,
-    baseline_gate: Dict[str, Any],
-    idea_gate: Dict[str, Any],
-) -> Tuple[str, List[str]]:
+    baseline_gate: dict[str, Any],
+    idea_gate: dict[str, Any],
+) -> tuple[str, list[str]]:
     if compatibility_mode:
         return "not-required", []
 
-    reasons: List[str] = []
+    reasons: list[str] = []
     if not eval_contract_complete:
         reasons.append("eval-contract-incomplete")
     if baseline_gate.get("decision") == "borderline":
@@ -1207,8 +1207,8 @@ def human_checkpoint_state(
     return "multiple-reasons", reasons
 
 
-def build_config_diff_summary(selected_idea: Optional[Dict[str, Any]], variant_matrix: Dict[str, Any]) -> List[str]:
-    lines: List[str] = []
+def build_config_diff_summary(selected_idea: dict[str, Any] | None, variant_matrix: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
     if selected_idea:
         lines.append(f"Primary change scope: `{selected_idea.get('change_scope', 'unspecified')}`.")
     if variant_matrix.get("variants"):
@@ -1233,12 +1233,12 @@ def feasibility_score(short_run_feasibility: str) -> float:
 
 
 def enrich_cards_with_feasibility(
-    cards: Sequence[Dict[str, Any]],
-    feasibility_bundle: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    cards: Sequence[dict[str, Any]],
+    feasibility_bundle: dict[str, Any],
+) -> list[dict[str, Any]]:
     short_run_feasibility = str(feasibility_bundle.get("feasibility", {}).get("short_run_feasibility") or "plausible")
     score = feasibility_score(short_run_feasibility)
-    enriched: List[Dict[str, Any]] = []
+    enriched: list[dict[str, Any]] = []
     for item in cards:
         card = dict(item)
         card["short_run_feasibility"] = short_run_feasibility
@@ -1248,9 +1248,9 @@ def enrich_cards_with_feasibility(
 
 
 def merge_selected_idea_with_source_mapping(
-    selected_idea: Optional[Dict[str, Any]],
-    source_mapping: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+    selected_idea: dict[str, Any] | None,
+    source_mapping: dict[str, Any],
+) -> dict[str, Any] | None:
     if selected_idea is None:
         return None
     merged = dict(selected_idea)
@@ -1261,8 +1261,8 @@ def merge_selected_idea_with_source_mapping(
     return merged
 
 
-def observed_changed_files_from_fidelity(implementation_fidelity: Dict[str, Any]) -> List[str]:
-    observed: List[str] = []
+def observed_changed_files_from_fidelity(implementation_fidelity: dict[str, Any]) -> list[str]:
+    observed: list[str] = []
     for unit in implementation_fidelity.get("fidelity_units", []) or []:
         for site in unit.get("observed_implementation_sites", []) or unit.get("actual_observed_implementation_site", []):
             text = str(site or "").strip()
@@ -1279,17 +1279,17 @@ def observed_changed_files_from_fidelity(implementation_fidelity: Dict[str, Any]
 def build_experiment_manifest(
     *,
     current_research: str,
-    selected_idea: Optional[Dict[str, Any]],
-    code_plan: Dict[str, Any],
-    campaign: Dict[str, Any],
-    metric_policy: Dict[str, Any],
+    selected_idea: dict[str, Any] | None,
+    code_plan: dict[str, Any],
+    campaign: dict[str, Any],
+    metric_policy: dict[str, Any],
     analysis_output_dir: Path,
-    variant_matrix: Dict[str, Any],
-    source_mapping: Optional[Dict[str, Any]] = None,
-    feasibility_bundle: Optional[Dict[str, Any]] = None,
-    atomic_bundle: Optional[Dict[str, Any]] = None,
-    implementation_fidelity: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    variant_matrix: dict[str, Any],
+    source_mapping: dict[str, Any] | None = None,
+    feasibility_bundle: dict[str, Any] | None = None,
+    atomic_bundle: dict[str, Any] | None = None,
+    implementation_fidelity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     mapping = source_mapping or {}
     atomic = atomic_bundle or {}
     fidelity = implementation_fidelity or {}
@@ -1378,7 +1378,7 @@ def build_experiment_manifest(
     }
 
 
-def metric_delta_text(candidate_value: Optional[float], baseline_value: Optional[float], metric_goal: str) -> Optional[float]:
+def metric_delta_text(candidate_value: float | None, baseline_value: float | None, metric_goal: str) -> float | None:
     if candidate_value is None or baseline_value is None:
         return None
     return round(candidate_value - baseline_value, 4) if metric_goal == "maximize" else round(baseline_value - candidate_value, 4)
@@ -1386,12 +1386,12 @@ def metric_delta_text(candidate_value: Optional[float], baseline_value: Optional
 
 def build_experiment_ledger(
     *,
-    baseline_gate: Dict[str, Any],
-    executed_runs: List[Dict[str, Any]],
-    metric_policy: Dict[str, Any],
+    baseline_gate: dict[str, Any],
+    executed_runs: list[dict[str, Any]],
+    metric_policy: dict[str, Any],
     experiment_branch: str,
     short_run_runtime_seconds: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     baseline_value = safe_float(baseline_gate.get("metric_value"))
     ledger = {
         "baseline": {
@@ -1431,7 +1431,7 @@ def build_experiment_ledger(
     return ledger
 
 
-def short_run_gate(executed_runs: List[Dict[str, Any]], eval_contract_complete: bool, selected_idea: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def short_run_gate(executed_runs: list[dict[str, Any]], eval_contract_complete: bool, selected_idea: dict[str, Any] | None) -> dict[str, Any]:
     if not eval_contract_complete:
         return {"status": "failed", "reason": "Evaluation contract is incomplete; stop before candidate training."}
     if selected_idea and clamp_score(safe_float(selected_idea.get("single_variable_fit")), default=0.8) < 0.5:
@@ -1459,17 +1459,17 @@ def short_run_gate(executed_runs: List[Dict[str, Any]], eval_contract_complete: 
     return {"status": "passed", "reason": f"Short-run gate passed with `{metric_backed[0].get('id', 'unknown')}`."}
 
 
-def eval_contract_complete(eval_contract: Dict[str, Any]) -> bool:
+def eval_contract_complete(eval_contract: dict[str, Any]) -> bool:
     return bool(eval_contract.get("primary_metric")) and bool(eval_contract.get("evaluation_command") or eval_contract.get("evaluation_path"))
 
 
 def build_candidate_hypotheses(
-    campaign: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    idea_gate: Dict[str, Any],
-) -> List[str]:
-    hypotheses: List[str] = []
+    campaign: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+    idea_gate: dict[str, Any],
+) -> list[str]:
+    hypotheses: list[str] = []
     for idea in idea_gate.get("ranked_ideas", [])[:2]:
         hypotheses.append(f"{idea['id']}: {idea['summary']}")
     for axis, values in sorted((campaign["variant_spec"].get("variant_axes") or {}).items()):
@@ -1488,17 +1488,17 @@ def build_candidate_hypotheses(
 
 def build_recommended_next_trials(
     *,
-    variant_matrix: Dict[str, Any],
-    metric_policy: Dict[str, Any],
-    setup_plan: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    executed_runs: List[Dict[str, Any]],
-    baseline_gate: Dict[str, Any],
-    selected_idea: Optional[Dict[str, Any]],
+    variant_matrix: dict[str, Any],
+    metric_policy: dict[str, Any],
+    setup_plan: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+    executed_runs: list[dict[str, Any]],
+    baseline_gate: dict[str, Any],
+    selected_idea: dict[str, Any] | None,
     human_checkpoint: str,
-) -> List[str]:
-    trials: List[str] = []
+) -> list[str]:
+    trials: list[str] = []
     if baseline_gate.get("decision"):
         trials.append(f"Baseline gate decision: `{baseline_gate['decision']}`.")
     if selected_idea:
@@ -1532,17 +1532,17 @@ def build_changes_summary(
     context_id: str,
     current_research: str,
     experiment_branch: str,
-    workspace_info: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    executed_runs: List[Dict[str, Any]],
-    planned_skill_chain: List[str],
-    variant_matrix: Dict[str, Any],
-    metric_policy: Dict[str, Any],
+    workspace_info: dict[str, Any],
+    code_plan: dict[str, Any],
+    executed_runs: list[dict[str, Any]],
+    planned_skill_chain: list[str],
+    variant_matrix: dict[str, Any],
+    metric_policy: dict[str, Any],
     include_analysis_pass: bool,
     include_setup_pass: bool,
-    baseline_gate: Dict[str, Any],
-    selected_idea: Optional[Dict[str, Any]],
-) -> List[str]:
+    baseline_gate: dict[str, Any],
+    selected_idea: dict[str, Any] | None,
+) -> list[str]:
     summary = [
         f"Context id: `{context_id}`.",
         f"Anchored exploratory work to `current_research={current_research}`.",
@@ -1576,18 +1576,18 @@ def build_changes_summary(
 
 def build_execution_notes(
     *,
-    workspace_info: Dict[str, Any],
-    scan_data: Dict[str, Any],
-    setup_plan: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    variant_matrix: Dict[str, Any],
-    metric_policy: Dict[str, Any],
-    executed_runs: List[Dict[str, Any]],
-    baseline_gate: Dict[str, Any],
+    workspace_info: dict[str, Any],
+    scan_data: dict[str, Any],
+    setup_plan: dict[str, Any],
+    analysis_data: dict[str, Any],
+    code_plan: dict[str, Any],
+    variant_matrix: dict[str, Any],
+    metric_policy: dict[str, Any],
+    executed_runs: list[dict[str, Any]],
+    baseline_gate: dict[str, Any],
     human_checkpoint: str,
-) -> List[str]:
-    notes: List[str] = []
+) -> list[str]:
+    notes: list[str] = []
     notes.append(f"Workspace mode: `{workspace_info['mode']}` on branch `{workspace_info['branch']}` (current branch before orchestration: `{workspace_info['current_branch']}`).")
     if scan_data.get("readme_path"):
         notes.append(f"Repository README: `{scan_data['readme_path']}`.")
@@ -1618,7 +1618,7 @@ def build_execution_notes(
     return notes
 
 
-def eval_contract_payload(analysis_data: Dict[str, Any], campaign: Dict[str, Any], metric_policy: Dict[str, Any]) -> Dict[str, Any]:
+def eval_contract_payload(analysis_data: dict[str, Any], campaign: dict[str, Any], metric_policy: dict[str, Any]) -> dict[str, Any]:
     contract = dict(analysis_data.get("eval_contract", {}))
     if not contract:
         evaluation_source = campaign.get("evaluation_source", {})
@@ -1642,9 +1642,9 @@ def eval_contract_payload(analysis_data: Dict[str, Any], campaign: Dict[str, Any
 
 def compute_sota_claim_state(
     *,
-    executed_runs: List[Dict[str, Any]],
-    metric_policy: Dict[str, Any],
-    sota_reference: Sequence[Dict[str, Any]],
+    executed_runs: list[dict[str, Any]],
+    metric_policy: dict[str, Any],
+    sota_reference: Sequence[dict[str, Any]],
 ) -> str:
     reference = best_sota_reference(sota_reference, metric_policy)
     if not executed_runs or not reference:
@@ -1668,17 +1668,17 @@ def compute_sota_claim_state(
 def write_analysis_status(
     *,
     analysis_output_dir: Path,
-    analysis_data: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
-    idea_seed_bundle: Dict[str, Any],
-    improvement_bank: Dict[str, Any],
-    idea_cards: Dict[str, Any],
-    idea_gate: Dict[str, Any],
-    selected_idea: Optional[Dict[str, Any]],
-    source_mapping: Dict[str, Any],
-    atomic_bundle: Dict[str, Any],
-    implementation_fidelity: Dict[str, Any],
-    feasibility_bundle: Dict[str, Any],
+    analysis_data: dict[str, Any],
+    lookup_bundle: dict[str, Any],
+    idea_seed_bundle: dict[str, Any],
+    improvement_bank: dict[str, Any],
+    idea_cards: dict[str, Any],
+    idea_gate: dict[str, Any],
+    selected_idea: dict[str, Any] | None,
+    source_mapping: dict[str, Any],
+    atomic_bundle: dict[str, Any],
+    implementation_fidelity: dict[str, Any],
+    feasibility_bundle: dict[str, Any],
 ) -> Path:
     outputs = {
         "summary": "analysis_outputs/SUMMARY.md",
@@ -1783,42 +1783,42 @@ def build_context(
     repo_path: Path,
     analysis_output_dir: Path,
     context_id: str,
-    campaign: Dict[str, Any],
+    campaign: dict[str, Any],
     current_research: str,
     experiment_branch: str,
-    durable_current_research: Dict[str, Any],
-    workspace_info: Dict[str, Any],
-    scan_data: Dict[str, Any],
-    setup_plan: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    analysis_status_path: Optional[Path],
-    lookup_bundle: Dict[str, Any],
-    idea_seed_bundle: Dict[str, Any],
-    improvement_bank: Dict[str, Any],
-    idea_cards: Dict[str, Any],
-    code_plan: Dict[str, Any],
-    source_mapping: Dict[str, Any],
-    atomic_bundle: Dict[str, Any],
-    implementation_fidelity: Dict[str, Any],
-    feasibility_bundle: Dict[str, Any],
-    variant_matrix: Dict[str, Any],
-    metric_policy: Dict[str, Any],
-    executed_runs: List[Dict[str, Any]],
-    planned_skill_chain: List[str],
-    helper_stage_trace: List[Dict[str, Any]],
+    durable_current_research: dict[str, Any],
+    workspace_info: dict[str, Any],
+    scan_data: dict[str, Any],
+    setup_plan: dict[str, Any],
+    analysis_data: dict[str, Any],
+    analysis_status_path: Path | None,
+    lookup_bundle: dict[str, Any],
+    idea_seed_bundle: dict[str, Any],
+    improvement_bank: dict[str, Any],
+    idea_cards: dict[str, Any],
+    code_plan: dict[str, Any],
+    source_mapping: dict[str, Any],
+    atomic_bundle: dict[str, Any],
+    implementation_fidelity: dict[str, Any],
+    feasibility_bundle: dict[str, Any],
+    variant_matrix: dict[str, Any],
+    metric_policy: dict[str, Any],
+    executed_runs: list[dict[str, Any]],
+    planned_skill_chain: list[str],
+    helper_stage_trace: list[dict[str, Any]],
     include_analysis_pass: bool,
     include_setup_pass: bool,
-    baseline_gate: Dict[str, Any],
-    idea_gate: Dict[str, Any],
-    selected_idea: Optional[Dict[str, Any]],
-    experiment_manifest: Dict[str, Any],
-    experiment_ledger: Dict[str, Any],
-    short_run_gate_payload: Dict[str, Any],
-    config_diff_summary: List[str],
+    baseline_gate: dict[str, Any],
+    idea_gate: dict[str, Any],
+    selected_idea: dict[str, Any] | None,
+    experiment_manifest: dict[str, Any],
+    experiment_ledger: dict[str, Any],
+    short_run_gate_payload: dict[str, Any],
+    config_diff_summary: list[str],
     human_checkpoint: str,
-    human_checkpoint_reasons: List[str],
-    model_adapter: Dict[str, Any],
-) -> Dict[str, Any]:
+    human_checkpoint_reasons: list[str],
+    model_adapter: dict[str, Any],
+) -> dict[str, Any]:
     explore_context = {
         "context_id": context_id,
         "current_research": current_research,
@@ -1847,21 +1847,21 @@ def build_context(
         "eval_contract": eval_contract,
         "analysis_output_dir": str(analysis_output_dir),
         "analysis_artifacts": {
-            "analysis_status": str(analysis_status_path) if analysis_status_path else str((analysis_output_dir / "status.json")),
-            "source_inventory": str((analysis_output_dir / "SOURCE_INVENTORY.md")),
-            "source_support": str((analysis_output_dir / "SOURCE_SUPPORT.json")),
-            "improvement_bank": str((analysis_output_dir / "IMPROVEMENT_BANK.md")),
-            "idea_cards": str((analysis_output_dir / "IDEA_CARDS.json")),
-            "idea_seeds": str((analysis_output_dir / "IDEA_SEEDS.json")),
-            "idea_evaluation": str((analysis_output_dir / "IDEA_EVALUATION.md")),
-            "idea_scores": str((analysis_output_dir / "IDEA_SCORES.json")),
-            "module_candidates": str((analysis_output_dir / "MODULE_CANDIDATES.md")),
-            "interface_diff": str((analysis_output_dir / "INTERFACE_DIFF.md")),
-            "atomic_idea_map": str((analysis_output_dir / "ATOMIC_IDEA_MAP.json")),
-            "atomic_idea_map_markdown": str((analysis_output_dir / "ATOMIC_IDEA_MAP.md")),
-            "implementation_fidelity": str((analysis_output_dir / "IMPLEMENTATION_FIDELITY.json")),
-            "implementation_fidelity_markdown": str((analysis_output_dir / "IMPLEMENTATION_FIDELITY.md")),
-            "resource_plan": str((analysis_output_dir / "RESOURCE_PLAN.md")),
+            "analysis_status": str(analysis_status_path) if analysis_status_path else str(analysis_output_dir / "status.json"),
+            "source_inventory": str(analysis_output_dir / "SOURCE_INVENTORY.md"),
+            "source_support": str(analysis_output_dir / "SOURCE_SUPPORT.json"),
+            "improvement_bank": str(analysis_output_dir / "IMPROVEMENT_BANK.md"),
+            "idea_cards": str(analysis_output_dir / "IDEA_CARDS.json"),
+            "idea_seeds": str(analysis_output_dir / "IDEA_SEEDS.json"),
+            "idea_evaluation": str(analysis_output_dir / "IDEA_EVALUATION.md"),
+            "idea_scores": str(analysis_output_dir / "IDEA_SCORES.json"),
+            "module_candidates": str(analysis_output_dir / "MODULE_CANDIDATES.md"),
+            "interface_diff": str(analysis_output_dir / "INTERFACE_DIFF.md"),
+            "atomic_idea_map": str(analysis_output_dir / "ATOMIC_IDEA_MAP.json"),
+            "atomic_idea_map_markdown": str(analysis_output_dir / "ATOMIC_IDEA_MAP.md"),
+            "implementation_fidelity": str(analysis_output_dir / "IMPLEMENTATION_FIDELITY.json"),
+            "implementation_fidelity_markdown": str(analysis_output_dir / "IMPLEMENTATION_FIDELITY.md"),
+            "resource_plan": str(analysis_output_dir / "RESOURCE_PLAN.md"),
         },
         "sources_dir": lookup_bundle.get("sources_dir"),
         "sources_records_dir": lookup_bundle.get("records_dir"),
@@ -2041,7 +2041,7 @@ def main() -> int:
     metric_policy = extract_metric_policy(variant_matrix, variant_spec, campaign)
     comparison_metric_policy = extract_comparison_metric_policy(campaign, metric_policy)
 
-    analysis_data: Dict[str, Any] = {}
+    analysis_data: dict[str, Any] = {}
     if include_analysis_pass:
         analysis_context = build_analysis_context(campaign, metric_policy, current_research)
         analysis_data = run_analysis_pass(analysis_script, workspace_repo_path, analysis_output_dir, analysis_context)
@@ -2060,8 +2060,8 @@ def main() -> int:
     helper_stage_trace.append(build_stage_trace_entry("run-plan", "explore-run/scripts/plan_variants.py", f"Prepared {variant_matrix.get('variant_count', 0)} exploratory run variants after pruning {variant_matrix.get('pruned_variant_count', 0)} by budget."))
 
     eval_contract = eval_contract_payload(analysis_data, campaign, metric_policy)
-    baseline_gate: Dict[str, Any] = {"decision": "not-applicable", "reason": "Baseline gate was not evaluated."}
-    baseline_payload: Dict[str, Any] = {}
+    baseline_gate: dict[str, Any] = {"decision": "not-applicable", "reason": "Baseline gate was not evaluated."}
+    baseline_payload: dict[str, Any] = {}
     if not compatibility_mode:
         baseline_gate, baseline_payload, _baseline_runtime = run_baseline_evaluation(
             train_execute_script=train_execute_script,
@@ -2222,7 +2222,7 @@ def main() -> int:
             "atomic_unit_count": 0,
             "blockers": ["no-selected-idea"],
             "artifact_paths": [],
-            "artifact_path": str((analysis_output_dir / "ATOMIC_IDEA_MAP.json")),
+            "artifact_path": str(analysis_output_dir / "ATOMIC_IDEA_MAP.json"),
         }
         (analysis_output_dir / "ATOMIC_IDEA_MAP.json").write_text(json.dumps({k: v for k, v in atomic_bundle.items() if k not in {"artifact_paths", "artifact_path"}}, indent=2, ensure_ascii=False), encoding="utf-8")
         (analysis_output_dir / "ATOMIC_IDEA_MAP.md").write_text("# Atomic Idea Map\n\n- Status: `blocked`\n- Selected idea: `none`\n\n## Blockers\n\n- no-selected-idea\n", encoding="utf-8")
@@ -2254,8 +2254,8 @@ def main() -> int:
                 "verification_modes": {"not_checked": 0},
             },
             "blockers": ["no-selected-idea"],
-            "artifact_paths": [str((analysis_output_dir / "IMPLEMENTATION_FIDELITY.md")), str((analysis_output_dir / "IMPLEMENTATION_FIDELITY.json"))],
-            "artifact_path": str((analysis_output_dir / "IMPLEMENTATION_FIDELITY.json")),
+            "artifact_paths": [str(analysis_output_dir / "IMPLEMENTATION_FIDELITY.md"), str(analysis_output_dir / "IMPLEMENTATION_FIDELITY.json")],
+            "artifact_path": str(analysis_output_dir / "IMPLEMENTATION_FIDELITY.json"),
         }
         (analysis_output_dir / "IMPLEMENTATION_FIDELITY.json").write_text(json.dumps({k: v for k, v in pre_execution_fidelity.items() if k not in {"artifact_paths", "artifact_path"}}, indent=2, ensure_ascii=False), encoding="utf-8")
         (analysis_output_dir / "IMPLEMENTATION_FIDELITY.md").write_text("# Implementation Fidelity\n\n- Status: `blocked`\n- Phase: `pre-execution`\n- Selected idea: `none`\n\n## Summary\n\n- Atomic unit count: `0`\n- States: `{'not-started': 0}`\n- Verification levels: `{'not_checked': 0}`\n", encoding="utf-8")
@@ -2294,7 +2294,7 @@ def main() -> int:
     )
     config_diff_summary = build_config_diff_summary(selected_idea, variant_matrix)
 
-    planned_skill_chain: List[str] = []
+    planned_skill_chain: list[str] = []
     if include_analysis_pass:
         planned_skill_chain.append("analyze-project")
     if include_setup_pass:
@@ -2302,7 +2302,7 @@ def main() -> int:
     planned_skill_chain.extend(["explore-code", "explore-run"])
 
     execution_kind = infer_execution_kind(variant_matrix.get("base_command"), variant_spec) if variant_matrix.get("base_command") else None
-    executed_runs: List[Dict[str, Any]] = []
+    executed_runs: list[dict[str, Any]] = []
     short_run_runtime_seconds = 0.0
     should_run_variants = bool(campaign["execution_policy"]["run_selected_variants"])
     if not compatibility_mode and baseline_gate.get("decision") == "abandon":

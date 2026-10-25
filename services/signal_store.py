@@ -1,15 +1,20 @@
 """Signal Store: DB-backed (atomic, concurrency-safe per 5.10), append-only logically, JSON export w/ monthly rotation."""
 from __future__ import annotations
-import json, os, uuid
-from datetime import datetime, timezone
+
+import json
+import os
+import uuid
+from datetime import UTC, datetime
+
 from sqlalchemy import select
+
 from config.timeframes import eval_due_at
 
 SCHEMA_VERSION = 1
 
 def build_signal(symbol, market, timeframe, direction, entry, stop_loss, take_profit,
                  confidence, top_reasons, backtest_stats, model_version, created_at=None, trading_calendar=None):
-    created_at = created_at or datetime.now(timezone.utc)
+    created_at = created_at or datetime.now(UTC)
     return {"signal_id": str(uuid.uuid4()), "symbol": symbol, "market": market,
         "timeframe": timeframe, "direction": direction, "entry": float(entry),
         "stop_loss": float(stop_loss), "take_profit": float(take_profit),
@@ -46,14 +51,14 @@ def update_evaluation(session, signal_id: str, **fields):
 
 def pending_due(session, now=None):
     from models.signal import SignalModel
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return list(session.scalars(select(SignalModel).where(SignalModel.status=="pending", SignalModel.eval_due_at<=now)))
 
 def export_json(session, out_dir="data/signals", month: str | None = None):
     """Monthly-rotated JSON dump (3.1)."""
     from models.signal import SignalModel
     os.makedirs(out_dir, exist_ok=True)
-    month = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    month = month or datetime.now(UTC).strftime("%Y-%m")
     rows = session.scalars(select(SignalModel)).all()
     data = [{"signal_id":r.id,"symbol":r.symbol,"market":r.market,"timeframe":r.timeframe,
         "direction":r.direction,"entry":r.entry,"stop_loss":r.stop_loss,"take_profit":r.take_profit,

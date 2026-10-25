@@ -1,7 +1,10 @@
 """Calibration loop (Layer 7) + RETRAIN_MODE/SHADOW_MODE flags."""
 from __future__ import annotations
+
 import os
+
 from sqlalchemy import select
+
 RETRAIN_MODE = os.getenv("RETRAIN_MODE","manual")  # manual|automatic (central, no redeploy)
 SHADOW_MODE = os.getenv("SHADOW_MODE","false").lower()=="true"
 WIN_RATE_ALERT = float(os.getenv("WIN_RATE_ALERT","0.40"))
@@ -19,9 +22,7 @@ def calibrate(session, market, timeframe, window=100):
         "low_sample": len(rows)<30}
 
 def shadow_report(session):
-    from models.signal import SignalModel
     from config.timeframes import ALL
-    from models.signal import SignalModel as S
     rep={}
     for m in ["stock","fund","gold","usd","option","commodity"]:
         for tf in ALL:

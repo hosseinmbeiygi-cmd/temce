@@ -46,7 +46,7 @@ def compute_dedup_hash(title: str, url: str) -> str:
     norm_title = unicodedata.normalize("NFKC", title or "").casefold()
     norm_title = " ".join(norm_title.split())
     norm_url = (url or "").strip().casefold()
-    return hashlib.sha256(f"{norm_title}\x1f{norm_url}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{norm_title}\x1f{norm_url}".encode()).hexdigest()
 
 
 class NewsDualWriter:

@@ -1,8 +1,11 @@
 """Data layer (Layer 11): freshness TTL + quota + validation + fallback gaps + pre-filter (1.2-1.4, 2.1)."""
 from __future__ import annotations
+
 import time
-from sqlalchemy import String, Float, Integer, DateTime, Text, func
+
+from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+
 from models.base import Base, TimestampMixin
 
 TTL = {"price_min":300,"nav_hourly":3600,"fundamental_weekly":7*86400}  # 1.2

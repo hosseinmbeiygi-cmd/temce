@@ -4,6 +4,7 @@ Rule: a decision at `asof` may only see rows with knowledge_time <= asof.
 For each business key the latest *known* version wins (corrections append, never overwrite).
 """
 from __future__ import annotations
+
 import pandas as pd
 
 

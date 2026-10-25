@@ -1,0 +1,177 @@
+﻿2026-10-23 18:38:39 [warning  ] feedparser not installed — RSS news fetching disabled
+2026-10-23 18:38:43 [debug    ] Request: GET /api/v1/gold/assistant-rules [trace=097eb7e576a54b3ea8baaa8aa2010be5]
+2026-10-23 18:38:43 [info     ] GET /api/v1/gold/assistant-rules -> 200 (0.188s) [trace=097eb7e576a54b3ea8baaa8aa2010be5]
+2026-10-23 18:38:43 [debug    ] Response: 200 [trace=097eb7e576a54b3ea8baaa8aa2010be5]
+.2026-10-23 18:38:43 [debug    ] Request: GET /api/v1/gold/assistant-rules [trace=dfcacff4324049c39d953f8ed14dcfca]
+2026-10-23 18:38:43 [info     ] GET /api/v1/gold/assistant-rules -> 200 (0.002s) [trace=dfcacff4324049c39d953f8ed14dcfca]
+2026-10-23 18:38:43 [debug    ] Response: 200 [trace=dfcacff4324049c39d953f8ed14dcfca]
+.2026-10-23 18:38:43 [debug    ] Request: GET /api/v1/gold/assistant-rules [trace=b62677abd6854217998ebbefbe69a284]
+2026-10-23 18:38:43 [info     ] GET /api/v1/gold/assistant-rules -> 200 (0.002s) [trace=b62677abd6854217998ebbefbe69a284]
+2026-10-23 18:38:43 [debug    ] Response: 200 [trace=b62677abd6854217998ebbefbe69a284]
+.2026-10-23 18:38:43 [debug    ] Request: GET /api/v1/gold/assistant-rules [trace=8fadc5b6fb0a4673a2f9d0cd87e82d2a]
+2026-10-23 18:38:43 [info     ] GET /api/v1/gold/assistant-rules -> 200 (0.003s) [trace=8fadc5b6fb0a4673a2f9d0cd87e82d2a]
+2026-10-23 18:38:43 [debug    ] Response: 200 [trace=8fadc5b6fb0a4673a2f9d0cd87e82d2a]
+.2026-10-23 18:38:43 [debug    ] Request: GET /api/v1/gold/assistant-rules [trace=6f517fb827644837b8da7d1478aa651f]
+2026-10-23 18:38:43 [info     ] GET /api/v1/gold/assistant-rules -> 200 (0.002s) [trace=6f517fb827644837b8da7d1478aa651f]
+2026-10-23 18:38:43 [debug    ] Response: 200 [trace=6f517fb827644837b8da7d1478aa651f]
+.2026-10-23 18:38:43 [debug    ] Request: GET /api/v1/gold/analytics/options/chain [trace=f116809a93d644a4be8c391045ef7e29]
+2026-10-23 18:38:43 [warning  ] Revocation check skipped: Redis unavailable for jti=64abb8496ba8446bbd9ee459ba611ee5
+2026-10-23 18:38:44 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/options/chain -> 200 (0.359s) [trace=f116809a93d644a4be8c391045ef7e29]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=f116809a93d644a4be8c391045ef7e29]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/options/chain [trace=e60c4caa35dd45cfb5ac7d85c89f04f4]
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/options/chain -> 401 (0.002s) [trace=e60c4caa35dd45cfb5ac7d85c89f04f4]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=e60c4caa35dd45cfb5ac7d85c89f04f4]
+2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/options/chain [trace=f128158d23ba4cd2a88efee5e7a9cddd]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=c136eee6bf634d6088fdee0f63c1753d
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/options/chain -> 200 (0.003s) [trace=f128158d23ba4cd2a88efee5e7a9cddd]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=f128158d23ba4cd2a88efee5e7a9cddd]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/strategy [trace=ca830cff128242e4a6d5ffe669c651dc]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=d0c87f36b2fe4dfcae3075393a2af9e2
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=d0c87f36b2fe4dfcae3075393a2af9e2
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/strategy -> 200 (0.010s) [trace=ca830cff128242e4a6d5ffe669c651dc]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=ca830cff128242e4a6d5ffe669c651dc]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/strategy [trace=bc0292a0ac2044ec9d83c860e0806133]
+2026-10-23 18:38:44 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/gold/analytics/options/strategy
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/strategy -> 401 (0.006s) [trace=bc0292a0ac2044ec9d83c860e0806133]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=bc0292a0ac2044ec9d83c860e0806133]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/strategy [trace=88c78f6a2e31439e95c21abf827478c0]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=9685fa30acbc4daca7c513232508a729
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=9685fa30acbc4daca7c513232508a729
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/strategy -> 422 (0.008s) [trace=88c78f6a2e31439e95c21abf827478c0]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=88c78f6a2e31439e95c21abf827478c0]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/margin [trace=d340832e3ffc4cf68d82a2382d445419]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=e0e2177b857c4bb5890157b47d94e491
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=e0e2177b857c4bb5890157b47d94e491
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/margin -> 200 (0.009s) [trace=d340832e3ffc4cf68d82a2382d445419]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=d340832e3ffc4cf68d82a2382d445419]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/margin [trace=ced3378cbd4d483e810fbf740bc59b4b]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=394de61844da464ea0d6e78fd675cddb
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=394de61844da464ea0d6e78fd675cddb
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/margin -> 200 (0.009s) [trace=ced3378cbd4d483e810fbf740bc59b4b]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=ced3378cbd4d483e810fbf740bc59b4b]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/margin [trace=7f4692778ec34f21baa3ae41132d8705]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=b59be36b09fb4cadbc670f7efe5dee0a
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=b59be36b09fb4cadbc670f7efe5dee0a
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/margin -> 200 (0.010s) [trace=7f4692778ec34f21baa3ae41132d8705]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=7f4692778ec34f21baa3ae41132d8705]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/margin [trace=ab43a7c85dce4283856ad44fc84846d0]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=a4e3b61fbffc4052ab7d1bd555f48e52
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=a4e3b61fbffc4052ab7d1bd555f48e52
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/margin -> 200 (0.019s) [trace=ab43a7c85dce4283856ad44fc84846d0]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=ab43a7c85dce4283856ad44fc84846d0]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/options/margin [trace=d7a18acdf5cd4da9a078cec2c5e0d15a]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=9911af60e46d46629d3646b6aec0549c
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=9911af60e46d46629d3646b6aec0549c
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/options/margin -> 200 (0.013s) [trace=d7a18acdf5cd4da9a078cec2c5e0d15a]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=d7a18acdf5cd4da9a078cec2c5e0d15a]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/coins [trace=7cc98ea139874b1bb3accfba94354ad8]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=7ee3f765c87a4a1b8b5bf95af2b540bc
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/coins -> 200 (0.008s) [trace=7cc98ea139874b1bb3accfba94354ad8]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=7cc98ea139874b1bb3accfba94354ad8]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/arbitrage [trace=52a080ac28534e328584fd07e4b1be72]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=d69e859832fe4ddc978b63f3cbb5b3b2
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/arbitrage -> 200 (0.008s) [trace=52a080ac28534e328584fd07e4b1be72]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=52a080ac28534e328584fd07e4b1be72]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/aed-history [trace=e9f6f6d3106a4df79d3efe4ab5581451]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=38cef0198bbc46c380ce7bd477a7b45e
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/aed-history -> 200 (0.004s) [trace=e9f6f6d3106a4df79d3efe4ab5581451]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=e9f6f6d3106a4df79d3efe4ab5581451]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/coins [trace=af0aa63c8752442fb7c69105f94e5f10]
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/coins -> 401 (0.003s) [trace=af0aa63c8752442fb7c69105f94e5f10]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=af0aa63c8752442fb7c69105f94e5f10]
+2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/arbitrage [trace=78c282124844489a9192cfaf8f796b60]
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/arbitrage -> 401 (0.003s) [trace=78c282124844489a9192cfaf8f796b60]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=78c282124844489a9192cfaf8f796b60]
+2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/aed-history [trace=6e9d032fe9bb4b2699ac7a5e615b554b]
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/aed-history -> 401 (0.003s) [trace=6e9d032fe9bb4b2699ac7a5e615b554b]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=6e9d032fe9bb4b2699ac7a5e615b554b]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/coins [trace=a24438789c9a4e25b063f90e98631841]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=d823280d13c14b0a9fcce5750789cf82
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/coins -> 200 (0.204s) [trace=a24438789c9a4e25b063f90e98631841]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=a24438789c9a4e25b063f90e98631841]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/coins [trace=4c464f07d3c84d7cac4385a74d84180e]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=b7c52eba257a4ea992440d68f4db11bd
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/coins -> 422 (0.003s) [trace=4c464f07d3c84d7cac4385a74d84180e]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=4c464f07d3c84d7cac4385a74d84180e]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/coins [trace=870a98add35743e69f26813d4492cc34]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=e39184dba79a4852bea9f563b8953062
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/coins -> 422 (0.005s) [trace=870a98add35743e69f26813d4492cc34]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=870a98add35743e69f26813d4492cc34]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/arbitrage [trace=7efd4beb28a548a5a6dc92ac3eb7287d]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=7c37787fdb014ce4ab808651b9cf4fb5
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/arbitrage -> 422 (0.004s) [trace=7efd4beb28a548a5a6dc92ac3eb7287d]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=7efd4beb28a548a5a6dc92ac3eb7287d]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/arbitrage [trace=39e79e3745504a7383d61ddc5cba9d5f]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=2a526a92d42d4c7f87c47a9c990c74de
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/arbitrage -> 422 (0.005s) [trace=39e79e3745504a7383d61ddc5cba9d5f]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=39e79e3745504a7383d61ddc5cba9d5f]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/arbitrage [trace=8a4ec23f71ff43b39a7d1a8c8024d03c]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=f9225e48744d42d0a2c0a170a8f7f471
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/arbitrage -> 422 (0.004s) [trace=8a4ec23f71ff43b39a7d1a8c8024d03c]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=8a4ec23f71ff43b39a7d1a8c8024d03c]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/arbitrage [trace=44c9ac2782334430a3797bf1a43b71e8]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=9ac65e70cec44ea096bdc2b012fecd03
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/arbitrage -> 422 (0.004s) [trace=44c9ac2782334430a3797bf1a43b71e8]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=44c9ac2782334430a3797bf1a43b71e8]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/aed-history [trace=03fcaac9b5ca4bbca969a80792a71394]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=f10cbafdea3549e9baee2c44037a3853
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/aed-history -> 422 (0.003s) [trace=03fcaac9b5ca4bbca969a80792a71394]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=03fcaac9b5ca4bbca969a80792a71394]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/aed-history [trace=086fbc37880849d98130f721c804d415]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=d70ae231e2114d0688b838f1f9a16bed
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/aed-history -> 422 (0.004s) [trace=086fbc37880849d98130f721c804d415]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=086fbc37880849d98130f721c804d415]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/risk/scenarios [trace=a0e0114d2cb94243a6b2165c0b4a5f48]
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/risk/scenarios -> 401 (0.003s) [trace=a0e0114d2cb94243a6b2165c0b4a5f48]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=a0e0114d2cb94243a6b2165c0b4a5f48]
+.2026-10-23 18:38:44 [debug    ] Request: GET /api/v1/gold/analytics/risk/scenarios [trace=5395756ebe064a93a5480e30f4a02c65]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=790cf01fc15c41839913074854c7057a
+2026-10-23 18:38:44 [info     ] GET /api/v1/gold/analytics/risk/scenarios -> 200 (0.002s) [trace=5395756ebe064a93a5480e30f4a02c65]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=5395756ebe064a93a5480e30f4a02c65]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/risk/stress [trace=8537ca59fb8b4f0b9b1f6c4fb16aefc8]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=8a231715af8a461f9832dba157a55903
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=8a231715af8a461f9832dba157a55903
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/risk/stress -> 200 (0.008s) [trace=8537ca59fb8b4f0b9b1f6c4fb16aefc8]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=8537ca59fb8b4f0b9b1f6c4fb16aefc8]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/risk/stress [trace=c4ef015db98b47199ec061c232f3ef8f]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=82541a986dbc455f8497765b0e9e917e
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=82541a986dbc455f8497765b0e9e917e
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/risk/stress -> 200 (0.008s) [trace=c4ef015db98b47199ec061c232f3ef8f]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=c4ef015db98b47199ec061c232f3ef8f]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/risk/stress [trace=f8e7ec73a11c40c38f244b61e4e5ab8b]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=30c5d7f84ef14c3c840c46d4a7ec3932
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=30c5d7f84ef14c3c840c46d4a7ec3932
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/risk/stress -> 200 (0.007s) [trace=f8e7ec73a11c40c38f244b61e4e5ab8b]
+2026-10-23 18:38:44 [debug    ] Response: 200 [trace=f8e7ec73a11c40c38f244b61e4e5ab8b]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/risk/stress [trace=ba0f204ec1eb4ab5bd728e70d9160625]
+2026-10-23 18:38:44 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/gold/analytics/risk/stress
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/risk/stress -> 401 (0.004s) [trace=ba0f204ec1eb4ab5bd728e70d9160625]
+2026-10-23 18:38:44 [debug    ] Response: 401 [trace=ba0f204ec1eb4ab5bd728e70d9160625]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/risk/stress [trace=c4fc8978226946eb83b209423374caa0]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=fbb187944f4d46459a8f12cef1fb9bb8
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=fbb187944f4d46459a8f12cef1fb9bb8
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/risk/stress -> 422 (0.008s) [trace=c4fc8978226946eb83b209423374caa0]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=c4fc8978226946eb83b209423374caa0]
+.2026-10-23 18:38:44 [debug    ] Request: POST /api/v1/gold/analytics/risk/stress [trace=814d556014ab4637b02f13018c06530d]
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=3f957bc846b147f2b152c308eee8618b
+2026-10-23 18:38:44 [warning  ] Revocation check skipped: Redis unavailable for jti=3f957bc846b147f2b152c308eee8618b
+2026-10-23 18:38:44 [info     ] POST /api/v1/gold/analytics/risk/stress -> 422 (0.007s) [trace=814d556014ab4637b02f13018c06530d]
+2026-10-23 18:38:44 [debug    ] Response: 422 [trace=814d556014ab4637b02f13018c06530d]
+.
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+..\..\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/unit/api/test_gold_assistant_rules.py::test_endpoint_is_mounted_and_serves_the_acceptance_config
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\pydantic\_internal\_generate_schema.py:325: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.13/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+36 passed, 3 warnings in 14.17s

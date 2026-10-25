@@ -4,19 +4,19 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
-
+from typing import Any
 
 BLOCKED_SCOPES = {"unspecified", "broad_rewrite", "rewrite-everything"}
 
 
-def tokenize(value: Any) -> List[str]:
+def tokenize(value: Any) -> list[str]:
     return [token for token in re.split(r"[^a-z0-9]+", str(value or "").lower()) if len(token) > 2]
 
 
-def unique_preserving(values: Sequence[str], *, limit: int | None = None) -> List[str]:
-    ordered: List[str] = []
+def unique_preserving(values: Sequence[str], *, limit: int | None = None) -> list[str]:
+    ordered: list[str] = []
     for value in values:
         if not value or value in ordered:
             continue
@@ -44,10 +44,10 @@ def classify_surface(path: str) -> str:
     return "model"
 
 
-def formula_support(selected_idea: Dict[str, Any], lookup_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
+def formula_support(selected_idea: dict[str, Any], lookup_bundle: dict[str, Any]) -> list[dict[str, Any]]:
     source_ids = list(selected_idea.get("source_reference", []) or [])
     records = {item.get("source_id"): item for item in lookup_bundle.get("records", []) if item.get("source_id")}
-    support: List[Dict[str, Any]] = []
+    support: list[dict[str, Any]] = []
     for source_id in source_ids[:3]:
         record = records.get(source_id) or {}
         support.append(
@@ -70,10 +70,10 @@ def formula_support(selected_idea: Dict[str, Any], lookup_bundle: Dict[str, Any]
     return support
 
 
-def code_support(selected_idea: Dict[str, Any], source_mapping: Dict[str, Any]) -> List[Dict[str, Any]]:
+def code_support(selected_idea: dict[str, Any], source_mapping: dict[str, Any]) -> list[dict[str, Any]]:
     selected_source = source_mapping.get("selected_source_record", {}) or {}
     target_location_map = source_mapping.get("target_location_map", []) or []
-    support: List[Dict[str, Any]] = []
+    support: list[dict[str, Any]] = []
     if selected_source:
         support.append(
             {
@@ -107,7 +107,7 @@ def code_support(selected_idea: Dict[str, Any], source_mapping: Dict[str, Any]) 
     return support
 
 
-def unit_validation_strategy(surface: str, selected_idea: Dict[str, Any], variant_spec: Dict[str, Any]) -> str:
+def unit_validation_strategy(surface: str, selected_idea: dict[str, Any], variant_spec: dict[str, Any]) -> str:
     if surface == "config":
         return f"Verify that `{selected_idea.get('change_scope', 'candidate change')}` can be isolated through config or CLI overrides without touching the frozen eval contract."
     if surface == "evaluation adapter":
@@ -117,14 +117,14 @@ def unit_validation_strategy(surface: str, selected_idea: Dict[str, Any], varian
     return "Use a bounded static and short-run validation path before claiming the idea is implementable."
 
 
-def implementation_risk(selected_idea: Dict[str, Any], surface: str) -> float:
+def implementation_risk(selected_idea: dict[str, Any], surface: str) -> float:
     base = float(selected_idea.get("implementation_risk") or 0.4)
     if surface in {"training", "evaluation adapter"}:
         base += 0.10
     return max(0.0, min(1.0, round(base, 4)))
 
 
-def scientific_meaning_risk(selected_idea: Dict[str, Any], surface: str) -> float:
+def scientific_meaning_risk(selected_idea: dict[str, Any], surface: str) -> float:
     base = float(selected_idea.get("eval_risk") or 0.3)
     if surface == "evaluation adapter":
         base += 0.20
@@ -135,13 +135,13 @@ def scientific_meaning_risk(selected_idea: Dict[str, Any], surface: str) -> floa
 
 def build_atomic_units(
     *,
-    selected_idea: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    source_mapping: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
-    variant_spec: Dict[str, Any],
-) -> tuple[List[Dict[str, Any]], List[str]]:
-    blockers: List[str] = []
+    selected_idea: dict[str, Any],
+    analysis_data: dict[str, Any],
+    source_mapping: dict[str, Any],
+    lookup_bundle: dict[str, Any],
+    variant_spec: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    blockers: list[str] = []
     change_scope = str(selected_idea.get("change_scope") or "unspecified")
     target_component = str(selected_idea.get("target_component") or "unspecified")
     if change_scope in BLOCKED_SCOPES:
@@ -176,7 +176,7 @@ def build_atomic_units(
         limit=6,
     )
 
-    units: List[Dict[str, Any]] = []
+    units: list[dict[str, Any]] = []
     if code_files:
         surface = classify_surface(code_files[0])
         units.append(
@@ -221,7 +221,7 @@ def build_atomic_units(
     return units, unique_preserving(blockers)
 
 
-def write_atomic_markdown(output_dir: Path, payload: Dict[str, Any]) -> Path:
+def write_atomic_markdown(output_dir: Path, payload: dict[str, Any]) -> Path:
     lines = [
         "# Atomic Idea Map",
         "",
@@ -265,13 +265,13 @@ def write_atomic_markdown(output_dir: Path, payload: Dict[str, Any]) -> Path:
 def run_atomic_idea_decomposition_pass(
     *,
     analysis_output_dir: Path,
-    selected_idea: Dict[str, Any],
-    analysis_data: Dict[str, Any],
-    source_mapping: Dict[str, Any],
-    lookup_bundle: Dict[str, Any],
+    selected_idea: dict[str, Any],
+    analysis_data: dict[str, Any],
+    source_mapping: dict[str, Any],
+    lookup_bundle: dict[str, Any],
     current_research: str,
-    variant_spec: Dict[str, Any],
-) -> Dict[str, Any]:
+    variant_spec: dict[str, Any],
+) -> dict[str, Any]:
     del current_research
     atomic_units, blockers = build_atomic_units(
         selected_idea=selected_idea,

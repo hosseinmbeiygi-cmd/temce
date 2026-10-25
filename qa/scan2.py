@@ -1,4 +1,7 @@
-import pathlib, re, json
+import json
+import pathlib
+import re
+
 pats=["pnl","realized","unrealized","drawdown","sharpe","margin","leverage","nav","fee","slippage","rsi","macd","ema"]
 hits=[]
 for p in list(pathlib.Path("src").rglob("*.py"))+list(pathlib.Path("backtesting").rglob("*.py"))+list(pathlib.Path("core").rglob("*.py")):

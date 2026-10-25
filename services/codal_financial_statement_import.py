@@ -25,7 +25,6 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from core.ids import new_id
 from core.logging import get_logger

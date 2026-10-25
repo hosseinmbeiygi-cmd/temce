@@ -157,7 +157,7 @@ async def _get_cached_report(
             return await asyncio.wait_for(
                 asyncio.shield(_cold_start_build_task), timeout=_COLD_START_GRACE_SECONDS
             ), None
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             return None, None  # caller serves the "building" payload
         except Exception:
             logger.exception("Cold-start signal build failed; scheduling retry")

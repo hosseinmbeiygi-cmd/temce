@@ -29,13 +29,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from apps.api.dependencies import require_roles
-
 from api.job_state import (
     load_status as _load_status,
+)
+from api.job_state import (
     reset_job as _reset_job,
+)
+from api.job_state import (
     save_status as _save_status,  # noqa: F401 (re-exported by apps.api.endpoints.precompute)
 )
+from apps.api.dependencies import require_roles
 
 
 def get_symbol_results() -> dict[str, dict[str, Any]]:

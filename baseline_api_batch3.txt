@@ -1,0 +1,108 @@
+﻿2026-10-23 18:37:52 [warning  ] feedparser not installed — RSS news fetching disabled
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=cee30c81e07d4f2b87a2dcc37236e1a9]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 401 (0.024s) [trace=cee30c81e07d4f2b87a2dcc37236e1a9]
+2026-10-23 18:37:59 [debug    ] Response: 401 [trace=cee30c81e07d4f2b87a2dcc37236e1a9]
+.2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=1a7207c46a1c415689b311715da1dc11]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 401 (0.003s) [trace=1a7207c46a1c415689b311715da1dc11]
+2026-10-23 18:37:59 [debug    ] Response: 401 [trace=1a7207c46a1c415689b311715da1dc11]
+.2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=c2d8c54d1e374c2cbc8c0c548c4acd4a]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.009s) [trace=c2d8c54d1e374c2cbc8c0c548c4acd4a]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=c2d8c54d1e374c2cbc8c0c548c4acd4a]
+.2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=70c1f598e2584fbb8d47652bcfd84991]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 403 (0.003s) [trace=70c1f598e2584fbb8d47652bcfd84991]
+2026-10-23 18:37:59 [debug    ] Response: 403 [trace=70c1f598e2584fbb8d47652bcfd84991]
+.2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=337baefb49b9402582b6d25a4ca5caab]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=337baefb49b9402582b6d25a4ca5caab]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=337baefb49b9402582b6d25a4ca5caab]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=0364bee457514035a654f488ce879cf9]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=0364bee457514035a654f488ce879cf9]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=0364bee457514035a654f488ce879cf9]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=52df6cea2554462cbd3809a845b172de]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=52df6cea2554462cbd3809a845b172de]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=52df6cea2554462cbd3809a845b172de]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=024a551024ca4dd1839dc4cb322790cb]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.004s) [trace=024a551024ca4dd1839dc4cb322790cb]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=024a551024ca4dd1839dc4cb322790cb]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=954106a5c61f42a395a94bf2ff195e78]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=954106a5c61f42a395a94bf2ff195e78]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=954106a5c61f42a395a94bf2ff195e78]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=bd2a605ec17847a38198987d2402adf7]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=bd2a605ec17847a38198987d2402adf7]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=bd2a605ec17847a38198987d2402adf7]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=63ee14b3d0164496a12c9bdf7175fd1a]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=63ee14b3d0164496a12c9bdf7175fd1a]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=63ee14b3d0164496a12c9bdf7175fd1a]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=a88265ad62b441578eb3b64baf88ace9]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=a88265ad62b441578eb3b64baf88ace9]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=a88265ad62b441578eb3b64baf88ace9]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=4b76acf9d9ea4e2088d270a099916f8e]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.003s) [trace=4b76acf9d9ea4e2088d270a099916f8e]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=4b76acf9d9ea4e2088d270a099916f8e]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=01cf9ef6d3e0422f8811c26bc03f2603]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 200 (0.004s) [trace=01cf9ef6d3e0422f8811c26bc03f2603]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=01cf9ef6d3e0422f8811c26bc03f2603]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=e2cbd5f8f5d74eb28355772f3b0f3c0e]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 429 (0.003s) [trace=e2cbd5f8f5d74eb28355772f3b0f3c0e]
+2026-10-23 18:37:59 [debug    ] Response: 429 [trace=e2cbd5f8f5d74eb28355772f3b0f3c0e]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=cccb08a7f18d40929f2845a6fd9e9e28]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 429 (0.003s) [trace=cccb08a7f18d40929f2845a6fd9e9e28]
+2026-10-23 18:37:59 [debug    ] Response: 429 [trace=cccb08a7f18d40929f2845a6fd9e9e28]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/snapshot [trace=315362c366054886aec92237c63e3bcc]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/snapshot -> 429 (0.004s) [trace=315362c366054886aec92237c63e3bcc]
+2026-10-23 18:37:59 [debug    ] Response: 429 [trace=315362c366054886aec92237c63e3bcc]
+.2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/nav-premium [trace=e88f49528585437d8f005f201e023748]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/nav-premium -> 200 (0.004s) [trace=e88f49528585437d8f005f201e023748]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=e88f49528585437d8f005f201e023748]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/arbitrage [trace=93c53fb9fdb44fbe94dc18fbdbbfde10]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/arbitrage -> 403 (0.004s) [trace=93c53fb9fdb44fbe94dc18fbdbbfde10]
+2026-10-23 18:37:59 [debug    ] Response: 403 [trace=93c53fb9fdb44fbe94dc18fbdbbfde10]
+2026-10-23 18:37:59 [debug    ] Request: GET /api/v1/golddesk/arbitrage [trace=64912ab2cc124684a879e3727c20f72a]
+2026-10-23 18:37:59 [info     ] GET /api/v1/golddesk/arbitrage -> 200 (0.004s) [trace=64912ab2cc124684a879e3727c20f72a]
+2026-10-23 18:37:59 [debug    ] Response: 200 [trace=64912ab2cc124684a879e3727c20f72a]
+.2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+2026-10-23 18:38:00 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-42 tier=pro (burst=120)
+...2026-10-23 18:38:01 [warning  ] Tier limit exceeded: GET /api/v1/echo subject=pro:user-77 tier=pro (burst=120)
+.......
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+..\..\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\AppData\Roaming\Python\Python314\site-packages\pydantic\_internal\_generate_schema.py:325
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\pydantic\_internal\_generate_schema.py:325: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.13/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+16 passed, 3 warnings in 15.99s

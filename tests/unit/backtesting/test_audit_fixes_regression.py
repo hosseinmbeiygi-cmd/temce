@@ -14,12 +14,11 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 import numpy as np
 import pytest
-
 
 # ── BT-001: FIFO position accounting ────────────────────────────────────────
 
@@ -27,7 +26,6 @@ import pytest
 class TestFifoPositionManager:
     def _fill(self, side, qty, price):
         from backtesting.types import FillEvent
-        from domain.common.enum_types import OrderSide
 
         return FillEvent(
             order_id="t", instrument_id="X", side=side, quantity=qty, price=price,
@@ -69,7 +67,6 @@ class TestFifoPortfolioManager:
     def _fill(self, side, qty, price, commission=0.0):
         from backtesting.types import FillEvent
         from core.time import utc_now_naive
-        from domain.common.enum_types import OrderSide
 
         return FillEvent(
             order_id=f"t_{utc_now_naive().isoformat()}",
@@ -194,7 +191,7 @@ class TestTehranClock:
         assert c.now.hour == 9 and c.now.minute == 30
 
     def test_market_open_uses_tehran_time(self):
-        from backtesting.engine.clock import Clock, TEHRAN_TZ
+        from backtesting.engine.clock import Clock
 
         # 03:59 UTC = 07:29 Tehran → closed; 05:30 UTC = 09:00 Tehran → open
         c = Clock(start=datetime(2026, 1, 1, 3, 59, tzinfo=UTC))

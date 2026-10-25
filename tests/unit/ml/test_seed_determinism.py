@@ -29,7 +29,8 @@ def test_seed_wired_into_entrypoints():
     import inspect
 
     from backtesting import runner as rmod
-    from jobs import backtest_run as jb, model_training as jm
+    from jobs import backtest_run as jb
+    from jobs import model_training as jm
     from ml.training import hyperparameter_tuning as ht
     from ml.training import trainer as tr
 

@@ -16,6 +16,7 @@ def test_round_trip_cost_charged_exactly_once():
 
 def test_broker_is_single_charge_layer():
     import inspect
+
     from backtesting.engine import broker as bmod
 
     src = inspect.getsource(bmod.Broker.submit_order_sync)
@@ -50,6 +51,7 @@ def test_walk_forward_gap_and_target_tail():
 
 def test_feature_truncation_invariance():
     import pandas as pd
+
     from ml.features.technical_features import TechnicalFeatures
 
     n = 120

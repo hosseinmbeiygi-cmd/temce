@@ -1,0 +1,152 @@
+﻿2026-10-23 18:38:56 [warning  ] feedparser not installed — RSS news fetching disabled
+...............2026-10-23 18:39:02 [warning  ] Rate limit exceeded: GET /api/v1/forecast from 198.51.100.23 (limit: 30/min)
+.2026-10-23 18:39:02 [warning  ] Rate limit exceeded: GET /api/v1/forecast-engine/gold_18k from 198.51.100.99 (limit: 30/min)
+.2026-10-23 18:39:02 [warning  ] Rate limit exceeded: GET /api/v1/forecast from 10.0.0.1 (limit: 30/min)
+..............................2026-10-23 18:39:03 [error    ] Asset allocation failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\apps\api\endpoints\market.py:579 in             │
+│ market_asset_allocation                                                     │
+│                                                                             │
+│   576 │   │   │   return ApiResponse[list[dict[str, Any]]](success=True, da │
+│   577 │   │   # Plain snapshots (no heavy detail JOIN) — classification and │
+│   578 │   │   # market_value both come from SymbolSnapshotModel itself.     │
+│ > 579 │   │   snapshots = await brsapi.get_latest_snapshots(limit=limit)    │
+│   580 │   │   buckets: dict[str, float] = {}                                │
+│   581 │   │   for s in snapshots:                                           │
+│   582 │   │   │   mv = s.get("market_value") or 0                           │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ brsapi = namespace(get_latest_snapshots=<AsyncMock id='2002508920688'>) │ │
+│ │ cached = None                                                           │ │
+│ │    exc = RuntimeError('db down')                                        │ │
+│ │  limit = 2000                                                           │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────── locals ─────────────────┐                                 │
+│ │  _call = call(limit=2000)               │                                 │
+│ │   args = ()                             │                                 │
+│ │ effect = RuntimeError('db down')        │                                 │
+│ │ kwargs = {'limit': 2000}                │                                 │
+│ │   self = <AsyncMock id='2002508920688'> │                                 │
+│ └─────────────────────────────────────────┘                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: db down
+
+....2026-10-23 18:39:03 [error    ] Cashflow by sector failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\apps\api\endpoints\market.py:623 in             │
+│ market_cashflow_by_sector                                                   │
+│                                                                             │
+│   620 │   │   │   return ApiResponse[list[dict[str, Any]]](success=True, da │
+│   621 │   │   # Plain snapshots (no heavy detail JOIN) — sector/flow fields │
+│   622 │   │   # already on SymbolSnapshotModel.                             │
+│ > 623 │   │   snapshots = await brsapi.get_latest_snapshots(limit=limit)    │
+│   624 │   │   sectors: dict[str, float] = {}                                │
+│   625 │   │   for s in snapshots:                                           │
+│   626 │   │   │   price = s.get("price_last") or 0                          │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ brsapi = namespace(get_latest_snapshots=<AsyncMock id='2002513889328'>) │ │
+│ │ cached = None                                                           │ │
+│ │    exc = RuntimeError('db down')                                        │ │
+│ │  limit = 500                                                            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────── locals ─────────────────┐                                 │
+│ │  _call = call(limit=500)                │                                 │
+│ │   args = ()                             │                                 │
+│ │ effect = RuntimeError('db down')        │                                 │
+│ │ kwargs = {'limit': 500}                 │                                 │
+│ │   self = <AsyncMock id='2002513889328'> │                                 │
+│ └─────────────────────────────────────────┘                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: db down
+
+............................................s2026-10-23 18:39:04 [debug    ] Request: GET /api/v1/news [trace=6a5cb2281a3142ed93afb0d64b1d5712]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news -> 200 (1.293s) [trace=6a5cb2281a3142ed93afb0d64b1d5712]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=6a5cb2281a3142ed93afb0d64b1d5712]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news [trace=e223c94c12284cc989617d90f1e10a52]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news -> 200 (0.008s) [trace=e223c94c12284cc989617d90f1e10a52]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=e223c94c12284cc989617d90f1e10a52]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news [trace=cb1aaab632164c8eb226def72f31a0a1]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news -> 200 (0.008s) [trace=cb1aaab632164c8eb226def72f31a0a1]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=cb1aaab632164c8eb226def72f31a0a1]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news [trace=5ad2cf8e1686452e8abfaacf7b1437ca]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news -> 200 (0.009s) [trace=5ad2cf8e1686452e8abfaacf7b1437ca]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=5ad2cf8e1686452e8abfaacf7b1437ca]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news/symbol/وبانك [trace=f29239077c7744f48f52f825afefc9f4]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news/symbol/وبانك -> 200 (0.010s) [trace=f29239077c7744f48f52f825afefc9f4]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=f29239077c7744f48f52f825afefc9f4]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news/symbol/وبانك [trace=1141996611f64b999c61901c5b5df538]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news/symbol/وبانك -> 200 (0.008s) [trace=1141996611f64b999c61901c5b5df538]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=1141996611f64b999c61901c5b5df538]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news/symbol/وبانك [trace=8a1b7c68c2e3478683b112679158f4cf]
+2026-10-23 18:39:05 [debug    ] symbol match meta unavailable
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\apps\api\endpoints\news.py:288 in               │
+│ _symbol_match_meta                                                          │
+│                                                                             │
+│   285 │   try:                                                              │
+│   286 │   │   from services.news_tag_symbol_mapper import NewsTagSymbolMapp │
+│   287 │   │                                                                 │
+│ > 288 │   │   maps = await NewsTagSymbolMapper(session).explain_symbol(symb │
+│   289 │   │   return SymbolMatchMeta(symbol=symbol, matched=matched, maps=m │
+│   290 │   except Exception:  # noqa: BLE001 — transparency only, never brea │
+│   291 │   │   logger.debug("symbol match meta unavailable", exc_info=True)  │
+│                                                                             │
+│ ┌───────────────── locals ─────────────────┐                                │
+│ │ matched = ['وبانک']                      │                                │
+│ │ session = <AsyncMock id='2002513900416'> │                                │
+│ │  symbol = 'وبانك'                        │                                │
+│ └──────────────────────────────────────────┘                                │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\api\test_news_symbol_meta_http.py:12 │
+│ 3 in _boom                                                                  │
+│                                                                             │
+│   120 │   │   from services.news_tag_symbol_mapper import NewsTagSymbolMapp │
+│   121 │   │                                                                 │
+│   122 │   │   async def _boom(self, symbol):  # noqa: ANN001                │
+│ > 123 │   │   │   raise RuntimeError("mapping table gone")                  │
+│   124 │   │                                                                 │
+│   125 │   │   monkeypatch.setattr(NewsTagSymbolMapper, "explain_symbol", _b │
+│   126 │   │   resp = client.get("/api/v1/news/symbol/وبانك")                │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   self = <services.news_tag_symbol_mapper.NewsTagSymbolMapper object at │ │
+│ │          0x000001D23F7E9A90>                                            │ │
+│ │ symbol = 'وبانك'                                                        │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: mapping table gone
+
+2026-10-23 18:39:05 [info     ] GET /api/v1/news/symbol/وبانك -> 200 (0.082s) [trace=8a1b7c68c2e3478683b112679158f4cf]
+2026-10-23 18:39:05 [debug    ] Response: 200 [trace=8a1b7c68c2e3478683b112679158f4cf]
+.ssss2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news-tag-map [trace=258dfbf53ca24765a475c3e6196d5105]
+2026-10-23 18:39:05 [info     ] GET /api/v1/news-tag-map -> 401 (0.040s) [trace=258dfbf53ca24765a475c3e6196d5105]
+2026-10-23 18:39:05 [debug    ] Response: 401 [trace=258dfbf53ca24765a475c3e6196d5105]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news-tag-map [trace=a173991938df46bc97d77f95e8016f60]
+2026-10-23 18:39:05 [warning  ] Revocation check skipped: Redis unavailable for jti=6913623ea2bf415facda6639726c0722
+2026-10-23 18:39:05 [info     ] GET /api/v1/news-tag-map -> 403 (0.007s) [trace=a173991938df46bc97d77f95e8016f60]
+2026-10-23 18:39:05 [debug    ] Response: 403 [trace=a173991938df46bc97d77f95e8016f60]
+.2026-10-23 18:39:05 [debug    ] Request: GET /api/v1/news-tag-map [trace=cc5e53b8b04d4fc788bcc7cd70329471]
+2026-10-23 18:39:05 [warning  ] Revocation check skipped: Redis unavailable for jti=f8a78c46585944c195917a82bca5182a

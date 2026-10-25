@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 async def get_ml_prediction(symbol: str) -> dict[str, Any]:
     """Return an ML-based prediction + confidence for the symbol.
 

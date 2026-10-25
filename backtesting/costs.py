@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import warnings
-
 from dataclasses import dataclass
 
 from backtesting.costs.iran_costs import IranTransactionCosts

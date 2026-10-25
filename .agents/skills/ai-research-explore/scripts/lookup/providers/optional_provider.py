@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 OPTIONAL_PROVIDER_ENV_VARS = {
     "openrouter": "RESEARCH_LOOKUP_OPENROUTER_API_KEY",
@@ -13,7 +12,7 @@ OPTIONAL_PROVIDER_ENV_VARS = {
 }
 
 
-def resolve_optional_record(locator_info: Dict[str, Any], lookup_config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def resolve_optional_record(locator_info: dict[str, Any], lookup_config: dict[str, Any]) -> dict[str, Any] | None:
     configured = lookup_config.get("optional_providers") if isinstance(lookup_config, dict) else None
     providers = [str(item).strip().lower() for item in (configured or []) if str(item).strip()]
     for provider_name in providers:

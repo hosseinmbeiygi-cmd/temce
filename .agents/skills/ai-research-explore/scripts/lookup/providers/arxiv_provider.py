@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import urllib.parse
 import xml.etree.ElementTree as ET
-from typing import Any, Dict
+from typing import Any
 
 from .base import http_get
 
 
-def resolve_arxiv_record(locator_info: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_arxiv_record(locator_info: dict[str, Any]) -> dict[str, Any]:
     arxiv_id = str(locator_info.get("arxiv_id") or locator_info.get("identifier") or "").strip()
     record = {
         "provider_type": "arxiv",

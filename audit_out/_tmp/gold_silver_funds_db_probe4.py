@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 from sqlalchemy import text  # noqa: E402
+
 from core import database  # noqa: E402
 
 

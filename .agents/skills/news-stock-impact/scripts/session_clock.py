@@ -20,7 +20,7 @@ Standard library only.
 import argparse
 import json
 import sys
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 
 try:
     from zoneinfo import ZoneInfo
@@ -101,7 +101,7 @@ def parse_at(value):
     text = value.strip().replace("Z", "+00:00")
     parsed = datetime.fromisoformat(text)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -169,7 +169,7 @@ def resolve(market, now_utc):
         "next_session_date": next_start.date().isoformat() if next_start else None,
         "next_session_open_local": next_start.isoformat() if next_start else None,
         "next_session_close_local": next_end.isoformat() if next_end else None,
-        "next_session_open_utc": next_start.astimezone(timezone.utc).isoformat() if next_start else None,
+        "next_session_open_utc": next_start.astimezone(UTC).isoformat() if next_start else None,
         "calendar_days_ahead": days_out,
         "note": market["note"],
     }
@@ -236,7 +236,7 @@ def main():
         return 2
 
     try:
-        now_utc = parse_at(args.at) if args.at else datetime.now(timezone.utc)
+        now_utc = parse_at(args.at) if args.at else datetime.now(UTC)
     except ValueError:
         print(f"error: could not parse --at {args.at!r} as ISO-8601.", file=sys.stderr)
         return 2

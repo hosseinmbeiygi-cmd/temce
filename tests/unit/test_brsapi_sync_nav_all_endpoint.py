@@ -27,7 +27,6 @@ from apps.api.dependencies import get_current_user, get_db_session
 from apps.api.endpoints.brsapi import router as brsapi_router
 from brsapi.services.sync_service import SyncReport
 
-
 _ADMIN = {"username": "test_admin", "roles": ["admin"], "user_id": 1}
 
 

@@ -1,6 +1,5 @@
 """Executable label with explicit ineligibility reasons (never a silent zero)."""
 from __future__ import annotations
-from typing import Optional
 
 
 def executable_label(entry_price: float, exit_price: float, fee_buy: float, fee_sell: float,

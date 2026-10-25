@@ -1,0 +1,53 @@
+﻿2026-10-23 18:37:36 [warning  ] feedparser not installed — RSS news fetching disabled
+2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/feed-health [trace=8c080ba370c14d01beac74d2b6ccaeaf]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/feed-health -> 200 (0.132s) [trace=8c080ba370c14d01beac74d2b6ccaeaf]
+2026-10-23 18:37:41 [debug    ] Response: 200 [trace=8c080ba370c14d01beac74d2b6ccaeaf]
+.2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/feed-health [trace=8d5e75c8785f4f5dbec40dfd2f487c0c]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/feed-health -> 503 (0.002s) [trace=8d5e75c8785f4f5dbec40dfd2f487c0c]
+2026-10-23 18:37:41 [debug    ] Response: 503 [trace=8d5e75c8785f4f5dbec40dfd2f487c0c]
+.2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/feed-health [trace=5735098bfdf14db1a54c2b58ab86c07f]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/feed-health -> 422 (0.002s) [trace=5735098bfdf14db1a54c2b58ab86c07f]
+2026-10-23 18:37:41 [debug    ] Response: 422 [trace=5735098bfdf14db1a54c2b58ab86c07f]
+.2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/feed-health [trace=d2912446aee443368ff3d8b701785010]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/feed-health -> 200 (0.002s) [trace=d2912446aee443368ff3d8b701785010]
+2026-10-23 18:37:41 [debug    ] Response: 200 [trace=d2912446aee443368ff3d8b701785010]
+.2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/macro/calendar [trace=d2d4ea0cc38f4fcd92ce7d6400da7f83]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/macro/calendar -> 200 (0.003s) [trace=d2d4ea0cc38f4fcd92ce7d6400da7f83]
+2026-10-23 18:37:41 [debug    ] Response: 200 [trace=d2d4ea0cc38f4fcd92ce7d6400da7f83]
+.2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/macro/calendar [trace=90996951232b4e2983c60e7660730265]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/macro/calendar -> 200 (0.002s) [trace=90996951232b4e2983c60e7660730265]
+2026-10-23 18:37:41 [debug    ] Response: 200 [trace=90996951232b4e2983c60e7660730265]
+.2026-10-23 18:37:41 [debug    ] Request: GET /api/v1/gold/analytics/macro/iran-events [trace=ef571cd0d8ce4e6a800684c720e5c5dd]
+2026-10-23 18:37:41 [info     ] GET /api/v1/gold/analytics/macro/iran-events -> 200 (0.003s) [trace=ef571cd0d8ce4e6a800684c720e5c5dd]
+2026-10-23 18:37:41 [debug    ] Response: 200 [trace=ef571cd0d8ce4e6a800684c720e5c5dd]
+.2026-10-23 18:37:41 [debug    ] Request: POST /api/v1/gold/analytics/macro/iran-events [trace=0742849764954ee49c468460f927d122]
+2026-10-23 18:37:41 [warning  ] Revocation check skipped: Redis unavailable for jti=d32564d71c314acfac2e5e3ea152351e
+2026-10-23 18:37:41 [warning  ] Revocation check skipped: Redis unavailable for jti=d32564d71c314acfac2e5e3ea152351e
+2026-10-23 18:37:41 [info     ] POST /api/v1/gold/analytics/macro/iran-events -> 200 (0.012s) [trace=0742849764954ee49c468460f927d122]
+2026-10-23 18:37:41 [debug    ] Response: 200 [trace=0742849764954ee49c468460f927d122]
+.2026-10-23 18:37:41 [debug    ] Request: POST /api/v1/gold/analytics/macro/iran-events [trace=41b8950b0dd14f39bc0c8c8d34ba8bf7]
+2026-10-23 18:37:41 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/gold/analytics/macro/iran-events
+2026-10-23 18:37:41 [info     ] POST /api/v1/gold/analytics/macro/iran-events -> 401 (0.005s) [trace=41b8950b0dd14f39bc0c8c8d34ba8bf7]
+2026-10-23 18:37:41 [debug    ] Response: 401 [trace=41b8950b0dd14f39bc0c8c8d34ba8bf7]
+.2026-10-23 18:37:41 [debug    ] Request: POST /api/v1/gold/analytics/macro/iran-events [trace=459af6287f1143129199838f6af2c3d2]
+2026-10-23 18:37:41 [warning  ] Revocation check skipped: Redis unavailable for jti=786eb17435d7431d867cd7b3f5160f2c
+2026-10-23 18:37:41 [warning  ] Revocation check skipped: Redis unavailable for jti=786eb17435d7431d867cd7b3f5160f2c
+2026-10-23 18:37:41 [info     ] POST /api/v1/gold/analytics/macro/iran-events -> 422 (0.011s) [trace=459af6287f1143129199838f6af2c3d2]
+2026-10-23 18:37:41 [debug    ] Response: 422 [trace=459af6287f1143129199838f6af2c3d2]
+.
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+..\..\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/unit/api/test_gold_feed_health_http.py::test_feed_health_returns_primary_and_recent_attempts
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\pydantic\_internal\_generate_schema.py:325: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.13/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+10 passed, 3 warnings in 13.37s

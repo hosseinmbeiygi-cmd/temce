@@ -1,8 +1,12 @@
-import asyncio, os, sys
+import asyncio
+import os
+import sys
+
 sys.stdout.reconfigure(encoding="utf-8")
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
 load_dotenv()
 
 async def main():

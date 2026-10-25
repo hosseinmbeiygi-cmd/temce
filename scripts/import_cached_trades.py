@@ -118,7 +118,7 @@ def main() -> int:
             ):
                 total_files += 1
                 try:
-                    with open(path, "r", encoding="utf-8") as fh:
+                    with open(path, encoding="utf-8") as fh:
                         payload = json.load(fh)
                 except Exception as exc:  # noqa: BLE001
                     print(f"  [SKIP] {symbol}/{date}: unreadable JSON ({exc})")

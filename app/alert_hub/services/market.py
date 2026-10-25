@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 async def get_market_metrics(symbol: str) -> dict[str, Any]:
     """Return a lightweight market snapshot for the given symbol.
 

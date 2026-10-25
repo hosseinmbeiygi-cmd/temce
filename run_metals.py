@@ -1,4 +1,7 @@
-import json, z
+import json
+
+import z
+
 METALS = ["فلزفارابی","متال","استیل","فلزا","پولاد","معدن","مسگون","آلیاژ","صنوین"]
 with open("metal_rank.json","w",encoding="utf-8") as f:
     json.dump(METALS, f, ensure_ascii=False, indent=2)

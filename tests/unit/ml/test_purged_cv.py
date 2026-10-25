@@ -46,8 +46,9 @@ def test_gap_holds_on_all_folds():
 
 
 def test_no_valid_folds_fails():
-    from ml.evaluation.cross_validation import PurgedTimeSeriesCV
     from sklearn.dummy import DummyClassifier
+
+    from ml.evaluation.cross_validation import PurgedTimeSeriesCV
 
     res = PurgedTimeSeriesCV(n_splits=5, horizon=5).validate(
         DummyClassifier(), [[1.0], [2.0]], [0, 1]

@@ -87,8 +87,8 @@ def test_signal_backtest_engine_parity():
     from services.signal_backtest_engine import SignalBacktestEngine
 
     # This engine deducts one round-trip per trade — it must equal buy+sell.
-    assert SignalBacktestEngine.TSE_ROUND_TRIP_COST_PCT == pytest.approx(buy_rate() + sell_rate())
-    assert SignalBacktestEngine.TSE_ROUND_TRIP_COST_PCT == pytest.approx(0.012512)
+    assert pytest.approx(buy_rate() + sell_rate()) == SignalBacktestEngine.TSE_ROUND_TRIP_COST_PCT
+    assert pytest.approx(0.012512) == SignalBacktestEngine.TSE_ROUND_TRIP_COST_PCT
 
 
 def test_rebalancer_parity():

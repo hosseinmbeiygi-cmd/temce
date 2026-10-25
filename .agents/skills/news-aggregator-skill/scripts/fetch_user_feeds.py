@@ -11,11 +11,11 @@ OPML 查找优先级:
 用法:
     python fetch_user_feeds.py --limit 15 --per-feed 3
 """
-import sys
-import os
-import json
 import argparse
 import concurrent.futures
+import json
+import os
+import sys
 from xml.etree import ElementTree as ET
 
 # 复用 rss_parser

@@ -33,11 +33,11 @@ from core.db_utils import safe_row_str
 from core.fix_network import fix_network
 from core.ids import new_id
 from core.logging import get_logger
-from services.codal_financial_statement_import import classify_report_type
 from core.paths import data_path
 from core.time import utc_now_naive
 from models.codal_financial import CodalFinancialStatementModel
 from services.codal_accounting_service import _parse_filename, parse_report
+from services.codal_financial_statement_import import classify_report_type
 
 logger = get_logger(__name__)
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Verify that every cached ``transactions_data/<symbol>/<date>.json`` file is
 fully present in Postgres ``brsapi_intraday_trades``.
 

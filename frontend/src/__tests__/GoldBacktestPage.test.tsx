@@ -87,10 +87,31 @@ describe("backtest page (F7)", () => {
     });
     renderPage();
 
+    // جدول دو ستونه: کل دوره کنار OOS
+    expect(await screen.findByRole("table", { name: /بازهٔ آزمایش بیرون‌نمونه/ })).toBeInTheDocument();
+    expect(screen.getByText("کل دوره")).toBeInTheDocument();
+    expect(screen.getByText("OOS")).toBeInTheDocument();
     // کنارِ عدد کل دوره (۱۸٫۴) باید مقدار OOS (۶٫۱) هم دیده شود
-    expect(await screen.findByText(/۶\.۱|6\.1/)).toBeInTheDocument();
-    expect(screen.getAllByText(/out-of-sample|بازهٔ آزمایش بیرون‌نمونه/i).length)
-      .toBeGreaterThan(0);
+    expect(screen.getByText(/۶\.۱|6\.1/)).toBeInTheDocument();
+    expect(screen.getAllByText(/۲۰۲۶-۰۴-۰۱|2026-04-01/).length).toBeGreaterThan(0);
+  });
+
+  it("renders null out-of-sample fields as 'نامشخص', never as zero", async () => {
+    mocks.getStrategyBacktest.mockResolvedValue({
+      ...fullPeriod,
+      oos_start: null,
+      oos_total_return_pct: null,
+      oos_buy_hold_return_pct: null,
+      oos_alpha_pct: null,
+      oos_max_drawdown_pct: null,
+    });
+    renderPage();
+
+    const table = await screen.findByRole("table", { name: /بازهٔ آزمایش بیرون‌نمونه/ });
+    const unknown = Array.from(table.querySelectorAll("td")).filter((td) => td.textContent === "نامشخص");
+    expect(unknown.length).toBeGreaterThanOrEqual(4);
+    // هیچ صفر جعلی برای OOS ساخته نشود
+    expect(table.textContent).not.toMatch(/\b0(\.0+)?٪/);
   });
 
   it("states plainly that OOS is absent when the API omits it (feature-detect, no invented numbers)", async () => {

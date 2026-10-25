@@ -20,14 +20,13 @@ Components
 
 from __future__ import annotations
 
-import bisect
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 from domain.options.payoff import OptionLeg
 from domain.options.pricing import black_scholes_price
-
 
 # ── Chain lookup (§7.9 ChainLookup) ─────────────────────────────────────
 

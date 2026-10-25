@@ -1,4 +1,7 @@
-import pathlib, re, json
+import json
+import pathlib
+import re
+
 roots=["src","core","backtesting","api","services","ml","app","domain"]
 files=[]
 for r in roots:

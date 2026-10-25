@@ -2,12 +2,13 @@
 Test the new split SKILL.md (clawhub/SKILL.md) against the currently-published
 v1.0.8 and the top news competitors. Mirrors ClawHub's buildEmbeddingText.
 """
+import json
 import os
 import re
 import sys
-import json
-import urllib.request
 import urllib.parse
+import urllib.request
+
 import numpy as np
 from openai import OpenAI
 
@@ -121,7 +122,7 @@ def main():
 
     query_vecs = {q: embed(q) for q in QUERIES}
 
-    print(f"\nCOSINE SIMILARITY (NEW vs competitors)")
+    print("\nCOSINE SIMILARITY (NEW vs competitors)")
     cols = ["NEW"] + COMPETITORS
     print(f"{'query':<22}" + "".join(f"{c:<22}" for c in cols))
     print("-" * (22 + 22 * len(cols)))
@@ -135,7 +136,7 @@ def main():
                 row += f"{'-':<22}"
         print(row)
 
-    print(f"\nGAP (positive = NEW beats competitor; negative = NEW loses)")
+    print("\nGAP (positive = NEW beats competitor; negative = NEW loses)")
     for q in QUERIES:
         new_score = cos(cand_vec, query_vecs[q])
         row = f"  {q:<20}"

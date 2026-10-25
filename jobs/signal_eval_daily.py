@@ -1,6 +1,7 @@
 """Daily eval job (6.2) + fees/limit-bands (5.7). Reads prices from main DB, never brsapi."""
 from __future__ import annotations
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 # commission per market (round-trip fraction), configurable
 FEES = {"stock":0.015,"fund":0.002,"gold":0.002,"usd":0.001,"option":0.01,"commodity":0.005}
@@ -27,7 +28,7 @@ def evaluate(signal: dict, bars: list[dict], halted_days: set | None = None) -> 
     elif hit_sl: status="hit_stop"; correct=False
     else: status="expired_neutral"; correct = net>0
     return {"status":status,"actual_outcome_price":px,"actual_return_pct":round(net*100,4),
-        "gross_return_pct":round(gross*100,4),"was_correct":correct,"checked_at":datetime.now(timezone.utc)}
+        "gross_return_pct":round(gross*100,4),"was_correct":correct,"checked_at":datetime.now(UTC)}
 
 def notify_subscribers(session, signal_id: str, symbol: str, status: str, price: float) -> int:
     """Sync-safe: notify enabled signal-linked alerts (alerts.signal_id).
@@ -38,7 +39,8 @@ def notify_subscribers(session, signal_id: str, symbol: str, status: str, price:
         rows = session.execute(_text(
             "SELECT id, channels FROM alerts WHERE signal_id=:sid AND enabled IS NOT DISTINCT FROM true"),
             {"sid": signal_id}).fetchall()
-        import uuid as _uuid, datetime as _dt
+        import datetime as _dt
+        import uuid as _uuid
         for aid, _ch in rows:
             session.execute(_text(
                 "INSERT INTO alert_history (id, alert_id, trigger_value, message, delivered)"

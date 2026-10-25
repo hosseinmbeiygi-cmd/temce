@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -148,7 +148,7 @@ class TestNotifyCooldown:
 
 class TestJobWrapper:
     @staticmethod
-    def _ctx() -> "JobContext":
+    def _ctx() -> JobContext:
         from jobs.job_context import JobContext
 
         return JobContext(job_id="j1", job_name="NewsSourceHealthJob", params={})

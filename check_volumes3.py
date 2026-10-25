@@ -7,7 +7,9 @@ sys.path.insert(0, os.getcwd())
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
 from core.config import settings
+
 
 async def main():
     url = settings.database_url_async

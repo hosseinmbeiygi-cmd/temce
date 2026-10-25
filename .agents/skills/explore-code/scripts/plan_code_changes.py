@@ -7,8 +7,7 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List
-
+from typing import Any
 
 SKIP_PARTS = {
     "__pycache__",
@@ -35,7 +34,7 @@ TASK_KEYWORDS = {
 COMMON_TOKENS = {"py", "yaml", "yml", "json", "toml", "ini", "run", "train", "eval", "config", "configs"}
 
 
-def load_variant_spec(path: str) -> Dict[str, Any]:
+def load_variant_spec(path: str) -> dict[str, Any]:
     if not path:
         return {}
     return json.loads(Path(path).resolve().read_text(encoding="utf-8-sig"))
@@ -51,22 +50,22 @@ def normalize_task_family(value: Any) -> str:
     return str(value or "").strip().lower()
 
 
-def focus_tokens(current_research: str, task_family: str) -> List[str]:
-    tokens: List[str] = []
+def focus_tokens(current_research: str, task_family: str) -> list[str]:
+    tokens: list[str] = []
     for part in re.split(r"[^a-zA-Z0-9]+", current_research.lower()):
         if part and part not in COMMON_TOKENS and len(part) > 2:
             tokens.append(part)
     if task_family:
         tokens.append(task_family)
         tokens.extend(TASK_KEYWORDS.get(task_family, ()))
-    ordered: List[str] = []
+    ordered: list[str] = []
     for token in tokens:
         if token not in ordered:
             ordered.append(token)
     return ordered[:20]
 
 
-def score_path(rel: str, task_family: str, tokens: List[str]) -> int:
+def score_path(rel: str, task_family: str, tokens: list[str]) -> int:
     score = 0
     if MODEL_PATTERN.search(rel):
         score += 5
@@ -86,15 +85,15 @@ def score_path(rel: str, task_family: str, tokens: List[str]) -> int:
     return score
 
 
-def current_research_dir(rel: str, tokens: List[str]) -> bool:
+def current_research_dir(rel: str, tokens: list[str]) -> bool:
     lower = rel.lower()
     slash_hits = [token for token in tokens if token in lower]
     return len(slash_hits) >= 2
 
 
-def collect_candidate_edit_targets(repo: Path, current_research: str, task_family: str) -> List[str]:
+def collect_candidate_edit_targets(repo: Path, current_research: str, task_family: str) -> list[str]:
     tokens = focus_tokens(current_research, task_family)
-    scored: List[tuple[int, str]] = []
+    scored: list[tuple[int, str]] = []
     for path in repo.rglob("*"):
         if path.is_dir():
             continue
@@ -111,7 +110,7 @@ def collect_candidate_edit_targets(repo: Path, current_research: str, task_famil
     return [rel for _, rel in scored[:8]]
 
 
-def select_idea_card(payload: Any) -> Dict[str, Any]:
+def select_idea_card(payload: Any) -> dict[str, Any]:
     if isinstance(payload, dict):
         return payload
     if isinstance(payload, list) and payload:
@@ -121,11 +120,11 @@ def select_idea_card(payload: Any) -> Dict[str, Any]:
     return {}
 
 
-def derive_target_location_map(targets: List[str], idea_card: Dict[str, Any], analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+def derive_target_location_map(targets: list[str], idea_card: dict[str, Any], analysis: dict[str, Any]) -> list[dict[str, Any]]:
     config_hints = analysis.get("config_binding_hints", [])
     constructor_candidates = analysis.get("constructor_candidates", [])
     target_symbol = constructor_candidates[0] if constructor_candidates else (analysis.get("forward_candidates", []) or ["unspecified-symbol"])[0]
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for path in targets[:4]:
         results.append(
             {
@@ -138,8 +137,8 @@ def derive_target_location_map(targets: List[str], idea_card: Dict[str, Any], an
     return results
 
 
-def derive_supporting_changes(spec: Dict[str, Any], idea_card: Dict[str, Any], analysis: Dict[str, Any]) -> List[str]:
-    changes: List[str] = []
+def derive_supporting_changes(spec: dict[str, Any], idea_card: dict[str, Any], analysis: dict[str, Any]) -> list[str]:
+    changes: list[str] = []
     for item in idea_card.get("supporting_changes", []) or []:
         if item not in changes:
             changes.append(str(item))
@@ -147,14 +146,14 @@ def derive_supporting_changes(spec: Dict[str, Any], idea_card: Dict[str, Any], a
         changes.append(f"Review config binding in `{path}` for reversible wiring.")
     for axis in sorted((spec.get("variant_axes") or {}).keys())[:2]:
         changes.append(f"Keep `{axis}` plumbed through existing config or CLI surfaces.")
-    unique: List[str] = []
+    unique: list[str] = []
     for item in changes:
         if item not in unique:
             unique.append(item)
     return unique[:6]
 
 
-def derive_patch_surface_summary(target_location_map: List[Dict[str, Any]], supporting_changes: List[str]) -> Dict[str, Any]:
+def derive_patch_surface_summary(target_location_map: list[dict[str, Any]], supporting_changes: list[str]) -> dict[str, Any]:
     code_targets = [item for item in target_location_map if item["role"] == "code"]
     config_targets = [item for item in target_location_map if item["role"] == "config"]
     surface_score = min(1.0, 0.15 + 0.10 * len(code_targets) + 0.05 * len(config_targets) + 0.04 * len(supporting_changes))
@@ -167,11 +166,11 @@ def derive_patch_surface_summary(target_location_map: List[Dict[str, Any]], supp
 
 
 def derive_minimal_patch_plan(
-    target_location_map: List[Dict[str, Any]],
-    idea_card: Dict[str, Any],
-    analysis: Dict[str, Any],
-) -> List[Dict[str, Any]]:
-    plan: List[Dict[str, Any]] = []
+    target_location_map: list[dict[str, Any]],
+    idea_card: dict[str, Any],
+    analysis: dict[str, Any],
+) -> list[dict[str, Any]]:
+    plan: list[dict[str, Any]] = []
     config_targets = [item["file"] for item in target_location_map if item["role"] == "config"]
     code_targets = [item["file"] for item in target_location_map if item["role"] == "code"]
     if config_targets:
@@ -214,10 +213,10 @@ def derive_minimal_patch_plan(
 
 
 def derive_smoke_validation_plan(
-    target_location_map: List[Dict[str, Any]],
-    analysis: Dict[str, Any],
-    spec: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    target_location_map: list[dict[str, Any]],
+    analysis: dict[str, Any],
+    spec: dict[str, Any],
+) -> list[dict[str, Any]]:
     return [
         {
             "name": "syntax-parse",
@@ -252,8 +251,8 @@ def derive_smoke_validation_plan(
     ]
 
 
-def build_code_tracks(spec: Dict[str, Any], targets: List[str], task_family: str, current_research: str) -> List[str]:
-    tracks: List[str] = []
+def build_code_tracks(spec: dict[str, Any], targets: list[str], task_family: str, current_research: str) -> list[str]:
+    tracks: list[str] = []
     if task_family:
         tracks.append(f"Stay anchored to the `{task_family}` task family while planning exploratory edits.")
     tracks.append(f"Preserve `{current_research}` as the comparison anchor for all code changes.")
@@ -283,11 +282,11 @@ def build_payload(
     repo: Path,
     current_research: str,
     experiment_branch: str,
-    spec: Dict[str, Any],
+    spec: dict[str, Any],
     task_family: str,
-    idea_card: Dict[str, Any],
-    analysis: Dict[str, Any],
-) -> Dict[str, Any]:
+    idea_card: dict[str, Any],
+    analysis: dict[str, Any],
+) -> dict[str, Any]:
     candidate_targets = collect_candidate_edit_targets(repo, current_research, task_family)
     target_location_map = derive_target_location_map(candidate_targets, idea_card, analysis)
     supporting_changes = derive_supporting_changes(spec, idea_card, analysis)

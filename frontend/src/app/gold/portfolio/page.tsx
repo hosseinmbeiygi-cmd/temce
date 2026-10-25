@@ -7,10 +7,9 @@ import { capturePortfolioSnapshot, getPortfolioPerformance, isServiceUnavailable
 import { ConfirmDialog } from "@/components/gold/ConfirmDialog";
 
 interface Holding {
-  // `id` را بک‌اند هنوز در پاسخ /portfolio بیرون نمی‌دهد (dataclass HoldingPnL در
-  // src/gold_desk/portfolio.py:28-41)؛ بدون آن دکمهٔ حذف دارایی فعال نمی‌شود.
-  // درخواست در docs/fixes/handoff_frontend_to_backend.md ثبت شده.
+  // id فقط وقتی گروه یک ردیف دارد می‌آید؛ گروه چندردیفی `holding_ids` دارد.
   id?: number;
+  holding_ids?: number[];
   symbol: string;
   display_name: string;
   quantity: number;
@@ -76,6 +75,20 @@ const signedFmt = (n: number | null | undefined) =>
 
 const signedPct = (n: number | null | undefined, digits = 2) =>
   n === null || n === undefined || !Number.isFinite(n) ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(digits)}٪`;
+
+/** idهای یک ردیف پورتفو: اولویت با holding_ids (گروه)، بعد id تک‌ردیفی. */
+function holdingIds(holding: Holding): number[] {
+  const ids = (holding.holding_ids ?? []).filter((id) => Number.isFinite(id));
+  if (ids.length > 0) return ids;
+  return typeof holding.id === "number" ? [holding.id] : [];
+}
+
+/** status کد HTTP از پیام خطای `@/lib/api` ("HTTP 409: ..."). */
+function httpStatus(error: unknown): number | null {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const match = /^HTTP (\d{3})/.exec(message);
+  return match ? Number(match[1]) : null;
+}
 
 async function getPortfolio(): Promise<Portfolio> {
   const r = await apiGet<{ success: boolean; data: Portfolio }>("/gold/portfolio");
@@ -166,6 +179,7 @@ export default function GoldPortfolioPage() {
             onChanged={() => {
               qc.invalidateQueries({ queryKey: ["gold", "portfolio"] });
               qc.invalidateQueries({ queryKey: ["gold", "plans"] });
+              qc.invalidateQueries({ queryKey: ["gold", "trades"] });
             }}
           />
           <PerformancePanel />
@@ -185,20 +199,98 @@ export default function GoldPortfolioPage() {
 
 function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged: () => void }) {
   const [pendingDelete, setPendingDelete] = useState<Holding | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [pendingSell, setPendingSell] = useState<Holding | null>(null);
+  const [sellError, setSellError] = useState<string | null>(null);
+  const [selling, setSelling] = useState(false);
+  const [sellQuantity, setSellQuantity] = useState(1);
+  const [sellPrice, setSellPrice] = useState(0);
+
+  const pendingIds = pendingDelete ? holdingIds(pendingDelete) : [];
 
   const confirmDelete = async () => {
-    const holding = pendingDelete;
-    if (!holding?.id) return;
+    if (pendingIds.length === 0) return;
     setDeleting(true);
+    setDeleteError(null);
+    let alreadyDeleted = false;
     try {
-      // حذف نرم (بدون ?force=true): بک‌اند پیش‌فرض deleted_at را ست می‌کند و
-      // ردیف دارایی و معامله‌هایش سالم می‌مانند (api.py:963-989، C7).
-      await apiDelete(`/gold/portfolio/holdings/${holding.id}`);
-      setPendingDelete(null);
-      onChanged();
+      // هر id پشت‌سرهم و بدون ?force=true؛ 409 یعنی قبلاً حذف شده و بقیه ادامه می‌یابند.
+      for (const id of pendingIds) {
+        try {
+          await apiDelete(`/gold/portfolio/holdings/${id}`);
+        } catch (error) {
+          const status = httpStatus(error);
+          if (status === 409) {
+            alreadyDeleted = true;
+            continue;
+          }
+          setDeleteError(
+            status === 404
+              ? "دارایی پیدا نشد؛ لیست به‌روزرسانی شد."
+              : "ارتباط با سرور برقرار نشد؛ لیست به‌روزرسانی شد.",
+          );
+          break;
+        }
+      }
+      if (alreadyDeleted) {
+        setDeleteError("این دارایی قبلاً حذف شده بود؛ لیست به‌روزرسانی شد.");
+      }
     } finally {
       setDeleting(false);
+      setPendingDelete(null);
+      onChanged();
+    }
+  };
+
+  const openSell = (holding: Holding) => {
+    setPendingSell(holding);
+    setSellQuantity(1);
+    setSellPrice(holding.current_price ?? 0);
+    setSellError(null);
+  };
+
+  const submitSell = async () => {
+    const holding = pendingSell;
+    if (!holding || selling) return;
+    // فقط idی که همین حالا در پاسخ /portfolio هست؛ id کهنه/حدسی ارسال نمی‌شود.
+    const freshIds = portfolio.holdings
+      .filter((row) => row.symbol === holding.symbol)
+      .flatMap((row) => holdingIds(row));
+    if (holding.id === undefined || !freshIds.includes(holding.id)) {
+      setSellError("لیست پورتفو تغییر کرده است؛ دوباره تلاش کنید.");
+      onChanged();
+      return;
+    }
+    if (sellQuantity <= 0 || sellPrice <= 0) {
+      setSellError("تعداد و قیمت باید بزرگ‌تر از صفر باشند.");
+      return;
+    }
+    setSelling(true);
+    setSellError(null);
+    try {
+      await apiPost("/gold/portfolio/trades", {
+        symbol: holding.symbol,
+        action: "sell",
+        quantity: sellQuantity,
+        price: sellPrice,
+        amount_irt: sellQuantity * sellPrice,
+        holding_id: holding.id,
+      });
+      setPendingSell(null);
+      onChanged();
+    } catch (error) {
+      const status = httpStatus(error);
+      setSellError(
+        status === 409
+          ? "این دارایی قبلاً حذف شده است؛ معامله ثبت نشد."
+          : status === 404
+            ? "دارایی پیدا نشد؛ پورتفو به‌روزرسانی شد."
+            : "ارتباط با سرور برقرار نشد؛ دوباره تلاش کنید.",
+      );
+      if (status === 404 || status === 409) onChanged();
+    } finally {
+      setSelling(false);
     }
   };
 
@@ -212,11 +304,10 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
           value={signedFmt(portfolio.total_pnl)}
           unit="تومان"
           sub={
-            // C7: مخرج P&L کل فقط دارایی‌های قیمت‌دار است؛ وقتی بک‌اند priced_cost
-            // را بدهد، عدد «روی چه پایه‌ای» محاسبه شده نمایش داده می‌شود.
-            portfolio.priced_cost
-              ? `${signedPct(portfolio.total_pnl_pct)} · روی هزینهٔ ${fmt(portfolio.priced_cost)} قیمت‌دار`
-              : signedPct(portfolio.total_pnl_pct)
+            // C7: مخرج P&L کل فقط دارایی‌های قیمت‌دار است؛ null یعنی «نامعلوم».
+            portfolio.priced_cost === null || portfolio.priced_cost === undefined
+              ? `${signedPct(portfolio.total_pnl_pct)} · سرمایهٔ قیمت‌دار: —`
+              : `${signedPct(portfolio.total_pnl_pct)} · روی هزینهٔ ${fmt(portfolio.priced_cost)} قیمت‌دار`
           }
           tone={portfolio.total_pnl >= 0 ? "good" : "bad"}
         />
@@ -229,6 +320,16 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
         >
           {portfolio.unpriced_holdings} دارایی قیمت فعلی ندارد؛ P&L آن‌ها «—» است و در
           مجموع سود/زیان حساب نشده‌اند (صفر جعلی ساخته نمی‌شود).
+        </div>
+      )}
+
+      {deleteError && (
+        <div
+          role="alert"
+          className="rounded-lg border px-4 py-3 text-sm"
+          style={{ borderColor: "var(--gd-danger)", background: "var(--gd-bg-2)", color: "var(--gd-danger)" }}
+        >
+          {deleteError}
         </div>
       )}
 
@@ -250,7 +351,7 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
                 <th className="text-left p-3">قیمت فعلی</th>
                 <th className="text-left p-3">ارزش</th>
                 <th className="text-left p-3">P&L</th>
-                <th className="text-left p-3">حذف</th>
+                <th className="text-left p-3">عملیات</th>
               </tr>
             </thead>
             <tbody>
@@ -271,22 +372,37 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
                     {signedFmt(h.pnl_irt)} ({signedPct(h.pnl_pct, 1)})
                   </td>
                   <td className="p-3 text-left">
-                    {h.id ? (
-                      <button
-                        onClick={() => setPendingDelete(h)}
-                        className="text-xs"
-                        style={{ color: "var(--gd-danger)" }}
-                        aria-label={`حذف دارایی ${h.display_name}`}
-                      >
-                        حذف
-                      </button>
-                    ) : (
-                      // تا وقتی /portfolio شناسهٔ holding را برنگرداند این دکمه
-                      // ساخته نمی‌شود (handoff به بک‌اند).
-                      <span className="text-[10px]" style={{ color: "var(--gd-text-3)" }} title="شناسهٔ دارایی در پاسخ سرور نیست">
-                        —
-                      </span>
-                    )}
+                    {(() => {
+                      const ids = holdingIds(h);
+                      return (
+                        <div className="flex items-center justify-end gap-3">
+                          {ids.length === 1 && (
+                            <button
+                              onClick={() => openSell(h)}
+                              className="text-xs"
+                              style={{ color: "var(--gd-text-2)" }}
+                              aria-label={`ثبت فروش برای ${h.display_name}`}
+                            >
+                              فروش
+                            </button>
+                          )}
+                          {ids.length > 0 ? (
+                            <button
+                              onClick={() => setPendingDelete(h)}
+                              className="text-xs"
+                              style={{ color: "var(--gd-danger)" }}
+                              aria-label={`حذف دارایی ${h.display_name}`}
+                            >
+                              حذف
+                            </button>
+                          ) : (
+                            <span className="text-[10px]" style={{ color: "var(--gd-text-3)" }} title="شناسهٔ دارایی در پاسخ سرور نیست">
+                              —
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}
@@ -301,7 +417,9 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
         description={
           <>
             <div className="font-semibold" style={{ color: "var(--gd-danger)" }}>
-              معامله‌های این دارایی هم تحت‌تأثیرند.
+              {pendingIds.length > 1
+                ? `این نماد ${pendingIds.length.toLocaleString("fa-IR")} ردیف دارد؛ همه حذف نرم می‌شوند و معاملات حفظ می‌شوند.`
+                : "معامله‌های این دارایی هم تحت‌تأثیرند."}
             </div>
             <div className="mt-2">
               حذف به‌صورت نرم (soft-delete) انجام می‌شود: ردیف دارایی از نمای پورتفو
@@ -314,6 +432,54 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
         confirmLabel={deleting ? "در حال حذف..." : "حذف نرم"}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <ConfirmDialog
+        open={pendingSell !== null}
+        title={`ثبت فروش «${pendingSell?.display_name ?? ""}»`}
+        description={
+          <>
+            <div className="space-y-2">
+              <label className="block text-xs" style={{ color: "var(--gd-text-2)" }}>
+                تعداد فروش
+                <input
+                  aria-label="تعداد فروش"
+                  type="number"
+                  step="0.01"
+                  value={sellQuantity}
+                  onChange={(event) => setSellQuantity(parseFloat(event.target.value) || 0)}
+                  className="w-full mt-1 px-3 py-2 rounded text-sm"
+                  style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }}
+                />
+              </label>
+              <label className="block text-xs" style={{ color: "var(--gd-text-2)" }}>
+                قیمت فروش (تومان)
+                <input
+                  aria-label="قیمت فروش (تومان)"
+                  type="number"
+                  value={sellPrice}
+                  onChange={(event) => setSellPrice(parseFloat(event.target.value) || 0)}
+                  className="w-full mt-1 px-3 py-2 rounded text-sm"
+                  style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }}
+                />
+              </label>
+              <div className="text-[10px]" style={{ color: "var(--gd-text-3)" }}>
+                این معامله فقط به ردیف {pendingSell?.id ?? "—"} از پاسخ تازهٔ پورتفو متصل می‌شود.
+              </div>
+            </div>
+            {sellError && (
+              <div role="alert" className="mt-3 font-semibold" style={{ color: "var(--gd-danger)" }}>
+                {sellError}
+              </div>
+            )}
+          </>
+        }
+        confirmLabel={selling ? "در حال ثبت..." : "ثبت فروش"}
+        onConfirm={submitSell}
+        onCancel={() => {
+          setPendingSell(null);
+          setSellError(null);
+        }}
       />
     </div>
   );

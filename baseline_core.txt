@@ -1,0 +1,371 @@
+﻿...................................................................2026-10-23 18:28:50 [warning  ] CacheManager lock failed for k
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\cache_manager.py:208 in get_or_compute     │
+│                                                                             │
+│   205 │   │   if await self._ensure_redis():                                │
+│   206 │   │   │   try:                                                      │
+│   207 │   │   │   │   holds_lock = bool(                                    │
+│ > 208 │   │   │   │   │   await self._redis.set(lock_key, b"1", nx=True, ex │
+│   209 │   │   │   │   )                                                     │
+│   210 │   │   │   except Exception:                                         │
+│   211 │   │   │   │   logger.warning("CacheManager lock failed for %s", key │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │     cached = None                                                       │ │
+│ │        hit = None                                                       │ │
+│ │ holds_lock = False                                                      │ │
+│ │        key = 'k'                                                        │ │
+│ │   lock_key = 'test:lock:k'                                              │ │
+│ │       self = <core.cache_manager.CacheManager object at                 │ │
+│ │              0x000001C85FA95BF0>                                        │ │
+│ │        ttl = 60                                                         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+AttributeError: 'FakeRedis' object has no attribute 'set'
+
+.2026-10-23 18:28:50 [warning  ] CacheManager lock failed for k
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\cache_manager.py:208 in get_or_compute     │
+│                                                                             │
+│   205 │   │   if await self._ensure_redis():                                │
+│   206 │   │   │   try:                                                      │
+│   207 │   │   │   │   holds_lock = bool(                                    │
+│ > 208 │   │   │   │   │   await self._redis.set(lock_key, b"1", nx=True, ex │
+│   209 │   │   │   │   )                                                     │
+│   210 │   │   │   except Exception:                                         │
+│   211 │   │   │   │   logger.warning("CacheManager lock failed for %s", key │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │     cached = None                                                       │ │
+│ │        hit = None                                                       │ │
+│ │ holds_lock = False                                                      │ │
+│ │        key = 'k'                                                        │ │
+│ │   lock_key = 'test:lock:k'                                              │ │
+│ │       self = <core.cache_manager.CacheManager object at                 │ │
+│ │              0x000001C85FA52050>                                        │ │
+│ │        ttl = 60                                                         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+AttributeError: 'FakeRedis' object has no attribute 'set'
+
+.2026-10-23 18:28:50 [warning  ] CacheManager lock failed for a
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\cache_manager.py:208 in get_or_compute     │
+│                                                                             │
+│   205 │   │   if await self._ensure_redis():                                │
+│   206 │   │   │   try:                                                      │
+│   207 │   │   │   │   holds_lock = bool(                                    │
+│ > 208 │   │   │   │   │   await self._redis.set(lock_key, b"1", nx=True, ex │
+│   209 │   │   │   │   )                                                     │
+│   210 │   │   │   except Exception:                                         │
+│   211 │   │   │   │   logger.warning("CacheManager lock failed for %s", key │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │     cached = None                                                       │ │
+│ │        hit = None                                                       │ │
+│ │ holds_lock = False                                                      │ │
+│ │        key = 'a'                                                        │ │
+│ │   lock_key = 'test:lock:a'                                              │ │
+│ │       self = <core.cache_manager.CacheManager object at                 │ │
+│ │              0x000001C85FA52550>                                        │ │
+│ │        ttl = 60                                                         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+AttributeError: 'FakeRedis' object has no attribute 'set'
+
+2026-10-23 18:28:51 [warning  ] CacheManager lock failed for b
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\cache_manager.py:208 in get_or_compute     │
+│                                                                             │
+│   205 │   │   if await self._ensure_redis():                                │
+│   206 │   │   │   try:                                                      │
+│   207 │   │   │   │   holds_lock = bool(                                    │
+│ > 208 │   │   │   │   │   await self._redis.set(lock_key, b"1", nx=True, ex │
+│   209 │   │   │   │   )                                                     │
+│   210 │   │   │   except Exception:                                         │
+│   211 │   │   │   │   logger.warning("CacheManager lock failed for %s", key │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │     cached = None                                                       │ │
+│ │        hit = None                                                       │ │
+│ │ holds_lock = False                                                      │ │
+│ │        key = 'b'                                                        │ │
+│ │   lock_key = 'test:lock:b'                                              │ │
+│ │       self = <core.cache_manager.CacheManager object at                 │ │
+│ │              0x000001C85FA52550>                                        │ │
+│ │        ttl = 60                                                         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+AttributeError: 'FakeRedis' object has no attribute 'set'
+
+...2026-10-23 18:28:51 [debug    ] Redis client belongs to a stale event loop; detaching
+.2026-10-23 18:28:51 [warning  ] Redis disabled for 30s after ConnectionResetError: boom
+...2026-10-23 18:28:51 [warning  ] Redis disabled for 30s after ConnectionError: down
+....2026-10-23 18:28:51 [info     ] Circuit test transitioning to half-open
+................................................................................................................................................................2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+..2026-10-23 18:28:52 [debug    ] Handler subscribed to quote.updated
+.2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+.2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+.2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:52 [error    ] Event handler <function test_failing_handler_does_not_block_others.<locals>.boom at 0x000001C860C05430> failed for signal.generated
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\event_bus.py:45 in publish                 │
+│                                                                             │
+│   42 │   │   │   │   if inspect.iscoroutinefunction(handler):               │
+│   43 │   │   │   │   │   await handler(event)                               │
+│   44 │   │   │   │   else:                                                  │
+│ > 45 │   │   │   │   │   handler(event)                                     │
+│   46 │   │   │   except Exception:                                          │
+│   47 │   │   │   │   logger.exception("Event handler %r failed for %s", han │
+│      event.event_type)                                                      │
+│   48                                                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │    event = DomainEvent(                                                 │ │
+│ │            │   event_id='',                                             │ │
+│ │            │   event_type='signal.generated',                           │ │
+│ │            │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 52,    │ │
+│ │            798878, tzinfo=datetime.timezone.utc),                       │ │
+│ │            │   data={'symbol': 'فملی'}                                  │ │
+│ │            )                                                            │ │
+│ │ handlers = [                                                            │ │
+│ │            │   <function                                                │ │
+│ │            test_failing_handler_does_not_block_others.<locals>.boom at  │ │
+│ │            0x000001C860C05430>,                                         │ │
+│ │            │   <function                                                │ │
+│ │            test_failing_handler_does_not_block_others.<locals>.after at │ │
+│ │            0x000001C860C056F0>                                          │ │
+│ │            ]                                                            │ │
+│ │     self = <core.event_bus.EventBus object at 0x000001C85FA94F30>       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\core\test_event_bus_isolation.py:99  │
+│ in boom                                                                     │
+│                                                                             │
+│    96 │   ran: list[str] = []                                               │
+│    97 │                                                                     │
+│    98 │   def boom(event: DomainEvent) -> None:                             │
+│ >  99 │   │   raise RuntimeError("handler exploded")                        │
+│   100 │                                                                     │
+│   101 │   def after(event: DomainEvent) -> None:                            │
+│   102 │   │   ran.append("after")                                           │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ event = DomainEvent(                                                    │ │
+│ │         │   event_id='',                                                │ │
+│ │         │   event_type='signal.generated',                              │ │
+│ │         │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 52,       │ │
+│ │         798878, tzinfo=datetime.timezone.utc),                          │ │
+│ │         │   data={'symbol': 'فملی'}                                     │ │
+│ │         )                                                               │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: handler exploded
+
+.2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:52 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:52 [error    ] Event handler <function test_multiple_failing_handlers_all_isolated.<locals>.boom1 at 0x000001C860C05640> failed for signal.generated
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\event_bus.py:45 in publish                 │
+│                                                                             │
+│   42 │   │   │   │   if inspect.iscoroutinefunction(handler):               │
+│   43 │   │   │   │   │   await handler(event)                               │
+│   44 │   │   │   │   else:                                                  │
+│ > 45 │   │   │   │   │   handler(event)                                     │
+│   46 │   │   │   except Exception:                                          │
+│   47 │   │   │   │   logger.exception("Event handler %r failed for %s", han │
+│      event.event_type)                                                      │
+│   48                                                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │    event = DomainEvent(                                                 │ │
+│ │            │   event_id='',                                             │ │
+│ │            │   event_type='signal.generated',                           │ │
+│ │            │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 52,    │ │
+│ │            889367, tzinfo=datetime.timezone.utc),                       │ │
+│ │            │   data={'symbol': 'فملی'}                                  │ │
+│ │            )                                                            │ │
+│ │ handlers = [                                                            │ │
+│ │            │   <function                                                │ │
+│ │            test_multiple_failing_handlers_all_isolated.<locals>.boom1   │ │
+│ │            at 0x000001C860C05640>,                                      │ │
+│ │            │   <function                                                │ │
+│ │            test_multiple_failing_handlers_all_isolated.<locals>.boom2   │ │
+│ │            at 0x000001C860C05900>,                                      │ │
+│ │            │   <function                                                │ │
+│ │            test_multiple_failing_handlers_all_isolated.<locals>.surviv… │ │
+│ │            at 0x000001C860C07110>                                       │ │
+│ │            ]                                                            │ │
+│ │     self = <core.event_bus.EventBus object at 0x000001C85FA94F30>       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\core\test_event_bus_isolation.py:118 │
+│ in boom1                                                                    │
+│                                                                             │
+│   115 │   ran: list[str] = []                                               │
+│   116 │                                                                     │
+│   117 │   def boom1(event: DomainEvent) -> None:                            │
+│ > 118 │   │   raise ValueError("one")                                       │
+│   119 │                                                                     │
+│   120 │   def boom2(event: DomainEvent) -> None:                            │
+│   121 │   │   raise KeyError("two")                                         │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ event = DomainEvent(                                                    │ │
+│ │         │   event_id='',                                                │ │
+│ │         │   event_type='signal.generated',                              │ │
+│ │         │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 52,       │ │
+│ │         889367, tzinfo=datetime.timezone.utc),                          │ │
+│ │         │   data={'symbol': 'فملی'}                                     │ │
+│ │         )                                                               │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+ValueError: one
+
+2026-10-23 18:28:52 [error    ] Event handler <function test_multiple_failing_handlers_all_isolated.<locals>.boom2 at 0x000001C860C05900> failed for signal.generated
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\event_bus.py:45 in publish                 │
+│                                                                             │
+│   42 │   │   │   │   if inspect.iscoroutinefunction(handler):               │
+│   43 │   │   │   │   │   await handler(event)                               │
+│   44 │   │   │   │   else:                                                  │
+│ > 45 │   │   │   │   │   handler(event)                                     │
+│   46 │   │   │   except Exception:                                          │
+│   47 │   │   │   │   logger.exception("Event handler %r failed for %s", han │
+│      event.event_type)                                                      │
+│   48                                                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │    event = DomainEvent(                                                 │ │
+│ │            │   event_id='',                                             │ │
+│ │            │   event_type='signal.generated',                           │ │
+│ │            │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 52,    │ │
+│ │            889367, tzinfo=datetime.timezone.utc),                       │ │
+│ │            │   data={'symbol': 'فملی'}                                  │ │
+│ │            )                                                            │ │
+│ │ handlers = [                                                            │ │
+│ │            │   <function                                                │ │
+│ │            test_multiple_failing_handlers_all_isolated.<locals>.boom1   │ │
+│ │            at 0x000001C860C05640>,                                      │ │
+│ │            │   <function                                                │ │
+│ │            test_multiple_failing_handlers_all_isolated.<locals>.boom2   │ │
+│ │            at 0x000001C860C05900>,                                      │ │
+│ │            │   <function                                                │ │
+│ │            test_multiple_failing_handlers_all_isolated.<locals>.surviv… │ │
+│ │            at 0x000001C860C07110>                                       │ │
+│ │            ]                                                            │ │
+│ │     self = <core.event_bus.EventBus object at 0x000001C85FA94F30>       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\core\test_event_bus_isolation.py:121 │
+│ in boom2                                                                    │
+│                                                                             │
+│   118 │   │   raise ValueError("one")                                       │
+│   119 │                                                                     │
+│   120 │   def boom2(event: DomainEvent) -> None:                            │
+│ > 121 │   │   raise KeyError("two")                                         │
+│   122 │                                                                     │
+│   123 │   def survivor(event: DomainEvent) -> None:                         │
+│   124 │   │   ran.append("survivor")                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ event = DomainEvent(                                                    │ │
+│ │         │   event_id='',                                                │ │
+│ │         │   event_type='signal.generated',                              │ │
+│ │         │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 52,       │ │
+│ │         889367, tzinfo=datetime.timezone.utc),                          │ │
+│ │         │   data={'symbol': 'فملی'}                                     │ │
+│ │         )                                                               │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+KeyError: 'two'
+
+.2026-10-23 18:28:53 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:53 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:53 [error    ] Event handler <function test_async_failing_handler_isolated.<locals>.boom at 0x000001C860C057A0> failed for signal.generated
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\core\event_bus.py:43 in publish                 │
+│                                                                             │
+│   40 │   │   for handler in handlers:                                       │
+│   41 │   │   │   try:                                                       │
+│   42 │   │   │   │   if inspect.iscoroutinefunction(handler):               │
+│ > 43 │   │   │   │   │   await handler(event)                               │
+│   44 │   │   │   │   else:                                                  │
+│   45 │   │   │   │   │   handler(event)                                     │
+│   46 │   │   │   except Exception:                                          │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │    event = DomainEvent(                                                 │ │
+│ │            │   event_id='',                                             │ │
+│ │            │   event_type='signal.generated',                           │ │
+│ │            │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 53,    │ │
+│ │            60474, tzinfo=datetime.timezone.utc),                        │ │
+│ │            │   data={'symbol': 'فملی'}                                  │ │
+│ │            )                                                            │ │
+│ │ handlers = [                                                            │ │
+│ │            │   <function                                                │ │
+│ │            test_async_failing_handler_isolated.<locals>.boom at         │ │
+│ │            0x000001C860C057A0>,                                         │ │
+│ │            │   <function                                                │ │
+│ │            test_async_failing_handler_isolated.<locals>.after at        │ │
+│ │            0x000001C860C07480>                                          │ │
+│ │            ]                                                            │ │
+│ │     self = <core.event_bus.EventBus object at 0x000001C85FA53850>       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\core\test_event_bus_isolation.py:139 │
+│ in boom                                                                     │
+│                                                                             │
+│   136 │   ran: list[str] = []                                               │
+│   137 │                                                                     │
+│   138 │   async def boom(event: DomainEvent) -> None:                       │
+│ > 139 │   │   raise RuntimeError("async boom")                              │
+│   140 │                                                                     │
+│   141 │   def after(event: DomainEvent) -> None:                            │
+│   142 │   │   ran.append("after")                                           │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ event = DomainEvent(                                                    │ │
+│ │         │   event_id='',                                                │ │
+│ │         │   event_type='signal.generated',                              │ │
+│ │         │   timestamp=datetime.datetime(2026, 10, 23, 14, 58, 53,       │ │
+│ │         60474, tzinfo=datetime.timezone.utc),                           │ │
+│ │         │   data={'symbol': 'فملی'}                                     │ │
+│ │         )                                                               │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: async boom
+
+.2026-10-23 18:28:53 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:53 [debug    ] Handler unsubscribed from signal.generated
+.2026-10-23 18:28:53 [debug    ] Handler not subscribed to signal.generated (no-op)
+2026-10-23 18:28:53 [debug    ] Handler unsubscribed from signal.generated
+.2026-10-23 18:28:53 [debug    ] Handler subscribed to a.type
+2026-10-23 18:28:53 [debug    ] Handler subscribed to b.type
+.2026-10-23 18:28:53 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:53 [debug    ] Handler subscribed to signal.generated
+2026-10-23 18:28:53 [debug    ] Handler subscribed to signal.generated
+.................................................2026-10-23 18:28:54 [warning  ] Retry attempt 0/2 failed for always_fails: persistent error. Retrying in 0.01s
+2026-10-23 18:28:54 [warning  ] Retry attempt 1/2 failed for always_fails: persistent error. Retrying in 0.01s
+2026-10-23 18:28:54 [error    ] All 2 retries failed for always_fails: persistent error
+...............
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests/unit/core/test_circuit_breaker.py::test_circuit_breaker_decorator
+  C:\Users\Iran\Desktop\temce\core\resilience\circuit_breaker.py:112: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(func):
+
+tests/unit/core/test_retry_policy.py::test_retry_decorator_success
+tests/unit/core/test_retry_policy.py::test_retry_decorator_failure
+  C:\Users\Iran\Desktop\temce\core\retry\__init__.py:84: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(func):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+315 passed, 4 warnings in 10.59s

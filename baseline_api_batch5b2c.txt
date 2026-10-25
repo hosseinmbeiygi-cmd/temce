@@ -1,0 +1,10 @@
+﻿ssss2026-10-23 18:43:52 [warning  ] feedparser not installed — RSS news fetching disabled
+2026-10-23 18:43:58 [debug    ] Request: GET /api/v1/news-tag-map [trace=8d4148b1cc52444eb115cb5e682b710e]
+2026-10-23 18:44:00 [info     ] GET /api/v1/news-tag-map -> 401 (1.510s) [trace=8d4148b1cc52444eb115cb5e682b710e]
+2026-10-23 18:44:00 [debug    ] Response: 401 [trace=8d4148b1cc52444eb115cb5e682b710e]
+.2026-10-23 18:44:00 [debug    ] Request: GET /api/v1/news-tag-map [trace=88f2f2b87ec94d24ac43ccb1646ed60d]
+2026-10-23 18:44:00 [warning  ] Revocation check skipped: Redis unavailable for jti=5b690a6a6a7f49d185973d75849f9b13
+2026-10-23 18:44:00 [info     ] GET /api/v1/news-tag-map -> 403 (0.006s) [trace=88f2f2b87ec94d24ac43ccb1646ed60d]
+2026-10-23 18:44:00 [debug    ] Response: 403 [trace=88f2f2b87ec94d24ac43ccb1646ed60d]
+.2026-10-23 18:44:00 [debug    ] Request: GET /api/v1/news-tag-map [trace=85cb8a570a2d46ceae96a0400dcbfe5c]
+2026-10-23 18:44:00 [warning  ] Revocation check skipped: Redis unavailable for jti=1b16baa199114712bc82bc34be45efc8

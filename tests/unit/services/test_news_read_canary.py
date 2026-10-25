@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 from sqlalchemy import text
@@ -411,8 +411,8 @@ class TestHttpOutcomeCounting:
 class TestJobAndEndpoint:
     @pytest.mark.asyncio
     async def test_halter_job_runs(self):
-        from jobs.job_context import JobContext
         from jobs.definitions.news_jobs import NewsReadPathHalterJob
+        from jobs.job_context import JobContext
         from services import news_read_canary as canary
 
         canary._mem_counters.clear()
@@ -460,6 +460,7 @@ def _ctx_kwargs() -> dict:
     """JobContext kwargs — built dynamically so signature changes surface
     as a clear TypeError instead of a stale fixture."""
     import inspect
+
     from jobs.job_context import JobContext
 
     sig = inspect.signature(JobContext)

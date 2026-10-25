@@ -17,7 +17,7 @@ sys.path.insert(0, os.getcwd())
 import numpy as np
 
 from domain.trading.iran_costs import BROKER_PCT, CLEARING_FEE_PCT, SELL_TAX_PCT
-from services.backtest_framework import MonteCarloEngine, VectorizedBacktest
+from services.backtest_framework import VectorizedBacktest
 
 BUY_RATE = BROKER_PCT + CLEARING_FEE_PCT            # 0.485%
 SELL_RATE = BROKER_PCT + SELL_TAX_PCT + CLEARING_FEE_PCT  # 0.985%

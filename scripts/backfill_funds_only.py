@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Backfill funds-only (Option A) — modeled on z.py.
 
 - Allowlist: fund symbols from Postgres (fund_symbol_aliases active + funds.symbol),
@@ -14,8 +13,14 @@ Usage:
     python scripts/backfill_funds_only.py --endpoint all --date latest
     python scripts/backfill_funds_only.py --endpoint nav,history --limit 50
 """
-import os, re, json, time, argparse, logging
+import argparse
+import json
+import logging
+import os
+import re
+import time
 from datetime import datetime
+
 import requests
 
 # کلیدها و رمزها فقط از محیط می‌آیند: fallback هاردکد یعنی لو رفتن در git history.

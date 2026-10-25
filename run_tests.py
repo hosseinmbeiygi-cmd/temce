@@ -1,5 +1,4 @@
 ﻿import subprocess
-import sys
 
 test_dir = 'C:/Users/Iran/Downloads/Telegram Desktop/autozcoder-@ArchiveTell/tests'
 venv_python = 'C:/Users/Iran/Downloads/Telegram Desktop/autozcoder-@ArchiveTell/.venv/Scripts/python.exe'

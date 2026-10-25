@@ -1,0 +1,136 @@
+{
+  "project": "TEMCE Gold Module",
+  "phase": "2 - Remediation Execution",
+  "generated": "2026-10-23T00:00:00",
+  "priority_matrix": {
+    "critical": [
+      {
+        "id": "CRITICAL-001",
+        "issue": "check_router_auth.py crash - _IncludedRouter has no 'path' attribute",
+        "severity": "Critical",
+        "category": "Auth Monitoring",
+        "file": "check_router_auth.py",
+        "action": "Fix router inspection logic to handle _IncludedRouter type",
+        "estimate": "2-4 hours",
+        "owner": "To be assigned",
+        "status": "Completed"
+      },
+      {
+        "id": "CRITICAL-002",
+        "issue": "Auth coverage gaps across routers",
+        "severity": "Critical",
+        "category": "Security",
+        "file": "api/router.py",
+        "action": "Systematic auth verification across all router definitions",
+        "estimate": "4-6 hours",
+        "owner": "To be assigned",
+        "status": "Pending"
+      }
+    ],
+    "high": [
+      {
+        "id": "HIGH-001",
+        "issue": "1963 ruff errors across codebase",
+        "severity": "High",
+        "category": "Correctness/Style",
+        "file": "codebase-wide",
+        "action": "Categorize by type (import, convention, complexity, etc.); fix top 20% causing 80% of issues",
+        "estimate": "8-12 hours",
+        "owner": "To be assigned",
+        "status": "Completed - 77.5% reduction (1963 → 444 errors)"
+      },
+      {
+        "id": "HIGH-002",
+        "issue": "Pre-existing test failures (6 total)",
+        "severity": "High",
+        "category": "Test Stability",
+        "file": "ML: 2, Backtesting: 1, API Batches: 3+",
+        "action": "Document exemptions; ensure no regression in future cycles",
+        "estimate": "2-3 hours",
+        "owner": "To be assigned",
+        "status": "Pending"
+      }
+    ],
+    "medium": [
+      {
+        "id": "MEDIUM-001",
+        "issue": "eslint timeout during execution",
+        "severity": "Medium",
+        "category": "Performance",
+        "file": "project-wide",
+        "action": "Review configuration; possible project size issues; consider parallelization",
+        "estimate": "3-5 hours",
+        "owner": "To be assigned",
+        "status": "Pending"
+      },
+      {
+        "id": "MEDIUM-002",
+        "issue": "vitest timeout during execution",
+        "severity": "Medium",
+        "category": "Performance",
+        "file": "project-wide",
+        "action": "Test parallelization, filtering, or configuration adjustments",
+        "estimate": "3-5 hours",
+        "owner": "To be assigned",
+        "status": "Pending"
+      },
+      {
+        "id": "MEDIUM-003",
+        "issue": "Gold analytics endpoints review",
+        "severity": "Medium",
+        "category": "Correctness",
+        "file": "apps/api/endpoints/gold_analytics.py, gold.py",
+        "action": "Code review for edge cases and error handling",
+        "estimate": "4-6 hours",
+        "owner": "To be assigned",
+        "status": "Pending"
+      }
+    ],
+    "low": [
+      {
+        "id": "LOW-001",
+        "issue": "tsc clean - maintain type safety",
+        "severity": "Low",
+        "category": "Type Safety",
+        "file": "project-wide",
+        "action": "No action needed; maintain clean type checking",
+        "estimate": "Ongoing",
+        "owner": "N/A",
+        "status": "On Track"
+      }
+    ]
+  },
+  "milestones": [
+    {
+      "milestone": "M1 - Critical Auth Fix",
+      "deadline": "(TBD)",
+      "deliverables": ["check_router_auth.py fixed", "auth coverage verification working"],
+      "depends_on": []
+    },
+    {
+      "milestone": "M2 - Ruff Remediation Sprint",
+      "deadline": "(TBD)",
+      "deliverables": ["ruff errors reduced from 1963 to < 100", "categorized report generated"],
+      "depends_on": ["M1 - Critical Auth Fix"]
+    },
+    {
+      "milestone": "M3 - Linter Timeouts Resolved",
+      "deadline": "(TBD)",
+      "deliverables": ["eslint completes successfully", "vitest completes successfully"],
+      "depends_on": ["M1 - Critical Auth Fix"]
+    },
+    {
+      "milestone": "M4 - Gold Analytics Hardening",
+      "deadline": "(TBD)",
+      "deliverables": ["edge cases documented", "error handling improved"],
+      "depends_on": ["M2 - Ruff Remediation Sprint"]
+    }
+  ],
+  "success_criteria": {
+    "critical_fixes": "check_router_auth.py crash resolved; auth coverage verified",
+    "ruff_reduction": "1963 errors reduced by at least 50% (to < 1000) in Phase 2",
+    "test_stability": "6 pre-existing failures documented and exempted; no new failures introduced",
+    "linter_performance": "eslint and vitest complete within reasonable timeouts",
+    "type_safety": "tsc remains clean"
+  }
+}

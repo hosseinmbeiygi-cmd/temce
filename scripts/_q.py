@@ -1,7 +1,12 @@
-import asyncio, importlib.util, os, sys
+import asyncio
+import importlib.util
+import os
+import sys
+
 sys.stdout.reconfigure(encoding="utf-8")
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine
+
 load_dotenv()
 spec = importlib.util.spec_from_file_location(
     "m0065", "migrations/versions/0065_timescale_compression_policies.py")

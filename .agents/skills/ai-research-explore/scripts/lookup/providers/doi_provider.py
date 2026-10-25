@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import urllib.parse
-from typing import Any, Dict
+from typing import Any
 
 from .base import coerce_author_list, http_get
 
 
-def resolve_doi_record(locator_info: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_doi_record(locator_info: dict[str, Any]) -> dict[str, Any]:
     doi = str(locator_info.get("doi") or locator_info.get("identifier") or "").strip().lower()
     record = {
         "provider_type": "doi",

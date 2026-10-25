@@ -1,4 +1,5 @@
 import json
+
 d = json.load(open('json/brsapi/symbol_details.json', encoding='utf-8'))
 recs = d['records']
 lev = sorted({r.get('symbol') for r in recs if (r.get('sub_sector') or '') == 'صندوق های سرمایه گذاری اهرمی' and r.get('symbol')})

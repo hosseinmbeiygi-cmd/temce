@@ -36,7 +36,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.logging import get_logger
-from core.result import Result
 
 logger = get_logger(__name__)
 

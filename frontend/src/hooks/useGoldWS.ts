@@ -23,6 +23,9 @@ export const GOLD_FALLBACK_POLL_MS = 10_000;
 /** آستانهٔ کهنگی = ۲× بازهٔ hot (F6). */
 export const GOLD_STALE_AFTER_MS = GOLD_HOT_INTERVAL_MS * 2;
 
+/** snapshot کامل هر ۵ دقیقه می‌آید؛ ۲× آن (۶۰۰ ثانیه) آستانهٔ کهنگی snapshot است. */
+export const GOLD_SNAPSHOT_STALE_AFTER_MS = GOLD_SNAPSHOT_INTERVAL_MS * 2;
+
 export interface GoldWSStatus {
   state: WSState;
   /** سوکت باز است — pages می‌توانند polling را خاموش کنند. */
@@ -47,15 +50,26 @@ const IDLE: GoldWSStatus = {
 
 function toStatus(state: WSState, info: GoldWSInfo, now: number): GoldWSStatus {
   const connected = state === "open";
+  // سن از زمان واقعی داده (`as_of`) می‌آید؛ اگر پیام as_of نداشت، زمان رسیدن.
+  const freshnessAt = info.lastAsOfAt ?? info.lastMessageAt;
   const ageSeconds =
-    info.lastMessageAt === null ? null : Math.max(0, Math.round((now - info.lastMessageAt) / 1000));
+    freshnessAt === null ? null : Math.max(0, Math.round((now - freshnessAt) / 1000));
+  const hotStale =
+    info.lastHotAsOfAt === null ? null : now - info.lastHotAsOfAt > GOLD_STALE_AFTER_MS;
+  const snapshotStale =
+    info.lastSnapshotAsOfAt === null
+      ? null
+      : now - info.lastSnapshotAsOfAt > GOLD_SNAPSHOT_STALE_AFTER_MS;
   return {
     state,
     connected,
     lastMessageAt: info.lastMessageAt,
     ageSeconds,
     // «کهنه» فقط وقتی معنا دارد که خط وصل است؛ قطع بودن خودش معلوم است.
-    stale: connected && (ageSeconds === null || ageSeconds * 1000 > GOLD_STALE_AFTER_MS),
+    // اگر hot می‌آید، آستانهٔ آن (۲۰s) حاکم است؛ در جریان فقط-snapshot، ۶۰۰s.
+    stale:
+      connected &&
+      (hotStale ?? snapshotStale ?? (ageSeconds === null || ageSeconds * 1000 > GOLD_STALE_AFTER_MS)),
     lastHot: info.lastHot,
   };
 }
@@ -96,6 +110,9 @@ const EMPTY_INFO: GoldWSInfo = {
   lastMessageAt: null,
   lastSnapshotAt: null,
   lastHotAt: null,
+  lastAsOfAt: null,
+  lastHotAsOfAt: null,
+  lastSnapshotAsOfAt: null,
   lastHot: null,
 };
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 
+import core.cache as cache_module
 import src.gold_desk.ws_hub as ws_hub_module
 from src.gold_desk.ws_hub import (
     HOT_INTERVAL_SECONDS,
@@ -261,7 +262,13 @@ def test_get_hub_does_not_create_a_task_outside_an_event_loop(monkeypatch) -> No
     assert hub.is_running() is False
 
 
-async def test_ensure_started_starts_loops_only_once_and_stop_cancels_them() -> None:
+async def test_ensure_started_starts_loops_only_once_and_stop_cancels_them(
+    monkeypatch,
+) -> None:
+    # subscriber بدون Redis واقعی: کلاینت None ⇒ حلقه با backoff منتظر می‌ماند.
+    monkeypatch.setattr(
+        cache_module, "get_cache", lambda: type("C", (), {"client": None})()
+    )
     hub = GoldWebSocketHub(
         hot_interval=3600.0,
         snapshot_interval=3600.0,
@@ -275,7 +282,8 @@ async def test_ensure_started_starts_loops_only_once_and_stop_cancels_them() -> 
 
     assert hub.is_running() is True
     assert hub._tasks == tasks
-    assert len(tasks) == 2
+    # hot + snapshot + pub/sub subscriber
+    assert len(tasks) == 3
 
     await hub.stop()
 

@@ -13,6 +13,7 @@ export interface ReferenceBlock {
   aed_irt: number;
   aed_parity_usd: number;
   aed_gap_pct: number;
+  dxy_index: number | null;
   source: "brsapi" | "tgju" | "cache";
   age_seconds: number;
 }

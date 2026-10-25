@@ -1,5 +1,6 @@
 """Explainability (Layer 4): top-k features -> Persian sentences + low_sample flag (5.9)."""
 from __future__ import annotations
+
 LOW_SAMPLE_THRESHOLD = 30
 
 FA_TEMPLATES = {

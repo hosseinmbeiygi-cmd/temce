@@ -166,6 +166,37 @@ describe("gold API layer (F2/F4 — C3, C4, C5)", () => {
     await expect(mod.getRecentSignals(10)).resolves.toEqual([{ ts: 1 }]);
   });
 
+  it("getStrategyBacktest calls /gold/backtest/strategy with the documented query", async () => {
+    const { calls } = installFetch(() => ({
+      status: 200,
+      body: {
+        success: true,
+        data: {
+          total_return_pct: 1,
+          buy_hold_return_pct: 1,
+          alpha_pct: 0,
+          hit_rate_pct: 50,
+          max_drawdown_pct: 1,
+          sharpe_ratio: 1,
+          n_successful: 1,
+          n_trades: 1,
+          final_value: 1,
+          warning: null,
+          trades: [],
+        },
+      },
+    }));
+    const { getStrategyBacktest } = await import("@/lib/goldApi");
+
+    await getStrategyBacktest({ days: 90, bubble_trigger: 5, initial_capital: 100_000_000 });
+
+    const call = calls.find((c) => c.url.includes("/gold/backtest/strategy"));
+    expect(call).toBeDefined();
+    expect(call!.url).toContain("days=90");
+    expect(call!.url).toContain("bubble_trigger=5");
+    expect(call!.url).toContain("initial_capital=100000000");
+  });
+
   it("getHealth still reports which dependency is down when /health returns 503 (C8)", async () => {
     installFetch(() => ({
       status: 503,

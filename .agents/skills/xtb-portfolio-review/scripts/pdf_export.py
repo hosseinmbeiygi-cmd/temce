@@ -8,7 +8,6 @@ import sys
 import time
 from pathlib import Path
 
-
 DEFAULT_PDF_SCALE = 0.8
 DEFAULT_PDF_MARGIN = {
     "top": "0.4in",

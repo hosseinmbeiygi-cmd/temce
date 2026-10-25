@@ -1,21 +1,22 @@
-import os
-import re
-import time
 import json
 import logging
-import threading
+import os
+import re
 import sqlite3
-import psycopg2
-from contextlib import contextmanager
-from psycopg2.extras import execute_values
-from datetime import datetime, timedelta
+import threading
+import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+
 import jdatetime
+import psycopg2
 import requests
+from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from dotenv import load_dotenv
 
 # متغیرهای .env (DB_HOST/DB_PASSWORD/...) را قبل از ساخت PG_CONFIG بارگذاری کن
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
@@ -144,7 +145,7 @@ class RateLimiter:
         if not os.path.exists(STATE_FILE):
             return self._default_state(today_str)
         try:
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
+            with open(STATE_FILE, encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, ValueError) as e:
             raise RuntimeError(f"خطا در بارگذاری فایل وضعیت سهمیه: {e}") from e
@@ -250,7 +251,7 @@ def _load_holidays():
     if not os.path.exists(HOLIDAYS_FILE):
         return
     try:
-        with open(HOLIDAYS_FILE, "r", encoding="utf-8") as f:
+        with open(HOLIDAYS_FILE, encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, list):
             _HOLIDAYS.update(str(x) for x in data)
@@ -314,7 +315,7 @@ def _isin_allowed(isin: str) -> bool:
 def extract_all_symbols(limiter):
     if os.path.exists(SYMBOLS_CACHE_FILE):
         try:
-            with open(SYMBOLS_CACHE_FILE, "r", encoding="utf-8") as f:
+            with open(SYMBOLS_CACHE_FILE, encoding="utf-8") as f:
                 syms = json.load(f)
                 valid_syms = [s for s in syms if is_valid_symbol_name(s)]
                 if len(valid_syms) > 10:
@@ -581,7 +582,7 @@ class SmartCollector:
                 timeout=15,
                 allow_redirects=False,
             )
-            
+
             if resp.status_code in (429, 403):
                 self.stop_event.set()
                 logging.error(

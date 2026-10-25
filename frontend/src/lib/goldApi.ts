@@ -301,12 +301,34 @@ export interface GoldHotPayload {
   }>;
 }
 
+/**
+ * as_of سیم (ISO 8601) را به epoch ms تبدیل می‌کند؛ مقدار غیر ISO ⇒ null.
+ *
+ * عمداً فقط شکل ISO را می‌پذیریم: `Date.parse` رشته‌های مبهمی مثل "12" را هم
+ * عدد می‌کند و آن‌وقت کهنگی با یک زمان جعلی محاسبه می‌شود.
+ */
+export function parseAsOf(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+    return null;
+  }
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? ms : null;
+}
+
 export interface GoldWSInfo {
   state: WSState;
-  /** epoch ms آخرین پیامِ معتبر (هر نوعی) — مبنای نمایش کهنگی. */
+  /** epoch ms آخرین پیامِ معتبر (هر نوعی) — زمان رسیدن، برای fallback. */
   lastMessageAt: number | null;
   lastSnapshotAt: number | null;
   lastHotAt: number | null;
+  /** epoch ms تازه‌ترین `as_of` (یا زمان رسیدن اگر as_of نبود/نامعتبر بود). */
+  lastAsOfAt: number | null;
+  /** `as_of` آخرین فریم hot — آستانهٔ کهنگی ۲× بازهٔ hot. */
+  lastHotAsOfAt: number | null;
+  /** `as_of` آخرین فریم snapshot — آستانهٔ کهنگی ۶۰۰ ثانیه. */
+  lastSnapshotAsOfAt: number | null;
   lastHot: GoldHotPayload | null;
 }
 
@@ -331,6 +353,9 @@ class GoldWSManager {
   private lastMessageAt: number | null = null;
   private lastSnapshotAt: number | null = null;
   private lastHotAt: number | null = null;
+  private lastAsOfAt: number | null = null;
+  private lastHotAsOfAt: number | null = null;
+  private lastSnapshotAsOfAt: number | null = null;
   private retryDelay = 1000;
   private readonly maxRetryDelay = 30_000;
   private reconnectTimer: number | null = null;
@@ -342,6 +367,9 @@ class GoldWSManager {
       lastMessageAt: this.lastMessageAt,
       lastSnapshotAt: this.lastSnapshotAt,
       lastHotAt: this.lastHotAt,
+      lastAsOfAt: this.lastAsOfAt,
+      lastHotAsOfAt: this.lastHotAsOfAt,
+      lastSnapshotAsOfAt: this.lastSnapshotAsOfAt,
       lastHot: this.lastHot,
     };
   }
@@ -387,12 +415,19 @@ class GoldWSManager {
       try {
         const msg = JSON.parse(event.data) as {
           type?: string;
+          as_of?: unknown;
           data?: Snapshot | GoldHotPayload | Record<string, unknown>;
         };
         const now = Date.now();
+        // کهنگی از زمان داده (`as_of`) می‌آید، نه از زمان رسیدن؛ as_of نامعتبر
+        // یا غایب ⇒ fallback به زمان رسیدن (بدون کرش).
+        const dataAt = parseAsOf(msg.as_of) ?? now;
+        const freshest = (previous: number | null) => Math.max(previous ?? 0, dataAt);
         if (msg.type === "snapshot" && msg.data) {
           this.lastSnapshot = msg.data as Snapshot;
           this.lastSnapshotAt = now;
+          this.lastSnapshotAsOfAt = freshest(this.lastSnapshotAsOfAt);
+          this.lastAsOfAt = freshest(this.lastAsOfAt);
           this.lastMessageAt = now;
           this.setState("open", this.lastSnapshot);
         } else if (msg.type === "hot" && msg.data) {
@@ -400,9 +435,12 @@ class GoldWSManager {
           // ولی ثابت می‌کند خط زنده است.
           this.lastHot = msg.data as GoldHotPayload;
           this.lastHotAt = now;
+          this.lastHotAsOfAt = freshest(this.lastHotAsOfAt);
+          this.lastAsOfAt = freshest(this.lastAsOfAt);
           this.lastMessageAt = now;
           this.setState(this.state, this.lastSnapshot);
         } else if (msg.type === "signal") {
+          this.lastAsOfAt = freshest(this.lastAsOfAt);
           this.lastMessageAt = now;
           this.setState(this.state, this.lastSnapshot);
         }
@@ -456,6 +494,9 @@ class GoldWSManager {
     this.lastMessageAt = null;
     this.lastSnapshotAt = null;
     this.lastHotAt = null;
+    this.lastAsOfAt = null;
+    this.lastHotAsOfAt = null;
+    this.lastSnapshotAsOfAt = null;
     this.setState("closed", null);
   }
 

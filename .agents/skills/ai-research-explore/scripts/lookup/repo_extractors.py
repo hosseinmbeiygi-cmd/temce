@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from .normalizers import ARXIV_ID_RE, DOI_RE, detect_locator, extract_urls
-
 
 IGNORED_DIRS = {
     ".git",
@@ -20,7 +19,7 @@ IGNORED_DIRS = {
 }
 
 
-def _candidate_paths(repo_path: Path) -> List[Path]:
+def _candidate_paths(repo_path: Path) -> list[Path]:
     patterns = [
         "README*",
         "*.md",
@@ -31,7 +30,7 @@ def _candidate_paths(repo_path: Path) -> List[Path]:
         "*.ini",
         "*.py",
     ]
-    results: List[Path] = []
+    results: list[Path] = []
     seen: set[Path] = set()
     for pattern in patterns:
         for path in repo_path.rglob(pattern):
@@ -48,8 +47,8 @@ def _candidate_paths(repo_path: Path) -> List[Path]:
     return sorted(results)[:120]
 
 
-def _extract_locators(text: str) -> List[str]:
-    found: List[str] = []
+def _extract_locators(text: str) -> list[str]:
+    found: list[str] = []
     for url in extract_urls(text):
         if url not in found:
             found.append(url)
@@ -71,9 +70,9 @@ def _classify_kind(locator: str) -> str:
     return "web"
 
 
-def extract_repo_local_seeds(repo_path: Path) -> List[Dict[str, Any]]:
+def extract_repo_local_seeds(repo_path: Path) -> list[dict[str, Any]]:
     repo_root = Path(repo_path).resolve()
-    seeds: List[Dict[str, Any]] = []
+    seeds: list[dict[str, Any]] = []
     seen_locators: set[str] = set()
     for path in _candidate_paths(repo_root):
         try:

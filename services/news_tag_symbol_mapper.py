@@ -28,13 +28,11 @@ and the read repo so every consumer shares one canonical form.
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.config import settings
 from core.dbcompat import as_bigint_id, as_text_id
 from core.logging import get_logger
 

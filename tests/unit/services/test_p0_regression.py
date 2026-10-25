@@ -2,7 +2,7 @@
 import math
 
 from domain.options.pricing import black_scholes_price
-from services.quant_signal_orchestrator import EnrichedSignal, LEGAL_DISCLAIMER_FA
+from services.quant_signal_orchestrator import LEGAL_DISCLAIMER_FA, EnrichedSignal
 
 
 def _sig(**kw):

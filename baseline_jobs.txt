@@ -1,0 +1,1977 @@
+﻿2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history', 'candlestick', 'shareholder'] max_symbols=0 phase_overrides={}
+2026-10-23 18:26:30 [info     ] Backfill phase history start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase history: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase history batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase history batch 1: 2 succeeded, 6 items, 0 failed
+2026-10-23 18:26:30 [info     ] Backfill phase history complete: 2/2 symbols, 6 items in 0.0s
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase candlestick batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase candlestick batch 1: 2 succeeded, 8 items, 0 failed
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick complete: 2/2 symbols, 8 items in 0.0s
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase shareholder batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase shareholder batch 1: 2 succeeded, 10 items, 0 failed
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder complete: 2/2 symbols, 10 items in 0.0s
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history', 'candlestick', 'shareholder'] max_symbols=0 phase_overrides={}
+2026-10-23 18:26:30 [info     ] Backfill phase history start: 2 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase history: no symbols need backfill
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick start: 2 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick: no symbols need backfill
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder start: 2 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder: no symbols need backfill
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history', 'candlestick', 'shareholder'] max_symbols=0 phase_overrides={}
+2026-10-23 18:26:30 [info     ] Backfill phase history start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase history: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase history batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase history batch 1: 1 succeeded, 3 items, 1 failed
+2026-10-23 18:26:30 [info     ] Backfill phase history complete: 1/2 symbols, 3 items in 0.0s
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase candlestick batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase candlestick batch 1: 1 succeeded, 4 items, 1 failed
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick complete: 1/2 symbols, 4 items in 0.0s
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase shareholder batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase shareholder batch 1: 1 succeeded, 5 items, 1 failed
+2026-10-23 18:26:30 [info     ] Backfill phase shareholder complete: 1/2 symbols, 5 items in 0.0s
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history'] max_symbols=2 phase_overrides={}
+2026-10-23 18:26:30 [info     ] Backfill phase history start: 0 symbols with data out of 3 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase history: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase history batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase history batch 1: 2 succeeded, 6 items, 0 failed
+2026-10-23 18:26:30 [info     ] Backfill phase history complete: 2/2 symbols, 6 items in 0.0s
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [error    ] BackfillHistoricalDataJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\history_backfill_service.py:467 in     │
+│ execute                                                                     │
+│                                                                             │
+│   464 │   │   │   if isinstance(max_symbols, dict) and not all(isinstance(v │
+│       max_symbols.values()):                                                │
+│   465 │   │   │   │   raise ValueError("max_symbols dict values must be int │
+│   466 │   │   │   if not isinstance(batch_sizes, dict):                     │
+│ > 467 │   │   │   │   raise ValueError(f"batch_sizes must be a dict, got    │
+│       {type(batch_sizes).__name__}")                                        │
+│   468 │   │   │   if not isinstance(delay_seconds, dict):                   │
+│   469 │   │   │   │   raise ValueError(f"delay_seconds must be a dict, got  │
+│       {type(delay_seconds).__name__}")                                      │
+│   470                                                                       │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   batch_sizes = [1, 2, 3]                                               │ │
+│ │       context = JobContext(                                             │ │
+│ │                 │   job_id='test-job-1',                                │ │
+│ │                 │   job_name='BackfillHistoricalDataJob',               │ │
+│ │                 │   scheduled_at=None,                                  │ │
+│ │                 │   started_at=None,                                    │ │
+│ │                 │   params={'batch_sizes': [1, 2, 3]},                  │ │
+│ │                 │   metadata={},                                        │ │
+│ │                 │   correlation_id='',                                  │ │
+│ │                 │   user_id='',                                         │ │
+│ │                 │   retry_count=0,                                      │ │
+│ │                 │   max_retries=3                                       │ │
+│ │                 )                                                       │ │
+│ │    data_types = ['history', 'candlestick', 'shareholder']               │ │
+│ │ delay_seconds = {}                                                      │ │
+│ │             e = ValueError('batch_sizes must be a dict, got list')      │ │
+│ │   max_symbols = 0                                                       │ │
+│ │          self = <services.history_backfill_service.BackfillHistoricalD… │ │
+│ │                 object at 0x000001C344DF7E10>                           │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+ValueError: batch_sizes must be a dict, got list
+
+2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [error    ] BackfillHistoricalDataJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\history_backfill_service.py:469 in     │
+│ execute                                                                     │
+│                                                                             │
+│   466 │   │   │   if not isinstance(batch_sizes, dict):                     │
+│   467 │   │   │   │   raise ValueError(f"batch_sizes must be a dict, got    │
+│       {type(batch_sizes).__name__}")                                        │
+│   468 │   │   │   if not isinstance(delay_seconds, dict):                   │
+│ > 469 │   │   │   │   raise ValueError(f"delay_seconds must be a dict, got  │
+│       {type(delay_seconds).__name__}")                                      │
+│   470 │   │   │                                                             │
+│   471 │   │   │   # Build per-phase overrides for batch_size and delay_seco │
+│   472 │   │   │   phase_overrides: dict[str, dict[str, Any]] = {}           │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   batch_sizes = {}                                                      │ │
+│ │       context = JobContext(                                             │ │
+│ │                 │   job_id='test-job-1',                                │ │
+│ │                 │   job_name='BackfillHistoricalDataJob',               │ │
+│ │                 │   scheduled_at=None,                                  │ │
+│ │                 │   started_at=None,                                    │ │
+│ │                 │   params={'delay_seconds': 5.0},                      │ │
+│ │                 │   metadata={},                                        │ │
+│ │                 │   correlation_id='',                                  │ │
+│ │                 │   user_id='',                                         │ │
+│ │                 │   retry_count=0,                                      │ │
+│ │                 │   max_retries=3                                       │ │
+│ │                 )                                                       │ │
+│ │    data_types = ['history', 'candlestick', 'shareholder']               │ │
+│ │ delay_seconds = 5.0                                                     │ │
+│ │             e = ValueError('delay_seconds must be a dict, got float')   │ │
+│ │   max_symbols = 0                                                       │ │
+│ │          self = <services.history_backfill_service.BackfillHistoricalD… │ │
+│ │                 object at 0x000001C344DF7E10>                           │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+ValueError: delay_seconds must be a dict, got float
+
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [error    ] BackfillHistoricalDataJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\history_backfill_service.py:463 in     │
+│ execute                                                                     │
+│                                                                             │
+│   460 │   │   │   delay_seconds = context.get_param("delay_seconds", {})    │
+│   461 │   │   │                                                             │
+│   462 │   │   │   if not isinstance(data_types, list):                      │
+│ > 463 │   │   │   │   raise ValueError(f"data_types must be a list, got     │
+│       {type(data_types).__name__}")                                         │
+│   464 │   │   │   if isinstance(max_symbols, dict) and not all(isinstance(v │
+│       max_symbols.values()):                                                │
+│   465 │   │   │   │   raise ValueError("max_symbols dict values must be int │
+│   466 │   │   │   if not isinstance(batch_sizes, dict):                     │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   batch_sizes = {}                                                      │ │
+│ │       context = JobContext(                                             │ │
+│ │                 │   job_id='test-job-1',                                │ │
+│ │                 │   job_name='BackfillHistoricalDataJob',               │ │
+│ │                 │   scheduled_at=None,                                  │ │
+│ │                 │   started_at=None,                                    │ │
+│ │                 │   params={'data_types': 'history'},                   │ │
+│ │                 │   metadata={},                                        │ │
+│ │                 │   correlation_id='',                                  │ │
+│ │                 │   user_id='',                                         │ │
+│ │                 │   retry_count=0,                                      │ │
+│ │                 │   max_retries=3                                       │ │
+│ │                 )                                                       │ │
+│ │    data_types = 'history'                                               │ │
+│ │ delay_seconds = {}                                                      │ │
+│ │             e = ValueError('data_types must be a list, got str')        │ │
+│ │   max_symbols = 0                                                       │ │
+│ │          self = <services.history_backfill_service.BackfillHistoricalD… │ │
+│ │                 object at 0x000001C3453F3770>                           │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+ValueError: data_types must be a list, got str
+
+2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [error    ] BackfillHistoricalDataJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\history_backfill_service.py:465 in     │
+│ execute                                                                     │
+│                                                                             │
+│   462 │   │   │   if not isinstance(data_types, list):                      │
+│   463 │   │   │   │   raise ValueError(f"data_types must be a list, got     │
+│       {type(data_types).__name__}")                                         │
+│   464 │   │   │   if isinstance(max_symbols, dict) and not all(isinstance(v │
+│       max_symbols.values()):                                                │
+│ > 465 │   │   │   │   raise ValueError("max_symbols dict values must be int │
+│   466 │   │   │   if not isinstance(batch_sizes, dict):                     │
+│   467 │   │   │   │   raise ValueError(f"batch_sizes must be a dict, got    │
+│       {type(batch_sizes).__name__}")                                        │
+│   468 │   │   │   if not isinstance(delay_seconds, dict):                   │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   batch_sizes = {}                                                      │ │
+│ │       context = JobContext(                                             │ │
+│ │                 │   job_id='test-job-1',                                │ │
+│ │                 │   job_name='BackfillHistoricalDataJob',               │ │
+│ │                 │   scheduled_at=None,                                  │ │
+│ │                 │   started_at=None,                                    │ │
+│ │                 │   params={'max_symbols': {'history': 'one'}},         │ │
+│ │                 │   metadata={},                                        │ │
+│ │                 │   correlation_id='',                                  │ │
+│ │                 │   user_id='',                                         │ │
+│ │                 │   retry_count=0,                                      │ │
+│ │                 │   max_retries=3                                       │ │
+│ │                 )                                                       │ │
+│ │    data_types = ['history', 'candlestick', 'shareholder']               │ │
+│ │ delay_seconds = {}                                                      │ │
+│ │             e = ValueError('max_symbols dict values must be integers')  │ │
+│ │   max_symbols = {'history': 'one'}                                      │ │
+│ │          self = <services.history_backfill_service.BackfillHistoricalD… │ │
+│ │                 object at 0x000001C3453F3770>                           │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+ValueError: max_symbols dict values must be integers
+
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history', 'candlestick', 'shareholder'] max_symbols=0 phase_overrides={}
+...2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history', 'candlestick'] max_symbols={'history': 2, 'candlestick': 2} phase_overrides={'history': {'batch_size': 1, 'delay_seconds': 0.5}}
+2026-10-23 18:26:30 [info     ] Backfill phase history start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase history: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase history batch 1/2: processing 1 symbols (1-1 of 2)
+2026-10-23 18:26:30 [info     ] Phase history batch 1: 1 succeeded, 3 items, 0 failed
+2026-10-23 18:26:30 [info     ] Phase history batch 2/2: processing 1 symbols (2-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase history batch 2: 1 succeeded, 3 items, 0 failed
+2026-10-23 18:26:30 [info     ] Backfill phase history complete: 2/2 symbols, 6 items in 0.0s
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick start: 0 symbols with data out of 2 instruments
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick: found 2 symbols needing backfill
+2026-10-23 18:26:30 [info     ] Phase candlestick batch 1/1: processing 2 symbols (1-2 of 2)
+2026-10-23 18:26:30 [info     ] Phase candlestick batch 1: 2 succeeded, 8 items, 0 failed
+2026-10-23 18:26:30 [info     ] Backfill phase candlestick complete: 2/2 symbols, 8 items in 0.0s
+.2026-10-23 18:26:30 [info     ] BackfillHistoricalDataJob started
+2026-10-23 18:26:30 [debug    ] BackfillHistoricalDataJob config: data_types=['history', 'candlestick', 'shareholder'] max_symbols=0 phase_overrides={}
+2026-10-23 18:26:30 [error    ] BackfillHistoricalDataJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\services\history_backfill_service.py:489 in     │
+│ execute                                                                     │
+│                                                                             │
+│   486 │   │   │   │   phase_overrides,                                      │
+│   487 │   │   │   )                                                         │
+│   488 │   │   │                                                             │
+│ > 489 │   │   │   result = await execute_backfill(                          │
+│   490 │   │   │   │   data_types=data_types,                                │
+│   491 │   │   │   │   max_symbols=max_symbols,                              │
+│   492 │   │   │   │   phase_overrides=phase_overrides,                      │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │     batch_sizes = {}                                                    │ │
+│ │         context = JobContext(                                           │ │
+│ │                   │   job_id='test-job-1',                              │ │
+│ │                   │   job_name='BackfillHistoricalDataJob',             │ │
+│ │                   │   scheduled_at=None,                                │ │
+│ │                   │   started_at=None,                                  │ │
+│ │                   │   params={},                                        │ │
+│ │                   │   metadata={},                                      │ │
+│ │                   │   correlation_id='',                                │ │
+│ │                   │   user_id='',                                       │ │
+│ │                   │   retry_count=0,                                    │ │
+│ │                   │   max_retries=3                                     │ │
+│ │                   )                                                     │ │
+│ │       data_type = 'shareholder'                                         │ │
+│ │      data_types = ['history', 'candlestick', 'shareholder']             │ │
+│ │   delay_seconds = {}                                                    │ │
+│ │               e = RuntimeError('unexpected boom')                       │ │
+│ │     max_symbols = 0                                                     │ │
+│ │       overrides = {}                                                    │ │
+│ │ phase_overrides = {}                                                    │ │
+│ │            self = <services.history_backfill_service.BackfillHistorica… │ │
+│ │                   object at 0x000001C344FA7550>                         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call(data_types=['history', 'candlestick', 'shareholder'],     │ │
+│ │          max_symbols=0, phase_overrides={})                             │ │
+│ │   args = ()                                                             │ │
+│ │ effect = RuntimeError('unexpected boom')                                │ │
+│ │ kwargs = {                                                              │ │
+│ │          │   'data_types': ['history', 'candlestick', 'shareholder'],   │ │
+│ │          │   'max_symbols': 0,                                          │ │
+│ │          │   'phase_overrides': {}                                      │ │
+│ │          }                                                              │ │
+│ │   self = <AsyncMock name='execute_backfill' id='1938185185200'>         │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: unexpected boom
+
+...........2026-10-23 18:26:30 [info     ] Registered job: _DummyJob
+..2026-10-23 18:26:30 [info     ] Registered job: _DummyJob
+..2026-10-23 18:26:30 [info     ] Registered job: _DummyJob
+.2026-10-23 18:26:30 [info     ] Registered job: _DummyJob
+2026-10-23 18:26:30 [info     ] Registered job: _OtherDummyJob
+.2026-10-23 18:26:30 [info     ] Registered job: _DummyJob
+.2026-10-23 18:26:30 [info     ] Registered job: _DummyJob
+2026-10-23 18:26:30 [info     ] Registered job: _OtherDummyJob
+.....2026-10-23 18:26:30 [error    ] FeatureStoreBuildJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\feature_store_jobs.py:40 in    │
+│ execute                                                                     │
+│                                                                             │
+│   37 │   │   try:                                                           │
+│   38 │   │   │   async for _session in get_session():                       │
+│   39 │   │   │   │   builder = FeatureStoreBuilder(symbols=symbols, days=da │
+│      workers=workers)                                                       │
+│ > 40 │   │   │   │   stats = await builder.build_all()                      │
+│   41 │   │   │   │   return JobResult.success_result(                       │
+│   42 │   │   │   │   │   job_name=self._name,                               │
+│   43 │   │   │   │   │   data=stats,                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │            _session = <MagicMock id='1938187055664'>                    │ │
+│ │             builder = <MagicMock name='mock()' id='1938187056336'>      │ │
+│ │             context = JobContext(                                       │ │
+│ │                       │   job_id='test-job',                            │ │
+│ │                       │   job_name='FeatureStoreBuildJob',              │ │
+│ │                       │   scheduled_at=None,                            │ │
+│ │                       │   started_at=None,                              │ │
+│ │                       │   params={},                                    │ │
+│ │                       │   metadata={},                                  │ │
+│ │                       │   correlation_id='',                            │ │
+│ │                       │   user_id='',                                   │ │
+│ │                       │   retry_count=0,                                │ │
+│ │                       │   max_retries=3                                 │ │
+│ │                       )                                                 │ │
+│ │                days = 100                                               │ │
+│ │                   e = RuntimeError('db exploded')                       │ │
+│ │ FeatureStoreBuilder = <MagicMock id='1938187053312'>                    │ │
+│ │                self = <jobs.definitions.feature_store_jobs.FeatureStor… │ │
+│ │                       object at 0x000001C345062C40>                     │ │
+│ │             symbols = None                                              │ │
+│ │             workers = 4                                                 │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────── locals ─────────────────────────────┐         │
+│ │  _call = call()                                                 │         │
+│ │   args = ()                                                     │         │
+│ │ effect = RuntimeError('db exploded')                            │         │
+│ │ kwargs = {}                                                     │         │
+│ │   self = <AsyncMock name='mock().build_all' id='1938187058688'> │         │
+│ └─────────────────────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: db exploded
+
+....2026-10-23 18:26:31 [error    ] ScreenerDailyScoresJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\feature_store_jobs.py:64 in    │
+│ execute                                                                     │
+│                                                                             │
+│   61 │   │                                                                  │
+│   62 │   │   try:                                                           │
+│   63 │   │   │   async for session in get_session():                        │
+│ > 64 │   │   │   │   stats = await build_daily_scores(session, trade_date)  │
+│   65 │   │   │   │   return JobResult.success_result(                       │
+│   66 │   │   │   │   │   job_name=self._name,                               │
+│   67 │   │   │   │   │   data=stats,                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ build_daily_scores = <AsyncMock id='1938192075136'>                     │ │
+│ │            context = JobContext(                                        │ │
+│ │                      │   job_id='test-job',                             │ │
+│ │                      │   job_name='FeatureStoreBuildJob',               │ │
+│ │                      │   scheduled_at=None,                             │ │
+│ │                      │   started_at=None,                               │ │
+│ │                      │   params={},                                     │ │
+│ │                      │   metadata={},                                   │ │
+│ │                      │   correlation_id='',                             │ │
+│ │                      │   user_id='',                                    │ │
+│ │                      │   retry_count=0,                                 │ │
+│ │                      │   max_retries=3                                  │ │
+│ │                      )                                                  │ │
+│ │           date_str = None                                               │ │
+│ │                  e = ValueError('bad date')                             │ │
+│ │               self = <jobs.definitions.feature_store_jobs.ScreenerDail… │ │
+│ │                      object at 0x000001C345063950>                      │ │
+│ │            session = <MagicMock id='1938192075472'>                     │ │
+│ │         trade_date = datetime.date(2026, 10, 23)                        │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2344 in _execute_mock_call                │
+│                                                                             │
+│   2341 │   │   │   │   if _is_exception(result):                            │
+│   2342 │   │   │   │   │   raise result                                     │
+│   2343 │   │   │   elif iscoroutinefunction(effect):                        │
+│ > 2344 │   │   │   │   result = await effect(*args, **kwargs)               │
+│   2345 │   │   │   else:                                                    │
+│   2346 │   │   │   │   result = effect(*args, **kwargs)                     │
+│   2347                                                                      │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call(<MagicMock id='1938192075472'>, datetime.date(2026, 10,   │ │
+│ │          23))                                                           │ │
+│ │   args = (<MagicMock id='1938192075472'>, datetime.date(2026, 10, 23))  │ │
+│ │ kwargs = {}                                                             │ │
+│ │   self = <AsyncMock id='1938192075136'>                                 │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\tests\unit\jobs\test_feature_store_jobs.py:165  │
+│ in _raise                                                                   │
+│                                                                             │
+│   162 │   │   session = MagicMock()                                         │
+│   163 │   │                                                                 │
+│   164 │   │   async def _raise(session_, trade_date_):                      │
+│ > 165 │   │   │   raise ValueError("bad date")                              │
+│   166 │   │                                                                 │
+│   167 │   │   with (                                                        │
+│   168 │   │   │   patch("core.database.get_session", _make_get_session(sess │
+│                                                                             │
+│ ┌─────────────────── locals ───────────────────┐                            │
+│ │    session_ = <MagicMock id='1938192075472'> │                            │
+│ │ trade_date_ = datetime.date(2026, 10, 23)    │                            │
+│ └──────────────────────────────────────────────┘                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+ValueError: bad date
+
+.2026-10-23 18:26:31 [info     ] FundsSyncJob: 80 symbols: 75 ok, 5 failed, 0 skipped (1.2s)
+..2026-10-23 18:26:31 [error    ] FundsSyncJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\fund_jobs.py:35 in execute     │
+│                                                                             │
+│   32 │   │   │   │   fund_service = FundService(session=session)            │
+│   33 │   │   │   │   brsapi = BrsApiQueryService(session=session)           │
+│   34 │   │   │   │   sync = FundSyncService(fund_service=fund_service, brsa │
+│ > 35 │   │   │   │   report = await sync.sync_all_funds(symbols=KNOWN_FUND_ │
+│   36 │   │   │                                                              │
+│   37 │   │   │   if not session_obtained:                                   │
+│   38 │   │   │   │   return JobResult.failure("Could not obtain DB session" │
+│      job_name=self._name)                                                   │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │             brsapi = <MagicMock name='BrsApiQueryService()'             │ │
+│ │                      id='1938195104832'>                                │ │
+│ │ BrsApiQueryService = <MagicMock name='BrsApiQueryService'               │ │
+│ │                      id='1938195104160'>                                │ │
+│ │            context = JobContext(                                        │ │
+│ │                      │   job_id='funds-job-1',                          │ │
+│ │                      │   job_name='FundsSyncJob',                       │ │
+│ │                      │   scheduled_at=None,                             │ │
+│ │                      │   started_at=None,                               │ │
+│ │                      │   params={},                                     │ │
+│ │                      │   metadata={},                                   │ │
+│ │                      │   correlation_id='',                             │ │
+│ │                      │   user_id='',                                    │ │
+│ │                      │   retry_count=0,                                 │ │
+│ │                      │   max_retries=3                                  │ │
+│ │                      )                                                  │ │
+│ │                  e = RuntimeError('timeout')                            │ │
+│ │       fund_service = <MagicMock name='FundService()'                    │ │
+│ │                      id='1938195104496'>                                │ │
+│ │        FundService = <MagicMock name='FundService' id='1938195103824'>  │ │
+│ │    FundSyncService = <MagicMock id='1938192087568'>                     │ │
+│ │ KNOWN_FUND_SYMBOLS = [                                                  │ │
+│ │                      │   'آگاس',                                        │ │
+│ │                      │   'آسامید',                                      │ │
+│ │                      │   'آکاریز',                                      │ │
+│ │                      │   'آکشاورز',                                     │ │
+│ │                      │   'اسپید',                                       │ │
+│ │                      │   'اشتیاق',                                      │ │
+│ │                      │   'اطلس',                                        │ │
+│ │                      │   'افتم',                                        │ │
+│ │                      │   'اقبال',                                       │ │
+│ │                      │   'الماس',                                       │ │
+│ │                      │   ... +68                                        │ │
+│ │                      ]                                                  │ │
+│ │               self = <jobs.definitions.fund_jobs.FundsSyncJob object at │ │
+│ │                      0x000001C3453C0190>                                │ │
+│ │            session = <MagicMock id='1938192086224'>                     │ │
+│ │   session_obtained = True                                               │ │
+│ │               sync = <MagicMock name='mock()' id='1938192087904'>       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call(symbols=['آگاس', 'آسامید', 'آکاریز', 'آکشاورز', 'اسپید',  │ │
+│ │          'اشتیاق', 'اطلس', 'افتم', 'اقبال', 'الماس', 'امید', 'امین',    │ │
+│ │          'انرژی', 'ایثار', 'ایرانیان', 'باپویا', 'بدرخش', 'باهنر',      │ │
+│ │          'باور', 'برکت', 'بسامان', 'بهینه', 'پارسیان', 'پدیده',         │ │
+│ │          'پیشگامان', 'پویا', 'تابان', 'تاپ', 'تدبیر', 'توسعه', 'ثابت',  │ │
+│ │          'جامان', 'جاوید', 'حافظ', 'خبرگان', 'خرد', 'دانش', 'دلیران',   │ │
+│ │          'رادین', 'رازی', 'رفاه', 'سپهر', 'ستاره', 'سدید', 'سرآمد',     │ │
+│ │          'سرمد', 'شفا', 'صبا', 'صنعت', 'طلوع', 'عقیق', 'فردا',          │ │
+│ │          'فیروزه', 'ققنوس', 'کارآفرین', 'کامران', 'کیوان', 'گنجینه',    │ │
+│ │          'مبین', 'مثقال', 'محصول', 'مهر', 'نادر', 'ناهید', 'نخل',       │ │
+│ │          'نیک', 'وفاق', 'همراه', 'یسنا', 'گهر', 'زرفام', 'نیرو',        │ │
+│ │          'دماوند', 'البرز', 'آذین', 'بامداد', 'بهار', 'پارمیدا'])       │ │
+│ │   args = ()                                                             │ │
+│ │ effect = RuntimeError('timeout')                                        │ │
+│ │ kwargs = {                                                              │ │
+│ │          │   'symbols': [                                               │ │
+│ │          │   │   'آگاس',                                                │ │
+│ │          │   │   'آسامید',                                              │ │
+│ │          │   │   'آکاریز',                                              │ │
+│ │          │   │   'آکشاورز',                                             │ │
+│ │          │   │   'اسپید',                                               │ │
+│ │          │   │   'اشتیاق',                                              │ │
+│ │          │   │   'اطلس',                                                │ │
+│ │          │   │   'افتم',                                                │ │
+│ │          │   │   'اقبال',                                               │ │
+│ │          │   │   'الماس',                                               │ │
+│ │          │   │   ... +68                                                │ │
+│ │          │   ]                                                          │ │
+│ │          }                                                              │ │
+│ │   self = <AsyncMock name='mock().sync_all_funds' id='1938192088240'>    │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: timeout
+
+.2026-10-23 18:26:31 [debug    ] fund_nav skipped missing: market_price=None nav=1000000.0 date=2026-10-14 00:00:00
+.2026-10-23 18:26:31 [debug    ] fund_nav skipped zero: market_price=0.0 nav=1868910.0 date=2026-10-14 00:00:00
+.2026-10-23 18:26:31 [info     ] GoldMacroSyncJob skipped: FRED_API_KEY is not configured
+.2026-10-23 18:26:31 [info     ] GoldMacroSyncJob: SyncResult(job_type='fred_macro_indicators', ok=True, upserted=2, skipped=0, errors=[], details={}, duration_ms=12.5)
+.2026-10-23 18:26:31 [info     ] GoldMacroSyncJob: SyncResult(job_type='fred_macro_indicators', ok=True, upserted=500, skipped=0, errors=[], details={}, duration_ms=12.5)
+.2026-10-23 18:26:31 [info     ] GoldMacroSyncJob: SyncResult(job_type='fred_macro_indicators', ok=True, upserted=2, skipped=0, errors=[], details={}, duration_ms=12.5)
+..2026-10-23 18:26:31 [error    ] GoldMacroSyncJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:110 in      │
+│ _with_session                                                               │
+│                                                                             │
+│   107 │   try:                                                              │
+│   108 │   │   async for session in get_session():                           │
+│   109 │   │   │   session_obtained = True                                   │
+│ > 110 │   │   │   result = await run(session)                               │
+│   111 │   │                                                                 │
+│   112 │   │   if not session_obtained:                                      │
+│   113 │   │   │   return JobResult.failure("Could not obtain DB session", j │
+│                                                                             │
+│ ┌───────────────────── locals ──────────────────────┐                       │
+│ │              exc = RuntimeError('timeout')        │                       │
+│ │         job_name = 'GoldMacroSyncJob'             │                       │
+│ │          session = <MagicMock id='1938194919648'> │                       │
+│ │ session_obtained = True                           │                       │
+│ └───────────────────────────────────────────────────┘                       │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:170 in run  │
+│                                                                             │
+│   167 │   │   │   │   │   observation_end=observation_end,                  │
+│   168 │   │   │   │   )                                                     │
+│   169 │   │   │   else:                                                     │
+│ > 170 │   │   │   │   result = await service.sync_fred_indicators()         │
+│   171 │   │   │   logger.info("GoldMacroSyncJob: %s", result)               │
+│   172 │   │   │   return _result_to_job_result(result, self._name)          │
+│   173                                                                       │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │          backfill = False                                               │ │
+│ │  MacroSyncService = <MagicMock id='1938194919984'>                      │ │
+│ │   observation_end = None                                                │ │
+│ │ observation_start = None                                                │ │
+│ │              self = <jobs.definitions.gold_macro_jobs.GoldMacroSyncJob  │ │
+│ │                     object at 0x000001C3453F32F0>                       │ │
+│ │           service = <MagicMock name='mock()' id='1938194920320'>        │ │
+│ │           session = <MagicMock id='1938194919648'>                      │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call()                                                         │ │
+│ │   args = ()                                                             │ │
+│ │ effect = RuntimeError('timeout')                                        │ │
+│ │ kwargs = {}                                                             │ │
+│ │   self = <AsyncMock name='mock().sync_fred_indicators'                  │ │
+│ │          id='1938195114240'>                                            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: timeout
+
+.2026-10-23 18:26:32 [info     ] GoldMacroSyncJob: SyncResult(job_type='fred_macro_indicators', ok=False, upserted=0, skipped=0, errors=['FRED HTTP 500'], details={}, duration_ms=12.5)
+.2026-10-23 18:26:32 [info     ] GoldCftcCotSyncJob: SyncResult(job_type='cftc_cot_gold', ok=True, upserted=52, skipped=0, errors=[], details={}, duration_ms=12.5)
+.2026-10-23 18:26:32 [error    ] GoldCftcCotSyncJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:110 in      │
+│ _with_session                                                               │
+│                                                                             │
+│   107 │   try:                                                              │
+│   108 │   │   async for session in get_session():                           │
+│   109 │   │   │   session_obtained = True                                   │
+│ > 110 │   │   │   result = await run(session)                               │
+│   111 │   │                                                                 │
+│   112 │   │   if not session_obtained:                                      │
+│   113 │   │   │   return JobResult.failure("Could not obtain DB session", j │
+│                                                                             │
+│ ┌───────────────────── locals ──────────────────────┐                       │
+│ │              exc = RuntimeError('cftc down')      │                       │
+│ │         job_name = 'GoldCftcCotSyncJob'           │                       │
+│ │          session = <MagicMock id='1938194915616'> │                       │
+│ │ session_obtained = True                           │                       │
+│ └───────────────────────────────────────────────────┘                       │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:187 in run  │
+│                                                                             │
+│   184 │   │   │   service = MacroSyncService(                               │
+│   185 │   │   │   │   session, cftc_provider=_build_cftc_provider()         │
+│   186 │   │   │   )                                                         │
+│ > 187 │   │   │   result = await service.sync_cftc_cot_gold()               │
+│   188 │   │   │   logger.info("GoldCftcCotSyncJob: %s", result)             │
+│   189 │   │   │   return _result_to_job_result(result, self._name)          │
+│   190                                                                       │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ MacroSyncService = <MagicMock id='1938194908560'>                       │ │
+│ │             self = <jobs.definitions.gold_macro_jobs.GoldCftcCotSyncJob │ │
+│ │                    object at 0x000001C344F0BB10>                        │ │
+│ │          service = <MagicMock name='mock()' id='1938194909232'>         │ │
+│ │          session = <MagicMock id='1938194915616'>                       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call()                                                         │ │
+│ │   args = ()                                                             │ │
+│ │ effect = RuntimeError('cftc down')                                      │ │
+│ │ kwargs = {}                                                             │ │
+│ │   self = <AsyncMock name='mock().sync_cftc_cot_gold'                    │ │
+│ │          id='1938194909904'>                                            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: cftc down
+
+.2026-10-23 18:26:32 [info     ] GoldEconomicCalendarSyncJob: SyncResult(job_type='economic_calendar', ok=True, upserted=6, skipped=0, errors=[], details={}, duration_ms=12.5)
+.2026-10-23 18:26:32 [info     ] GoldTokenizedGoldSyncJob: SyncResult(job_type='tokenized_gold_premium', ok=True, upserted=2, skipped=0, errors=[], details={}, duration_ms=12.5)
+.2026-10-23 18:26:32 [error    ] GoldTokenizedGoldSyncJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:110 in      │
+│ _with_session                                                               │
+│                                                                             │
+│   107 │   try:                                                              │
+│   108 │   │   async for session in get_session():                           │
+│   109 │   │   │   session_obtained = True                                   │
+│ > 110 │   │   │   result = await run(session)                               │
+│   111 │   │                                                                 │
+│   112 │   │   if not session_obtained:                                      │
+│   113 │   │   │   return JobResult.failure("Could not obtain DB session", j │
+│                                                                             │
+│ ┌────────────────────── locals ───────────────────────┐                     │
+│ │              exc = RuntimeError('spot unavailable') │                     │
+│ │         job_name = 'GoldTokenizedGoldSyncJob'       │                     │
+│ │          session = <MagicMock id='1938195115920'>   │                     │
+│ │ session_obtained = True                             │                     │
+│ └─────────────────────────────────────────────────────┘                     │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:227 in run  │
+│                                                                             │
+│   224 │   │   │   │   tokenized_gold_provider=_build_tokenized_gold_provide │
+│   225 │   │   │   │   gold_spot_provider=_build_gold_spot_provider(session) │
+│   226 │   │   │   )                                                         │
+│ > 227 │   │   │   result = await service.sync_tokenized_gold_premium()      │
+│   228 │   │   │   logger.info("GoldTokenizedGoldSyncJob: %s", result)       │
+│   229 │   │   │   return _result_to_job_result(result, self._name)          │
+│   230                                                                       │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ MacroSyncService = <MagicMock id='1938195112560'>                       │ │
+│ │             self = <jobs.definitions.gold_macro_jobs.GoldTokenizedGold… │ │
+│ │                    object at 0x000001C3453C16D0>                        │ │
+│ │          service = <MagicMock name='mock()' id='1938195116928'>         │ │
+│ │          session = <MagicMock id='1938195115920'>                       │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call()                                                         │ │
+│ │   args = ()                                                             │ │
+│ │ effect = RuntimeError('spot unavailable')                               │ │
+│ │ kwargs = {}                                                             │ │
+│ │   self = <AsyncMock name='mock().sync_tokenized_gold_premium'           │ │
+│ │          id='1938195116592'>                                            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: spot unavailable
+
+.2026-10-23 18:26:32 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:32 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:32 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:32 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:32 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:32 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:32 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:32 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:32 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:32 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:32 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:32 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:32 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:32 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:32 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:32 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:32 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:32 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:32 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:32 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:32 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:32 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:32 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:32 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:32 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:32 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:32 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:32 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:32 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:32 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:32 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:32 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:32 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:32 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:32 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:32 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:32 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:32 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:32 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:32 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:32 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:32 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:32 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:32 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:32 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:32 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:32 [info     ] Registered job: SyncSnapshotsToQuotesJob
+..2026-10-23 18:26:33 [info     ] GoldOptionIvSnapshotJob: {'scanned': 2, 'stored': 2, 'inserted': 2, 'updated': 0, 'skipped': 0, 'missing_iv': 0}
+.2026-10-23 18:26:33 [error    ] GoldOptionIvSnapshotJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_macro_jobs.py:110 in      │
+│ _with_session                                                               │
+│                                                                             │
+│   107 │   try:                                                              │
+│   108 │   │   async for session in get_session():                           │
+│   109 │   │   │   session_obtained = True                                   │
+│ > 110 │   │   │   result = await run(session)                               │
+│   111 │   │                                                                 │
+│   112 │   │   if not session_obtained:                                      │
+│   113 │   │   │   return JobResult.failure("Could not obtain DB session", j │
+│                                                                             │
+│ ┌───────────────────── locals ──────────────────────┐                       │
+│ │              exc = RuntimeError('db down')        │                       │
+│ │         job_name = 'GoldOptionIvSnapshotJob'      │                       │
+│ │          session = <MagicMock id='1938194917296'> │                       │
+│ │ session_obtained = True                           │                       │
+│ └───────────────────────────────────────────────────┘                       │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\gold_options_jobs.py:27 in run │
+│                                                                             │
+│   24 │   │   from services.gold.options_chain_service import snapshot_optio │
+│   25 │   │                                                                  │
+│   26 │   │   async def run(session) -> JobResult:                           │
+│ > 27 │   │   │   counts = await snapshot_option_iv(session)                 │
+│   28 │   │   │   logger.info("GoldOptionIvSnapshotJob: %s", counts)         │
+│   29 │   │   │   return JobResult.success_result(job_name=self._name, data= │
+│   30                                                                        │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │               self = <jobs.definitions.gold_options_jobs.GoldOptionIvS… │ │
+│ │                      object at 0x000001C3455D60D0>                      │ │
+│ │            session = <MagicMock id='1938194917296'>                     │ │
+│ │ snapshot_option_iv = <AsyncMock id='1938194916288'>                     │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌─────────────────── locals ────────────────────┐                           │
+│ │  _call = call(<MagicMock id='1938194917296'>) │                           │
+│ │   args = (<MagicMock id='1938194917296'>,)    │                           │
+│ │ effect = RuntimeError('db down')              │                           │
+│ │ kwargs = {}                                   │                           │
+│ │   self = <AsyncMock id='1938194916288'>       │                           │
+│ └───────────────────────────────────────────────┘                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: db down
+
+...2026-10-23 18:26:33 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:33 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:33 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:33 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:33 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:33 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:33 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:33 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:33 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:33 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:33 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:33 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:33 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:33 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:33 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:33 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:33 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:33 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:33 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:33 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:33 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:33 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:33 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:33 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:33 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:33 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:33 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:33 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:33 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:33 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:33 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:33 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:33 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:33 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:33 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:33 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:33 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:33 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:33 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:33 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:33 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:33 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:33 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:33 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:33 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:33 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:33 [info     ] Registered job: SyncSnapshotsToQuotesJob
+.................2026-10-23 18:26:33 [warning  ] Dedup: job SyncQuotesJob:job_dff8e268ea98464d9909c76d already dispatched
+..2026-10-23 18:26:33 [error    ] Dispatch error for SyncQuotesJob: crash
+....................2026-10-23 18:26:33 [debug    ] Redis lock acquire failed for job:a: simulated redis outage
+...........2026-10-23 18:26:33 [warning  ] Market-hours check failed; allowing sync
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\market_hours.py:64 in                      │
+│ is_tehran_market_open                                                       │
+│                                                                             │
+│   61 │   """                                                                │
+│   62 │   try:                                                               │
+│   63 │   │   return _in_window(                                             │
+│ > 64 │   │   │   _now_tehran(),                                             │
+│   65 │   │   │   MARKET_OPEN_HOUR,                                          │
+│   66 │   │   │   MARKET_OPEN_MINUTE,                                        │
+│   67 │   │   │   MARKET_CLOSE_HOUR,                                         │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1176 in __call__                          │
+│                                                                             │
+│   1173 │   │   # in the signature                                           │
+│   1174 │   │   self._mock_check_sig(*args, **kwargs)                        │
+│   1175 │   │   self._increment_mock_call(*args, **kwargs)                   │
+│ > 1176 │   │   return self._mock_call(*args, **kwargs)                      │
+│   1177 │                                                                    │
+│   1178 │                                                                    │
+│   1179 │   def _mock_call(self, /, *args, **kwargs):                        │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │   args = ()                                                │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <MagicMock name='_now_tehran' id='1938197863392'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1180 in _mock_call                        │
+│                                                                             │
+│   1177 │                                                                    │
+│   1178 │                                                                    │
+│   1179 │   def _mock_call(self, /, *args, **kwargs):                        │
+│ > 1180 │   │   return self._execute_mock_call(*args, **kwargs)              │
+│   1181 │                                                                    │
+│   1182 │   def _increment_mock_call(self, /, *args, **kwargs):              │
+│   1183 │   │   self.called = True                                           │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │   args = ()                                                │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <MagicMock name='_now_tehran' id='1938197863392'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1241 in _execute_mock_call                │
+│                                                                             │
+│   1238 │   │   effect = self.side_effect                                    │
+│   1239 │   │   if effect is not None:                                       │
+│   1240 │   │   │   if _is_exception(effect):                                │
+│ > 1241 │   │   │   │   raise effect                                         │
+│   1242 │   │   │   elif not _callable(effect):                              │
+│   1243 │   │   │   │   result = next(effect)                                │
+│   1244 │   │   │   │   if _is_exception(result):                            │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │   args = ()                                                │              │
+│ │ effect = RuntimeError('tz broken')                         │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <MagicMock name='_now_tehran' id='1938197863392'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: tz broken
+
+.....2026-10-23 18:26:34 [warning  ] Codal-hours check failed; allowing sync
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\market_hours.py:84 in                      │
+│ is_tehran_codal_window                                                      │
+│                                                                             │
+│   81 │   """                                                                │
+│   82 │   try:                                                               │
+│   83 │   │   return _in_window(                                             │
+│ > 84 │   │   │   _now_tehran(),                                             │
+│   85 │   │   │   CODAL_OPEN_HOUR,                                           │
+│   86 │   │   │   CODAL_OPEN_MINUTE,                                         │
+│   87 │   │   │   CODAL_CLOSE_HOUR,                                          │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1176 in __call__                          │
+│                                                                             │
+│   1173 │   │   # in the signature                                           │
+│   1174 │   │   self._mock_check_sig(*args, **kwargs)                        │
+│   1175 │   │   self._increment_mock_call(*args, **kwargs)                   │
+│ > 1176 │   │   return self._mock_call(*args, **kwargs)                      │
+│   1177 │                                                                    │
+│   1178 │                                                                    │
+│   1179 │   def _mock_call(self, /, *args, **kwargs):                        │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │   args = ()                                                │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <MagicMock name='_now_tehran' id='1938194915952'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1180 in _mock_call                        │
+│                                                                             │
+│   1177 │                                                                    │
+│   1178 │                                                                    │
+│   1179 │   def _mock_call(self, /, *args, **kwargs):                        │
+│ > 1180 │   │   return self._execute_mock_call(*args, **kwargs)              │
+│   1181 │                                                                    │
+│   1182 │   def _increment_mock_call(self, /, *args, **kwargs):              │
+│   1183 │   │   self.called = True                                           │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │   args = ()                                                │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <MagicMock name='_now_tehran' id='1938194915952'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1241 in _execute_mock_call                │
+│                                                                             │
+│   1238 │   │   effect = self.side_effect                                    │
+│   1239 │   │   if effect is not None:                                       │
+│   1240 │   │   │   if _is_exception(effect):                                │
+│ > 1241 │   │   │   │   raise effect                                         │
+│   1242 │   │   │   elif not _callable(effect):                              │
+│   1243 │   │   │   │   result = next(effect)                                │
+│   1244 │   │   │   │   if _is_exception(result):                            │
+│                                                                             │
+│ ┌────────────────────────── locals ──────────────────────────┐              │
+│ │   args = ()                                                │              │
+│ │ effect = RuntimeError('tz broken')                         │              │
+│ │ kwargs = {}                                                │              │
+│ │   self = <MagicMock name='_now_tehran' id='1938194915952'> │              │
+│ └────────────────────────────────────────────────────────────┘              │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: tz broken
+
+.........2026-10-23 18:26:34 [warning  ] Market-hours check failed; allowing sync
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\market_hours.py:64 in                      │
+│ is_tehran_market_open                                                       │
+│                                                                             │
+│   61 │   """                                                                │
+│   62 │   try:                                                               │
+│   63 │   │   return _in_window(                                             │
+│ > 64 │   │   │   _now_tehran(),                                             │
+│   65 │   │   │   MARKET_OPEN_HOUR,                                          │
+│   66 │   │   │   MARKET_OPEN_MINUTE,                                        │
+│   67 │   │   │   MARKET_CLOSE_HOUR,                                         │
+│                                                                             │
+│ C:\Users\Iran\Desktop\temce\jobs\market_hours.py:41 in _now_tehran          │
+│                                                                             │
+│   38 │   """Return the current wall-clock time in Tehran (fail-open on erro │
+│   39 │   import pytz                                                        │
+│   40 │                                                                      │
+│ > 41 │   return datetime.now(pytz.timezone(_TEHRAN_TZ))                     │
+│   42                                                                        │
+│   43                                                                        │
+│   44 def _in_window(now: datetime, open_hour: int, open_minute: int, close_ │
+│      close_minute: int) -> bool:                                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │ pytz = <module 'pytz' from                                              │ │
+│ │        'C:\\Users\\Iran\\AppData\\Roaming\\Python\\Python314\\site-pac… │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1176 in __call__                          │
+│                                                                             │
+│   1173 │   │   # in the signature                                           │
+│   1174 │   │   self._mock_check_sig(*args, **kwargs)                        │
+│   1175 │   │   self._increment_mock_call(*args, **kwargs)                   │
+│ > 1176 │   │   return self._mock_call(*args, **kwargs)                      │
+│   1177 │                                                                    │
+│   1178 │                                                                    │
+│   1179 │   def _mock_call(self, /, *args, **kwargs):                        │
+│                                                                             │
+│ ┌──────────────────────── locals ─────────────────────────┐                 │
+│ │   args = ('Asia/Tehran',)                               │                 │
+│ │ kwargs = {}                                             │                 │
+│ │   self = <MagicMock name='timezone' id='1938194280672'> │                 │
+│ └─────────────────────────────────────────────────────────┘                 │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1180 in _mock_call                        │
+│                                                                             │
+│   1177 │                                                                    │
+│   1178 │                                                                    │
+│   1179 │   def _mock_call(self, /, *args, **kwargs):                        │
+│ > 1180 │   │   return self._execute_mock_call(*args, **kwargs)              │
+│   1181 │                                                                    │
+│   1182 │   def _increment_mock_call(self, /, *args, **kwargs):              │
+│   1183 │   │   self.called = True                                           │
+│                                                                             │
+│ ┌──────────────────────── locals ─────────────────────────┐                 │
+│ │   args = ('Asia/Tehran',)                               │                 │
+│ │ kwargs = {}                                             │                 │
+│ │   self = <MagicMock name='timezone' id='1938194280672'> │                 │
+│ └─────────────────────────────────────────────────────────┘                 │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:1241 in _execute_mock_call                │
+│                                                                             │
+│   1238 │   │   effect = self.side_effect                                    │
+│   1239 │   │   if effect is not None:                                       │
+│   1240 │   │   │   if _is_exception(effect):                                │
+│ > 1241 │   │   │   │   raise effect                                         │
+│   1242 │   │   │   elif not _callable(effect):                              │
+│   1243 │   │   │   │   result = next(effect)                                │
+│   1244 │   │   │   │   if _is_exception(result):                            │
+│                                                                             │
+│ ┌──────────────────────── locals ─────────────────────────┐                 │
+│ │   args = ('Asia/Tehran',)                               │                 │
+│ │ effect = Exception('boom')                              │                 │
+│ │ kwargs = {}                                             │                 │
+│ │   self = <MagicMock name='timezone' id='1938194280672'> │                 │
+│ └─────────────────────────────────────────────────────────┘                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+Exception: boom
+
+......2026-10-23 18:26:35 [info     ] BrsApi job 'brsapi_all_symbols' skipped: outside Tehran market hours window (market_hours_only)
+.2026-10-23 18:26:35 [info     ] BrsApi job 'brsapi_codal' skipped: outside Tehran Codal office-hours window (market_hours_only)
+.2026-10-23 18:26:35 [info     ] Running BrsApi job: brsapi_codal
+2026-10-23 18:26:35 [info     ] Job brsapi_codal: OK (10 items in 100ms)
+.2026-10-23 18:26:35 [info     ] Running BrsApi job: brsapi_all_symbols
+2026-10-23 18:26:35 [info     ] Job brsapi_all_symbols: OK (10 items in 100ms)
+.2026-10-23 18:26:35 [info     ] Running BrsApi job: brsapi_all_symbols
+2026-10-23 18:26:35 [info     ] Job brsapi_all_symbols: OK (10 items in 100ms)
+.2026-10-23 18:26:35 [info     ] Running BrsApi job: brsapi_gold_currency
+.2026-10-23 18:26:35 [info     ] Running BrsApi job: brsapi_all_symbols
+2026-10-23 18:26:35 [info     ] Job brsapi_all_symbols: OK (5 items in 50ms)
+.2026-10-23 18:26:35 [info     ] BrsApi job 'brsapi_all_symbols' skipped: outside Tehran market hours window (market_hours_only)
+.2026-10-23 18:26:35 [info     ] SyncQuotesJob skipped outside Tehran market hours to preserve the free BrsApi daily quota (otherwise the TSETMC endpoints answer HTTP 402 by morning)
+..2026-10-23 18:26:35 [info     ] SyncCodalJob skipped outside the Tehran office-hours window to preserve the free BrsApi daily quota (otherwise Codal answers HTTP 402 by morning)
+.2026-10-23 18:26:35 [info     ] SyncInstrumentsJob skipped outside Tehran market hours to preserve the free BrsApi daily quota (otherwise the TSETMC endpoints answer HTTP 402 by morning)
+.2026-10-23 18:26:35 [info     ] PaperTradingJob: generated 2 signals
+2026-10-23 18:26:35 [info     ] PaperTradingJob: auto-closed 1 trades
+..2026-10-23 18:26:35 [error    ] PaperTradingJob failed
+┌───────────────────── Traceback (most recent call last) ─────────────────────┐
+│ C:\Users\Iran\Desktop\temce\jobs\definitions\paper_trading_job.py:40 in     │
+│ execute                                                                     │
+│                                                                             │
+│   37 │   │   │   │                                                          │
+│   38 │   │   │   │   # 1. Generate signals (same pipeline as the API / hour │
+│   39 │   │   │   │   orchestrator = QuantSignalOrchestrator(session=session │
+│ > 40 │   │   │   │   report = await orchestrator.generate(                  │
+│   41 │   │   │   │   │   market_filter="all",                               │
+│   42 │   │   │   │   │   timeframe_filter="all",                            │
+│   43 │   │   │   │   │   min_confidence=0.35,                               │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │   async_session_factory = <MagicMock id='1938194273280'>                │ │
+│ │                 context = JobContext(                                   │ │
+│ │                           │   job_id='paper-job-1',                     │ │
+│ │                           │   job_name='PaperTradingJob',               │ │
+│ │                           │   scheduled_at=None,                        │ │
+│ │                           │   started_at=None,                          │ │
+│ │                           │   params={},                                │ │
+│ │                           │   metadata={},                              │ │
+│ │                           │   correlation_id='',                        │ │
+│ │                           │   user_id='',                               │ │
+│ │                           │   retry_count=0,                            │ │
+│ │                           │   max_retries=3                             │ │
+│ │                           )                                             │ │
+│ │                       e = RuntimeError('signal pipeline crashed')       │ │
+│ │            orchestrator = <MagicMock id='1938197861376'>                │ │
+│ │     PaperTradingService = <MagicMock name='PaperTradingService'         │ │
+│ │                           id='1938197860368'>                           │ │
+│ │ QuantSignalOrchestrator = <MagicMock name='QuantSignalOrchestrator'     │ │
+│ │                           id='1938197859696'>                           │ │
+│ │                    self = <jobs.definitions.paper_trading_job.PaperTra… │ │
+│ │                           object at 0x000001C3455D6710>                 │ │
+│ │                 service = <MagicMock id='1938197871120'>                │ │
+│ │                 session = <MagicMock id='1938197448752'>                │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│ C:\Python314\Lib\unittest\mock.py:2333 in _execute_mock_call                │
+│                                                                             │
+│   2330 │   │   effect = self.side_effect                                    │
+│   2331 │   │   if effect is not None:                                       │
+│   2332 │   │   │   if _is_exception(effect):                                │
+│ > 2333 │   │   │   │   raise effect                                         │
+│   2334 │   │   │   elif not _callable(effect):                              │
+│   2335 │   │   │   │   try:                                                 │
+│   2336 │   │   │   │   │   result = next(effect)                            │
+│                                                                             │
+│ ┌──────────────────────────────── locals ─────────────────────────────────┐ │
+│ │  _call = call(market_filter='all', timeframe_filter='all',              │ │
+│ │          min_confidence=0.35, limit=100, use_ml=True, use_voting=True)  │ │
+│ │   args = ()                                                             │ │
+│ │ effect = RuntimeError('signal pipeline crashed')                        │ │
+│ │ kwargs = {                                                              │ │
+│ │          │   'market_filter': 'all',                                    │ │
+│ │          │   'timeframe_filter': 'all',                                 │ │
+│ │          │   'min_confidence': 0.35,                                    │ │
+│ │          │   'limit': 100,                                              │ │
+│ │          │   'use_ml': True,                                            │ │
+│ │          │   'use_voting': True                                         │ │
+│ │          }                                                              │ │
+│ │   self = <AsyncMock name='mock.generate' id='1938197865072'>            │ │
+│ └─────────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+RuntimeError: signal pipeline crashed
+
+.2026-10-23 18:26:35 [info     ] PaperTradingJob: generated 1 signals
+2026-10-23 18:26:35 [warning  ] PaperTradingJob: snapshot failed: journal failed
+2026-10-23 18:26:35 [info     ] PaperTradingJob: auto-closed 0 trades
+...2026-10-23 18:26:35 [info     ] Published job SyncQuotesJob to job:queue (job_e0a50a379be24f24bbf5e655)
+.2026-10-23 18:26:35 [warning  ] JobQueuePublisher: Redis unavailable — cannot enqueue SyncQuotesJob
+.2026-10-23 18:26:35 [info     ] Published job SyncQuotesJob to job:queue (job_4d6bf77608e04d19b07c86da)
+2026-10-23 18:26:35 [info     ] Consuming job SyncQuotesJob (id=job_4d6bf77608e04d19b07c86da attempt=1)
+.2026-10-23 18:26:35 [info     ] Published job SyncQuotesJob to job:queue (job_7b8f5cc7ed8649d0a3efbb42)
+2026-10-23 18:26:35 [warning  ] JobQueueConsumer: rejected message with invalid token (SyncQuotesJob)
+.2026-10-23 18:26:35 [info     ] Published job SyncQuotesJob to job:queue (job_702aecd6c8c74faf82785fc8)
+2026-10-23 18:26:35 [info     ] Consuming job SyncQuotesJob (id=job_702aecd6c8c74faf82785fc8 attempt=1)
+2026-10-23 18:26:35 [info     ] Job SyncQuotesJob skipped — already handled elsewhere (Lock not acquired for SyncQuotesJob)
+.2026-10-23 18:26:35 [info     ] Consuming job SyncCodalJob (id=job-1 attempt=1)
+2026-10-23 18:26:35 [warning  ] Job SyncCodalJob requeued (attempt 2) — boom
+2026-10-23 18:26:35 [info     ] Consuming job SyncCodalJob (id=job-1 attempt=2)
+2026-10-23 18:26:35 [error    ] Job SyncCodalJob dead-lettered after 2 attempts: boom
+........................2026-10-23 18:26:35 [info     ] Scheduled job test_job with cron */5 * * * * (id=sched-000001)
+.2026-10-23 18:26:35 [info     ] Scheduled job data_sync with cron 0 */2 * * * (id=sched-000001)
+.2026-10-23 18:26:35 [info     ] Scheduled job j1 with cron */5 * * * * (id=sched-000001)
+2026-10-23 18:26:35 [info     ] Unscheduled job sched-000001
+...2026-10-23 18:26:35 [info     ] Scheduled job j1 with cron * * * * * (id=sched-000001)
+2026-10-23 18:26:35 [info     ] Scheduled job j2 with cron */5 * * * * (id=sched-000002)
+.2026-10-23 18:26:35 [info     ] Scheduled job j1 with cron * * * * * (id=sched-000001)
+.2026-10-23 18:26:35 [info     ] Scheduled job j1 with cron * * * * * (id=sched-000001)
+.2026-10-23 18:26:35 [info     ] Scheduled job j1 with cron * * * * * (id=sched-000001)
+...2026-10-23 18:26:35 [info     ] Registered job function: my_job
+2026-10-23 18:26:35 [info     ] Scheduled job my_job with cron * * * * * (id=sched-000001)
+2026-10-23 18:26:35 [info     ] Running scheduled job my_job now
+.2026-10-23 18:26:35 [warning  ] Scheduled job no-such-job not found
+.2026-10-23 18:26:35 [info     ] Scheduled job orphan with cron * * * * * (id=sched-000001)
+2026-10-23 18:26:35 [warning  ] No function registered for job orphan
+.2026-10-23 18:26:35 [info     ] Registered job function: failing
+2026-10-23 18:26:35 [info     ] Scheduled job failing with cron * * * * * (id=sched-000001)
+2026-10-23 18:26:35 [info     ] Running scheduled job failing now
+2026-10-23 18:26:35 [error    ] Failed to run scheduled job failing: oops
+.2026-10-23 18:26:35 [info     ] Registered job function: my_job
+2026-10-23 18:26:35 [info     ] Scheduled job my_job with cron * * * * * (id=sched-000001)
+2026-10-23 18:26:35 [info     ] Running scheduled job my_job now
+.2026-10-23 18:26:35 [info     ] Job scheduler started
+.2026-10-23 18:26:35 [info     ] Job scheduler started
+2026-10-23 18:26:35 [info     ] Job scheduler stopped
+..2026-10-23 18:26:35 [info     ] Scheduled job j1 with cron * * * * * (id=sched-000001)
+2026-10-23 18:26:35 [info     ] Scheduled job j2 with cron */5 * * * * (id=sched-000002)
+2026-10-23 18:26:35 [info     ] Registered job function: j1
+2026-10-23 18:26:35 [info     ] Job scheduler started
+...2026-10-23 18:26:35 [info     ] Scheduled job sync_quotes with interval (mode=in-process)
+.2026-10-23 18:26:35 [info     ] Scheduled job test_job with interval (mode=in-process)
+.2026-10-23 18:26:35 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:35 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:35 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:35 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:35 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:35 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:35 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:35 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:35 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:35 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:35 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:35 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:35 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncSnapshotsToQuotesJob
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_all_symbols (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index_farabours (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_futures (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_certificates (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_funds (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_commodities (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_crypto (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency_pro (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_codal (cron=900)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_physical (cron=0 18 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_candlesticks_all (cron=0 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_shareholders_all (cron=30 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_price_all (cron=0 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_real_legal_all (cron=30 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_symbol_details_all (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_snapshot (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_score_persist (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_alert_evaluate (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_daily_history (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_fund_nav (cron=5 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_portfolio_value (cron=10 21 * * *)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncInstrumentsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncSnapshotsToQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncCodalJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job CodalAttachmentDownloadJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncNavAllJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsIngestionJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSentimentJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSourceHealthJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsReadPathHalterJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job IndicatorPrecomputeJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job MonthlySalesFillJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job EvaluateAlertsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BackfillHistoricalDataJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundsSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundDiscoveryJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavReconciliationJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavOutboxRelayJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job PaperTradingJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FeatureStoreBuildJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job ScreenerDailyScoresJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BrsApiReadyCheckJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldMacroSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldCftcCotSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldEconomicCalendarSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldTokenizedGoldSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldOptionIvSnapshotJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduler started with 25 BrsApi jobs
+.2026-10-23 18:26:35 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:35 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:35 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:35 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:35 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:35 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:35 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:35 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:35 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:35 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:35 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:35 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:35 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncSnapshotsToQuotesJob
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_all_symbols (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index_farabours (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_futures (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_certificates (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_funds (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_commodities (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_crypto (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency_pro (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_codal (cron=900)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_physical (cron=0 18 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_candlesticks_all (cron=0 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_shareholders_all (cron=30 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_price_all (cron=0 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_real_legal_all (cron=30 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_symbol_details_all (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_snapshot (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_score_persist (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_alert_evaluate (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_daily_history (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_fund_nav (cron=5 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_portfolio_value (cron=10 21 * * *)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncInstrumentsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncSnapshotsToQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncCodalJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job CodalAttachmentDownloadJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncNavAllJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsIngestionJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSentimentJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSourceHealthJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsReadPathHalterJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job IndicatorPrecomputeJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job MonthlySalesFillJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job EvaluateAlertsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BackfillHistoricalDataJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundsSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundDiscoveryJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavReconciliationJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavOutboxRelayJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job PaperTradingJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FeatureStoreBuildJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job ScreenerDailyScoresJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BrsApiReadyCheckJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldMacroSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldCftcCotSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldEconomicCalendarSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldTokenizedGoldSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldOptionIvSnapshotJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduler started with 25 BrsApi jobs
+.2026-10-23 18:26:35 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:35 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:35 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:35 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:35 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:35 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:35 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:35 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:35 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:35 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:35 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:35 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:35 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncSnapshotsToQuotesJob
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_all_symbols (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index_farabours (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_futures (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_certificates (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_funds (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_commodities (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_crypto (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency_pro (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_codal (cron=900)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_physical (cron=0 18 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_candlesticks_all (cron=0 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_shareholders_all (cron=30 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_price_all (cron=0 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_real_legal_all (cron=30 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_symbol_details_all (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_snapshot (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_score_persist (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_alert_evaluate (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_daily_history (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_fund_nav (cron=5 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_portfolio_value (cron=10 21 * * *)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncInstrumentsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncSnapshotsToQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncCodalJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job CodalAttachmentDownloadJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncNavAllJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsIngestionJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSentimentJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSourceHealthJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsReadPathHalterJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job IndicatorPrecomputeJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job MonthlySalesFillJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job EvaluateAlertsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BackfillHistoricalDataJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundsSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundDiscoveryJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavReconciliationJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavOutboxRelayJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job PaperTradingJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FeatureStoreBuildJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job ScreenerDailyScoresJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BrsApiReadyCheckJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldMacroSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldCftcCotSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldEconomicCalendarSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldTokenizedGoldSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldOptionIvSnapshotJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduler started with 25 BrsApi jobs
+.2026-10-23 18:26:35 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:35 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:35 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:35 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:35 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:35 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:35 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:35 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:35 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:35 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:35 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:35 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:35 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncSnapshotsToQuotesJob
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_all_symbols (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index_farabours (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_futures (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_certificates (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_funds (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_commodities (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_crypto (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency_pro (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_codal (cron=900)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_physical (cron=0 18 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_candlesticks_all (cron=0 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_shareholders_all (cron=30 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_price_all (cron=0 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_real_legal_all (cron=30 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_symbol_details_all (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_snapshot (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_score_persist (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_alert_evaluate (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_daily_history (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_fund_nav (cron=5 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_portfolio_value (cron=10 21 * * *)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncInstrumentsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncSnapshotsToQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncCodalJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job CodalAttachmentDownloadJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncNavAllJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsIngestionJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSentimentJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSourceHealthJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsReadPathHalterJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job IndicatorPrecomputeJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job MonthlySalesFillJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job EvaluateAlertsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BackfillHistoricalDataJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundsSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundDiscoveryJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavReconciliationJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavOutboxRelayJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job PaperTradingJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FeatureStoreBuildJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job ScreenerDailyScoresJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BrsApiReadyCheckJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldMacroSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldCftcCotSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldEconomicCalendarSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldTokenizedGoldSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldOptionIvSnapshotJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduler started with 25 BrsApi jobs
+.2026-10-23 18:26:35 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:35 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:35 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:35 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:35 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:35 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:35 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:35 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:35 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:35 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:35 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:35 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:35 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncSnapshotsToQuotesJob
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_all_symbols (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index_farabours (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_futures (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_certificates (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_funds (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_commodities (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_crypto (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency_pro (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_codal (cron=900)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_physical (cron=0 18 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_candlesticks_all (cron=0 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_shareholders_all (cron=30 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_price_all (cron=0 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_real_legal_all (cron=30 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_symbol_details_all (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_snapshot (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_score_persist (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_alert_evaluate (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_daily_history (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_fund_nav (cron=5 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_portfolio_value (cron=10 21 * * *)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncInstrumentsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncSnapshotsToQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncCodalJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job CodalAttachmentDownloadJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncNavAllJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsIngestionJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSentimentJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSourceHealthJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsReadPathHalterJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job IndicatorPrecomputeJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job MonthlySalesFillJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job EvaluateAlertsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BackfillHistoricalDataJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundsSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundDiscoveryJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavReconciliationJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavOutboxRelayJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job PaperTradingJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FeatureStoreBuildJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job ScreenerDailyScoresJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BrsApiReadyCheckJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldMacroSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldCftcCotSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldEconomicCalendarSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldTokenizedGoldSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldOptionIvSnapshotJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduler started with 25 BrsApi jobs
+.2026-10-23 18:26:35 [info     ] Registered job: AliasResolutionJob
+2026-10-23 18:26:35 [info     ] Registered job: AnalyticsComputationJob
+2026-10-23 18:26:35 [info     ] Registered job: BackfillHistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestExecutionJob
+2026-10-23 18:26:35 [info     ] Registered job: BacktestOptimizationJob
+2026-10-23 18:26:35 [info     ] Registered job: BatchInferenceJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiAllSymbolsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCommoditiesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiCryptoJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeCertificatesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFundsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeFuturesJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImeOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiImePhysicalJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexFaraboursJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiIndexSelectedJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiOptionsJob
+2026-10-23 18:26:35 [info     ] Registered job: BrsApiReadyCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: CacheWarmupJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalAttachmentDownloadJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: CodalSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: DataRetentionJob
+2026-10-23 18:26:35 [info     ] Registered job: EvaluateAlertsJob
+2026-10-23 18:26:35 [info     ] Registered job: FeatureStoreBuildJob
+2026-10-23 18:26:35 [info     ] Registered job: FundDiscoveryJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavOutboxRelayJob
+2026-10-23 18:26:35 [info     ] Registered job: FundNavReconciliationJob
+2026-10-23 18:26:35 [info     ] Registered job: FundsSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldCftcCotSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldEconomicCalendarSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldMacroSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldOptionIvSnapshotJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: GoldTokenizedGoldSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: HealthCheckJob
+2026-10-23 18:26:35 [info     ] Registered job: HistoricalDataJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorCalculationJob
+2026-10-23 18:26:35 [info     ] Registered job: IndicatorPrecomputeJob
+2026-10-23 18:26:35 [info     ] Registered job: InstrumentSyncJob
+2026-10-23 18:26:35 [info     ] Registered job: MacroDataJob
+2026-10-23 18:26:35 [info     ] Registered job: MetalsPriceJob
+2026-10-23 18:26:35 [info     ] Registered job: MlArtifactLifecycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: ModelTrainingJob
+2026-10-23 18:26:35 [info     ] Registered job: MonthlySalesFillJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsReadPathHalterJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSentimentJob
+2026-10-23 18:26:35 [info     ] Registered job: NewsSourceHealthJob
+2026-10-23 18:26:35 [info     ] Registered job: PaperTradingJob
+2026-10-23 18:26:35 [info     ] Registered job: QuoteIngestionJob
+2026-10-23 18:26:35 [info     ] Registered job: RealtimeQuoteJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: RecommendationGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: Screener110RunCycleJob
+2026-10-23 18:26:35 [info     ] Registered job: ScreenerDailyScoresJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalEvaluationJob
+2026-10-23 18:26:35 [info     ] Registered job: SignalGenerationJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncCodalJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncInstrumentsJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncNavAllJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncQuotesJob
+2026-10-23 18:26:35 [info     ] Registered job: SyncSnapshotsToQuotesJob
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_all_symbols (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_index_farabours (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_futures (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_options (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_certificates (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_funds (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_commodities (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_crypto (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_gold_currency_pro (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_codal (cron=900)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_ime_physical (cron=0 18 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_candlesticks_all (cron=0 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_shareholders_all (cron=30 13 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_price_all (cron=0 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_history_real_legal_all (cron=30 14 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: brsapi_symbol_details_all (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_snapshot (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_score_persist (cron=300)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_alert_evaluate (cron=120)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_daily_history (cron=0 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_fund_nav (cron=5 21 * * *)
+2026-10-23 18:26:35 [info     ] Registered APScheduler job: gold_portfolio_value (cron=10 21 * * *)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncInstrumentsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncSnapshotsToQuotesJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncCodalJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job CodalAttachmentDownloadJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job SyncNavAllJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsIngestionJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSentimentJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsSourceHealthJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job NewsReadPathHalterJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job IndicatorPrecomputeJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job MonthlySalesFillJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job EvaluateAlertsJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BackfillHistoricalDataJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundsSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundDiscoveryJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavReconciliationJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FundNavOutboxRelayJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job PaperTradingJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job FeatureStoreBuildJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job ScreenerDailyScoresJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job BrsApiReadyCheckJob with interval (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldMacroSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldCftcCotSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldEconomicCalendarSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldTokenizedGoldSyncJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduled job GoldOptionIvSnapshotJob with cron (mode=in-process)
+2026-10-23 18:26:35 [info     ] Scheduler started with 25 BrsApi jobs
+.2026-10-23 18:26:36 [info     ] Scheduled job sync_test with interval (mode=in-process)
+2026-10-23 18:26:36 [info     ] Scheduler running job in-process: sync_test
+.
+============================== warnings summary ===============================
+..\..\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Iran\AppData\Roaming\Python\Python314\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout_method
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+209 passed, 1 warning in 16.33s

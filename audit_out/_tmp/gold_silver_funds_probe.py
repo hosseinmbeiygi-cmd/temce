@@ -22,10 +22,12 @@ def banner(t: str) -> None:
 
 # ── 1. تناقض عیار سکه: constants vs antigravity ────────────────────────────
 banner("1) coin purity: gold_desk.constants vs antigravity.calculations")
+from gold_desk.antigravity.calculations import (
+    _COIN_PURITY,  # noqa: E402
+    calculate_coin_bubble,  # noqa: E402
+)
 from gold_desk.constants import GOLD_PURITY_COIN  # noqa: E402
-from gold_desk.antigravity.calculations import _COIN_PURITY  # noqa: E402
 from gold_desk.pricer import fair_coin  # noqa: E402
-from gold_desk.antigravity.calculations import calculate_coin_bubble  # noqa: E402
 
 print(f"constants.GOLD_PURITY_COIN        = {GOLD_PURITY_COIN}  (= {GOLD_PURITY_COIN/1000:.4f})")
 print(f"antigravity.calculations._COIN_PURITY = {_COIN_PURITY}")
@@ -51,8 +53,8 @@ print(f"bubble via antigravity.calculations = {b_ag.bubble_pct:+.3f}%   signal={
 
 # ── 2. آستانه‌های P/NAV: سه مجموعه متفاوت در یک مخزن ──────────────────────
 banner("2) P/NAV thresholds: constants vs antigravity vs fund_scoring")
-from gold_desk.constants import NAV_GREEN_MAX, NAV_RED_MAX, NAV_YELLOW_MAX  # noqa: E402
 from gold_desk.antigravity.calculations import calculate_nav_premium  # noqa: E402
+from gold_desk.constants import NAV_GREEN_MAX, NAV_RED_MAX, NAV_YELLOW_MAX  # noqa: E402
 
 print(f"gold_desk.constants: NAV_GREEN_MAX={NAV_GREEN_MAX}  NAV_YELLOW_MAX={NAV_YELLOW_MAX}  NAV_RED_MAX={NAV_RED_MAX}")
 print("antigravity.calculations.calculate_nav_premium: BUY<int(-1.0)  SELL>2.0")
@@ -94,7 +96,7 @@ print(f"  اختلاف nav/unit = {nav_desk - nav_ok:,.2f} ({((nav_desk/nav_ok)-
 
 # ── 5. forecaster: band/EMA ───────────────────────────────────────────────
 banner("5) forecaster — band و EMA trend")
-from gold_desk.forecaster import build_forecast, _calc_volatility, _forecast_ema_trend  # noqa: E402
+from gold_desk.forecaster import _calc_volatility, _forecast_ema_trend, build_forecast  # noqa: E402
 
 quiet = [100.0 * (1.001 ** i) for i in range(60)]
 r_quiet = build_forecast(quiet, "IR_COIN_EMAMI")

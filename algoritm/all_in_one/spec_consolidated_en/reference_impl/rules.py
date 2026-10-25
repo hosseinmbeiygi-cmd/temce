@@ -6,9 +6,11 @@
 - No rule values are shipped with this code.
 """
 from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any
 
 CONFIDENCE = ("A", "B", "C", "D")
 
@@ -27,8 +29,8 @@ class Rule:
     scope: str                      # e.g. "symbol:XYZ", "segment:ABC", "market:TSE", "global"
     value: Any
     effective_from: date
-    effective_to: Optional[date] = None
-    source_ref: Optional[str] = None
+    effective_to: date | None = None
+    source_ref: str | None = None
     confidence: str = "D"
 
 
@@ -36,7 +38,7 @@ class Rule:
 class RuleValue:
     value: Any
     confidence: str
-    source_ref: Optional[str]
+    source_ref: str | None
     scope: str
 
 

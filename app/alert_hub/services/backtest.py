@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+
 async def get_backtest_summary(symbol: str) -> dict[str, Any]:
     """Return a summary of best backtest results for the symbol.
 

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
-
+from typing import Any
 
 EVIDENCE_CLASS_ALIASES = {
     "external-provider": "external_provider",
@@ -70,7 +69,7 @@ def evidence_weight_for_class(evidence_class: Any, parse_status: Any = "") -> fl
     return 0.2
 
 
-def metadata_completeness(record: Dict[str, Any]) -> int:
+def metadata_completeness(record: dict[str, Any]) -> int:
     score = 0
     for key in ("title", "summary", "url", "repo_full_name", "doi", "arxiv_id", "venue"):
         if record.get(key):
@@ -83,7 +82,7 @@ def metadata_completeness(record: Dict[str, Any]) -> int:
     return score
 
 
-def normalize_record(record: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_record(record: dict[str, Any]) -> dict[str, Any]:
     normalized = {**DEFAULT_RECORD_FIELDS, **record}
     normalized["evidence_class"] = normalize_evidence_class(normalized.get("evidence_class"))
     normalized["evidence_weight"] = round(
@@ -104,7 +103,7 @@ def normalize_record(record: Dict[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def record_priority(record: Dict[str, Any]) -> tuple[int, int]:
+def record_priority(record: dict[str, Any]) -> tuple[int, int]:
     normalized = normalize_record(record)
     return (
         EVIDENCE_CLASS_PRIORITY.get(normalized["evidence_class"], 0),

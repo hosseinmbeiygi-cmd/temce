@@ -1,4 +1,6 @@
-import re, pathlib
+import pathlib
+import re
+
 revs = {}
 for p in pathlib.Path("migrations/versions").glob("*.py"):
     t = p.read_text(encoding="utf-8", errors="ignore")

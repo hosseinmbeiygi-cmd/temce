@@ -5,12 +5,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-
-from apps.api.dependencies import require_roles
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session, get_news_service
+from apps.api.dependencies import get_db_session, get_news_service, require_roles
 from core.logging import get_logger
 from core.result import PaginatedResult
 from domain.news.news_item import NewsItem

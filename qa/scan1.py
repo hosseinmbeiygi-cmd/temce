@@ -1,4 +1,7 @@
-import pathlib, json, re
+import json
+import pathlib
+import re
+
 routes=set()
 for p in list(pathlib.Path('frontend/src').rglob('*.tsx'))+list(pathlib.Path('frontend/src').rglob('*.ts')):
     try:

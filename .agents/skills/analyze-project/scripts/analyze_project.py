@@ -7,9 +7,9 @@ import argparse
 import ast
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
-
+from typing import Any
 
 ENTRYPOINT_PATTERNS = {
     "train": re.compile(r"(train|trainer|fit|pretrain)", re.IGNORECASE),
@@ -43,7 +43,7 @@ SKIP_PARTS = {
 COMMON_FOCUS_TOKENS = {"py", "yaml", "yml", "json", "toml", "ini", "md", "run", "train", "eval", "config", "configs"}
 
 
-def load_context(path: Optional[str]) -> Dict[str, Any]:
+def load_context(path: str | None) -> dict[str, Any]:
     if not path:
         return {}
     context_path = Path(path).resolve()
@@ -58,7 +58,7 @@ def load_context(path: Optional[str]) -> Dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def normalize_task_family(value: Any) -> Optional[str]:
+def normalize_task_family(value: Any) -> str | None:
     text = str(value or "").strip().lower()
     return text or None
 
@@ -79,7 +79,7 @@ def metric_goal(value: Any) -> str:
     return "maximize"
 
 
-def first_existing(root: Path, names: Iterable[str]) -> Optional[Path]:
+def first_existing(root: Path, names: Iterable[str]) -> Path | None:
     for name in names:
         candidate = root / name
         if candidate.exists():
@@ -87,8 +87,8 @@ def first_existing(root: Path, names: Iterable[str]) -> Optional[Path]:
     return None
 
 
-def command_paths(command: str) -> List[str]:
-    paths: List[str] = []
+def command_paths(command: str) -> list[str]:
+    paths: list[str] = []
     for token in re.findall(r"[\w./\\-]+\.(?:py|ya?ml|json|toml|ini|csv|pth|pt)", command):
         token = token.strip().strip("\"'")
         if token and token not in paths:
@@ -96,8 +96,8 @@ def command_paths(command: str) -> List[str]:
     return paths
 
 
-def focus_tokens(current_research: str, evaluation_source: Dict[str, Any], task_family: Optional[str]) -> List[str]:
-    tokens: List[str] = []
+def focus_tokens(current_research: str, evaluation_source: dict[str, Any], task_family: str | None) -> list[str]:
+    tokens: list[str] = []
     for raw in [current_research, evaluation_source.get("path"), evaluation_source.get("command")]:
         for part in re.split(r"[^a-zA-Z0-9]+", str(raw or "").lower()):
             if part and part not in COMMON_FOCUS_TOKENS and len(part) > 2:
@@ -105,14 +105,14 @@ def focus_tokens(current_research: str, evaluation_source: Dict[str, Any], task_
     if task_family:
         tokens.append(task_family)
         tokens.extend(TASK_KEYWORDS.get(task_family, ()))
-    ordered: List[str] = []
+    ordered: list[str] = []
     for token in tokens:
         if token not in ordered:
             ordered.append(token)
     return ordered[:20]
 
 
-def task_score(rel: str, task_family: Optional[str], tokens: List[str]) -> int:
+def task_score(rel: str, task_family: str | None, tokens: list[str]) -> int:
     lower = rel.lower()
     score = 0
     if task_family:
@@ -125,7 +125,7 @@ def task_score(rel: str, task_family: Optional[str], tokens: List[str]) -> int:
     return score
 
 
-def collect_candidates(repo: Path, task_family: Optional[str], tokens: List[str]) -> Dict[str, List[str]]:
+def collect_candidates(repo: Path, task_family: str | None, tokens: list[str]) -> dict[str, list[str]]:
     scored = {key: [] for key in ENTRYPOINT_PATTERNS}
     for path in repo.rglob("*"):
         if path.is_dir():
@@ -144,8 +144,8 @@ def collect_candidates(repo: Path, task_family: Optional[str], tokens: List[str]
     return candidates
 
 
-def collect_task_focus_files(repo: Path, task_family: Optional[str], tokens: List[str]) -> List[str]:
-    scored: List[tuple[int, str]] = []
+def collect_task_focus_files(repo: Path, task_family: str | None, tokens: list[str]) -> list[str]:
+    scored: list[tuple[int, str]] = []
     for path in repo.rglob("*"):
         if path.is_dir():
             continue
@@ -163,8 +163,8 @@ def collect_task_focus_files(repo: Path, task_family: Optional[str], tokens: Lis
     return [rel for _score, rel in scored[:20]]
 
 
-def collect_data_interface_files(repo: Path, task_family: Optional[str]) -> List[str]:
-    hits: List[str] = []
+def collect_data_interface_files(repo: Path, task_family: str | None) -> list[str]:
+    hits: list[str] = []
     for path in repo.rglob("*"):
         if path.is_dir():
             continue
@@ -177,14 +177,14 @@ def collect_data_interface_files(repo: Path, task_family: Optional[str]) -> List
         elif task_family and any(token in lower for token in TASK_KEYWORDS.get(task_family, ())):
             if "data" in lower or "dataset" in lower:
                 hits.append(rel)
-    unique: List[str] = []
+    unique: list[str] = []
     for item in sorted(hits):
         if item not in unique:
             unique.append(item)
     return unique[:20]
 
 
-def collect_output_hints(repo: Path, evaluation_source: Dict[str, Any]) -> List[str]:
+def collect_output_hints(repo: Path, evaluation_source: dict[str, Any]) -> list[str]:
     hints = command_paths(str(evaluation_source.get("command") or ""))
     for rel in [
         "results.csv",
@@ -195,15 +195,15 @@ def collect_output_hints(repo: Path, evaluation_source: Dict[str, Any]) -> List[
         candidate = repo / rel
         if candidate.exists():
             hints.append(rel)
-    unique: List[str] = []
+    unique: list[str] = []
     for item in hints:
         if item not in unique:
             unique.append(item)
     return unique[:12]
 
 
-def unique_limit(values: Iterable[str], limit: int) -> List[str]:
-    ordered: List[str] = []
+def unique_limit(values: Iterable[str], limit: int) -> list[str]:
+    ordered: list[str] = []
     for item in values:
         if item and item not in ordered:
             ordered.append(item)
@@ -213,9 +213,9 @@ def unique_limit(values: Iterable[str], limit: int) -> List[str]:
 
 
 def collect_module_files(
-    candidates: Dict[str, List[str]],
-    focus_files: List[str],
-) -> List[str]:
+    candidates: dict[str, list[str]],
+    focus_files: list[str],
+) -> list[str]:
     module_candidates = candidates.get("model", []) + candidates.get("train", []) + focus_files
     return unique_limit(
         [
@@ -227,7 +227,7 @@ def collect_module_files(
     )
 
 
-def collect_metric_files(candidates: Dict[str, List[str]], focus_files: List[str]) -> List[str]:
+def collect_metric_files(candidates: dict[str, list[str]], focus_files: list[str]) -> list[str]:
     metric_candidates = candidates.get("eval", []) + focus_files
     return unique_limit(
         [
@@ -239,10 +239,10 @@ def collect_metric_files(candidates: Dict[str, List[str]], focus_files: List[str
     )
 
 
-def collect_symbol_hints(repo: Path, candidate_paths: List[str]) -> Dict[str, List[str]]:
-    symbol_hints: List[str] = []
-    constructor_candidates: List[str] = []
-    forward_candidates: List[str] = []
+def collect_symbol_hints(repo: Path, candidate_paths: list[str]) -> dict[str, list[str]]:
+    symbol_hints: list[str] = []
+    constructor_candidates: list[str] = []
+    forward_candidates: list[str] = []
 
     for rel in candidate_paths[:24]:
         path = repo / rel
@@ -273,8 +273,8 @@ def collect_symbol_hints(repo: Path, candidate_paths: List[str]) -> Dict[str, Li
     }
 
 
-def collect_config_binding_hints(repo: Path, candidate_paths: List[str]) -> List[str]:
-    hints: List[str] = []
+def collect_config_binding_hints(repo: Path, candidate_paths: list[str]) -> list[str]:
+    hints: list[str] = []
     patterns = ("yaml.safe_load", "omegaconf", "argparse", "json.load", "fromfile", "config")
     for rel in candidate_paths[:24]:
         path = repo / rel
@@ -291,8 +291,8 @@ def collect_config_binding_hints(repo: Path, candidate_paths: List[str]) -> List
     return unique_limit(hints, 20)
 
 
-def collect_suspicious_patterns(repo: Path) -> List[str]:
-    findings: List[str] = []
+def collect_suspicious_patterns(repo: Path) -> list[str]:
+    findings: list[str] = []
     python_files = [path for path in repo.rglob("*.py") if "__pycache__" not in path.parts]
     saw_attention = False
     saw_position = False
@@ -320,7 +320,7 @@ def collect_suspicious_patterns(repo: Path) -> List[str]:
             "Repository contains attention-like code but no obvious positional encoding signal was detected; review sequence-order handling."
         )
 
-    unique: List[str] = []
+    unique: list[str] = []
     for item in findings:
         if item not in unique:
             unique.append(item)
@@ -330,11 +330,11 @@ def collect_suspicious_patterns(repo: Path) -> List[str]:
 def build_research_map(
     repo: Path,
     readme: Path,
-    task_family: Optional[str],
-    candidates: Dict[str, List[str]],
-    focus_files: List[str],
-    output_hints: List[str],
-) -> Dict[str, Any]:
+    task_family: str | None,
+    candidates: dict[str, list[str]],
+    focus_files: list[str],
+    output_hints: list[str],
+) -> dict[str, Any]:
     return {
         "task_family": task_family,
         "readme_present": readme.exists(),
@@ -351,15 +351,15 @@ def build_research_map(
 
 
 def build_change_map(
-    research_map: Dict[str, Any],
-    data_interface_files: List[str],
-    evaluation_source: Dict[str, Any],
-) -> Dict[str, Any]:
+    research_map: dict[str, Any],
+    data_interface_files: list[str],
+    evaluation_source: dict[str, Any],
+) -> dict[str, Any]:
     eval_path = str(evaluation_source.get("path") or "")
     protected_eval = [eval_path] if eval_path else []
     protected_eval.extend(research_map["evaluation_entrypoints"][:5])
     protected_eval.extend([path for path in research_map["task_relevant_files"] if "metric" in path.lower()][:3])
-    unique_protected: List[str] = []
+    unique_protected: list[str] = []
     for item in protected_eval:
         if item and item not in unique_protected:
             unique_protected.append(item)
@@ -385,10 +385,10 @@ def build_change_map(
 def build_eval_contract(
     dataset: Any,
     benchmark: Any,
-    evaluation_source: Dict[str, Any],
-    task_family: Optional[str],
-    output_hints: List[str],
-) -> Dict[str, Any]:
+    evaluation_source: dict[str, Any],
+    task_family: str | None,
+    output_hints: list[str],
+) -> dict[str, Any]:
     benchmark_name = normalize_scalar_string(benchmark)
     dataset_name = normalize_scalar_string(dataset)
     primary_metric = str(
@@ -412,7 +412,7 @@ def build_eval_contract(
     }
 
 
-def analyze_repo(repo: Path, context: Optional[Dict[str, Any]] = None) -> Dict[str, object]:
+def analyze_repo(repo: Path, context: dict[str, Any] | None = None) -> dict[str, object]:
     context = context or {}
     readme = first_existing(repo, ["README.md", "README"])
     task_family = normalize_task_family(context.get("task_family"))
@@ -475,7 +475,7 @@ def analyze_repo(repo: Path, context: Optional[Dict[str, Any]] = None) -> Dict[s
     }
 
 
-def write_research_map(output_dir: Path, data: Dict[str, object]) -> None:
+def write_research_map(output_dir: Path, data: dict[str, object]) -> None:
     research_map = data["research_map"]
     task_files = [f"- {line}" for line in research_map.get("task_relevant_files", [])] or ["- none"]
     output_lines = [f"- {line}" for line in research_map.get("output_hints", [])] or ["- none"]
@@ -505,7 +505,7 @@ def write_research_map(output_dir: Path, data: Dict[str, object]) -> None:
     (output_dir / "RESEARCH_MAP.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_change_map(output_dir: Path, data: Dict[str, object]) -> None:
+def write_change_map(output_dir: Path, data: dict[str, object]) -> None:
     change_map = data["change_map"]
     allowed = [f"- {line}" for line in change_map.get("allowed_change_zones", [])] or ["- none"]
     protected = [f"- {line}" for line in change_map.get("protected_eval_zones", [])] or ["- none"]
@@ -534,7 +534,7 @@ def write_change_map(output_dir: Path, data: Dict[str, object]) -> None:
     (output_dir / "CHANGE_MAP.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_eval_contract(output_dir: Path, data: Dict[str, object]) -> None:
+def write_eval_contract(output_dir: Path, data: dict[str, object]) -> None:
     eval_contract = data["eval_contract"]
     artifacts = [f"- {line}" for line in eval_contract.get("expected_artifacts", [])] or ["- none"]
     notes = [f"- {line}" for line in eval_contract.get("notes", [])] or ["- none"]
@@ -564,7 +564,7 @@ def write_eval_contract(output_dir: Path, data: Dict[str, object]) -> None:
     (output_dir / "EVAL_CONTRACT.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_outputs(output_dir: Path, data: Dict[str, object]) -> None:
+def write_outputs(output_dir: Path, data: dict[str, object]) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     summary = [

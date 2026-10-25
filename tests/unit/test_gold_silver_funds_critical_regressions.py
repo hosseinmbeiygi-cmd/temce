@@ -24,6 +24,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from services.fund_nav_engine import FundNavEngine  # noqa: E402
 from src.gold_desk import nav_checker, pricer  # noqa: E402
 from src.gold_desk.backtest import _daily_bubble_pct  # noqa: E402
 from src.gold_desk.backtest_real import _fetch_daily_data  # noqa: E402
@@ -35,7 +36,6 @@ from src.gold_desk.constants import (  # noqa: E402
     VALID_BUBBLE_PCT_RANGE,
 )
 from src.gold_desk.scorer import compute_score  # noqa: E402
-from services.fund_nav_engine import FundNavEngine  # noqa: E402
 
 ISO_DATE_RE = re.compile(r"^(\d{4})-\d{2}-\d{2}$")
 
