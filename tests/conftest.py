@@ -76,6 +76,9 @@ def _db_url() -> str:
     except Exception:
         return "postgresql+asyncpg://market:market@localhost:5432/market_test"
 
+# Test SALT for api_token when GOLD_API_TOKEN_SALT not set
+os.environ.setdefault("GOLD_API_TOKEN_SALT", "test-salt-for-pytest")
+
 
 def _is_postgres_reachable() -> bool:
     """Return ``True`` iff PostgreSQL responds to ``SELECT 1``.

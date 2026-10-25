@@ -40,6 +40,8 @@ class HoldingPnL:
     pnl_irt: float | None
     pnl_pct: float | None
     n_purchases: int
+    # چون holdings بر اساس نماد گروه می‌شوند، یک گروه می‌تواند چند ردیف داشته باشد.
+    holding_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,30 @@ class PortfolioSummary:
     holdings: list[HoldingPnL]
     by_symbol: dict[str, HoldingPnL]
     unpriced_holdings: int = 0
+    # هزینهٔ فقط دارایی‌های قیمت‌دار؛ مخرج P&L کل همین است.
+    priced_cost: float = 0.0
+
+
+class HoldingNotFoundError(LookupError):
+    """holding با این id وجود ندارد."""
+
+
+class HoldingDeletedError(RuntimeError):
+    """holding با این id soft-delete شده است."""
+
+
+async def get_active_holding(session: AsyncSession, holding_id: int) -> GoldHoldingModel:
+    """خواندن holding با id و رد دارایی حذف‌نرم‌شده.
+
+    ``deleted_at`` مجموعه یعنی دارایی حذف شده است، حتی اگر ردیف و معامله‌هایش
+    برای گزارش مالیاتی باقی مانده باشند.
+    """
+    holding = await session.get(GoldHoldingModel, holding_id)
+    if holding is None:
+        raise HoldingNotFoundError(f"holding {holding_id} not found")
+    if holding.deleted_at is not None:
+        raise HoldingDeletedError(f"holding {holding_id} is soft-deleted")
+    return holding
 
 
 def _add_prices(target: dict[str, float], assets) -> None:
@@ -318,7 +344,7 @@ async def load_holdings_and_trades(session: AsyncSession) -> tuple[list, list]:
     """خواندن holdings (حذف‌نشده) و معاملات برای ساخت جریان‌های نقدی.
 
     دارایی‌های soft-delete شده (deleted_at null نیست) از نمای پورتفوی خارج می‌شوند،
-    اما معامله‌های آن‌ها برای گزارش مالیاتی remain می‌مانند.
+    اما معامله‌های آن‌ها برای گزارش مالیاتی باقی می‌مانند.
     """
     holdings = (
         await session.execute(
@@ -453,6 +479,7 @@ async def get_holdings_grouped(
                 pnl_irt=pnl_irt,
                 pnl_pct=pnl_pct,
                 n_purchases=len(items),
+                holding_ids=tuple(h.id for h in items if h.id is not None),
             )
         )
         total_cost += total_cost_sym
@@ -471,6 +498,7 @@ async def get_holdings_grouped(
         holdings=holdings,
         by_symbol={h.symbol: h for h in holdings},
         unpriced_holdings=unpriced,
+        priced_cost=priced_cost,
     )
 
 
@@ -549,10 +577,11 @@ async def record_trade(
 ) -> GoldTradeModel:
     fee_irt = amount_irt * (fee_pct / 100.0)
     pnl = 0.0
-    if action == "sell" and holding_id:
-        h = await session.get(GoldHoldingModel, holding_id)
-        if h:
-            pnl = (price - h.buy_price) * quantity
+    # هر معامله‌ای که holding_id دارد باید به یک دارایی موجود و حذف‌نشده اشاره کند؛
+    # قبلاً id نامعتبر/حذف‌شده بی‌صدا با pnl صفر ثبت می‌شد.
+    holding = await get_active_holding(session, holding_id) if holding_id else None
+    if action == "sell" and holding is not None:
+        pnl = (price - holding.buy_price) * quantity
     trade = GoldTradeModel(
         symbol=symbol,
         action=action,

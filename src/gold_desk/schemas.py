@@ -38,7 +38,6 @@ class AssetBlock(BaseModel):
     implied_usd: float | None
     quality_flag: str = "clean"
 
-
 class FundBlock(BaseModel):
     """یک صندوق طلا."""
 
@@ -47,11 +46,12 @@ class FundBlock(BaseModel):
     nav_per_unit: float
     market_price: float | None
     bubble_pct: float | None
-    bpr: float
+    bpr: float | None
     real_buy_value: int
     real_sell_value: int
     net_inflow: int
     nav_change_7d_pct: float | None = None
+    
 
 
 class ScoreComponents(BaseModel):
@@ -69,14 +69,16 @@ class ScoreComponents(BaseModel):
     parity_reason: str
     fund_flow: int = Field(..., description="NAV 7d trend (0-14)")
     fund_flow_reason: str
-
-
 class ScoreBlock(BaseModel):
     total: int
-    decision: Literal["GREEN", "YELLOW", "RED"]
+    decision: Literal["GREEN", "YELLOW", "RED", "NO_DATA"]
     components: ScoreComponents
     hard_stop_active: bool = False
     hard_stop_reason: str | None = None
+    raw_total: int = 0
+    available_weight: int = 100
+    data_coverage_pct: float = 100.0
+    
 
 
 class SnapshotResponse(BaseModel):
@@ -113,8 +115,9 @@ class ScoreHistoryPoint(BaseModel):
 class DCARequest(BaseModel):
     total_capital_irt: float = Field(..., gt=0)
     risk_profile: Literal["conservative", "balanced", "aggressive"] = "balanced"
-    current_score: int = Field(..., ge=0, le=100)
+    current_score: int | None = Field(None, ge=0, le=100)
     preferred_vehicle: Literal["etf", "cert", "melted", "coin", "jewelry"] | None = None
+    
 
 
 class DCATranche(BaseModel):

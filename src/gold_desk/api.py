@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, WebSocket
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +36,8 @@ from .metrics import render_prometheus
 from .models import AlertEventModel, AlertRuleModel, GoldScoreHistoryModel, GoldSnapshotModel
 from .pattern_detector import detect_patterns
 from .portfolio import (
+    HoldingDeletedError,
+    HoldingNotFoundError,
     build_portfolio_returns,
     build_tax_summary,
     build_trades_csv,
@@ -100,7 +102,7 @@ async def get_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict:
         return {"success": True, "data": snap.model_dump(mode="json")}
     except Exception as exc:
         logger.exception("snapshot failed")
-        return {"success": False, "data": None, "error": {"message": str(exc)}}
+        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
 
 
 # ── 2. Score فقط ────────────────────────────────────────────────
@@ -113,7 +115,7 @@ async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict:
         return {"success": True, "data": snap.score.model_dump(mode="json")}
     except Exception as exc:
         logger.exception("score failed")
-        return {"success": False, "error": {"message": str(exc)}}
+        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
 
 
 # ── 2b. قواعد دستیار طلا و نقره (منبع واحد: ``acceptance.yaml``) ──
@@ -136,7 +138,7 @@ async def get_gold_assistant_rules() -> dict:
         return {"success": True, "data": get_assistant_rules()}
     except Exception as exc:  # noqa: BLE001 — شکل پاسخ، مطابق بقیهٔ این ماژول
         logger.exception("assistant rules failed")
-        return {"success": False, "data": None, "error": {"message": str(exc)}}
+        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
 
 
 # ── 3. History ────────────────────────────────────────────────────
@@ -376,10 +378,20 @@ async def put_watchlist(payload: WatchlistResponse) -> WatchlistResponse:
 
 
 @router.post("/telegram/test", summary="Send test Telegram message")
-async def test_telegram(chat_id: str | None = None) -> dict:
+async def test_telegram(request: Request, chat_id: str | None = None) -> dict:
     cfg = TelegramConfig.from_env()
     if not cfg.is_configured():
         return {"success": False, "error": {"message": "Telegram not configured"}}
+    # chat_id از query می‌آید (سازگار با گذشته) وگرنه از بدنهٔ JSON خوانده می‌شود.
+    # فقط خطای تجزیهٔ JSON گرفته می‌شود؛ بقیهٔ خطاها باید بالا بروند.
+    import json
+
+    if not chat_id:
+        try:
+            body = await request.json()
+            chat_id = body.get("chat_id") if body else None
+        except json.JSONDecodeError:
+            chat_id = None
     ok = await send_message(
         "✅ Temce GoldDesk test message",
         chat_id=chat_id,
@@ -410,15 +422,26 @@ async def health(session: AsyncSession = Depends(get_db_session)):
     """
     Health check برای Docker/K8s.
     - 200 OK: سرویس سالم
-    - 503: مشکل (DB یا Redis)
+    - 503: مشکل (DB یا Redis یا BRSApi)
     """
     from fastapi import Response
+    import contextlib
 
     from core.cache import get_cache
 
     redis_ok = False
     with contextlib.suppress(Exception):
         redis_ok = await get_cache().ping()
+
+    # Use freshness report to determine BRS API status
+    brsapi_ok_real = False
+    try:
+        from .freshness import build_freshness_report
+        freshness = await build_freshness_report(session)
+        # BRS API is OK if overall status is ok and there are ok sources
+        brsapi_ok_real = freshness["overall"] == "ok" and freshness["counts"]["ok"] > 0
+    except Exception:
+        logger.warning("Failed to build freshness report for health check")
 
     db_ok = True
     try:
@@ -448,15 +471,15 @@ async def health(session: AsyncSession = Depends(get_db_session)):
         await session.execute(select(func.count(AlertEventModel.id)).where(AlertEventModel.read_at.is_(None)))
     ).scalar() or 0
 
-    if not db_ok:
+    if not db_ok or not redis_ok:
         return Response(
             status_code=503,
-            content='{"status":"unhealthy","reason":"db"}',
+            content='{"status":"unhealthy","reason":"redis_or_db"}',
             media_type="application/json",
         )
 
     return HealthResponse(
-        brsapi_ok=db_ok,
+        brsapi_ok=brsapi_ok_real,
         redis_ok=redis_ok,
         db_ok=db_ok,
         last_snapshot_at=last_snap,
@@ -547,6 +570,12 @@ async def strategy_backtest(
             "n_successful": m.n_successful,
             "max_drawdown_pct": m.max_drawdown_pct,
             "sharpe_ratio": m.sharpe_ratio,
+            # دورهٔ out-of-sample: null یعنی برش OOS ممکن نبود (دادهٔ کافی نیست).
+            "oos_start": m.oos_start.isoformat() if m.oos_start else None,
+            "oos_total_return_pct": m.oos_total_return_pct,
+            "oos_buy_hold_return_pct": m.oos_buy_hold_return_pct,
+            "oos_alpha_pct": m.oos_alpha_pct,
+            "oos_max_drawdown_pct": m.oos_max_drawdown_pct,
             "trades": [
                 {
                     "date": t.date.isoformat(),
@@ -723,7 +752,7 @@ async def create_token(
     from .api_token import generate_token, save_token
 
     scope_list = [s.strip() for s in scopes.split(",") if s.strip()]
-    valid = {"read", "write", "admin"}
+    valid = {"read", "write", "admin", "metrics"}
     invalid = [s for s in scope_list if s not in valid]
     if invalid:
         raise HTTPException(400, f"invalid scopes: {invalid}")
@@ -811,6 +840,12 @@ class TradeCreate(BaseModel):
     holding_id: int | None = None
     plan_id: int | None = None
     note: str | None = None
+
+
+def _single_holding_id(h) -> int | None:
+    """id یک گروه holding فقط وقتی یک ردیف دارد؛ گروه چندردیفی ``holding_ids`` دارد."""
+    ids = tuple(getattr(h, "holding_ids", ()) or ())
+    return ids[0] if len(ids) == 1 else None
 
 
 def _returns_payload(returns) -> dict:
@@ -925,8 +960,12 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
             "total_pnl": summary.total_pnl,
             "total_pnl_pct": summary.total_pnl_pct,
             "unpriced_holdings": getattr(summary, "unpriced_holdings", 0),
+            # مخرج total_pnl_pct فقط هزینهٔ دارایی‌های قیمت‌دار است (C7).
+            "priced_cost": getattr(summary, "priced_cost", None),
             "holdings": [
                 {
+                    "id": _single_holding_id(h),
+                    "holding_ids": list(getattr(h, "holding_ids", ())),
                     "symbol": h.symbol,
                     "display_name": h.display_name,
                     "quantity": h.quantity,
@@ -979,11 +1018,15 @@ async def delete_holding(
     if not h:
         raise HTTPException(404, "holding not found")
     if h.deleted_at is not None and not force:
-        return {"success": True, "deleted": False, "reason": "already_deleted"}
+        # دارایی soft-delete‌شده دیگر قابل حذف/تغییر نیست مگر با force صریح.
+        raise HTTPException(
+            409,
+            "holding is soft-deleted; pass ?force=true to hard-delete it",
+        )
     if force:
         await session.delete(h)  # سخت: holding_id معامله‌ها ⇒ SET NULL
     else:
-        h.deleted_at = utc_now_naive()  # نرم: ردیف و معامله‌ها remain
+        h.deleted_at = utc_now_naive()  # نرم: ردیف و معامله‌ها باقی می‌مانند
     await session.commit()
     return {"success": True}
 
@@ -1117,18 +1160,23 @@ async def post_trade(
     t: TradeCreate,
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    trade = await record_trade(
-        session,
-        symbol=t.symbol,
-        action=t.action,
-        quantity=t.quantity,
-        price=t.price,
-        amount_irt=t.amount_irt,
-        fee_pct=t.fee_pct,
-        holding_id=t.holding_id,
-        plan_id=t.plan_id,
-        note=t.note,
-    )
+    try:
+        trade = await record_trade(
+            session,
+            symbol=t.symbol,
+            action=t.action,
+            quantity=t.quantity,
+            price=t.price,
+            amount_irt=t.amount_irt,
+            fee_pct=t.fee_pct,
+            holding_id=t.holding_id,
+            plan_id=t.plan_id,
+            note=t.note,
+        )
+    except HoldingDeletedError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except HoldingNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
     return {
         "success": True,
         "data": {
@@ -1345,6 +1393,7 @@ async def list_endpoints() -> dict:
                 {"method": "GET", "path": "/health", "scope": "read", "desc": "Health status"},
                 {"method": "POST", "path": "/tokens", "scope": "admin", "desc": "Create API token"},
                 {"method": "GET", "path": "/tokens", "scope": "admin", "desc": "List tokens"},
+                {"method": "GET", "path": "/metrics", "scope": "metrics", "desc": "Prometheus scrape"},
                 {"method": "WS", "path": "/ws", "scope": "read", "desc": "Live WebSocket"},
             ],
         },
@@ -1354,7 +1403,41 @@ async def list_endpoints() -> dict:
 # ── 19. Prometheus Metrics ───────────────────────────────────
 
 
-@router.get("/metrics", summary="Prometheus metrics", include_in_schema=False)
+async def api_key_auth(request: Request) -> None:
+    """دروازهٔ /metrics: فقط Bearer API-token دارای scope «metrics».
+
+    JWT session اینجا کاربردی ندارد؛ مسیر برای scraper است. فقط scope
+    ``metrics`` پذیرفته می‌شود (``admin`` جای آن را نمی‌گیرد).
+    """
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            401,
+            "bearer API token with scope 'metrics' required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from .api_token import has_scope, verify_token
+
+    info = await verify_token(token)
+    if info is None or not has_scope(info, "metrics"):
+        raise HTTPException(
+            401,
+            "API token is invalid or lacks the 'metrics' scope",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+# این مسیر روی ``anonymous_router`` است (بدون گیت JWT) چون احراز هویت‌اش
+# API-token است، نه session کاربر. بقیهٔ مسیرهای همین ماژول پشت _require_user
+# در apps/api/router.py هستند.
+@anonymous_router.get(
+    "/metrics",
+    summary="Prometheus metrics",
+    include_in_schema=False,
+    dependencies=[Depends(api_key_auth)],
+)
 async def metrics() -> Response:
     """Prometheus text format برای scrape."""
     return Response(
@@ -1383,6 +1466,7 @@ async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict:
                 "dataAvailable": False,
                 "missingBecause": "هیچ رویداد کلانی از منبع واقعی ثبت نشده است؛ scrape CBI/مرکز آمار هنوز داده‌ای ننوشته است.",
                 "count": 0,
+                "affects_score": False,
                 "macro_multiplier": None,
                 "interpretation": None,
                 "events": [],

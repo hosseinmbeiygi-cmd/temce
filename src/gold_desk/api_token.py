@@ -9,6 +9,10 @@ Scopes:
 
 این ساده‌ترین مکانیزم برای استفاده شخصی است. برای production باید
 از JWT + rotation + rate limiting استفاده شود.
+
+هشدار: مقدار ``GOLD_API_TOKEN_SALT`` بخشی از hash است. تغییر آن همهٔ
+توکن‌های قبلی را باطل می‌کند و کاربر باید توکن‌ها را دوباره بسازد.
+بدون این متغیر، import این ماژول خطا می‌دهد (هیچ salt پیش‌فرضی وجود ندارد).
 """
 
 from __future__ import annotations
@@ -25,10 +29,21 @@ from core.time import utc_now_naive
 
 logger = logging.getLogger(__name__)
 
-SALT = os.getenv("GOLD_API_TOKEN_SALT", "temce-golddesk-default-salt")
+salt_value = os.getenv("GOLD_API_TOKEN_SALT")
+if not salt_value:
+    # هیچ salt پیش‌فرضی وجود ندارد: بدون آن همهٔ hashها حدس‌زدنی می‌شدند.
+    raise RuntimeError(
+        "GOLD_API_TOKEN_SALT is not set; API token hashing needs an explicit salt "
+        "(tests/conftest.py sets a test-only value for pytest)"
+    )
+SALT = salt_value
 STORAGE_KEY = "golddesk:api_tokens"
+Scope = Literal["read", "write", "admin", "metrics"]
 
-Scope = Literal["read", "write", "admin"]
+
+def has_scope(info: "TokenInfo", scope: str) -> bool:
+    """آیا توکن دقیقاً همین scope را دارد؟ (``admin`` جای scope دیگری نمی‌نشیند)"""
+    return scope in (info.scopes or [])
 
 
 @dataclass(frozen=True)

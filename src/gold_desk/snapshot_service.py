@@ -185,7 +185,9 @@ async def _calc_daily_changes(session: AsyncSession, brsapi_prices: dict[str, fl
     return changes
 
 
-def _soft_check(value: float, valid_range: tuple[float, float], name: str) -> bool:
+def _soft_check(value: float | None, valid_range: tuple[float, float], name: str) -> bool:
+    if value is None:
+        return False  # check impossible; no warning needed
     lo, hi = valid_range
     if not (lo <= value <= hi):
         logger.warning("%s out of range: %s not in [%s, %s]", name, value, lo, hi)
@@ -325,6 +327,11 @@ async def build_snapshot(session: AsyncSession) -> SnapshotResponse:
     score_block = ScoreBlock(
         total=score_result.total,
         decision=score_result.decision,
+        # موتور (scorer.ScoreResult) این سه فیلد را همیشه دارد؛ fallback پنهان
+        # فقط یک پوشش دروغین بود و خطای قرارداد را به دادهٔ جعلی تبدیل می‌کرد.
+        raw_total=score_result.raw_total,
+        available_weight=score_result.available_weight,
+        data_coverage_pct=score_result.data_coverage_pct,
         components=ScoreComponents(
             bubble=components_dict["bubble"].value,
             bubble_reason=components_dict["bubble"].reason,
