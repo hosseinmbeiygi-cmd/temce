@@ -129,13 +129,32 @@
   تا وقتی push ندارید، UI «Polling» نشان می‌دهد و polling ۱۰ ثانیه‌ای فعال است —
   یعنی بعد از تغییر شما بدون هیچ تغییر دیگری به Live سوئیچ می‌شود.
 
-## ۷) out-of-sample در `/backtest/real` (F7)
+## ۷) out-of-sample در `/backtest/strategy` (F7) — فقط serialize؛ محاسبه شده است
 
-- `backtest_runner.py:77-81` شش فیلد `oos_*` را محاسبه می‌کند ولی
-  `api.py:568-600` هیچ‌کدام را در پاسخ **نمی‌گذارد**.
-- **مطلوب**: افزودن `oos` به هر استراتژی در پاسخ.
-- **سمت من**: صفحهٔ `/gold/backtest` فعلاً صراحتاً می‌گوید این متریک در پاسخ نیست؛
-  به‌محض اضافه شدنش، رندر جداگانه‌اش را اضافه می‌کنم (نخواهم شد روی عدد حدسی).
+**تصحیح این بند پس از خواندن کد** (نسخهٔ قبل اشتباه می‌گفت «موتور محاسبه نمی‌کند» و
+endpoint را `/backtest/real` زده بود):
+
+- `src/gold_desk/backtest_runner.py:77-81` در dataclass `BacktestMetrics` از قبل
+  پنج فیلد را دارد: `oos_start`, `oos_total_return_pct`,
+  `oos_buy_hold_return_pct`, `oos_alpha_pct`, `oos_max_drawdown_pct`
+  (به‌علاوهٔ `cash_remaining`, `total_fee_paid`).
+- مسئله فقط serialize نبودن است: بدنهٔ پاسخ `strategy_backtest` در
+  `api.py:534-562` هیچ‌کدام را در `data` نمی‌گذارد.
+- **تغییر مطلوب (افزاینده، ~۵ خط)**:
+  ```python
+  "oos_start": m.oos_start.isoformat() if m.oos_start else None,
+  "oos_total_return_pct": m.oos_total_return_pct,
+  "oos_buy_hold_return_pct": m.oos_buy_hold_return_pct,
+  "oos_alpha_pct": m.oos_alpha_pct,
+  "oos_max_drawdown_pct": m.oos_max_drawdown_pct,
+  ```
+- **سمت من (انجام‌شده — feature-detect، بدون وابستگی به merge شما)**:
+  تایپ `getStrategyBacktest` پنج فیلد را `?: number | null` گرفته و
+  `/gold/backtest` هر دو حالت را می‌فهمد: با فیلد → «out-of-sample: …» داخل همان
+  کارتِ عدد کل دوره؛ بدون فیلد → متن صادقانهٔ «نمایش داده نمی‌شود» و **هیچ عدد
+  جعلی‌ای ساخته نمی‌شود**. تست: `frontend/src/__tests__/GoldBacktestPage.test.tsx`
+  (۴ تست، هر دو حالت). یعنی به‌محض merge این تغییر، UI بدون هیچ کار دیگری OOS
+  را نشان می‌دهد.
 
 ## ۸) دو چیز که «گزارش گفته، کد نکرده» بودند و فقط ثبت می‌شوند
 
