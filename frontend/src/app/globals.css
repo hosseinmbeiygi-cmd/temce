@@ -1995,20 +1995,106 @@ body.dark-theme .glass-card:hover {
 
 
 /* ── /gold shell ────────────────────────────────────────────────────────────
-   The fixed bottom nav is 130px tall on phones (three rows of five tabs), so
-   `main` needs that much bottom padding or the last block of a long page ends
-   up under the nav at maximum scroll.
+   The fixed bottom nav is one row of five primary destinations on phones
+   (~72px), so `main` needs that much bottom padding or the last block of a
+   long page ends up under the nav at maximum scroll. It used to be 130px,
+   because all fifteen tabs were crammed into that bar as three rows.
 
    Plain CSS on purpose: the `* { margin: 0; padding: 0 }` reset above is
    unlayered, and unlayered rules win over Tailwind v4's @layer utilities
    regardless of specificity — a `pb-[130px]` utility on the element has no
    effect. A class selector here beats the universal reset. */
 .gold-main {
-  padding-bottom: 130px;
+  padding-bottom: 84px;
 }
 
 @media (min-width: 768px) {
   .gold-main {
     padding-bottom: 2rem;
   }
+}
+
+
+/* ══ GoldDesk — توکن‌های تم (F1) ══════════════════════════════════════════
+   درخت /gold بیش از ۱۷۰ بار از var(--gd-*) استفاده می‌کند (از جمله پس‌زمینهٔ
+   خودِ layout)، ولی این نام‌ها هیچ‌جا تعریف نشده بودند. یک var() بدون تعریف
+   مقدار نامعتبر می‌گیرد و آن declare کلاً دور ریخته می‌شود؛ نتیجه‌اش پس‌زمینهٔ
+   شفاف و متن بی‌کنتراست بود، نه فقط «بی‌رنگی».
+
+   ThemeProvider فقط data-theme را روی <html> ست می‌کند و هیچ متغیری تولید
+   نمی‌کند، پس تعریف‌ها باید زیر سلکتورهای [data-theme="…"] بنشینند.
+   :root مقادیر dark را می‌گیرد چون تم پیش‌فرض ThemeProvider «dark» است و قبل
+   از hydrate هیچ data-theme روی سند نیست.
+
+   پالت zinc عمداناً با بقیهٔ درخت gold هم‌خوان است: کامپوننت‌ها کلاس‌های
+   zinc-* دارند (bg-zinc-900/40، text-zinc-100)، پس توکن‌های navy این فایل
+   با آن‌ها جور نمی‌شد.
+
+   هشداشت مهم: در تم gold مقدار --gd-bg یک گرادیان است نه رنگ. فقط در
+   background (shorthand) مجاز است؛ در color / background-color / border-color
+   استفاده نشود. تست __tests__/GoldThemeTokens.test.tsx همین را نگه می‌دارد. */
+
+:root,
+[data-theme="dark"] {
+  --gd-bg: #09090b;
+  --gd-bg-2: #18181b;
+  --gd-bg-3: #27272a;
+  --gd-border: rgba(63, 63, 70, 0.6);
+  --gd-text: #fafafa;
+  --gd-text-2: #a1a1aa;
+  --gd-text-3: #71717a;
+  --gd-accent: #f59e0b;
+  --gd-accent-2: #fbbf24;
+  --gd-success: #10b981;
+  --gd-warn: #f59e0b;
+  --gd-danger: #f43f5e;
+}
+
+[data-theme="light"] {
+  --gd-bg: #fafafa;
+  --gd-bg-2: #ffffff;
+  --gd-bg-3: #f4f4f5;
+  --gd-border: rgba(228, 228, 231, 1);
+  --gd-text: #09090b;
+  --gd-text-2: #52525b;
+  --gd-text-3: #a1a1aa;
+  --gd-accent: #d97706;
+  --gd-accent-2: #b45309;
+  --gd-success: #059669;
+  --gd-warn: #d97706;
+  --gd-danger: #e11d48;
+}
+
+[data-theme="gold"] {
+  --gd-bg: linear-gradient(135deg, #1f1408 0%, #2a1a0a 50%, #0f0a05 100%);
+  --gd-bg-2: rgba(45, 30, 15, 0.8);
+  --gd-bg-3: rgba(60, 40, 20, 0.6);
+  --gd-border: rgba(212, 175, 55, 0.3);
+  --gd-text: #fef3c7;
+  --gd-text-2: #fcd34d;
+  --gd-text-3: #d4af37;
+  --gd-accent: #d4af37;
+  --gd-accent-2: #f4d03f;
+  --gd-success: #84cc16;
+  --gd-warn: #f59e0b;
+  --gd-danger: #dc2626;
+}
+
+/* گرادیان تم gold فقط با shorthand background روی body می‌نشیند؛ layout هم
+   همین var(--gd-bg) را inline دارد و background-attachment آن را ثابت نگه می‌دارد. */
+html[data-theme="gold"] body {
+  background: var(--gd-bg) !important;
+  background-attachment: fixed !important;
+}
+
+/* ذرات محیطی تم gold — pointer-events: none تا روی کارت‌ها کلیک را نبلعد. */
+[data-theme="gold"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(244, 208, 63, 0.06) 0%, transparent 50%);
+  z-index: 0;
 }

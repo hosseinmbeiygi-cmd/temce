@@ -2,21 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/api";
-import { subscribeGoldWS } from "@/lib/goldApi";
-import type { Snapshot } from "@/types/gold";
-
-interface Signal {
-  symbol: string;
-  signal_type: string;
-  severity: string;
-  title: string;
-  description: string;
-  current_value: number;
-  threshold: number;
-  change_pct: number | null;
-  ts: number;
-}
+import { getRecentSignals, isServiceUnavailable } from "@/lib/goldApi";
+import type { GoldLiveSignal } from "@/lib/goldApi";
 
 const SEVERITY_BG: Record<string, string> = {
   info: "bg-blue-500/15 border-blue-500/40 text-blue-200",
@@ -52,38 +39,21 @@ function playBeep(freq: number) {
 }
 
 export function LiveSignalBanner() {
-  const { data } = useQuery({
+  // F2: قبلاً این‌جا مستقیم apiGet زده می‌شد و `isError` دور ریخته می‌شد، یعنی
+  // در قطعی سرویس بنر بی‌سروصدا غیب می‌شد. حالا از کلاینت مشترک و حالت خطای صریح.
+  const { data, isError, error } = useQuery({
     queryKey: ["gold", "signals", "recent"],
-    queryFn: async () => {
-      const r = await apiGet<{ success: boolean; data: { signals: Signal[] } }>(
-        "/gold/signals/recent?limit=10",
-      );
-      return r.data;
-    },
+    queryFn: () => getRecentSignals(10),
     refetchInterval: 30_000,
   });
 
   const seenIds = useRef<Set<number>>(new Set());
-  const [activeSignals, setActiveSignals] = useState<Signal[]>([]);
-
-  // WS listener برای signal جدید
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const unsub = subscribeGoldWS(
-      () => {
-        /* ws connected */
-      },
-      () => {
-        /* ws closed */
-      },
-    );
-    return unsub;
-  }, []);
+  const [activeSignals, setActiveSignals] = useState<GoldLiveSignal[]>([]);
 
   // detect new signals + beep
   useEffect(() => {
-    if (!data?.signals) return;
-    const fresh = data.signals.filter((s) => !seenIds.current.has(s.ts));
+    if (!data) return;
+    const fresh = data.filter((s) => !seenIds.current.has(s.ts));
     if (fresh.length > 0) {
       // beep فقط برای signal جدید (نه initial load)
       const isFirstLoad = seenIds.current.size === 0;
@@ -99,6 +69,24 @@ export function LiveSignalBanner() {
       return () => clearTimeout(t);
     }
   }, [data]);
+
+  if (isError) {
+    return (
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-full max-w-md">
+        <div
+          className={`rounded-xl border p-3 text-xs backdrop-blur-xl ${
+            isServiceUnavailable(error)
+              ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
+              : "bg-rose-500/15 border-rose-500/40 text-rose-200"
+          }`}
+        >
+          {isServiceUnavailable(error)
+            ? "سیگنال‌های زنده موقتاً در دسترس نیستند (سرویس داده خوابیده)."
+            : "دریافت سیگنال‌های زنده ناموفق بود."}
+        </div>
+      </div>
+    );
+  }
 
   if (activeSignals.length === 0) return null;
 

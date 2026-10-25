@@ -18,6 +18,8 @@ import {
   subscribeGoldWS,
   putWatchlist,
 } from "@/lib/goldApi";
+import { decisionView } from "@/lib/gold-decision";
+import { GOLD_FALLBACK_POLL_MS, useGoldWS } from "@/hooks/useGoldWS";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AssetBlock, Decision, Snapshot } from "@/types/gold";
 
@@ -191,22 +193,26 @@ function SummaryTile({
 }
 
 function DecisionBadge({ decision }: { decision: Decision }) {
-  const map: Record<Decision, { label: string; cls: string }> = {
-    GREEN: { label: "سبز — ورود", cls: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" },
-    YELLOW: { label: "زرد — احتیاط", cls: "bg-amber-500/15 text-amber-300 ring-amber-500/30" },
-    RED: { label: "قرمز — صبر", cls: "bg-rose-500/15 text-rose-300 ring-rose-500/30" },
-  };
-  const m = map[decision];
-  return <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ring-1 ${m.cls}`}>{m.label}</span>;
+  // از منبع مشترک: مقدار ناشناخته/NO_DATA دیگر نه TypeError می‌سازد نه رنگ داوری.
+  const view = decisionView(decision);
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ring-1 ${view.cls}`}>
+      {view.label}
+    </span>
+  );
 }
 
 // ── Page ───────────────────────────────────────────────────────────────
 
 export default function GoldCoinsPage() {
-  const { data, isLoading, refetch } = useQuery({
+  const qc = useQueryClient();
+  const ws = useGoldWS();
+  const { data, isLoading } = useQuery({
     queryKey: ["gold", "snapshot"],
     queryFn: getSnapshot,
-    refetchInterval: 60_000,
+    // F6: همان دروازهٔ صفحهٔ فرماندهی — سوکت وصل باشد polling خاموش است.
+    refetchInterval: ws.connected ? false : GOLD_FALLBACK_POLL_MS,
+    refetchOnWindowFocus: false,
     staleTime: 55_000,
   });
 
@@ -216,17 +222,16 @@ export default function GoldCoinsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("bubble");
   const [sortDesc, setSortDesc] = useState(false);
 
-  useEffect(() => {
-    const unsub = subscribeGoldWS(
-      () => refetch(),
-      () => {
-        /* ws closed */
-      },
-    );
-    return unsub;
-  }, [refetch]);
-
-  const qc = useQueryClient();
+  // قبلاً `subscribeGoldWS(() => refetch(), …)` بود؛ چون manager وضعیت "open"
+  // را با هر پیام دوباره publish می‌کند، هر frame یک refetch کامل می‌ساخت.
+  // دادهٔ پیام حالا مستقیم در همان cache نوشته می‌شود.
+  useEffect(
+    () =>
+      subscribeGoldWS(undefined, undefined, (snap) => {
+        qc.setQueryData(["gold", "snapshot"], snap);
+      }),
+    [qc],
+  );
 
   const [newSymbol, setNewSymbol] = useState("");
 

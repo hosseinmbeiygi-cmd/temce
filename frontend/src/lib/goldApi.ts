@@ -19,6 +19,7 @@ import type {
   OptionsStrategyAnalysis,
   OptionsStrategyLeg,
   RiskProfile,
+  ScoreBlock,
   Snapshot,
   Vehicle,
 } from "@/types/gold";
@@ -26,71 +27,200 @@ import type {
 export type { KillSwitchResp } from "@/types/gold";
 
 /**
- * STEP 8: shared 503 detection so every gold surface can render an explicit
- * "service unavailable" state instead of a generic failure.
+ * C3: surfaces مبتنی بر snapshot (/snapshot، /score، /signals/recent) در قطعی
+ * داده با یک کد واحد جواب می‌دهند تا UI بتواند «سرویس در دسترس نیست» را از
+ * «پاسخ بد» جدا کند. متن خطای داخلی هرگز به کاربر نشان داده نمی‌شود.
  */
+export const SNAPSHOT_UNAVAILABLE = "snapshot_unavailable";
+
+/**
+ * خطای لایهٔ gold. پیامش برای کاربر است (فارسی و عمومی)، `detail` فقط برای لاگ.
+ *
+ * بک‌اند امروز در خطا HTTP 200 با `{success: false, data: null, error: {…}}`
+ * برمی‌گرداند (`src/gold_desk/api.py:95-103`) و طبق C3 فردا 503 می‌دهد؛ این کلاس
+ * هر دو را به یک نوع واحد تبدیل می‌کند تا merge سه‌طرفه اتمیک باشد.
+ */
+export class GoldAPIError extends Error {
+  readonly status: number | null;
+  readonly code: string | null;
+  /** جزئیات داخلی — فقط برای کنسول/لاگ، نه برای رندر (C3). */
+  readonly detail: string | null;
+
+  constructor(
+    message: string,
+    options: { status?: number | null; code?: string | null; detail?: string | null } = {},
+  ) {
+    super(message);
+    this.name = "GoldAPIError";
+    this.status = options.status ?? null;
+    this.code = options.code ?? null;
+    this.detail = options.detail ?? null;
+  }
+}
+
+/** آیا این خطا یعنی سرویس طلا موقتاً خوابیده؟ (۵۰۳ یا کد C3) */
 export function isServiceUnavailable(error: unknown): boolean {
+  if (error instanceof GoldAPIError) {
+    return error.status === 503 || error.code === SNAPSHOT_UNAVAILABLE;
+  }
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /\b503\b/.test(message);
+}
+
+/** `api.ts` خطا را به شکل `HTTP <status>: <body>` می‌سازد؛ اینها همان را برگ می‌گردانند. */
+function httpStatusFromMessage(message: string): number | null {
+  const m = /^HTTP (\d{3})/.exec(message);
+  return m ? Number(m[1]) : null;
+}
+
+function bodyFromMessage(message: string): unknown {
+  const idx = message.indexOf(": ");
+  if (idx < 0) return null;
+  try {
+    return JSON.parse(message.slice(idx + 2));
+  } catch {
+    return null;
+  }
+}
+
+function detailOf(error: unknown): string | null {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    return typeof message === "string" ? message : String(message);
+  }
+  return error === undefined || error === null ? null : String(error);
+}
+
+/**
+ * پاسخ gold را باز می‌کند. سه شکل را می‌پذیرد:
+ *   ۱) پاکت سالم `{success: true, data}`            → همان data
+ *   ۲) پاسخ برهنه (معیار امروز `/dca/plan`)         → خودِ بدنه
+ *   ۳) `{success: false}` یا `data: null`            → throw (بدون undefined!)
+ *
+ * مورد ۳ دقیقاً همان جایی بود که `r.data` مقدار `undefined` می‌داد و React Query
+ * آن را رد می‌کرد («Query data cannot be undefined») — صفحهٔ خطای مبهم.
+ */
+function unwrapGoldPayload<T>(payload: unknown, label: string, code: string | null): T {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const envelope = payload as { success?: boolean; data?: unknown; error?: unknown };
+    if (envelope.success === false) {
+      const detail = detailOf(envelope.error);
+      console.warn(`[goldApi] ${label}: backend reported failure`, detail ?? envelope);
+      throw new GoldAPIError(`${label}: داده در دسترس نیست`, { code, detail });
+    }
+    if ("data" in envelope) {
+      if (envelope.data === null || envelope.data === undefined) {
+        throw new GoldAPIError(`${label}: داده در دسترس نیست`, { code });
+      }
+      return envelope.data as T;
+    }
+    return payload as T;
+  }
+  if (Array.isArray(payload)) return payload as unknown as T;
+  throw new GoldAPIError(`${label}: پاسخ غیرمنتظره است`, { code });
+}
+
+function normalizeGoldError(error: unknown, label: string, code: string | null): GoldAPIError {
+  if (error instanceof GoldAPIError) return error;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const status = httpStatusFromMessage(message);
+  if (status === 503) {
+    // بدنهٔ ۵۰۳ ممکن است هیچ متن قابل‌نمایشی نداشته باشد (C3) — فقط لاگ می‌شود.
+    console.warn(`[goldApi] ${label}: HTTP 503`, message);
+    return new GoldAPIError(`${label}: سرویس دادهٔ طلا موقتاً در دسترس نیست`, {
+      status,
+      code: code ?? SNAPSHOT_UNAVAILABLE,
+      detail: message,
+    });
+  }
+  return new GoldAPIError(message, { status, detail: message });
+}
+
+/** اجرای یک فراخوان gold با نرمال‌سازی خطا و باز کردن پاکت. */
+async function goldCall<T>(
+  label: string,
+  code: string | null,
+  run: () => Promise<unknown>,
+): Promise<T> {
+  let payload: unknown;
+  try {
+    payload = await run();
+  } catch (error) {
+    throw normalizeGoldError(error, label, code);
+  }
+  return unwrapGoldPayload<T>(payload, label, code);
 }
 
 // ── Snapshot-backed reads ────────────────────────────────────────
 
 export async function getSnapshot(): Promise<Snapshot> {
-  const r = await apiGet<{ success: boolean; data: Snapshot }>("/gold/snapshot");
-  return r.data;
+  return goldCall<Snapshot>("snapshot", SNAPSHOT_UNAVAILABLE, () =>
+    apiGet<unknown>("/gold/snapshot"),
+  );
+}
+
+/**
+ * امتیاز فعلی به‌تنهایی (`GET /gold/score`).
+ *
+ * هیچ صفحه‌ای در درخت gold امروز این مسیر را صدا نمی‌زند — امتیاز از دل
+ * `snapshot.score` می‌آید — ولی C3 این endpoint را نام می‌برد، پس reader با
+ * همان نگاشت خطا در دسترس است تا فراخوانِ بعدی مجبور به `fetch` خام نشود.
+ */
+export async function getScore(): Promise<ScoreBlock> {
+  return goldCall<ScoreBlock>("score", SNAPSHOT_UNAVAILABLE, () => apiGet<unknown>("/gold/score"));
 }
 
 export async function getScoreHistory(days: number): Promise<
   Array<{ score_at: string; total: number; decision: string; hard_stop_active: boolean }>
 > {
-  const r = await apiGet<{
-    success: boolean;
-    data: {
-      items: Array<{
-        score_at: string;
-        total: number;
-        decision: string;
-        hard_stop_active: boolean;
-      }>;
-      total: number;
-    };
-  }>(`/gold/history/score?days=${days}`);
-  return r.data?.items ?? [];
+  const data = await goldCall<{
+    items?: Array<{ score_at: string; total: number; decision: string; hard_stop_active: boolean }>;
+  }>("score-history", null, () => apiGet<unknown>(`/gold/history/score?days=${days}`));
+  return data?.items ?? [];
 }
 
 export async function getSnapshotHistory(symbol: string, days: number): Promise<
-  Array<{ snapshot_at: string; bubble_pct: number }>
+  Array<{ snapshot_at: string; bubble_pct: number | null }>
 > {
-  const r = await apiGet<{
-    success: boolean;
-    data: {
-      items: Array<{ snapshot_at: string; bubble_pct: number }>;
-      total: number;
-    };
-  }>(`/gold/history/snapshot?symbol=${encodeURIComponent(symbol)}&days=${days}`);
-  return r.data?.items ?? [];
+  const data = await goldCall<{
+    items?: Array<{ snapshot_at: string; bubble_pct: number | null }>;
+  }>("snapshot-history", null, () =>
+    apiGet<unknown>(
+      `/gold/history/snapshot?symbol=${encodeURIComponent(symbol)}&days=${days}`,
+    ),
+  );
+  return data?.items ?? [];
 }
 
 export async function getGoldLivePrices(): Promise<Record<string, number>> {
-  const r = await apiGet<{ success: boolean; data: Record<string, number> }>("/gold/live-prices");
-  return r.data;
+  return goldCall<Record<string, number>>("live-prices", null, () =>
+    apiGet<unknown>("/gold/live-prices"),
+  );
 }
 
 // ── Health / freshness ──────────────────────────────────────────
 
+function asHealthReport(payload: unknown): HealthResponse {
+  return unwrapGoldPayload<HealthResponse>(payload, "health", null);
+}
+
 export async function getHealth(): Promise<HealthResponse> {
-  // The GoldDesk route returns the report object directly (no {success,data}
-  // envelope); tolerate an enveloped payload too so neither shape yields
-  // `undefined` (react-query rejects undefined query data).
-  const r = await apiGet<HealthResponse | { success: boolean; data: HealthResponse }>("/gold/health");
-  if (r && typeof r === "object" && "data" in r && r.data) return r.data;
-  return r as HealthResponse;
+  // C8: قطعی Redis یا DB با HTTP 503 گزارش می‌شود، ولی بدنه همچنان همان
+  // گزارش تک‌تک وابستگی‌هاست. صفحهٔ سلامت باید بگوید «کدام» خوابیده، نه یک
+  // خطای مبهم — پس 503 اینجا مسیر داده‌دار است، نه مسیر خطا.
+  try {
+    return asHealthReport(await apiGet<unknown>("/gold/health"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error ?? "");
+    const body = bodyFromMessage(message);
+    if (body && typeof body === "object" && "redis_ok" in body) return asHealthReport(body);
+    throw normalizeGoldError(error, "health", null);
+  }
 }
 
 export async function getFreshness(): Promise<FreshnessReport> {
-  const r = await apiGet<{ success: boolean; data: FreshnessReport }>("/gold/freshness");
-  return r.data;
+  return goldCall<FreshnessReport>("freshness", null, () => apiGet<unknown>("/gold/freshness"));
 }
 
 export async function getTelegramStatus(): Promise<{
@@ -138,13 +268,49 @@ export async function getMacroCalendar(limit = 20): Promise<MacroCalendarEvent[]
 
 // ── Live snapshot WebSocket ─────────────────────────────────────
 //
-// The backend streams ``{"type": "snapshot", "data": Snapshot}`` every few
-// seconds from ``/gold/ws``. A browser cannot attach an Authorization header
-// to a handshake, so the access token travels as a query parameter.
+// The backend pushes on `/gold/ws` (src/gold_desk/ws_hub.py). Per C10 there are
+// two cadences — `hot` (light, every 10s) and `snapshot` (full, every 300s) —
+// plus `signal` frames that live_signals.py already broadcasts today. The
+// manager understands all three and timestamps them, because the UI needs to
+// tell «اتصال زنده» from «اتصال وصل ولی دادهٔ تازه نمی‌آید».
+// A browser cannot attach an Authorization header to a handshake, so the access
+// token travels as a query parameter.
 
 export type WSState = "connecting" | "open" | "closed" | "error";
 
-type WSListener = (state: WSState, snap: Snapshot | null) => void;
+/** بدنهٔ پیام `hot` — دقیقاً همان کلیدهایی که `build_hotpath_response` می‌سازد. */
+export interface GoldHotPayload {
+  status: "ok" | "no_data";
+  timestamp?: string | null;
+  message?: string | null;
+  refs?: { xau_usd: number | null; usd_irt: number | null; aed_gap_pct: number | null };
+  score?: { total: number | null; decision: string | null };
+  signal?: { action: string | null; confidence: number | null; reason: string | null };
+  coin_emami?: {
+    market: number | null;
+    fair: number | null;
+    bubble_pct: number | null;
+    implied_usd: number | null;
+  };
+  top_funds?: Array<{
+    symbol: string;
+    name: string | null;
+    nav: number | null;
+    bubble_pct: number | null;
+    bpr: number | null;
+  }>;
+}
+
+export interface GoldWSInfo {
+  state: WSState;
+  /** epoch ms آخرین پیامِ معتبر (هر نوعی) — مبنای نمایش کهنگی. */
+  lastMessageAt: number | null;
+  lastSnapshotAt: number | null;
+  lastHotAt: number | null;
+  lastHot: GoldHotPayload | null;
+}
+
+type WSListener = (state: WSState, snap: Snapshot | null, info: GoldWSInfo) => void;
 
 function goldWebSocketUrl(): string | null {
   if (typeof window === "undefined") return null;
@@ -161,14 +327,28 @@ class GoldWSManager {
   private listeners = new Set<WSListener>();
   private state: WSState = "closed";
   private lastSnapshot: Snapshot | null = null;
+  private lastHot: GoldHotPayload | null = null;
+  private lastMessageAt: number | null = null;
+  private lastSnapshotAt: number | null = null;
+  private lastHotAt: number | null = null;
   private retryDelay = 1000;
   private readonly maxRetryDelay = 30_000;
   private reconnectTimer: number | null = null;
   private pingInterval: number | null = null;
 
+  private info(): GoldWSInfo {
+    return {
+      state: this.state,
+      lastMessageAt: this.lastMessageAt,
+      lastSnapshotAt: this.lastSnapshotAt,
+      lastHotAt: this.lastHotAt,
+      lastHot: this.lastHot,
+    };
+  }
+
   subscribe(listener: WSListener): () => void {
     this.listeners.add(listener);
-    listener(this.state, this.lastSnapshot);
+    listener(this.state, this.lastSnapshot, this.info());
     if (!this.ws && this.listeners.size > 0) this.connect();
     return () => {
       this.listeners.delete(listener);
@@ -194,6 +374,8 @@ class GoldWSManager {
     this.ws = ws;
 
     ws.onopen = () => {
+      // Backoff فقط تا یک اتصال موفق دوام می‌آورد؛ بعد از باز شدن سوکت به
+      // مقدار اولیه برمی‌گردد تا قطعی‌های مقطعی جریمه نشوند.
       this.retryDelay = 1000;
       this.setState("open");
       this.pingInterval = window.setInterval(() => {
@@ -203,13 +385,29 @@ class GoldWSManager {
 
     ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data) as { type?: string; data?: Snapshot };
+        const msg = JSON.parse(event.data) as {
+          type?: string;
+          data?: Snapshot | GoldHotPayload | Record<string, unknown>;
+        };
+        const now = Date.now();
         if (msg.type === "snapshot" && msg.data) {
-          this.lastSnapshot = msg.data;
+          this.lastSnapshot = msg.data as Snapshot;
+          this.lastSnapshotAt = now;
+          this.lastMessageAt = now;
           this.setState("open", this.lastSnapshot);
+        } else if (msg.type === "hot" && msg.data) {
+          // hot جای snapshot را نمی‌گیرد (کم‌حجم است و بیشتر فیلدها را ندارد)،
+          // ولی ثابت می‌کند خط زنده است.
+          this.lastHot = msg.data as GoldHotPayload;
+          this.lastHotAt = now;
+          this.lastMessageAt = now;
+          this.setState(this.state, this.lastSnapshot);
+        } else if (msg.type === "signal") {
+          this.lastMessageAt = now;
+          this.setState(this.state, this.lastSnapshot);
         }
       } catch {
-        /* non-JSON heartbeat frames are ignored */
+        /* non-JSON heartbeat frames (the hub's "pong") are ignored */
       }
     };
 
@@ -222,6 +420,10 @@ class GoldWSManager {
     };
   }
 
+  /**
+   * backoff نمایی: 1s → 2s → 4s … تا ۳۰ ثانیه (maxRetryDelay). تایمر one-shot
+   * است تا چند قطعیِ پیاپی چند سوکت هم‌زمان نسازند.
+   */
   private scheduleReconnect() {
     if (this.reconnectTimer !== null || this.listeners.size === 0) return;
     this.reconnectTimer = window.setTimeout(() => {
@@ -250,12 +452,17 @@ class GoldWSManager {
       this.ws = null;
     }
     this.lastSnapshot = null;
+    this.lastHot = null;
+    this.lastMessageAt = null;
+    this.lastSnapshotAt = null;
+    this.lastHotAt = null;
     this.setState("closed", null);
   }
 
   private setState(state: WSState, snap: Snapshot | null = this.lastSnapshot) {
     this.state = state;
-    this.listeners.forEach((listener) => listener(state, snap));
+    const info = this.info();
+    this.listeners.forEach((listener) => listener(state, snap, info));
   }
 }
 
@@ -271,6 +478,9 @@ export function getGoldWSManager(): GoldWSManager {
  *
  * ``onOpen``/``onClose`` fire on connection transitions;
  * ``onSnapshot`` receives every streamed snapshot.
+ *
+ * امضا دست‌نخورده مانده (قاعده ۴)؛ برای کهنگی و `hot` از `useGoldWS` استفاده
+ * کنید که همین manager را با listener کامل‌تر subscribe می‌کند.
  */
 export function subscribeGoldWS(
   onOpen?: () => void,
@@ -331,14 +541,93 @@ export async function createAlertRule(input: {
 
 // ── DCA ─────────────────────────────────────────────────────────
 
+/**
+ * C4: `current_score` دیگر از کلاینت خوانده نمی‌شود — بک‌اند آن را از snapshot
+ * سمت سرور برمی‌دارد. اگر فراخوانی قدیمی هنوز آن را بفرستد، همین‌جا قبل از
+ * ارسال حذف می‌شود تا قرارداد نقض نشود.
+ */
 export async function planDCA(input: {
   total_capital_irt: number;
   risk_profile: RiskProfile;
-  current_score: number;
   preferred_vehicle?: Vehicle;
 }): Promise<DCAPlan> {
-  const r = await apiPost<{ success: boolean; data: DCAPlan }>("/gold/dca/plan", input);
-  return r.data;
+  const { current_score: _droppedByContract, ...payload } = input as Record<string, unknown>;
+  return goldCall<DCAPlan>("dca-plan", null, () =>
+    apiPost<unknown>("/gold/dca/plan", payload),
+  );
+}
+
+// ── Live signals (GET /signals/recent) ──────────────────────────
+
+/**
+ * سیگنال‌های زندهٔ مسیر `/gold/signals/recent`.
+ *
+ * قبلاً `LiveSignalBanner` مستقیم `apiGet` می‌زد و خطا را دور می‌ریخت، یعنی در
+ * قطعی سرویس بنر بی‌سروصدا غیب می‌شد (F2). این reader همان نگاشت C3 را دارد.
+ */
+export interface GoldLiveSignal {
+  symbol: string;
+  signal_type: string;
+  severity: string;
+  title: string;
+  description: string;
+  current_value: number;
+  threshold: number;
+  change_pct: number | null;
+  ts: number;
+}
+
+export async function getRecentSignals(limit = 10): Promise<GoldLiveSignal[]> {
+  const data = await goldCall<{ signals?: GoldLiveSignal[] } | GoldLiveSignal[]>(
+    "signals",
+    SNAPSHOT_UNAVAILABLE,
+    () => apiGet<unknown>(`/gold/signals/recent?limit=${limit}`),
+  );
+  if (Array.isArray(data)) return data;
+  return data?.signals ?? [];
+}
+
+// ── API tokens (GET/POST/DELETE /tokens) ────────────────────────
+//
+// صفحهٔ /gold/tokens قبلاً `fetch` خام می‌زد: prefix /api/v1 را نمی‌گرفت،
+// هدر Authorization نمی‌رفت و مسیر ۴۰۱/refresh دور زده می‌شد — یعنی در
+// production عملاً کار نمی‌کرد (F8).
+
+export interface GoldApiToken {
+  token_id: string;
+  name: string;
+  scopes: string[];
+  enabled: boolean;
+  created_at: string | null;
+  last_used_at: string | null;
+}
+
+export async function getApiTokens(): Promise<GoldApiToken[]> {
+  return goldCall<GoldApiToken[]>("tokens", null, () => apiGet<unknown>("/gold/tokens"));
+}
+
+/**
+ * route این endpoint پارامترها را در query می‌خواند
+ * (`name: str = Query(...)`, `api.py:714-717`)، پس query string اینجا درست است.
+ *
+ * پاسخ `{success:true, data:{token, token_id}}` است؛ `token` خام فقط یک‌بار
+ * برگردانده می‌شود و باید همان لحظه کپی شود.
+ */
+export async function createApiToken(
+  name: string,
+  scopes: string,
+): Promise<{ token: string; token_id: string }> {
+  const query = new URLSearchParams({ name, scopes });
+  return goldCall<{ token: string; token_id: string }>("token-create", null, () =>
+    apiPost<unknown>(`/gold/tokens?${query.toString()}`),
+  );
+}
+
+export async function revokeApiToken(tokenId: string): Promise<boolean> {
+  const r = await goldCall<{ success?: boolean } | boolean>("token-revoke", null, () =>
+    apiDelete<unknown>(`/gold/tokens/${encodeURIComponent(tokenId)}`),
+  );
+  return typeof r === "boolean" ? r : Boolean(r?.success);
 }
 
 // ── Futures (apps/api/endpoints/gold.py) ────────────────────────
@@ -651,6 +940,15 @@ export async function getStrategyBacktest(input: {
   n_trades: number;
   final_value: number;
   warning: string | null;
+  // ── out-of-sample (C/قرارداد F7) ──
+  // موتور این‌ها را در `BacktestMetrics` دارد (`backtest_runner.py:77-81`) ولی
+  // route `/backtest/strategy` فعلاً serialize شان نمی‌کند، پس **اختیاری‌اند**:
+  // نبودشان با صفر فرق دارد و UI باید تفاوت را ببیند.
+  oos_start?: string | null;
+  oos_total_return_pct?: number | null;
+  oos_buy_hold_return_pct?: number | null;
+  oos_alpha_pct?: number | null;
+  oos_max_drawdown_pct?: number | null;
   trades: Array<{
     tranche: number;
     date: string;
@@ -677,6 +975,11 @@ export async function getStrategyBacktest(input: {
       n_trades: number;
       final_value: number;
       warning: string | null;
+      oos_start?: string | null;
+      oos_total_return_pct?: number | null;
+      oos_buy_hold_return_pct?: number | null;
+      oos_alpha_pct?: number | null;
+      oos_max_drawdown_pct?: number | null;
       trades: Array<{
         tranche: number;
         date: string;

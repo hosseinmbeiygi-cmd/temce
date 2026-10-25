@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getStrategyBacktest, getBacktest } from "@/lib/goldApi";
+import { getStrategyBacktest, getBacktest, isServiceUnavailable } from "@/lib/goldApi";
 
 export default function GoldBacktestPage() {
   const [days, setDays] = useState(90);
   const [bubbleTrigger, setBubbleTrigger] = useState(5);
   const [capital, setCapital] = useState(100_000_000);
 
-  const { data: strategy, isLoading } = useQuery({
+  const {
+    data: strategy,
+    isLoading,
+    isError: backtestFailed,
+    error: backtestError,
+  } = useQuery({
     queryKey: ["gold", "backtest-strategy", days, bubbleTrigger, capital],
     queryFn: () => getStrategyBacktest({ days, bubble_trigger: bubbleTrigger, initial_capital: capital }),
   });
@@ -18,6 +23,25 @@ export default function GoldBacktestPage() {
     queryKey: ["gold", "backtest-signal", days],
     queryFn: () => getBacktest(days, 8),
   });
+
+  // F7: متریک out-of-sample فقط وقتی رندر می‌شود که API آن را بفرستد.
+  // `BacktestMetrics` در موتور این فیلدها را دارد (`backtest_runner.py:77-81`)
+  // ولی route `/backtest/strategy` فعلاً آن‌ها را serialize نمی‌کند
+  // (`api.py:534-562`) ⇒ امروز این تراشه‌ها دیده نمی‌شوند و نباید هم بشود.
+  const oos = strategy?.oos_total_return_pct !== undefined ||
+    strategy?.oos_alpha_pct !== undefined ||
+    strategy?.oos_buy_hold_return_pct !== undefined ||
+    strategy?.oos_max_drawdown_pct !== undefined;
+
+  const Oos = ({ value, digits = 1 }: { value: number | null | undefined; digits?: number }) => {
+    if (value === null || value === undefined) return null;
+    return (
+      <div className="text-[10px] font-mono mt-1 text-zinc-500">
+        out-of-sample: {value > 0 ? "+" : ""}
+        {value.toFixed(digits)}٪
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -59,13 +83,57 @@ export default function GoldBacktestPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {backtestFailed ? (
+        /* F7: پیش از این صفحه در حالت خطا `: null` می‌داد — یعنی هیچ‌چیز. کاربر
+           فکر می‌کرد بک‌تست نتیجه ندارد، درحالی‌که سرور خطا داده بود. */
+        <div
+          role="alert"
+          className="rounded-lg border p-4 text-sm"
+          style={{ background: "var(--gd-bg-2)", borderColor: "var(--gd-danger)", color: "var(--gd-danger)" }}
+        >
+          <div className="font-bold mb-1">محاسبهٔ استراتژی بک‌تست انجام نشد</div>
+          <div style={{ color: "var(--gd-text-2)" }}>
+            {isServiceUnavailable(backtestError)
+              ? "سرویس دادهٔ طلا موقتاً در دسترس نیست (۵۰۳)؛ چند لحظه دیگر دوباره تلاش کنید."
+              : "پاسخ سرویس ناموفق بود. تا رفع خطا، هیچ عددی در این صفحه نمایش داده نمی‌شود."}
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="text-zinc-500 text-center py-12">در حال محاسبه...</div>
       ) : strategy ? (
         <>
+          {/* F7: هشدار پاسخ بک‌تست باید برجسته و دائمی بماند — این عدد با
+              warningِ «داده کم است» همان ارزش را ندارد. قبلاً یک خط text-xs بود
+              که کاربر می‌توانست ندیده بگیرد، و خطای query کلاً پنهان می‌شد. */}
           {strategy.warning && (
-            <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-xs text-amber-300">
-              ⚠️ {strategy.warning}
+            <div
+              className="rounded-lg border p-4 text-sm leading-6"
+              style={{
+                background: "var(--gd-bg-2)",
+                borderColor: "var(--gd-warn)",
+                color: "var(--gd-warn)",
+              }}
+              role="alert"
+            >
+              <div className="font-bold mb-1">⚠️ هشدار نتیجهٔ بک‌تست</div>
+              <div>{strategy.warning}</div>
+              <div className="mt-2 text-xs" style={{ color: "var(--gd-text-2)" }}>
+                تا این هشدار برطرف نشده، اعداد پایین این کارت قابل اتکا نیستند.
+              </div>
+            </div>
+          )}
+
+          {!oos && (
+            <div
+              className="rounded-lg px-3 py-2 text-[11px] leading-5"
+              style={{ background: "var(--gd-bg-2)", color: "var(--gd-text-2)", border: "1px solid var(--gd-border)" }}
+            >
+              بک‌تست روی دورهٔ گذشته است و نتیجهٔ آینده را تضمین نمی‌کند؛ ابزار تحلیلی
+              است، نه توصیهٔ مالی. متریک جداگانهٔ out-of-sample نمایش داده نمی‌شود:
+              موتور آن را در <code>BacktestMetrics</code> محاسبه می‌کند
+              (<code>backtest_runner.py:77-81</code>) ولی پاسخ{" "}
+              <code>/backtest/strategy</code> فعلاً آن را serialize نمی‌کند —
+              درخواست در <code>docs/fixes/handoff_frontend_to_backend.md §۷</code>.
             </div>
           )}
 
@@ -80,6 +148,7 @@ export default function GoldBacktestPage() {
                 {strategy.total_return_pct > 0 ? "+" : ""}
                 {strategy.total_return_pct}٪
               </div>
+              <Oos value={strategy.oos_total_return_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">Buy & Hold</div>
@@ -87,6 +156,7 @@ export default function GoldBacktestPage() {
                 {strategy.buy_hold_return_pct > 0 ? "+" : ""}
                 {strategy.buy_hold_return_pct}٪
               </div>
+              <Oos value={strategy.oos_buy_hold_return_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">آلفا (DCA − BH)</div>
@@ -98,6 +168,7 @@ export default function GoldBacktestPage() {
                 {strategy.alpha_pct > 0 ? "+" : ""}
                 {strategy.alpha_pct}٪
               </div>
+              <Oos value={strategy.oos_alpha_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">Hit Rate</div>
@@ -110,6 +181,7 @@ export default function GoldBacktestPage() {
               <div className="text-xl font-bold font-mono text-rose-400 mt-1">
                 -{strategy.max_drawdown_pct}٪
               </div>
+              <Oos value={strategy.oos_max_drawdown_pct} />
             </div>
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3">
               <div className="text-xs text-zinc-400">Sharpe Ratio</div>

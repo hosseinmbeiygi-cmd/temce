@@ -1,7 +1,9 @@
 // TypeScript types — تمیز و ۱۰۰٪ typed
 
 export type AssetType = "gold" | "coin" | "fx" | "fund";
-export type Decision = "GREEN" | "YELLOW" | "RED";
+// C1: موتور وقتی وزنِ داده‌دارِ موجود زیر MIN_SCORE_COVERAGE_WEIGHT باشد
+// decision را NO_DATA می‌گذارد (total عددی می‌ماند تا نمودار نشکند).
+export type Decision = "GREEN" | "YELLOW" | "RED" | "NO_DATA";
 export type RiskProfile = "conservative" | "balanced" | "aggressive";
 export type Vehicle = "etf" | "cert" | "melted" | "coin" | "jewelry";
 
@@ -73,6 +75,16 @@ export interface ScoreBlock {
   components: ScoreComponents;
   hard_stop_active: boolean;
   hard_stop_reason: string | null;
+  // ── C1 (فیلدهای جدیدِ افزوده؛ اختیاری تا وقتی بک‌اند send کند) ──
+  // مقیاس‌ها از روی کد موتور (`src/gold_desk/scorer.py:66-68,204-242`) خوانده شده:
+  // جمع خامِ وزن‌های خام قبل از نرمال‌سازی (int).
+  raw_total?: number | null;
+  // مجموع وزان کامپوننت‌هایی که واقعاً داده داشته‌اند، در مقیاس **۰ تا ۱۰۰**
+  // (int، نه کسر). آستانه: MIN_SCORE_COVERAGE_WEIGHT = 60 در constants.py:151.
+  available_weight?: number | null;
+  // موتور آن را `float(available_weight)` می‌گذارد، پس همین ۰ تا ۱۰۰ است و در UI
+  // مستقیم با «٪» نمایش داده می‌شود.
+  data_coverage_pct?: number | null;
 }
 
 export interface Snapshot {

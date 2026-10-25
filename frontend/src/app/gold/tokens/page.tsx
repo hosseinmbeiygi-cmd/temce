@@ -2,57 +2,47 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-
-interface Token {
-  token_id: string;
-  name: string;
-  scopes: string[];
-  enabled: boolean;
-  created_at: string | null;
-  last_used_at: string | null;
-}
-
-async function listTokens(): Promise<Token[]> {
-  const r = await fetch("/gold/tokens", { credentials: "include" });
-  const j = await r.json();
-  return j.data ?? [];
-}
-
-async function createToken(name: string, scopes: string): Promise<{ token: string; token_id: string }> {
-  const r = await fetch(`/gold/tokens?name=${encodeURIComponent(name)}&scopes=${encodeURIComponent(scopes)}`, {
-    method: "POST",
-    credentials: "include",
-  });
-  const j = await r.json();
-  return j.data;
-}
-
-async function revokeToken(tokenId: string): Promise<boolean> {
-  const r = await fetch(`/gold/tokens/${tokenId}`, { method: "DELETE", credentials: "include" });
-  const j = await r.json();
-  return j.success;
-}
+import { createApiToken, getApiTokens, revokeApiToken } from "@/lib/goldApi";
+import { ConfirmDialog } from "@/components/gold/ConfirmDialog";
+import type { GoldApiToken } from "@/lib/goldApi";
 
 export default function GoldTokensPage() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState("read");
   const [newToken, setNewToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingRevoke, setPendingRevoke] = useState<GoldApiToken | null>(null);
 
-  const { data: tokens } = useQuery({ queryKey: ["gold", "tokens"], queryFn: listTokens, refetchInterval: 30_000 });
+  const { data: tokens } = useQuery({
+    queryKey: ["gold", "tokens"],
+    queryFn: getApiTokens,
+    refetchInterval: 30_000,
+  });
 
   const onCreate = async () => {
     if (!name.trim()) return;
-    const r = await createToken(name.trim(), scopes);
-    setNewToken(r.token);
-    setName("");
-    qc.invalidateQueries({ queryKey: ["gold", "tokens"] });
+    setError(null);
+    try {
+      const r = await createApiToken(name.trim(), scopes);
+      setNewToken(r.token);
+      setName("");
+      qc.invalidateQueries({ queryKey: ["gold", "tokens"] });
+    } catch (err) {
+      // مسیر قبلاً بدون catch بود: یک 400 (scopes نامعتبر) بی‌سروصدا می‌مرد و
+      // کاربر فکر می‌کرد token ساخته شده.
+      setError(err instanceof Error ? err.message : "ساخت token ناموفق بود.");
+    }
   };
 
-  const onRevoke = async (id: string) => {
-    if (!confirm("Token لغو شود؟")) return;
-    await revokeToken(id);
-    qc.invalidateQueries({ queryKey: ["gold", "tokens"] });
+  const confirmRevoke = async () => {
+    if (!pendingRevoke) return;
+    try {
+      await revokeApiToken(pendingRevoke.token_id);
+      qc.invalidateQueries({ queryKey: ["gold", "tokens"] });
+    } finally {
+      setPendingRevoke(null);
+    }
   };
 
   const copyToken = () => {
@@ -112,6 +102,11 @@ export default function GoldTokensPage() {
         >
           ساخت Token
         </button>
+        {error && (
+          <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--gd-bg-3)", color: "var(--gd-danger)" }}>
+            {error}
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl overflow-hidden" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}>
@@ -144,7 +139,12 @@ export default function GoldTokensPage() {
                   {t.last_used_at ? new Date(t.last_used_at).toLocaleString("fa-IR") : "هرگز"}
                 </td>
                 <td className="p-3">
-                  <button onClick={() => onRevoke(t.token_id)} className="text-xs text-rose-400 hover:text-rose-300">
+                  <button
+                    onClick={() => setPendingRevoke(t)}
+                    className="text-xs hover:underline"
+                    style={{ color: "var(--gd-danger)" }}
+                    aria-label={`لغو token ${t.name}`}
+                  >
                     لغو
                   </button>
                 </td>
@@ -161,6 +161,24 @@ export default function GoldTokensPage() {
         </code>
         <div>لیست کامل endpointها: <code className="text-amber-400">/api/v1/gold/docs/endpoints</code></div>
       </div>
+
+      <ConfirmDialog
+        open={pendingRevoke !== null}
+        title={`لغو token «${pendingRevoke?.name ?? ""}»؟`}
+        description={
+          <>
+            هر ابزار خارجی که با این token کار می‌کند (ربات تلگرام، Google Sheets،
+            اپ موبایل) از همین لحظه unauthorized می‌شود.
+            <div className="mt-2">
+              token های لغوشده قابل بازگردانی نیستند؛ برای ادامه باید یک token تازه
+              ساخته و در آن ابزار جایگزین شود.
+            </div>
+          </>
+        }
+        confirmLabel="لغو token"
+        onConfirm={confirmRevoke}
+        onCancel={() => setPendingRevoke(null)}
+      />
     </div>
   );
 }

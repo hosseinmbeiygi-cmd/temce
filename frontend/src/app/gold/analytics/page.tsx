@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getScoreHistory, getSnapshotHistory } from "@/lib/goldApi";
+import { decisionView } from "@/lib/gold-decision";
 
 const SYMBOLS = [
   { value: "IR_COIN_EMAMI", label: "سکه امامی", color: "#f59e0b" },
@@ -115,8 +116,10 @@ function ScoreChart({ points }: { points: Array<{ score_at: string; total: numbe
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.total)}`).join(" ");
 
   // color per point
+  // F3: قبلاً ternary سه‌تایی هر decision ناشناخته‌ای (از جمله NO_DATA) را قرمز
+  // می‌کرد — یعنی «داده نداریم» مثل «توقف قرمز» دیده می‌شد.
   const dots = points.map((p, i) => {
-    const color = p.decision === "GREEN" ? "#10b981" : p.decision === "YELLOW" ? "#f59e0b" : "#f43f5e";
+    const color = decisionView(p.decision).dot;
     return <circle key={i} cx={x(i)} cy={y(p.total)} r="3.5" fill={color} />;
   });
 
@@ -170,10 +173,14 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
     refetchInterval: 60_000,
   });
 
-  const points = (hist ?? []).map((p) => ({
-    date: (p.snapshot_at || "").slice(0, 16).replace("T", " "),
-    value: p.bubble_pct ?? 0,
-  }));
+  // C2: حبابِ گم‌شده هرگز صفرِ جعلی نمی‌شود — نقطه‌های بدون داده از سری حذف
+  // می‌شوند، وگرنه نمودار یک افت/صعود کاذب به سمت صفر نشان می‌دهد.
+  const points = (hist ?? [])
+    .map((p) => ({
+      date: (p.snapshot_at || "").slice(0, 16).replace("T", " "),
+      value: p.bubble_pct,
+    }))
+    .filter((p): p is { date: string; value: number } => p.value !== null && p.value !== undefined);
 
   if (points.length < 2) {
     return <div className="text-xs text-zinc-500">{symbol}: داده کافی نیست</div>;

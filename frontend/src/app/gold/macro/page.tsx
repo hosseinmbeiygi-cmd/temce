@@ -36,6 +36,14 @@ export default function GoldMacroPage() {
         <p className="mt-1 text-xs text-zinc-500">
           بازده واقعی، شاخص دلار، روند طلا و تقویم رویدادهای پرنوسان
         </p>
+        {/* C6: تحلیل کلان فقط اطلاعاتی است و به امتیاز وصل نمی‌شود. بدون این
+            برچسب، کاربر «posture = BULLISH» را سیگنال خرید می‌فهمد. */}
+        <p
+          className="mt-2 inline-block rounded-full px-3 py-1 text-[11px] font-semibold"
+          style={{ background: "var(--gd-bg-2)", color: "var(--gd-text-2)", border: "1px solid var(--gd-border)" }}
+        >
+          اطلاعاتی — بدون اثر بر امتیاز
+        </p>
       </div>
 
       <div className="rounded-2xl border p-4" style={{ borderColor: "var(--gd-border)" }}>

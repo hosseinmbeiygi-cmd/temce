@@ -5,11 +5,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useState } from "react";
 import { getTelegramStatus } from "@/lib/goldApi";
-import { subscribeGoldWS } from "@/lib/goldApi";
+import { formatAge, useGoldWS } from "@/hooks/useGoldWS";
 import { ThemeProvider, ThemeToggle } from "@/components/gold/ThemeProvider";
 import { LiveSignalBanner } from "@/components/gold/LiveSignalBanner";
 import { PWAProvider } from "@/components/gold/PWAProvider";
 import { NativeBridge } from "@/components/gold/NativeBridge";
+
+// نوار پایین موبایل هر ۱۵ تب را در grid-cols-5 می‌ریخت = ۳ سطر ≈۱۳۰px ارتفاع،
+// که خودش با `padding-bottom: 130px` در globals.css جبران می‌شد. حالا نوار پایین
+// فقط این پنج مقصد را می‌دهد و بقیه در دراور موبایل می‌مانند.
+const PRIMARY_TABS = ["/gold", "/gold/futures", "/gold/portfolio", "/gold/alerts", "/gold/health"];
 
 const TABS = [
   { href: "/gold", label: "داشبورد", exact: true, icon: "📊" },
@@ -32,19 +37,9 @@ const TABS = [
 export default function GoldLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [wsActive, setWsActive] = useState(false);
-
-  React.useEffect(() => {
-    const unsub = subscribeGoldWS(
-      () => setWsActive(true),
-      () => setWsActive(false),
-    );
-    const t = setTimeout(() => setWsActive(false), 3000);
-    return () => {
-      unsub();
-      clearTimeout(t);
-    };
-  }, []);
+  // F6: نشانگر باید از خودِ سوکت و از تازگی پیام بیاید. پیش از این یک
+  // `setTimeout(…, 3000)` بی‌قیدوشرط «Live» را خاموش می‌کرد.
+  const ws = useGoldWS();
 
   const { data: tg } = useQuery({
     queryKey: ["gold", "telegram", "status"],
@@ -103,13 +98,21 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
           {/* Status indicators */}
           <div className="flex items-center gap-2 md:gap-3 text-xs">
             <ThemeToggle />
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" title={ws.ageSeconds === null ? "هنوز پیامی از سوکت گرفته نشده" : `آخرین پیام: ${formatAge(ws.ageSeconds)}`}>
               <span
                 className={`w-2 h-2 rounded-full ${
-                  wsActive ? "bg-emerald-400 ws-dot" : "bg-zinc-600"
+                  ws.stale
+                    ? "bg-amber-400"
+                    : ws.connected
+                      ? "bg-emerald-400 ws-dot"
+                      : "bg-zinc-600"
                 }`}
               />
-              <span className="hidden sm:inline" style={{ color: "var(--gd-text-2)" }}>{wsActive ? "Live" : "Polling"}</span>
+              <span className="hidden sm:inline" style={{ color: "var(--gd-text-2)" }}>
+                {/* F6: سه حالت، نه دو — «وصل ولی کهنه» با «قطع» یکی نیست. */}
+                {ws.stale ? "کهنه" : ws.connected ? "Live" : "Polling"}
+                {ws.ageSeconds !== null && ` · آخرین: ${formatAge(ws.ageSeconds)}`}
+              </span>
             </div>
             {tg?.data?.is_operational && (
               <span className="text-emerald-500 hidden sm:inline">📨 TG</span>
@@ -175,10 +178,12 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
 
-      {/* Bottom Nav — موبایل */}
+      {/* Bottom Nav — موبایل: فقط مقصدهای اصلی (بقیه در دراور) */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden backdrop-blur-xl border-t" style={{ background: "var(--gd-bg-2)", borderColor: "var(--gd-border)" }}>
         <div className="grid grid-cols-5 px-2 py-2">
-          {TABS.map((t) => {
+          {PRIMARY_TABS.map((href) => {
+            const t = TABS.find((tab) => tab.href === href);
+            if (!t) return null;
             const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
             return (
               <Link

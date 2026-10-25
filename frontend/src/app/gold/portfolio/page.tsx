@@ -3,18 +3,26 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
-import { capturePortfolioSnapshot, getPortfolioPerformance } from "@/lib/goldApi";
+import { capturePortfolioSnapshot, getPortfolioPerformance, isServiceUnavailable } from "@/lib/goldApi";
+import { ConfirmDialog } from "@/components/gold/ConfirmDialog";
 
 interface Holding {
+  // `id` را بک‌اند هنوز در پاسخ /portfolio بیرون نمی‌دهد (dataclass HoldingPnL در
+  // src/gold_desk/portfolio.py:28-41)؛ بدون آن دکمهٔ حذف دارایی فعال نمی‌شود.
+  // درخواست در docs/fixes/handoff_frontend_to_backend.md ثبت شده.
+  id?: number;
   symbol: string;
   display_name: string;
   quantity: number;
   avg_buy_price: number;
-  current_price: number;
+  // سمت سرور این چهار فیلد عمداً `float | None` هستند: نبودِ قیمت نباید P&L را
+  // صفر یا منفی جعلی کند (اشارهٔ GS-17 در همان فایل). تایپ قبلی غیرnullable بود و
+  // `.toFixed()` روی null صفحه را می‌انداخت.
+  current_price: number | null;
   cost_basis: number;
-  current_value: number;
-  pnl_irt: number;
-  pnl_pct: number;
+  current_value: number | null;
+  pnl_irt: number | null;
+  pnl_pct: number | null;
   n_purchases: number;
 }
 
@@ -25,6 +33,10 @@ interface Portfolio {
   total_pnl_pct: number;
   holdings: Holding[];
   snapshot_at: string | null;
+  // C7: هزینهٔ فقط دارایی‌های قیمت‌دار؛ مخرج P&L کل همین است. اختیاری تا وقتی
+  // بک‌اند آن را expose کند.
+  priced_cost?: number | null;
+  unpriced_holdings?: number;
 }
 
 interface PlanStatus {
@@ -37,7 +49,6 @@ interface PlanStatus {
     next_tranche_pct: number;
     next_tranche_amount: number;
     next_trigger: string;
-    current_score: number;
     stop_loss_pct: number;
     take_profit_pct: number;
   };
@@ -51,20 +62,33 @@ interface Trade {
   price: number;
   amount_irt: number;
   fee_irt: number;
-  pnl_irt: number;
+  pnl_irt: number | null;
   note: string | null;
   traded_at: string | null;
 }
 
-const fmt = (n: number) => n.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
+/** هیچ عددی روی null/undefined تبدیل نمی‌شود — «—» یعنی داده نیست، نه صفر. */
+const fmt = (n: number | null | undefined) =>
+  n === null || n === undefined || !Number.isFinite(n) ? "—" : n.toLocaleString("fa-IR", { maximumFractionDigits: 0 });
+
+const signedFmt = (n: number | null | undefined) =>
+  n === null || n === undefined || !Number.isFinite(n) ? "—" : `${n >= 0 ? "+" : ""}${fmt(n)}`;
+
+const signedPct = (n: number | null | undefined, digits = 2) =>
+  n === null || n === undefined || !Number.isFinite(n) ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(digits)}٪`;
 
 async function getPortfolio(): Promise<Portfolio> {
   const r = await apiGet<{ success: boolean; data: Portfolio }>("/gold/portfolio");
   return r.data;
 }
 
-async function getPlans(currentScore: number): Promise<PlanStatus[]> {
-  const r = await apiGet<{ success: boolean; data: PlanStatus[] }>(`/gold/portfolio/dca?current_score=${currentScore}`);
+/**
+ * C4: `current_score` دیگر از کلاینت نمی‌آید؛ بک‌اند آن را از snapshot سرور
+ * می‌خواند. مسیر GET این پارامتر را optional با پیش‌فرض نگه داشته
+ * (`api.py:1047`)، پس حذفش از همین حالا امن است.
+ */
+async function getPlans(): Promise<PlanStatus[]> {
+  const r = await apiGet<{ success: boolean; data: PlanStatus[] }>("/gold/portfolio/dca");
   return r.data;
 }
 
@@ -76,17 +100,16 @@ async function getTrades(): Promise<Trade[]> {
 export default function GoldPortfolioPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"overview" | "add" | "dca" | "trades">("overview");
-  const [currentScore, setCurrentScore] = useState(65);
 
-  const { data: portfolio } = useQuery({
+  const { data: portfolio, isError: portfolioError, error: portfolioErr } = useQuery({
     queryKey: ["gold", "portfolio"],
     queryFn: getPortfolio,
     refetchInterval: 60_000,
   });
 
   const { data: plans } = useQuery({
-    queryKey: ["gold", "plans", currentScore],
-    queryFn: () => getPlans(currentScore),
+    queryKey: ["gold", "plans"],
+    queryFn: getPlans,
     refetchInterval: 60_000,
   });
 
@@ -96,8 +119,29 @@ export default function GoldPortfolioPage() {
     refetchInterval: 60_000,
   });
 
+  const invalidatePlans = () => {
+    qc.invalidateQueries({ queryKey: ["gold", "plans"] });
+    qc.invalidateQueries({ queryKey: ["gold", "portfolio"] });
+  };
+
   return (
     <div className="space-y-6" dir="rtl">
+      {/* F3: ابزار تحلیلی است، نه توصیهٔ مالی — روی همهٔ تب‌ها دیده می‌شود. */}
+      <div
+        className="rounded-lg px-3 py-2 text-[11px] leading-5"
+        style={{ background: "var(--gd-bg-2)", color: "var(--gd-text-2)", border: "1px solid var(--gd-border)" }}
+      >
+        این ابزار صرفاً تحلیلی است و توصیهٔ مالی نیست. مسئول خرید و فروش با خودِ کاربر است.
+      </div>
+
+      {portfolioError && (
+        <div className="rounded-lg border border-rose-700/40 bg-rose-950/30 px-4 py-3 text-sm text-rose-300">
+          {isServiceUnavailable(portfolioErr)
+            ? "سرویس دادهٔ طلا موقتاً در دسترس نیست (۵۰۳)؛ چند لحظه دیگر دوباره تلاش کنید."
+            : "دریافت پورتفو ناموفق بود."}
+        </div>
+      )}
+
       <div className="flex gap-1 border-b" style={{ borderColor: "var(--gd-border)" }}>
         {(["overview", "add", "dca", "trades"] as const).map((t) => (
           <button
@@ -117,7 +161,13 @@ export default function GoldPortfolioPage() {
 
       {tab === "overview" && portfolio && (
         <div className="space-y-4">
-          <OverviewTab portfolio={portfolio} />
+          <OverviewTab
+            portfolio={portfolio}
+            onChanged={() => {
+              qc.invalidateQueries({ queryKey: ["gold", "portfolio"] });
+              qc.invalidateQueries({ queryKey: ["gold", "plans"] });
+            }}
+          />
           <PerformancePanel />
         </div>
       )}
@@ -126,24 +176,32 @@ export default function GoldPortfolioPage() {
         <AddHoldingTab onAdded={() => qc.invalidateQueries({ queryKey: ["gold", "portfolio"] })} />
       )}
 
-      {tab === "dca" && (
-        <DCATab
-          plans={plans ?? []}
-          currentScore={currentScore}
-          onScoreChange={setCurrentScore}
-          onChange={() => {
-            qc.invalidateQueries({ queryKey: ["gold", "plans", currentScore] });
-            qc.invalidateQueries({ queryKey: ["gold", "portfolio"] });
-          }}
-        />
-      )}
+      {tab === "dca" && <DCATab plans={plans ?? []} onChange={invalidatePlans} />}
 
       {tab === "trades" && trades && <TradesTab trades={trades} />}
     </div>
   );
 }
 
-function OverviewTab({ portfolio }: { portfolio: Portfolio }) {
+function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged: () => void }) {
+  const [pendingDelete, setPendingDelete] = useState<Holding | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    const holding = pendingDelete;
+    if (!holding?.id) return;
+    setDeleting(true);
+    try {
+      // حذف نرم (بدون ?force=true): بک‌اند پیش‌فرض deleted_at را ست می‌کند و
+      // ردیف دارایی و معامله‌هایش سالم می‌مانند (api.py:963-989، C7).
+      await apiDelete(`/gold/portfolio/holdings/${holding.id}`);
+      setPendingDelete(null);
+      onChanged();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -151,12 +209,28 @@ function OverviewTab({ portfolio }: { portfolio: Portfolio }) {
         <StatCard label="هزینه" value={fmt(portfolio.total_cost)} unit="تومان" />
         <StatCard
           label="P&L"
-          value={(portfolio.total_pnl >= 0 ? "+" : "") + fmt(portfolio.total_pnl)}
+          value={signedFmt(portfolio.total_pnl)}
           unit="تومان"
-          sub={`${portfolio.total_pnl_pct >= 0 ? "+" : ""}${portfolio.total_pnl_pct.toFixed(2)}٪`}
+          sub={
+            // C7: مخرج P&L کل فقط دارایی‌های قیمت‌دار است؛ وقتی بک‌اند priced_cost
+            // را بدهد، عدد «روی چه پایه‌ای» محاسبه شده نمایش داده می‌شود.
+            portfolio.priced_cost
+              ? `${signedPct(portfolio.total_pnl_pct)} · روی هزینهٔ ${fmt(portfolio.priced_cost)} قیمت‌دار`
+              : signedPct(portfolio.total_pnl_pct)
+          }
           tone={portfolio.total_pnl >= 0 ? "good" : "bad"}
         />
       </div>
+
+      {!!portfolio.unpriced_holdings && (
+        <div
+          className="rounded-lg px-3 py-2 text-[11px] leading-5"
+          style={{ background: "var(--gd-bg-2)", color: "var(--gd-warn)", border: "1px solid var(--gd-border)" }}
+        >
+          {portfolio.unpriced_holdings} دارایی قیمت فعلی ندارد؛ P&L آن‌ها «—» است و در
+          مجموع سود/زیان حساب نشده‌اند (صفر جعلی ساخته نمی‌شود).
+        </div>
+      )}
 
       <div className="rounded-xl overflow-hidden" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}>
         <div className="px-4 py-3 text-sm font-semibold" style={{ color: "var(--gd-text)" }}>
@@ -176,6 +250,7 @@ function OverviewTab({ portfolio }: { portfolio: Portfolio }) {
                 <th className="text-left p-3">قیمت فعلی</th>
                 <th className="text-left p-3">ارزش</th>
                 <th className="text-left p-3">P&L</th>
+                <th className="text-left p-3">حذف</th>
               </tr>
             </thead>
             <tbody>
@@ -186,10 +261,32 @@ function OverviewTab({ portfolio }: { portfolio: Portfolio }) {
                   <td className="p-3 text-left font-mono" style={{ color: "var(--gd-text-2)" }}>{fmt(h.avg_buy_price)}</td>
                   <td className="p-3 text-left font-mono" style={{ color: "var(--gd-text)" }}>{fmt(h.current_price)}</td>
                   <td className="p-3 text-left font-mono" style={{ color: "var(--gd-text)" }}>{fmt(h.current_value)}</td>
-                  <td className={`p-3 text-left font-mono font-bold ${h.pnl_irt >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                    {h.pnl_irt >= 0 ? "+" : ""}
-                    {fmt(h.pnl_irt)} ({h.pnl_pct >= 0 ? "+" : ""}
-                    {h.pnl_pct.toFixed(1)}٪)
+                  <td
+                    className="p-3 text-left font-mono font-bold"
+                    style={{
+                      // نبودِ داده خنثی است، نه سبز/قرمز (F3).
+                      color: h.pnl_irt === null || h.pnl_irt === undefined ? "var(--gd-text-3)" : h.pnl_irt >= 0 ? "var(--gd-success)" : "var(--gd-danger)",
+                    }}
+                  >
+                    {signedFmt(h.pnl_irt)} ({signedPct(h.pnl_pct, 1)})
+                  </td>
+                  <td className="p-3 text-left">
+                    {h.id ? (
+                      <button
+                        onClick={() => setPendingDelete(h)}
+                        className="text-xs"
+                        style={{ color: "var(--gd-danger)" }}
+                        aria-label={`حذف دارایی ${h.display_name}`}
+                      >
+                        حذف
+                      </button>
+                    ) : (
+                      // تا وقتی /portfolio شناسهٔ holding را برنگرداند این دکمه
+                      // ساخته نمی‌شود (handoff به بک‌اند).
+                      <span className="text-[10px]" style={{ color: "var(--gd-text-3)" }} title="شناسهٔ دارایی در پاسخ سرور نیست">
+                        —
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -197,6 +294,27 @@ function OverviewTab({ portfolio }: { portfolio: Portfolio }) {
           </table>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`حذف دارایی «${pendingDelete?.display_name ?? ""}»؟`}
+        description={
+          <>
+            <div className="font-semibold" style={{ color: "var(--gd-danger)" }}>
+              معامله‌های این دارایی هم تحت‌تأثیرند.
+            </div>
+            <div className="mt-2">
+              حذف به‌صورت نرم (soft-delete) انجام می‌شود: ردیف دارایی از نمای پورتفو
+              خارج می‌شود ولی خودش و معامله‌های ثبت‌شدهٔ آن در دیتابیس می‌مانند، پس
+              گزارش مالیاتی سوراخ نمی‌شود. برای برگرداندن باید از سمت سرور
+              operation انجام شود — این کار قابل بازگشت از UI نیست.
+            </div>
+          </>
+        }
+        confirmLabel={deleting ? "در حال حذف..." : "حذف نرم"}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
@@ -406,17 +524,29 @@ function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanStatus[]; currentScore: number; onScoreChange: (s: number) => void; onChange: () => void }) {
+function DCATab({ plans, onChange }: { plans: PlanStatus[]; onChange: () => void }) {
   const [name, setName] = useState("");
   const [capital, setCapital] = useState(100_000_000);
   const [risk, setRisk] = useState<"balanced" | "conservative" | "aggressive">("balanced");
   const [submitting, setSubmitting] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<PlanStatus | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const onCreate = async () => {
     if (!name.trim()) return;
     setSubmitting(true);
     try {
-      await apiPost(`/gold/portfolio/dca?total_capital_irt=${capital}&risk_profile=${risk}&current_score=${currentScore}&vehicle=etf&name=${encodeURIComponent(name)}`, {});
+      // دو اصلاح هم‌زمان:
+      //   ۱) قبلاً همهٔ فیلدها در query string می‌رفتند در حالی که این route بدنهٔ
+      //      JSON می‌خواهد (`p: DCAPlanCreate` در api.py:991-999) — یعنی «ساخت پلن»
+      //      با 422 می‌خوابست.
+      //   ۲) C4: امتیاز دیگر از کلاینت نمی‌آید؛ بک‌اند آن را از snapshot سرور برمی‌دارد.
+      await apiPost("/gold/portfolio/dca", {
+        name: name.trim(),
+        total_capital_irt: capital,
+        risk_profile: risk,
+        vehicle: "etf",
+      });
       onChange();
       setName("");
     } finally {
@@ -429,10 +559,16 @@ function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanS
     onChange();
   };
 
-  const onDelete = async (planId: number) => {
-    if (!confirm("حذف شود؟")) return;
-    await apiDelete(`/gold/portfolio/dca/${planId}`);
-    onChange();
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await apiDelete(`/gold/portfolio/dca/${pendingDelete.plan_id}`);
+      setPendingDelete(null);
+      onChange();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -446,9 +582,8 @@ function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanS
           <option value="balanced">متعادل (30/40/30)</option>
           <option value="aggressive">تهاجمی (50/30/20)</option>
         </select>
-        <div className="flex items-center gap-2 text-xs">
-          <span style={{ color: "var(--gd-text-2)" }}>امتیاز فعلی:</span>
-          <input type="number" min={0} max={100} value={currentScore} onChange={(e) => onScoreChange(parseInt(e.target.value) || 0)} className="w-20 px-2 py-1 rounded" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+        <div className="text-[11px] leading-5" style={{ color: "var(--gd-text-3)" }}>
+          امتیاز بازار از اسنپ‌شات سمت سرور خوانده می‌شود؛ دیگر از این فرم وارد نمی‌شود (C4).
         </div>
         <button onClick={onCreate} disabled={submitting || !name.trim()} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white rounded px-3 py-2 text-sm font-semibold">
           ساخت پلن
@@ -467,7 +602,14 @@ function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanS
                   سرمایه: {fmt(s.total_capital)} | اجرا: {s.executed}/3 | باقی: {s.remaining}
                 </div>
               </div>
-              <button onClick={() => onDelete(p.plan_id)} className="text-xs text-rose-400">حذف</button>
+              <button
+                onClick={() => setPendingDelete(p)}
+                className="text-xs"
+                style={{ color: "var(--gd-danger)" }}
+                aria-label={`حذف پلن ${p.name}`}
+              >
+                حذف
+              </button>
             </div>
 
             {isComplete ? (
@@ -496,6 +638,23 @@ function DCATab({ plans, currentScore, onScoreChange, onChange }: { plans: PlanS
           پلنی نیست — اولین پلن را بسازید
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`حذف پلن «${pendingDelete?.name ?? ""}»؟`}
+        description={
+          <>
+            پلن DCA و وضعیت اجرای پله‌هایش پاک می‌شود.
+            <div className="mt-2">
+              معامله‌هایی که با همین پلن ثبت شده‌اند حذف نمی‌شوند، ولی دیگر به پلنی
+              متصل نخواهند بود.
+            </div>
+          </>
+        }
+        confirmLabel={deleting ? "در حال حذف..." : "حذف پلن"}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
@@ -531,8 +690,19 @@ function TradesTab({ trades }: { trades: Trade[] }) {
               <td className="p-3 text-left font-mono" style={{ color: "var(--gd-text-2)" }}>{t.quantity}</td>
               <td className="p-3 text-left font-mono" style={{ color: "var(--gd-text-2)" }}>{fmt(t.price)}</td>
               <td className="p-3 text-left font-mono" style={{ color: "var(--gd-text)" }}>{fmt(t.amount_irt)}</td>
-              <td className={`p-3 text-left font-mono ${t.pnl_irt >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                {t.pnl_irt ? (t.pnl_irt >= 0 ? "+" : "") + fmt(t.pnl_irt) : "—"}
+              <td
+                className="p-3 text-left font-mono"
+                style={{
+                  // صفرِ واقعی «بدون داده» نیست (قبلاً truthiness این را گیج می‌زد).
+                  color:
+                    t.pnl_irt === null || t.pnl_irt === undefined
+                      ? "var(--gd-text-3)"
+                      : t.pnl_irt >= 0
+                        ? "var(--gd-success)"
+                        : "var(--gd-danger)",
+                }}
+              >
+                {signedFmt(t.pnl_irt)}
               </td>
             </tr>
           ))}
