@@ -8,7 +8,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 import httpx
 from bs4 import BeautifulSoup
@@ -44,19 +45,23 @@ class TGJUPrice:
     price_irt: float
     change_pct: float | None
     source: str = "tgju"
+    unit: str = "toman"
+    fetched_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-# Map: tgju slug → (canonical name, factor)
-# "ons" در TGJU قیمت اونس به دلار است — مستقیماً XAUUSD
-TGJU_SYMBOLS: dict[str, tuple[str, float]] = {
-    "geram18": ("IR_GOLD_18K", 1.0),
-    "coin-emami": ("IR_COIN_EMAMI", 1.0),
-    "coin-bahar": ("IR_COIN_BAHAR", 1.0),
-    "coin-half": ("IR_COIN_HALF", 1.0),
-    "coin-quarter": ("IR_COIN_QUARTER", 1.0),
-    "price_dollar_rl": ("USD", 1.0),
-    "price_aed": ("AED", 1.0),
-    "ons": ("XAUUSD", 1.0),
+# Map: tgju slug → (canonical name, factor to Toman, source unit)
+# TGJU gold/coin pages are quoted in Toman; the currency pages whose slug ends
+# in ``_rl`` are quoted in Rial. The old blanket "price > 2,000,000 → /10"
+# divided 18k gold and full coins by 10 as well, corrupting every gold fallback.
+TGJU_SYMBOLS: dict[str, tuple[str, float, str]] = {
+    "geram18": ("IR_GOLD_18K", 1.0, "toman"),
+    "coin-emami": ("IR_COIN_EMAMI", 1.0, "toman"),
+    "coin-bahar": ("IR_COIN_BAHAR", 1.0, "toman"),
+    "coin-half": ("IR_COIN_HALF", 1.0, "toman"),
+    "coin-quarter": ("IR_COIN_QUARTER", 1.0, "toman"),
+    "price_dollar_rl": ("USD", 0.1, "rial"),
+    "price_aed": ("AED", 0.1, "rial"),
+    "ons": ("XAUUSD", 1.0, "usd"),
 }
 
 
@@ -105,20 +110,16 @@ async def _fetch_one(slug: str, client: httpx.AsyncClient) -> TGJUPrice | None:
     if not parsed:
         return None
     price, change = parsed
-    # TGJU ریال برمی‌گرداند برای ارز/طلا → اگر > 1e6 ریال ≈ تومان/10
-    # اما همه قیمت‌های ریالی TGJU برحسب ریال هستند — تبدیل به تومان با /10 اگر خیلی بزرگ
-    # برای سازگاری با BrsApi که تومان است: اگه price > 10_000_000 → فرض ریال و /10
-    # (این heuristic فقط وقتی قیمت مشکوک بزرگ است اعمال می‌شود)
-    # توجه: "ons" دلار است و نباید تبدیل ریال شود.
-    canonical, _ = TGJU_SYMBOLS[slug]
-    if canonical != "XAUUSD" and price > 5_000_000:
-        # احتمالاً ریال است — به تومان تبدیل کن
-        # اما این مبدل را فقط زمانی اعمال می‌کنیم که قیمت غیرمنطقی برای تومان باشد
-        # (دلار 800k تومان واقعی، ریال 8M) — اگر XAUUSD نیست
-        # نرمال: دلار ≈ 700k-900k تومان → اگر 7M-9M → ریال بوده
-        if price > 2_000_000:
-            price = price / 10.0
-    return TGJUPrice(symbol=canonical, price_irt=price, change_pct=change)
+    canonical, factor, source_unit = TGJU_SYMBOLS[slug]
+    # واحد هر slug صریح است (بالا)؛ هیچ heuristic بزرگی/کوچکی روی قیمت نیست.
+    # قیمت نهایی قرارداد بازار ایران تومان است (BrsApi هم تومان می‌دهد).
+    price = price * factor
+    return TGJUPrice(
+        symbol=canonical,
+        price_irt=price,
+        change_pct=change,
+        unit="usd" if source_unit == "usd" else "toman",
+    )
 
 
 async def fetch_prices(symbols: list[str] | None = None) -> list[TGJUPrice]:

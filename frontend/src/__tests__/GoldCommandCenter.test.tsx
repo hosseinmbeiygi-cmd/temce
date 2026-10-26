@@ -22,6 +22,11 @@ vi.mock("@/lib/goldApi", async (importOriginal) => ({
 import GoldCommandCenterPage from "@/app/gold/page";
 
 const asset = (overrides: Record<string, unknown>) => ({
+  value: 46_000_000,
+  unit: "toman" as const,
+  asOf: "2026-10-19T09:59:00Z",
+  source: "brsapi" as const,
+  quality: "LIVE" as const,
   symbol: "IR_COIN_EMAMI",
   display_name: "سکه امامی",
   asset_type: "coin" as const,
@@ -45,6 +50,9 @@ const snapshot: Snapshot = {
     dxy_index: 102.5,
     source: "brsapi",
     age_seconds: 12,
+    asOf: "2026-10-19T09:59:00Z",
+    quality: "LIVE",
+    unit: "toman",
   },
   gold: {
     gold_18k: asset({

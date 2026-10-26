@@ -7,6 +7,10 @@ export type Decision = "GREEN" | "YELLOW" | "RED" | "NO_DATA";
 export type RiskProfile = "conservative" | "balanced" | "aggressive";
 export type Vehicle = "etf" | "cert" | "melted" | "coin" | "jewelry";
 
+export type PriceQuality = "LIVE" | "DELAYED" | "SAMPLE" | "EDUCATIONAL";
+export type PriceUnit = "toman" | "rial" | "ounce";
+export type PriceSource = "brsapi" | "tgju" | "cache";
+
 export interface ReferenceBlock {
   xau_usd: number;
   usd_irt: number;
@@ -14,11 +18,24 @@ export interface ReferenceBlock {
   aed_parity_usd: number;
   aed_gap_pct: number;
   dxy_index: number | null;
-  source: "brsapi" | "tgju" | "cache";
-  age_seconds: number;
+  source: PriceSource;
+  // null یعنی سن داده نامشخص است — نه صفر.
+  age_seconds: number | null;
+  // Provenance added in Phase 0. Optional so older payloads still type-check,
+  // but the backend always sends them now.
+  asOf?: string | null;
+  quality?: PriceQuality;
+  unit?: PriceUnit;
 }
 
 export interface AssetBlock {
+  // قرارداد Phase 0: هر قیمت باید این پنج فیلد را داشته باشد.
+  value: number;
+  unit: PriceUnit;
+  asOf: string;
+  source: PriceSource;
+  quality: PriceQuality;
+
   symbol: string;
   display_name: string;
   asset_type: AssetType;
@@ -27,6 +44,7 @@ export interface AssetBlock {
   bubble_abs: number | null;
   bubble_pct: number | null;
   implied_usd: number | null;
+  // برچسب قدیمی سطح snapshot؛ هرگز نباید به‌جای `quality` نمایش داده شود.
   quality_flag: string;
 }
 

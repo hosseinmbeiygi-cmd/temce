@@ -21,6 +21,13 @@ from .calculations import (
     calculate_nav_premium,
     scan_gold_arbitrage,
 )
+from .engine import (
+    calculate_pure_gold_18k,
+    calculate_coin_intrinsic,
+    calculate_bubble_pct,
+    calculate_implied_usd,
+    calculate_snapshot_fields,
+)
 
 __all__ = [
     "ETF_ASSETS",
@@ -36,4 +43,9 @@ __all__ = [
     "CoinBubbleResult",
     "DollarAdjustedResult",
     "ArbitrageResult",
+    "calculate_pure_gold_18k",
+    "calculate_coin_intrinsic",
+    "calculate_bubble_pct",
+    "calculate_implied_usd",
+    "calculate_snapshot_fields",
 ]

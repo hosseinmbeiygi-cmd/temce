@@ -72,6 +72,9 @@ export default function ImeSpreadSection() {
       <div className="text-[11px] text-zinc-500">
         {data.pair ?? "—"} · {data.action ?? "—"} · ناخالص {fmtPct(data.gross_spread_pct)}
       </div>
+      <div className="text-[10px] text-zinc-600">
+        نسبت تحلیلی محاسبه‌شده از اسنپ‌شات؛ قیمت مستقل بازار یا پیشنهاد معامله نیست.
+      </div>
     </section>
   );
 }

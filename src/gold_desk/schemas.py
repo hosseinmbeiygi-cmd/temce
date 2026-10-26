@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 
 class ReferenceBlock(BaseModel):
-    """مرجع‌های قیمت (XAU, USD, AED)."""
+    """مرجع‌های قیمت (XAU, USD, AED) با منبع و تازگی صریح."""
 
     xau_usd: float
     usd_irt: float
@@ -22,11 +22,24 @@ class ReferenceBlock(BaseModel):
     aed_parity_usd: float
     aed_gap_pct: float
     source: Literal["brsapi", "tgju", "cache"] = "brsapi"
-    age_seconds: float = 0.0
+    # None = منبع timestamp نداده؛ UI باید «—» نشان دهد، نه «۰ ثانیه پیش».
+    age_seconds: float | None = None
+    asOf: datetime | None = None
+    quality: Literal["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"] = "DELAYED"
+    # واحد usd_irt/aed_irt. xau_usd همیشه دلار است.
+    unit: Literal["toman", "rial", "ounce"] = "toman"
+    dxy_index: float | None = None
 
 
 class AssetBlock(BaseModel):
     """یک دارایی (طلا یا سکه)."""
+
+    # Required fields per contract: value, unit, asOf, source, quality
+    value: float
+    unit: Literal["toman", "rial", "ounce"]
+    asOf: datetime
+    source: Literal["brsapi", "tgju", "cache"]
+    quality: Literal["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"]
 
     symbol: str
     display_name: str

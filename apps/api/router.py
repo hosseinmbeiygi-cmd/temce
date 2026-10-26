@@ -296,8 +296,10 @@ class Router:
             router.include_router(
                 gold_desk_personal_router, tags=["GoldDesk"], dependencies=_require_user
             )
-        except Exception as exc:  # noqa: BLE001 — optional surface; never block startup
-            logger.warning("GoldDesk personal router not mounted: %s", exc)
+        except Exception:  # noqa: BLE001 — optional surface; never block startup
+            # Phase 0: a silent warning hid a broken mount before. Keep startup
+            # non-fatal, but log the full traceback so a 404 storm is traceable.
+            logger.exception("GoldDesk personal router not mounted")
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # Reference market data may be read by anonymous visitors (the landing and
         # /markets pages render before login); every write still needs a token.

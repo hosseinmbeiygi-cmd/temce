@@ -26,7 +26,12 @@ def _externals(monkeypatch, score_result) -> None:
         return {}
 
     async def _refs(*_args, **_kwargs):
-        return ({"xau_usd": 2000.0, "usd_irt": 60_000.0, "aed_irt": 16_400.0}, "brsapi")
+        return (
+            {"xau_usd": 2000.0, "usd_irt": 60_000.0, "aed_irt": 16_400.0},
+            "brsapi",
+            None,
+            {},
+        )
 
     async def _funds(*_args, **_kwargs):
         return []

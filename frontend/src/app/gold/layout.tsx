@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { getTelegramStatus } from "@/lib/goldApi";
 import { formatAge, useGoldWS } from "@/hooks/useGoldWS";
 import { ThemeProvider, ThemeToggle } from "@/components/gold/ThemeProvider";
+import { GoldDisclaimer } from "@/components/gold/GoldDisclaimer";
 import { LiveSignalBanner } from "@/components/gold/LiveSignalBanner";
 import { PWAProvider } from "@/components/gold/PWAProvider";
 import { NativeBridge } from "@/components/gold/NativeBridge";
@@ -119,6 +120,10 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
               <span className="text-emerald-500 hidden sm:inline">📨 TG</span>
             )}
           </div>
+        </div>
+        {/* D: سلب مسئولیت ثابت در هدر کل میز طلا */}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pb-2">
+          <GoldDisclaimer variant="banner" />
         </div>
       </header>
 

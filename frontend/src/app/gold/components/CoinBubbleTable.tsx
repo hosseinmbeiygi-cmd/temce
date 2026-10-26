@@ -2,6 +2,7 @@
 
 import type { AssetBlock } from "@/types/gold";
 import { cn } from "@/lib/cn";
+import { DataTrustBadge } from "@/components/gold/DataTrustBadge";
 
 interface CoinBubbleTableProps {
   data?: AssetBlock[];
@@ -35,7 +36,7 @@ export default function CoinBubbleTable({ data }: CoinBubbleTableProps) {
     <table className="w-full border-collapse text-sm">
       <thead>
         <tr className="border-b border-zinc-700/60 text-xs text-zinc-500">
-          <th className="px-2 py-1 text-right">سکه</th>
+          <th className="px-2 py-1 text-right">سکه / منبع داده</th>
           <th className="px-2 py-1 text-right">قیمت بازار</th>
           <th className="px-2 py-1 text-right">ارزش منصفانه</th>
           <th className="px-2 py-1 text-right">حباب</th>
@@ -44,7 +45,15 @@ export default function CoinBubbleTable({ data }: CoinBubbleTableProps) {
       <tbody>
         {data.map((asset) => (
           <tr key={asset.symbol} className="border-b border-zinc-700/30 hover:bg-zinc-800/20">
-            <td className="px-2 py-1 text-right text-zinc-100">{asset.display_name}</td>
+            <td className="px-2 py-1 text-right">
+              <div className="text-zinc-100">{asset.display_name}</div>
+              <DataTrustBadge
+                quality={asset.quality}
+                source={asset.source}
+                asOf={asset.asOf}
+                className="mt-1"
+              />
+            </td>
             <td className="px-2 py-1 text-right font-mono text-zinc-200">{fmtPrice(asset.market_price)}</td>
             <td className="px-2 py-1 text-right font-mono text-zinc-400">{fmtPrice(asset.fair_value)}</td>
             <td

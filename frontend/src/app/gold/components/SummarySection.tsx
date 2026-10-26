@@ -1,8 +1,10 @@
 "use client";
 
+import { DataTrustBadge, normalizeQuality } from "@/components/gold/DataTrustBadge";
+import { GoldDisclaimer } from "@/components/gold/GoldDisclaimer";
 import { SkeletonBlock } from "@/components/gold/ui/SkeletonBlock";
 import { decisionView } from "@/lib/gold-decision";
-import type { Snapshot } from "@/types/gold";
+import type { AssetBlock, PriceQuality, ReferenceBlock, Snapshot } from "@/types/gold";
 
 const fmt = (value: number | null | undefined, digits = 0): string => {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
@@ -17,6 +19,45 @@ const fmtPct = (value: number | null | undefined, digits = 2): string => {
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(digits)}٪`;
 };
+
+const UNIT_LABELS: Record<string, string> = {
+  toman: "تومان",
+  rial: "ریال",
+  ounce: "اونس",
+};
+
+interface CardTrust {
+  quality: PriceQuality;
+  source: string;
+  asOf: string | null;
+  ageSeconds: number | null;
+}
+
+interface SummaryCard {
+  label: string;
+  value: string;
+  hint?: string;
+  trust?: CardTrust;
+}
+
+function trustFromReference(refs: ReferenceBlock): CardTrust {
+  return {
+    quality: normalizeQuality(refs.quality),
+    source: refs.source,
+    asOf: refs.asOf ?? null,
+    ageSeconds: refs.age_seconds ?? null,
+  };
+}
+
+function trustFromAsset(asset?: AssetBlock): CardTrust | undefined {
+  if (!asset) return undefined;
+  return {
+    quality: normalizeQuality(asset.quality),
+    source: asset.source,
+    asOf: asset.asOf ?? null,
+    ageSeconds: null,
+  };
+}
 
 interface SummarySectionProps {
   snapshot?: Snapshot;
@@ -37,25 +78,52 @@ export default function GoldSummarySection({ snapshot, isLoading }: SummarySecti
   }
 
   const refs = snapshot.references;
-  const gold18k = snapshot.gold?.gold_18k?.market_price ?? null;
-  const melted = snapshot.gold?.gold_melted?.market_price ?? null;
+  const gold18k = snapshot.gold?.gold_18k;
+  const melted = snapshot.gold?.gold_melted;
 
   // F3/C1: decision ناشناخته یا NO_DATA هیچ‌وقت سبز/قرمز نمی‌شود.
   const view = decisionView(snapshot.score.decision);
   const coverage = snapshot.score.data_coverage_pct;
+  const refTrust = trustFromReference(refs);
 
-  const cards: Array<{ label: string; value: string; hint?: string }> = [
-    { label: "اونس طلا (XAU/USD)", value: fmt(refs.xau_usd, 2), hint: "USD" },
-    { label: "دلار آزاد", value: fmt(refs.usd_irt), hint: "ریال" },
+  const cards: SummaryCard[] = [
+    { label: "اونس طلا (XAU/USD)", value: fmt(refs.xau_usd, 2), hint: "دلار", trust: refTrust },
+    {
+      label: "دلار آزاد",
+      value: fmt(refs.usd_irt),
+      hint: UNIT_LABELS[refs.unit ?? "toman"] ?? "تومان",
+      trust: refTrust,
+    },
     {
       label: "اختلاف درهم با پگ",
       value: fmtPct(refs.aed_gap_pct),
       hint: `AED/IRT ${fmt(refs.aed_irt)}`,
+      trust: refTrust,
     },
-    { label: "طلای ۱۸ عیار (گرم)", value: fmt(gold18k), hint: "ریال" },
-    { label: "مثقال طلای آب‌شده", value: fmt(melted), hint: "ریال" },
-    { label: " شاخص دلار (DXY)", value: refs.dxy_index !== undefined ? fmt(refs.dxy_index, 2) : "—", hint: " شاخص دلار美国" },
+    {
+      label: "طلای ۱۸ عیار (گرم)",
+      value: gold18k ? fmt(gold18k.market_price) : "—",
+      hint: gold18k ? UNIT_LABELS[gold18k.unit] ?? "تومان" : "داده‌ای نیست",
+      trust: trustFromAsset(gold18k),
+    },
+    {
+      label: "مثقال طلای آب‌شده",
+      value: melted ? fmt(melted.market_price) : "—",
+      hint: melted ? UNIT_LABELS[melted.unit] ?? "تومان" : "داده‌ای نیست",
+      trust: trustFromAsset(melted),
+    },
+    {
+      label: "شاخص دلار (DXY)",
+      value: refs.dxy_index !== null && refs.dxy_index !== undefined ? fmt(refs.dxy_index, 2) : "—",
+      hint: "شاخص",
+      trust: refTrust,
+    },
   ];
+
+  // هر عددی که کیفیت SAMPLE/EDUCATIONAL دارد باید به‌وضوح «زنده نیست» اعلام شود.
+  const hasSimulated = cards.some(
+    (card) => card.trust?.quality === "SAMPLE" || card.trust?.quality === "EDUCATIONAL",
+  );
 
   return (
     <section className="gold-summary space-y-4">
@@ -78,28 +146,54 @@ export default function GoldSummarySection({ snapshot, isLoading }: SummarySecti
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] text-zinc-500">کیفیت مراجع بازار:</span>
+        <DataTrustBadge
+          quality={refs.quality}
+          source={refs.source}
+          asOf={refs.asOf ?? null}
+          ageSeconds={refs.age_seconds ?? null}
+        />
+      </div>
+
+      {hasSimulated && (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-500/60 bg-rose-950/40 px-4 py-3 text-xs font-semibold leading-5 text-rose-200"
+        >
+          بخشی از اعداد این صفحه دادهٔ نمونه یا آموزشی است و قیمت زنده نیست.
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-xl bg-zinc-900/40 p-3 ring-1 ring-zinc-700/50 backdrop-blur"
-          >
-            <div className="text-[11px] text-zinc-500">{card.label}</div>
-            <div className="mt-1 font-mono text-lg text-zinc-100">{card.value}</div>
-            {card.hint && <div className="text-[10px] text-zinc-600">{card.hint}</div>}
-          </div>
-        ))}
+        {cards.map((card) => {
+          const simulated =
+            card.trust?.quality === "SAMPLE" || card.trust?.quality === "EDUCATIONAL";
+          return (
+            <div
+              key={card.label}
+              className={`rounded-xl bg-zinc-900/40 p-3 ring-1 backdrop-blur ${
+                simulated ? "ring-2 ring-rose-500/60" : "ring-zinc-700/50"
+              }`}
+            >
+              <div className="text-[11px] text-zinc-500">{card.label}</div>
+              <div className="mt-1 font-mono text-lg text-zinc-100">{card.value}</div>
+              {card.hint && <div className="text-[10px] text-zinc-600">{card.hint}</div>}
+              {card.trust && (
+                <DataTrustBadge
+                  quality={card.trust.quality}
+                  source={card.trust.source}
+                  asOf={card.trust.asOf}
+                  ageSeconds={card.trust.ageSeconds}
+                  className="mt-2"
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <div className="text-[11px] text-zinc-500">
-        منبع مرجع: {refs.source} · کیفیت داده: {snapshot.quality_flag}
-        {refs.age_seconds ? ` · سن داده: ${fmt(refs.age_seconds)} ثانیه` : ""}
-      </div>
-
-      {/* F3: هشدار ثابت و قابل‌دیدن — این ابزار توصیهٔ مالی نیست. */}
-      <div className="text-[11px] leading-5 text-zinc-500">
-        ابزار تحلیلی، نه توصیهٔ مالی. تصمیم خرید و فروش با خودِ کاربر است.
-      </div>
+      <GoldDisclaimer className="mt-2" />
 
       {view.neutral && (
         <div className="rounded-lg border border-zinc-700/50 bg-zinc-900/40 px-4 py-3 text-xs leading-5 text-zinc-400">

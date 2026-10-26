@@ -70,7 +70,7 @@ export default function GoldCommandCenterPage() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-300">صندوق‌های طلا (P/NAV)</h2>
-          <FundsPnavTable data={data?.funds} />
+          <FundsPnavTable data={data?.funds} trust={data?.references} />
         </section>
 
         <FeedHealthSection />
