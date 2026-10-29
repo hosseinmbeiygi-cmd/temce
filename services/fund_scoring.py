@@ -629,10 +629,7 @@ def compute_fund_score(m: FundMetrics, group_avg_bubble: float | None = None) ->
         weighted_sum += v * w
         total_weight += w
 
-    if total_weight > 0:
-        base_score = weighted_sum / total_weight
-    else:
-        base_score = 50.0
+    base_score = weighted_sum / total_weight if total_weight > 0 else 50.0
 
     score = _clip(base_score, 0, 100)
 

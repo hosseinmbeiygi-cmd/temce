@@ -61,7 +61,7 @@ def test_classify_extremes_land_in_right_groups():
     assert groups["HIGH0"] == SymbolGroup.A and groups["LOW5"] == SymbolGroup.C
 
 
-def test_classify_single_symbol_is_A():
+def test_classify_single_symbol_is_a():
     assert classify_symbols([SymbolFeatures(symbol="ONLY")]) == {"ONLY": SymbolGroup.A}
 
 

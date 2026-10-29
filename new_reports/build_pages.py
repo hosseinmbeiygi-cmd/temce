@@ -398,11 +398,16 @@ def main():
             if tech['macd_hist'] is not None:
                 sigs.append(1 if tech['macd_hist'] > 0 else -1)
             if tech['rsi14']:
-                if tech['rsi14'] > 70: sigs.append(-1)
-                elif tech['rsi14'] < 30: sigs.append(1)
-            if sigs and sum(sigs) > 0: tech_signal = 'صعودی (SMA20>SMA50 و مومنتوم مثبت)'
-            elif sigs and sum(sigs) < 0: tech_signal = 'نزولی (SMA20<SMA50 و مومنتوم منفی)'
-            else: tech_signal = 'خنثی/مختلط'
+                if tech['rsi14'] > 70:
+                    sigs.append(-1)
+                elif tech['rsi14'] < 30:
+                    sigs.append(1)
+            if sigs and sum(sigs) > 0:
+                tech_signal = 'صعودی (SMA20>SMA50 و مومنتوم مثبت)'
+            elif sigs and sum(sigs) < 0:
+                tech_signal = 'نزولی (SMA20<SMA50 و مومنتوم منفی)'
+            else:
+                tech_signal = 'خنثی/مختلط'
         ctx = {
             'category': cat, 'source': info['source'], 'tech': tech, 'bt': bt_split, 'ml': ml, 'risk': risk,
             'tech_signal': tech_signal, 'risks': '؛ '.join(risk_note) if risk_note else 'ریسک خاصی از داده استخراج نشد',
@@ -449,7 +454,8 @@ def main():
             'category': cat, 'source': info['source'], 'tech': tech, 'bt': bt_split, 'ml': ml, 'risk': risk,
             'intraday': intr, 'tech_signal': UNK, 'unknown_fields': 11, 'risks': 'داده ۳۹ روزه — عمق تاریخی کم',
         }
-        info2 = dict(info); info2['unit'] = 'دلار'
+        info2 = dict(info)
+        info2['unit'] = 'دلار'
         page, uc, conf = build_page(sym, info2, ctx)
         with open(os.path.join(OUT, 'pages', sym + '.md'), 'w', encoding='utf-8') as f:
             f.write(page)
@@ -514,7 +520,6 @@ def main():
     for comp, data in sorted(codal_fin.items()):
         fin = data['fin']
         cur_d, prev_d, unaudited = data['periods']
-        shares = fin['capital']['cur'] * 1e6 / 1000 if fin.get('capital') else None  # capital million rial -> shares
         def ratio(num_, den):
             return num_ / den * 100 if (num_ is not None and den not in (None, 0)) else None
         def g(k, _fin=fin):
@@ -579,8 +584,10 @@ def main():
             subj = rec['subject'] or ''
             if subj and 'window.close' not in subj:
                 kind = 'نامشخص'
-                if 'شفاف' in subj: kind = 'نامشخص (شفاف‌سازی)'
-                elif 'مجمع' in subj: kind = 'خنثی (رویداد مجمع)'
+                if 'شفاف' in subj:
+                    kind = 'نامشخص (شفاف‌سازی)'
+                elif 'مجمع' in subj:
+                    kind = 'خنثی (رویداد مجمع)'
                 news.append([rec['file'][:10].replace('_html.htm', UNK and '') or UNK, subj[:80], subj[:60], kind])
         if not news:
             news = None
@@ -616,10 +623,8 @@ def main():
     for comp, recs in codal_html.items():
         if comp in codal_fin:
             continue
-        has_any = any(r['shareholders'] or r['subject'] for r in recs)
         if comp in ('خاذین', 'سخزر'):  # monthly-only
             mr = monthly.get(comp)
-            fin_rows = None
             ctx = {
                 'category': ('سهام بازار سرمایه ایران', 'بورس تهران'), 'source': f'codal/{comp}',
                 'fin': None, 'bt': None, 'ml': None, 'risk': None,
@@ -673,7 +678,8 @@ def main():
         for r in det_log:
             w.writerow(r)
 
-    json.dump(pages_meta, open(os.path.join(OUT, '_pages_meta.json'), 'w', encoding='utf-8'), ensure_ascii=False)
+    with open(os.path.join(OUT, '_pages_meta.json'), 'w', encoding='utf-8') as fh:
+        json.dump(pages_meta, fh, ensure_ascii=False)
     print('TOTAL pages:', len(pages_meta))
     return pages_meta
 

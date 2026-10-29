@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from ..constants import (
@@ -27,10 +26,6 @@ from ..constants import (
     SIGNAL_HOLD,
     SIGNAL_LABELS_FA,
     SIGNAL_STRONG_BUY,
-    TYPE_EQUITY,
-    TYPE_FIXED_INCOME,
-    TYPE_GOLD,
-    TYPE_LEVERAGED,
 )
 from ..metrics.engine import METRIC_REGISTRY
 
@@ -273,10 +268,7 @@ def _score_metric(
         return None
     v = float(value)
 
-    if peer_percentile is not None:
-        base = peer_percentile
-    else:
-        base = _sigmoid_normalize(v)
+    base = peer_percentile if peer_percentile is not None else _sigmoid_normalize(v)
 
     if lower_is_better:
         return 1.0 - base
@@ -382,10 +374,7 @@ def compute_score(
         return round(sum(w for w, wt in parts) / sum(wt for _, wt in parts) * 100, 2)
 
     total_w = sum(w for _, w in all_parts)
-    if total_w <= 0:
-        total = None
-    else:
-        total = round(sum(weighted for weighted, _ in all_parts) / total_w * 100, 2)
+    total = None if total_w <= 0 else round(sum(weighted for weighted, _ in all_parts) / total_w * 100, 2)
 
     signal = _signal_from_score(total)
     reasons = reasons[:5]

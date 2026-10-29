@@ -59,7 +59,6 @@ def _generate_vapid_keys() -> tuple[str, str]:
 
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
-        from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
         private_key = ec.generate_private_key(ec.SECP256R1())
         public_key = private_key.public_key()

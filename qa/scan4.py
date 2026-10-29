@@ -6,25 +6,35 @@ roots=["src","core","backtesting","api","services","ml","app","domain"]
 files=[]
 for r in roots:
     p=pathlib.Path(r)
-    if p.exists(): files+=list(p.rglob("*.py"))
+    if p.exists():
+        files+=list(p.rglob("*.py"))
 rows=[]
 for f in files:
-    try: lines=f.read_text(encoding="utf-8",errors="ignore").splitlines()
-    except Exception: continue
+    try:
+        lines=f.read_text(encoding="utf-8",errors="ignore").splitlines()
+    except Exception:
+        continue
     for i,ln in enumerate(lines,1):
         s=ln.strip()
-        if not s or s.startswith("#"): continue
+        if not s or s.startswith("#"):
+            continue
         risk=None
-        if re.search(r"\bfloat\s*\(",ln): risk="float-cast-money-risk"
+        if re.search(r"\bfloat\s*\(",ln):
+            risk="float-cast-money-risk"
         elif re.search(r"(pnl|profit|loss|balance|price\s*\*|amount\s*\*|nav|fee|commission|slippage)",ln,re.I) and re.search(r"[\+\-\*/]",ln) and not re.search(r"Decimal",ln):
             risk="money-math-no-decimal"
-        elif re.search(r"/\s*(std|variance|vol|count|n\b)",ln,re.I): risk="div-by-zero-risk"
-        elif re.search(r"(sharpe|drawdown|max_dd)",ln,re.I): risk="perf-metric-risk"
-        elif re.search(r"(iloc\s*\[\s*:\s*-|\.shift\s*\(\s*-|future|lookahead)",ln,re.I): risk="lookahead-risk"
+        elif re.search(r"/\s*(std|variance|vol|count|n\b)",ln,re.I):
+            risk="div-by-zero-risk"
+        elif re.search(r"(sharpe|drawdown|max_dd)",ln,re.I):
+            risk="perf-metric-risk"
+        elif re.search(r"(iloc\s*\[\s*:\s*-|\.shift\s*\(\s*-|future|lookahead)",ln,re.I):
+            risk="lookahead-risk"
         if risk:
             rows.append({"file":str(f),"line":i,"risk":risk,"code":s[:220]})
-        if len(rows)>=120: break
-    if len(rows)>=120: break
+        if len(rows)>=120:
+            break
+    if len(rows)>=120:
+        break
 top=rows[:30]
 md=["# TOP 30 Static Code Vulnerabilities\n"]
 for k,h in enumerate(top,1):

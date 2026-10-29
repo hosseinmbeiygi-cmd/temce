@@ -6,8 +6,8 @@ import math
 from datetime import date, timedelta
 
 import pytest
-from core.time import now_tehran
 
+from core.time import now_tehran
 from src.gold_desk.black76 import (
     IRAN_RISK_FREE_RATE,
     black76_greeks,

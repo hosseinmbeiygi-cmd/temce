@@ -75,7 +75,8 @@ def load_crypto(symbol: str, root: str) -> list[dict]:
         cands = _g.glob(os.path.join(root, "crypto_history", "*.json"))
         names = [os.path.basename(c)[:-12] for c in cands]
         raise FileNotFoundError(f"no crypto history for {symbol!r}; have: {names[:20]}")
-    rows = json.load(open(path, encoding="utf-8"))
+    with open(path, encoding="utf-8") as fh:
+        rows = json.load(fh)
     return [
         {
             "date": r["date"].replace("/", "-"),
@@ -150,7 +151,8 @@ def load_tse_ticks(symbol: str, start: str, end: str, root: str,
         if not (start <= day <= end):
             continue
         try:
-            ticks = json.load(open(os.path.join(sym_dir, fname), encoding="utf-8"))
+            with open(os.path.join(sym_dir, fname), encoding="utf-8") as fh:
+                ticks = json.load(fh)
         except Exception:
             continue
         bar, _dropped = aggregate_ticks(ticks, market_close)

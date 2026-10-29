@@ -158,13 +158,10 @@ async def main():
             # per-fill decomposition
             rows = []
             tot_comm = tot_slip = tot_tax = tot_clear = tot_broker = tot_notional = 0.0
-            for bar, order, fill in broker.records:
+            for bar, _order, fill in broker.records:
                 notional = fill.price * fill.quantity
                 principal = fill.price * fill.quantity
-                if str(getattr(fill.side, "value", fill.side)).lower() == "sell":
-                    tax = principal * TAX_PCT
-                else:
-                    tax = 0.0
+                tax = principal * TAX_PCT if str(getattr(fill.side, "value", fill.side)).lower() == "sell" else 0.0
                 clearing = principal * CLEARING_PCT
                 brk = principal * BROKER_PCT
                 rows.append({

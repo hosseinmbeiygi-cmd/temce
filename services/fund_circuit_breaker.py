@@ -147,9 +147,7 @@ class FundCircuitBreaker:
     async def allow(self, fund_id: str) -> bool:
         """آیا تماس با Provider برای این صندوق مجاز است؟"""
         state = await self._load(fund_id)
-        if state.open_until and state.open_until > time.time():
-            return False
-        return True
+        return not (state.open_until and state.open_until > time.time())
 
     async def record_failure(self, fund_id: str, error: str = "") -> BreakerState:
         state = await self._load(fund_id)

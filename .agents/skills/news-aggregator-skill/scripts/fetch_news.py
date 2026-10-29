@@ -1,5 +1,6 @@
 import argparse
 import concurrent.futures
+import contextlib
 import io
 import json
 import os
@@ -157,19 +158,23 @@ def fetch_hackernews(limit=5, keyword=None):
         url = f"{base_url}/news?p={page}"
         try:
             response = requests.get(url, headers=HEADERS, timeout=10)
-            if response.status_code != 200: break
-        except: break
+            if response.status_code != 200:
+                break
+        except Exception:
+            break
 
         soup = BeautifulSoup(response.text, 'html.parser')
         rows = soup.select('.athing')
-        if not rows: break
+        if not rows:
+            break
 
         page_items = []
         for row in rows:
             try:
                 id_ = row.get('id')
                 title_line = row.select_one('.titleline a')
-                if not title_line: continue
+                if not title_line:
+                    continue
                 title = title_line.get_text()
                 link = title_line.get('href')
 
@@ -181,7 +186,8 @@ def fetch_hackernews(limit=5, keyword=None):
                 age_span = soup.select_one(f'.age a[href="item?id={id_}"]')
                 time_str = age_span.get_text() if age_span else ""
 
-                if link and link.startswith('item?id='): link = f"{base_url}/{link}"
+                if link and link.startswith('item?id='):
+                    link = f"{base_url}/{link}"
 
                 page_items.append({
                     "source": "Hacker News",
@@ -191,10 +197,12 @@ def fetch_hackernews(limit=5, keyword=None):
                     "heat": score,
                     "time": time_str
                 })
-            except: continue
+            except Exception:
+                continue
 
         news_items.extend(filter_items(page_items, keyword))
-        if len(news_items) >= limit: break
+        if len(news_items) >= limit:
+            break
         page += 1
         time.sleep(0.5)
 
@@ -217,7 +225,8 @@ def fetch_weibo(limit=5, keyword=None):
         for item in items:
             # key 'note' is usually the title, sometimes 'word'
             title = item.get('note', '') or item.get('word', '')
-            if not title: continue
+            if not title:
+                continue
 
             # 'num' is the heat value
             heat = item.get('num', 0)
@@ -240,9 +249,6 @@ def fetch_weibo(limit=5, keyword=None):
 
 def fetch_github(limit=5, keyword=None):
     if keyword:
-         # Use GitHub Search for keywords
-         query = f"{keyword.split(',')[0]} sort:updated" # Use first kw as primary
-         url = f"https://github.com/search?q={requests.utils.quote(query)}&type=repositories"
          # Note: GitHub Search page is hard to scrape due to login requirements (often).
          # Fallback strat: Topics? "https://github.com/topics/{kw}?o=desc&s=updated"
          topic_url = f"https://github.com/topics/{keyword.split(',')[0].strip()}?o=desc&s=updated"
@@ -255,14 +261,16 @@ def fetch_github(limit=5, keyword=None):
                      # Topic page structure changes often, but let's try generic selector
                      h3 = article.select_one('h3 a')
                      # Actually standard topic page: <h3 class="f3"><a href="/user/repo">...
-                     if not h3: continue
+                     if not h3:
+                         continue
                      repo_link = h3['href'] # /user/repo
                      title = repo_link.strip('/')
                      link = "https://github.com" + repo_link
 
                      desc = ""
                      desc_div = article.select_one('.color-fg-muted')
-                     if desc_div: desc = desc_div.get_text(strip=True)
+                     if desc_div:
+                         desc = desc_div.get_text(strip=True)
 
                      items.append({
                         "source": "GitHub Trending",
@@ -271,20 +279,24 @@ def fetch_github(limit=5, keyword=None):
                         "heat": "Topic Match",
                         "time": "Updated recently"
                      })
-                if items: return items[:limit]
-         except: pass
+                if items:
+                    return items[:limit]
+         except Exception:
+             pass
 
     # Default Trending
     try:
         response = requests.get("https://github.com/trending", headers=HEADERS, timeout=10)
-    except: return []
+    except Exception:
+        return []
 
     soup = BeautifulSoup(response.text, 'html.parser')
     items = []
     for article in soup.select('article.Box-row'):
         try:
             h2 = article.select_one('h2 a')
-            if not h2: continue
+            if not h2:
+                continue
             title = h2.get_text(strip=True).replace('\n', '').replace(' ', '')
             link = "https://github.com" + h2['href']
 
@@ -303,7 +315,8 @@ def fetch_github(limit=5, keyword=None):
                 "heat": f"{stars} stars",
                 "time": "Today"
             })
-        except: continue
+        except Exception:
+            continue
     return filter_items(items, keyword)[:limit]
 
 def fetch_36kr(limit=5, keyword=None):
@@ -325,7 +338,8 @@ def fetch_36kr(limit=5, keyword=None):
                 "heat": ""
             })
         return filter_items(items, keyword)[:limit]
-    except: return []
+    except Exception:
+        return []
 
 def fetch_v2ex(limit=5, keyword=None):
     try:
@@ -335,7 +349,6 @@ def fetch_v2ex(limit=5, keyword=None):
         for t in data:
             # V2EX API fields: created, replies (heat)
             replies = t.get('replies', 0)
-            created = t.get('created', 0)
             # convert epoch to readable if possible, simpler to just leave as is or basic format
             # Let's keep it simple
             items.append({
@@ -346,7 +359,8 @@ def fetch_v2ex(limit=5, keyword=None):
                 "time": "Hot"
             })
         return filter_items(items, keyword)[:limit]
-    except: return []
+    except Exception:
+        return []
 
 def fetch_tencent(limit=5, keyword=None):
     try:
@@ -361,7 +375,8 @@ def fetch_tencent(limit=5, keyword=None):
                 "time": news.get('pub_time', '') or news.get('publish_time', '')
             })
         return filter_items(items, keyword)[:limit]
-    except: return []
+    except Exception:
+        return []
 
 def fetch_wallstreetcn(limit=5, keyword=None):
     try:
@@ -380,7 +395,8 @@ def fetch_wallstreetcn(limit=5, keyword=None):
                      "time": time_str
                  })
         return filter_items(items, keyword)[:limit]
-    except: return []
+    except Exception:
+        return []
 
 def fetch_producthunt(limit=5, keyword=None):
     try:
@@ -405,7 +421,8 @@ def fetch_producthunt(limit=5, keyword=None):
                 "heat": "Top Product" # RSS implies top rank
             })
         return filter_items(items, keyword)[:limit]
-    except: return []
+    except Exception:
+        return []
 
 # --- New Fetchers (RSS/API) ---
 
@@ -757,7 +774,8 @@ def fetch_rss_with_playwright(url, source_name, limit=5):
              if result.returncode == 0:
                  try:
                     data = json.loads(result.stdout)
-                    if not data: raise ValueError("Empty JSON")
+                    if not data:
+                        raise ValueError("Empty JSON")
                     return data
                  except Exception:
                     # Fallback for Ben's Bites if parsing fails
@@ -934,16 +952,16 @@ def main():
     else:
         requested_sources = [s.strip() for s in args.source.split(',')]
         for s in requested_sources:
-            if s in sources_map: to_run.append(sources_map[s])
+            if s in sources_map:
+                to_run.append(sources_map[s])
 
     results = []
 
     def run_fetchers(fetchers, limit, kw):
         res = []
         for func in fetchers:
-            try:
+            with contextlib.suppress(Exception):
                 res.extend(func(limit, kw))
-            except: pass
         return res
 
     # Primary Fetch

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class PRECOMPUTATION_PROGRESS(BaseModel):
+class PRECOMPUTATION_PROGRESS(BaseModel):  # noqa: N801 — wire event type
     group: str                     # "A" | "B" | "C"
     completed: int
     total: int
@@ -13,14 +13,14 @@ class PRECOMPUTATION_PROGRESS(BaseModel):
     current_symbol: str
 
 
-class PRECOMPUTATION_GROUP_COMPLETED(BaseModel):
+class PRECOMPUTATION_GROUP_COMPLETED(BaseModel):  # noqa: N801 — wire event type
     group: str
     total_processed: int
     failed: int
     timestamp: str                # ISO-8601
 
 
-class PRECOMPUTATION_COMPLETED(BaseModel):
+class PRECOMPUTATION_COMPLETED(BaseModel):  # noqa: N801 — wire event type
     total: int
     success: int
     failed: int
@@ -29,7 +29,7 @@ class PRECOMPUTATION_COMPLETED(BaseModel):
     timestamp: str                # ISO-8601
 
 
-class SYMBOL_RESULT_UPDATED(BaseModel):
+class SYMBOL_RESULT_UPDATED(BaseModel):  # noqa: N801 — wire event type
     symbol: str
     group: str                   # "A" | "B" | "C"
     armor_score: float

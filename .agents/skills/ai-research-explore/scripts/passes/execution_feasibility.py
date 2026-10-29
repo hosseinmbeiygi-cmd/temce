@@ -285,10 +285,8 @@ def import_probe_check(repo_path: Path, target_location_map: Sequence[dict[str, 
                 sys.modules.pop(module_name, None)
     finally:
         if sys_path_added:
-            try:
+            with contextlib.suppress(ValueError):
                 sys.path.remove(repo_root)
-            except ValueError:
-                pass
     hard_blockers = [item for item in blockers if not item.startswith("missing-dependency:")]
     soft_blockers = [item for item in blockers if item.startswith("missing-dependency:")]
     return {
@@ -350,10 +348,8 @@ def constructor_probe_check(repo_path: Path, target_location_map: Sequence[dict[
                 sys.modules.pop(module_name, None)
     finally:
         if sys_path_added:
-            try:
+            with contextlib.suppress(ValueError):
                 sys.path.remove(repo_root)
-            except ValueError:
-                pass
     return {
         "name": "constructor-probe",
         "status": "failed" if blockers else "passed",

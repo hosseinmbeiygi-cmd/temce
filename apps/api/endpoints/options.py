@@ -670,18 +670,18 @@ async def position_margin(body: MarginRequest) -> ApiResponse[dict[str, Any]]:
     try:
         legs = [
             OptionLeg(
-                leg_type=LegType(l.leg_type),
-                direction=Direction.LONG if l.direction == "long" else Direction.SHORT,
-                strike=l.strike,
-                premium=l.premium,
-                underlying_price=l.underlying_price,
-                days_to_expiry=l.days_to_expiry,
-                implied_volatility=l.implied_volatility,
-                contract_size=l.contract_size,
-                quantity=l.quantity,
-                underlying_group=l.underlying_group,
+                leg_type=LegType(leg.leg_type),
+                direction=Direction.LONG if leg.direction == "long" else Direction.SHORT,
+                strike=leg.strike,
+                premium=leg.premium,
+                underlying_price=leg.underlying_price,
+                days_to_expiry=leg.days_to_expiry,
+                implied_volatility=leg.implied_volatility,
+                contract_size=leg.contract_size,
+                quantity=leg.quantity,
+                underlying_group=leg.underlying_group,
             )
-            for l in body.legs
+            for leg in body.legs
         ]
         result = UniversalMarginEngine().calculate_margin(legs)
     except (ValueError, KeyError) as exc:

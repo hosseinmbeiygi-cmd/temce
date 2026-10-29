@@ -176,7 +176,7 @@ class FeatureStoreBuilder:
             constraint="ml_engineered_features_pkey",
             set_={
                 col: getattr(stmt.excluded, col)
-                for col in rows[0].keys() if col not in ("symbol", "trade_date")
+                for col in rows[0] if col not in ("symbol", "trade_date")
             },
         )
         for i in range(0, len(rows), SAVE_CHUNK_SIZE):

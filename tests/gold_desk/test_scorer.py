@@ -206,8 +206,8 @@ def test_tsetmc_point_split_matches_component_weight():
     from src.gold_desk import constants
 
     assert (
-        constants.TSETMC_BPR_GREEN_PTS + constants.TSETMC_INFLOW_GREEN_PTS
-        == constants.SCORE_WEIGHTS["tsetmc"]
+        constants.SCORE_WEIGHTS["tsetmc"]
+        == constants.TSETMC_BPR_GREEN_PTS + constants.TSETMC_INFLOW_GREEN_PTS
     )
     c = score_tsetmc(2.5, 6e9)
     assert c.value == constants.SCORE_WEIGHTS["tsetmc"]

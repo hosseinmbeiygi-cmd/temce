@@ -2,6 +2,7 @@
 Compare SKILL.md (current draft) vs SKILL-edit.md (action-verb + news-source variant)
 against top 'news' competitors. Show cosine on key queries and predicted final score.
 """
+import contextlib
 import json
 import math
 import os
@@ -70,10 +71,8 @@ def fetch_skill(slug):
             continue
         if f.get("size", 0) > 50_000:
             continue
-        try:
+        with contextlib.suppress(Exception):
             other.append((f["path"], fetch_file(f["path"])))
-        except Exception:
-            pass
     fm, body = parse_fm(txt)
     return fm, body, other, downloads
 
@@ -93,8 +92,11 @@ def main():
     if not os.environ.get("OPENAI_API_KEY"):
         sys.exit("set OPENAI_API_KEY first")
     client = OpenAI()
-    embed = lambda t: np.array(client.embeddings.create(model=MODEL, input=t).data[0].embedding)
-    cos = lambda a, b: float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    def embed(t):
+        return np.array(client.embeddings.create(model=MODEL, input=t).data[0].embedding)
+
+    def cos(a, b):
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
     # Load both local variants
     with open("e:/Code/Headline_Scraper/Frontend/TheHear/the-news-skill/clawhub/SKILL.md",

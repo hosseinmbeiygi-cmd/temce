@@ -100,7 +100,6 @@ class AssessmentOrchestrator:
         risk_points: list[str] = []
 
         ml_confidence = (ml.get("confidence") or 0)
-        ml_direction = (ml.get("direction") or "").lower()
         if ml_confidence and ml_confidence >= 0.6:
             buy_points.append("ML Direction with acceptable confidence")
         if market.get("buyerPower"):

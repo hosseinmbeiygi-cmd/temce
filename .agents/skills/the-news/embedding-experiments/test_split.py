@@ -2,6 +2,7 @@
 Test the new split SKILL.md (clawhub/SKILL.md) against the currently-published
 v1.0.8 and the top news competitors. Mirrors ClawHub's buildEmbeddingText.
 """
+import contextlib
 import json
 import os
 import re
@@ -70,10 +71,8 @@ def fetch_skill(slug):
             continue  # ClawHub filters .md from otherFiles
         if f.get("size", 0) > 50_000:
             continue
-        try:
+        with contextlib.suppress(Exception):
             other.append((f["path"], fetch_file(f["path"])))
-        except Exception:
-            pass
     fm, body = parse_fm(skill_md_text)
     return fm, body, other
 
@@ -91,9 +90,11 @@ def main():
     if not os.environ.get("OPENAI_API_KEY"):
         sys.exit("set OPENAI_API_KEY first")
     client = OpenAI()
-    embed = lambda t: np.array(
-        client.embeddings.create(model=MODEL, input=t).data[0].embedding)
-    cos = lambda a, b: float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    def embed(t):
+        return np.array(client.embeddings.create(model=MODEL, input=t).data[0].embedding)
+
+    def cos(a, b):
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
     # Build the new candidate from local clawhub/SKILL.md (no other files yet, REFERENCE.md
     # would be .md so excluded from embedding anyway)

@@ -896,7 +896,6 @@ async def run_scenario(
     details = ""
     if name == "nightly":
         demand = rec.total_demand
-        protected = max(0, demand - limits["daily"])
         details = (
             f"demand={demand:,} > daily={limits['daily']:,} → "
             f"{len(rec.rejected):,} requests rejected by fail-fast (key protected)"

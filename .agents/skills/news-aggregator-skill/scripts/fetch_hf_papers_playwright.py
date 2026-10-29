@@ -17,7 +17,7 @@ def fetch_papers(limit=10):
             # Go to the Daily Papers page
             try:
                 page.goto("https://huggingface.co/papers", timeout=60000, wait_until="domcontentloaded")
-            except:
+            except Exception:
                 print("Warning: Page Load Timeout. Attempting to extract partial content.", file=sys.stderr)
 
             # Wait for articles to load
@@ -33,12 +33,14 @@ def fetch_papers(limit=10):
                 try:
                     # Title is usually in an h3
                     title_el = art.query_selector("h3")
-                    if not title_el: continue
+                    if not title_el:
+                        continue
                     title = title_el.inner_text().strip()
 
                     # Link is in the h3 > a
                     link_el = title_el.query_selector("a")
-                    if not link_el: continue
+                    if not link_el:
+                        continue
                     href = link_el.get_attribute("href")
                     if href.startswith("/"):
                         href = "https://huggingface.co" + href
@@ -49,7 +51,8 @@ def fetch_papers(limit=10):
                         "heat": "Trending",
                         "summary": ""
                     })
-                except: continue
+                except Exception:
+                    continue
 
             # Now fetch details for each candidate
             for item in candidates:
@@ -57,7 +60,7 @@ def fetch_papers(limit=10):
                     sys.stderr.write(f" Visiting details: {item['url']}\n")
                     try:
                         page.goto(item['url'], timeout=60000, wait_until="domcontentloaded")
-                    except:
+                    except Exception:
                         sys.stderr.write("   -> Detail Page Timeout (Partial/Continue)\n")
 
                     # 1. Abstract

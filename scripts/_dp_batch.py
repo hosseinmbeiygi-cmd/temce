@@ -9,7 +9,8 @@ CRLF = chr(13) + chr(10)
 
 
 def edit(path: str, pairs: list[tuple[str, str]]) -> None:
-    raw = open(path, "rb").read().decode("utf-8")
+    with open(path, "rb") as fh:
+        raw = fh.read().decode("utf-8")
     b = raw.replace(CRLF, LF)
     for old, new in pairs:
         old_lf = old.replace(CRLF, LF)
@@ -17,7 +18,8 @@ def edit(path: str, pairs: list[tuple[str, str]]) -> None:
         assert old_lf in b, f"{path}: ANCHOR NOT FOUND: {old_lf[:80]!r}"
         b = b.replace(old_lf, new_lf, 1)
     b = b.replace(LF, CRLF)
-    open(path, "wb").write(b.encode("utf-8"))
+    with open(path, "wb") as fh:
+        fh.write(b.encode("utf-8"))
     print("OK", path)
 
 
@@ -54,11 +56,13 @@ edit("ingestion/storage/__init__.py", [
 ])
 
 # append the source_timestamp param for daily_ohlcv (last param before closing paren)
-b = open("ingestion/storage/__init__.py", "rb").read().decode("utf-8")
+with open("ingestion/storage/__init__.py", "rb") as fh:
+    b = fh.read().decode("utf-8")
 old = '            data.get("trade_count", 0),\r\n        )\r\n'
 assert old in b, "daily_ohlcv params anchor missing"
 b = b.replace(old, '            data.get("trade_count", 0),\r\n            StorageLayer._source_time(data),\r\n        )\r\n', 1)
-open("ingestion/storage/__init__.py", "wb").write(b.encode("utf-8"))
+with open("ingestion/storage/__init__.py", "wb") as fh:
+    fh.write(b.encode("utf-8"))
 print("OK daily_ohlcv param")
 
 # -- DP-022: corporate-action events reach the storage layer ---------------

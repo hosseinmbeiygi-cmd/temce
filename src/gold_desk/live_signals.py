@@ -124,10 +124,7 @@ def detect_signals(prev_snap: dict | None, curr_snap: dict) -> list[Signal]:
             )
 
     # ── 2. تغییر امتیاز کلی (threshold از constants) ─────────
-    if prev_score is None or curr_score is None:
-        score_delta = None
-    else:
-        score_delta = curr_score - prev_score
+    score_delta = None if prev_score is None or curr_score is None else curr_score - prev_score
     if score_delta is not None and abs(score_delta) >= LIVE_SCORE_DELTA:
         signals.append(
             Signal(

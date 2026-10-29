@@ -56,7 +56,7 @@ def main():
         sys.exit(1)
 
     servers = []
-    for cmd, port in zip(args.servers, args.ports):
+    for cmd, port in zip(args.servers, args.ports, strict=False):
         servers.append({'cmd': cmd, 'port': port})
 
     server_processes = []

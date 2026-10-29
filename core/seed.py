@@ -1,6 +1,7 @@
 """Central deterministic seed (P2)."""
 from __future__ import annotations
 
+import contextlib
 import os
 import random
 
@@ -22,10 +23,8 @@ def set_global_seed(seed: int = 42) -> int:
             _torch.cuda.manual_seed_all(seed)
         _torch.backends.cudnn.deterministic = True
         _torch.backends.cudnn.benchmark = False
-        try:
+        with contextlib.suppress(Exception):
             _torch.use_deterministic_algorithms(True, warn_only=True)
-        except Exception:
-            pass
     except Exception:
         pass
     return seed

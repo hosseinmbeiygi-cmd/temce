@@ -241,7 +241,7 @@ async def main():
             p = _heuristic_trend_predict(closes[: i + 1])
             preds_h.append(1.5 if p["direction"] == "buy" else (-1.5 if p["direction"] == "sell" else 0.0))
 
-        def run_preds(pp):
+        def run_preds(pp, bars=bars, sym=sym):
             bars2 = [dict(b, predicted_change_pct=pp[i]) for i, b in enumerate(bars)]
             r = BacktestSimulator().run(MlSignalStrategy(instrument_id=sym, sizing_method="percent",
                                                           sizing_value=90.0), CAP, bars2)

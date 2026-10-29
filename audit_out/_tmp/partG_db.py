@@ -49,7 +49,7 @@ async def main():
                 keys = [d[0] for d in (await c.execute(text(
                     "SELECT column_name FROM information_schema.columns WHERE table_name=:t ORDER BY ordinal_position"),
                     {"t": t})).fetchall()]
-                samples[t] = [dict(zip(keys, [str(x) for x in r])) for r in rows]
+                samples[t] = [dict(zip(keys, [str(x) for x in r], strict=False)) for r in rows]
             except Exception as e:
                 samples[t] = f"ERR {e}"
         out["samples"] = samples

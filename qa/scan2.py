@@ -5,8 +5,10 @@ import re
 pats=["pnl","realized","unrealized","drawdown","sharpe","margin","leverage","nav","fee","slippage","rsi","macd","ema"]
 hits=[]
 for p in list(pathlib.Path("src").rglob("*.py"))+list(pathlib.Path("backtesting").rglob("*.py"))+list(pathlib.Path("core").rglob("*.py")):
-    try: t=p.read_text(encoding="utf-8",errors="ignore")
-    except Exception: continue
+    try:
+        t=p.read_text(encoding="utf-8",errors="ignore")
+    except Exception:
+        continue
     low=t.lower()
     if any(k in low for k in pats):
         uses_decimal=bool(re.search(r"Decimal|BigNumber|quantize|integer",t))
@@ -18,7 +20,8 @@ for p in list(pathlib.Path("src").rglob("*.py"))+list(pathlib.Path("backtesting"
                 if re.search(r"float\(|/\s*\w|pnl|p&l|drawdown|sharpe",line,re.I):
                     hits.append({"file":str(p),"line":i,"code":line.strip()[:200],"float":uses_float,"decimal":uses_decimal})
                     break
-        if len(hits)>=30: break
+        if len(hits)>=30:
+            break
 pathlib.Path("qa").mkdir(exist_ok=True)
 log="\n".join([f"{h['file']}:{h['line']} | decimal={h['decimal']} float={h['float']} | {h['code']}" for h in hits])
 pathlib.Path("qa/math_integrity.log").write_text(f"hotspots={len(hits)}\n"+log,encoding="utf-8")

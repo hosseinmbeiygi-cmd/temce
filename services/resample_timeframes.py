@@ -20,7 +20,9 @@ def _to_gregorian(s: pd.Series) -> pd.Series:
 
 def resample_daily(df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     assert timeframe in RULES, timeframe
-    df=df.copy(); df["date"]=_to_gregorian(df["date"]); df=df.set_index("date").sort_index()
+    df=df.copy()
+    df["date"]=_to_gregorian(df["date"])
+    df=df.set_index("date").sort_index()
     return df.resample(RULES[timeframe]).agg(
         open=("open","first"),high=("high","max"),low=("low","min"),
         close=("close","last"),volume=("volume","sum")).dropna().reset_index()
@@ -29,7 +31,9 @@ def coverage_report(daily: dict[str,pd.DataFrame]) -> dict:
     rep={}
     for sym,df in daily.items():
         r={"1d":{"n":len(df),"from":str(df['date'].min()),"to":str(df['date'].max())}}
-        for tf in RULES: r[tf]={"n":len(resample_daily(df,tf))}
-        for tf in ["5m","15m","1h","4h"]: r[tf]={"n":0,"note":"incremental"}
+        for tf in RULES:
+            r[tf]={"n":len(resample_daily(df,tf))}
+        for tf in ["5m","15m","1h","4h"]:
+            r[tf]={"n":0,"note":"incremental"}
         rep[sym]=r
     return rep

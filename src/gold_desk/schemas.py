@@ -24,7 +24,7 @@ class ReferenceBlock(BaseModel):
     source: Literal["brsapi", "tgju", "cache"] = "brsapi"
     # None = منبع timestamp نداده؛ UI باید «—» نشان دهد، نه «۰ ثانیه پیش».
     age_seconds: float | None = None
-    asOf: datetime | None = None
+    asOf: datetime | None = None  # noqa: N815 — wire contract field
     quality: Literal["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"] = "DELAYED"
     # واحد usd_irt/aed_irt. xau_usd همیشه دلار است.
     unit: Literal["toman", "rial", "ounce"] = "toman"
@@ -37,7 +37,7 @@ class AssetBlock(BaseModel):
     # Required fields per contract: value, unit, asOf, source, quality
     value: float
     unit: Literal["toman", "rial", "ounce"]
-    asOf: datetime
+    asOf: datetime  # noqa: N815 — wire contract field
     source: Literal["brsapi", "tgju", "cache"]
     quality: Literal["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"]
 
@@ -64,7 +64,7 @@ class FundBlock(BaseModel):
     real_sell_value: int
     net_inflow: int
     nav_change_7d_pct: float | None = None
-    
+
 
 
 class ScoreComponents(BaseModel):
@@ -91,7 +91,7 @@ class ScoreBlock(BaseModel):
     raw_total: int = 0
     available_weight: int = 100
     data_coverage_pct: float = 100.0
-    
+
 
 
 class SnapshotResponse(BaseModel):
@@ -130,7 +130,7 @@ class DCARequest(BaseModel):
     risk_profile: Literal["conservative", "balanced", "aggressive"] = "balanced"
     current_score: int | None = Field(None, ge=0, le=100)
     preferred_vehicle: Literal["etf", "cert", "melted", "coin", "jewelry"] | None = None
-    
+
 
 
 class DCATranche(BaseModel):

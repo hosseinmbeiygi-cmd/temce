@@ -225,7 +225,7 @@ async def test_fresh_brsapi_snapshot_is_live_and_uses_source_time(monkeypatch):
             "IR_GOLD_18K": 25_937_200.0,
             "IR_COIN_EMAMI": 264_190_000.0,
         },
-        {symbol: stamp for symbol in ("XAUUSD", "USD", "AED", "IR_GOLD_18K", "IR_COIN_EMAMI")},
+        dict.fromkeys(("XAUUSD", "USD", "AED", "IR_GOLD_18K", "IR_COIN_EMAMI"), stamp),
     )
 
     async def _prices():
@@ -351,7 +351,7 @@ async def test_asset_without_its_own_timestamp_is_delayed(monkeypatch):
             "AED": 71_801.0,
             "IR_GOLD_18K": 25_937_200.0,
         },
-        {symbol: stamp for symbol in ("XAUUSD", "USD", "AED")},  # no gold stamp
+        dict.fromkeys(("XAUUSD", "USD", "AED"), stamp),  # no gold stamp
     )
 
     async def _prices():
@@ -378,13 +378,13 @@ async def test_asset_without_its_own_timestamp_is_delayed(monkeypatch):
 
 
 def test_schema_rejects_legacy_quality_and_source():
-    base = dict(
-        xau_usd=4165.0,
-        usd_irt=262_800.0,
-        aed_irt=71_801.0,
-        aed_parity_usd=3.66,
-        aed_gap_pct=0.1,
-    )
+    base = {
+        "xau_usd": 4165.0,
+        "usd_irt": 262_800.0,
+        "aed_irt": 71_801.0,
+        "aed_parity_usd": 3.66,
+        "aed_gap_pct": 0.1,
+    }
     assert ReferenceBlock(**base, quality="LIVE", source="brsapi").quality == "LIVE"
 
     with pytest.raises(ValueError):

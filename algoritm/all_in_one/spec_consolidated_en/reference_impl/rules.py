@@ -57,7 +57,7 @@ class RuleRegistry:
             by.setdefault((r.rule_key, r.scope), []).append(r)
         for (k, s), rs in by.items():
             rs = sorted(rs, key=lambda x: x.effective_from)
-            for a, b in zip(rs, rs[1:]):
+            for a, b in zip(rs, rs[1:], strict=False):
                 if a.effective_to is None or a.effective_to > b.effective_from:
                     raise RuleOverlap(f"overlap for {k}/{s}: {a.effective_from}..{a.effective_to} vs {b.effective_from}")
 

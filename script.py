@@ -218,7 +218,7 @@ def get_active_trade_dates(symbol: str, limiter: StrictRateLimiter, session: req
                 if d_formatted:
                     active_dates.add(d_formatted)
 
-        final_dates = sorted(list(active_dates))
+        final_dates = sorted(active_dates)
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(final_dates, f, ensure_ascii=False, indent=2)
 

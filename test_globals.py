@@ -1,6 +1,7 @@
 """Test to understand why init_database() doesn't set engine/async_session_factory"""
 import asyncio
-from core.database import engine, async_session_factory
+
+from core.database import async_session_factory, engine
 
 print("Before - engine:", engine)
 print("Before - af:", async_session_factory)

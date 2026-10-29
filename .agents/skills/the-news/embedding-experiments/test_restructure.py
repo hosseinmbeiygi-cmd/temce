@@ -67,9 +67,11 @@ def main():
     if not os.environ.get("OPENAI_API_KEY"):
         sys.exit("set OPENAI_API_KEY first")
     client = OpenAI()
-    embed = lambda t: np.array(
-        client.embeddings.create(model=MODEL, input=t).data[0].embedding)
-    cos = lambda a, b: float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    def embed(t):
+        return np.array(client.embeddings.create(model=MODEL, input=t).data[0].embedding)
+
+    def cos(a, b):
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
     # Published v1.0.8 (multilingual at bottom, gets cut)
     pub_meta, pub_raw = fetch_published_skill_md("the-news")
@@ -103,10 +105,10 @@ def main():
     print("-" * 60)
     for q in QUERIES:
         p = cos(pub_vec, query_vecs[q])
-        l = cos(local_vec, query_vecs[q])
-        d = l - p
+        local_sim = cos(local_vec, query_vecs[q])
+        d = local_sim - p
         marker = "  <-- !" if abs(d) > 0.02 else ""
-        print(f"{q:<22}{p:<14.4f}{l:<14.4f}{d:+.4f}{marker}")
+        print(f"{q:<22}{p:<14.4f}{local_sim:<14.4f}{d:+.4f}{marker}")
 
     # Also probe the multilingual presence
     print("\nDoes 'multilingual' / 'noticias' appear in each truncated text?")

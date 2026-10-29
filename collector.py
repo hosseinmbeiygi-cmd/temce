@@ -65,7 +65,7 @@ def get_active_trade_dates(symbol: str) -> list:
                     elif "-" in raw_date:
                         active_dates.append(raw_date)
 
-        active_dates = sorted(list(set(active_dates)))
+        active_dates = sorted(set(active_dates))
 
         # ذخیره در فایل کش
         with open(cache_path, "w", encoding="utf-8") as f:

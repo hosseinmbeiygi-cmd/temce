@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-with open('ruff_output.txt', 'r', encoding='utf-8', errors='replace') as f:
+with open('ruff_output.txt', encoding='utf-8', errors='replace') as f:
     content = f.read()
 
 # Extract error codes (SIM105, B007, E701, etc.)

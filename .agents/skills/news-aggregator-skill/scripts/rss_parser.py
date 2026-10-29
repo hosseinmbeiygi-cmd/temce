@@ -11,7 +11,8 @@ from bs4 import BeautifulSoup
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def clean_text(text):
-    if not text: return ""
+    if not text:
+        return ""
     text = text.strip()
     # html.parser leaves CDATA markers intact; strip them
     text = re.sub(r'^\s*<!\[CDATA\[|\]\]>\s*$', '', text).strip()
@@ -31,7 +32,8 @@ def parse_rss_content(content, source_name, limit=5):
         for entry in entries:
             # --- Title ---
             title_tag = entry.find('title')
-            if not title_tag: continue
+            if not title_tag:
+                continue
             title = clean_text(title_tag.get_text())
 
             # --- Link ---
@@ -61,10 +63,14 @@ def parse_rss_content(content, source_name, limit=5):
             content = entry.find('content')
 
             raw_summary = ""
-            if content_encoded: raw_summary = content_encoded.get_text()
-            elif description: raw_summary = description.get_text()
-            elif summary: raw_summary = summary.get_text()
-            elif content: raw_summary = content.get_text()
+            if content_encoded:
+                raw_summary = content_encoded.get_text()
+            elif description:
+                raw_summary = description.get_text()
+            elif summary:
+                raw_summary = summary.get_text()
+            elif content:
+                raw_summary = content.get_text()
 
             soup_desc = BeautifulSoup(raw_summary, 'html.parser')
             _summary_text = soup_desc.get_text(separator=' ', strip=True)
@@ -84,7 +90,8 @@ def parse_rss_content(content, source_name, limit=5):
                 "heat": heat,
                 "summary": clean_summary
             })
-            if len(items) >= limit: break
+            if len(items) >= limit:
+                break
 
         return items
     except Exception as e:

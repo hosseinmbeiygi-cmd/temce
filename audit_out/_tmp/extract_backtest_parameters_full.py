@@ -63,7 +63,7 @@ def signature_of(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     posonly = getattr(a, "posonlyargs", [])
     positional = list(posonly) + list(a.args)
     defaults: list[ast.expr | None] = [None] * (len(positional) - len(a.defaults)) + list(a.defaults)
-    for arg, default in zip(positional, defaults):
+    for arg, default in zip(positional, defaults, strict=False):
         piece = arg.arg
         ann = annotation_str(arg.annotation)
         if ann:
@@ -76,7 +76,7 @@ def signature_of(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
         parts.append(piece)
     if a.vararg:
         parts.append("*" + a.vararg.arg)
-    for arg, default in zip(a.kwonlyargs, a.kw_defaults):
+    for arg, default in zip(a.kwonlyargs, a.kw_defaults, strict=False):
         piece = arg.arg
         if default is not None:
             try:
@@ -96,13 +96,13 @@ def defaults_of(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> dict[str, str]:
     positional = list(getattr(a, "posonlyargs", [])) + list(a.args)
     defaults: list[ast.expr | None] = [None] * (len(positional) - len(a.defaults)) + list(a.defaults)
     out: dict[str, str] = {}
-    for arg, default in zip(positional, defaults):
+    for arg, default in zip(positional, defaults, strict=False):
         if default is not None:
             try:
                 out[arg.arg] = ast.unparse(default)
             except Exception:  # pragma: no cover
                 out[arg.arg] = "?"
-    for arg, default in zip(a.kwonlyargs, a.kw_defaults):
+    for arg, default in zip(a.kwonlyargs, a.kw_defaults, strict=False):
         if default is not None:
             try:
                 out[arg.arg] = ast.unparse(default)

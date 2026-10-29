@@ -4,6 +4,7 @@ Uses synthetic alert (__QATEST__ symbol), counts history rows, cleans up.
 Run: python qa/concurrency_proof.py [workers=30]
 """
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -45,10 +46,8 @@ async def main():
                 await s.commit()
                 return len(r)
             except Exception:
-                try:
+                with contextlib.suppress(Exception):
                     await s.rollback()
-                except Exception:
-                    pass
                 return -1
 
     res = await asyncio.gather(*[fire(i) for i in range(workers)])

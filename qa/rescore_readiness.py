@@ -30,7 +30,7 @@ def load_json(path: Path, default=None):
 
 def pytest_totals(path: Path) -> dict:
     """Sum the chunked pytest runs recorded in reports/pytest_chunks.txt."""
-    totals = dict(passed=0, failed=0, error=0, skipped=0)
+    totals = {"passed": 0, "failed": 0, "error": 0, "skipped": 0}
     hung = 0
     rows = 0
     for line in path.read_text(encoding="utf-8").splitlines():

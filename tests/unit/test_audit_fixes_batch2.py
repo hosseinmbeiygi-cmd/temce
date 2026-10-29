@@ -387,8 +387,8 @@ class TestSecretHandling:
         assert "StrongPass1" not in repr(r)
         assert r.password.get_secret_value() == "StrongPass1"
 
-        l = LoginRequest(username="ali", password="x")
-        assert isinstance(l.password, SecretStr)
+        login_req = LoginRequest(username="ali", password="x")
+        assert isinstance(login_req.password, SecretStr)
 
     def test_mfa_status_factory_hides_secret(self):
         from schemas.api.auth import MFAStatusResponse

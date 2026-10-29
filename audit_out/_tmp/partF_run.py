@@ -28,9 +28,11 @@ def feats(closes):
     c = np.array(closes, dtype=float)
     n = len(c)
     out = {}
-    r1 = np.zeros(n); r1[1:] = c[1:] / c[:-1] - 1
+    r1 = np.zeros(n)
+    r1[1:] = c[1:] / c[:-1] - 1
     out["ret_1"] = r1
-    r5 = np.zeros(n); r5[5:] = c[5:] / c[:-5] - 1
+    r5 = np.zeros(n)
+    r5[5:] = c[5:] / c[:-5] - 1
     out["ret_5"] = r5
     ma5 = np.convolve(c, np.ones(5) / 5, mode="full")[:n]
     out["ma5_ratio"] = np.where(ma5 > 0, c / ma5 - 1, 0)
@@ -40,13 +42,16 @@ def feats(closes):
     out["vol_5"] = vol5
     # RSI14 (simple)
     rsi = np.zeros(n)
-    gain = np.zeros(n); loss = np.zeros(n)
+    gain = np.zeros(n)
+    loss = np.zeros(n)
     for i in range(1, n):
         d = c[i] - c[i - 1]
-        gain[i] = max(d, 0); loss[i] = max(-d, 0)
+        gain[i] = max(d, 0)
+        loss[i] = max(-d, 0)
     for i in range(14, n):
-        g = gain[i - 13:i + 1].mean(); l = loss[i - 13:i + 1].mean()
-        rsi[i] = 100 - 100 / (1 + g / l) if l > 0 else 100
+        g = gain[i - 13:i + 1].mean()
+        loss_avg = loss[i - 13:i + 1].mean()
+        rsi[i] = 100 - 100 / (1 + g / loss_avg) if loss_avg > 0 else 100
     out["rsi_14"] = rsi
     return out
 
@@ -73,7 +78,8 @@ async def main():
             rows.append((s, i, bars[i]["timestamp"], [f["ret_1"][i], f["ret_5"][i], f["ma5_ratio"][i],
                                                       f["vol_5"][i], f["rsi_14"][i]], lab, closes[i]))
     rows.sort(key=lambda r: (r[2], r[0]))
-    X = np.array([r[3] for r in rows]); y = np.array([r[4] for r in rows])
+    X = np.array([r[3] for r in rows])
+    y = np.array([r[4] for r in rows])
     split = int(len(X) * 0.7)
     Xtr, ytr, Xte, yte = X[:split], y[:split], X[split:], y[split:]
     m = Ridge(alpha=1.0).fit(Xtr, ytr)
@@ -83,12 +89,13 @@ async def main():
 
     # daily cross-sectional RankIC across symbols
     days = {}
-    for r, p in zip(rows[split:], pred):
+    for r, p in zip(rows[split:], pred, strict=False):
         days.setdefault(r[2], []).append((p, r[4]))
     ics = []
-    for dt, vals in days.items():
+    for vals in days.values():
         if len(vals) >= 3:
-            ps = [v[0] for v in vals]; ys = [v[1] for v in vals]
+            ps = [v[0] for v in vals]
+            ys = [v[1] for v in vals]
             c = spearmanr(ps, ys).correlation
             if not np.isnan(c):
                 ics.append(float(c))
@@ -97,9 +104,8 @@ async def main():
 
     # long-only strategy from sign(pred) after SSOT costs, per symbol (reuse test preds)
     # simple: hold symbol on days where pred>0, rebalance portfolio equally daily
-    port_ret = []
     by_date = {}
-    for r, p in zip(rows[split:], pred):
+    for r, p in zip(rows[split:], pred, strict=False):
         by_date.setdefault(r[2], {})[r[0]] = (p, r[4])
     dates = sorted(by_date)
     # need close-to-close daily returns: approximate by using label/5? use per-symbol daily from bars
@@ -109,8 +115,8 @@ async def main():
         c = [b["close"] for b in bars]
         sym_daily[s] = {bars[i]["timestamp"]: (c[i] / c[i - 1] - 1 if i > 0 else 0) for i in range(len(bars))}
     prev_pos = dict.fromkeys(SYMBOLS, 0)
-    strat_eq = [1.0]; bh_eq = [1.0]
-    first_close = {s: data[s][0]["close"] for s in SYMBOLS}
+    strat_eq = [1.0]
+    bh_eq = [1.0]
     for dt in dates:
         # decide positions from previous prediction at dt (use same-day signal)
         rets = []

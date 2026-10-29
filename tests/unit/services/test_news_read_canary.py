@@ -153,20 +153,20 @@ class TestShadowRouting:
                         "INSERT INTO news_articles (id, title, source, url, category, published_at, published_at_ts, created_at) "
                         "VALUES (:i, :t, :s, :u, 'market', :p, :pts, now())"
                     ),
-                    dict(i=f"news_{marker}", t=f"{marker} legacy", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", p="2026-09-10T08:00:00+00:00",
-                         pts=datetime(2026, 9, 10, 8, 0)),
+                    {"i": f"news_{marker}", "t": f"{marker} legacy", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "p": "2026-09-10T08:00:00+00:00",
+                         "pts": datetime(2026, 9, 10, 8, 0)},
                 )
                 res = await session.execute(
                     text(
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, :p, 'market', :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} legacy", b="b", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", p=datetime(2026, 9, 10, 8, 0),
-                         h=f"hash_{marker}"),
+                    {"t": f"{marker} legacy", "b": "b", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "p": datetime(2026, 9, 10, 8, 0),
+                         "h": f"hash_{marker}"},
                 )
-                item_id = res.scalar_one()
+                res.scalar_one()
                 await session.commit()
 
                 monkeypatch.setattr(real_settings, "news_read_mode", "shadow", raising=False)
@@ -221,9 +221,9 @@ class TestShadowRouting:
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, :p, 'market', :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} t", b="b", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", p=datetime(2026, 9, 10, 8, 0),
-                         h=f"hash_{marker}"),
+                    {"t": f"{marker} t", "b": "b", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "p": datetime(2026, 9, 10, 8, 0),
+                         "h": f"hash_{marker}"},
                 )
                 item_id = res.scalar_one()
                 await session.commit()

@@ -45,7 +45,6 @@ class TestLearningEngineAtomicWrite:
         path = str(tmp_path / "test_learning.json")
         engine = LearningEngine(storage_path=path)
         engine.record_feedback("u1", "q", "r", 5, "first")
-        original = _read_json(path)
 
         # Simulate a scenario where the new data would fail:
         # The atomic pattern ensures the original file is never partially written.

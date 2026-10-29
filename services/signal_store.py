@@ -36,18 +36,24 @@ def save_signal(session, sig: dict):
         generated_at=sig.get("created_at"), eval_due_at=sig.get("eval_due_at"),
         schema_version=sig.get("schema_version",1), model_version=sig.get("model_version"),
         status="pending")
-    session.add(row); session.commit()  # DB transaction = atomic, no JSON corruption (5.10)
+    session.add(row)
+    session.commit()  # DB transaction = atomic, no JSON corruption (5.10)
     return row
 
 def update_evaluation(session, signal_id: str, **fields):
     from models.signal import SignalModel
     row = session.get(SignalModel, signal_id)
-    if not row: return None
+    if not row:
+        return None
     for k,v in fields.items():
-        if hasattr(row,k): setattr(row,k,v)
-    if isinstance(fields.get("top_reasons"),list): row.top_reasons=json.dumps(fields["top_reasons"],ensure_ascii=False)
-    if isinstance(fields.get("backtest_stats"),dict): row.backtest_stats=json.dumps(fields["backtest_stats"],ensure_ascii=False)
-    session.commit(); return row
+        if hasattr(row,k):
+            setattr(row,k,v)
+    if isinstance(fields.get("top_reasons"),list):
+        row.top_reasons=json.dumps(fields["top_reasons"],ensure_ascii=False)
+    if isinstance(fields.get("backtest_stats"),dict):
+        row.backtest_stats=json.dumps(fields["backtest_stats"],ensure_ascii=False)
+    session.commit()
+    return row
 
 def pending_due(session, now=None):
     from models.signal import SignalModel
@@ -70,6 +76,7 @@ def export_json(session, out_dir="data/signals", month: str | None = None):
     # schema_version backward-compat read: default missing keys
     path = os.path.join(out_dir, f"signals-{month}.json")
     tmp = path + ".tmp"
-    with open(tmp,"w",encoding="utf-8") as f: json.dump(data,f,ensure_ascii=False,default=str)
+    with open(tmp,"w",encoding="utf-8") as f:
+        json.dump(data,f,ensure_ascii=False,default=str)
     os.replace(tmp,path)  # atomic rename
     return path, len(data)

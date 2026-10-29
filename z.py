@@ -236,9 +236,7 @@ def is_valid_symbol_name(sym: str) -> bool:
     if any(c in sym for c in r'/\:*?"<>|@;,'):
         return False
     # نماد نباید صرفاً عدد یا خیلی طولانی باشد
-    if sym.isdigit() or len(sym) > 30 or len(sym) < 2:
-        return False
-    return True
+    return not (sym.isdigit() or len(sym) > 30 or len(sym) < 2)
 
 
 # ── مدیریت تقویم تعطیلات بازار ──
@@ -371,7 +369,7 @@ def extract_all_symbols(limiter):
         except Exception as e:
             logging.error(f"خطا در ارتباط با TSETMC: {e}")
 
-    clean_list = sorted(list(symbols))
+    clean_list = sorted(symbols)
     if clean_list:
         with open(SYMBOLS_CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(clean_list, f, ensure_ascii=False, indent=2)

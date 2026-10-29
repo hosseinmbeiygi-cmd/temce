@@ -26,7 +26,8 @@ async def main():
         """))).fetchall()
         print("=== per-symbol dup groups: do the price fields actually differ? ===")
         print("   symbol date n | distinct(price_last) distinct(volume) distinct(ins_id) distinct(fetch-days)")
-        for x in r: print("  ", tuple(x))
+        for x in r:
+            print("  ", tuple(x))
         print("\n=== is 'row' populated in intraday_trades (potential natural key)? ===")
         r = (await c.execute(text("""
             select count(*) total,
@@ -34,7 +35,7 @@ async def main():
                    count(distinct "row") row_distinct
             from brsapi_intraday_trades where symbol=(select symbol from brsapi_intraday_trades limit 1)
         """))).fetchone()
-        print("   total=%s row_non_null=%s row_distinct=%s" % tuple(r))
+        print("   total={} row_non_null={} row_distinct={}".format(*tuple(r)))
         r = (await c.execute(text("""
             select symbol, trade_date, time, price, volume, "row", count(*) n
             from brsapi_intraday_trades
@@ -42,6 +43,7 @@ async def main():
             group by 1,2,3,4,5,6 having count(*)>1 order by n desc limit 5
         """))).fetchall()
         print("   identical full-key groups (symbol,trade_date,time,price,volume,row):")
-        for x in r: print("    ", tuple(x))
+        for x in r:
+            print("    ", tuple(x))
     await e.dispose()
 asyncio.run(main())

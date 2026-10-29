@@ -13,7 +13,9 @@ from services.backtest_service import BacktestService, _compute_metrics
 from services.ml_signal_connector import _heuristic_trend_predict
 
 SYM = "\u062e\u0648\u062f\u0631\u0648"
-START = date(2024, 1, 1); END = date(2024, 12, 29); CAP = 1_000_000_000
+START = date(2024, 1, 1)
+END = date(2024, 12, 29)
+CAP = 1_000_000_000
 
 def summarize(res, fills_extra=0.0):
     m, failed = _compute_metrics(res)
@@ -47,7 +49,8 @@ async def main():
     preds_h = []
     for i in range(n):
         if i < 10:
-            preds_h.append(0.0); continue
+            preds_h.append(0.0)
+            continue
         p = _heuristic_trend_predict(closes[:i+1])
         preds_h.append(1.5 if p["direction"] == "buy" else (-1.5 if p["direction"] == "sell" else 0.0))
     out["A_heuristic_proxy"] = run_strat(bars, preds_h)

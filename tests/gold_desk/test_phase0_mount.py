@@ -9,8 +9,6 @@ level, without starting a server or touching the DB.
 
 from __future__ import annotations
 
-import pytest
-
 # Routes the Phase 0 gold frontend actually calls (one representative method per
 # surface). Analytics is public; the rest are auth-guarded at mount time, but
 # path presence is what this test guards.

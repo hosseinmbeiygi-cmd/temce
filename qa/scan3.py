@@ -4,7 +4,8 @@ import pathlib
 
 # Edge-case simulation: pure-math sanity (no app mutation)
 def max_dd(equity):
-    peak=e=equity[0]; mdd=0.0
+    peak = equity[0]
+    mdd=0.0
     for x in equity:
         peak=max(peak,x)
         dd=(x-peak)/peak if peak else 0.0
@@ -12,9 +13,12 @@ def max_dd(equity):
     return mdd
 def sharpe(rets):
     import statistics
-    if len(rets)<2: return 0.0
-    m=statistics.mean(rets); s=statistics.pstdev(rets)
-    if s==0: return 0.0
+    if len(rets)<2:
+        return 0.0
+    m=statistics.mean(rets)
+    s=statistics.pstdev(rets)
+    if s==0:
+        return 0.0
     return m/s*(252**0.5)
 cases=[
  ("bull",[100+i for i in range(100)]),
@@ -26,13 +30,17 @@ cases=[
 lines=[]
 for name,eq in cases:
     try:
-        if not eq: lines.append(f"{name}: handled empty -> PASS"); continue
+        if not eq:
+            lines.append(f"{name}: handled empty -> PASS")
+            continue
         rets=[(eq[i]-eq[i-1])/eq[i-1] for i in range(1,len(eq))]
-        mdd=max_dd(eq); sh=sharpe(rets)
+        mdd=max_dd(eq)
+        sh=sharpe(rets)
         ok = (mdd<=0) and (abs(sh)<1e9)
         lines.append(f"{name}: mdd={mdd:.4f} sharpe={sh:.4f} -> {'PASS' if ok else 'FAIL'}")
-    except Exception as e: lines.append(f"{name}: EXC {e} -> FAIL")
-rep="# Stability Report (math sanity)\n\n"+"\n".join("- "+l for l in lines)+"\n"
+    except Exception as e:
+        lines.append(f"{name}: EXC {e} -> FAIL")
+rep="# Stability Report (math sanity)\n\n"+"\n".join("- "+line for line in lines)+"\n"
 pathlib.Path("reports").mkdir(exist_ok=True)
 pathlib.Path("reports/stability_report.md").write_text(rep,encoding="utf-8")
 # results.json placeholder for 200-scenario (deterministic subset executed as sanity)

@@ -125,7 +125,7 @@ async def main() -> None:
             )
         ).all()
         last = None
-        for sym, price in rows:
+        for _sym, price in rows:
             last = price
         print(f"   تعداد ردیف‌های اسکن‌شده: {len(rows)}   مقدار نهایی dict: {last}")
         newest = (

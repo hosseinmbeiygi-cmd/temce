@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 for line in Path(".env").read_text(encoding="utf-8", errors="replace").splitlines():
     line = line.strip()
     if line and not line.startswith("#") and "=" in line:
-        k, v = line.split("=", 1); os.environ.setdefault(k.strip(), v.strip())
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
 url = os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+asyncpg://", 1)
 async def main():
     eng = create_async_engine(url, future=True)
@@ -16,7 +17,8 @@ async def main():
         r = (await c.execute(text(
             "SELECT indexname, indexdef FROM pg_indexes WHERE tablename='brsapi_historical_daily'"
         ))).fetchall()
-        for x in r: print("IDX:", x[0], "|", x[1])
+        for x in r:
+            print("IDX:", x[0], "|", x[1])
         b = (await c.execute(text(
             "SELECT pg_size_pretty(pg_total_relation_size('brsapi_historical_daily'))"
         ))).fetchone()

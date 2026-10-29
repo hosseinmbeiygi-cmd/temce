@@ -173,15 +173,15 @@ class TestDualWriterMirror:
 
     async def test_source_registry_updates_last_fetched(self, db_session):
         w = NewsDualWriter()
-        common = dict(
-            title=f"{_MARK} src freshness",
-            body=None,
-            source=f"{_MARK}_freshfeed",
-            published_at=None,
-            category="market",
-            is_breaking=False,
-            symbols=[],
-        )
+        common = {
+            "title": f"{_MARK} src freshness",
+            "body": None,
+            "source": f"{_MARK}_freshfeed",
+            "published_at": None,
+            "category": "market",
+            "is_breaking": False,
+            "symbols": [],
+        }
         await w.mirror(db_session, url="https://x.test/f1", dedup_hash="f" * 64, **common)
         await db_session.commit()
         t1 = (
@@ -301,7 +301,7 @@ class TestIngestEndToEnd:
             ProviderMock.return_value = AsyncMock()
             ProviderMock.return_value.feeds = {"x": "y"}
             ProviderMock.return_value.fetch_news = fake_fetch
-            stats2 = await service.ingest(
+            await service.ingest(
                 sources=[f"{_MARK}_e2e"], limit_per_source=5, save=True, verbose=False
             )
         count = await db_session.execute(

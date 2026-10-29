@@ -63,7 +63,7 @@ async def test_train_with_db_data_invalidates_loader_cache():
         patch.object(service, "_fetch_ohlcv") as mock_fetch,
         patch.object(service, "_build_features") as mock_feats,
         patch.object(service, "_split_time_series") as mock_split,
-        patch("services.training_service.model_registry.create", return_value=fake_model) as mock_create,
+        patch("services.training_service.model_registry.create", return_value=fake_model),
         patch.object(service.artifact_manager, "save_model", return_value="/tmp/artifacts/xgboost_فولاد/v1-test") as mock_save,
         patch.object(service, "_invalidate_model_cache") as mock_invalidate,
     ):

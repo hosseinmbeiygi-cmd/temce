@@ -9,13 +9,17 @@ Mounted with prefix ``/api/options`` in ``apps/api/router.py``.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from schemas.api.legal import LEGAL_DISCLAIMER_FA
 from schemas.common.responses import ApiResponse
+
+if TYPE_CHECKING:
+    from services.options_signals import LiquidityQuote
+
 
 router = APIRouter()
 
@@ -56,7 +60,7 @@ async def option_signals(
     ime_commodity: str | None = None,
 ) -> ApiResponse[dict[str, Any]]:
     from services.options_service import get_options_engine
-    from services.options_signals import LiquidityQuote, generate_guarded_signals
+    from services.options_signals import generate_guarded_signals
 
     engine = get_options_engine()
     candidates = engine.recommend(market_condition, risk_tolerance)

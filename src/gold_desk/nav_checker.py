@@ -12,10 +12,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+import jdatetime
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import jdatetime
 from core.time import now_tehran
 
 from .dates import jalali_days_ago
@@ -76,6 +76,20 @@ def _resolve_nav(nav_issue: Any, nav_redemption: Any, label: str = "") -> float 
     return redemption
 
 
+def _date_key(model: Any) -> Any:
+    """کلید مقایسهٔ تاریخ شمسی، مستقل از جداکنندهٔ ذخیره‌شده.
+
+    ``brsapi_nav_records.date`` (و ``historical_real_legal.date``) در دوره‌های
+    مختلف با ``1405/05/01`` و ``1405-06-23`` پر شده است. مقایسهٔ رشته‌ای خام
+    دو مشکل می‌سازد: (۱) ``'/'`` (0x2F) بزرگ‌تر از ``'-'`` (0x2D) است، پس
+    ``MAX(date)`` یک ردیف **قدیمی‌تر** اسلش‌دار را «آخرین» می‌بیند؛ (۲) شرط
+    ``date <= cutoff`` ردیف‌های اسلش‌دار همان بازه را بی‌صدا حذف می‌کند.
+
+    نرمال‌سازی در خود کوئری انجام می‌شود تا داده‌ای بازنویسی نشود.
+    """
+    return func.replace(model.date, "/", "-")
+
+
 def _pick_nav(row: Any) -> float | None:
     """انتخاب مقدار NAV از ردیف ``(nav_issue, nav_redemption)``.
 
@@ -98,7 +112,7 @@ async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
     stmt = (
         select(NavRecordModel.nav_issue, NavRecordModel.nav_redemption)
         .where(NavRecordModel.symbol == symbol)
-        .order_by(desc(NavRecordModel.date))
+        .order_by(desc(_date_key(NavRecordModel)))
         .limit(1)
     )
     result = await session.execute(stmt)
@@ -106,15 +120,30 @@ async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
 
 
 async def _nav_7d_ago(session: AsyncSession, symbol: str) -> float | None:
-    """NAV ۷ روز قبل."""
+    """NAV ۷ روز قبل — فقط اگر ردیفی **قدیمی‌تر از آخرین NAV** موجود باشد.
+
+    Audit FIN-07: with a single stale row the 7-day query matched the same row
+    as the latest one, so the fund scored a neutral 0.0% change instead of
+    "no data".
+    """
     from brsapi.models import NavRecordModel
 
-    # date در این جدول شمسی ذخیره می‌شود؛ cutoff هم باید شمسی باشد.
+    # date در این جدول شمسی ذخیره می‌شود؛ cutoff هم باید شمسی باشد و مقایسه باید
+    # روی تاریخ نرمال‌شده انجام شود (`_date_key`) تا ردیف‌های `1405/05/01` حذف نشوند.
     cutoff = jalali_days_ago(7)
+    latest_key = (
+        select(func.max(_date_key(NavRecordModel)))
+        .where(NavRecordModel.symbol == symbol)
+        .scalar_subquery()
+    )
     stmt = (
         select(NavRecordModel.nav_issue, NavRecordModel.nav_redemption)
-        .where(NavRecordModel.symbol == symbol, NavRecordModel.date <= cutoff)
-        .order_by(desc(NavRecordModel.date))
+        .where(
+            NavRecordModel.symbol == symbol,
+            _date_key(NavRecordModel) <= cutoff,
+            _date_key(NavRecordModel) < latest_key,
+        )
+        .order_by(desc(_date_key(NavRecordModel)))
         .limit(1)
     )
     result = await session.execute(stmt)
@@ -285,15 +314,18 @@ async def _latest_rows_by_symbol(session, model, columns, symbols, extra_where=N
     conditions = [model.symbol.in_(list(symbols))]
     if extra_where is not None:
         conditions.append(extra_where)
+    # کلید تاریخ نرمال‌شده (اسلش/خط تیره) — وگرنه MAX رشته‌ای ردیف قدیمی‌تر را
+    # «آخرین» می‌بیند و join هم با آن ردیف قدیمی تطبیق می‌دهد (باگ سری زمانی NAV).
+    date_key = _date_key(model)
     latest = (
-        select(model.symbol.label("symbol"), func.max(model.date).label("max_date"))
+        select(model.symbol.label("symbol"), func.max(date_key).label("max_date"))
         .where(*conditions)
         .group_by(model.symbol)
         .subquery()
     )
     stmt = select(*columns).join(
         latest,
-        and_(model.symbol == latest.c.symbol, model.date == latest.c.max_date),
+        and_(model.symbol == latest.c.symbol, date_key == latest.c.max_date),
     )
     result = await session.execute(stmt)
     return result.all()
@@ -324,7 +356,7 @@ async def _nav_7d_ago_batch(session: AsyncSession, symbols: list[str]) -> dict[s
         NavRecordModel,
         (NavRecordModel.symbol, NavRecordModel.nav_issue, NavRecordModel.nav_redemption),
         symbols,
-        extra_where=NavRecordModel.date <= jalali_days_ago(7),
+        extra_where=_date_key(NavRecordModel) <= jalali_days_ago(7),
     )
     return {r[0]: _resolve_nav(r[1], r[2]) for r in rows}
 

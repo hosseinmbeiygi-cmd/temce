@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -106,10 +107,8 @@ class NewsRepository:
             # callers apply any date/category predicates themselves.
             served = await self._mem.list(page, page_size)
         if decision.shadow and items is not None and self._db is not None:
-            try:
+            with contextlib.suppress(Exception):  # noqa: BLE001 — probe failure must not break serving
                 probed = await self._items_read_probe(page, page_size, date_from, date_to, category)
-            except Exception:  # noqa: BLE001 — probe failure must not break serving
-                pass
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
@@ -145,10 +144,8 @@ class NewsRepository:
                 )
             )
         if decision.shadow and items is not None and self._db is not None:
-            try:
+            with contextlib.suppress(Exception):  # noqa: BLE001
                 probed = await self._items_read.search(query, page, page_size, date_from=date_from, date_to=date_to)
-            except Exception:  # noqa: BLE001
-                pass
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
@@ -200,12 +197,10 @@ class NewsRepository:
                 )
             )
         if decision.shadow and items is not None and self._db is not None:
-            try:
+            with contextlib.suppress(Exception):  # noqa: BLE001
                 probed = await self._items_read.get_by_symbol(
                     symbol, page, page_size, date_from=date_from, date_to=date_to
                 )
-            except Exception:  # noqa: BLE001
-                pass
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served

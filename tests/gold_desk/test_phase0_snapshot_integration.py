@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -84,25 +83,25 @@ def test_snapshot_has_valid_data_structure_when_data_available():
     if gold_assets:
         first_gold_symbol = list(gold_assets.keys())[0]
         first_gold = gold_assets[first_gold_symbol]
-        
+
         # Per contract: AssetBlock must have value, unit, asOf, source, quality
         required_fields = ["value", "unit", "asOf", "source", "quality"]
         for field in required_fields:
             assert field in first_gold, f"Gold asset missing required field: {field}"
-        
+
         # Verify quality flag values
         assert first_gold["quality"] in ("LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL")
         assert first_gold["unit"] in ("toman", "rial", "ounce")
-    
+
     # Check coin assets have required fields (may be empty if no BrsApi data)
     coin_assets = snapshot.get("coins", {})
     if coin_assets:
         first_coin_symbol = list(coin_assets.keys())[0]
         first_coin = coin_assets[first_coin_symbol]
-        
+
         required_fields = ["value", "unit", "asOf", "source", "quality"]
         for field in required_fields:
             assert field in first_coin, f"Coin asset missing required field: {field}"
-        
+
         assert first_coin["quality"] in ("LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL")
         assert first_coin["unit"] in ("toman", "rial", "ounce")

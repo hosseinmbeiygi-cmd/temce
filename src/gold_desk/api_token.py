@@ -41,7 +41,7 @@ STORAGE_KEY = "golddesk:api_tokens"
 Scope = Literal["read", "write", "admin", "metrics"]
 
 
-def has_scope(info: "TokenInfo", scope: str) -> bool:
+def has_scope(info: TokenInfo, scope: str) -> bool:
     """آیا توکن دقیقاً همین scope را دارد؟ (``admin`` جای scope دیگری نمی‌نشیند)"""
     return scope in (info.scopes or [])
 

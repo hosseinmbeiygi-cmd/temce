@@ -50,15 +50,18 @@ class TestAdjust(unittest.TestCase):
         s, idx = self._series(None)
         ex = idx[5]
         # bonus g=0.25 -> price falls by 1/(1.25)
-        raw = s.copy(); raw[raw.index >= ex] = 100.0 / 1.25
+        raw = s.copy()
+        raw[raw.index >= ex] = 100.0 / 1.25
         adj = adjust.adjusted_close(raw, [adjust.Event(ex, "bonus", g=0.25)])
         self.assertTrue(((adj / adj.shift(1)).dropna() - 1).abs().max() < 1e-12)
         # cash dividend D=10
-        raw = s.copy(); raw[raw.index >= ex] = 90.0
+        raw = s.copy()
+        raw[raw.index >= ex] = 90.0
         adj = adjust.adjusted_close(raw, [adjust.Event(ex, "cash_dividend", dividend=10.0)])
         self.assertTrue(((adj / adj.shift(1)).dropna() - 1).abs().max() < 1e-12)
         # rights g=0.5 at K=40 -> TERP=(100+20)/1.5=80
-        raw = s.copy(); raw[raw.index >= ex] = 80.0
+        raw = s.copy()
+        raw[raw.index >= ex] = 80.0
         adj = adjust.adjusted_close(raw, [adjust.Event(ex, "rights", g=0.5, subscription_price=40.0)])
         self.assertTrue(((adj / adj.shift(1)).dropna() - 1).abs().max() < 1e-12)
 

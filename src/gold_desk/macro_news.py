@@ -40,15 +40,7 @@ REDIS_KEY_MACRO_CACHE_DAYS = 7  # cache events for 7 days
 MACRO_CONFIDENCE_BASE: float = 0.5  # اطمینان پایه وقتی یک جهت تشخیص داده شود
 MACRO_CONFIDENCE_PER_CUE: float = 0.1  # هر شاهد اضافه (عدد یا کلمهٔ کلیدی)
 MACRO_CONFIDENCE_MAX: float = 0.9  # سقف اطمینان heuristic
-import json
 import logging
-import re
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
-
-import httpx
-
-from core.time import utc_now_naive
 
 logger = logging.getLogger(__name__)
 

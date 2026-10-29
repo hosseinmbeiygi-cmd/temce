@@ -12,9 +12,13 @@ from __future__ import annotations
 import os
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from jobs.job_context import JobContext
 
 _MARK = "test_nsh"
 
@@ -164,6 +168,7 @@ class TestJobWrapper:
         assert result.data == {"status": "disabled"}
 
     @pytest.mark.asyncio
+    @pytest.mark.needs_db  # the job opens a real session before the service call
     async def test_success_when_healthy(self, monkeypatch):
         from core.config import settings as real_settings
         from jobs.definitions.news_jobs import NewsSourceHealthJob
@@ -208,26 +213,26 @@ class TestHealthReportDb:
                 await session.execute(
                     text("INSERT INTO news_ingestion_sources (source_name, source_type, is_active, last_fetched_at) "
                          "VALUES (:n, 'rss', TRUE, now())"),
-                    dict(n=f"{marker}_fresh"),
+                    {"n": f"{marker}_fresh"},
                 )
                 # stale source (fetched long ago)
                 await session.execute(
                     text("INSERT INTO news_ingestion_sources (source_name, source_type, is_active, last_fetched_at) "
                          "VALUES (:n, 'rss', TRUE, now() - make_interval(mins => :m))"),
-                    dict(n=f"{marker}_stale", m=stale_minutes + 60),
+                    {"n": f"{marker}_stale", "m": stale_minutes + 60},
                 )
                 # never fetched, registered long ago
                 await session.execute(
                     text("INSERT INTO news_ingestion_sources (source_name, source_type, is_active, last_fetched_at, created_at) "
                          "VALUES (:n, 'rss', TRUE, NULL, now() - interval '48 hours')"),
-                    dict(n=f"{marker}_never"),
+                    {"n": f"{marker}_never"},
                 )
                 # a news row written by an unregistered source
                 await session.execute(
                     text("INSERT INTO news_articles (id, title, source, url, category, created_at) "
                          "VALUES (:i, :t, :s, :u, 'market', now())"),
-                    dict(i=f"{marker}_art", t=f"{marker} article", s=f"{marker}_ghost",
-                         u=f"https://x.test/{marker}_art"),
+                    {"i": f"{marker}_art", "t": f"{marker} article", "s": f"{marker}_ghost",
+                         "u": f"https://x.test/{marker}_art"},
                 )
                 await session.commit()
 

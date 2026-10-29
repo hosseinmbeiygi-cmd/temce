@@ -184,7 +184,7 @@ def save_individual_sources(data, base_dir):
     total_count = 0
 
     # Flatten and grouping
-    for section, items in data.items():
+    for items in data.values():
         for item in items:
             src = item.get('source', 'Unknown')
             # Sanitize filename

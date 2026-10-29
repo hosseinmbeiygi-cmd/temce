@@ -21,8 +21,10 @@ SYMBOLS = ["وپترو", "وساخت", "خودرو", "وسپه", "خبهمن"]
 def feats(closes):
     c = np.array(closes, float)
     n = len(c)
-    r1 = np.zeros(n); r1[1:] = c[1:] / c[:-1] - 1
-    r5 = np.zeros(n); r5[5:] = c[5:] / c[:-5] - 1
+    r1 = np.zeros(n)
+    r1[1:] = c[1:] / c[:-1] - 1
+    r5 = np.zeros(n)
+    r5[5:] = c[5:] / c[:-5] - 1
     ma5 = np.convolve(c, np.ones(5) / 5, mode="full")[:n]
     return [r1, r5, np.where(ma5 > 0, c / ma5 - 1, 0)]
 
@@ -42,12 +44,15 @@ async def main():
             X.append([r1[i], r5[i], ma[i]])
             y.append(lab)
             canary.append(lab)  # feature == label (perfect leak)
-    X = np.array(X); y = np.array(y); canary = np.array(canary)
+    X = np.array(X)
+    y = np.array(y)
+    canary = np.array(canary)
     split = int(len(X) * 0.7)
     rng = np.random.default_rng(0)
     ics = []
     for _ in range(30):
-        ysh = y.copy(); rng.shuffle(ysh)
+        ysh = y.copy()
+        rng.shuffle(ysh)
         m = Ridge(alpha=1.0).fit(X[:split], ysh[:split])
         ics.append(float(spearmanr(m.predict(X[split:]), ysh[split:]).correlation))
     ics = np.array(ics)

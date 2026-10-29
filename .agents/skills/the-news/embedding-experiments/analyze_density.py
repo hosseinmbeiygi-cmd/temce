@@ -4,6 +4,7 @@ For each doc, count occurrences of news-flavored tokens per 1000 bytes
 of embedded text, and show what fraction of bytes are 'news-adjacent'
 vs structural/reference content.
 """
+import contextlib
 import json
 import re
 import urllib.parse
@@ -70,10 +71,8 @@ def fetch_skill(slug):
             continue
         if f.get("size", 0) > 50_000:
             continue
-        try:
+        with contextlib.suppress(Exception):
             other.append((f["path"], fetch_file(f["path"])))
-        except Exception:
-            pass
     fm, body = parse_fm(txt)
     return fm, body, other
 

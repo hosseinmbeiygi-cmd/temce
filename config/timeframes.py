@@ -3,13 +3,20 @@ Single source of truth for model, schema, signal store, UI."""
 from __future__ import annotations
 
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 
 
-class Timeframe(str, Enum):
-    M5 = "5m"; M15 = "15m"; H1 = "1h"; H4 = "4h"
-    D1 = "1d"; W1 = "1w"
-    MO1 = "1mo"; MO3 = "3mo"; MO6 = "6mo"; Y1 = "1y"
+class Timeframe(StrEnum):
+    M5 = "5m"
+    M15 = "15m"
+    H1 = "1h"
+    H4 = "4h"
+    D1 = "1d"
+    W1 = "1w"
+    MO1 = "1mo"
+    MO3 = "3mo"
+    MO6 = "6mo"
+    Y1 = "1y"
 
 SHORT = ["5m","15m","1h","4h","1d","1w"]
 MEDIUM = ["1mo","3mo"]
@@ -17,8 +24,10 @@ LONG = ["6mo","1y"]
 ALL = SHORT + MEDIUM + LONG
 
 def timeframe_group(tf: str) -> str:
-    if tf in SHORT: return "short"
-    if tf in MEDIUM: return "medium"
+    if tf in SHORT:
+        return "short"
+    if tf in MEDIUM:
+        return "medium"
     return "long"
 
 # evaluation horizon deltas (calendar fallback; trading-calendar-aware version below)

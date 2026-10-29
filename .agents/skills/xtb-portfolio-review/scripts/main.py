@@ -911,7 +911,8 @@ def analyze_holdings(
     names: dict[str, str] = {}                            # ticker -> display name
     realized: dict[str, float] = {}
 
-    _sort_key = lambda t: t.date if t.date is not None else pd.Timestamp.min
+    def _sort_key(t):
+        return t.date if t.date is not None else pd.Timestamp.min
     for t in sorted(trades, key=_sort_key):
         bucket = lots.setdefault(t.ticker, [])
         if t.name and t.ticker not in names:
@@ -1435,10 +1436,7 @@ def build_executive_summary(
         else 0.0
     )
     diff = perf.get("reconciliation_diff")
-    if diff is None:
-        recon = "Skipped"
-    else:
-        recon = "OK" if abs(float(diff)) < 0.01 else "CHECK"
+    recon = "Skipped" if diff is None else "OK" if abs(float(diff)) < 0.01 else "CHECK"
     pricing = (
         "No cost-pricing fallbacks"
         if cost_priced == 0
@@ -1499,10 +1497,7 @@ def analyze_methodology_quality(
             fallback_tickers = holdings.loc[src == "cost", "ticker"].astype(str).tolist()
 
     diff = perf.get("reconciliation_diff")
-    if diff is None:
-        recon = "Skipped"
-    else:
-        recon = "OK" if abs(float(diff)) < 0.01 else "CHECK"
+    recon = "Skipped" if diff is None else "OK" if abs(float(diff)) < 0.01 else "CHECK"
 
     fallback_label = ", ".join(fallback_tickers) if fallback_tickers else "None"
     fallback_word = "fallback" if cost_count == 1 else "fallbacks"

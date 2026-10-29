@@ -15,8 +15,8 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from ..constants import COIN_WEIGHTS, TROY_OUNCE_GRAMS
-from ..pricer import PriceUnit, fair_coin, fair_gold_18k as _pricer_gold_18k, fair_value, round_to_rial
-
+from ..pricer import PriceUnit, fair_coin, fair_value, round_to_rial
+from ..pricer import fair_gold_18k as _pricer_gold_18k
 
 # مقادیر مجاز قرارداد — "mixed" و "fallback" عمداً رد می‌شوند (fail-closed).
 ALLOWED_SOURCES = frozenset({"brsapi", "tgju", "cache"})

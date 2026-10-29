@@ -43,7 +43,8 @@ def fetch_bensbites():
                         "time": post.get('post_date', 'Recent').split('T')[0],
                         "summary": post.get('subtitle', 'AI News & Tools'),
                     })
-                    if len(results) >= 5: break
+                    if len(results) >= 5:
+                        break
             except Exception as e:
                 print(f"API Fetch error: {e}. Falling back to DOM scraping...", file=sys.stderr)
                 # Fallback to homepage DOM scraping if API fails
@@ -54,9 +55,11 @@ def fetch_bensbites():
                     seen_urls = set()
                     for link in links:
                         href = link.get_attribute('href')
-                        if not href or "/p/" not in href: continue
+                        if not href or "/p/" not in href:
+                            continue
                         full_url = href if href.startswith("http") else f"https://www.bensbites.com{href}"
-                        if full_url in seen_urls: continue
+                        if full_url in seen_urls:
+                            continue
                         seen_urls.add(full_url)
 
                         title_el = link.query_selector("h1, h2, h3, h4, .post-title")
@@ -70,8 +73,10 @@ def fetch_bensbites():
                                 "time": "Recent",
                                 "summary": "AI News & Tools",
                             })
-                        if len(results) >= 5: break
-                except: pass
+                        if len(results) >= 5:
+                            break
+                except Exception:
+                    pass
 
             if not results:
                 results.append({
@@ -96,8 +101,10 @@ def fetch_bensbites():
                     "summary": "Unable to fetch content. Please verify on site.",
                 })
             try:
-                if 'browser' in locals(): browser.close()
-            except: pass
+                if 'browser' in locals():
+                    browser.close()
+            except Exception:
+                pass
 
     print(json.dumps(results, indent=2))
 

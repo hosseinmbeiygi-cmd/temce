@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Ruff error categorization and remediation plan."""
 
-from collections import Counter
 import re
+from collections import Counter
 
-with open('ruff_output.txt', 'r', encoding='utf-8', errors='replace') as f:
+with open('ruff_output.txt', encoding='utf-8', errors='replace') as f:
     content = f.read()
 
 # Extract error codes - ruff output format is: "CODE Description" followed by "--> filepath:line:col"

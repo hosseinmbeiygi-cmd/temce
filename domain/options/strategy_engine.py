@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from domain.options.payoff import OptionLeg
@@ -111,10 +111,7 @@ class InMemoryChainLookup(ChainLookup):
         positive deltas, puts negative ones (conventional quoting).
         """
         rows = self._filtered(option_type, expiry)
-        if option_type == "put":
-            target = -abs(target_delta)
-        else:
-            target = abs(target_delta)
+        target = -abs(target_delta) if option_type == "put" else abs(target_delta)
 
         def _distance(q: ChainQuote) -> float:
             delta = q.delta if q.delta else 0.0
@@ -556,7 +553,7 @@ class AdjustmentEngine:
 # ── Lifecycle (§7.7) ──────────────────────────────────────────────────────
 
 
-class StrategyStatus(str, Enum):
+class StrategyStatus(StrEnum):
     PROPOSED = "PROPOSED"
     PENDING_APPROVAL = "PENDING_APPROVAL"
     PENDING_EXECUTION = "PENDING_EXECUTION"

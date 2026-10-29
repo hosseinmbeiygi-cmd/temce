@@ -101,7 +101,6 @@ def main() -> int:
             "max": vals[-1],
         }
 
-    rendered = [r for r in results if r["verdict"].startswith("OK")]
     summary = {
         "base": (results[0].get("url", "").split("/gold")[-1] if results else ""),
         "total_routes": len(results),

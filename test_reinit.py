@@ -1,5 +1,6 @@
 import asyncio
-from core.database import engine, async_session_factory, init_database
+
+from core.database import async_session_factory, engine, init_database
 
 print('Before first call - engine:', engine, 'af:', async_session_factory)
 asyncio.run(init_database())

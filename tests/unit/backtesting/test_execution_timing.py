@@ -48,7 +48,7 @@ def test_same_close_fills_at_signal_bar_close():
     assert res.success, res.error
     fills = res.value.trades
     assert len(fills) == len(bars)
-    for f, b in zip(fills, bars):
+    for f, b in zip(fills, bars, strict=False):
         # fill price = bar close ± slippage (slippage small vs 1.0 bar step)
         assert abs(f.price - b["close"]) < 0.2, (f.price, b["close"])
 
@@ -63,7 +63,7 @@ def test_next_open_fills_at_next_bar_open():
     fills = res.value.trades
     # last bar's signal has no next bar → dropped
     assert len(fills) == len(bars) - 1
-    for f, b in zip(fills, bars[1:]):
+    for f, b in zip(fills, bars[1:], strict=False):
         assert abs(f.price - b["open"]) < 0.2, (f.price, b["open"])
     assert res.value.metadata["execution_timing"] == "next_open"
 

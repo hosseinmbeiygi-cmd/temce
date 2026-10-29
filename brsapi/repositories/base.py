@@ -7,6 +7,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import os
 import re
 from datetime import datetime, timedelta
 from logging import getLogger
@@ -73,11 +74,13 @@ class SyncLogRepository:
         error_message: str | None = None,
         duration_ms: float = 0.0,
         params: dict[str, str] | None = None,
+        outcome: str = "unknown",
     ) -> SyncLogModel:
         entry = SyncLogModel(
             endpoint=endpoint,
             category=category,
             status=status,
+            outcome=outcome,
             items_count=items_count,
             error_message=error_message,
             duration_ms=duration_ms,
@@ -217,6 +220,9 @@ class RawPayloadRepository:
             status_code=status_code,
             payload=payload,
             size_bytes=len(payload),
+            # Always store an explicit naive-UTC timestamp: the retention job
+            # compares this column against ``utc_now_naive()``.
+            fetched_at=receive_time or utc_now_naive(),
             receive_time=receive_time or utc_now_naive(),
             market_time=market_time,
             response_latency_ms=response_latency_ms,
@@ -326,20 +332,78 @@ class BulkUpsertRepository(Generic[T]):
         else:
             conflict_sql = "ON CONFLICT DO NOTHING"
 
+        # PostgreSQL rejects a batch that touches the same conflict key twice
+        # ("ON CONFLICT DO UPDATE command cannot affect row a second time").
+        # Keep the last row per key; rows with NULL keys are left untouched
+        # because NULLs are distinct in a unique index.
+        if on_conflict_update and conflict_target:
+            keys = [tuple(rec.get(c) for c in conflict_target) for rec in records]
+            if all(value is not None for key in keys for value in key):
+                deduped: dict[tuple[Any, ...], dict[str, Any]] = {}
+                for key, rec in zip(keys, records, strict=False):
+                    deduped[key] = rec
+                if len(deduped) != len(records):
+                    logger.warning(
+                        "bulk_insert: collapsed %d duplicate conflict keys for %s",
+                        len(records) - len(deduped),
+                        table_name,
+                    )
+                records = list(deduped.values())
+
         result = await self.session.execute(
             text(f'INSERT INTO "{table_name}" ({cols_str}) VALUES ({placeholders}) {conflict_sql}'),
             records,
         )
         await self.session.flush()
-        # rowcount is driver-dependent (psycopg may return None); fall back to len(records) only if unavailable
+        # ``rowcount`` is the number of rows actually inserted/updated. Drivers
+        # may report None; in that case the return value falls back to the
+        # number of attempted rows, which is logged so callers can tell the
+        # two apart.
         with contextlib.suppress(Exception):
             rc = result.rowcount  # type: ignore[attr-defined]
             if rc is not None and rc >= 0:
                 return int(rc)
+        logger.warning(
+            "bulk_insert: driver did not report rowcount for %s; returning attempted=%d",
+            table_name,
+            len(records),
+        )
         return len(records)
 
+    async def delete_where(self, column: str, value: Any) -> int:
+        """Delete rows whose *column* equals *value* (scoped replace).
+
+        Used instead of :meth:`truncate` when only one logical slice of a
+        table (e.g. one symbol, or one ``section``) may be refreshed. The
+        delete participates in the caller's transaction, so a later insert
+        failure rolls the deletion back.
+        """
+        table_name = self.model_class.__table__.name
+        if not _SAFE_IDENTIFIER.fullmatch(table_name):
+            raise ValueError(f"Invalid model table identifier: {table_name!r}")
+        quoted_column = _quote_model_identifier(self.model_class, column)
+        result = await self.session.execute(
+            text(f'DELETE FROM "{table_name}" WHERE {quoted_column} = :value'),
+            {"value": value},
+        )
+        await self.session.flush()
+        with contextlib.suppress(Exception):
+            rc = result.rowcount  # type: ignore[attr-defined]
+            if rc is not None and rc >= 0:
+                return int(rc)
+        return 0
+
     async def truncate(self) -> None:
-        """Truncate the table (use with caution — for full-refresh endpoints)."""
+        """Truncate the table (use with caution — for full-refresh endpoints).
+
+        Destructive refreshes require an explicit environment opt-in so a
+        mis-scoped caller cannot wipe a table by accident.
+        """
+        if os.environ.get("ALLOW_TABLE_TRUNCATE") != "1":
+            raise RuntimeError(
+                "TRUNCATE is disabled; set ALLOW_TABLE_TRUNCATE=1 only for an "
+                "intentional full-refresh run"
+            )
         table_name = self.model_class.__table__.name
         if not _SAFE_IDENTIFIER.fullmatch(table_name):
             raise ValueError(f"Invalid model table identifier: {table_name!r}")

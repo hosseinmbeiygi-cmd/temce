@@ -228,14 +228,14 @@ class OptionsMLService:
         payout_by_strike: dict[float, float] = {}
         for px in strikes:
             total = 0.0
-            for k, co, po in zip(strikes, call_oi, put_oi):
+            for k, co, po in zip(strikes, call_oi, put_oi, strict=False):
                 total += max(px - k, 0.0) * co + max(k - px, 0.0) * po
             payout_by_strike[float(px)] = total
         best = min(payout_by_strike, key=payout_by_strike.get)
         if not any(call_oi) or not any(put_oi):
             agg = _aggregate_max_pain(
                 [float(s) for s in strikes],
-                [c + p for c, p in zip(call_oi, put_oi)],
+                [c + p for c, p in zip(call_oi, put_oi, strict=False)],
             )
             best = float(agg)
         return MaxPainResult(

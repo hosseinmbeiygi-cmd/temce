@@ -1,6 +1,7 @@
 """Daily eval job (6.2) + fees/limit-bands (5.7). Reads prices from main DB, never brsapi."""
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 
 # commission per market (round-trip fraction), configurable
@@ -12,21 +13,40 @@ def evaluate(signal: dict, bars: list[dict], halted_days: set | None = None) -> 
     entry, direction = signal["entry"], signal["direction"]
     hit_tp = hit_sl = False
     for i,b in enumerate(bars):
-        if i in halted_days: continue  # 5.7: locked -> cannot exit, keep pending
+        if i in halted_days:
+            continue  # 5.7: locked -> cannot exit, keep pending
         if direction=="buy":
-            if b["high"]>=signal["take_profit"]: hit_tp=True; px=signal["take_profit"]; break
-            if b["low"]<=signal["stop_loss"]: hit_sl=True; px=signal["stop_loss"]; break
+            if b["high"]>=signal["take_profit"]:
+                hit_tp=True
+                px=signal["take_profit"]
+                break
+            if b["low"]<=signal["stop_loss"]:
+                hit_sl=True
+                px=signal["stop_loss"]
+                break
         elif direction=="sell":
-            if b["low"]<=signal["take_profit"]: hit_tp=True; px=signal["take_profit"]; break
-            if b["high"]>=signal["stop_loss"]: hit_sl=True; px=signal["stop_loss"]; break
+            if b["low"]<=signal["take_profit"]:
+                hit_tp=True
+                px=signal["take_profit"]
+                break
+            if b["high"]>=signal["stop_loss"]:
+                hit_sl=True
+                px=signal["stop_loss"]
+                break
     else:
         px = bars[-1]["close"] if bars else entry
     fee = FEES.get(signal.get("market","stock"),0.01)
     gross = (px-entry)/entry if direction=="buy" else (entry-px)/entry if direction=="sell" else 0.0
     net = gross - fee
-    if hit_tp: status="hit_target"; correct = direction in ("buy","sell")
-    elif hit_sl: status="hit_stop"; correct=False
-    else: status="expired_neutral"; correct = net>0
+    if hit_tp:
+        status="hit_target"
+        correct = direction in ("buy","sell")
+    elif hit_sl:
+        status="hit_stop"
+        correct=False
+    else:
+        status="expired_neutral"
+        correct = net>0
     return {"status":status,"actual_outcome_price":px,"actual_return_pct":round(net*100,4),
         "gross_return_pct":round(gross*100,4),"was_correct":correct,"checked_at":datetime.now(UTC)}
 
@@ -54,8 +74,8 @@ def notify_subscribers(session, signal_id: str, symbol: str, status: str, price:
         session.commit()
         return len(rows)
     except Exception:
-        try: session.rollback()
-        except Exception: pass
+        with contextlib.suppress(Exception):
+            session.rollback()
         return 0
 
 def run_daily(session, price_loader, now=None):

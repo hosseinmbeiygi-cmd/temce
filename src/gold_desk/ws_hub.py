@@ -284,7 +284,7 @@ class GoldWebSocketHub:
             *(self._send(ws, message, drop_on_fail=False) for ws in clients),
             return_exceptions=True,
         )
-        for ws, ok in zip(clients, results):
+        for ws, ok in zip(clients, results, strict=False):
             if ok is not True:
                 await self._drop(ws)
 

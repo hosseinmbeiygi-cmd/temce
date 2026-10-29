@@ -193,7 +193,7 @@ async def window_stats() -> dict[str, Any]:
             pipe_values = await cache.client.mget(
                 [f"{_PREFIX}:{k}" for k in stats]
             )
-            for key, raw in zip(stats, pipe_values):
+            for key, raw in zip(stats, pipe_values, strict=False):
                 stats[key] = int(raw) if raw else 0
         except Exception:  # noqa: BLE001
             logger.debug("read-path stats read failed", exc_info=True)
@@ -247,7 +247,7 @@ async def compare_page(
             return url
         return str(getattr(x, "title", "") or "")
 
-    return all(_key(a) == _key(b) for a, b in zip(legacy.items, items.items))
+    return all(_key(a) == _key(b) for a, b in zip(legacy.items, items.items, strict=False))
 
 
 # ── auto-halt (halter job calls this) ────────────────────────────────────

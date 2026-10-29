@@ -21,13 +21,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger("precompute.missing_data_auditor")
 
 
-class MissingLevel(str, Enum):
+class MissingLevel(StrEnum):
     CRITICAL = "CRITICAL"
     IMPORTANT = "IMPORTANT"
     SUPPLEMENTARY = "SUPPLEMENTARY"
@@ -153,10 +153,7 @@ def audit_row(
                 if fname in ("price_lowest_allowed", "price_highest_allowed") and patched.get("price_last"):
                     pl = patched["price_last"] or 0
                     # TSE default ±5% band
-                    if fname == "price_lowest_allowed":
-                        fallback_val = round(pl * 0.95)
-                    else:
-                        fallback_val = round(pl * 1.05)
+                    fallback_val = round(pl * 0.95) if fname == "price_lowest_allowed" else round(pl * 1.05)
                 if fallback_val is not None:
                     patched[fname] = fallback_val
                     fallback_applied[fname] = fallback_val

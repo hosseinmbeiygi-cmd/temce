@@ -127,7 +127,6 @@ def test_fee_is_deducted_from_units():
 def test_max_drawdown_positive_on_falling_series():
     """سری که اوج می‌گیرد و ۳۰٪ می‌ریزد باید drawdown مثبت نشان دهد."""
     closes = make_closes(60, trend=0.01)
-    peak = closes[40][1]
     falling = [(d, p * 0.70) for d, p in closes[40:]]
     series = closes[:40] + falling
     trades = _simulate_dca(series, [1.0, 0.0, 0.0], bubble_trigger=99.0, initial_capital=100_000_000)

@@ -1,15 +1,15 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class SymbolGroup(str, Enum):
+class SymbolGroup(StrEnum):
     A = "A"
     B = "B"
     C = "C"
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"

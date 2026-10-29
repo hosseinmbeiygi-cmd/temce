@@ -18,12 +18,12 @@ def slug(r):
     return s[:60]
 
 async def main():
-    cat = json.load(open("qa/route_catalog.json", encoding="utf-8"))
+    with open("qa/route_catalog.json", encoding="utf-8") as fh:
+        cat = json.load(fh)
     routes = cat["routes"]
     s0 = int(sys.argv[1]) if len(sys.argv) > 1 else 0
     s1 = int(sys.argv[2]) if len(sys.argv) > 2 else len(routes)
     routes = routes[s0:s1]
-    off = s0
     results = []
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(channel="chrome", args=["--no-sandbox"])
@@ -32,10 +32,10 @@ async def main():
         for i, r in enumerate(routes):
             url = BASE + (r.replace(":param", "test"))
             errs, failed = [], []
-            def _con(m):
+            def _con(m, errs=errs):
                 if m.type == "error":
                     errs.append(m.text[:150])
-            def _rf(q):
+            def _rf(q, failed=failed):
                 failed.append(f"{q.url[:90]}:{q.failure}")
             page.on("console", _con)
             page.on("requestfailed", _rf)
@@ -79,8 +79,8 @@ async def main():
             page.remove_listener("console", _con)
             page.remove_listener("requestfailed", _rf)
         await browser.close()
-    json.dump(results, open("qa/crawl_results.json", "w", encoding="utf-8"),
-              ensure_ascii=False, indent=1)
+    with open("qa/crawl_results.json", "w", encoding="utf-8") as fh:
+        json.dump(results, fh, ensure_ascii=False, indent=1)
     ok = sum(1 for r in results if r["verdict"] == "OK")
     red = sum(1 for r in results if str(r["verdict"]).startswith("REDIRECT"))
     bad = [r for r in results if r["verdict"] not in ("OK",) and not str(r["verdict"]).startswith("REDIRECT")]

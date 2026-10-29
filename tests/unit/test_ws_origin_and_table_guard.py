@@ -30,7 +30,7 @@ async def test_rejects_disallowed_origin(mock_settings) -> None:
 
     mock_settings.cors_origins = ["http://localhost:3000"]
     ws = _make_ws({"origin": "https://evil.example.com"})
-    with patch("apps.api.endpoints.websocket.get_realtime_service") as mock_svc:
+    with patch("apps.api.endpoints.websocket.get_realtime_service"):
         await market_websocket(ws)
     ws.close.assert_awaited_once_with(code=1008)
     ws.accept.assert_not_awaited()

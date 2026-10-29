@@ -70,7 +70,7 @@ def fixture_toman_inputs():
 
 def test_base_24k_matches_expected_order_of_magnitude():
     """پایهٔ ۲۴ عیار در مقیاس ریال: XAU × USD_IRR / 31.1034768."""
-    assert BASE_24K_RIAL == pytest.approx(346_411_755.4858, abs=0.01)
+    assert pytest.approx(346_411_755.4858, abs=0.01) == BASE_24K_RIAL
 
 
 def test_calculate_pure_gold_18k_rial(rial_inputs):

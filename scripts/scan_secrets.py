@@ -16,6 +16,7 @@ placeholder است یا واقعی‌نما (قاعدهٔ ۵).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import re
 import subprocess
 import sys
@@ -26,10 +27,8 @@ from pathlib import Path
 # آن را می‌شکند (UnicodeEncodeError). خروجی این اسکریپت گزارش است، پس UTF-8.
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
-        try:
+        with contextlib.suppress(Exception):  # noqa: BLE001 - اگر نشد، همان encoding قبلی می‌ماند
             _stream.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:  # noqa: BLE001 - اگر نشد، همان encoding قبلی می‌ماند
-            pass
 
 # ── الگوها ───────────────────────────────────────────────────────────────
 # هر tuple: (نام نوع، regex، آیا برای match شدن نیاز به entropy دارد؟)

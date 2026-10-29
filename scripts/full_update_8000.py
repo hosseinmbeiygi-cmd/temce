@@ -16,7 +16,6 @@ import asyncio
 import time
 
 from brsapi.budget import get_budget_governor
-from brsapi.config import get_brsapi_settings
 from brsapi.jobs.registry import BRsAPI_SYNC_JOBS, BrsApiJobRegistry
 from core.time import now_utc
 
@@ -77,7 +76,6 @@ CHUNK_SIZES = {
 
 
 async def run_full_update(limit: int = 8000, dry_run: bool = False):
-    settings = get_brsapi_settings()
     governor = get_budget_governor()
     await governor.initialize()
     stats = await governor.stats()

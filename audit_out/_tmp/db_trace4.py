@@ -6,7 +6,8 @@ from pathlib import Path
 for line in Path(".env").read_text(encoding="utf-8", errors="replace").splitlines():
     line = line.strip()
     if line and not line.startswith("#") and "=" in line:
-        k, v = line.split("=", 1); os.environ.setdefault(k.strip(), v.strip())
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
 url = os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+asyncpg://", 1)
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -19,7 +20,8 @@ async def main():
             try:
                 rows = (await c.execute(text(sql))).fetchall()
                 print(f"--- {label} ---")
-                for r in rows: print("  ", r)
+                for r in rows:
+                    print("  ", r)
             except Exception as e:
                 print(f"--- {label} ERROR: {type(e).__name__}: {e}")
         await q("signal_accuracy cols",

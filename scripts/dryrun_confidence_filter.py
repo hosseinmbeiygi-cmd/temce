@@ -97,7 +97,7 @@ async def _run(args: argparse.Namespace) -> int:
             thresholds = [float(x) for x in args.sweep.split(",") if x.strip()]
 
         # Single connection for the whole sweep.
-        async with engine.connect() as c:
+        async with engine.connect():
             # Baseline = threshold 0.0.
             base = await _compute(engine, 0.0, args.timeframe)
             buckets = [await _compute(engine, t, args.timeframe) for t in thresholds]

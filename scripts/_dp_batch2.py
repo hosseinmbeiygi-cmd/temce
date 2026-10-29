@@ -6,7 +6,8 @@ CRLF = chr(13) + chr(10)
 
 
 def edit(path: str, pairs: list[tuple[str, str]]) -> None:
-    raw = open(path, "rb").read().decode("utf-8")
+    with open(path, "rb") as fh:
+        raw = fh.read().decode("utf-8")
     b = raw.replace(CRLF, LF)
     for old, new in pairs:
         old_lf = old.replace(CRLF, LF)
@@ -14,7 +15,8 @@ def edit(path: str, pairs: list[tuple[str, str]]) -> None:
         assert old_lf in b, f"{path}: ANCHOR NOT FOUND: {old_lf[:80]!r}"
         b = b.replace(old_lf, new_lf, 1)
     b = b.replace(LF, CRLF)
-    open(path, "wb").write(b.encode("utf-8"))
+    with open(path, "wb") as fh:
+        fh.write(b.encode("utf-8"))
     print("OK", path)
 
 

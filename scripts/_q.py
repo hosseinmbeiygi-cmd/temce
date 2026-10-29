@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 load_dotenv()
 spec = importlib.util.spec_from_file_location(
     "m0065", "migrations/versions/0065_timescale_compression_policies.py")
-m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
 
 async def main():
     e = create_async_engine(os.environ["DATABASE_URL"], isolation_level="AUTOCOMMIT")

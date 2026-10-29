@@ -78,6 +78,132 @@ class TestNormalizePersian:
         assert _spelling_variants(None) == set()
 
 
+# ── pure unit: a tag with no mapping must be recorded, never guessed ─────
+
+
+class _StubResult:
+    def __init__(self, row=None) -> None:
+        self._row = row
+
+    def first(self):
+        return self._row
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return []
+
+
+class _RecordingSession:
+    """Minimal AsyncSession stand-in: every probe returns "no row"."""
+
+    def __init__(self) -> None:
+        self.statements: list[str] = []
+
+    async def execute(self, statement, params=None):  # noqa: ANN001
+        self.statements.append(str(statement))
+        return _StubResult(None)
+
+
+class TestUnmappedTagIsRecorded:
+    @pytest.mark.asyncio
+    async def test_unknown_tag_resolves_to_none_and_is_persisted_as_unmapped(self):
+        """A tag matching neither ``funds`` nor ``symbols`` must NOT be attached
+        to some other symbol — it resolves to None and the attempt is written
+        to ``news_tag_symbol_map`` as ``unmapped`` so the removal reason is
+        traceable and the auto-mapper stops retrying."""
+        from services.news_tag_symbol_mapper import NewsTagSymbolMapper
+
+        session = _RecordingSession()
+        mapper = NewsTagSymbolMapper(session)
+
+        assert await mapper.resolve("برچسب_بی‌صاحب", persist=True) is None
+
+        joined = " ".join(session.statements)
+        assert "news_tag_symbol_map" in joined
+        assert "unmapped" in joined
+        # The probe order is funds → symbols; both must have been tried before
+        # giving up (a silent early exit would hide real mappings).
+        assert "FROM funds" in joined
+        assert "FROM symbols" in joined
+
+    @pytest.mark.asyncio
+    async def test_miss_without_persist_does_not_write(self):
+        from services.news_tag_symbol_mapper import NewsTagSymbolMapper
+
+        session = _RecordingSession()
+        mapper = NewsTagSymbolMapper(session)
+
+        assert await mapper.resolve("برچسب_بی‌صاحب", persist=False) is None
+        # ``_get_persisted`` still SELECTs the map table; what must not happen
+        # is an INSERT (no row is written when ``persist=False``).
+        assert not any("INSERT INTO news_tag_symbol_map" in s for s in session.statements)
+
+
+# ── pure unit: ambiguous probes are deterministic, never arbitrary ───────
+
+
+class _Rows(list):
+    """``.all()``/``.first()`` over scripted rows (probe path only)."""
+
+    def all(self):
+        return list(self)
+
+    def first(self):
+        return self[0] if self else None
+
+
+class _DuplicateRowSession:
+    """Probe session: the ``funds`` lookup returns two same-symbol rows."""
+
+    def __init__(self, rows: list[tuple[str, str]]) -> None:
+        self._rows = rows
+        self.statements: list[str] = []
+
+    async def execute(self, statement, params=None):  # noqa: ANN001
+        sql = str(statement)
+        self.statements.append(sql)
+        if "FROM funds" in sql:
+            return _Rows(self._rows)
+        return _Rows([])
+
+
+class TestAmbiguousProbeIsDeterministic:
+    @pytest.mark.asyncio
+    async def test_duplicate_rows_resolve_to_the_lowest_id_and_are_logged(self, monkeypatch):
+        """Two ``funds`` rows sharing a symbol must not be picked arbitrarily:
+        the query orders by ``id`` and the ambiguity is logged."""
+        from services import news_tag_symbol_mapper as mod
+
+        warnings: list[str] = []
+        monkeypatch.setattr(
+            mod.logger,
+            "warning",
+            lambda msg, *args, **kwargs: warnings.append(msg % args if args else msg),
+        )
+
+        session = _DuplicateRowSession([("f_1", "آگاس"), ("f_2", "آگاس")])
+        mapper = mod.NewsTagSymbolMapper(session)
+
+        hit = await mapper._probe_tables("آگاس")
+
+        assert hit == ("fund", "f_1", "آگاس")
+        joined = " ".join(session.statements)
+        assert "ORDER BY id" in joined
+        # the ambiguity must be visible in the logs, not silent
+        assert warnings and "mbiguous" in warnings[0]
+
+    def test_probe_sql_is_ordered_and_bounded(self):
+        from services.news_tag_symbol_mapper import _probe_sql
+
+        for table in ("funds", "symbols"):
+            sql = _probe_sql(table)
+            assert f"FROM {table}" in sql
+            assert "ORDER BY id" in sql
+            assert "LIMIT" in sql
+
+
 # ── DB-backed: resolve + read path ───────────────────────────────────────
 
 
@@ -167,14 +293,14 @@ class TestMapperOnDb:
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, now(), 'market', :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} title", b=f"{marker} body", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", h=f"hash_{marker}"),
+                    {"t": f"{marker} title", "b": f"{marker} body", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "h": f"hash_{marker}"},
                 )
                 item_id = res.scalar_one()
                 await session.execute(
                     text("INSERT INTO news_tags (news_id, tag_type, tag_value, confidence) "
                          "VALUES (:n, 'stock_symbol', :v, 1.0)"),
-                    dict(n=item_id, v=alias),
+                    {"n": item_id, "v": alias},
                 )
                 # persist manual alias → canonical وبانك
                 target_id = (

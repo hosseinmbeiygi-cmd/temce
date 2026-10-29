@@ -110,24 +110,24 @@ class TestItemsReadPath:
                         "INSERT INTO news_articles (id, title, source, url, category, published_at, published_at_ts, created_at) "
                         "VALUES (:i, :t, :s, :u, 'market', :p, :pts, now())"
                     ),
-                    dict(i=f"{marker}_leg", t=f"{marker} legacy row", s=f"{marker}src",
-                         u=f"https://x.test/{marker}_leg", p="2026-09-10T08:00:00+00:00",
-                         pts=datetime(2026, 9, 10, 8, 0)),
+                    {"i": f"{marker}_leg", "t": f"{marker} legacy row", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}_leg", "p": "2026-09-10T08:00:00+00:00",
+                         "pts": datetime(2026, 9, 10, 8, 0)},
                 )
                 res = await session.execute(
                     text(
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, is_breaking, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, :p, 'market', FALSE, :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} items row", b=f"{marker} body", s=f"{marker}src",
-                         u=f"https://x.test/{marker}_it", p=datetime(2026, 9, 10, 9, 0),
-                         h=f"hash_{marker}"),
+                    {"t": f"{marker} items row", "b": f"{marker} body", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}_it", "p": datetime(2026, 9, 10, 9, 0),
+                         "h": f"hash_{marker}"},
                 )
                 item_id = res.scalar_one()
                 await session.execute(
                     text("INSERT INTO news_tags (news_id, tag_type, tag_value, confidence) "
                          "VALUES (:n, 'stock_symbol', :v, 1.0)"),
-                    dict(n=item_id, v="فولاد"),
+                    {"n": item_id, "v": "فولاد"},
                 )
                 await session.commit()
 

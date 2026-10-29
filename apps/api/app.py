@@ -1103,14 +1103,28 @@ def create_app() -> FastAPI:
           - score_cache: ScoringEngine results cache (ScreenerPipeline)
           - prebuilt_cache: quote+history prebuilt data cache (ScreenerService)
         """
+        import time as _time
+
+        from apps.api.endpoints.market import _AGG_CACHE, _AGG_TTL
         from schemas.common.responses import ApiResponse
         from services.screener_service import ScreenerPipeline, ScreenerService
 
+        now = _time.monotonic()
+        agg_entries = [
+            {
+                "key": key,
+                "age_s": round(now - hit[0], 1),
+                "ttl_s": _AGG_TTL,
+                "data_as_of": hit[2],
+            }
+            for key, hit in _AGG_CACHE.items()
+        ]
         return ApiResponse(
             success=True,
             data={
                 "score_cache": ScreenerPipeline._score_cache.stats,
                 "prebuilt_cache": ScreenerService._prebuilt_cache.stats,
+                "agg_cache": {"ttl_s": _AGG_TTL, "entries": agg_entries},
             },
         )
 
