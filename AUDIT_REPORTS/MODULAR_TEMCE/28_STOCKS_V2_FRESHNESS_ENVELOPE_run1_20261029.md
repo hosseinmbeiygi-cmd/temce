@@ -135,3 +135,28 @@ core\database.py:180
 **معیار پذیرش این مرحله (محقق‌شده):** هر ۱۲ مسیر `/stocks/v2` کلید `data_as_of` را در پاکت
 برمی‌گردانند؛ مقدار آن از timestamp منبع سروشده مشتق می‌شود یا صریحاً `None` است؛ تست ۱۱موردی
 سبز و ruff پاک.
+
+---
+
+## ۹. Commit (ذخیرهٔ تغییرات)
+
+| فیلد | مقدار |
+|---|---|
+| commit | `9a4bfe93` — `fix(audit): publish data_as_of envelope on /stocks/v2 (API-05 follow-up)` |
+| والِد | `46946947` |
+| فایل‌های commit | `apps/api/endpoints/stocks_v2.py`، `tests/unit/api/test_stocks_v2_freshness_envelope.py`، همین گزارش |
+| آمار | ۳ فایل، +۴۳۱ / −۱۲ |
+
+**روش امن (حفظ کار عامل هم‌زمان):** commit با index موقت ساخته شد
+(`GIT_INDEX_FILE` + `git read-tree HEAD` + `git apply --cached` روی patch حاوی فقط hunkهای من).
+`git apply --cached --check` پیش از commit با exit 0 تأیید شد.
+
+**تأیید پس از commit:**
+
+- `git show HEAD:apps/api/endpoints/stocks_v2.py` هنوز `close_value FROM indices` و
+  `ON s.code = t.symbol` را دارد → یعنی اصلاح ۲خطیِ stagedِ عامل هم‌زمان **وارد commit من نشد**
+  و دست‌نخورده ماند (نه حذف شد، نه بازنویسی).
+- `git diff -- apps/api/endpoints/stocks_v2.py` خالی است → working tree == index؛
+  تغییر آن عامل همچنان staged است (`M `).
+- `git diff --cached --name-only` = **۱۳۰** → مجموعهٔ staged دست‌نخورده.
+- index واقعی با `git add` (افزایشی) هم‌گام شد؛ هیچ `reset --hard`/`clean`/`stash`/`checkout` اجرا نشد.
