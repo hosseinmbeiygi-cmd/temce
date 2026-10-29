@@ -20,6 +20,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+from collections.abc import Iterable
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -36,6 +37,33 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _iso_ts(value: Any) -> str | None:
+    """ISO-8601 text for a source timestamp, or ``None`` when absent."""
+    if value is None or value == "":
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+def _newest_ts(values: Iterable[Any]) -> str | None:
+    """Newest of *values* as ISO-8601 text, or ``None`` if all are missing."""
+    latest: str | None = None
+    for value in values:
+        text = _iso_ts(value)
+        if text is not None and (latest is None or text > latest):
+            latest = text
+    return latest
+
+
+def _envelope(data: Any, data_as_of: str | None = None) -> dict[str, Any]:
+    """Success envelope carrying the served source timestamp (audit API-04).
+
+    ``data_as_of`` is the wall-clock instant of the newest source record
+    included in *data*; ``None`` honestly means the payload carries no
+    timestamped market data, not that the data is stale.
+    """
+    return {"success": True, "data": data, "data_as_of": data_as_of}
+
+
 def _svc(session: AsyncSession = Depends(get_db_session)) -> StockReadThroughService:
     return StockReadThroughService(session=session)
 
@@ -47,14 +75,14 @@ def _svc(session: AsyncSession = Depends(get_db_session)) -> StockReadThroughSer
 async def get_tape(symbol: str, svc: StockReadThroughService = Depends(_svc)) -> dict[str, Any]:
     tape = await svc.get_live_tape(symbol)
     matrix = await svc.get_tape_reading_matrix(symbol)
-    return {
-        "success": True,
-        "data": {
+    return _envelope(
+        {
             "tape": tape,
             "matrix": matrix,
             "freshness": tape.get("freshness", "stale"),
         },
-    }
+        data_as_of=_iso_ts(tape.get("quoted_at")),
+    )
 
 
 # ── تب ۲: Indicators ──
@@ -63,7 +91,7 @@ async def get_tape(symbol: str, svc: StockReadThroughService = Depends(_svc)) ->
 @router.get("/{symbol}/indicators", summary="رادار تکنیکال خودکار (تب ۲)")
 async def get_indicators(symbol: str, svc: StockReadThroughService = Depends(_svc)) -> dict[str, Any]:
     data = await svc.get_indicators(symbol)
-    return {"success": True, "data": data}
+    return _envelope(data, data_as_of=_iso_ts(data.get("computed_at")))
 
 
 # ── کارت سیگنال ──
@@ -72,12 +100,13 @@ async def get_indicators(symbol: str, svc: StockReadThroughService = Depends(_sv
 @router.get("/{symbol}/signal", summary="کارت تصمیم‌گیری کوانت (۵ لایه + مدیریت ریسک)")
 async def get_signal(symbol: str, svc: StockReadThroughService = Depends(_svc)) -> dict[str, Any]:
     data = await svc.get_full_signal(symbol)
+    tape_res = await svc.get_live_tape(symbol)
     # Persist (idempotent روزانه)
     try:
         await _persist_signal(svc.session, symbol, data)
     except Exception:
         logger.exception("Signal persist failed for %s", symbol)
-    return {"success": True, "data": data}
+    return _envelope(data, data_as_of=_iso_ts(tape_res.get("quoted_at")))
 
 
 async def _persist_signal(session: AsyncSession, symbol: str, data: dict[str, Any]) -> None:
@@ -148,7 +177,7 @@ async def get_peers(
     ).first()
     industry = industry_row[0] if industry_row and industry_row[0] else None
     if industry is None:
-        return {"success": True, "data": {"industry": None, "peers": []}}
+        return _envelope({"industry": None, "peers": []})
 
     rows = (
         await svc.session.execute(
@@ -193,7 +222,7 @@ async def get_peers(
                 "base_volume_ratio": (r[11] / r[12]) if (r[11] and r[12]) else None,
             }
         )
-    return {"success": True, "data": {"industry": industry, "peers": peers}}
+    return _envelope({"industry": industry, "peers": peers})
 
 
 # ── تب ۴: Dossier ──
@@ -242,6 +271,7 @@ async def get_dossier(symbol: str, svc: StockReadThroughService = Depends(_svc))
         )
     ).fetchall()
     return {
+        "data_as_of": None,
         "success": True,
         "data": {
             "identity": dict(zip(
@@ -301,6 +331,7 @@ async def get_codal(
         )
     ).fetchall()
     return {
+        "data_as_of": _newest_ts(r[1] for r in rows),
         "success": True,
         "data": {
             "announcements": [
@@ -349,6 +380,7 @@ async def get_news(
         )
     ).fetchall()
     return {
+        "data_as_of": _newest_ts(r[2] for r in rows),
         "success": True,
         "data": {
             "news": [
@@ -377,7 +409,10 @@ async def get_history(
     svc: StockReadThroughService = Depends(_svc),
 ) -> dict[str, Any]:
     candles = await svc._load_daily_candles(symbol, limit)
-    return {"success": True, "data": {"adjusted": adjusted, "candles": candles}}
+    return _envelope(
+        {"adjusted": adjusted, "candles": candles},
+        data_as_of=_newest_ts(c.get("date") for c in candles),
+    )
 
 
 @router.get("/{symbol}/history/export.csv", summary="خروجی CSV تاریخچه (تب ۷)")
@@ -421,12 +456,12 @@ async def get_volume_profile(
         )
     ).fetchall()
     if not rows:
-        return {"success": True, "data": {"available": False, "profile": []}}
+        return _envelope({"available": False, "profile": []})
     prices = [float(r[0]) for r in rows]
     volumes = [float(r[1]) for r in rows]
     lo, hi = min(prices), max(prices)
     if hi <= lo:
-        return {"success": True, "data": {"available": False, "profile": []}}
+        return _envelope({"available": False, "profile": []})
     width = (hi - lo) / bins
     buckets = [0.0] * bins
     for p, v in zip(prices, volumes, strict=False):
@@ -434,6 +469,7 @@ async def get_volume_profile(
         buckets[idx] += v
     poc_idx = max(range(bins), key=lambda i: buckets[i])
     return {
+        "data_as_of": None,
         "success": True,
         "data": {
             "available": True,
@@ -489,6 +525,7 @@ async def get_market_pulse(svc: StockReadThroughService = Depends(_svc)) -> dict
         )
     ).fetchall()
     return {
+        "data_as_of": _iso_ts(macro[0]) if macro else None,
         "success": True,
         "data": {
             "macro": dict(zip(
@@ -524,6 +561,6 @@ async def stocks_monitoring(svc: StockReadThroughService = Depends(_svc)) -> dic
                 text("SELECT COUNT(*) FROM stock_quant_signals WHERE signal_date = CURRENT_DATE")
             )
         ).scalar() or 0
-        return {"success": True, "data": {"fresh_tapes": tape_fresh, "signals_today": signals_today}}
+        return _envelope({"fresh_tapes": tape_fresh, "signals_today": signals_today})
     except Exception as exc:
         raise HTTPException(status_code=503, detail="monitoring unavailable") from exc
