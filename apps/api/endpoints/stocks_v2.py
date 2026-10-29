@@ -427,10 +427,16 @@ async def export_history_csv(
     for c in candles:
         writer.writerow([c["date"], c["open"], c["high"], c["low"], c["close"], c["volume"], c["value"]])
     buf.seek(0)
+    headers = {"Content-Disposition": f"attachment; filename={symbol}_history.csv"}
+    data_as_of = _newest_ts(c.get("date") for c in candles)
+    if data_as_of is not None:
+        # StreamingResponse cannot carry the envelope, so the served
+        # snapshot's date travels in a header instead (audit API-05).
+        headers["X-Data-As-Of"] = data_as_of
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={symbol}_history.csv"},
+        headers=headers,
     )
 
 

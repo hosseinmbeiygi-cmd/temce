@@ -243,3 +243,38 @@ async def test_volume_profile_envelope_publishes_an_explicit_as_of_key(user_clie
     body = response.json()
     assert response.status_code == 200, body
     assert "data_as_of" in body
+
+
+async def test_history_csv_exports_the_data_as_of_header(user_client, app) -> None:
+    """The CSV download is a StreamingResponse, not an envelope.
+
+    It still has to publish the served snapshot's date, so the header is the
+    only place the freshness contract can live on this route.
+    """
+    _install(
+        app,
+        _FakeSvc(
+            candles=[
+                {"date": "2026-10-26", "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0, "value": 1.0},
+                {"date": "2026-10-28", "open": 2.0, "high": 2.0, "low": 2.0, "close": 2.0, "volume": 2.0, "value": 2.0},
+            ]
+        ),
+    )
+
+    response = await user_client.get("/api/v1/stocks/v2/AAA/history/export.csv")
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    assert response.headers["x-data-as-of"] == "2026-10-28"
+    lines = response.text.strip().splitlines()
+    assert lines[0] == "date,open,high,low,close,volume,value"
+    assert lines[-1].startswith("2026-10-28,")
+
+
+async def test_history_csv_omits_the_header_when_there_is_no_data(user_client, app) -> None:
+    _install(app, _FakeSvc(candles=[]))
+
+    response = await user_client.get("/api/v1/stocks/v2/AAA/history/export.csv")
+
+    assert response.status_code == 200, response.text
+    assert "x-data-as-of" not in response.headers
