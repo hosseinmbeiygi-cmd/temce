@@ -299,8 +299,16 @@ async def job_gold_portfolio_value(force: bool = False) -> None:
 
 
 async def job_gold_daily_history(force: bool = False) -> None:
-    """Backfill روزانه historical bubble (می‌تواند empty باشد اگه BrsApi history موجود نیست)."""
-    logger.info("gold_daily_history: started (placeholder — no-op)")
+    """Placeholder: daily historical-bubble backfill is NOT implemented yet.
+
+    Kept registered and callable for on-demand use, but disabled in the
+    schedule (see ``GOLD_DESK_JOBS``): a function job that returns normally is
+    reported as ``success=True`` by ``_run_direct_job``, so scheduling this
+    no-op would show a green nightly job that writes nothing.
+    """
+    logger.warning(
+        "gold_daily_history: NOT IMPLEMENTED — no historical backfill performed"
+    )
 
 
 # ── Job descriptors ───────────────────────────────────────────
@@ -329,7 +337,8 @@ GOLD_DESK_JOBS: list[BrsApiSyncJob] = [
         name="gold_daily_history",
         endpoint_config=None,  # type: ignore
         cron="0 21 * * *",  # هر شب 21:00
-        description="Daily backfill of historical bubble data",
+        enabled=False,
+        description="(DISABLED) Daily historical bubble backfill — placeholder, not implemented",
     ),
     BrsApiSyncJob(
         name="gold_fund_nav",

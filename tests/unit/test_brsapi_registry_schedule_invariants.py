@@ -59,6 +59,25 @@ def test_realtime_market_jobs_are_market_hours_gated() -> None:
         assert job.market_hours_only, f"{name} lost its market-hours gate"
 
 
+def test_unimplemented_placeholder_job_is_not_scheduled() -> None:
+    """A no-op job must be disabled, not scheduled.
+
+    ``gold_daily_history`` is an explicit placeholder (it only logs and
+    returns). A function job that returns normally is reported as
+    ``success=True`` by ``_run_direct_job``, so scheduling it produced a green
+    nightly job that wrote nothing — a false-green ops signal. It must stay
+    registered and callable but not enabled by default.
+    """
+    from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOBS
+
+    by_name = {job.name: job for job in GOLD_DESK_JOBS}
+    placeholder = by_name["gold_daily_history"]
+    assert placeholder.enabled is False, (
+        "gold_daily_history is a no-op placeholder; scheduling it reports a "
+        "false success every night"
+    )
+
+
 def test_codal_job_uses_wider_office_hours_window() -> None:
     job = get_brsapi_job_registry().get("brsapi_codal")
     assert job is not None
