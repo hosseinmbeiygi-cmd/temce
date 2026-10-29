@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 """
 IME (Iran Mercantile Exchange / بازار کالایی) endpoints.
