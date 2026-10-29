@@ -267,23 +267,28 @@ def _enrich_contract(
         except (TypeError, ValueError, RuntimeError) as exc:
             row["iv_error"] = str(exc)
         else:
-            row["iv"] = iv
-            row.update(
-                calculate_greeks(
-                    forward,
-                    strike,
-                    days / DAYS_PER_YEAR,
-                    risk_free_rate,
-                    iv,
-                    option_type,
+            if iv is None:
+                # Audit FIN-04: no arbitrage-free sigma — report it, never a
+                # fabricated 0%/absurd IV.
+                row["iv_error"] = "implied volatility did not converge"
+            else:
+                row["iv"] = iv
+                row.update(
+                    calculate_greeks(
+                        forward,
+                        strike,
+                        days / DAYS_PER_YEAR,
+                        risk_free_rate,
+                        iv,
+                        option_type,
+                    )
                 )
-            )
-            rank, percentile, points = _history_stats(
-                iv, iv_history, min_days=min_history_days
-            )
-            row["iv_rank"] = rank
-            row["iv_percentile"] = percentile
-            row["iv_history_points"] = points
+                rank, percentile, points = _history_stats(
+                    iv, iv_history, min_days=min_history_days
+                )
+                row["iv_rank"] = rank
+                row["iv_percentile"] = percentile
+                row["iv_history_points"] = points
 
     current_oi = _as_float("open_interest", contract.get("open_interest", 0) or 0)
     previous = contract.get("previous_open_interest", previous_open_interest)

@@ -244,6 +244,18 @@ def get_report_service(session: AsyncSession = Depends(get_db_session)):
 
 
 async def get_current_user(authorization: str = Header("")) -> dict:
+    from apps.api.auth import _auth_required
+    from core.logging import get_logger
+    logger = get_logger(__name__)
+
+    # The flag's polarity lives in apps.api.auth so this helper, the API-key
+    # check and the WebSocket handshake cannot disagree (audit SEC-01). The
+    # old inline test treated *falsy* values as "disabled", which made the
+    # documented AUTH_DISABLED=false a fail-open bypass.
+    if not _auth_required():
+        logger.debug("AUTH_DISABLED is enabled, returning anonymous user")
+        return {"anonymous": True, "roles": []}
+
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -279,6 +291,25 @@ async def get_optional_user(authorization: str = Header("")) -> dict | None:
 # Canonical required-auth dependency name used by routers.
 # Alias of get_current_user: raises 401 when no valid Bearer token is present.
 get_current_active_user = get_current_user
+
+
+def current_user_id(current_user: dict) -> str:
+    """Stable identity for ownership checks.
+
+    Access tokens carry ``sub``; the test fixtures and a few legacy payloads
+    use ``user_id``. Both are accepted so a missing field cannot quietly widen
+    an owner filter to the empty string.
+    """
+    return str(current_user.get("sub") or current_user.get("user_id") or "")
+
+
+def owned_scope(current_user: dict) -> str | None:
+    """Owner filter for a request: ``None`` means "no filter" (admin only)."""
+    from core.enums.rbac import has_role
+
+    if has_role(current_user.get("roles", []), "admin"):
+        return None
+    return current_user_id(current_user)
 
 
 async def require_user_for_writes(request: Request, authorization: str = Header("")) -> dict | None:

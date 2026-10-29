@@ -156,6 +156,10 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
     )
 
 
+IV_MIN = 1e-4
+IV_MAX = 5.0
+
+
 def implied_volatility(
     market_price: float,
     S: float,
@@ -166,8 +170,13 @@ def implied_volatility(
     initial_guess: float = 0.3,
     max_iter: int = 100,
     tol: float = 1e-6,
-) -> float:
-    """Calculate implied volatility using Newton-Raphson method.
+) -> float | None:
+    """Calculate implied volatility with a bracketed fallback.
+
+    Returns ``None`` when the quote is outside the no-arbitrage band or the
+    solver does not converge (audit FIN-04). The old ``0.0`` sentinel for
+    expiry and the unverified last iterate were displayed as valid IV by the
+    options analytics surface.
 
     Args:
         market_price: Observed market price of the option
@@ -181,22 +190,56 @@ def implied_volatility(
         tol: Convergence tolerance
 
     Returns:
-        Implied volatility
+        Implied volatility in ``[IV_MIN, IV_MAX]``, or ``None``.
     """
-    sigma = initial_guess
+    values = (market_price, S, K, T, r)
+    if not all(isinstance(v, (int, float)) and math.isfinite(v) for v in values):
+        return None
+    if T <= 0 or S <= 0 or K <= 0 or market_price <= 0:
+        return None
+
+    discount = math.exp(-r * T)
+    if option_type == "call":
+        lower_bound = max(S - K * discount, 0.0)
+        upper_bound = S
+    else:
+        lower_bound = max(K * discount - S, 0.0)
+        upper_bound = K * discount
+    if market_price < lower_bound - 1e-9 or market_price > upper_bound + 1e-9:
+        # Below intrinsic or above the theoretical maximum: no real sigma.
+        return None
+
     price_fn = black_scholes_call if option_type == "call" else black_scholes_put
 
+    def residual(sigma: float) -> float:
+        return price_fn(S, K, T, r, sigma) - market_price
+
+    sigma = min(max(initial_guess, IV_MIN), IV_MAX)
     for _ in range(max_iter):
-        price = price_fn(S, K, T, r, sigma)
-        diff = price - market_price
+        diff = residual(sigma)
         if abs(diff) < tol:
             return sigma
-        # Vega = dPrice/dSigma
         d1 = _d1(S, K, T, r, sigma)
         vega_val = S * stats.norm.pdf(d1) * math.sqrt(T)
         if abs(vega_val) < 1e-12:
             break
         sigma -= diff / vega_val
-        sigma = max(sigma, 1e-6)  # Prevent negative vol
+        if not math.isfinite(sigma) or sigma <= IV_MIN or sigma >= IV_MAX:
+            break
 
-    return sigma
+    # Bracketed bisection: guaranteed when a root exists inside the band.
+    lo, hi = IV_MIN, IV_MAX
+    f_lo, f_hi = residual(lo), residual(hi)
+    if f_lo * f_hi > 0:
+        return None
+    for _ in range(max_iter):
+        mid = 0.5 * (lo + hi)
+        f_mid = residual(mid)
+        if abs(f_mid) < tol:
+            return mid
+        if (f_lo < 0) == (f_mid < 0):
+            lo, f_lo = mid, f_mid
+        else:
+            hi = mid
+    return None
+

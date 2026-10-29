@@ -34,40 +34,70 @@ class WatchlistService:
     # ── Table helpers ──────────────────────────────
 
     async def _ensure_table(self) -> None:
+        """Create the table when missing, in the shape the current code expects.
+
+        ``user_id`` + ``UNIQUE (user_id, symbol)`` replaced the old global
+        ``UNIQUE (symbol)`` (audit SEC-04). Alembic 0117 is the canonical
+        migration; this runtime guard keeps ad-hoc/self-healed databases usable.
+        """
         from sqlalchemy import text
 
-        await self._session.execute(
-            text("""
+        bind = getattr(self._session, "get_bind", lambda: None)()
+        dialect = getattr(getattr(bind, "dialect", None), "name", "")
+
+        if dialect == "postgresql":
+            ddl = """
             CREATE TABLE IF NOT EXISTS watchlist (
                 id SERIAL PRIMARY KEY,
-                symbol VARCHAR(50) NOT NULL UNIQUE,
+                symbol VARCHAR(50) NOT NULL,
                 name VARCHAR(200) DEFAULT '',
                 note TEXT DEFAULT '',
                 sort_order INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT NOW()
+                user_id VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE (user_id, symbol)
             )
-        """)
-        )
+            """
+        else:
+            ddl = """
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol VARCHAR(50) NOT NULL,
+                name VARCHAR(200) DEFAULT '',
+                note TEXT DEFAULT '',
+                sort_order INTEGER DEFAULT 0,
+                user_id VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, symbol)
+            )
+            """
+        await self._session.execute(text(ddl))
+        if dialect == "postgresql":
+            await self._session.execute(
+                text("ALTER TABLE watchlist ADD COLUMN IF NOT EXISTS user_id VARCHAR(100)")
+            )
         await self._session.commit()
 
-    async def _ensure_defaults(self) -> None:
-        """Seed default popular symbols if the watchlist is empty."""
+    async def _ensure_defaults(self, user_id: str) -> None:
+        """Seed default popular symbols if this user's watchlist is empty."""
         from sqlalchemy import text
 
-        count_result = await self._session.execute(text("SELECT COUNT(*) FROM watchlist"))
+        count_result = await self._session.execute(
+            text("SELECT COUNT(*) FROM watchlist WHERE user_id = :u"), {"u": user_id}
+        )
         count = count_result.scalar() or 0
         if count > 0:
             return
 
-        logger.info("Watchlist empty — seeding %d default symbols", len(DEFAULT_SYMBOLS))
+        logger.info("Watchlist empty for %s — seeding %d default symbols", user_id, len(DEFAULT_SYMBOLS))
         for i, sym in enumerate(DEFAULT_SYMBOLS):
             try:
                 await self._session.execute(
                     text(
-                        "INSERT INTO watchlist (symbol, name, note, sort_order) "
-                        "VALUES (:s, '', '', :o) ON CONFLICT (symbol) DO NOTHING"
+                        "INSERT INTO watchlist (symbol, name, note, sort_order, user_id) "
+                        "VALUES (:s, '', '', :o, :u) ON CONFLICT (user_id, symbol) DO NOTHING"
                     ),
-                    {"s": sym, "o": i + 1},
+                    {"s": sym, "o": i + 1, "u": user_id},
                 )
             except Exception:
                 logger.debug("Failed to seed default symbol %s", sym)
@@ -179,12 +209,17 @@ class WatchlistService:
 
     # ── CRUD ───────────────────────────────────────
 
-    async def list_items(self) -> Result[list[dict[str, Any]]]:
+    async def list_items(self, *, user_id: str | None = None) -> Result[list[dict[str, Any]]]:
+        """List the caller's symbols. ``user_id=None`` matches nothing (fail-closed)."""
         from sqlalchemy import text
 
         try:
             result = await self._session.execute(
-                text("SELECT symbol, name, note, sort_order FROM watchlist ORDER BY sort_order")
+                text(
+                    "SELECT symbol, name, note, sort_order FROM watchlist "
+                    "WHERE user_id = :u ORDER BY sort_order"
+                ),
+                {"u": user_id},
             )
             rows = result.fetchall()
         except Exception:
@@ -224,22 +259,32 @@ class WatchlistService:
 
         return Result.ok(enriched)
 
-    async def add_symbol(self, symbol: str, name: str = "", note: str = "") -> Result[dict[str, Any]]:
+    async def add_symbol(
+        self, symbol: str, name: str = "", note: str = "", *, user_id: str | None = None
+    ) -> Result[dict[str, Any]]:
         from sqlalchemy import text
 
         await self._ensure_table()
+        if not user_id:
+            return Result.fail("شناسه کاربر مشخص نیست")
         symbol = symbol.strip().upper() if symbol.strip().isascii() else symbol.strip()
 
         if not symbol:
             return Result.fail("نماد نامعتبر است")
 
-        # Check duplicate
-        existing = await self._session.execute(text("SELECT 1 FROM watchlist WHERE symbol = :s"), {"s": symbol})
+        # Check duplicate within this user's list only
+        existing = await self._session.execute(
+            text("SELECT 1 FROM watchlist WHERE symbol = :s AND user_id = :u"),
+            {"s": symbol, "u": user_id},
+        )
         if existing.first():
             return Result.fail(f"نماد {symbol} قبلاً در لیست وجود دارد")
 
-        # Get max order
-        max_row = await self._session.execute(text("SELECT COALESCE(MAX(sort_order), 0) FROM watchlist"))
+        # Get max order within this user's list
+        max_row = await self._session.execute(
+            text("SELECT COALESCE(MAX(sort_order), 0) FROM watchlist WHERE user_id = :u"),
+            {"u": user_id},
+        )
         max_order = max_row.scalar() or 0
 
         # Try to get name from snapshots if not provided
@@ -247,8 +292,11 @@ class WatchlistService:
             name = await self._resolve_symbol_name(symbol)
 
         await self._session.execute(
-            text("INSERT INTO watchlist (symbol, name, note, sort_order) VALUES (:s, :n, :note, :o)"),
-            {"s": symbol, "n": name, "note": note, "o": max_order + 1},
+            text(
+                "INSERT INTO watchlist (symbol, name, note, sort_order, user_id) "
+                "VALUES (:s, :n, :note, :o, :u)"
+            ),
+            {"s": symbol, "n": name, "note": note, "o": max_order + 1, "u": user_id},
         )
         await self._session.commit()
 
@@ -322,11 +370,16 @@ class WatchlistService:
         except Exception:
             return symbol
 
-    async def remove_symbol(self, symbol: str) -> Result[bool]:
+    async def remove_symbol(self, symbol: str, *, user_id: str | None = None) -> Result[bool]:
         from sqlalchemy import text
 
         await self._ensure_table()
-        result = await self._session.execute(text("DELETE FROM watchlist WHERE symbol = :s"), {"s": symbol})
+        if not user_id:
+            return Result.fail("شناسه کاربر مشخص نیست")
+        result = await self._session.execute(
+            text("DELETE FROM watchlist WHERE symbol = :s AND user_id = :u"),
+            {"s": symbol, "u": user_id},
+        )
         await self._session.commit()
         if result.rowcount > 0:
             return Result.ok(True)

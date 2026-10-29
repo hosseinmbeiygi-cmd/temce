@@ -41,6 +41,7 @@ class MarketService:
                     total_value = sum(s.get("trade_value") or 0 for s in snapshots)
                     total_volume = sum(s.get("trade_volume") or 0 for s in snapshots)
                     avg_change = sum(s.get("price_last_change_pct") or 0 for s in snapshots) / total if total else 0
+                    from core.freshness import newest_fetched_at
 
                     return Result.ok({
                         "total_instruments": total,
@@ -51,6 +52,8 @@ class MarketService:
                         "total_value": total_value,
                         "total_volume": total_volume,
                         "avg_change_pct": round(avg_change, 2),
+                        # Source fetch time for the envelope (audit API-04).
+                        "data_as_of": newest_fetched_at(snapshots),
                     })
             except Exception:
                 logger.exception("Failed to get overview from BrsApi")
@@ -59,22 +62,28 @@ class MarketService:
         return await self.quote_repo.get_market_summary()
 
     async def get_index_values(self) -> Result[list[dict[str, Any]]]:
+        errors: list[str] = []
         # Try local DB first
         if self._brsapi:
             try:
                 indices = await self._brsapi.get_latest_indices()
                 if indices:
                     return Result.ok(indices)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to fetch index values from BrsApi")
+                errors.append(f"brsapi: {exc}")
         # Live fallback: fetch directly from BrsApi API
         if self._client:
             try:
                 indices = await self._fetch_live_indices()
                 if indices:
                     return Result.ok(indices)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Live fetch for indices failed")
+                errors.append(f"live: {exc}")
+        if errors:
+            # A failed source is not an empty market (audit API-02).
+            return Result.fail("index values unavailable: " + "; ".join(errors))
         return Result.ok([])
 
     async def _fetch_live_indices(self) -> list[dict[str, Any]]:
@@ -83,6 +92,7 @@ class MarketService:
         from brsapi.parsers import TsetmcParser
 
         all_indices: list[dict[str, Any]] = []
+        failures: list[str] = []
         for idx_type in ("1", "2"):  # TSE, Farabours
             result = await self._client.fetch(
                 BrsApiEndpoints.INDEX,
@@ -92,6 +102,10 @@ class MarketService:
                 parsed = TsetmcParser.parse_index(result.value.data)
                 if isinstance(parsed, list):
                     all_indices.extend(parsed)
+            elif not result.success:
+                failures.append(f"type={idx_type}: {getattr(result, 'error', None) or 'fetch failed'}")
+        if not all_indices and failures:
+            raise RuntimeError("; ".join(failures))
         return all_indices
 
     async def get_top_gainers(self, limit: int = 10) -> Result[list[Quote]]:
@@ -104,36 +118,51 @@ class MarketService:
         return await self.quote_repo.get_most_active(limit)
 
     async def get_sector_summary(self) -> Result[list[dict[str, Any]]]:
+        errors: list[str] = []
         if self._brsapi:
             try:
                 snapshots = await self._brsapi.get_latest_snapshots(limit=200)
                 if snapshots:
                     return Result.ok(self._build_sectors(snapshots))
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to build sector summary")
+                errors.append(f"brsapi: {exc}")
         # Live fallback
         if self._client:
             try:
                 snapshots = await self._fetch_live_snapshots()
                 if snapshots:
                     return Result.ok(self._build_sectors(snapshots))
-            except Exception:
+            except Exception as exc:
                 logger.exception("Live fetch for sector summary failed")
+                errors.append(f"live: {exc}")
+        if errors:
+            return Result.fail("sector summary unavailable: " + "; ".join(errors))
         return Result.ok([])
 
     @staticmethod
     def _build_sectors(snapshots: list[dict[str, Any]]) -> list[dict[str, Any]]:
         sectors: dict[str, dict[str, Any]] = {}
         for s in snapshots:
-            sector = s.get("sector_name") or s.get("industry", "سایر")
+            sector = (
+                s.get("sector_name")
+                or s.get("industry")
+                or s.get("sector")
+                or "سایر"
+            )
             if sector not in sectors:
                 sectors[sector] = {"name": sector, "count": 0, "total_value": 0, "avg_change": 0}
             sectors[sector]["count"] += 1
             sectors[sector]["total_value"] += s.get("trade_value", 0) or 0
-        result = list(sectors.values())
-        for sec in result:
-            sec["avg_change"] = 0
-        return result
+        for sec in sectors.values():
+            # Calculate actual average change from all symbols in this sector
+            sector_symbols = [s for s in snapshots if s.get("sector_name") == sec["name"] or s.get("industry") == sec["name"] or s.get("sector") == sec["name"]]
+            if sector_symbols:
+                avg_change = sum((s.get("price_last_change_pct") or 0) for s in sector_symbols) / len(sector_symbols)
+            else:
+                avg_change = 0
+            sec["avg_change"] = avg_change
+        return list(sectors.values())
 
     async def _fetch_live_snapshots(self) -> list[dict[str, Any]]:
         """Fetch all-symbol snapshots directly from BrsApi API."""
@@ -144,7 +173,12 @@ class MarketService:
             BrsApiEndpoints.ALL_SYMBOLS,
             params={"type": "1"},
         )
-        if result.success and result.value and result.value.data:
+        if not result.success:
+            # Same contract as _fetch_live_indices: a rejected fetch is an error.
+            raise RuntimeError(
+                f"live snapshots rejected: {getattr(result, 'error', None) or 'unknown error'}"
+            )
+        if result.value and result.value.data:
             parsed = TsetmcParser.parse_all_symbols(result.value.data)
             if isinstance(parsed, list):
                 return parsed
@@ -202,7 +236,9 @@ class MarketService:
             return records[:limit]
         except Exception:
             logger.exception("Failed to fetch historical data from quotes table for %s", symbol)
-            return []
+            # Callers record this as a source error; an empty list here would
+            # be indistinguishable from "no trades in range" (audit API-02).
+            raise
 
     async def get_historical_quotes(
         self,
@@ -210,6 +246,7 @@ class MarketService:
         start_date: str,
         end_date: str,
     ) -> Result[list[dict[str, Any]]]:
+        errors: list[str] = []
         # ── Step 1: Try BrsApiQueryService (BrsApi historical daily table) ──
         if self._brsapi:
             try:
@@ -217,15 +254,17 @@ class MarketService:
                 filtered = [d for d in data if d.get("date", "") >= start_date and d.get("date", "") <= end_date]
                 if filtered:
                     return Result.ok(filtered)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to fetch historical quotes from BrsApi DB")
+                errors.append(f"brsapi: {exc}")
         # ── Step 2: Try core quotes table (QuoteModel) ──
         try:
             records = await self._get_historical_from_quotes_table(symbol, start_date, end_date, limit=500)
             if records:
                 return Result.ok(records)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to fetch historical quotes from quotes table")
+            errors.append(f"quotes table: {exc}")
         # ── Step 3: Live BrsApi API fallback with l18 resolution ──
         if self._client:
             try:
@@ -234,8 +273,11 @@ class MarketService:
                     filtered = [d for d in live_data if d.get("date", "") >= start_date and d.get("date", "") <= end_date]
                     if filtered:
                         return Result.ok(filtered)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Live fetch for historical quotes failed")
+                errors.append(f"live: {exc}")
+        if errors:
+            return Result.fail("historical quotes unavailable: " + "; ".join(errors))
         return Result.ok([])
 
     async def get_ohlcv(
@@ -245,6 +287,7 @@ class MarketService:
         end_date: str,
         timeframe: str = "1d",
     ) -> Result[list[dict[str, Any]]]:
+        errors: list[str] = []
         # ── Step 1: Try BrsApiQueryService (BrsApi historical daily table) ──
         if self._brsapi:
             try:
@@ -253,8 +296,9 @@ class MarketService:
                 ohlcv = [self._to_ohlcv(d) for d in filtered]
                 if ohlcv:
                     return Result.ok(ohlcv)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to fetch OHLCV data from BrsApi DB")
+                errors.append(f"brsapi: {exc}")
         # ── Step 2: Try core quotes table (QuoteModel) ──
         try:
             records = await self._get_historical_from_quotes_table(symbol, start_date, end_date, limit=500)
@@ -262,8 +306,9 @@ class MarketService:
                 ohlcv = [self._to_ohlcv(r) for r in records]
                 if ohlcv:
                     return Result.ok(ohlcv)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to fetch OHLCV from quotes table")
+            errors.append(f"quotes table: {exc}")
         # ── Step 3: Live BrsApi API fallback with l18 resolution ──
         if self._client:
             try:
@@ -273,8 +318,11 @@ class MarketService:
                     ohlcv = [self._to_ohlcv(d) for d in filtered]
                     if ohlcv:
                         return Result.ok(ohlcv)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Live fetch for OHLCV failed")
+                errors.append(f"live: {exc}")
+        if errors:
+            return Result.fail("OHLCV unavailable: " + "; ".join(errors))
         return Result.ok([])
 
     @staticmethod
@@ -423,6 +471,9 @@ class MarketService:
             slow = int(params.get("slow", 26))
             signal_p = int(params.get("signal", 9))
             macd_line, signal_line, histogram = MarketService._macd(closes, fast, slow, signal_p)
+            # Validate that fast < slow for valid MACD calculation
+            if fast >= slow:
+                return Result.fail("MACD parameter error: fast must be less than slow")
             return {"macd": macd_line, "signal": signal_line, "histogram": histogram}
         if indicator == "bollinger":
             stddev = float(params.get("stddev", 2))
@@ -446,7 +497,14 @@ class MarketService:
             tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
                 highs or [], lows or [], closes, tenkan_p, kijun_p, senkou_b_p,
             )
-            return {"tenkan": tenkan, "kijun": kijun, "senkou_a": senkou_a, "senkou_b": senkou_b, "chikou": chikou}
+            # Align all series to same date axis
+            offset = kijun_p
+            tenkan_aligned = tenkan[offset:] if len(tenkan) > offset else []
+            kijun_aligned = kijun
+            senkou_a_aligned = senkou_a
+            senkou_b_aligned = senkou_b
+            chikou_aligned = chikou[offset:] if len(chikou) > offset else []
+            return {"tenkan": tenkan_aligned, "kijun": kijun_aligned, "senkou_a": senkou_a_aligned, "senkou_b": senkou_b_aligned, "chikou": chikou_aligned, "offset": offset}
         raise ValueError(f"Unknown indicator: {indicator}")
 
     # ── Indicator implementations ───────────────────
@@ -560,6 +618,11 @@ class MarketService:
         k_line = MarketService._sma(raw_k, k_smooth)
         # %D = SMA of smoothed %K
         d_line = MarketService._sma(k_line, d_smooth)
+        # Align d_line to same length as k_line by padding with first value
+        if len(d_line) < len(k_line):
+            d_line = d_line + [d_line[0]] * (len(k_line) - len(d_line))
+        elif len(d_line) > len(k_line):
+            d_line = d_line[:len(k_line)]
         return k_line, d_line
 
     # ── ATR (Average True Range) ──────────────────────
@@ -707,22 +770,26 @@ class MarketService:
             logger.warning("No l18 code found for symbol %s — cannot fetch live history", symbol)
             return []
         # Fetch history from BrsApi
-        try:
-            result = await self._client.fetch(
-                BrsApiEndpoints.HISTORY_PRICE,
-                params={"l18": l18, "type": "0"},
+        result = await self._client.fetch(
+            BrsApiEndpoints.HISTORY_PRICE,
+            params={"l18": l18, "type": "0"},
+        )
+        if not result.success:
+            # Callers turn this into Result.fail; returning [] here made a
+            # rejected fetch look like "no history" (audit API-02).
+            raise RuntimeError(
+                f"live history rejected for {symbol}: "
+                f"{getattr(result, 'error', None) or 'unknown error'}"
             )
-            if result.success and result.value and result.value.data:
-                parsed = TsetmcParser.parse_history_price(result.value.data)
-                if isinstance(parsed, list) and parsed:
-                    # Save to DB for future reads
-                    try:
-                        await self._save_live_history(symbol, parsed)
-                    except Exception:
-                        logger.warning("Failed to persist live history for %s", symbol, exc_info=True)
-                    return parsed[:limit]
-        except Exception:
-            logger.exception("Live history fetch failed for %s", symbol)
+        if result.value and result.value.data:
+            parsed = TsetmcParser.parse_history_price(result.value.data)
+            if isinstance(parsed, list) and parsed:
+                # Save to DB for future reads
+                try:
+                    await self._save_live_history(symbol, parsed)
+                except Exception:
+                    logger.warning("Failed to persist live history for %s", symbol, exc_info=True)
+                return parsed[:limit]
         return []
 
     async def _save_live_history(self, symbol: str, records: list[dict[str, Any]]) -> None:
@@ -785,9 +852,9 @@ class MarketService:
                         result_map[sym] = []
                     result_map[sym].append(float(row.price_close or 0))
             return Result.ok(result_map)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to fetch batch sparklines")
-            return Result.ok({})
+            return Result.fail(f"sparklines unavailable: {exc}")
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         return await self.quote_repo.get_market_summary()

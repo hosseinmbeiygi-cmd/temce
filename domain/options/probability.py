@@ -29,12 +29,18 @@ def probability_of_touch_brownian(
 ) -> float:
     """Probability that price hits target before expiry using Brownian motion.
 
-    For a GBM with drift μ = r - q - σ²/2:
-    P(hit target) = N(d+) + (target/S)^(2μ/σ²) * N(d-)
+    Reflection principle for a one-sided GBM barrier, with log-drift
+    μ = r - q - σ²/2 and u = ln(target/S):
+
+        target > S:  P = N(-d₋) + (target/S)^(2μ/σ²) · N(-d₊)
+        target < S:  P = N(d₋)  + (target/S)^(2μ/σ²) · N(d₊)
 
     where:
-    d+ = [ln(target/S) + μ*T] / (σ*sqrt(T))
-    d- = [ln(target/S) - μ*T] / (σ*sqrt(T))
+        d₊ = [u + μ*T] / (σ*sqrt(T))
+        d₋ = [u - μ*T] / (σ*sqrt(T))
+
+    (audit FIN-02: the previous version swapped the two CDF terms and used
+    ``2μ·ln(target/S)/σ²`` as the exponent instead of ``2μ/σ²``.)
     """
     if T <= 0 or sigma <= 0 or S <= 0 or target <= 0:
         return 0.0
@@ -50,9 +56,12 @@ def probability_of_touch_brownian(
     d_plus = (ln_ratio + mu * T) / sigma_sqrt_T
     d_minus = (ln_ratio - mu * T) / sigma_sqrt_T
 
-    exponent = 2 * mu * ln_ratio / (sigma**2)
+    barrier_factor = math.exp(2.0 * mu * ln_ratio / (sigma**2))
 
-    prob = stats.norm.cdf(d_plus) + (target / S) ** exponent * stats.norm.cdf(-d_minus)
+    if ln_ratio >= 0:
+        prob = stats.norm.cdf(-d_minus) + barrier_factor * stats.norm.cdf(-d_plus)
+    else:
+        prob = stats.norm.cdf(d_minus) + barrier_factor * stats.norm.cdf(d_plus)
 
     return float(min(max(prob, 0.0), 1.0))
 

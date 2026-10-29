@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
-import { apiGet, extractArray } from "@/lib/api";
-import { generateMockHeatmap } from "@/lib/types";
+import { apiGet } from "@/lib/api";
+import { getDataAsOf, isDataAsOfFresh } from "@/lib/api-envelope";
+import LiveDataBanner from "@/components/dashboard/LiveDataBanner";
 import type { HeatmapCell, TreemapData, TreemapSymbol } from "@/lib/types";
-import { useClientData } from "@/hooks/useClientData";
+import { useEnrichedHeatmap } from "@/hooks/useMarketData";
 import SSRSafe from "@/components/SSRSafe";
 import TreemapContent from "./TreemapContent";
 
@@ -166,48 +167,48 @@ function TreemapTooltip({ active, payload }: { active?: boolean; payload?: Array
 
 export default function HeatmapPage() {
   const [view, setView] = useState<"symbols" | "industries">("industries");
-  const [mockCells] = useClientData(() => generateMockHeatmap(), [] as HeatmapCell[]);
 
-  // Fetch flat heatmap data for symbols view
-  const { data: apiCells } = useQuery({
-    queryKey: ["market-enriched-heatmap"],
-    queryFn: async () => {
-      try {
-        const res = await apiGet<{ success: boolean; data: HeatmapCell[] }>("/market/enriched-heatmap");
-        return extractArray<HeatmapCell>(res);
-      } catch {
-        return [];
-      }
-    },
-    staleTime: 30_000,
-    refetchInterval: 120_000,
-  });
+  // Shared with the dashboard widgets (same query key/limit), so the page and
+  // the widgets cannot disagree about freshness or fetch the same feed twice.
+  const heatmap = useEnrichedHeatmap();
 
-  // Fetch treemap data for industries view
-  const { data: treemapData, isLoading: loadingTreemap } = useQuery({
+  // Fetch treemap data for industries view.
+  const { data: treemapFeed, isLoading: loadingTreemap, isError: treemapError } = useQuery({
     queryKey: ["market-treemap"],
     queryFn: async () => {
-      try {
-        const res = await apiGet<{ success: boolean; data: TreemapData }>("/market/treemap?limit=2000");
-        return res?.data ?? { children: [] };
-      } catch {
-        return { children: [] };
-      }
+      const res = await apiGet<{ success?: boolean; data?: TreemapData; data_as_of?: string | null }>(
+        "/market/treemap?limit=2000",
+      );
+      return { data: res?.data ?? { children: [] }, dataAsOf: getDataAsOf(res) };
     },
     staleTime: 30_000,
     refetchInterval: 120_000,
   });
 
-  const cells = apiCells && apiCells.length > 0 ? apiCells : mockCells;
-  const sortedCells = [...cells].sort((a, b) => b.change - a.change);
+  // No sample data on this page (audit FE-01): an empty grid or a skeleton is
+  // shown until the API answers, and a failure is reported as a failure.
+  const sortedCells = [...heatmap.data].sort((a, b) => b.change - a.change);
 
   // Calculate legend stats from treemap data
+  const treemapData = treemapFeed?.data ?? { children: [] };
+  const treemapAsOf = treemapFeed?.dataAsOf ?? null;
   const allSymbols = treemapData?.children?.flatMap(s => s.children) ?? [];
   const avgChange = allSymbols.length > 0
     ? allSymbols.reduce((s, sym) => s + (sym.change || 0), 0) / allSymbols.length
     : 0;
   const gainersCount = allSymbols.filter(s => s.change > 0).length;
   const losersCount = allSymbols.filter(s => s.change < 0).length;
+
+  const bannerHasData = view === "symbols" ? heatmap.hasData : allSymbols.length > 0;
+  const bannerDataAsOf = view === "symbols" ? heatmap.dataAsOf ?? null : treemapAsOf;
+  const bannerIsFresh =
+    view === "symbols"
+      ? heatmap.isFresh
+      : bannerDataAsOf != null && isDataAsOfFresh(bannerDataAsOf);
+  const bannerIsStale =
+    view === "symbols"
+      ? heatmap.isStale
+      : bannerHasData && bannerDataAsOf != null && !bannerIsFresh;
 
   return (
     <AppLayout>
@@ -221,6 +222,17 @@ export default function HeatmapPage() {
           </>
         }
       >
+        <LiveDataBanner
+          state={{
+            isLive: bannerHasData,
+            hasData: bannerHasData,
+            isFresh: bannerIsFresh,
+            isStale: bannerIsStale,
+            isError: heatmap.isError || treemapError,
+            isLoading: heatmap.isLoading || loadingTreemap,
+            dataAsOf: bannerDataAsOf,
+          }}
+        />
         {/* Color Legend */}
         {view === "industries" && allSymbols.length > 0 && (
           <div className="flex items-center justify-between gap-4 mb-4 px-2">
@@ -272,12 +284,28 @@ export default function HeatmapPage() {
               <p className="text-sm mt-1">لطفاً اتصال BrsApi را بررسی کنید</p>
             </div>
           )
-        ) : (
+        ) : heatmap.isLoading && !heatmap.hasData ? (
+          <div className="space-y-3">
+            <Skeleton className="h-[800px] w-full rounded-2xl" />
+          </div>
+        ) : heatmap.isError && !heatmap.hasData ? (
+          <div role="alert" className="text-center py-16 text-surface-500">
+            <p className="text-5xl mb-4">⚠️</p>
+            <p className="text-lg">دریافت نقشهٔ نمادها ناموفق بود</p>
+            <p className="text-sm mt-1">اتصال به سرور برقرار نشد؛ تا رسیدن پاسخ معتبر داده‌ای نمایش داده نمی‌شود.</p>
+          </div>
+        ) : sortedCells.length > 0 ? (
           <SSRSafe className="heatmap-grid" style={{ display: "grid", gap: 4 }}>
             {sortedCells.map((cell, i) => (
               <HeatmapCellComponent key={cell.symbol || i} cell={cell} />
             ))}
           </SSRSafe>
+        ) : (
+          <div className="text-center py-16 text-surface-500">
+            <p className="text-5xl mb-4">🗺️</p>
+            <p className="text-lg">داده‌ای برای نمایش نمادها موجود نیست</p>
+            <p className="text-sm mt-1">پس از اولین همگام‌سازی بازار، این نقشه پر می‌شود.</p>
+          </div>
         )}
       </Card>
     </AppLayout>

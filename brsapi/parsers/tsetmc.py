@@ -14,6 +14,8 @@ from typing import Any
 
 import jdatetime
 
+from brsapi.parsers.errors import BrsApiParseError, ensure_payload, is_no_data
+
 logger = getLogger(__name__)
 
 # Bounded ISO-ish string so fetched_at fits the varchar(30) columns used by most
@@ -22,6 +24,51 @@ logger = getLogger(__name__)
 # instead get a second-truncated real datetime, which preserves the same
 # deterministic dedup on the (symbol, fetched_at) unique constraint.
 _FETCHED_AT_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# Domain fields that identify a real payload for the single/ambiguous-shaped
+# endpoints. A dict carrying none of them is an envelope we cannot read, not a
+# record — otherwise an all-default row gets stored as if it were data.
+_DETAIL_KEYS = frozenset(
+    {"id", "l18", "l30", "l30_en", "isin", "code_12", "pl", "pc", "mv", "z"}
+)
+_INDEX_KEYS = frozenset(
+    {
+        "index",
+        "name",
+        "index_change",
+        "index_change_percent",
+        "index_equalWeight",
+        "state",
+        "mv",
+    }
+)
+_NAV_KEYS = frozenset({"psubtran", "predtran"})
+
+# Envelope keys the candlestick endpoint uses for its candle arrays.
+_CANDLE_LIST_KEYS = (
+    "candle_daily_adjusted",
+    "candle_daily",
+    "candle_intraday",
+    "candle_realtime",
+    "candles",
+    "data",
+)
+
+# Keys a candlestick payload carries when the provider answered without any
+# bars (``{"status": "no_data"}`` or a metadata-only header). Such a payload is
+# a valid empty response, not an unreadable one.
+_CANDLE_NO_DATA_KEYS = frozenset(
+    {
+        "l18",
+        "type",
+        "count",
+        "status",
+        "code_http",
+        "successful",
+        "message_error",
+        "message",
+    }
+)
 
 
 class TsetmcParser:
@@ -43,8 +90,10 @@ class TsetmcParser:
         Returns a list of symbol-snapshot dicts keyed on ``ins_id``.
         """
         if not isinstance(data, list):
-            logger.warning("AllSymbols: expected list, got %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"AllSymbols: expected a JSON list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         records: list[dict[str, Any]] = []
         # SymbolSnapshotModel.fetched_at is timestamptz in the live DB (migration
@@ -116,11 +165,25 @@ class TsetmcParser:
         """
         ``/Tsetmc/Symbol.php`` response.
 
-        Returns a single enriched detail dict, or ``None``.
+        Returns a single enriched detail dict, or ``None`` when the provider
+        answered without a symbol (``{}`` / a metadata-only envelope).
+
+        Raises ``BrsApiParseError`` for ``None``, a non-object payload, or a
+        dict that carries none of the detail fields.
         """
+        ensure_payload(data, "SymbolDetail")
         if not isinstance(data, dict):
-            logger.warning("SymbolDetail: expected dict, got %s", type(data).__name__)
+            raise BrsApiParseError(
+                f"SymbolDetail: expected an object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
+        if is_no_data(data):
             return None
+        if not _DETAIL_KEYS.intersection(data):
+            raise BrsApiParseError(
+                f"SymbolDetail: unrecognised envelope keys {sorted(data)[:5]}",
+                code="unrecognised_envelope",
+            )
 
         now = datetime.now(UTC).replace(tzinfo=None)
         rec = {
@@ -203,11 +266,23 @@ class TsetmcParser:
         ``type`` parameter passed to the API).
         """
         # API may return a single dict (type=1 or type=2) or a list (type=3)
+        ensure_payload(data, "Index")
+        if is_no_data(data):
+            return []
         if isinstance(data, dict):
+            # Any object is not an index: a provider envelope that slipped past
+            # ``is_no_data`` must not become an all-default index row.
+            if not _INDEX_KEYS.intersection(data):
+                raise BrsApiParseError(
+                    f"Index: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
             data = [data]
         elif not isinstance(data, list):
-            logger.warning("Index: expected list or dict, got %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Index: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         records: list[dict[str, Any]] = []
         # brsapi_index_values.fetched_at is a DateTime column (migration 001) —
@@ -249,11 +324,22 @@ class TsetmcParser:
         """
         ``/Tsetmc/Nav.php`` response.
 
-        Returns a single NAV snapshot with issue and redemption prices.
+        Returns a single NAV snapshot with issue and redemption prices, or
+        ``None`` when the provider answered without one.
         """
+        ensure_payload(data, "NAV")
         if not isinstance(data, dict):
-            logger.warning("NAV: expected dict, got %s", type(data).__name__)
+            raise BrsApiParseError(
+                f"NAV: expected an object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
+        if is_no_data(data):
             return None
+        if not _NAV_KEYS.intersection(data):
+            raise BrsApiParseError(
+                f"NAV: unrecognised envelope keys {sorted(data)[:5]}",
+                code="unrecognised_envelope",
+            )
 
         # Bounded ISO-ish string (matches the snapshots parser format) so it
         # fits String(30) and stays consistent across the codebase.
@@ -276,9 +362,14 @@ class TsetmcParser:
 
         Returns a list of option contract snapshots.
         """
-        if not isinstance(data, list):
-            logger.warning("Option: expected list, got %s", type(data).__name__)
+        ensure_payload(data, "Option")
+        if is_no_data(data):
             return []
+        if not isinstance(data, list):
+            raise BrsApiParseError(
+                f"Option: expected a list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime(_FETCHED_AT_FORMAT)
@@ -359,23 +450,48 @@ class TsetmcParser:
 
         Returns intraday trade ticks with fields: row, time, volume, price, canceled.
         """
+        if data is None:
+            raise BrsApiParseError(
+                "Transaction: payload is None, not a JSON document",
+                code="missing_payload",
+            )
+
         # Unwrap BrsApi envelope: {"data": {"transaction": [...]}}
         if isinstance(data, dict):
+            if not data:
+                # Valid empty response: the provider answered, with no rows.
+                return []
             inner = data.get("data")
             if isinstance(inner, dict):
                 items = inner.get("transaction")
                 if isinstance(items, list):
                     data = items
-                else:
-                    logger.warning("Transaction: no 'transaction' list in data envelope")
+                elif not inner:
                     return []
-            else:
-                logger.warning("Transaction: expected dict, got %s", type(data).__name__)
+                else:
+                    raise BrsApiParseError(
+                        "Transaction: 'data' envelope has no 'transaction' list",
+                        code="unrecognised_envelope",
+                    )
+            elif isinstance(inner, list):
+                data = inner
+            elif isinstance(data.get("transaction"), list):
+                data = data["transaction"]
+            elif {"code_http", "successful", "status"} & set(data):
+                # Provider envelope without rows (e.g. ``{"status": "no_data"}``).
                 return []
+            else:
+                raise BrsApiParseError(
+                    "Transaction: unrecognised envelope keys "
+                    f"{sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
 
         if not isinstance(data, list):
-            logger.warning("Transaction: expected list, got %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Transaction: expected a JSON list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         records: list[dict[str, Any]] = []
         for item in data:
@@ -397,17 +513,27 @@ class TsetmcParser:
     @classmethod
     def parse_history_price(cls, data: Any) -> list[dict[str, Any]]:
         """``/Tsetmc/History.php?type=0`` – daily OHLCV summary."""
-        if not isinstance(data, list):
-            logger.warning("HistoryPrice: expected list, got %s", type(data).__name__)
+        ensure_payload(data, "HistoryPrice")
+        if is_no_data(data):
             return []
+        if not isinstance(data, list):
+            raise BrsApiParseError(
+                f"HistoryPrice: expected a list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
         return [cls._history_item(item) for item in data if isinstance(item, dict)]
 
     @classmethod
     def parse_history_real_legal(cls, data: Any) -> list[dict[str, Any]]:
         """``/Tsetmc/History.php?type=1`` – daily real/legal breakdown."""
-        if not isinstance(data, list):
-            logger.warning("HistoryRealLegal: expected list, got %s", type(data).__name__)
+        ensure_payload(data, "HistoryRealLegal")
+        if is_no_data(data):
             return []
+        if not isinstance(data, list):
+            raise BrsApiParseError(
+                f"HistoryRealLegal: expected a list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         records: list[dict[str, Any]] = []
         for item in data:
@@ -468,37 +594,64 @@ class TsetmcParser:
 
         Intraday bars carry no ``date`` — they are stamped with today's
         Jalali date (Tehran) so the chart has a full timestamp.
+
+        Raises ``BrsApiParseError`` when the payload cannot be read:
+        ``missing_payload`` for ``None``, ``unexpected_shape`` for a scalar
+        payload or a non-list candle key, ``unrecognised_envelope`` for a
+        dict that names neither a candle array, OHLC fields nor no-data
+        metadata. A recognised empty response (``{"status": "no_data"}``)
+        returns ``[]``.
         """
+        if data is None:
+            raise BrsApiParseError(
+                "Candlestick: payload is None, not a JSON document",
+                code="missing_payload",
+            )
         if isinstance(data, list):
             # Some payloads are a bare array of candles.
             candles = data
         elif isinstance(data, dict):
+            if not data:
+                # Valid empty response: the provider answered, with no bars.
+                return []
             candles = None
-            for key in (
-                "candle_daily_adjusted",
-                "candle_daily",
-                "candle_intraday",
-                "candle_realtime",
-                "candles",
-                "data",
-            ):
-                val = data.get(key)
-                if isinstance(val, list):
-                    candles = val
-                    break
+            for key in _CANDLE_LIST_KEYS:
+                if key not in data:
+                    continue
+                value = data[key]
+                if isinstance(value, list):
+                    candles = value
+                else:
+                    raise BrsApiParseError(
+                        f"Candlestick: '{key}' must be a list, got "
+                        f"{type(value).__name__}",
+                        code="unexpected_shape",
+                    )
+                break
             if candles is None:
                 # Only treat a bare dict as a single candle when it actually
                 # carries OHLC fields — metadata-only payloads (e.g. the
                 # ``{"status": "no_data"}`` envelope) must not produce a
                 # zero-valued row.
-                has_ohlc = any(k in data for k in ("open", "high", "low", "close", "date", "time"))
-                candles = [data] if has_ohlc else []
+                has_ohlc = any(
+                    k in data for k in ("open", "high", "low", "close", "date", "time")
+                )
+                if has_ohlc:
+                    candles = [data]
+                elif _CANDLE_NO_DATA_KEYS.intersection(data):
+                    candles = []
+                else:
+                    raise BrsApiParseError(
+                        "Candlestick: unrecognised envelope keys "
+                        f"{sorted(data)[:5]}",
+                        code="unrecognised_envelope",
+                    )
         else:
-            logger.warning("Candlestick: expected dict or list, got %s", type(data).__name__)
-            return []
-        if not isinstance(candles, list):
-            logger.warning("Candlestick: no candle list found")
-            return []
+            raise BrsApiParseError(
+                "Candlestick: expected a JSON list or object, got "
+                f"{type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         # Intraday bars have no ``date`` field — stamp them with today's
         # Jalali date so gregorian/shamsi enrichment still works. Uses
@@ -556,9 +709,30 @@ class TsetmcParser:
     @classmethod
     def parse_shareholders(cls, data: Any) -> list[dict[str, Any]]:
         """``/Tsetmc/Shareholder.php`` response."""
+        if data is None:
+            raise BrsApiParseError(
+                "Shareholder: payload is None, not a JSON document",
+                code="missing_payload",
+            )
+        if isinstance(data, dict):
+            if not data:
+                return []
+            inner = data.get("shareholders", data.get("data"))
+            if isinstance(inner, list):
+                data = inner
+            elif {"code_http", "successful", "status"} & set(data):
+                return []
+            else:
+                raise BrsApiParseError(
+                    "Shareholder: unrecognised envelope keys "
+                    f"{sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
         if not isinstance(data, list):
-            logger.warning("Shareholder: expected list, got %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Shareholder: expected a JSON list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         records: list[dict[str, Any]] = []
         for item in data:
@@ -595,15 +769,13 @@ class TsetmcParser:
             return 0
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)

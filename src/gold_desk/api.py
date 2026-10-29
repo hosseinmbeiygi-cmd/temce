@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.dependencies import get_db_session
 from core.time import utc_now_naive
 
-from . import dca_planner, snapshot_service
+from . import dca_planner, phase1, phase2, snapshot_service
 from .alert_engine import seed_default_rules
 from .backtest import run_backtest
 from .backtest_real import run_real_backtest
@@ -35,6 +35,7 @@ from .macro_news import compute_macro_multiplier, fetch_macro_events, scrape_cbi
 from .metrics import render_prometheus
 from .models import AlertEventModel, AlertRuleModel, GoldScoreHistoryModel, GoldSnapshotModel
 from .pattern_detector import detect_patterns
+from .phase1_schemas import WhatIfRequest
 from .portfolio import (
     HoldingDeletedError,
     HoldingNotFoundError,
@@ -65,6 +66,23 @@ from .telegram_bot import TelegramConfig, send_message
 from .ws_hub import ws_endpoint
 
 logger = logging.getLogger(__name__)
+
+
+async def _require_admin_user(request: Request) -> dict:
+    """Admin gate for API-token administration (audit SEC-02).
+
+    The mount-level dependency only proves "a real user". Minting tokens that
+    carry the ``admin`` scope, and listing/revoking other people's, therefore
+    needs an explicit role check.
+    """
+    from apps.api.dependencies import get_current_user
+    from core.enums.rbac import has_role
+
+    user = await get_current_user(authorization=request.headers.get("authorization", ""))
+    if not has_role(user.get("roles", []), "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions: requires admin")
+    return user
+
 
 router = APIRouter(prefix="/gold", tags=["GoldDesk"])
 
@@ -100,9 +118,147 @@ async def get_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict:
     try:
         snap = await snapshot_service.build_snapshot(session)
         return {"success": True, "data": snap.model_dump(mode="json")}
-    except Exception as exc:
+    except Exception:
         logger.exception("snapshot failed")
         raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
+
+
+# ── 1b. Phase 1 Data Terminal (parity surface, preview-only) ─────
+
+
+@router.get(
+    "/terminal",
+    response_model=None,
+    summary="Phase 1 gold data terminal (ticker + physical + funds + certificates)",
+)
+async def get_gold_terminal(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """جدول‌های فاز ۱: تیکر ثابت، طلا و سکه، صندوق‌ها و گواهی سپرده.
+
+    همهٔ مبالغ ریال هستند. مقدار ناموجود ``null`` برمی‌گردد (هرگز صفر کاذب)
+    و دلیل آن در ``data_gaps`` همان ردیف می‌آید. این مسیر هیچ سفارشی ثبت
+    نمی‌کند؛ ``capabilities.orders`` همیشه ``false`` است.
+    """
+    try:
+        data = await phase1.build_terminal(session)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold terminal failed")
+        raise HTTPException(503, {"success": False, "error": "terminal_unavailable"})
+
+
+@router.post(
+    "/what-if",
+    response_model=None,
+    summary="Preview intrinsic/bubble implied by manual XAU/USD and USD/IRR",
+)
+async def post_gold_what_if(
+    body: WhatIfRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """ماشین‌حساب سناریو — فقط پیش‌نمایش.
+
+    ورودی‌ها: XAU/USD و دلار آزاد به ریال. خروجی ارزش ذاتی، حباب و USD ضمنی
+    را زیر همان دو نرخ بازمحاسبه می‌کند و با برچسب ``SAMPLE`` برمی‌گرداند.
+    هیچ ردیفی نوشته یا بازنویسی نمی‌شود و دادهٔ LIVE دست‌نخورده می‌ماند.
+    """
+    try:
+        data = await phase1.build_what_if(session, body.xau_usd, body.usd_irt_rial)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold what-if failed")
+        raise HTTPException(503, {"success": False, "error": "terminal_unavailable"})
+
+
+# ── 1c. Phase 2 market coverage (read-only, no trading surface) ──
+
+
+@router.get(
+    "/tehran-board",
+    response_model=None,
+    summary="Tehran shop/banking board — price, spread vs official, bubble, implied USD",
+)
+async def get_tehran_board(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """تابلو خرده‌فروشی/بنکداری تهران.
+
+    قیمت، تغییر، ارزش ذاتی، حباب، USD ضمنی و اختلاف با قیمت رسمی جدول فاز ۱.
+    منبع قیمت تهران متصل نیست؛ ردیف‌ها با ``tehran_price=null`` و
+    ``quality="NO_DATA"`` برمی‌گردند و دلیل در ``data_gaps`` می‌آید — ستون‌ها
+    حذف نمی‌شوند. هیچ سفارش/پرداختی در این مسیر وجود ندارد.
+    """
+    try:
+        data = await phase2.load_tehran_board(session)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold tehran board failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
+
+
+@router.get(
+    "/platforms",
+    response_model=None,
+    summary="Online gold platforms — price comparison only (no buy/payment)",
+)
+async def get_gold_platforms(session: AsyncSession = Depends(get_db_session)) -> dict:
+    """مقایسهٔ قیمت بسترهای آنلاین طلا — فقط اطلاعات قیمت.
+
+    بدون منبع قیمتِ مستند، ``rows`` خالی و ``source_status="not_connected"``
+    است. هیچ دکمهٔ خرید، سبد، checkout یا پرداختی وجود ندارد؛
+    ``capabilities`` همهٔ این قابلیت‌ها را ``false`` اعلام می‌کند.
+    """
+    try:
+        data = await phase2.load_platforms(session)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold platforms failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
+
+
+@router.get(
+    "/returns-matrix",
+    response_model=None,
+    summary="Returns matrix (1m/3m/6m/9m/1y) in Rial or USD",
+)
+async def get_returns_matrix(
+    base_currency: Literal["IRR", "USD"] = Query("IRR"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """ماتریس بازدهی دارایی‌ها با سوییچ ریال/دلار.
+
+    بازده سادهٔ نقطه‌به‌نقطه؛ بازه‌ای که دادهٔ کافی ندارد ``incomplete`` یا
+    ``no_data`` با دلیل فارسی برچسب می‌گیرد. همبستگی فقط روی بازده‌های روز
+    مشترک و بدون نگاه به آینده محاسبه می‌شود.
+    """
+    try:
+        data = await phase2.build_returns_matrix(session, base_currency=base_currency)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold returns matrix failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
+
+
+@router.get(
+    "/fund-map",
+    response_model=None,
+    summary="Gold fund market map + market-value summary",
+)
+async def get_fund_map(
+    size_metric: Literal["trade_value", "market_value"] = Query("trade_value"),
+    top_n: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """نقشهٔ بازار صندوق‌های طلا + خلاصهٔ ارزش بازار.
+
+    اندازه با ارزش معاملات (پیش‌فرض) یا ارزش بازار؛ رنگ در فرانت‌اند از
+    ``color_scale_pct`` (±۴٪) استفاده می‌کند. اندازهٔ نامعتبر/صفر حذف می‌شود و
+    سهم‌ها هرگز ``Infinity``/``NaN`` نیستند. کلیک روی هر خانه به
+    ``href`` یعنی ردیف همان صندوق در جدول فاز ۱ می‌رود.
+    """
+    try:
+        data = await phase2.build_fund_map(session, size_metric=size_metric, top_n=top_n)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold fund map failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
 
 
 # ── 2. Score فقط ────────────────────────────────────────────────
@@ -113,7 +269,7 @@ async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict:
     try:
         snap = await snapshot_service.build_snapshot(session)
         return {"success": True, "data": snap.score.model_dump(mode="json")}
-    except Exception as exc:
+    except Exception:
         logger.exception("score failed")
         raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
 
@@ -136,7 +292,7 @@ async def get_gold_assistant_rules() -> dict:
         from core.config.acceptance_loader import get_assistant_rules
 
         return {"success": True, "data": get_assistant_rules()}
-    except Exception as exc:  # noqa: BLE001 — شکل پاسخ، مطابق بقیهٔ این ماژول
+    except Exception:  # noqa: BLE001 — شکل پاسخ، مطابق بقیهٔ این ماژول
         logger.exception("assistant rules failed")
         raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
 
@@ -424,8 +580,9 @@ async def health(session: AsyncSession = Depends(get_db_session)):
     - 200 OK: سرویس سالم
     - 503: مشکل (DB یا Redis یا BRSApi)
     """
-    from fastapi import Response
     import contextlib
+
+    from fastapi import Response
 
     from core.cache import get_cache
 
@@ -744,6 +901,7 @@ async def gold_websocket(websocket: WebSocket) -> None:
 async def create_token(
     name: str = Query(..., min_length=1, max_length=64),
     scopes: str = Query("read", description="Comma-separated: read,write,admin"),
+    _admin: dict = Depends(_require_admin_user),
 ) -> dict:
     """ساخت token جدید. plain token فقط یک‌بار نمایش داده می‌شود.
 
@@ -774,7 +932,7 @@ async def create_token(
 
 
 @router.get("/tokens", summary="List API tokens")
-async def list_api_tokens() -> dict:
+async def list_api_tokens(_admin: dict = Depends(_require_admin_user)) -> dict:
     """لیست tokenهای فعال (بدون plain token)."""
     from .api_token import list_tokens
 
@@ -796,7 +954,7 @@ async def list_api_tokens() -> dict:
 
 
 @router.delete("/tokens/{token_id}", summary="Revoke a token")
-async def delete_token(token_id: str) -> dict:
+async def delete_token(token_id: str, _admin: dict = Depends(_require_admin_user)) -> dict:
     from .api_token import revoke_token
 
     ok = await revoke_token(token_id)
@@ -1367,6 +1525,42 @@ async def list_endpoints() -> dict:
             "auth": "Bearer token in Authorization header (for write endpoints)",
             "endpoints": [
                 {"method": "GET", "path": "/snapshot", "scope": "read", "desc": "Live snapshot"},
+                {
+                    "method": "GET",
+                    "path": "/terminal",
+                    "scope": "read",
+                    "desc": "Phase 1 data terminal",
+                },
+                {
+                    "method": "POST",
+                    "path": "/what-if",
+                    "scope": "read",
+                    "desc": "Preview intrinsic/bubble under manual inputs",
+                },
+                {
+                    "method": "GET",
+                    "path": "/tehran-board",
+                    "scope": "read",
+                    "desc": "Phase 2 Tehran shop/banking board",
+                },
+                {
+                    "method": "GET",
+                    "path": "/platforms",
+                    "scope": "read",
+                    "desc": "Phase 2 platform price comparison (no trading)",
+                },
+                {
+                    "method": "GET",
+                    "path": "/returns-matrix?base_currency=IRR",
+                    "scope": "read",
+                    "desc": "Phase 2 returns matrix (Rial or USD)",
+                },
+                {
+                    "method": "GET",
+                    "path": "/fund-map?size_metric=trade_value",
+                    "scope": "read",
+                    "desc": "Phase 2 gold fund market map",
+                },
                 {"method": "GET", "path": "/score", "scope": "read", "desc": "Just score"},
                 {"method": "GET", "path": "/history/score?days=7", "scope": "read", "desc": "Score time-series"},
                 {

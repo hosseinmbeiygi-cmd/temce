@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
+from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session, require_roles
 from apps.api.error_handlers import safe_error_message
 from core.currency import rial_to_toman_float
 from core.db_utils import safe_row_str
@@ -363,7 +363,11 @@ async def financial_reports(
         return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": quarters})
     except Exception:
         logger.exception("Failed to load real financials for %s", code)
-        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": []})
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            error={"message": f"Failed to load financials for {code}"},
+            data={"symbol": code, "quarters": []},
+        )
 
 
 @router.get("/{code}/dividends")
@@ -622,6 +626,7 @@ async def codal_analysis(
     summary="Bulk import Codal disclosures",
     description="Upload one or more Excel (.xlsx) or CSV files containing Codal disclosures. "
     "Files are processed concurrently. Existing records with the same symbol+report_type+fiscal_year+period are updated.",
+    dependencies=[Depends(require_roles("admin"))],
 )
 async def bulk_import_codal(
     files: list[UploadFile] = File(..., description="Excel (.xlsx) or CSV files with Codal data"),

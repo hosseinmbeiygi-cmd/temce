@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, extractArray } from "@/lib/api";
-import { generateMockHeatmap } from "@/lib/types";
-import { useClientData } from "@/hooks/useClientData";
 import { useMarketWebSocket } from "@/hooks/useWebSocket";
 import SSRSafe from "@/components/SSRSafe";
 
@@ -78,38 +76,9 @@ function formatPercent(pct: number): string {
   return `${sign}${pct.toFixed(2)}%`;
 }
 
-// ------ Mock Data ---------------------------------------------------------------------------------------------------------------------
-
-function generateMockGoldCoin(): GoldCoinItem[] {
-  return [
-    { symbol: "طلا ۱۸", price: 4385000, change_percent: 1.2 },
-    { symbol: "طلا ۲۴", price: 5295000, change_percent: 1.5 },
-    { symbol: "سکه امامی", price: 52350000, change_percent: 0.8 },
-    { symbol: "سکه بهار", price: 49800000, change_percent: -0.3 },
-    { symbol: "نیم سکه", price: 29500000, change_percent: 0.6 },
-    { symbol: "ربع سکه", price: 16800000, change_percent: 0.4 },
-  ];
-}
-
-function generateMockCurrency(): CurrencyItem[] {
-  return [
-    { symbol: "USD", name: "دلار آمریکا", price: 60350, change_percent: 0.15 },
-    { symbol: "EUR", name: "یورو", price: 65820, change_percent: 0.22 },
-    { symbol: "GBP", name: "پوند", price: 76700, change_percent: -0.08 },
-    { symbol: "AED", name: "درهم امارات", price: 16430, change_percent: 0.12 },
-    { symbol: "TRY", name: "لیر ترکیه", price: 1870, change_percent: 0.35 },
-  ];
-}
-
-function generateMockCrypto(): CryptoItem[] {
-  return [
-    { symbol: "BTC", name: "Bitcoin", price_usd: 67500, change_percent: 2.3 },
-    { symbol: "ETH", name: "Ethereum", price_usd: 3450, change_percent: 1.8 },
-    { symbol: "BNB", name: "BNB", price_usd: 580, change_percent: -0.5 },
-    { symbol: "SOL", name: "Solana", price_usd: 145, change_percent: 4.2 },
-    { symbol: "XRP", name: "XRP", price_usd: 0.62, change_percent: 1.1 },
-  ];
-}
+// Stable empty array: a `= []` destructuring default creates a new identity on
+// every render, which would re-run the websocket-symbol effect forever.
+const EMPTY_SYMBOLS: LiveSymbolCell[] = [];
 
 // ------ Sub-components ------------------------------------------------------------------------------------------------------
 
@@ -286,8 +255,9 @@ function GoldCurrencyTab({ goldItems, currencyItems, cryptoItems }: {
       <div className="live-gl-market-label">{marketData?.label}</div>
 
       <div className="live-symbol-list">
-        {marketData?.items.map((item: TabItem, i: number) => (
-          <div key={`${item.symbol || item.name}-${i}`} className="live-gl-row">
+        {marketData && marketData.items.length > 0 ? (
+          marketData.items.map((item: TabItem, i: number) => (
+            <div key={`${item.symbol || item.name}-${i}`} className="live-gl-row">
             <div className="live-gl-rank">#{i + 1}</div>
             <div className="live-gl-symbol">
               <span className="live-gl-symbol-text">{item.symbol}</span>
@@ -304,7 +274,10 @@ function GoldCurrencyTab({ goldItems, currencyItems, cryptoItems }: {
               />
             </div>
           </div>
-        ))}
+          ))
+        ) : (
+          <div className="text-center py-6 text-surface-500 text-sm">داده‌ای موجود نیست</div>
+        )}
       </div>
     </div>
   );
@@ -319,35 +292,33 @@ interface LiveMarketWidgetProps {
 export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetProps) {
   const [activeTab, setActiveTab] = useState<"symbols" | "gainers-losers" | "gold-currency">("symbols");
 
-  // Client-safe mock data (use LiveSymbolCell for extended fields)
-  const [mockCells] = useClientData(() => generateMockHeatmap() as LiveSymbolCell[], [] as LiveSymbolCell[]);
-  const [mockGold] = useClientData(() => generateMockGoldCoin(), [] as GoldCoinItem[]);
-  const [mockCurrency] = useClientData(() => generateMockCurrency(), [] as CurrencyItem[]);
-  const [mockCrypto] = useClientData(() => generateMockCrypto(), [] as CryptoItem[]);
-
-  // WebSocket connection for real-time symbol data
-  const { prices: wsPrices, connected: wsConnected } = useMarketWebSocket(
-    mockCells.map((c) => c.symbol)
-  );
-
-  // Track whether WS has delivered any data for symbols (derived — no effect needed)
+  // WebSocket subscriptions follow the symbols we actually fetched. Starting
+  // empty is deliberate: subscribing to a hard-coded sample list (the previous
+  // behaviour) both leaked fake symbols into the UI and subscribed to tickers
+  // the user never saw (audit FE-11).
+  const [wsSymbols, setWsSymbols] = useState<string[]>([]);
+  const { prices: wsPrices, connected: wsConnected } = useMarketWebSocket(wsSymbols);
   const wsHasData = wsConnected && wsPrices.size > 0;
 
   // ------ Fetch enriched real-time symbol data ---------------------------
-  const { data: symbolCells = mockCells as LiveSymbolCell[], isFetching: symbolsLoading, dataUpdatedAt: symbolsUpdatedAt } = useQuery<LiveSymbolCell[]>({
+  const {
+    data: symbolCells = EMPTY_SYMBOLS,
+    isFetching: symbolsLoading,
+    isError: symbolsError,
+    dataUpdatedAt: symbolsUpdatedAt,
+  } = useQuery<LiveSymbolCell[]>({
     queryKey: ["live-market-symbols-enriched"],
     queryFn: async (): Promise<LiveSymbolCell[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: LiveSymbolCell[] }>("/market/enriched-heatmap");
-        const extracted = extractArray<LiveSymbolCell>(res);
-        return extracted.length > 0 ? extracted : mockCells;
-      } catch {
-        return mockCells;
-      }
+      const res = await apiGet<{ success: boolean; data: LiveSymbolCell[] }>("/market/enriched-heatmap");
+      return extractArray<LiveSymbolCell>(res);
     },
     refetchInterval: wsHasData ? false : 30_000,
     staleTime: wsHasData ? Infinity : 15_000,
   });
+
+  useEffect(() => {
+    setWsSymbols(symbolCells.map((cell) => cell.symbol));
+  }, [symbolCells]);
 
   // Merge WS prices into symbol cells when available
   const mergedSymbolCells = useMemo(() => {
@@ -365,48 +336,33 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
   }, [symbolCells, wsPrices, wsHasData]);
 
   // ------ Fetch gold/coin prices ---------------------------------------------------------------------
-  const { data: goldData = mockGold, dataUpdatedAt: goldUpdatedAt } = useQuery({
+  const { data: goldData = [], dataUpdatedAt: goldUpdatedAt } = useQuery({
     queryKey: ["live-gold-coin"],
     queryFn: async (): Promise<GoldCoinItem[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: GoldCoinItem[] }>("/brsapi/gold-coin");
-        const extracted = extractArray<GoldCoinItem>(res);
-        return extracted.length > 0 ? extracted : mockGold;
-      } catch {
-        return mockGold;
-      }
+      const res = await apiGet<{ success: boolean; data: GoldCoinItem[] }>("/brsapi/gold-coin");
+      return extractArray<GoldCoinItem>(res);
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
 
   // ------ Fetch currency prices ------------------------------------------------------------------------
-  const { data: currencyData = mockCurrency, dataUpdatedAt: currencyUpdatedAt } = useQuery({
+  const { data: currencyData = [], dataUpdatedAt: currencyUpdatedAt } = useQuery({
     queryKey: ["live-currency"],
     queryFn: async (): Promise<CurrencyItem[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: CurrencyItem[] }>("/brsapi/currency");
-        const extracted = extractArray<CurrencyItem>(res);
-        return extracted.length > 0 ? extracted : mockCurrency;
-      } catch {
-        return mockCurrency;
-      }
+      const res = await apiGet<{ success: boolean; data: CurrencyItem[] }>("/brsapi/currency");
+      return extractArray<CurrencyItem>(res);
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
 
   // ------ Fetch crypto prices ------------------------------------------------------------------------------
-  const { data: cryptoData = mockCrypto, dataUpdatedAt: cryptoUpdatedAt } = useQuery({
+  const { data: cryptoData = [], dataUpdatedAt: cryptoUpdatedAt } = useQuery({
     queryKey: ["live-crypto"],
     queryFn: async (): Promise<CryptoItem[]> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: CryptoItem[] }>("/brsapi/crypto");
-        const extracted = extractArray<CryptoItem>(res);
-        return extracted.length > 0 ? extracted : mockCrypto;
-      } catch {
-        return mockCrypto;
-      }
+      const res = await apiGet<{ success: boolean; data: CryptoItem[] }>("/brsapi/crypto");
+      return extractArray<CryptoItem>(res);
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
@@ -424,15 +380,17 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
   const lastUpdateTime = useMemo(() => {
     const timestamps = [symbolsUpdatedAt, goldUpdatedAt, currencyUpdatedAt, cryptoUpdatedAt]
       .filter((t): t is number => typeof t === "number" && t > 0);
+    // No data yet means no "last update" — printing the current clock made an
+    // empty widget look freshly synchronised (audit FE-11).
     return timestamps.length > 0
       ? new Date(Math.max(...timestamps)).toLocaleTimeString("fa-IR")
-      : new Date().toLocaleTimeString("fa-IR");
+      : null;
   }, [symbolsUpdatedAt, goldUpdatedAt, currencyUpdatedAt, cryptoUpdatedAt]);
 
   return (
     <Card
       title="📊 بازار زنده"
-      subtitle={`${wsConnected ? "●" : "○"} آخرین به‌روزرسانی: ${lastUpdateTime}`}
+      subtitle={`${wsConnected ? "●" : "○"} آخرین به‌روزرسانی: ${lastUpdateTime ?? "—"}`}
       className={className}
       headerClassName="live-market-header"
       actions={
@@ -470,14 +428,20 @@ export default function LiveMarketWidget({ className = "" }: LiveMarketWidgetPro
               <span className="live-header-label">حجم</span>
             </div>
             <div className="live-symbol-list">
-              {mergedSymbolCells.length === 0 ? (
+              {mergedSymbolCells.length > 0 ? (
+                mergedSymbolCells.slice(0, 8).map((cell, i) => (
+                  <SymbolRow key={`${cell.symbol}-${i}`} cell={cell} />
+                ))
+              ) : symbolsError ? (
+                <div role="alert" className="text-center py-6 text-surface-400 text-sm">
+                  دریافت دادهٔ بازار ناموفق بود
+                </div>
+              ) : symbolsLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <Skeleton key={i} className="h-10 w-full mb-1" />
                 ))
               ) : (
-                mergedSymbolCells.slice(0, 8).map((cell, i) => (
-                  <SymbolRow key={`${cell.symbol}-${i}`} cell={cell} />
-                ))
+                <div className="text-center py-6 text-surface-500 text-sm">داده‌ای موجود نیست</div>
               )}
             </div>
           </div>

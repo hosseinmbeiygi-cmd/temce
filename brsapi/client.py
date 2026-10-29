@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from logging import getLogger
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 import httpx
 from httpx import AsyncHTTPTransport, Limits
@@ -57,6 +57,96 @@ def _redact_sensitive_text(value: str) -> str:
 
 
 # ──────────────────────────────────────────────
+#  Error taxonomy
+# ──────────────────────────────────────────────
+
+
+# Machine-readable failure reasons carried by ``Result.error_code``. Callers
+# branch on these instead of matching words in the human-readable message.
+BrsApiErrorCode = Literal[
+    "malformed",  # body was HTML or invalid JSON
+    "provider_blocked",  # 302 heavy-file redirect / block cooldown
+    "quota_exhausted",  # daily budget or rate limit spent
+    "budget_soft_limit",  # soft ceiling rejected a non-critical call
+    "timeout",  # request timed out after retries
+    "network_error",  # connection/protocol failure
+    "http_error",  # explicit non-200 HTTP status
+    "retries_exhausted",  # retryable statuses exhausted
+    "disabled",  # BRSAPI_ENABLED=false
+    "not_started",  # client used before ``start()``
+    "source_error",  # anything unclassified
+]
+
+
+class BrsApiMalformedResponseError(Exception):
+    """The HTTP body was not the JSON document BrsApi promised.
+
+    Raised for an HTML page (the provider's suspend/block page) or a body that
+    is not valid JSON, so a caller can tell "the provider answered garbage"
+    apart from "the provider answered with no rows".
+    """
+
+    code: BrsApiErrorCode = "malformed"
+
+
+class BrsApiSourceError(Exception):
+    """BrsApi answered HTTP 200 with a provider-level error envelope.
+
+    Example: ``{"code_http": 402, "successful": false, "message_error":
+    "quota exhausted"}`` — a transport success carrying an application error
+    that must never be stored as data.
+    """
+
+    code: BrsApiErrorCode = "provider_blocked"
+
+    def __init__(self, message: str, *, code: BrsApiErrorCode | None = None) -> None:
+        if code is not None:
+            self.code = code
+        super().__init__(message)
+
+
+_HTML_CONTENT_TYPE_MARKERS = ("text/html", "application/xhtml")
+_HTML_BODY_PREFIXES = ("<!doctype html", "<html", "<?xml", "<!--")
+
+
+def _looks_like_html(content_type: str, text: str) -> bool:
+    """True when the body is an HTML/XML document rather than JSON."""
+    lowered_type = (content_type or "").lower()
+    if any(marker in lowered_type for marker in _HTML_CONTENT_TYPE_MARKERS):
+        return True
+    head = text.lstrip()[:200].lower()
+    return head.startswith(_HTML_BODY_PREFIXES)
+
+
+def _raise_for_provider_error(data: dict[str, Any]) -> None:
+    """Raise :class:`BrsApiSourceError` for an in-band provider error envelope."""
+    if data.get("successful") is not False:
+        return
+    raw_code = data.get("code_http")
+    message = (
+        data.get("message_error")
+        or data.get("message")
+        or data.get("status")
+        or "provider error"
+    )
+    prefix = (
+        f"BrsApi provider error (HTTP {raw_code})"
+        if raw_code is not None
+        else "BrsApi provider error"
+    )
+    try:
+        http_code = int(raw_code) if raw_code is not None else None
+    except (TypeError, ValueError):
+        http_code = None
+    # 402 (payment required) and 429 (too many requests) mean the account's
+    # quota is spent; other in-band errors are provider-side blocks.
+    error_code: BrsApiErrorCode = (
+        "quota_exhausted" if http_code in (402, 429) else "provider_blocked"
+    )
+    raise BrsApiSourceError(f"{prefix}: {message}", code=error_code)
+
+
+# ──────────────────────────────────────────────
 #  Response envelope
 # ──────────────────────────────────────────────
 
@@ -69,6 +159,9 @@ class BrsApiResponse:
     data: Any                                        # Parsed JSON payload
     raw_bytes: bytes | None = None                   # Raw HTTP body (for audit)
     fetched_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # Naive UTC timestamp of when the body arrived; sync stamps stored rows and
+    # the raw-payload log with this instead of a per-parser ``now()``.
+    received_at: datetime | None = None
     elapsed_ms: float = 0.0
     error: str | None = None
     success: bool = True
@@ -216,10 +309,14 @@ class BrsApiClient:
         if not brsapi_settings.enabled:
             return Result.fail(
                 "BrsApi disabled via BRSAPI_ENABLED=false — DB-only mode "
-                "(no live API calls while the key is blocked/quota exhausted)"
+                "(no live API calls while the key is blocked/quota exhausted)",
+                code="disabled",
             )
         if self._client is None:
-            return Result.fail("BrsApiClient not started – call .start() first")
+            return Result.fail(
+                "BrsApiClient not started – call .start() first",
+                code="not_started",
+            )
 
         url = f"{self._base_url}{endpoint.path}"
         request_params = self._build_params(endpoint, params)
@@ -239,13 +336,13 @@ class BrsApiClient:
                     "BrsApi budget soft ceiling — non-critical request for %s rejected",
                     endpoint.path,
                 )
-                return Result.fail(str(exc))
+                return Result.fail(str(exc), code="budget_soft_limit")
             except RateLimitExhaustedError as exc:
                 logger.warning("BrsApi budget exhausted — request rejected fast")
-                return Result.fail(str(exc))
+                return Result.fail(str(exc), code="quota_exhausted")
             except BudgetBlockedError as exc:
                 logger.warning("BrsApi key in 302-cooldown — request rejected fast")
-                return Result.fail(str(exc))
+                return Result.fail(str(exc), code="provider_blocked")
 
         # Circuit breaker for this endpoint path
         cb = self._circuit_breaker(endpoint.path)
@@ -261,7 +358,11 @@ class BrsApiClient:
         except Exception as exc:
             safe_error = _redact_sensitive_text(str(exc))
             logger.warning("BrsApi fetch failed [%s]: %s", endpoint.path, safe_error)
-            return Result.fail(safe_error)
+            # Typed errors (malformed body, provider block) carry their own code;
+            # anything else is an unclassified source failure.
+            return Result.fail(
+                safe_error, code=getattr(exc, "code", "source_error")
+            )
 
     # ── Internal fetch logic ─────────────────────
 
@@ -286,7 +387,12 @@ class BrsApiClient:
                 critical=endpoint.critical,
             )
         except (RateLimitExhaustedError, BudgetBlockedError) as exc:
-            return Result.fail(str(exc))
+            code: BrsApiErrorCode = (
+                "provider_blocked"
+                if isinstance(exc, BudgetBlockedError)
+                else "quota_exhausted"
+            )
+            return Result.fail(str(exc), code=code)
 
         # HTTP request with retry
         last_error: str | None = None
@@ -296,11 +402,14 @@ class BrsApiClient:
             try:
                 resp = await self._client.get(url, params=params)
                 elapsed = (asyncio.get_event_loop().time() - start) * 1000
+                received_at = datetime.now(UTC).replace(microsecond=0, tzinfo=None)
 
                 raw_bytes = resp.content
 
                 if resp.status_code == 200:
-                    data = self._parse_response(resp.content)
+                    data = self._parse_response(
+                        resp.content, resp.headers.get("content-type", "")
+                    )
                     # Best effort — a successful response may clear a stale
                     # block after the cooldown; never fail the request on it.
                     try:
@@ -312,6 +421,7 @@ class BrsApiClient:
                         status_code=200,
                         data=data,
                         raw_bytes=raw_bytes if self._raw_sink_enabled else None,
+                        received_at=received_at,
                         elapsed_ms=elapsed,
                         success=True,
                     )
@@ -339,7 +449,8 @@ class BrsApiClient:
                         "BrsApi quota exceeded (HTTP 302 → heavy-file redirect). "
                         "Server-side usage is above the plan threshold — keep "
                         "DB-only mode (BRSAPI_ENABLED=false) until the counter "
-                        "resets or the plan is upgraded."
+                        "resets or the plan is upgraded.",
+                        code="provider_blocked",
                     )
 
                 if resp.status_code in (429, 502, 503, 504):
@@ -370,7 +481,7 @@ class BrsApiClient:
 
                 # Other HTTP error
                 last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
-                return Result.fail(last_error)
+                return Result.fail(last_error, code="http_error")
 
             except httpx.TimeoutException:
                 last_error = "timeout"
@@ -384,7 +495,10 @@ class BrsApiClient:
                     )
                     await asyncio.sleep(delay)
                     continue
-                return Result.fail(f"Request timeout after {self._max_retries} retries")
+                return Result.fail(
+                    f"Request timeout after {self._max_retries} retries",
+                    code="timeout",
+                )
 
             except httpx.RequestError as exc:
                 last_error = _redact_sensitive_text(str(exc))
@@ -399,9 +513,14 @@ class BrsApiClient:
                     )
                     await asyncio.sleep(delay)
                     continue
-                return Result.fail(f"RequestError: {_redact_sensitive_text(str(exc))}")
+                return Result.fail(
+                    f"RequestError: {_redact_sensitive_text(str(exc))}",
+                    code="network_error",
+                )
 
-        return Result.fail(f"All retries exhausted: {last_error}")
+        return Result.fail(
+            f"All retries exhausted: {last_error}", code="retries_exhausted"
+        )
 
     # ── Build URL parameters ─────────────────────
 
@@ -420,12 +539,28 @@ class BrsApiClient:
 
     # ── Response parsing ─────────────────────────
 
-    def _parse_response(self, content: bytes) -> Any:
+    def _parse_response(self, content: bytes, content_type: str = "") -> Any:
+        """Decode one HTTP body, rejecting non-JSON and provider error envelopes.
+
+        A body we cannot read is an error, never data: returning ``[]`` or a
+        ``{"_raw_text": ...}`` stub let a blocked or garbage response look like
+        a healthy empty sync.
+        """
+        text = content.decode("utf-8", errors="replace")
+        if _looks_like_html(content_type, text):
+            raise BrsApiMalformedResponseError(
+                "BrsApi returned an HTML page instead of JSON "
+                "(suspend/block page)"
+            )
         try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            # Sometimes BrsApi returns plain text on error
-            return {"_raw_text": content.decode("utf-8", errors="replace")}
+            data = json.loads(content)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BrsApiMalformedResponseError(
+                f"BrsApi returned invalid JSON: {exc}"
+            ) from exc
+        if isinstance(data, dict):
+            _raise_for_provider_error(data)
+        return data
 
     def _parse_retry_after(self, resp: httpx.Response) -> float:
         header = resp.headers.get("Retry-After", "5")

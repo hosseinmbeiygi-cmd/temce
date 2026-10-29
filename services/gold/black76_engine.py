@@ -143,19 +143,17 @@ def calculate_greeks(
     if option_type == "call":
         price = discount * (F * cdf_d1 - K * cdf_d2)
         delta = discount * cdf_d1
-        theta = (
-            time_decay
-            - r * discount * (F * cdf_d1 - K * cdf_d2)
-            + r * F * discount * cdf_d1
-        )
     else:
         price = discount * (K * norm.cdf(-d2) - F * norm.cdf(-d1))
         delta = -discount * norm.cdf(-d1)
-        theta = (
-            time_decay
-            - r * discount * (K * norm.cdf(-d2) - F * norm.cdf(-d1))
-            - r * F * discount * norm.cdf(-d1)
-        )
+
+    # θ = ∂V/∂t = -∂V/∂T = time_decay + r·V for both call and put: the
+    # diffusion term is identical and only the discounting carries the
+    # risk-free rate (audit FIN-01). The previous call branch added an extra
+    # +r·F·e^{-rT}·N(d1) term and the put branch used -r·V, which flipped the
+    # sign of theta in normal regimes. Locked by
+    # tests/unit/services/test_black76_theta_derivative.py against -dV/dT.
+    theta = time_decay + r * price
 
     return {
         "delta": delta,

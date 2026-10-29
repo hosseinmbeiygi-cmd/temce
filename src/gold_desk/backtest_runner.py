@@ -18,14 +18,13 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date
 
+import jdatetime
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import jdatetime
-from core.time import now_tehran
-
 from . import indicators
+from .black76 import IRAN_RISK_FREE_RATE
 from .constants import COIN_WEIGHTS, SMA_BUBBLE_WINDOW, VEHICLE_FEES
 from .dates import jalali_days_ago
 
@@ -68,7 +67,7 @@ class BacktestMetrics:
     n_trades: int
     n_successful: int
     max_drawdown_pct: float
-    sharpe_ratio: float  # روی NAV روزانهٔ استراتژی، rf=0
+    sharpe_ratio: float  # روی NAV روزانهٔ استراتژی، با rf داخلی (IRAN_RISK_FREE_RATE)
     trades: list[BacktestTrade] = field(default_factory=list)
     warning: str | None = None
     # ── فیلدهای افزایشی ──
@@ -246,8 +245,14 @@ def _max_drawdown_pct(nav: np.ndarray) -> float:
     return float(np.max(drawdown))
 
 
-def _annualized_sharpe(nav: np.ndarray) -> float:
-    """شارپ روی بازده‌های روزانهٔ NAV استراتژی (rf=0)."""
+def _annualized_sharpe(
+    nav: np.ndarray, risk_free_annual: float = IRAN_RISK_FREE_RATE
+) -> float:
+    """شارپ روی بازده‌های روزانهٔ NAV استراتژی، با نرخ بدون ریسک داخلی.
+
+    Audit FIN-06: rf=0 overstated Sharpe by ~1.2 with a 30% domestic rate and
+    25% volatility (a 20% return showed 0.8 instead of -0.4).
+    """
     if nav.size < 3:
         return 0.0
     previous = nav[:-1]
@@ -257,10 +262,11 @@ def _annualized_sharpe(nav: np.ndarray) -> float:
     daily_returns = np.diff(nav)[valid] / previous[valid]
     if daily_returns.size < 2:
         return 0.0
-    std = float(np.std(daily_returns))
+    excess = daily_returns - risk_free_annual / TRADING_DAYS_PER_YEAR
+    std = float(np.std(excess))
     if std < 1e-12:
         return 0.0
-    return float(np.sqrt(TRADING_DAYS_PER_YEAR) * np.mean(daily_returns) / std)
+    return float(np.sqrt(TRADING_DAYS_PER_YEAR) * np.mean(excess) / std)
 
 
 def _compute_metrics(
@@ -292,7 +298,7 @@ def _compute_metrics(
 
     nav = _daily_nav(closes, trades, initial_capital)
     final_value = float(nav[-1])
-    total_return = (final_value / initial_capital - 1) * 100 if initial_capital > 0 else 0.0
+    total_return = (final_value / initial_capital - 1) * 100 if initial_capital > 0 else 0.0  # C1: using Mark-to-Market final_value instead of initial_capital
     bh_return = (end_price / start_price - 1) * 100 if start_price > 0 else 0.0
     alpha = total_return - bh_return
 

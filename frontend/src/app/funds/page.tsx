@@ -152,8 +152,10 @@ function useFundShelf() {
 // ── Tab: نمای کلی ───────────────────────────────────────────────────────────
 
 function OverviewTab() {
-  const { data: ov, isPending } = useFundOverview();
+  const { data: ov, isPending, isError } = useFundOverview();
   if (isPending) return <Loading rows={5} />;
+  // Audit FE-03: an outage must not read as "not built yet".
+  if (isError) return <Empty text="دریافت نمای کلی صندوق‌ها ناموفق بود — اتصال به سرور برقرار نشد" icon={LayoutDashboard} />;
   if (!ov) return <Empty text="نمای کلی بازار ساخته نشد" icon={LayoutDashboard} />;
 
   const donut = (ov.trade_breakdown ?? []).map((c, i) => ({

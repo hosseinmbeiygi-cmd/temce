@@ -287,10 +287,13 @@ class TestMarketServiceGetIndexValues:
         mock_brsapi = AsyncMock()
         mock_brsapi.get_latest_indices.return_value = []
         mock_client = AsyncMock()
-        mock_client.fetch.return_value = MagicMock(success=False)
+        # A clean empty answer (not a rejected fetch): the fallback ran, found
+        # nothing, and no source errored — that is a legitimate empty result.
+        mock_client.fetch.return_value = MagicMock(success=True, value=None)
         service = MarketService(brsapi_query_service=mock_brsapi, brsapi_client=mock_client)
         result = await service.get_index_values()
         assert result.success
+        assert result.value == []
 
     @pytest.mark.asyncio
     async def test_indices_no_brsapi_no_client(self):

@@ -5,10 +5,10 @@ Uses requests (sync) in thread executor — mirrors the tested Python scripts ex
 
 from __future__ import annotations
 
-import contextlib
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import requests
@@ -16,6 +16,7 @@ import urllib3
 
 from brsapi.budget import get_budget_governor
 from brsapi.config import get_brsapi_settings
+from brsapi.quality import daily_bar_issues, normalize_jalali_date
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -52,12 +53,28 @@ GOLD_SYMBOLS.update({f"IR_PCOIN_{s}" for s in [
 
 @dataclass
 class FetchReport:
+    """Outcome of one symbol's history fetch.
+
+    ``record_count`` is the number of bars actually written. ``invalid_count``
+    counts provider bars the quality rules rejected (see ``brsapi.quality``) and
+    ``failed_count`` counts bars whose INSERT raised — both were previously
+    invisible because the insert ran inside ``contextlib.suppress(Exception)``
+    (gold/coin/FX and crypto alike) and a rejected bar was simply skipped.
+    """
+
     symbol: str
     section: str
     record_count: int = 0
+    invalid_count: int = 0
+    failed_count: int = 0
     success: bool = True
     error: str | None = None
     duration_ms: float = 0.0
+
+
+# ``fetched_at`` (client receive time) is separate from the market date and from
+# the DB's ``created_at``. Format matches the other BrsApi varchar(30) stamps.
+_FETCH_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 def _fetch_symbol_list_sync(section: str) -> list[str]:
@@ -205,36 +222,77 @@ class HistoryFetchService:
                     continue
 
                 inserted = 0
+                invalid = 0
+                failed = 0
+                last_error: str | None = None
+                fetched_at = datetime.now(UTC).strftime(_FETCH_TIME_FORMAT)
                 if self._session:
                     for r in records:
-                        date = str(r.get("date", "")).replace("/", "-")
+                        # Same market-date rule as gold/coin/FX: the provider's
+                        # Jalali trading date, never the ingestion day.
+                        trading_date = normalize_jalali_date(r.get("date"))
+                        if trading_date is None:
+                            invalid += 1
+                            logger.warning(
+                                "Crypto %s: unparsable source date %r — bar quarantined",
+                                sym, r.get("date"),
+                            )
+                            continue
                         o = _num(r.get("open"))
                         h = _num(r.get("high"))
                         low = _num(r.get("low"))
                         c = _num(r.get("close"))
                         v = _num(r.get("volume"))
-                        if c is None or c <= 0:
+                        issues = daily_bar_issues(close=c, high=h, low=low, open=o)
+                        if issues:
+                            invalid += 1
+                            logger.warning(
+                                "Crypto %s %s: bar quarantined (%s)",
+                                sym, trading_date, ",".join(issues),
+                            )
                             continue
-                        with contextlib.suppress(Exception):
-                            await self._session.execute(sql_text("""
+                        try:
+                            # Audit DB-07: a failed row must not abort the whole
+                            # batch on PostgreSQL — wrap each INSERT in its own
+                            # SAVEPOINT so the transaction stays usable.
+                            async with self._session.begin_nested():
+                                await self._session.execute(sql_text("""
                                 INSERT INTO brsapi_crypto_daily_history
-                                    (symbol, date, price_open, price_high, price_low, price_close, volume)
-                                VALUES (:sym, :date, :o, :h, :low, :c, :v)
+                                    (symbol, date, price_open, price_high, price_low, price_close, volume, fetched_at)
+                                VALUES (:sym, :date, :o, :h, :low, :c, :v, :fetched_at)
                                 ON CONFLICT (symbol, date) DO UPDATE SET
                                     price_open = EXCLUDED.price_open,
                                     price_high = EXCLUDED.price_high,
                                     price_low = EXCLUDED.price_low,
                                     price_close = EXCLUDED.price_close,
                                     volume = EXCLUDED.volume
-                            """), {"sym": sym, "date": date, "o": o, "h": h, "low": low, "c": c, "v": v})
+                            """), {
+                                "sym": sym, "date": trading_date, "o": o, "h": h,
+                                "low": low, "c": c, "v": v, "fetched_at": fetched_at,
+                            })
                             inserted += 1
+                        except Exception as exc:  # noqa: BLE001 — count, never hide
+                            failed += 1
+                            last_error = f"{type(exc).__name__}: {exc}"
+                            logger.warning(
+                                "Crypto %s %s: insert failed (%s)",
+                                sym, trading_date, last_error,
+                            )
                     await self._session.commit()
 
                 reports.append(FetchReport(
                     symbol=sym, section="crypto",
-                    record_count=inserted, duration_ms=dur,
+                    record_count=inserted,
+                    invalid_count=invalid,
+                    failed_count=failed,
+                    success=failed == 0,
+                    error=last_error,
+                    duration_ms=dur,
                 ))
-                logger.info("Crypto %s: %d rows (%.0fms)", sym, inserted, dur)
+                logger.info(
+                    "Crypto %s: %d written, %d quarantined, %d failed (%.0fms)",
+                    sym, inserted, invalid, failed, dur,
+                )
 
             except Exception as e:
                 dur = (time.monotonic() - t0) * 1000
@@ -276,34 +334,75 @@ class HistoryFetchService:
 
                 table = "brsapi_gold_coin_history" if sym in GOLD_SYMBOLS else "brsapi_gold_currency_pro_daily_history"
                 inserted = 0
+                invalid = 0
+                failed = 0
+                last_error: str | None = None
+                fetched_at = datetime.now(UTC).strftime(_FETCH_TIME_FORMAT)
                 if self._session:
                     for r in records:
-                        date = str(r.get("date", "")).replace("/", "-")
+                        # Market date, not "today": an unknown date is rejected
+                        # rather than stamped with the ingestion day (ISSUE-127).
+                        trading_date = normalize_jalali_date(r.get("date"))
+                        if trading_date is None:
+                            invalid += 1
+                            logger.warning(
+                                "Gold/Currency %s: unparsable source date %r — bar quarantined",
+                                sym, r.get("date"),
+                            )
+                            continue
                         o = _num(r.get("open"))
                         h = _num(r.get("high"))
                         low = _num(r.get("low"))
                         c = _num(r.get("close"))
-                        if c is None or c <= 0:
+                        issues = daily_bar_issues(close=c, high=h, low=low, open=o)
+                        if issues:
+                            # Quarantine only: the row is not written and the
+                            # existing history is never rewritten or deleted.
+                            invalid += 1
+                            logger.warning(
+                                "Gold/Currency %s %s: bar quarantined (%s)",
+                                sym, trading_date, ",".join(issues),
+                            )
                             continue
-                        with contextlib.suppress(Exception):
-                            await self._session.execute(sql_text(f"""
+                        try:
+                            # Audit DB-07: per-row SAVEPOINT (see crypto loop).
+                            async with self._session.begin_nested():
+                                await self._session.execute(sql_text(f"""
                                 INSERT INTO {table}
-                                    (symbol, date, price_open, price_high, price_low, price_close)
-                                VALUES (:sym, :date, :o, :h, :low, :c)
+                                    (symbol, date, price_open, price_high, price_low, price_close, fetched_at)
+                                VALUES (:sym, :date, :o, :h, :low, :c, :fetched_at)
                                 ON CONFLICT (symbol, date) DO UPDATE SET
                                     price_open = EXCLUDED.price_open,
                                     price_high = EXCLUDED.price_high,
                                     price_low = EXCLUDED.price_low,
                                     price_close = EXCLUDED.price_close
-                            """), {"sym": sym, "date": date, "o": o, "h": h, "low": low, "c": c})
+                            """), {
+                                "sym": sym, "date": trading_date, "o": o, "h": h,
+                                "low": low, "c": c, "fetched_at": fetched_at,
+                            })
                             inserted += 1
+                        except Exception as exc:  # noqa: BLE001 — count, never hide
+                            failed += 1
+                            last_error = f"{type(exc).__name__}: {exc}"
+                            logger.warning(
+                                "Gold/Currency %s %s: insert failed (%s)",
+                                sym, trading_date, last_error,
+                            )
                     await self._session.commit()
 
                 reports.append(FetchReport(
                     symbol=sym, section="gold_currency",
-                    record_count=inserted, duration_ms=dur,
+                    record_count=inserted,
+                    invalid_count=invalid,
+                    failed_count=failed,
+                    success=failed == 0,
+                    error=last_error,
+                    duration_ms=dur,
                 ))
-                logger.info("Gold/Currency %s → %s: %d rows (%.0fms)", sym, table, inserted, dur)
+                logger.info(
+                    "Gold/Currency %s → %s: %d written, %d quarantined, %d failed (%.0fms)",
+                    sym, table, inserted, invalid, failed, dur,
+                )
 
             except Exception as e:
                 dur = (time.monotonic() - t0) * 1000

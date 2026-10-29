@@ -33,6 +33,11 @@ VALID_CATEGORIES = {"market", "companies", "company", "economic", "political", "
 _CATEGORY_ALIASES = {"company": "companies", "stock_market": "market"}
 
 
+def _latest_published_at(items: list[NewsResponse]) -> str | None:
+    values = [item.published_at for item in items if getattr(item, "published_at", None)]
+    return max(values) if values else None
+
+
 def normalize_news_category(category: str) -> str:
     """Map a client-supplied category to the canonical stored value.
 
@@ -201,6 +206,7 @@ async def list_news(
                 page_size=page_size,
                 total_pages=total_pages,
             ),
+            data_as_of=_latest_published_at(items),
         )
     # Fallback: return market news from symbol snapshots
     if page > 1:
@@ -220,10 +226,13 @@ async def list_news(
             page_size=page_size,
             total_pages=1,
         ),
+        data_as_of=_latest_published_at(market_news),
     )
 
 
-@router.post("")
+# Audit API-06: publishing market-wide news is an editorial action, not a
+# read — any self-registered account must not be able to inject it.
+@router.post("", dependencies=[Depends(require_roles("admin"))])
 async def create_news(
     body: NewsRequest,
     service: NewsService = Depends(get_news_service),
@@ -424,7 +433,7 @@ async def trending_news(
     return ApiResponse[list[NewsResponse]](success=True, data=[])
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(require_roles("admin"))])
 async def refresh_news() -> ApiResponse[dict[str, Any]]:
     """Trigger background news ingestion from RSS feeds."""
     if _refresh_status["running"]:

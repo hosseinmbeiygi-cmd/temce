@@ -193,6 +193,13 @@ class NewsIngestionService:
             "duplicates_removed": 0,
             "filtered_out": 0,
             "saved": 0,
+            # Rows the cross-run dedup guard dropped (already in the DB) — kept
+            # separate from ``duplicates_removed`` (in-memory, same-run dedup)
+            # so a skipped article is never reported as a save.
+            "skipped_existing": 0,
+            # Provider failure reason ("" = the fetch succeeded). Without it a
+            # dead feed set looked identical to "feeds returned nothing".
+            "fetch_error": "",
             "errors": 0,
             "articles": [],
         }
@@ -224,6 +231,8 @@ class NewsIngestionService:
             if verbose:
                 print(f"  ✅ Fetched {len(raw_articles)} articles from {len(provider.feeds)} feeds")
         else:
+            stats["fetch_error"] = fetch_result.error or "no_articles_fetched"
+            stats["errors"] += 1
             logger.warning("No articles fetched: %s", fetch_result.error)
             if verbose:
                 print(f"  ⚠️  No articles fetched: {fetch_result.error}")
@@ -312,10 +321,14 @@ class NewsIngestionService:
                 print(f"\n  💾  SAVING {len(enriched)} articles...")
 
             saved_count = 0
+            skipped_existing = 0
             for article in enriched:
                 try:
-                    await self._save_article(article)
-                    saved_count += 1
+                    outcome = await self._save_article(article)
+                    if outcome == "skipped_existing":
+                        skipped_existing += 1
+                    else:
+                        saved_count += 1
                 except Exception as e:
                     logger.error("Failed to save article '%s': %s", article.get("title", "?"), e)
                     stats["errors"] += 1
@@ -329,9 +342,18 @@ class NewsIngestionService:
                         except Exception:
                             logger.debug("Session rollback after article save failure failed", exc_info=True)
             stats["saved"] = saved_count
+            stats["skipped_existing"] = skipped_existing
+            if skipped_existing:
+                logger.info(
+                    "Skipped %d article(s) already present in the DB (URL/title match)",
+                    skipped_existing,
+                )
 
             if verbose:
-                print(f"  ✅ Saved {saved_count} articles ({stats['errors']} errors)")
+                print(
+                    f"  ✅ Saved {saved_count} articles "
+                    f"({skipped_existing} already present, {stats['errors']} errors)"
+                )
 
         stats["articles"] = enriched
         stats["finished_at"] = datetime.now(UTC).isoformat()
@@ -343,12 +365,16 @@ class NewsIngestionService:
 
         return stats
 
-    async def _save_article(self, article: dict[str, Any], *, mirror: bool = True) -> None:
+    async def _save_article(self, article: dict[str, Any], *, mirror: bool = True) -> str:
         """Convert article dict to NewsItem and save via NewsService.
 
         Checks for existing articles by URL or title before saving to avoid duplicates.
         When ``mirror`` is False the new-schema dual-write is skipped entirely —
         used by the post-rollback re-save so a mirror failure cannot loop.
+
+        Returns ``"saved"`` when the row was written and ``"skipped_existing"``
+        when the cross-run dedup guard (``exists_by_url_or_title``) dropped it,
+        so the caller never counts a skipped article as a save.
         """
         url = article.get("link") or article.get("url", "")
         title = article.get("title", "Untitled")
@@ -358,12 +384,14 @@ class NewsIngestionService:
             exists = await self.news_service.repo.exists_by_url_or_title(url, title)
             if exists:
                 logger.debug("Skipping duplicate article (URL or title exists): %s", title[:60])
-                return
+                return "skipped_existing"
 
         pub_date_str = article.get("published_at") or article.get("pubDate")
         pub_date = _parse_rss_date(pub_date_str) if pub_date_str else None
-        if pub_date is None:
-            pub_date = datetime.now(UTC).replace(microsecond=0)
+        # Audit DS-06: no source date → store nothing. Backfilling ``now()``
+        # made undated items indistinguishable from a genuine same-second
+        # publication and hid missing source timestamps from the data quality
+        # checks.
 
         # Extract stock symbols from article text
         text = (article.get("title") or "") + " " + (article.get("description") or "")
@@ -393,9 +421,16 @@ class NewsIngestionService:
         )
 
         save_result = await self.news_service.save(item)
+        # A failed legacy save is NOT a success: without this guard the row
+        # would still be counted as saved (and mirrored) while the legacy
+        # table never received it, breaking the dual-write parity the canary
+        # read path relies on.
+        if save_result is None or not save_result.success:
+            error = getattr(save_result, "error", None) or "unknown error"
+            raise RuntimeError(f"legacy news save failed: {error}")
 
         if not mirror:
-            return
+            return "saved"
 
         # published_at for the mirror must equal the legacy row's effective
         # ordering key EXACTLY: legacy orders by COALESCE(published_at_ts,
@@ -406,18 +441,23 @@ class NewsIngestionService:
         # milliseconds and would scramble tie order across schemas.
         saved = save_result.value if (save_result and save_result.success) else None
         _fallback_pub = (saved.created_at if saved is not None else None) or item.created_at
+        # The source date when the feed provided one; otherwise the legacy
+        # row's ordering key (created_at) so the mirror keeps the same tie
+        # order as ``COALESCE(published_at_ts, created_at)`` (audit DS-06).
+        _mirror_pub = pub_date or _fallback_pub
         await self.dual_writer.safe_mirror(
             article,
             title=item.title,
             body=item.content or None,
             source=item.source,
             url=url,
-            published_at=_fallback_pub,
+            published_at=_mirror_pub,
             category=category,
             is_breaking=bool(article.get("is_breaking", False)),
             symbols=symbols,
             dedup_hash=compute_dedup_hash(item.title, url),
         )
+        return "saved"
 
     def _display_summary(self, stats: dict[str, Any], top_n: int = 15) -> None:
         """Print a formatted summary of the ingestion results."""
@@ -428,6 +468,7 @@ class NewsIngestionService:
         print(f"  Duplicates removed:{stats['duplicates_removed']:>6,d}")
         print(f"  Filtered out:      {stats['filtered_out']:>6,d}")
         print(f"  Saved to DB:       {stats['saved']:>6,d}")
+        print(f"  Already present:   {stats.get('skipped_existing', 0):>6,d}")
         print(f"  Errors:            {stats['errors']:>6,d}")
         print("-" * 70)
 

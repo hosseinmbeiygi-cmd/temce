@@ -86,7 +86,15 @@ class SchedulerApp:
         # costs zero quota when the morning run already captured today's NAV
         # and otherwise acts as a same-day retry.
         self.add_job("SyncNavAllJob", trigger="cron", hour="9,18", minute=0, max_instances=1, replace_existing=True)
-        self.add_job("NewsIngestionJob", trigger="interval", minutes=10)
+        # Audit SCH-06: without max_instances a slow feed lets the next 10-minute
+        # tick overlap the still-running ingest (APScheduler default is 3).
+        self.add_job(
+            "NewsIngestionJob",
+            trigger="interval",
+            minutes=10,
+            max_instances=1,
+            replace_existing=True,
+        )
 
         # ── News sentiment NLP: امتیازدهی اخبار عمومی + اختصاصی نماد ──
         # بلافاصله بعد از هر ingestion اخبار اجرا می‌شود (idempotent — فقط ردیف‌های بدون امتیاز).

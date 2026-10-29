@@ -9,9 +9,18 @@ import { cn } from "@/lib/cn";
 import { DeltaBadge, TrendArrow } from "./primitives";
 
 export default function LiquidityBlocks() {
-  const { data: live, isLive, isError, isLoading } = useMarketOverview();
-  const { data: topPerformers, isLive: tpIsLive, isError: tpIsError, isLoading: tpIsLoading } = useTopPerformers();
+  const { data: live, isLive, hasData, isFresh, isStale, isError, isLoading } = useMarketOverview();
+  const {
+    data: topPerformers,
+    isLive: tpIsLive,
+    hasData: tpHasData,
+    isFresh: tpIsFresh,
+    isStale: tpIsStale,
+    isError: tpIsError,
+    isLoading: tpIsLoading,
+  } = useTopPerformers();
   const flow = useFlowSummary();
+  const flowSummary = flow.summary;
   // No silent mock substitution: headline numbers render an em-dash when the
   // backend has no live data — the LiveDataBanner above explains why.
   const liquidityB = live?.tradeValueB ?? null;
@@ -21,7 +30,10 @@ export default function LiquidityBlocks() {
         <LiveDataBanner
           state={{
             isLive: isLive || tpIsLive,
-            isError: isError || tpIsError,
+            hasData: hasData || tpHasData,
+            isFresh: isFresh && tpIsFresh,
+            isStale: (hasData && isStale) || (tpHasData && tpIsStale),
+            isError: isError || tpIsError || flow.isError,
             isLoading: isLoading || tpIsLoading,
           }}
         />
@@ -53,25 +65,25 @@ export default function LiquidityBlocks() {
         </div>
         <div className="mt-4 flex items-baseline gap-2">
           <span dir="ltr" className="font-mono text-[26px] font-black tabular-nums text-up">
-            {flow?.realNetB != null ? (flow.realNetB >= 0 ? `+${fmtBillion(flow.realNetB)}` : fmtBillion(flow.realNetB)) : "—"}
+            {flowSummary?.realNetB != null ? (flowSummary.realNetB >= 0 ? `+${fmtBillion(flowSummary.realNetB)}` : fmtBillion(flowSummary.realNetB)) : "—"}
           </span>
           <span className="text-[11px] text-ink-3">ورود حقیقی (م.ت)</span>
         </div>
         <div className="mt-3 flex items-center gap-2 text-[11px] text-ink-3">
           حقوقی:
           <span dir="ltr" className="font-mono font-bold tabular-nums text-down">
-            {flow?.legalNetB != null ? fmtBillion(flow.legalNetB) : "—"}
+            {flowSummary?.legalNetB != null ? fmtBillion(flowSummary.legalNetB) : "—"}
           </span>
           <span>میلیارد تومان خروج</span>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2.5">
           <div className="rounded-xl border border-line bg-soft/60 p-3">
             <p className="text-[10px] text-ink-3">صف خرید</p>
-            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-up">{flow?.queueBuy != null ? fmtInt(flow.queueBuy) : "—"}</p>
+            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-up">{flowSummary?.queueBuy != null ? fmtInt(flowSummary.queueBuy) : "—"}</p>
           </div>
           <div className="rounded-xl border border-line bg-soft/60 p-3">
             <p className="text-[10px] text-ink-3">صف فروش</p>
-            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-down">{flow?.queueSell != null ? fmtInt(flow.queueSell) : "—"}</p>
+            <p dir="ltr" className="mt-1 font-mono text-lg font-bold tabular-nums text-down">{flowSummary?.queueSell != null ? fmtInt(flowSummary.queueSell) : "—"}</p>
           </div>
         </div>
       </div>

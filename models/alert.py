@@ -11,6 +11,9 @@ class AlertModel(TimestampMixin, Base):
     __tablename__ = "alerts"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    # Owner of the alert. NULL marks rows written before ownership existed
+    # (audit SEC-05); those are visible to admins only.
+    user_id: Mapped[str | None] = mapped_column(String(100), index=True)
     instrument_id: Mapped[str | None] = mapped_column(String(50), index=True)
     symbol: Mapped[str | None] = mapped_column(String(50))
     alert_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

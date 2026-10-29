@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, extractArray } from "@/lib/api";
+import {
+  DEFAULT_FRESHNESS_MS,
+  getDataAsOf,
+  isDataAsOfFresh,
+  parseIsoInstant,
+} from "@/lib/api-envelope";
 import type {
   IndexQuote,
   MarketSession,
@@ -81,12 +87,94 @@ export interface MarketOverviewData {
  */
 export interface LiveDataResult<T> {
   data: T;
-  /** True when the backend returned usable live data. */
+  /** Data was returned by the backend (empty feed ⇒ false). */
+  hasData: boolean;
+  /** Data carries a known timestamp inside the freshness window. */
+  isFresh: boolean;
+  /** Legacy: true when data exists. Use isFresh/isStale for freshness UI. */
   isLive: boolean;
+  /** Data exists and its known timestamp is outside the freshness window. */
+  isStale: boolean;
   /** True when the last fetch errored. */
   isError: boolean;
   /** True while the first fetch (or a refetch with no cached data) is running. */
   isLoading: boolean;
+  /** Source timestamp used for freshness (when the endpoint supplies one). */
+  dataAsOf?: string | null;
+}
+
+function liveResult<T>(
+  data: T,
+  opts: {
+    hasData: boolean;
+    isFresh?: boolean;
+    isStale?: boolean;
+    isError: boolean;
+    isLoading: boolean;
+    dataAsOf?: string | null;
+  },
+): LiveDataResult<T> {
+  const hasData = opts.hasData;
+  const isFresh = hasData && opts.isFresh === true;
+  const isStale = hasData && opts.isStale === true;
+  return {
+    data,
+    hasData,
+    isFresh,
+    isStale,
+    // Kept as an existence alias for the existing empty-state consumers.
+    isLive: hasData,
+    isError: opts.isError,
+    isLoading: opts.isLoading,
+    dataAsOf: opts.dataAsOf ?? null,
+  };
+}
+
+/** Newest of several envelope timestamps (e.g. a hook that joins endpoints). */
+function latestAsOf(...values: Array<string | null | undefined>): string | null {
+  let latest: string | null = null;
+  for (const value of values) {
+    if (value == null) continue;
+    if (latest === null || value > latest) latest = value;
+  }
+  return latest;
+}
+
+/** Result for an endpoint that returns `data_as_of` in its envelope. */
+function envelopeResult<T>(
+  data: T,
+  hasData: boolean,
+  dataAsOf: string | null,
+  now: number,
+  isError: boolean,
+  isLoading: boolean,
+): LiveDataResult<T> {
+  const isFresh = hasData && dataAsOf != null && isDataAsOfFresh(dataAsOf, { now });
+  return liveResult(data, {
+    hasData,
+    isFresh,
+    isStale: hasData && dataAsOf != null && !isFresh,
+    isError,
+    isLoading,
+    dataAsOf,
+  });
+}
+
+/**
+ * Clock ticker for freshness computed at render time.
+ *
+ * Freshness must decay while a query sits in cache (e.g. a background tab
+ * pauses refetching). Computing it only inside `queryFn` freezes `isLive`
+ * at fetch time; this ticker re-evaluates it every 15 seconds.
+ */
+function useNow(intervalMs = 15_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
 }
 
 /**
@@ -260,25 +348,83 @@ export function useMarketSession(): MarketSession {
  * lists (ticker, top gainers, TSE/OTC tables, top performers) derive from
  * this one query so the browser makes a single request instead of four.
  */
-function useEnrichedHeatmap(): LiveDataResult<HeatmapCell[]> {
+/** دادهٔ کوئری به‌همراه متادیتای پاکت؛ `data_as_of` مرجع تازگی است. */
+interface HeatmapFeed {
+  cells: HeatmapCell[];
+  dataAsOf: string | null;
+}
+
+/** تازگی یک ردیف از `fetched_at` خودش — فقط وقتی پاکت `data_as_of` ندارد. */
+function isRowFresh(cell: HeatmapCell, now: number): boolean {
+  const raw = (cell as { fetched_at?: string | null }).fetched_at;
+  if (!raw) return false;
+  const fetched = parseIsoInstant(raw);
+  // تاریخ آینده نشانهٔ ساعت اشتباه یا دادهٔ ساختگی است، نه تازگی.
+  if (fetched === null || fetched > now + 2 * 60 * 1000) return false;
+  return now - fetched <= DEFAULT_FRESHNESS_MS;
+}
+
+/** Newest valid `fetched_at` carried by the rows (ISO string), if any. */
+function newestRowFetchedAt(cells: HeatmapCell[]): string | null {
+  let latestMs = Number.NEGATIVE_INFINITY;
+  let latest: string | null = null;
+  for (const cell of cells) {
+    const raw = (cell as { fetched_at?: string | null }).fetched_at;
+    const ms = parseIsoInstant(raw);
+    if (ms !== null && ms > latestMs) {
+      latestMs = ms;
+      latest = raw ?? null;
+    }
+  }
+  return latest;
+}
+
+/**
+ * Single source of truth for the live symbol snapshot feed.
+ *
+ * Freshness is computed at render time from `data_as_of` (or the rows'
+ * `fetched_at`) using the ticking clock, so cached data becomes stale even
+ * when React Query stops refetching in a background tab.
+ */
+export function useEnrichedHeatmap(limit = 500): LiveDataResult<HeatmapCell[]> {
+  const now = useNow();
   const { data, isError, isLoading } = useQuery({
-    queryKey: ["live-heatmap"],
-    queryFn: async (): Promise<HeatmapCell[]> => {
-      const res = await apiGet<{ success: boolean; data: HeatmapCell[] }>(
-        "/market/enriched-heatmap?limit=120"
-      );
-      const arr = extractArray<HeatmapCell>(res);
-      if (arr.length === 0 && (res as unknown as Record<string, unknown>)?.success === false) {
-        console.warn("[useEnrichedHeatmap] backend returned success:false", res);
-      }
-      return arr;
+    queryKey: ["live-heatmap", limit],
+    queryFn: async (): Promise<HeatmapFeed> => {
+      const res = await apiGet<{
+        success?: boolean;
+        data?: HeatmapCell[];
+        data_as_of?: string | null;
+      }>(`/market/enriched-heatmap?limit=${limit}`);
+      // `success:false` هرگز به این‌جا نمی‌رسد (`api.ts` پرتاب می‌کند)، پس
+      // آرایهٔ خالی یعنی «موفق و خالی» — نه قطعی سرور.
+      return { cells: extractArray<HeatmapCell>(res), dataAsOf: getDataAsOf(res) };
     },
     refetchInterval: 30_000,
     staleTime: 10_000,
     retry: 1,
   });
-  const cells = data ?? [];
-  return { data: cells, isLive: cells.length > 0, isError, isLoading };
+  // آرایهٔ خام فقط از کش قدیمی/HMR می‌تواند برسد؛ آن را «خالی» می‌خوانیم.
+  const feed = data && !Array.isArray(data) ? data : null;
+  const cells = feed?.cells ?? [];
+  const hasData = cells.length > 0;
+  const knownAsOf = feed?.dataAsOf ?? newestRowFetchedAt(cells);
+  const hasClock = now > 0;
+  const isFresh =
+    hasData &&
+    hasClock &&
+    (feed?.dataAsOf
+      ? isDataAsOfFresh(feed.dataAsOf, { now })
+      : cells.every((cell) => isRowFresh(cell, now)));
+  const isStale = hasData && hasClock && knownAsOf != null && !isFresh;
+  return liveResult(cells, {
+    hasData,
+    isFresh,
+    isStale,
+    isError,
+    isLoading,
+    dataAsOf: knownAsOf,
+  });
 }
 
 /** Live ticker / sitebar strip — top symbols by value from the heatmap. */
@@ -288,41 +434,49 @@ export function useTickerItems(): LiveDataResult<TickerItem[]> {
     hm.data.length > 0
       ? mapHeatmapToTicker([...hm.data].sort((a, b) => (b.value || 0) - (a.value || 0)))
       : [];
-  return {
-    data: mapped,
-    isLive: mapped.length > 0,
+  return liveResult(mapped, {
+    hasData: mapped.length > 0,
+    isFresh: hm.isFresh && mapped.length > 0,
+    isStale: hm.isStale && mapped.length > 0,
     isError: hm.isError,
     isLoading: hm.isLoading,
-  };
+    dataAsOf: hm.dataAsOf,
+  });
 }
 
 /** Live indices — شاخص کل / هم‌وزن / فرابورس / … from /market/indices. */
 export function useIndices(): LiveDataResult<IndexQuote[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-indices"],
-    queryFn: async (): Promise<IndexQuote[]> => mapIndices(
-      extractArray<RawIndex>(
-        await apiGet<{ success: boolean; data: RawIndex[] }>("/market/indices")
-      )
-    ),
+    queryFn: async (): Promise<{ rows: IndexQuote[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: RawIndex[]; data_as_of?: string | null }>(
+        "/market/indices"
+      );
+      return {
+        rows: mapIndices(extractArray<RawIndex>(res)),
+        dataAsOf: getDataAsOf(res),
+      };
+    },
     refetchInterval: 120_000,
     staleTime: 60_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live news strip from /news. */
 export function useNewsItems(): LiveDataResult<NewsItem[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-news"],
-    queryFn: async (): Promise<NewsItem[]> => {
-      const res = await apiGet<{ success: boolean; data: { items: NewsItem[] } }>(
+    queryFn: async (): Promise<{ rows: NewsItem[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: { items: NewsItem[] }; data_as_of?: string | null }>(
         "/news?page_size=6"
       );
       const items = res?.data?.items ?? [];
-      return items.slice(0, 6).map((n, i) => {
+      const rows = items.slice(0, 6).map((n, i) => {
         const publishedAt = (n as NewsItem).published_at ?? (n as { publish_date?: string }).publish_date;
         return {
           id: n.id || `news-${i}`,
@@ -339,44 +493,54 @@ export function useNewsItems(): LiveDataResult<NewsItem[]> {
           symbols: [],
         } satisfies NewsItem;
       });
+      return { rows, dataAsOf: getDataAsOf(res) ?? latestAsOf(...rows.map((r) => r.published_at)) };
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live market breadth, value & volume from market-dashboard overview. */
 export function useMarketOverview(): LiveDataResult<MarketOverviewData | null> {
+  const now = useNow();
   const { data, isError, isLoading } = useQuery({
     queryKey: ["live-overview"],
-    queryFn: async (): Promise<MarketOverviewData | null> => {
+    queryFn: async (): Promise<{ value: MarketOverviewData | null; dataAsOf: string | null }> => {
       const res = await apiGet<{
         success: boolean;
+        data_as_of?: string | null;
         data: { overview?: { value?: DashboardOverview } };
       }>("/market-dashboard");
       const ov = res?.data?.overview?.value;
+      const dataAsOf = getDataAsOf(res);
       if (ov && typeof ov.gainers === "number") {
         return {
-          breadth: {
-            up: ov.gainers ?? 0,
-            down: ov.losers ?? 0,
-            flat: ov.unchanged ?? 0,
+          value: {
+            breadth: {
+              up: ov.gainers ?? 0,
+              down: ov.losers ?? 0,
+              flat: ov.unchanged ?? 0,
+            },
+            tradeValueB: (ov.total_value ?? 0) / 1e12,
+            volumeM: (ov.total_volume ?? 0) / 1e6,
+            avgChangePct: ov.avg_change_pct ?? 0,
           },
-          tradeValueB: (ov.total_value ?? 0) / 1e12,
-          volumeM: (ov.total_volume ?? 0) / 1e6,
-          avgChangePct: ov.avg_change_pct ?? 0,
+          dataAsOf,
         };
       }
-      return null;
+      return { value: null, dataAsOf };
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
     retry: 1,
   });
-  return { data: data ?? null, isLive: data != null, isError, isLoading };
+  // Audit FE-04: freshness comes from the envelope's ``data_as_of`` instead of
+  // a hard-coded ``false``.
+  const value = data?.value ?? null;
+  return envelopeResult(value, value != null, data?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live top gainers (≥10) from enriched heatmap — used by TopStocksToday. */
@@ -386,12 +550,14 @@ export function useTopStocks(): LiveDataResult<TopStock[]> {
     hm.data.length > 0
       ? mapHeatmapToStocks(hm.data).sort((a, b) => b.changePct - a.changePct)
       : [];
-  return {
-    data: mapped,
-    isLive: mapped.length > 0,
+  return liveResult(mapped, {
+    hasData: mapped.length > 0,
+    isFresh: hm.isFresh && mapped.length > 0,
+    isStale: hm.isStale && mapped.length > 0,
     isError: hm.isError,
     isLoading: hm.isLoading,
-  };
+    dataAsOf: hm.dataAsOf,
+  });
 }
 
 /** Live top symbols by value, split by market (بورس / فرابورس) — 10 each. */
@@ -413,23 +579,29 @@ export function useActiveSymbols(): LiveDataResult<{ tse: Top5Symbol[]; otc: Top
   const market = (c: HeatmapCell) => c.market || "";
   const tse = byValue(hm.data.filter((c) => market(c).includes("بورس") && !market(c).includes("فرابورس")));
   const otc = byValue(hm.data.filter((c) => market(c).includes("فرابورس")));
-  return {
-    data: { tse, otc },
-    isLive: tse.length > 0 || otc.length > 0,
-    isError: hm.isError,
-    isLoading: hm.isLoading,
-  };
+  return liveResult(
+    { tse, otc },
+    {
+      hasData: tse.length > 0 || otc.length > 0,
+      isFresh: hm.isFresh && (tse.length > 0 || otc.length > 0),
+      isStale: hm.isStale && (tse.length > 0 || otc.length > 0),
+      isError: hm.isError,
+      isLoading: hm.isLoading,
+      dataAsOf: hm.dataAsOf,
+    },
+  );
 }
 
 /** Live quote cards (طلا / سکه / ارز / تتر / دلار) from brsapi endpoints. */
 export function useQuoteCards(): LiveDataResult<QuoteItem[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-quote-cards"],
-    queryFn: async (): Promise<QuoteItem[]> => {
+    queryFn: async (): Promise<{ rows: QuoteItem[]; dataAsOf: string | null }> => {
       const [goldRes, curRes, cryptoRes] = await Promise.all([
-        apiGet<{ success: boolean; data: PriceRow[] }>("/brsapi/gold-coin"),
-        apiGet<{ success: boolean; data: PriceRow[] }>("/brsapi/currency"),
-        apiGet<{ success: boolean; data: CryptoRow[] }>("/brsapi/crypto?limit=200&sort_by=rank"),
+        apiGet<{ success: boolean; data: PriceRow[]; data_as_of?: string | null }>("/brsapi/gold-coin"),
+        apiGet<{ success: boolean; data: PriceRow[]; data_as_of?: string | null }>("/brsapi/currency"),
+        apiGet<{ success: boolean; data: CryptoRow[]; data_as_of?: string | null }>("/brsapi/crypto?limit=200&sort_by=rank"),
       ]);
       const gold = extractArray<PriceRow>(goldRes);
       const cur = extractArray<PriceRow>(curRes);
@@ -461,14 +633,21 @@ export function useQuoteCards(): LiveDataResult<QuoteItem[]> {
         if (q) quotes.push(q);
         if (quotes.length >= 10) break;
       }
-      return quotes;
+      return {
+        rows: quotes,
+        dataAsOf: latestAsOf(
+          getDataAsOf(goldRes),
+          getDataAsOf(curRes),
+          getDataAsOf(cryptoRes),
+        ),
+      };
     },
     refetchInterval: 120_000,
     staleTime: 60_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live top performers for LiquidityBlocks — shares the same heatmap query. */
@@ -478,24 +657,27 @@ export function useTopPerformers(): LiveDataResult<TopStock[]> {
     hm.data.length > 0
       ? mapHeatmapToStocks(hm.data).sort((a, b) => b.changePct - a.changePct)
       : [];
-  return {
-    data: mapped,
-    isLive: mapped.length > 0,
+  return liveResult(mapped, {
+    hasData: mapped.length > 0,
+    isFresh: hm.isFresh && mapped.length > 0,
+    isStale: hm.isStale && mapped.length > 0,
     isError: hm.isError,
     isLoading: hm.isLoading,
-  };
+    dataAsOf: hm.dataAsOf,
+  });
 }
 
 // ── New live hooks (dashboard wiring) ─────────────────────────────────
 
 /** Live global markets (gold oz / brent / BTC) from BrsApi commodities + crypto. */
 export function useGlobalMarkets(): LiveDataResult<GlobalQuote[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-global-markets"],
-    queryFn: async (): Promise<GlobalQuote[]> => {
+    queryFn: async (): Promise<{ rows: GlobalQuote[]; dataAsOf: string | null }> => {
       const [comRes, btcRes] = await Promise.all([
-        apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/commodities"),
-        apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>("/brsapi/crypto?limit=50&sort_by=rank"),
+        apiGet<{ success: boolean; data: Array<Record<string, unknown>>; data_as_of?: string | null }>("/brsapi/commodities"),
+        apiGet<{ success: boolean; data: Array<Record<string, unknown>>; data_as_of?: string | null }>("/brsapi/crypto?limit=50&sort_by=rank"),
       ]);
       const commodities = extractArray<Record<string, unknown>>(comRes);
       const cryptos = extractArray<Record<string, unknown>>(btcRes);
@@ -519,50 +701,68 @@ export function useGlobalMarkets(): LiveDataResult<GlobalQuote[]> {
       push("gold-oz", "انس طلا", "کامکس", "دلار", goldOz);
       push("brent", "نفت برنت", "ICE", "دلار", brent);
       push("btc", "بیت‌کوین", "رمزارز", "دلار", btc);
-      return quotes;
+      return {
+        rows: quotes,
+        dataAsOf: latestAsOf(getDataAsOf(comRes), getDataAsOf(btcRes)),
+      };
     },
     refetchInterval: 300_000,
     staleTime: 120_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live شاخص کل intraday / multi-day history from brsapi_index_values. */
+/**
+ * Point budget per index-history range button. The endpoint serves intraday
+ * snapshots (limit 10..300, ~1 point every 2 minutes during the session).
+ */
+export const INDEX_RANGE_LIMITS = [30, 60, 120, 180, 300] as const;
+
 export function useIndexIntraday(rangeIdx = 0): LiveDataResult<IntradayPoint[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  // Audit FE-07: the range was only part of the query key — every button hit
+  // the same ``limit=60`` URL. The endpoint serves intraday snapshots (limit
+  // 10..300), so each button maps to a point budget of roughly 2h/4h/…
+  const limit = INDEX_RANGE_LIMITS[Math.min(Math.max(rangeIdx, 0), INDEX_RANGE_LIMITS.length - 1)];
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-index-intraday", rangeIdx],
-    queryFn: async (): Promise<IntradayPoint[]> => {
-      const res = await apiGet<{ success: boolean; data: Array<Record<string, unknown>> }>(
-        "/market/index-history/%D8%B4%D8%A7%D8%AE%D8%B5%20%DA%A9%D9%84?limit=60"
+    queryFn: async (): Promise<{ points: IntradayPoint[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: Array<Record<string, unknown>>; data_as_of?: string | null }>(
+        `/market/index-history/%D8%B4%D8%A7%D8%AE%D8%B5%20%DA%A9%D9%84?limit=${limit}`
       );
       const rows = extractArray<Record<string, unknown>>(res);
-      return rows
-        .map((r) => ({
-          time: String(r.fetched_at ?? r.created_at ?? "").slice(11, 16) || "—",
-          value: Number(r.index_value ?? 0),
-        }))
-        .filter((p) => p.value > 0);
+      return {
+        points: rows
+          .map((r) => ({
+            time: String(r.fetched_at ?? r.created_at ?? "").slice(11, 16) || "—",
+            value: Number(r.index_value ?? 0),
+          }))
+          .filter((p) => p.value > 0),
+        dataAsOf: getDataAsOf(res),
+      };
     },
     refetchInterval: 120_000,
     staleTime: 60_000,
     retry: 1,
   });
-  const points = data ?? [];
-  return { data: points, isLive: points.length >= 2, isError, isLoading };
+  const points = feed?.points ?? [];
+  return envelopeResult(points, points.length >= 2, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live sector map from /market/treemap (stocks view aggregates by sector). */
 export function useSectorMap(): LiveDataResult<SectorCell[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-sector-map"],
-    queryFn: async (): Promise<SectorCell[]> => {
-      const res = await apiGet<{ success: boolean; data: { children?: Array<{ name: string; children?: Array<{ change: number }> }> } }>(
+    queryFn: async (): Promise<{ rows: SectorCell[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: { children?: Array<{ name: string; children?: Array<{ change: number }> }> }; data_as_of?: string | null }>(
         "/market/treemap?limit=2000"
       );
       const sectors = res?.data?.children ?? [];
-      return sectors
+      const rows = sectors
         .map((s) => ({
           name: s.name,
           count: s.children?.length ?? 0,
@@ -574,13 +774,14 @@ export function useSectorMap(): LiveDataResult<SectorCell[]> {
         .filter((c) => c.count > 0)
         .sort((a, b) => b.changePct - a.changePct)
         .slice(0, 20);
+      return { rows, dataAsOf: getDataAsOf(res) };
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live per-symbol real/legal net flow (top movers) for OwnershipChange. */
@@ -599,31 +800,40 @@ export function useOwnershipFlows(): LiveDataResult<FlowRow[]> {
     retry: 1,
   });
   const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  return liveResult(rows, {
+    hasData: rows.length > 0,
+    isFresh: false,
+    isStale: false,
+    isError,
+    isLoading,
+  });
 }
 
 /** Live market-wide real/legal totals + queue counts for LiquidityBlocks / MarketOverview. */
-export function useFlowSummary(): FlowSummary | null {
-  const { data } = useQuery({
+export interface FlowSummaryResult {
+  summary: FlowSummary | null;
+  isError: boolean;
+}
+
+export function useFlowSummary(): FlowSummaryResult {
+  const { data, isError } = useQuery({
     queryKey: ["live-flow-summary"],
     queryFn: async (): Promise<FlowSummary | null> => {
-      try {
-        const res = await apiGet<{ success: boolean; data: { real_net_b: number; legal_net_b: number; queue_buy: number; queue_sell: number } }>(
-          "/market/flow-summary"
-        );
-        const d = res?.data;
-        if (d && typeof d.real_net_b === "number") {
-          return { realNetB: d.real_net_b, legalNetB: d.legal_net_b, queueBuy: d.queue_buy, queueSell: d.queue_sell };
-        }
-      } catch {
-        /* fall through to null */
+      const res = await apiGet<{ success: boolean; data: { real_net_b: number; legal_net_b: number; queue_buy: number; queue_sell: number } }>(
+        "/market/flow-summary"
+      );
+      const d = res?.data;
+      if (d && typeof d.real_net_b === "number") {
+        return { realNetB: d.real_net_b, legalNetB: d.legal_net_b, queueBuy: d.queue_buy, queueSell: d.queue_sell };
       }
       return null;
     },
     refetchInterval: 120_000,
     staleTime: 60_000,
   });
-  return data ?? null;
+  // Audit FE-02: a failed request is reported as an error, not as a measured
+  // zero. Callers must render "—"/hide the sentence instead of ``?? 0``.
+  return { summary: data ?? null, isError };
 }
 
 /**
@@ -649,12 +859,15 @@ export function useIndexImpacts(): LiveDataResult<{ positive: ImpactRow[]; negat
       negative: scored.filter((r) => r.impact < 0).slice(-5).reverse(),
     };
   })();
-  return {
-    data: impacts,
-    isLive: impacts.positive.length > 0 || impacts.negative.length > 0,
+  const hasData = impacts.positive.length > 0 || impacts.negative.length > 0;
+  return liveResult(impacts, {
+    hasData,
+    isFresh: hm.isFresh && hasData,
+    isStale: hm.isStale && hasData,
     isError: hm.isError,
     isLoading: hm.isLoading,
-  };
+    dataAsOf: hm.dataAsOf,
+  });
 }
 
 /** Live economic/market events from /economic-calendar (upcoming 30 days). */
@@ -683,7 +896,13 @@ export function useMarketEvents(): LiveDataResult<CalendarEvent[]> {
     retry: 1,
   });
   const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  return liveResult(rows, {
+    hasData: rows.length > 0,
+    isFresh: false,
+    isStale: false,
+    isError,
+    isLoading,
+  });
 }
 
 // ── AssetAllocationPie ────────────────────────────────────────────────
@@ -700,24 +919,28 @@ export interface AssetSliceLive {
  * اوراق) — an approximation, not an official TSE feed.
  */
 export function useAssetAllocation(): LiveDataResult<AssetSliceLive[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-asset-allocation"],
-    queryFn: async (): Promise<AssetSliceLive[]> => {
+    queryFn: async (): Promise<{ rows: AssetSliceLive[]; dataAsOf: string | null }> => {
       const res = await apiGet<{ success: boolean; data: Array<{ label: string; value_b: number; pct: number }> }>(
         "/market/asset-allocation?limit=2000"
       );
-      return extractArray<{ label: string; value_b: number; pct: number }>(res).map((r) => ({
-        label: r.label,
-        valueB: r.value_b,
-        pct: r.pct,
-      }));
+      return {
+        rows: extractArray<{ label: string; value_b: number; pct: number }>(res).map((r) => ({
+          label: r.label,
+          valueB: r.value_b,
+          pct: r.pct,
+        })),
+        dataAsOf: getDataAsOf(res),
+      };
     },
     refetchInterval: 600_000,
     staleTime: 300_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 // ── TripleChartsGroup aggregates ──────────────────────────────────────
@@ -742,23 +965,27 @@ export interface OwnershipDayBar {
 
 /** Live per-sector real money flow (today) from /market/cashflow-by-sector. */
 export function useCashflowBySector(): LiveDataResult<SectorFlowBar[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-cashflow-by-sector"],
-    queryFn: async (): Promise<SectorFlowBar[]> => {
+    queryFn: async (): Promise<{ rows: SectorFlowBar[]; dataAsOf: string | null }> => {
       const res = await apiGet<{ success: boolean; data: Array<{ name: string; value_b: number }> }>(
         "/market/cashflow-by-sector?limit=500"
       );
-      return extractArray<{ name: string; value_b: number }>(res).map((r) => ({
-        name: r.name,
-        valueB: r.value_b,
-      }));
+      return {
+        rows: extractArray<{ name: string; value_b: number }>(res).map((r) => ({
+          name: r.name,
+          valueB: r.value_b,
+        })),
+        dataAsOf: getDataAsOf(res),
+      };
     },
     refetchInterval: 120_000,
     staleTime: 60_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live daily market trade value from /market/value-history. */
@@ -780,7 +1007,13 @@ export function useValueHistory(): LiveDataResult<ValueDayBar[]> {
     retry: 1,
   });
   const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  return liveResult(rows, {
+    hasData: rows.length > 0,
+    isFresh: false,
+    isStale: false,
+    isError,
+    isLoading,
+  });
 }
 
 /** Live daily real/legal net flow from /market/ownership-history. */
@@ -803,5 +1036,11 @@ export function useOwnershipHistory(): LiveDataResult<OwnershipDayBar[]> {
     retry: 1,
   });
   const rows = data ?? [];
-  return { data: rows, isLive: rows.length > 0, isError, isLoading };
+  return liveResult(rows, {
+    hasData: rows.length > 0,
+    isFresh: false,
+    isStale: false,
+    isError,
+    isLoading,
+  });
 }

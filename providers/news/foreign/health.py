@@ -7,6 +7,15 @@ from core.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Audit DS-04: the three foreign providers ship with an ``api.example.com``
+# base URL. They can never return data, so ``health()`` must not report ready
+# and ``fetch_news`` must not pretend to be configured.
+PLACEHOLDER_HOST = "api.example.com"
+
+
+def base_url_is_placeholder(client: Any) -> bool:
+    return PLACEHOLDER_HOST in str(getattr(client, "base_url", ""))
+
 
 class ForeignNewsHealth:
     async def check(self, providers: dict[str, Any]) -> dict[str, Any]:

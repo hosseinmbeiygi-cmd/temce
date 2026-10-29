@@ -31,12 +31,19 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
-
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      # The API image. The root `Dockerfile` runs `python -m ingestion.main`,
+      # a collector with no HTTP surface — that is the `ingestion` service
+      # below (audit DEP-01).
+      dockerfile: Dockerfile.api
     container_name: tse_backend
     depends_on:
       timescaledb:
@@ -66,6 +73,32 @@ services:
       - ./logs:/app/logs
     restart: always
 
+  # Collection engine (`python -m ingestion.main`). It has no HTTP surface, so
+  # it owns the root Dockerfile and the INGESTION_*/LAKE_* configuration that
+  # IngestionConfig reads. It used to share the `backend` container, which is
+  # why the API never answered on 8000 (audit DEP-01).
+  ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tse_ingestion
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - INGESTION_DB_DSN=postgresql+asyncpg://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
+      - INGESTION_REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
+      # MinIO is NOT provisioned by this compose (see 06_DOCKER report). Default
+      # points at the (absent) `minio` service; override via .env for a real deployment.
+      - LAKE_ENDPOINT=${LAKE_ENDPOINT:-http://minio:9000}
+      - LAKE_ACCESS_KEY=${LAKE_ACCESS_KEY:-minioadmin}
+      - LAKE_SECRET_KEY=${LAKE_SECRET_KEY:-minioadmin}
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
   worker:
     build:
       context: .
@@ -88,6 +121,11 @@ services:
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import apps.worker.app; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
     # Scale to N replicas with:  docker compose up --scale worker=N
     deploy:
@@ -113,12 +151,20 @@ services:
       - "8002:8002"
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/api/v1/currency/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      # Root context: Dockerfile.frontend copies ``frontend/`` itself and is
+      # the production image (audit DEP-02 — the ./frontend/Dockerfile path
+      # never existed; the dev override swaps this for Dockerfile.dev).
+      context: .
+      dockerfile: Dockerfile.frontend
     container_name: tse_frontend
     depends_on:
       - backend
@@ -134,8 +180,38 @@ services:
       # server/runtime init alone.
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
+
+  # ── MinIO (optional — for raw payload storage) ──────────────────────
+  # The ingestion service references MinIO (LAKE_ENDPOINT=http://minio:9000)
+  # for raw payload storage. This service is NOT started by default.
+  # To enable: docker compose --profile minio up -d minio
+  # Or set LAKE_ENDPOINT in .env to an external S3-compatible endpoint.
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: tse_minio
+  #   command: server /data --console-address ":9001"
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   environment:
+  #     - MINIO_ROOT_USER=${LAKE_ACCESS_KEY:-minioadmin}
+  #     - MINIO_ROOT_PASSWORD=${LAKE_SECRET_KEY:-minioadmin}
+  #   volumes:
+  #     - miniodata:/data
+  #   healthcheck:
+  #     test: ["CMD", "mc", "ready", "local"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: always
 
 volumes:
   pgdata:
   redisdata:
+  # miniodata:

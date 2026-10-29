@@ -30,7 +30,7 @@ interface MarketSummary {
 export default function MarketsPage() {
   const [tab, setTab] = useState<"overview" | "gainers" | "losers" | "active" | "sectors">("overview");
 
-  const { data: overview } = useQuery({
+  const { data: overview, isError: overviewError } = useQuery({
     queryKey: ["market-overview"],
     queryFn: async () => apiGet<unknown>("/market/overview"),
     refetchInterval: 30000,
@@ -40,7 +40,7 @@ export default function MarketsPage() {
     (overview && typeof overview === "object" && "data" in overview)
       ? (overview as { data?: MarketSummary }).data ?? null : null;
 
-  const { data: heatmapData, isLoading: loadingHeatmap } = useQuery({
+  const { data: heatmapData, isLoading: loadingHeatmap, isError: heatmapError } = useQuery({
     queryKey: ["market-heatmap"],
     queryFn: async () => apiGet<unknown>("/market/heatmap"),
     refetchInterval: 30000,
@@ -114,8 +114,16 @@ export default function MarketsPage() {
 
   return (
     <AppLayout title="بازارها" subtitle="نمای کلی بازار سرمایه">
+      {(overviewError || heatmapError) && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-500"
+        >
+          دریافت دادهٔ بازار ناموفق بود — بخش‌های خالی به‌معنای نبود داده نیست.
+        </div>
+      )}
       {/* ------ Summary Cards ------ */}
-      {summary && (
+      {summary && !overviewError && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="glass-card p-4 text-center">
             <div className="text-2xl font-bold text-surface-100">{summary.total_instruments}</div>

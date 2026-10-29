@@ -145,6 +145,9 @@ class VolatilityAnalyzer:
                     opt["price"], stock_price, opt["strike"],
                     T, 0.15, opt.get("type", "call")
                 )
+                if iv is None:
+                    # Audit FIN-04: never surface a non-converged IV.
+                    continue
                 iv_data.append({
                     "strike": opt["strike"],
                     "type": opt.get("type", "call"),

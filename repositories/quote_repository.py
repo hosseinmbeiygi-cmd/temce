@@ -111,20 +111,41 @@ class QuoteRepository:
     async def get_top_gainers(self, limit: int = 10) -> Result[list[Quote]]:
         if self._db:
             return await self._db.get_top_gainers(limit)
-        sorted_q = sorted(self._mem._store.values(), key=lambda q: q.price_change_pct, reverse=True)
-        return Result.ok(sorted_q[:limit])
+        rows = sorted(self._latest_rows(), key=lambda q: q.price_change_pct or 0.0, reverse=True)
+        return Result.ok(rows[:limit])
 
     async def get_top_losers(self, limit: int = 10) -> Result[list[Quote]]:
         if self._db:
             return await self._db.get_top_losers(limit)
-        sorted_q = sorted(self._mem._store.values(), key=lambda q: q.price_change_pct)
-        return Result.ok(sorted_q[:limit])
+        rows = sorted(self._latest_rows(), key=lambda q: q.price_change_pct or 0.0)
+        return Result.ok(rows[:limit])
 
     async def get_most_active(self, limit: int = 10) -> Result[list[Quote]]:
         if self._db:
             return await self._db.get_most_active(limit)
-        sorted_q = sorted(self._mem._store.values(), key=lambda q: q.value, reverse=True)
-        return Result.ok(sorted_q[:limit])
+        rows = sorted(self._latest_rows(), key=lambda q: q.value or 0.0, reverse=True)
+        return Result.ok(rows[:limit])
+
+    def _latest_rows(self) -> list[Quote]:
+        """One current quote per symbol on the newest trade date (audit API-01).
+
+        The in-memory store mirrors the SQL rules: keep only the newest
+        ``date``, then collapse each symbol to its most recently inserted row.
+        """
+        store = list(self._mem._store.values()) if self._mem else []
+        if not store:
+            return []
+        latest = max((q.date or "") for q in store)
+        best: dict[str, Quote] = {}
+        for q in store:
+            if (q.date or "") != latest:
+                continue
+            key = q.symbol or q.instrument_id
+            current = best.get(key)
+            signature = (str(getattr(q, "created_at", "") or ""), q.id)
+            if current is None or signature > (str(getattr(current, "created_at", "") or ""), current.id):
+                best[key] = q
+        return list(best.values())
 
     async def list(self, page: int = 1, page_size: int = 100) -> Result[Any]:
         if self._db:
@@ -217,20 +238,57 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
             }
         )
 
+    def _latest_ranked_quotes(self):
+        """Row-numbered ids of the current quote per symbol on the newest date.
+
+        ``quotes.date`` is a VARCHAR of ISO Gregorian dates for recent rows, so
+        ``MAX(date)`` is the newest stored session. ``quotes.time`` is stored in
+        mixed formats (``"091345"`` and ``"09:13:45"`` both occur in fixtures),
+        so it cannot order snapshots; ``created_at`` (ingestion time) followed by
+        ``id`` is used instead so exactly one row per symbol survives.
+        """
+        latest_date = select(func.max(QuoteModel.date)).scalar_subquery()
+        return (
+            select(
+                QuoteModel.id.label("id"),
+                func.row_number()
+                .over(
+                    partition_by=func.coalesce(QuoteModel.symbol, QuoteModel.instrument_id),
+                    order_by=(QuoteModel.created_at.desc(), QuoteModel.id.desc()),
+                )
+                .label("rank"),
+            )
+            .where(QuoteModel.date == latest_date)
+            .subquery()
+        )
+
+    def _top_stmt(self, order_by, limit: int):
+        ranked = self._latest_ranked_quotes()
+        return (
+            select(QuoteModel)
+            .join(ranked, QuoteModel.id == ranked.c.id)
+            .where(ranked.c.rank == 1)
+            .order_by(order_by)
+            .limit(limit)
+        )
+
     async def get_top_gainers(self, limit: int = 10) -> Result[list[Quote]]:
-        stmt = select(QuoteModel).order_by(QuoteModel.price_change_pct.desc().nullslast()).limit(limit)
+        """Best movers of the newest trade date, one row per symbol (API-01)."""
+        stmt = self._top_stmt(QuoteModel.price_change_pct.desc().nullslast(), limit)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
     async def get_top_losers(self, limit: int = 10) -> Result[list[Quote]]:
-        stmt = select(QuoteModel).order_by(QuoteModel.price_change_pct.asc().nullslast()).limit(limit)
+        """Worst movers of the newest trade date, one row per symbol (API-01)."""
+        stmt = self._top_stmt(QuoteModel.price_change_pct.asc().nullslast(), limit)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
     async def get_most_active(self, limit: int = 10) -> Result[list[Quote]]:
-        stmt = select(QuoteModel).order_by(QuoteModel.value.desc().nullslast()).limit(limit)
+        """Most traded of the newest trade date, one row per symbol (API-01)."""
+        stmt = self._top_stmt(QuoteModel.value.desc().nullslast(), limit)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])

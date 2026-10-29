@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 
 from apps.api.dependencies import get_brsapi_query_service
 from core.db_utils import safe_float, safe_int
+from core.freshness import newest_fetched_at
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -27,7 +28,13 @@ async def market_watch(
         # Use simple snapshots (high limit to cover entire market)
         snapshots = await brsapi.get_latest_snapshots(limit=3000)
         if not snapshots:
-            return ApiResponse[dict[str, Any]](success=True, data=_empty_response(market))
+            # No snapshots at all is a source/data failure, not a valid empty
+            # market. A filter that matches nothing below stays a valid empty.
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data=_empty_response(market),
+                error={"message": "No snapshot data available"},
+            )
 
         # Filter by market
         filtered = _filter_by_market(snapshots, market)
@@ -37,7 +44,9 @@ async def market_watch(
             filtered = [s for s in filtered if s.get("sector") == sector]
 
         if not filtered:
-            return ApiResponse[dict[str, Any]](success=True, data=_empty_response(market))
+            return ApiResponse[dict[str, Any]](
+                success=True, data=_empty_response(market), data_as_of=newest_fetched_at(snapshots)
+            )
 
         # Get index data
         indices = await brsapi.get_latest_indices()
@@ -55,7 +64,9 @@ async def market_watch(
             "sectors": _get_unique_sectors(snapshots),
         }
 
-        return ApiResponse[dict[str, Any]](success=True, data=result)
+        return ApiResponse[dict[str, Any]](
+            success=True, data=result, data_as_of=newest_fetched_at(snapshots)
+        )
 
     except Exception as exc:
         logger.exception("Market watch failed")

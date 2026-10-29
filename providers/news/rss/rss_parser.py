@@ -27,6 +27,14 @@ _RSS_DATE_FORMATS = [
 ]
 
 
+class RSSParseError(ValueError):
+    """The feed body is not readable XML (audit DS-03).
+
+    Distinct from "the feed answered with zero items": a blocked/WAF page or a
+    truncated feed must surface as a failure, not as a quiet empty result.
+    """
+
+
 class RSSParser:
     """Robust parser for RSS 2.0, Atom, and RDF feed formats."""
 
@@ -47,7 +55,7 @@ class RSSParser:
             root = ET.fromstring(raw_xml)
         except ET.ParseError as e:
             logger.error("Failed to parse RSS XML: %s", e)
-            return []
+            raise RSSParseError(f"malformed XML: {e}") from e
 
         items: list[dict[str, Any]] = []
         namespace = self._detect_namespace(root.tag)
@@ -94,7 +102,10 @@ class RSSParser:
             "title": title or "",
             "link": link or "",
             "description": description or "",
-            "published_at": pub_date or datetime.now(UTC).isoformat(),
+            # Audit DS-06: an absent source date stays absent. Writing
+            # ``now()`` here made undated items sort as if they were published
+            # at ingest time and destroyed the source/fetch distinction.
+            "published_at": pub_date,
             "source": get_text("source") or get_text("generator") or "",
             "category": category,
         }

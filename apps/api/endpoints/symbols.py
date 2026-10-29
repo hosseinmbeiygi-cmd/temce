@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from apps.api.dependencies import (
     get_instrument_import_service,
     get_symbol_service,
+    require_roles,
 )
 from core.logging import get_logger
 from core.result import PaginatedResult
@@ -59,7 +60,12 @@ def _validate_upload(file: UploadFile) -> str | None:
     return None
 
 
-@router.post("", summary="Create symbol", description="Create a new trading symbol/instrument")
+@router.post(
+    "",
+    summary="Create symbol",
+    description="Create a new trading symbol/instrument",
+    dependencies=[Depends(require_roles("admin"))],
+)
 async def create_symbol(
     body: dict[str, Any] = Body(...),
     service: SymbolService = Depends(get_symbol_service),
@@ -127,6 +133,7 @@ async def get_symbol_detail(
     description="Bulk-import instruments from an uploaded CSV, JSON, or XLSX file. "
     "The file must contain a 'symbol' column; common optional columns are listed in "
     "scripts/import_data.py.",
+    dependencies=[Depends(require_roles("admin"))],
 )
 async def import_symbols(
     file: UploadFile = File(..., description="CSV, JSON, or XLSX file with a 'symbol' column"),

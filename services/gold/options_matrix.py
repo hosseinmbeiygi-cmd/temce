@@ -190,6 +190,11 @@ def enrich_options_chain(
             rate,
             option_type,
         )
+        if iv is None:
+            # Audit FIN-04: out-of-band quote or non-convergence.
+            raise ValueError(
+                f"implied volatility did not converge for strike {strike}"
+            )
         greeks = calculate_greeks(
             forward_price, strike, time_to_expiry, rate, iv, option_type
         )

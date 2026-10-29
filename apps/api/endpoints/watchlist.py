@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from apps.api.dependencies import get_current_user, get_watchlist_service
+from apps.api.dependencies import current_user_id, get_current_user, get_watchlist_service
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 from services.watchlist_service import WatchlistService
@@ -28,8 +28,9 @@ async def search_symbols(
 @router.get("/", summary="Watchlist", description="Get watchlist symbols with latest prices")
 async def get_watchlist(
     service: WatchlistService = Depends(get_watchlist_service),
+    current_user: dict = Depends(get_current_user),
 ) -> ApiResponse[list[dict[str, Any]]]:
-    result = await service.list_items()
+    result = await service.list_items(user_id=current_user_id(current_user))
     return ApiResponse[list[dict[str, Any]]](success=True, data=result.value or [])
 
 
@@ -43,7 +44,7 @@ async def add_symbol(
     name = body.get("name", "")
     if not symbol:
         return ApiResponse[dict[str, Any]](success=False, data={"error": "symbol is required"})
-    result = await service.add_symbol(symbol, name)
+    result = await service.add_symbol(symbol, name, user_id=current_user_id(current_user))
     if not result.success:
         return ApiResponse[dict[str, Any]](success=False, data={"error": result.error or "خطا در افزودن نماد"})
     return ApiResponse[dict[str, Any]](success=True, data=result.value or {})
@@ -55,7 +56,7 @@ async def remove_symbol(
     service: WatchlistService = Depends(get_watchlist_service),
     current_user: dict = Depends(get_current_user),
 ) -> ApiResponse[dict[str, Any]]:
-    result = await service.remove_symbol(symbol)
+    result = await service.remove_symbol(symbol, user_id=current_user_id(current_user))
     if not result.success:
         return ApiResponse[dict[str, Any]](success=False, data={"error": f"نماد {symbol} در لیست وجود ندارد"})
     return ApiResponse[dict[str, Any]](success=True, data={"symbol": symbol, "removed": True})

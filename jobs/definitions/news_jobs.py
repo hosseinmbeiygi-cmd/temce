@@ -17,6 +17,8 @@ class NewsIngestionJob(BaseJob):
         limit = context.get_param("limit", 50)
         saved = 0
         fetched = 0
+        fetch_error = ""
+        errors = 0
         session_obtained = False
         async for session in get_session():
             session_obtained = True
@@ -29,12 +31,22 @@ class NewsIngestionJob(BaseJob):
             )
             saved = stats.get("saved", 0)
             fetched = stats.get("fetched", 0)
+            fetch_error = stats.get("fetch_error") or ""
+            errors = stats.get("errors", 0) or 0
         # commit() fires AFTER the async for loop completes naturally
         if not session_obtained:
             return JobResult.failure("Could not obtain DB session", job_name=self.name)
+        # Audit SCH-05: a dead feed used to report "success, 0 saved". A fetch
+        # error with nothing stored is a job failure, not a quiet empty run.
+        if fetch_error and saved == 0:
+            return JobResult.failure(f"news fetch failed: {fetch_error}", job_name=self.name)
+        if saved == 0 and errors > 0:
+            return JobResult.failure(
+                f"news ingestion saved nothing ({errors} errors)", job_name=self.name
+            )
         return JobResult.success_result(
             job_name=self.name,
-            data={"saved": saved, "fetched": fetched},
+            data={"saved": saved, "fetched": fetched, "errors": errors, "fetch_error": fetch_error},
         )
 
 

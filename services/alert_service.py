@@ -56,15 +56,23 @@ class AlertService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def list_alerts(self, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
+    async def list_alerts(
+        self, page: int = 1, page_size: int = 50, *, user_id: str | None = None
+    ) -> Result[dict[str, Any]]:
+        """List alerts; ``user_id=None`` means "no filter" and is admin-only."""
         try:
             from sqlalchemy import func as sa_func
 
             offset = (page - 1) * page_size
+            count_stmt = select(sa_func.count(AlertModel.id))
+            items_stmt = select(AlertModel)
+            if user_id is not None:
+                count_stmt = count_stmt.where(AlertModel.user_id == user_id)
+                items_stmt = items_stmt.where(AlertModel.user_id == user_id)
             result = await self.session.execute(
-                select(AlertModel).order_by(AlertModel.created_at.desc()).offset(offset).limit(page_size)
+                items_stmt.order_by(AlertModel.created_at.desc()).offset(offset).limit(page_size)
             )
-            total = await self.session.scalar(select(sa_func.count(AlertModel.id)))
+            total = await self.session.scalar(count_stmt)
             items = result.scalars().all()
             return Result.ok({
                 "items": [self._alert_to_dict(a) for a in items],
@@ -80,6 +88,7 @@ class AlertService:
         try:
             alert = AlertModel(
                 id=new_id("alr"),
+                user_id=user_id or None,
                 instrument_id=instrument_id,
                 symbol=symbol,
                 alert_type=alert_type,
@@ -100,9 +109,12 @@ class AlertService:
             logger.error("Create alert failed: %s", e)
             return Result.fail(str(e))
 
-    async def update_alert(self, alert_id: str, user_id: str, **kwargs: Any) -> Result[dict[str, Any]]:
+    async def update_alert(self, alert_id: str, user_id: str | None, **kwargs: Any) -> Result[dict[str, Any]]:
         try:
-            result = await self.session.execute(select(AlertModel).where(AlertModel.id == alert_id))
+            stmt = select(AlertModel).where(AlertModel.id == alert_id)
+            if user_id is not None:
+                stmt = stmt.where(AlertModel.user_id == user_id)
+            result = await self.session.execute(stmt)
             alert = result.scalar_one_or_none()
             if not alert:
                 return Result.fail("Alert not found")
@@ -123,9 +135,12 @@ class AlertService:
             logger.error("Update alert failed: %s", e)
             return Result.fail(str(e))
 
-    async def delete_alert(self, alert_id: str, user_id: str) -> Result[None]:
+    async def delete_alert(self, alert_id: str, user_id: str | None) -> Result[None]:
         try:
-            result = await self.session.execute(select(AlertModel).where(AlertModel.id == alert_id))
+            stmt = select(AlertModel).where(AlertModel.id == alert_id)
+            if user_id is not None:
+                stmt = stmt.where(AlertModel.user_id == user_id)
+            result = await self.session.execute(stmt)
             alert = result.scalar_one_or_none()
             if not alert:
                 return Result.fail("Alert not found")
@@ -136,9 +151,22 @@ class AlertService:
             logger.error("Delete alert failed: %s", e)
             return Result.fail(str(e))
 
-    async def get_alert_history(self, alert_id: str, page: int = 1, page_size: int = 50) -> Result[dict[str, Any]]:
+    async def get_alert_history(
+        self, alert_id: str, page: int = 1, page_size: int = 50, *, user_id: str | None = None
+    ) -> Result[dict[str, Any]]:
         try:
             from sqlalchemy import func as sa_func
+
+            # Ownership is checked against the alert itself before any history
+            # row is returned (audit SEC-05). ``user_id=None`` is admin-only.
+            if user_id is not None:
+                owner = await self.session.scalar(
+                    select(AlertModel.id).where(
+                        AlertModel.id == alert_id, AlertModel.user_id == user_id
+                    )
+                )
+                if owner is None:
+                    return Result.fail("Alert not found")
 
             offset = (page - 1) * page_size
             result = await self.session.execute(

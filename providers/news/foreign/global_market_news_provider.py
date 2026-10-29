@@ -9,6 +9,8 @@ from core.result import Result
 from providers.base.http_client import HttpClient
 from providers.base.news import NewsProvider
 
+from .health import base_url_is_placeholder
+
 logger = get_logger(__name__)
 
 
@@ -27,6 +29,8 @@ class GlobalMarketNewsProvider(NewsProvider):
         limit: int = 50,
         **kwargs: Any,
     ) -> Result[list[dict[str, Any]]]:
+        if base_url_is_placeholder(self.client):
+            return Result.fail("provider_not_configured: placeholder endpoint (api.example.com)")
         params: dict[str, Any] = {"limit": limit}
         if from_date:
             params["from"] = from_date.isoformat()
@@ -48,4 +52,6 @@ class GlobalMarketNewsProvider(NewsProvider):
         return Result.fail(result.error or "News search failed")
 
     async def health(self) -> dict[str, Any]:
+        if base_url_is_placeholder(self.client):
+            return {"healthy": False, "message": "placeholder endpoint — provider not configured"}
         return {"healthy": True, "message": "Global market news provider ready"}

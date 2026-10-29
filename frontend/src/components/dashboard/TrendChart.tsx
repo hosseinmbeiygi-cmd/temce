@@ -9,7 +9,9 @@ import { cn } from "@/lib/cn";
 import LiveDataBanner from "./LiveDataBanner";
 import { ChartTooltip, SectionHeader } from "./primitives";
 
-const RANGES = ["۱ روز", "۱ هفته", "۱ ماه", "۳ ماه", "سالانه"];
+// The endpoint serves intraday snapshots only, so the buttons select an
+// intraday window instead of a multi-day range (audit FE-07).
+const RANGES = ["۱ ساعت", "۲ ساعت", "۴ ساعت", "۶ ساعت", "کل روز"];
 
 const AXIS_TICK = { fill: "var(--ink-3)", fontSize: 10 };
 
@@ -22,7 +24,7 @@ function compact(v: number): string {
 
 export default function TrendChart() {
   const [range, setRange] = useState(0);
-  const { data: live, isLive, isError, isLoading } = useIndexIntraday(range);
+  const { data: live, isLive, hasData, isFresh, isStale, isError, isLoading } = useIndexIntraday(range);
   // No silent mock substitution: with <2 live points the chart renders empty
   // axes and the LiveDataBanner explains the degraded state.
   const series = live.length >= 2 ? live : [];
@@ -57,7 +59,7 @@ export default function TrendChart() {
         }
       />
 
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_260px]">
         <div className="h-52 min-w-0">
           <ResponsiveContainer width="100%" height="100%">

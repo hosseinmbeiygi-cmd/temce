@@ -12,8 +12,12 @@ class PortfolioService:
     def __init__(self, session: AsyncSession) -> None:
         self.repo = PortfolioRepository(session)
 
-    async def get_portfolio(self, portfolio_id: str) -> Result[dict[str, Any]]:
-        res = await self.repo.get(portfolio_id)
+    async def get_portfolio(self, portfolio_id: str, owner_id: str | None = None) -> Result[dict[str, Any]]:
+        # ``owner_id=None`` keeps the historical unscoped read for admins.
+        if owner_id is None:
+            res = await self.repo.get(portfolio_id)
+        else:
+            res = await self.repo.get_owned(portfolio_id, owner_id=owner_id)
         if not res.success:
             return res
 
@@ -30,8 +34,11 @@ class PortfolioService:
             "positions": positions_res.value if positions_res.success else [],
         })
 
-    async def list_portfolios(self) -> Result[list[dict[str, Any]]]:
-        res = await self.repo.list()
+    async def list_portfolios(self, owner_id: str | None = None) -> Result[list[dict[str, Any]]]:
+        if owner_id is None:
+            res = await self.repo.list()
+        else:
+            res = await self.repo.list_owned(owner_id=owner_id)
         if not res.success:
             return res
 
@@ -45,13 +52,14 @@ class PortfolioService:
             for p in res.value.items
         ])
 
-    async def create_portfolio(self, name: str, **kwargs: Any) -> Result[dict[str, Any]]:
+    async def create_portfolio(self, name: str, owner_id: str = "", **kwargs: Any) -> Result[dict[str, Any]]:
         from core.ids import new_id
         from domain.portfolios.portfolio import Portfolio
 
         portfolio = Portfolio(
             id=new_id("port"),
             name=name,
+            owner_id=owner_id,
             description=kwargs.get("description", ""),
             initial_capital=kwargs.get("initial_capital", 0.0),
             currency=kwargs.get("currency", "IRR"),

@@ -12,7 +12,14 @@ from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
+from brsapi.parsers.errors import BrsApiParseError, ensure_payload, is_no_data
+
 logger = getLogger(__name__)
+
+# Sections of the combined ``Gold_Currency`` / ``Gold_Currency_Pro`` payloads.
+# A response that carries other sections but not the requested one is a valid
+# empty answer; a response with none of them is an envelope we cannot read.
+_GOLD_CURRENCY_SECTIONS = frozenset({"gold", "currency", "cryptocurrency"})
 
 
 class CommodityParser:
@@ -48,6 +55,10 @@ class CommodityParser:
         ``{"metal_precious": [...], "metal_base": [...], "energy": [...]}`
         Each category contains a list of price items.
         """
+        ensure_payload(data, "Commodity")
+        if is_no_data(data):
+            return []
+
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
@@ -88,6 +99,11 @@ class CommodityParser:
                         records.append(rec)
             else:
                 # Flat dict: {"XAUUSD": {...}, "XAGUSD": {...}, ...}
+                if not any(isinstance(v, dict) for v in data.values()):
+                    raise BrsApiParseError(
+                        f"Commodity: unrecognised envelope keys {sorted(data)[:5]}",
+                        code="unrecognised_envelope",
+                    )
                 for symbol, info in data.items():
                     if not isinstance(info, dict):
                         continue
@@ -127,24 +143,24 @@ class CommodityParser:
                     }
                     records.append(rec)
         else:
-            logger.warning("Commodity: unexpected data type %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Commodity: unexpected data type {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         return records
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)
 
 
 class GoldCurrencyParser:
@@ -171,13 +187,28 @@ class GoldCurrencyParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
+        ensure_payload(data, f"Gold_Currency/{section}")
+        if is_no_data(data):
+            return []
+
         items: list[Any] = []
         if isinstance(data, dict):
-            section_data = data.get(section, [])
+            section_data = data.get(section)
             if isinstance(section_data, list):
                 items = section_data
+            elif not _GOLD_CURRENCY_SECTIONS.intersection(data):
+                raise BrsApiParseError(
+                    f"Gold_Currency: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
+            # else: the provider answered without this section — a valid empty.
         elif isinstance(data, list):
             items = data
+        else:
+            raise BrsApiParseError(
+                f"Gold_Currency: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for entry in items:
             if not isinstance(entry, dict):
@@ -208,13 +239,27 @@ class GoldCurrencyParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
+        ensure_payload(data, "Gold_Currency/cryptocurrency")
+        if is_no_data(data):
+            return []
+
         items: list[Any] = []
         if isinstance(data, dict):
-            section_data = data.get("cryptocurrency", [])
+            section_data = data.get("cryptocurrency")
             if isinstance(section_data, list):
                 items = section_data
+            elif not _GOLD_CURRENCY_SECTIONS.intersection(data):
+                raise BrsApiParseError(
+                    f"Gold_Currency: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
         elif isinstance(data, list):
             items = data
+        else:
+            raise BrsApiParseError(
+                f"Gold_Currency: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for entry in items:
             if not isinstance(entry, dict):
@@ -239,18 +284,16 @@ class GoldCurrencyParser:
         return records
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)
 
 
 class GoldCoinParser:
@@ -266,16 +309,27 @@ class GoldCoinParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
+        ensure_payload(data, "GoldCoin")
+        if is_no_data(data):
+            return []
+
         items: dict[str, Any] = {}
         if isinstance(data, dict):
+            if not any(isinstance(v, dict) for v in data.values()):
+                raise BrsApiParseError(
+                    f"GoldCoin: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
             items = data
         elif isinstance(data, list):
             for entry in data:
                 if isinstance(entry, dict) and "symbol" in entry:
                     items[entry["symbol"]] = entry
         else:
-            logger.warning("GoldCoin: unexpected data type %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"GoldCoin: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for symbol, info in items.items():
             if not isinstance(info, dict):
@@ -300,8 +354,16 @@ class GoldCoinParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
-        items: list[Any] = data if isinstance(data, list) else []
-        for item in items:
+        ensure_payload(data, "History")
+        if is_no_data(data):
+            return []
+        if not isinstance(data, list):
+            raise BrsApiParseError(
+                f"History: expected a list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
+
+        for item in data:
             if not isinstance(item, dict):
                 continue
             records.append({
@@ -316,18 +378,16 @@ class GoldCoinParser:
         return records
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)
 
 
 class CurrencyParser:
@@ -340,16 +400,27 @@ class CurrencyParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
+        ensure_payload(data, "Currency")
+        if is_no_data(data):
+            return []
+
         items: dict[str, Any] = {}
         if isinstance(data, dict):
+            if not any(isinstance(v, dict) for v in data.values()):
+                raise BrsApiParseError(
+                    f"Currency: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
             items = data
         elif isinstance(data, list):
             for entry in data:
                 if isinstance(entry, dict) and "symbol" in entry:
                     items[entry["symbol"]] = entry
         else:
-            logger.warning("Currency: unexpected data type %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Currency: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for symbol, info in items.items():
             if not isinstance(info, dict):
@@ -374,16 +445,27 @@ class CurrencyParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
+        ensure_payload(data, "Currency24h")
+        if is_no_data(data):
+            return []
+
         items: dict[str, Any] = {}
         if isinstance(data, dict):
+            if not any(isinstance(v, dict) for v in data.values()):
+                raise BrsApiParseError(
+                    f"Currency24h: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
             items = data
         elif isinstance(data, list):
             for entry in data:
                 if isinstance(entry, dict) and "symbol" in entry:
                     items[entry["symbol"]] = entry
         else:
-            logger.warning("Currency24h: unexpected data type %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Currency24h: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for symbol, info in items.items():
             if not isinstance(info, dict):
@@ -407,8 +489,16 @@ class CurrencyParser:
     def parse_history(cls, data: Any) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
-        items: list[Any] = data if isinstance(data, list) else []
-        for item in items:
+        ensure_payload(data, "History")
+        if is_no_data(data):
+            return []
+        if not isinstance(data, list):
+            raise BrsApiParseError(
+                f"History: expected a list, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
+
+        for item in data:
             if not isinstance(item, dict):
                 continue
             records.append({
@@ -422,18 +512,16 @@ class CurrencyParser:
         return records
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)
 
 
 class GoldCurrencyProParser:
@@ -474,6 +562,10 @@ class GoldCurrencyProParser:
         Both formats are flattened into a single list of records with
         an optional ``subcategory`` field for the nested structure.
         """
+        ensure_payload(data, f"Gold_Currency_Pro/{section_name}")
+        if is_no_data(data):
+            return []
+
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
@@ -484,6 +576,9 @@ class GoldCurrencyProParser:
         if isinstance(data, dict):
             inner = data.get("data", data)
             if isinstance(inner, dict):
+                if is_no_data(inner):
+                    return []
+
                 section_data = inner.get(section_name)
 
                 if isinstance(section_data, list):
@@ -497,8 +592,28 @@ class GoldCurrencyProParser:
                             for entry in sub_items:
                                 if isinstance(entry, dict):
                                     items.append((subcat, entry))
+
+                elif not _GOLD_CURRENCY_SECTIONS.intersection(inner):
+                    raise BrsApiParseError(
+                        "Gold_Currency_Pro: unrecognised envelope keys "
+                        f"{sorted(inner)[:5]}",
+                        code="unrecognised_envelope",
+                    )
+                # else: the provider answered without this section.
+            else:
+                raise BrsApiParseError(
+                    "Gold_Currency_Pro: 'data' must be an object or list, "
+                    f"got {type(inner).__name__}",
+                    code="unexpected_shape",
+                )
         elif isinstance(data, list):
             items = [(None, entry) for entry in data if isinstance(entry, dict)]
+        else:
+            raise BrsApiParseError(
+                "Gold_Currency_Pro: expected a list or object, got "
+                f"{type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for _subcategory, entry in items:
             rec = {
@@ -545,6 +660,10 @@ class GoldCurrencyProParser:
         The API wraps items in ``data.history_24h`` or returns a list directly.
         Each item has: ``price``, ``time``, ``date``, ``time_unix``.
         """
+        ensure_payload(data, "Gold_Currency_Pro/history_24h")
+        if is_no_data(data):
+            return []
+
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
@@ -552,13 +671,33 @@ class GoldCurrencyProParser:
         if isinstance(data, dict):
             inner = data.get("data", data)
             if isinstance(inner, dict):
-                history = inner.get("history_24h", inner.get("history", []))
+                history = inner.get("history_24h", inner.get("history"))
                 if isinstance(history, list):
                     items = history
+                elif is_no_data(inner):
+                    return []
+                else:
+                    raise BrsApiParseError(
+                        "Gold_Currency_Pro: neither 'history_24h' nor 'history' "
+                        f"is a list (keys {sorted(inner)[:5]})",
+                        code="unrecognised_envelope",
+                    )
             elif isinstance(inner, list):
                 items = inner
+            else:
+                raise BrsApiParseError(
+                    "Gold_Currency_Pro: 'data' must be an object or list, "
+                    f"got {type(inner).__name__}",
+                    code="unexpected_shape",
+                )
         elif isinstance(data, list):
             items = data
+        else:
+            raise BrsApiParseError(
+                "Gold_Currency_Pro: expected a list or object, got "
+                f"{type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         symbol = ""
         if isinstance(data, dict):
@@ -586,6 +725,10 @@ class GoldCurrencyProParser:
         Each item has: ``symbol``, ``name``, ``sign``, ``unit``, ``url_base_icon``,
         ``path_icon``, ``date``, ``open``, ``high``, ``low``, ``close``.
         """
+        ensure_payload(data, "Gold_Currency_Pro/history_daily")
+        if is_no_data(data):
+            return []
+
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
@@ -593,13 +736,33 @@ class GoldCurrencyProParser:
         if isinstance(data, dict):
             inner = data.get("data", data)
             if isinstance(inner, dict):
-                history = inner.get("history_daily", inner.get("history", []))
+                history = inner.get("history_daily", inner.get("history"))
                 if isinstance(history, list):
                     items = history
+                elif is_no_data(inner):
+                    return []
+                else:
+                    raise BrsApiParseError(
+                        "Gold_Currency_Pro: neither 'history_daily' nor 'history' "
+                        f"is a list (keys {sorted(inner)[:5]})",
+                        code="unrecognised_envelope",
+                    )
             elif isinstance(inner, list):
                 items = inner
+            else:
+                raise BrsApiParseError(
+                    "Gold_Currency_Pro: 'data' must be an object or list, "
+                    f"got {type(inner).__name__}",
+                    code="unexpected_shape",
+                )
         elif isinstance(data, list):
             items = data
+        else:
+            raise BrsApiParseError(
+                "Gold_Currency_Pro: expected a list or object, got "
+                f"{type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for entry in items:
             if not isinstance(entry, dict):
@@ -633,18 +796,16 @@ class GoldCurrencyProParser:
             return ""
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)
 
 
 class Gold24hParser:
@@ -657,16 +818,27 @@ class Gold24hParser:
         records: list[dict[str, Any]] = []
         now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(UTC).microsecond // 1000:03d}Z"
 
+        ensure_payload(data, "Gold24h")
+        if is_no_data(data):
+            return []
+
         items: dict[str, Any] = {}
         if isinstance(data, dict):
+            if not any(isinstance(v, dict) for v in data.values()):
+                raise BrsApiParseError(
+                    f"Gold24h: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
             items = data
         elif isinstance(data, list):
             for entry in data:
                 if isinstance(entry, dict) and "symbol" in entry:
                     items[entry["symbol"]] = entry
         else:
-            logger.warning("Gold24h: unexpected data type %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Gold24h: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         for symbol, info in items.items():
             if not isinstance(info, dict):
@@ -687,15 +859,13 @@ class Gold24hParser:
         return records
 
     @staticmethod
-    def _int(v: Any) -> int:
-        try:
-            return int(float(str(v).replace(",", "")))
-        except (ValueError, TypeError):
-            return 0
+    def _int(v: Any) -> int | None:
+        from .numeric import parse_int
+
+        return parse_int(v)
 
     @staticmethod
-    def _float(v: Any) -> float:
-        try:
-            return float(str(v).replace(",", ""))
-        except (ValueError, TypeError):
-            return 0.0
+    def _float(v: Any) -> float | None:
+        from .numeric import parse_float
+
+        return parse_float(v)

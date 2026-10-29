@@ -30,7 +30,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_brsapi_query_service, get_db_session
+from apps.api.dependencies import get_brsapi_query_service, get_db_session, require_roles
 from apps.api.error_handlers import safe_error_message
 from brsapi.constants import BRSAPI_ETF_SYMBOLS
 from brsapi.models.ime import ImeFundModel
@@ -1559,7 +1559,11 @@ async def get_fund(
     return fund
 
 
-@router.post("/sync-all", summary="همگام‌سازی انبوه صندوق‌ها از اسنپ‌شات‌های BrsApi")
+@router.post(
+    "/sync-all",
+    summary="همگام‌سازی انبوه صندوق‌ها از اسنپ‌شات‌های BrsApi",
+    dependencies=[Depends(require_roles("admin"))],
+)
 async def sync_all_funds(
     limit: int = Query(20, ge=1, le=80, description="حداکثر تعداد صندوق برای همگام‌سازی"),
     session: AsyncSession = Depends(get_db_session),

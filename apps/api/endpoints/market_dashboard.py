@@ -9,7 +9,9 @@ from fastapi import APIRouter, Depends
 
 from apps.api.dependencies import get_brsapi_query_service, get_market_service
 from core.currency import rial_to_toman_float
+from core.freshness import newest_fetched_at
 from core.logging import get_logger
+from core.result import Result
 from schemas.common.responses import ApiResponse
 from services.market_service import MarketService
 
@@ -29,14 +31,23 @@ async def market_dashboard(
 ) -> ApiResponse[dict[str, Any]]:
     """Return all data needed by the dashboard in a single call."""
     results: dict[str, Any] = {}
+    errors: dict[str, str] = {}
 
     # Run all fetches concurrently
     async def _fetch(name: str, coro):
         try:
-            results[name] = await coro
+            value = await coro
         except Exception as exc:
             logger.warning("Dashboard fetch failed for %s: %s", name, exc)
             results[name] = None
+            errors[name] = str(exc)
+            return
+        # Service-layer failures are Result.fail, not exceptions. Keep the
+        # Result envelope the frontend already reads (``overview.value``) but
+        # record the failure so the dashboard cannot claim all-success.
+        if isinstance(value, Result) and not value.success:
+            errors[name] = value.error or "source failed"
+        results[name] = value
 
     await asyncio.gather(
         _fetch("overview", market_service.get_overview()),
@@ -49,13 +60,39 @@ async def market_dashboard(
         _fetch("active", market_service.get_most_active(20)),
     )
 
-    return ApiResponse[dict[str, Any]](success=True, data=results)
+    payload = dict(results)
+    if errors:
+        payload["errors"] = errors
+
+    # Envelope freshness: the overview section computes it from the snapshot
+    # rows it served; indices rows are the fallback. Without this the dashboard
+    # payload had no source timestamp at all (audit API-04).
+    overview_result = results.get("overview")
+    data_as_of: str | None = None
+    if isinstance(overview_result, Result) and overview_result.success and isinstance(overview_result.value, dict):
+        data_as_of = overview_result.value.get("data_as_of")
+    if data_as_of is None:
+        data_as_of = newest_fetched_at(results.get("indices"))
+
+    def _failed(value: Any) -> bool:
+        return value is None or (isinstance(value, Result) and not value.success)
+
+    if all(_failed(value) for value in results.values()):
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            data=payload,
+            data_as_of=data_as_of,
+            error={"message": "All dashboard sources failed", "sources": errors},
+        )
+    return ApiResponse[dict[str, Any]](success=True, data=payload, data_as_of=data_as_of)
 
 
 async def _unwrap_indices(market_service: MarketService) -> list[dict[str, Any]]:
     """Get indices from DB, unwrapping the Result object."""
     result = await market_service.get_index_values()
-    return result.value if result.success else []
+    if not result.success:
+        raise RuntimeError(result.error or "index values unavailable")
+    return result.value or []
 
 
 async def _fetch_screener_data(brsapi) -> list[dict[str, Any]]:
@@ -103,4 +140,4 @@ async def _fetch_screener_data(brsapi) -> list[dict[str, Any]]:
         return results[:20]
     except Exception as exc:
         logger.warning("Screener data fetch failed: %s", exc)
-        return []
+        raise

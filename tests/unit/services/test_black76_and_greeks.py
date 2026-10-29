@@ -6,6 +6,7 @@ Benchmarks are computed independently from the Black-76 definition:
     d2 = d1 - σ√T
     C  = e^(-rT) [F N(d1) - K N(d2)]
     P  = e^(-rT) [K N(-d2) - F N(-d1)]
+    θ  = ∂V/∂t = -∂V/∂T = -F e^(-rT) φ(d1) σ/(2√T) + r·V   (call and put alike)
 
 Pure math only — no DB, no network.
 """
@@ -29,8 +30,13 @@ BENCH_DELTA_CALL = 0.7419251180
 BENCH_DELTA_PUT = -0.2431868216
 BENCH_GAMMA = 0.0175897191
 BENCH_VEGA = 21.9871489164
-BENCH_THETA_CALL = -3.6505112369
-BENCH_THETA_PUT = -6.3103134738
+# Audit FIN-01: these two constants used to hold -3.6505112369 / -6.3103134738,
+# which were the output of the old (wrong) theta expression — the engine added
+# an extra +r·F·e^{-rT}·N(d1) on calls and used -r·V on puts. The values below
+# are θ = -∂V/∂T and agree with a central finite difference of black76_price to
+# ~1e-9 (see tests/unit/services/test_black76_theta_derivative.py).
+BENCH_THETA_CALL = -5.1172878673
+BENCH_THETA_PUT = -5.4128214491
 
 PARITY_CASES = [
     (100.0, 100.0, 1.0, 0.05, 0.20),
