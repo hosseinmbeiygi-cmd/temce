@@ -44,7 +44,11 @@ async def analysis_correlations(
         snapshots = await brsapi.get_latest_snapshots(limit=500)
     except Exception:
         logger.exception("Correlations: snapshot fetch failed")
-        return ApiResponse(success=True, data={"categories": [], "source": "unavailable"})
+        return ApiResponse(
+            success=False,
+            error={"message": "Correlations: snapshot source unavailable"},
+            data={"categories": [], "source": "unavailable"},
+        )
 
     # Group symbols by sector, keep a couple of the most-liquid names per sector
     by_sector: dict[str, list[dict[str, Any]]] = defaultdict(list)

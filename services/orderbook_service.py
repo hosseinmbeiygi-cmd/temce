@@ -151,9 +151,12 @@ class OrderBookService:
             result = await self._session.execute(q, {"sym": symbol, "lim": limit})
             rows = [dict(row._mapping) for row in result.fetchall()]
             return Result.ok(rows)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to fetch history for %s", symbol)
-            return Result.ok([])
+            return Result.fail(
+                f"Failed to fetch orderbook history for {symbol}: {exc}",
+                code="source_error",
+            )
 
     async def save_snapshot(self, symbol: str, data: dict[str, Any]) -> Result[dict[str, Any]]:
         return Result.ok(data)

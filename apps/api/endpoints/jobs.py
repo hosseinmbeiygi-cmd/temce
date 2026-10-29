@@ -148,7 +148,6 @@ JOBS_TYPES_QUERY = """
 
 
 def _row_to_dict(row: tuple) -> dict[str, Any]:
-    row[9]
     return {
         "id": safe_row_str(row, idx=0),
         "job_type": safe_row_str(row, idx=1),
@@ -230,7 +229,8 @@ async def list_jobs(
     except Exception:
         logger.exception("Failed to fetch jobs")
         return ApiResponse[dict[str, Any]](
-            success=True,
+            success=False,
+            error={"message": "Failed to fetch jobs"},
             data={"items": [], "total": 0, "limit": limit, "offset": offset, "stats": {}, "job_types": []},
         )
 

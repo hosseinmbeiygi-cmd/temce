@@ -42,13 +42,20 @@ class JobDispatcher:
             if direct is not None:
                 return direct
             return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
+        # Caller-supplied context (queue worker) carries the *occurrence* id and
+        # is republished unchanged on retry â€” deduping on it would make every
+        # retry and the dead-letter path a silent no-op. Occurrences are already
+        # serialised by the distributed lock below, so only dedup auto-generated
+        # in-process dispatches (no caller context).
+        caller_supplied_context = context is not None
         if context is None:
             context = JobContext(job_id=new_id("job"), job_name=job_name, params=params or {})
-        dedup_key = f"{job_name}:{context.job_id}"
-        if await self._deduplicator.is_duplicate(dedup_key):
-            logger.warning("Dedup: job %s already dispatched", dedup_key)
-            return JobResult.failure("Duplicate job", job_name=job_name)
-        await self._deduplicator.mark(dedup_key)
+        if not caller_supplied_context:
+            dedup_key = f"{job_name}:{context.job_id}"
+            if await self._deduplicator.is_duplicate(dedup_key):
+                logger.warning("Dedup: job %s already dispatched", dedup_key)
+                return JobResult.failure("Duplicate job", job_name=job_name)
+            await self._deduplicator.mark(dedup_key)
         lock_key = f"job:{job_name}"
         if not await self._locking.acquire(lock_key, context.job_id):
             return JobResult.failure(f"Lock not acquired for {job_name}", job_name=job_name)

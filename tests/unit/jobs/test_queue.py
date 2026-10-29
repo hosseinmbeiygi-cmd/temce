@@ -255,6 +255,34 @@ async def test_consumer_skips_lock_failure_as_benign():
 
 
 @pytest.mark.asyncio
+async def test_consumer_counts_skipped_job_without_retry():
+    """A market-hours skip is a no-op, not a failure worth dead-lettering."""
+    from jobs.job_result import JobResult
+
+    client = FakeRedis()
+    dispatcher = FakeDispatcher(
+        result=JobResult.skipped_result(
+            job_name="brsapi_all_symbols", reason="outside Tehran market hours"
+        )
+    )
+    consumer = JobQueueConsumer(
+        redis_client=client,
+        queue_name="job:queue",
+        token="t",
+        dispatcher=dispatcher,
+    )
+    pub = JobQueuePublisher(redis_client=client, queue_name="job:queue", token="t")
+    await pub.publish("brsapi_all_symbols")
+
+    await consumer._handle_message(client._lists["job:queue"].pop())
+
+    assert consumer.processed == 1
+    assert consumer.failed == 0
+    assert await client.llen("job:retry") == 0
+    assert await client.llen("job:dead") == 0
+
+
+@pytest.mark.asyncio
 async def test_consumer_requeues_then_dead_letters():
     from jobs.job_result import JobResult
 

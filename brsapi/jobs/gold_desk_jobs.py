@@ -129,7 +129,11 @@ async def job_gold_snapshot(force: bool = False) -> None:
             )
             break
     except Exception as exc:
+        # Surface the failure to the caller (``_run_direct_job`` turns an
+        # exception into ``success=False``). Swallowing it here made every
+        # DB/snapshot error look like a green job on the scheduler.
         logger.exception("gold_snapshot failed: %s", exc)
+        raise
 
 
 # ── Job 2: Score Persist ───────────────────────────────────────
@@ -163,6 +167,7 @@ async def job_gold_score_persist(force: bool = False) -> None:
             break
     except Exception as exc:
         logger.exception("gold_score_persist failed: %s", exc)
+        raise
 
 
 # ── Job 3: Alert Evaluation ─────────────────────────────────────
@@ -198,6 +203,7 @@ async def job_gold_alert_evaluate(force: bool = False) -> None:
             break
     except Exception as exc:
         logger.exception("gold_alert_evaluate failed: %s", exc)
+        raise
 
 
 # ── Job 4: Fund NAV Persist ─────────────────────────────────────
@@ -260,6 +266,7 @@ async def job_gold_fund_nav(force: bool = False) -> None:
             break
     except Exception as exc:
         logger.exception("gold_fund_nav failed: %s", exc)
+        raise
 
 
 # ── Job 5: Portfolio Value Snapshot ─────────────────────────────
@@ -285,6 +292,7 @@ async def job_gold_portfolio_value(force: bool = False) -> None:
             break
     except Exception as exc:
         logger.exception("gold_portfolio_value failed: %s", exc)
+        raise
 
 
 # ── Job 6: Daily History Backfill ─────────────────────────────

@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from jobs.job_context import JobContext
 from jobs.job_dispatcher import JobDispatcher
 from jobs.job_result import JobResult
 
@@ -166,3 +167,67 @@ class TestListJobs:
         names = dispatcher.list_jobs()
 
         assert names == ["A", "B"]
+
+
+# ── caller-supplied occurrence id (queue retry path) ──────────────────────
+
+
+class TestCallerSuppliedOccurrenceId:
+    """A retry reuses the *same* queue ``job_id`` for the same occurrence.
+
+    The dispatcher must not dedup on ``job_name:job_id`` for a caller-supplied
+    context: a hard failure requeues the identical payload (same ``job_id``,
+    bumped ``attempt``), so treating a repeat as a duplicate turns every retry
+    and the dead-letter path into a silent no-op that still reports
+    ``processed``. Concurrent *occurrences* are already serialised by the
+    distributed lock (``job:<name>``) and the queue's single consume, so the
+    in-memory dedup adds nothing here but blocks retries.
+    """
+
+    async def test_retry_with_same_job_id_runs_again(self) -> None:
+        from jobs.deduplication import JobDeduplicator
+        from jobs.locking import JobLocking
+
+        job_result = JobResult.failure("transient", job_name="SyncQuotesJob")
+        job_cls = _make_job_cls(job_result)
+        registry = MagicMock()
+        registry.get.return_value = job_cls
+        registry.create.return_value = job_cls.return_value
+        dispatcher = JobDispatcher(
+            registry=registry,
+            locking=JobLocking(),
+            deduplicator=JobDeduplicator(),
+            retry_policy=MagicMock(),
+        )
+        ctx = JobContext(job_id="job-occ-1", job_name="SyncQuotesJob")
+
+        first = await dispatcher.dispatch("SyncQuotesJob", context=ctx)
+        second = await dispatcher.dispatch("SyncQuotesJob", context=ctx)
+
+        assert first.error == "transient"
+        assert second.error == "transient"
+        assert "Duplicate" not in second.error
+        assert job_cls.return_value.run.await_count == 2
+
+    async def test_caller_supplied_context_bypasses_dedup(self) -> None:
+        job_cls = _make_job_cls(JobResult.success_result())
+        dispatcher, mocks = _make_dispatcher(job_cls=job_cls)
+        ctx = JobContext(job_id="job-occ-2", job_name="SyncQuotesJob")
+
+        result = await dispatcher.dispatch("SyncQuotesJob", context=ctx)
+
+        assert result.success is True
+        mocks["deduplicator"].is_duplicate.assert_not_awaited()
+        mocks["deduplicator"].mark.assert_not_awaited()
+
+    async def test_auto_generated_id_still_dedups(self) -> None:
+        job_cls = _make_job_cls(JobResult.success_result())
+        dispatcher, mocks = _make_dispatcher(job_cls=job_cls)
+        mocks["deduplicator"].is_duplicate = AsyncMock(return_value=True)
+
+        result = await dispatcher.dispatch("SyncQuotesJob")
+
+        assert result.success is False
+        assert "Duplicate" in result.error
+        mocks["deduplicator"].is_duplicate.assert_awaited_once()
+        job_cls.assert_not_called()
