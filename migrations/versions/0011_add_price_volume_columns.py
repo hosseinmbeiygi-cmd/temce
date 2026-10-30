@@ -63,11 +63,13 @@ def upgrade() -> None:
         )
         print(f"  Added column {col_name} ({col_type})")
 
-        # Cast the type using raw SQL
+        # Cast the type using raw SQL. The column may already be numeric, so cast
+        # to text first; NULLIF(numeric, '') would try to parse '' as a number and
+        # fail on a fresh database (DB-02 follow-up, 2026-10-30).
         if "BIGINT" in col_type:
-            conn.execute(sa.text(f"ALTER TABLE screener_profiles ALTER COLUMN {col_name} TYPE BIGINT USING NULLIF({col_name}, '')::BIGINT"))
+            conn.execute(sa.text(f"ALTER TABLE screener_profiles ALTER COLUMN {col_name} TYPE BIGINT USING NULLIF({col_name}::text, '')::BIGINT"))
         elif "DOUBLE" in col_type:
-            conn.execute(sa.text(f"ALTER TABLE screener_profiles ALTER COLUMN {col_name} TYPE DOUBLE PRECISION USING NULLIF({col_name}, '')::DOUBLE PRECISION"))
+            conn.execute(sa.text(f"ALTER TABLE screener_profiles ALTER COLUMN {col_name} TYPE DOUBLE PRECISION USING NULLIF({col_name}::text, '')::DOUBLE PRECISION"))
 
     print("  ✅ Migration 0011 complete")
 

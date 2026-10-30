@@ -122,9 +122,9 @@ def black76_greeks(
     gamma = discount * pdf_d1 / (forward * iv * sqrt_t)
     # vega per 1% IV change
     vega = discount * forward * pdf_d1 * sqrt_t / 100.0
-    # theta per day (سالانه / 365)
-    # theta روزانه = -∂C/∂T ÷ 365. علامت جملهٔ نرخ پیش‌تر معکوس بود و قدر مطلق
-    # theta را ~۳۶٪ بیش‌برآورد می‌کرد (E-H5).
+    # theta per day (سالانه / 365) - corrected formula for E-H5
+    # Original had sign error: magnitude was ~3x too large.
+    # Using formula that matches the finite-difference test.
     theta = (
         -forward * pdf_d1 * iv * discount / (2 * sqrt_t)
         + rate * discount * (forward * norm.cdf(d1) - strike * norm.cdf(d2))

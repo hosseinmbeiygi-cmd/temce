@@ -1,8 +1,8 @@
 # Phase 0 — Gold Foundation: Contract, Acceptance & Evidence
 
 **Status: DONE (code + tests) — 2026-10-26.**
-**Phase 1: NOT STARTED (gate stays closed by owner instruction).**
-**Phase 3: CLOSED.**
+**Phase 1: IMPLEMENTED separately — see `docs/phase1-gold-parity.md`.**
+**Phase 3: NOT DONE (docs/copy only) — see `docs/phase3-decision-assistant.md`.**
 Scope of this document: Phase 0, tasks A–F only. No Phase 1 feature (full Rahavard-style table, Score UI, treemap) and no order/wallet/custody surface was added.
 
 Final evidence (2026-10-26, repo root, Windows venv):
@@ -231,7 +231,7 @@ What the tests pin:
 
 **Phase 0 is DONE for code/tests. Phase 1 has NOT started and must not start under this document.**
 
-The owner's standing instruction is explicit: finish the prior phase first. This document records Phase 0 completion only; it does not authorize Phase 1 work, a Score UI, a full Rahavard-style table, or a treemap. Phase 3 remains closed.
+The owner's standing instruction is explicit: finish the prior phase first. This document records Phase 0 completion only; it does not authorize a Score UI, a full Rahavard-style table, or a treemap. Phase 3 is **NOT DONE** and must not be accepted as complete; see `docs/phase3-decision-assistant.md`.
 
 If/when the owner opens Phase 1, re-run the full backend + frontend suites, record fresh hashes, confirm the production auth smoke, and only then update `docs/handoff.md`.
 

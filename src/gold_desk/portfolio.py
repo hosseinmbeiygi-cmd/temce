@@ -479,7 +479,7 @@ async def get_holdings_grouped(
                 pnl_irt=pnl_irt,
                 pnl_pct=pnl_pct,
                 n_purchases=len(items),
-                holding_ids=tuple(h.id for h in items if h.id is not None),
+                holding_ids=tuple(getattr(h, "id", None) for h in items if getattr(h, "id", None) is not None),
             )
         )
         total_cost += total_cost_sym

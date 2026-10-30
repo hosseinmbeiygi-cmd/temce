@@ -11,9 +11,6 @@ Revises: 0005_add_performance_indexes
 """
 from __future__ import annotations
 
-import contextlib
-
-import sqlalchemy as sa
 from alembic import op
 
 revision = "0006_add_missing_updated_at"
@@ -78,20 +75,16 @@ TABLES_NEEDING_UPDATED_AT = [
 
 
 def upgrade() -> None:
+    # IF EXISTS/IF NOT EXISTS keep a fresh database safe: a failed statement inside
+    # the migration transaction would abort it, and suppressing the exception leaves
+    # the transaction unusable (DB-02 follow-up, 2026-10-30).
     for table_name in TABLES_NEEDING_UPDATED_AT:
-        with contextlib.suppress(Exception):
-            op.add_column(
-                table_name,
-                sa.Column(
-                    "updated_at",
-                    sa.DateTime(),
-                    nullable=True,
-                    server_default=None,
-                ),
-            )
+        op.execute(
+            f'ALTER TABLE IF EXISTS "{table_name}" '
+            f"ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE"
+        )
 
 
 def downgrade() -> None:
     for table_name in TABLES_NEEDING_UPDATED_AT:
-        with contextlib.suppress(Exception):
-            op.drop_column(table_name, "updated_at")
+        op.execute(f'ALTER TABLE IF EXISTS "{table_name}" DROP COLUMN IF EXISTS updated_at')

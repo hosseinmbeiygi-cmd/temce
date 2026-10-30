@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "symbol": "XAU18",
+      "preview_intrinsic": 25000000,
+      "preview_bubblePct": 2.0,
+      "preview_bubbleAmt": 500000,
+      "preview_impliedUsd": 240.5,
+      "effect_on_fund_nominal_bubblePct": 0.5,
+      "effect_on_fund_real_bubblePct": null
+    },
+    {
+      "symbol": "XAU24",
+      "preview_intrinsic": 30000000,
+      "preview_bubblePct": 1.5,
+      "preview_bubbleAmt": 450000,
+      "preview_impliedUsd": 239.8,
+      "effect_on_fund_nominal_bubblePct": null,
+      "effect_on_fund_real_bubblePct": null
+    }
+  ]
+}

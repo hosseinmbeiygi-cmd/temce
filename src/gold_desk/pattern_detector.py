@@ -137,13 +137,15 @@ async def _fetch_closes(session: AsyncSession, symbol: str, days: int) -> list[t
     try:
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        # ستون date شمسی است؛ cutoff میلادی همیشه صفر ردیف مطابقت می‌داد (E-C3).
+        # تاریخ‌ها ستون شمسی است؛ jalali_days_ago cutoff را به شمسی تبدیل می‌کند
         cutoff = jalali_days_ago(days)
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(GoldCoinHistoryModel.symbol == symbol, GoldCoinHistoryModel.date >= cutoff)
             .order_by(GoldCoinHistoryModel.date)
         )
+        # برخلاف cutoff میلادی قبلی، این-filter تاریخ میلادی را حذف می‌کند و
+        #jalaali_days_ago اطمینان می‌دهد که فقط ردیف‌های شمسی برگردانده می‌شود (E-C3).
         result = await session.execute(stmt)
         return [(str(r[0]), float(r[1])) for r in result.all() if r[1] and r[1] > 0]
     except Exception as exc:  # noqa: BLE001

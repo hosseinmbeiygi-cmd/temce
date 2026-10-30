@@ -1,0 +1,362 @@
+target db: phase0_it_20261026 | redis db: 13
+2026-10-26 15:12:31 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:13:20 [debug    ] Registered 15 strategies
+......2026-10-26 15:14:27 [debug    ] Registered 15 strategies
+2026-10-26 15:14:27 [debug    ] Request: GET /api/v1/backtests/strategies [trace=1ebb580f69bc4a5ca8d698b55bbed5f6]
+2026-10-26 15:14:27 [info     ] GET /api/v1/backtests/strategies -> 401 (0.015s) [trace=1ebb580f69bc4a5ca8d698b55bbed5f6]
+2026-10-26 15:14:27 [debug    ] Response: 401 [trace=1ebb580f69bc4a5ca8d698b55bbed5f6]
+F2026-10-26 15:14:30 [debug    ] Request: GET /api/v1/backtests/strategies [trace=48ad9f01794f4922900040c04fc06581]
+2026-10-26 15:14:30 [info     ] GET /api/v1/backtests/strategies -> 401 (0.000s) [trace=48ad9f01794f4922900040c04fc06581]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=48ad9f01794f4922900040c04fc06581]
+F2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/run [trace=6fc70a617d34461bbe8ec1ac021bb887]
+2026-10-26 15:14:30 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/backtests/run
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/run -> 401 (0.015s) [trace=6fc70a617d34461bbe8ec1ac021bb887]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=6fc70a617d34461bbe8ec1ac021bb887]
+F2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/run [trace=9bb8c9942d4741098665c984fc1e1403]
+2026-10-26 15:14:30 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/backtests/run
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/run -> 401 (0.016s) [trace=9bb8c9942d4741098665c984fc1e1403]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=9bb8c9942d4741098665c984fc1e1403]
+2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/run [trace=185d23d9ed7143c1b0dc47f4e239f1da]
+2026-10-26 15:14:30 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/backtests/run
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/run -> 401 (0.000s) [trace=185d23d9ed7143c1b0dc47f4e239f1da]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=185d23d9ed7143c1b0dc47f4e239f1da]
+2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/run [trace=2129cfdc4e284943abe3cef091821ed7]
+2026-10-26 15:14:30 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/backtests/run
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/run -> 401 (0.015s) [trace=2129cfdc4e284943abe3cef091821ed7]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=2129cfdc4e284943abe3cef091821ed7]
+.2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/run [trace=c70afed40e2c4b68b526cccba9a9b869]
+2026-10-26 15:14:30 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/backtests/run
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/run -> 401 (0.016s) [trace=c70afed40e2c4b68b526cccba9a9b869]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=c70afed40e2c4b68b526cccba9a9b869]
+2026-10-26 15:14:30 [debug    ] Request: GET /api/v1/backtests/runs [trace=4c14deb440564e5ba456a5b6fc6ac08a]
+2026-10-26 15:14:30 [info     ] GET /api/v1/backtests/runs -> 401 (0.000s) [trace=4c14deb440564e5ba456a5b6fc6ac08a]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=4c14deb440564e5ba456a5b6fc6ac08a]
+F2026-10-26 15:14:30 [warning  ] Rate limit exceeded: POST /api/v1/backtests/run from 127.0.0.1 (limit: 5/min)
+.2026-10-26 15:14:30 [debug    ] Request: GET /api/v1/backtests/runs/nonexistent-run-id [trace=878048904d684aa8a609fff0edf63c89]
+2026-10-26 15:14:30 [info     ] GET /api/v1/backtests/runs/nonexistent-run-id -> 401 (0.000s) [trace=878048904d684aa8a609fff0edf63c89]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=878048904d684aa8a609fff0edf63c89]
+.2026-10-26 15:14:30 [warning  ] Rate limit exceeded: POST /api/v1/backtests/run from 127.0.0.1 (limit: 5/min)
+.2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/run-all [trace=193ecb4bea484bae9add5941ae53c2f3]
+2026-10-26 15:14:30 [warning  ] Unauthenticated access to sensitive endpoint: POST /api/v1/backtests/run-all
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/run-all -> 401 (0.000s) [trace=193ecb4bea484bae9add5941ae53c2f3]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=193ecb4bea484bae9add5941ae53c2f3]
+F2026-10-26 15:14:30 [debug    ] Request: POST /api/v1/backtests/compare [trace=cde6322b62aa428d90d80d538df6070c]
+2026-10-26 15:14:30 [info     ] POST /api/v1/backtests/compare -> 401 (0.000s) [trace=cde6322b62aa428d90d80d538df6070c]
+2026-10-26 15:14:30 [debug    ] Response: 401 [trace=cde6322b62aa428d90d80d538df6070c]
+Fs2026-10-26 15:14:35 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:14:35 [debug    ] Request: GET /api/v1/market/overview [trace=d13aa34b90464830b1f6f8f6306831e1]
+2026-10-26 15:14:38 [info     ] GET /api/v1/market/overview -> 200 (2.593s) [trace=d13aa34b90464830b1f6f8f6306831e1]
+2026-10-26 15:14:38 [debug    ] Response: 200 [trace=d13aa34b90464830b1f6f8f6306831e1]
+.2026-10-26 15:14:38 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:14:38 [debug    ] Request: GET /api/v1/market/gainers [trace=ad84e17f38434c2db6445cf15d111cc5]
+2026-10-26 15:14:55 [info     ] GET /api/v1/market/gainers -> 200 (16.922s) [trace=ad84e17f38434c2db6445cf15d111cc5]
+2026-10-26 15:14:55 [debug    ] Response: 200 [trace=ad84e17f38434c2db6445cf15d111cc5]
+.2026-10-26 15:14:55 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:14:55 [debug    ] Request: GET /api/v1/market/losers [trace=6947f9e52d5e421ea1381d03e1d9d4ac]
+2026-10-26 15:15:04 [info     ] GET /api/v1/market/losers -> 200 (9.172s) [trace=6947f9e52d5e421ea1381d03e1d9d4ac]
+2026-10-26 15:15:04 [debug    ] Response: 200 [trace=6947f9e52d5e421ea1381d03e1d9d4ac]
+.2026-10-26 15:15:05 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:05 [debug    ] Request: GET /api/v1/market/active [trace=635792547363443fbbb243dbc25e5636]
+2026-10-26 15:15:14 [info     ] GET /api/v1/market/active -> 200 (9.172s) [trace=635792547363443fbbb243dbc25e5636]
+2026-10-26 15:15:14 [debug    ] Response: 200 [trace=635792547363443fbbb243dbc25e5636]
+.2026-10-26 15:15:14 [debug    ] Request: GET /api/v1/ml/models [trace=8012f5e4895d41d2b52282097d994198]
+2026-10-26 15:15:14 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:14 [info     ] GET /api/v1/ml/models -> 200 (0.218s) [trace=8012f5e4895d41d2b52282097d994198]
+2026-10-26 15:15:14 [debug    ] Response: 200 [trace=8012f5e4895d41d2b52282097d994198]
+.2026-10-26 15:15:14 [debug    ] Request: GET /api/v1/ml/models [trace=8aaaa0a4eddf4fa6a19c791a93f52b16]
+2026-10-26 15:15:14 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [info     ] GET /api/v1/ml/models -> 200 (0.156s) [trace=8aaaa0a4eddf4fa6a19c791a93f52b16]
+2026-10-26 15:15:15 [debug    ] Response: 200 [trace=8aaaa0a4eddf4fa6a19c791a93f52b16]
+.2026-10-26 15:15:15 [debug    ] Request: GET /api/v1/ml/runs [trace=49b95b254b8340369d3ba0e40712e654]
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [info     ] GET /api/v1/ml/runs -> 200 (0.125s) [trace=49b95b254b8340369d3ba0e40712e654]
+2026-10-26 15:15:15 [debug    ] Response: 200 [trace=49b95b254b8340369d3ba0e40712e654]
+.2026-10-26 15:15:15 [debug    ] Request: GET /api/v1/ml/runs [trace=260da4d0f4bf4cce9b63ee8770dac3f7]
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [info     ] GET /api/v1/ml/runs -> 200 (0.047s) [trace=260da4d0f4bf4cce9b63ee8770dac3f7]
+2026-10-26 15:15:15 [debug    ] Response: 200 [trace=260da4d0f4bf4cce9b63ee8770dac3f7]
+2026-10-26 15:15:15 [debug    ] Request: GET /api/v1/ml/runs/tam_6ff54f1db70e [trace=e51de39a1c5545d4bd3d901ec59aec19]
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [info     ] GET /api/v1/ml/runs/tam_6ff54f1db70e -> 200 (0.016s) [trace=e51de39a1c5545d4bd3d901ec59aec19]
+2026-10-26 15:15:15 [debug    ] Response: 200 [trace=e51de39a1c5545d4bd3d901ec59aec19]
+.2026-10-26 15:15:15 [debug    ] Request: GET /api/v1/ml/runs/nonexistent-run-id [trace=68a616c783e04a5abc26c8a17de78e8e]
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:15 [info     ] GET /api/v1/ml/runs/nonexistent-run-id -> 200 (0.047s) [trace=68a616c783e04a5abc26c8a17de78e8e]
+2026-10-26 15:15:15 [debug    ] Response: 200 [trace=68a616c783e04a5abc26c8a17de78e8e]
+.2026-10-26 15:15:15 [debug    ] Request: POST /api/v1/ml/predict/xgboost [trace=f609ed662a0142f298e5193cd2459376]
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:15 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:15 [info     ] POST /api/v1/ml/predict/xgboost -> 200 (0.109s) [trace=f609ed662a0142f298e5193cd2459376]
+2026-10-26 15:15:15 [debug    ] Response: 200 [trace=f609ed662a0142f298e5193cd2459376]
+.2026-10-26 15:15:15 [debug    ] Request: GET /api/v1/ml/models [trace=ab9a58ab58144b30a9be72f943afcce4]
+2026-10-26 15:15:15 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [info     ] GET /api/v1/ml/models -> 200 (1.031s) [trace=ab9a58ab58144b30a9be72f943afcce4]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=ab9a58ab58144b30a9be72f943afcce4]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/bayesian_ridge [trace=5ae2c985c3d9478ebe6f310da1248b16]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/bayesian_ridge -> 200 (0.016s) [trace=5ae2c985c3d9478ebe6f310da1248b16]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=5ae2c985c3d9478ebe6f310da1248b16]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/catboost [trace=272f069f2bc64906ad6a16ee7faec3f0]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/catboost -> 200 (0.016s) [trace=272f069f2bc64906ad6a16ee7faec3f0]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=272f069f2bc64906ad6a16ee7faec3f0]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/extra_trees [trace=9ba153669dd84510894b2a29316f2fed]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/extra_trees -> 200 (0.016s) [trace=9ba153669dd84510894b2a29316f2fed]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=9ba153669dd84510894b2a29316f2fed]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/hist_gradient_boosting [trace=7f8aef502767488fbd9993f5d805ce97]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/hist_gradient_boosting -> 200 (0.015s) [trace=7f8aef502767488fbd9993f5d805ce97]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=7f8aef502767488fbd9993f5d805ce97]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/huber_regressor [trace=1ba147949ef84bdf8455009f504c5969]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/huber_regressor -> 200 (0.016s) [trace=1ba147949ef84bdf8455009f504c5969]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=1ba147949ef84bdf8455009f504c5969]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/lightgbm [trace=1c5a333614084c38b2b45033662406f1]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/lightgbm -> 200 (0.015s) [trace=1c5a333614084c38b2b45033662406f1]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=1c5a333614084c38b2b45033662406f1]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/random_forest [trace=ab04139f60034e2fa53df87a7b522384]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/random_forest -> 200 (0.016s) [trace=ab04139f60034e2fa53df87a7b522384]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=ab04139f60034e2fa53df87a7b522384]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/stacking_ensemble [trace=17afce06ffcc47d19f7854613f000850]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/stacking_ensemble -> 200 (0.016s) [trace=17afce06ffcc47d19f7854613f000850]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=17afce06ffcc47d19f7854613f000850]
+2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict/xgboost [trace=5d6c75be35294ce7a508762951335136]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/predict/xgboost -> 200 (0.016s) [trace=5d6c75be35294ce7a508762951335136]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=5d6c75be35294ce7a508762951335136]
+.2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/train [trace=1999c471afc44a0d8d7d1bab89f82ba5]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:16 [info     ] POST /api/v1/ml/train -> 200 (0.063s) [trace=1999c471afc44a0d8d7d1bab89f82ba5]
+2026-10-26 15:15:16 [debug    ] Response: 200 [trace=1999c471afc44a0d8d7d1bab89f82ba5]
+.2026-10-26 15:15:16 [debug    ] Request: POST /api/v1/ml/predict-all [trace=df27af38043845b986199ffcad3cb664]
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:16 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:17 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:19 [info     ] POST /api/v1/ml/predict-all -> 200 (2.109s) [trace=df27af38043845b986199ffcad3cb664]
+2026-10-26 15:15:19 [debug    ] Response: 200 [trace=df27af38043845b986199ffcad3cb664]
+.2026-10-26 15:15:19 [debug    ] Request: GET /api/v1/ml/model-loader/cache-info [trace=e50a3add3a6141a1a618d9c293e10670]
+2026-10-26 15:15:19 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:19 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:19 [info     ] GET /api/v1/ml/model-loader/cache-info -> 200 (0.000s) [trace=e50a3add3a6141a1a618d9c293e10670]
+2026-10-26 15:15:19 [debug    ] Response: 200 [trace=e50a3add3a6141a1a618d9c293e10670]
+.2026-10-26 15:15:19 [debug    ] Request: POST /api/v1/ml/predict-all [trace=9b2bb897247f4239a9cd300789725bd1]
+2026-10-26 15:15:19 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:19 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:19 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:20 [info     ] POST /api/v1/ml/predict-all -> 200 (1.422s) [trace=9b2bb897247f4239a9cd300789725bd1]
+2026-10-26 15:15:20 [debug    ] Response: 200 [trace=9b2bb897247f4239a9cd300789725bd1]
+2026-10-26 15:15:20 [debug    ] Request: GET /api/v1/ml/predictions [trace=3b103f71f1a44e2ebef712b3ed812baa]
+2026-10-26 15:15:20 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:20 [info     ] GET /api/v1/ml/predictions -> 200 (0.093s) [trace=3b103f71f1a44e2ebef712b3ed812baa]
+2026-10-26 15:15:20 [debug    ] Response: 200 [trace=3b103f71f1a44e2ebef712b3ed812baa]
+.2026-10-26 15:15:20 [debug    ] Request: POST /api/v1/ml/predict-all [trace=e1a8c9237791480eb6bdd2548b4d935d]
+2026-10-26 15:15:20 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:20 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:20 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+2026-10-26 15:15:21 [info     ] POST /api/v1/ml/predict-all -> 200 (1.266s) [trace=e1a8c9237791480eb6bdd2548b4d935d]
+2026-10-26 15:15:21 [debug    ] Response: 200 [trace=e1a8c9237791480eb6bdd2548b4d935d]
+2026-10-26 15:15:21 [debug    ] Request: GET /api/v1/ml/predictions [trace=44681fe0cd854e4cb422f6a82287bdc3]
+2026-10-26 15:15:21 [warning  ] Revocation check skipped: Redis unavailable for jti=fae69cbe086447c980b3a1c159ccc2c2
+2026-10-26 15:15:22 [info     ] GET /api/v1/ml/predictions -> 200 (0.157s) [trace=44681fe0cd854e4cb422f6a82287bdc3]
+2026-10-26 15:15:22 [debug    ] Response: 200 [trace=44681fe0cd854e4cb422f6a82287bdc3]
+.2026-10-26 15:15:22 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:22 [debug    ] Request: GET /api/v1/recommendations [trace=89fdf4c870004461af404600f6d05ce1]
+2026-10-26 15:15:22 [info     ] GET /api/v1/recommendations -> 401 (0.000s) [trace=89fdf4c870004461af404600f6d05ce1]
+2026-10-26 15:15:22 [debug    ] Response: 401 [trace=89fdf4c870004461af404600f6d05ce1]
+.2026-10-26 15:15:22 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:22 [debug    ] Request: POST /api/v1/recommendations [trace=a44d0d4d471a48ef8701ce254ebb3071]
+2026-10-26 15:15:22 [info     ] POST /api/v1/recommendations -> 401 (0.015s) [trace=a44d0d4d471a48ef8701ce254ebb3071]
+2026-10-26 15:15:22 [debug    ] Response: 401 [trace=a44d0d4d471a48ef8701ce254ebb3071]
+.2026-10-26 15:15:23 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:23 [debug    ] Request: GET /api/v1/signals [trace=d9c7708acf2e4e4aa4fbd03b19d0c52c]
+2026-10-26 15:15:23 [info     ] GET /api/v1/signals -> 401 (0.016s) [trace=d9c7708acf2e4e4aa4fbd03b19d0c52c]
+2026-10-26 15:15:23 [debug    ] Response: 401 [trace=d9c7708acf2e4e4aa4fbd03b19d0c52c]
+.2026-10-26 15:15:23 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:23 [debug    ] Request: GET /api/v1/signals/فولاد [trace=bf536d56048b4c01ad24245e019a77f1]
+2026-10-26 15:15:23 [info     ] GET /api/v1/signals/فولاد -> 401 (0.016s) [trace=bf536d56048b4c01ad24245e019a77f1]
+2026-10-26 15:15:23 [debug    ] Response: 401 [trace=bf536d56048b4c01ad24245e019a77f1]
+.2026-10-26 15:15:23 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:23 [debug    ] Request: POST /api/v1/signals/فولاد [trace=97755d4b3a0e4f5ca61b0e0529ebe7de]
+2026-10-26 15:15:24 [info     ] POST /api/v1/signals/فولاد -> 401 (0.000s) [trace=97755d4b3a0e4f5ca61b0e0529ebe7de]
+2026-10-26 15:15:24 [debug    ] Response: 401 [trace=97755d4b3a0e4f5ca61b0e0529ebe7de]
+.2026-10-26 15:15:24 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:24 [debug    ] Request: GET /api/v1/instruments/فولاد [trace=f0178f59139d45f3ab6917d1ebb76d85]
+2026-10-26 15:15:24 [info     ] GET /api/v1/instruments/فولاد -> 200 (0.078s) [trace=f0178f59139d45f3ab6917d1ebb76d85]
+2026-10-26 15:15:24 [debug    ] Response: 200 [trace=f0178f59139d45f3ab6917d1ebb76d85]
+.2026-10-26 15:15:24 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:24 [debug    ] Request: GET /api/v1/instruments/فولاد/detail [trace=f1169e9b71cb4b029854bc5707addeba]
+2026-10-26 15:15:24 [info     ] GET /api/v1/instruments/فولاد/detail -> 200 (0.063s) [trace=f1169e9b71cb4b029854bc5707addeba]
+2026-10-26 15:15:24 [debug    ] Response: 200 [trace=f1169e9b71cb4b029854bc5707addeba]
+.2026-10-26 15:15:25 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:25 [debug    ] Request: GET /api/v1/instruments [trace=9da4c9ca5d464be29693e54b24b426b1]
+2026-10-26 15:15:25 [info     ] GET /api/v1/instruments -> 200 (0.078s) [trace=9da4c9ca5d464be29693e54b24b426b1]
+2026-10-26 15:15:25 [debug    ] Response: 200 [trace=9da4c9ca5d464be29693e54b24b426b1]
+.2026-10-26 15:15:25 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:15:25 [debug    ] Request: GET /api/v1/instruments/search [trace=ddcd960b29b442a587c4d03fdf136bc7]
+2026-10-26 15:15:26 [info     ] GET /api/v1/instruments/search -> 200 (0.110s) [trace=ddcd960b29b442a587c4d03fdf136bc7]
+2026-10-26 15:15:26 [debug    ] Response: 200 [trace=ddcd960b29b442a587c4d03fdf136bc7]
+.
+================================== FAILURES ===================================
+________________________ test_backtest_strategies_list ________________________
+
+client = <httpx.AsyncClient object at 0x0000021E3AE95ED0>
+
+    @pytest.mark.asyncio
+    async def test_backtest_strategies_list(client: AsyncClient):
+        """GET /backtests/strategies returns all registered strategies."""
+        response = await client.get("/api/v1/backtests/strategies")
+>       assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+E       AssertionError: Expected 200, got 401
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\e2e\test_backtest_api.py:41: AssertionError
+_____________________ test_backtest_strategies_structure ______________________
+
+client = <httpx.AsyncClient object at 0x0000021E3AC9A1D0>
+
+    @pytest.mark.asyncio
+    async def test_backtest_strategies_structure(client: AsyncClient):
+        """Each strategy has valid types."""
+        response = await client.get("/api/v1/backtests/strategies")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\e2e\test_backtest_api.py:67: AssertionError
+__________________________ test_backtest_run_success __________________________
+
+client = <httpx.AsyncClient object at 0x0000021E3AABCE50>
+
+    @pytest.mark.asyncio
+    async def test_backtest_run_success(client: AsyncClient):
+        """POST /backtests/run runs a backtest successfully on registered strategy."""
+        payload = {
+            "name": "Test Backtest",
+            "symbols": ["فولاد"],
+            "strategy_type": "moving_average_cross",
+            "strategy_params": {},
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "initial_capital": 1_000_000_000,
+        }
+        response = await client.post("/api/v1/backtests/run", json=payload)
+>       assert response.status_code in (
+            200,
+            422,
+        ), f"Expected 200 or 422, got {response.status_code}"
+E       AssertionError: Expected 200 or 422, got 401
+E       assert 401 in (200, 422)
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\e2e\test_backtest_api.py:92: AssertionError
+___________________________ test_backtest_runs_list ___________________________
+
+client = <httpx.AsyncClient object at 0x0000021E3ACC37D0>
+
+    @pytest.mark.asyncio
+    async def test_backtest_runs_list(client: AsyncClient):
+        """GET /backtests/runs returns list of runs."""
+        # Run a backtest first so there's data
+        payload = {
+            "name": "List Test",
+            "symbols": ["فولاد"],
+            "strategy_type": "moving_average_cross",
+            "strategy_params": {},
+            "start_date": "2024-01-01",
+            "end_date": "2024-06-01",
+        }
+        await client.post("/api/v1/backtests/run", json=payload)
+    
+        response = await client.get("/api/v1/backtests/runs")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\e2e\test_backtest_api.py:141: AssertionError
+____________________________ test_backtest_run_all ____________________________
+
+client = <httpx.AsyncClient object at 0x0000021E3AAC76D0>
+
+    @pytest.mark.asyncio
+    async def test_backtest_run_all(client: AsyncClient):
+        """POST /backtests/run-all runs on all symbols and returns results."""
+        payload = {
+            "strategy_type": "moving_average_cross",
+            "strategy_params": {},
+            "start_date": "2024-06-01",
+            "end_date": "2024-12-31",
+            "initial_capital": 1_000_000_000,
+        }
+        response = await client.post("/api/v1/backtests/run-all", json=payload)
+>       assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text[:200]}"
+E       AssertionError: Expected 200, got 401: {"success":false,"error":"Authentication required for this endpoint","code":"AUTH_REQUIRED"}
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\e2e\test_backtest_api.py:219: AssertionError
+______________________ test_backtest_compare_strategies _______________________
+
+client = <httpx.AsyncClient object at 0x0000021E3AE97A50>
+
+    @pytest.mark.asyncio
+    async def test_backtest_compare_strategies(client: AsyncClient):
+        """POST /backtests/compare runs all strategies on one symbol and returns comparison."""
+        payload = {
+            "symbol": "فولاد",
+            "start_date": "2024-06-01",
+            "end_date": "2024-12-31",
+            "initial_capital": 1_000_000_000,
+        }
+        response = await client.post("/api/v1/backtests/compare", json=payload)
+>       assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text[:300]}"
+E       AssertionError: Expected 200, got 401: {"detail":"Not authenticated"}
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\e2e\test_backtest_api.py:245: AssertionError
+============================== warnings summary ===============================
+venv\Lib\site-packages\opentelemetry\util\_importlib_metadata.py:32
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\opentelemetry\util\_importlib_metadata.py:32: DeprecationWarning: SelectableGroups dict interface is deprecated. Use select.
+    return EntryPoints(ep for group_eps in eps.values() for ep in group_eps)
+
+venv\Lib\site-packages\pydantic\_internal\_generate_schema.py:319
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\pydantic\_internal\_generate_schema.py:319: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.12/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/e2e/test_backtest_api.py::test_backtest_strategies_list - Assert...
+FAILED tests/e2e/test_backtest_api.py::test_backtest_strategies_structure - a...
+FAILED tests/e2e/test_backtest_api.py::test_backtest_run_success - AssertionE...
+FAILED tests/e2e/test_backtest_api.py::test_backtest_runs_list - assert 401 =...
+FAILED tests/e2e/test_backtest_api.py::test_backtest_run_all - AssertionError...
+FAILED tests/e2e/test_backtest_api.py::test_backtest_compare_strategies - Ass...
+6 failed, 35 passed, 1 skipped, 2 warnings in 196.50s (0:03:16)

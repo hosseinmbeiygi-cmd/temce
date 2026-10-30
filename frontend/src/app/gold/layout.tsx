@@ -19,6 +19,8 @@ const PRIMARY_TABS = ["/gold", "/gold/futures", "/gold/portfolio", "/gold/alerts
 
 const TABS = [
   { href: "/gold", label: "داشبورد", exact: true, icon: "📊" },
+  { href: "/gold/terminal", label: "میز داده", exact: false, icon: "🧮" },
+  { href: "/gold/coverage", label: "پوشش بازار", exact: false, icon: "🗺️" },
   { href: "/gold/futures", label: "آتی IME", exact: false, icon: "⚡" },
   { href: "/gold/options", label: "مشتقه و ریسک", exact: false, icon: "📉" },
   { href: "/gold/macro", label: "کلان", exact: false, icon: "🌍" },

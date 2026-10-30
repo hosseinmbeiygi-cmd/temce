@@ -1,0 +1,9 @@
+{
+  "comment": "Phase 3 source-layer fixture — stale record for data_stale gate (raw input).",
+  "symbol": "XAU18",
+  "value": 25500000,
+  "unit": "toman",
+  "asOf": "2026-10-18T20:41:04Z",
+  "source": "brsapi",
+  "quality": "LIVE"
+}

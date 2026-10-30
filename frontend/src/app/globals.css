@@ -1931,6 +1931,15 @@ body.dark-theme .glass-card:hover {
 .flash-up { animation: flashUp 0.9s ease-out; }
 .flash-down { animation: flashDown 0.9s ease-out; }
 
+/* Phase 2 fund-map → Phase 1 row hand-off: a short ring so the user can find
+   the row they clicked in the market map. */
+@keyframes fundFlash {
+  0%, 100% { box-shadow: inset 0 0 0 1px transparent; background-color: transparent; }
+  25% { box-shadow: inset 0 0 0 2px var(--gd-warn, #f59e0b); background-color: rgba(245, 158, 11, 0.08); }
+}
+
+.gd-fund-flash { animation: fundFlash 2.6s ease-out; }
+
 /* ── Premium accents ── */
 
 /* Animated gradient ring — frames the hero chart like a lit bezel.

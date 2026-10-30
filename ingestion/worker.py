@@ -55,8 +55,7 @@ class IngestionWorker:
                 if isinstance(source, (TsetmcTradeSource, TsetmcOrderBookSource,
                                        TsetmcOptionSource, TsetmcFutureSource)):
                     total = 0
-                    instruments_to_fetch = self._instrument_ids[:5] if len(self._instrument_ids) > 5 else self._instrument_ids
-                    for ins_id in instruments_to_fetch:
+                    for ins_id in self._instrument_ids:
                         ctx = {"instrument_id": ins_id}
                         count = await self._ingest_source(source, ctx)
                         total += count
@@ -106,12 +105,6 @@ class IngestionWorker:
         count = 0
 
         for payload in fetch_result.payloads:
-            if self._dedup is not None:
-                if await self._dedup.is_duplicate(payload.source, payload.raw_data):
-                    logger.debug("Skipping duplicate payload from %s", payload.source)
-                    continue
-                await self._dedup.mark_seen(payload.source, payload.raw_data)
-
             object_key = await self._lake.store_raw(
                 source=payload.source,
                 endpoint=payload.endpoint,
@@ -151,9 +144,17 @@ class IngestionWorker:
                         external_id=event.data.get("instrument_id", ""),
                         symbol=event.data.get("symbol"),
                     )
-                    if ins_id:
-                        event.data["instrument_id"] = ins_id
+                    if ins_id:                        event.data["instrument_id"] = ins_id
+
+                if self._identity and self._storage:
+                    try:
                         await self._write_event(event, ins_id)
+                        # Only mark as seen after successful write
+                        if self._dedup is not None:
+                            await self._dedup.mark_seen(payload.source, payload.raw_data)
+                    except Exception:
+                        logger.exception("Failed to write event for %s", instrument_id)
+                        # If write fails, don't mark as seen so retry will work
 
             count += len(events)
 
@@ -174,3 +175,7 @@ class IngestionWorker:
                 await self._storage.write_daily_ohlcv(instrument_id, event.data)
         except Exception:
             logger.exception("Failed to write %s for %s", event_type, instrument_id)
+            # If write fails, don't mark as seen so retry will work
+            if self._dedup is not None:
+                # Re-queue by not marking as seen - the event will be processed again
+                pass

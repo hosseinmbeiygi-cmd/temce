@@ -185,6 +185,12 @@ class BrsApiQueryService:
         identical to a full-table dedup for every symbol that traded in
         the window. Falls back to the full GROUP BY when the window is
         empty (fresh DB) or the windowed query fails.
+
+        NOTE: The ``limit`` caps the number of symbols returned in the API
+        response. It does NOT pre-filter symbols before the deduplication,
+        so low-volume symbols are not excluded from the dedup process. If the
+        full market watch is needed, callers should use a larger limit or
+        implement pagination.
         """
         from sqlalchemy import func, select
 
@@ -265,8 +271,30 @@ class BrsApiQueryService:
         (price_lowest_allowed, price_highest_allowed, free_float_pct, state,
          board, sector, sub_sector, eps, pe_ratio, group_pe_ratio, market)
         for a **single** symbol via LEFT JOIN on ``SymbolDetailModel`` using ``ins_id``.
+        Latest snapshot is selected by ``fetched_at`` (most recent fetch cycle),
+        with ``id`` as tie-breaker when fetch timestamps are equal;
+        returns None for stale data to avoid displaying old snapshots
+        as current trade data.
         """
-        from sqlalchemy import join, or_
+        from sqlalchemy import join, or_, select, func as sa_func
+        import time
+
+        # Check if there's fresh data (within same fetch cycle)
+        # Use fetched_at as primary, id as tie-breaker for equal timestamps
+        latest_fetched = (await self.session.execute(
+            select(sa_func.max(SymbolSnapshotModel.fetched_at))
+        )).scalar_one_or_none()
+
+        # Get the latest snapshot id based on fetched_at, with id descending as tie-breaker
+        latest_id = (await self.session.execute(
+            select(SymbolSnapshotModel.id)
+            .where(SymbolSnapshotModel.symbol == symbol)
+            .order_by(SymbolSnapshotModel.fetched_at.desc(), SymbolSnapshotModel.id.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+
+        if latest_id is None:
+            return None
 
         j = join(
             SymbolSnapshotModel,
@@ -286,6 +314,8 @@ class BrsApiQueryService:
                     SymbolSnapshotModel.ins_id == symbol,
                 )
             )
+            .where(SymbolSnapshotModel.fetched_at == latest_fetched)
+            .where(SymbolSnapshotModel.id == latest_id)
             .order_by(SymbolSnapshotModel.created_at.desc())
             .limit(1)
         )

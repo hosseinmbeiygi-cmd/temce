@@ -156,7 +156,7 @@ class AutoRetrainPipeline:
                     GROUP BY symbol
                     HAVING COUNT(*) >= 100
                     ORDER BY cnt DESC
-                    LIMIT 20
+                    LIMIT 100
                 """))
                 top_symbols = [row[0] for row in r.fetchall()]
 
@@ -172,7 +172,7 @@ class AutoRetrainPipeline:
                     FROM {table}
                     WHERE symbol IN ({placeholders})
                     ORDER BY symbol, date DESC
-                    LIMIT {len(top_symbols) * 200}
+                    LIMIT {len(top_symbols) * 500}
                 """), params)
 
                 rows = r2.fetchall()
@@ -218,13 +218,15 @@ class AutoRetrainPipeline:
                     )
                     all_features.append(features)
 
-                    # Multi-timeframe composite target (5d:50% + 10d:30% + 20d:20%)
+                    # Shifted target: return from ``lookback`` days ago to current close.
+                    # Uses closes[-(lookback+1)] as reference, not closes[-1] (which is
+                    # in the features and would cause lookahead bias).
                     composite_ret = 0.0
                     valid_frames = 0.0
                     for lookback, weight in [(5, 0.5), (10, 0.3), (20, 0.2)]:
-                        if len(closes) >= lookback + 1:
-                            prev = closes[-(lookback + 1)]
-                            fwd = closes[-1]
+                        if len(closes) >= lookback + 2:  # need at least lookback+2 points
+                            prev = closes[-(lookback + 1)]  # price lookback days ago
+                            fwd = closes[-2]  # current close (not in features as 'last_price')
                             ret = (fwd - prev) / max(prev, 0.001)
                             composite_ret += ret * weight
                             valid_frames += weight

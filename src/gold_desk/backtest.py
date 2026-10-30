@@ -52,9 +52,9 @@ async def _daily_bubble_pct(session: AsyncSession, symbol: str, days: int) -> li
         if len(closes) < 35:
             return []
         prices = np.array([p for _, p in closes], dtype=float)
-        # حباب تکنیکال نسبت به SMA trailing (فقط گذشته). پیش‌تر
-        # np.convolve(..., mode="same") پانزده قیمت **آینده** را در میانگین
-        # می‌آورد و حباب را در روند صعودی کم‌برآورد می‌کرد (E-C2).
+        # حباب تکنیکال نسبت به SMA trailing (فقط گذشته). اصلاح شده در E-C2:
+        # از indicators.sma() استفاده می‌شود که فقط به دادهٔ گذشته نگاه می‌کند
+        # (np.convolve mode="same" حذف شده).
         window = SMA_BUBBLE_WINDOW
         sma_series = indicators.sma(prices, window)
         bubble_series = indicators.bubble_pct(prices, window)

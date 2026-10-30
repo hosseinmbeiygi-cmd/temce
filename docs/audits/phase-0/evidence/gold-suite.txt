@@ -1,0 +1,16 @@
+....................................................................................................................................................................................................................................2026-10-26 12:35:35 [info     ] Database connected: localhost:5432/my_first_db
+..............................................................................................................................................................................................................
+============================== warnings summary ===============================
+venv\Lib\site-packages\pydantic\_internal\_generate_schema.py:319
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\pydantic\_internal\_generate_schema.py:319: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.12/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    warnings.warn(
+
+tests/gold_desk/test_phase1_terminal.py::test_phase1_routes_survive_the_assembled_router
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\pydantic\type_adapter.py:287: RuntimeWarning: coroutine 'Connection._cancel' was never awaited
+    self.core_schema = _getattr_no_parents(self._type, '__pydantic_core_schema__')
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+434 passed, 1 skipped, 2 warnings in 110.02s (0:01:50)
+EXIT=0

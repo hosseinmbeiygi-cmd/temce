@@ -510,7 +510,7 @@ async def get_market_pulse(svc: StockReadThroughService = Depends(_svc)) -> dict
         await s.execute(
             text(
                 """
-                SELECT name, close_value FROM indices LIMIT 5
+                SELECT name, value FROM indices LIMIT 5
                 """
             )
         )
@@ -522,7 +522,7 @@ async def get_market_pulse(svc: StockReadThroughService = Depends(_svc)) -> dict
                 SELECT s.industry_name, SUM(t.trade_value) AS total_value,
                        AVG(t.close_change_pct) AS avg_change
                 FROM stock_live_tape t
-                JOIN symbols s ON s.code = t.symbol
+                JOIN symbols s ON s.symbol = t.symbol
                 WHERE s.industry_name IS NOT NULL
                 GROUP BY s.industry_name
                 ORDER BY total_value DESC NULLS LAST LIMIT 12

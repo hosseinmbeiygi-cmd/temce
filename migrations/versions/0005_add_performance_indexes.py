@@ -1,7 +1,7 @@
 """Add performance indexes for quotes, trades, and instruments tables."""
 
 revision = "0005_add_performance_indexes"
-down_revision = "0004_ml_symbol_results"
+down_revision = "0004b_core_baseline"
 branch_labels = None
 depends_on = None
 

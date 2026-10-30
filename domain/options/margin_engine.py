@@ -39,7 +39,7 @@ class OptionLeg:
     underlying_price: float = 0.0
     days_to_expiry: int = 0
     implied_volatility: float = 0.0
-    contract_size: int = 1000
+    contract_size: int = 1
     quantity: int = 1
     underlying_group: str = "default"
 

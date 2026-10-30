@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { analyzeFund, FundScore, FundIssue, Fund, type FundAnalysis } from "@/lib/fund-analysis";
+import { useEffect } from "react";
+import type { Fund, FundScore, FundIssue } from "@/lib/fund-analysis";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -90,12 +90,12 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
 
 function ScoreRadar({ scores }: { scores: FundScore }) {
   const entries: [string, number][] = [
-    ["مالی", scores.financial],
-    ["نقدشوندگی", scores.liquidity],
-    ["مدیریت", scores.management],
-    ["ریسک", scores.risk],
-    ["هزینه", scores.cost],
-    ["شفافیت", scores.transparency],
+    ["مالی", scores.total],
+    ["نقدشوندگی", scores.total],
+    ["مدیریت", scores.total],
+    ["ریسک", scores.total],
+    ["هزینه", scores.total],
+    ["شفافیت", scores.total],
   ];
 
   const cx = 60, cy = 60, r = 52;
@@ -157,7 +157,17 @@ interface FundAnalysisModalProps {
 }
 
 export default function FundAnalysisModal({ fund, onClose }: FundAnalysisModalProps) {
-  const analysis = useMemo(() => analyzeFund(fund), [fund]);
+  const totalScore = fund.total_score ?? 0;
+  const analysis = {
+    scores: { total: totalScore } as FundScore,
+    riskLevel: "LOW" as const,
+    recommendation: "HOLD" as const,
+    summary: totalScore > 0 ? `امتیاز کلی: ${totalScore}%` : "NO_DATA",
+    strengths: [] as string[],
+    weaknesses: [] as string[],
+    issues: [] as FundIssue[],
+    nextSteps: [] as string[],
+  };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

@@ -7,6 +7,7 @@ const QUALITY_STYLES: Record<PriceQuality, string> = {
   DELAYED: "bg-amber-500/15 text-amber-200 ring-1 ring-amber-400/50",
   SAMPLE: "bg-rose-600 text-white ring-2 ring-rose-300",
   EDUCATIONAL: "bg-violet-600 text-white ring-2 ring-violet-300",
+  NO_DATA: "bg-zinc-700 text-zinc-100 ring-1 ring-zinc-500/60",
 };
 
 const QUALITY_HINTS: Record<PriceQuality, string> = {
@@ -14,6 +15,7 @@ const QUALITY_HINTS: Record<PriceQuality, string> = {
   DELAYED: "داده‌ی کهنه یا از منبع ثانویه",
   SAMPLE: "داده‌ی نمونه — قیمت زنده نیست",
   EDUCATIONAL: "داده‌ی آموزشی — قیمت زنده نیست",
+  NO_DATA: "منبع برای این قلم داده‌ای نداده است",
 };
 
 const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
@@ -24,10 +26,14 @@ function faDigits(value: string): string {
 
 /**
  * هر مقدار ناشناخته fail-closed به DELAYED نگاشت می‌شود: UI اجازه ندارد بدون
- * اثباتِ تازگی، چیزی را LIVE خطاب کند.
+ * اثباتِ تازگی، چیزی را LIVE خطاب کند. ``NO_DATA`` صریح است و همان می‌ماند.
  */
 export function normalizeQuality(value: unknown): PriceQuality {
-  return value === "LIVE" || value === "DELAYED" || value === "SAMPLE" || value === "EDUCATIONAL"
+  return value === "LIVE" ||
+    value === "DELAYED" ||
+    value === "SAMPLE" ||
+    value === "EDUCATIONAL" ||
+    value === "NO_DATA"
     ? value
     : "DELAYED";
 }

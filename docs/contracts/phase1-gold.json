@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Phase 1 Gold API Contract",
+  "type": "object",
+  "required": ["symbol", "name", "price", "changePct", "changeAmt", "asOf", "source", "quality"],
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "description": "Gold symbol code (e.g. XAU18, XAU24, etc.)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name"
+    },
+    "price": {
+      "type": "number",
+      "description": "Current price from motor"
+    },
+    "changePct": {
+      "type": "number",
+      "description": "Percentage change"
+    },
+    "changeAmt": {
+      "type": "number",
+      "description": "Absolute change amount"
+    },
+    "lastTradeAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional last trade timestamp"
+    },
+    "volume": {
+      "type": "integer",
+      "description": "Optional daily trading volume"
+    },
+    "turnover": {
+      "type": "number",
+      "description": "Optional daily turnover value"
+    },
+    "marketCap": {
+      "type": "number",
+      "description": "Optional market capitalization"
+    },
+    "nav": {
+      "type": "number",
+      "description": "Net Asset Value (fund only); if absent → bubbleNominalPct = null"
+    },
+    "bubbleNominalPct": {
+      "type": "number",
+      "description": "Named bubble % = (price - nav) / nav * 100 only when nav valid; null otherwise"
+    },
+    "bubbleNominalAmt": {
+      "type": "number",
+      "description": "Named bubble amount in same unit as price"
+    },
+    "bubbleIntrinsicPct": {
+      "type": "number",
+      "description": "Intrinsic bubble %; only filled when formula computable from motor"
+    },
+    "bubbleRealPct": {
+      "type": "number",
+      "description": "Real bubble %; only filled when formula computable from motor"
+    },
+    "weights": {
+      "type": "object",
+      "description": "Weights { coin, bar, cash }; null if no combination source (NOT zero)"
+    },
+    "impliedUsd": {
+      "type": "number",
+      "description": "Implied USD value"
+    },
+    "asOf": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 with timezone"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source tag (brsapi, tgju, etc.)"
+    },
+    "quality": {
+      "type": "string",
+      "enum": ["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL", "UNAVAILABLE"],
+      "description": "Quality flag from motor"
+    }
+  },
+  "additionalProperties": false
+}

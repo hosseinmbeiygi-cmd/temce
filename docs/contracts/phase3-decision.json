@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Phase 3 Decision Brief Contract",
+  "description": "TARGET CONTRACT ONLY. NOT IMPLEMENTED as of 2026-10-26: no /gate or /brief endpoint, no scoreVersion, and no Phase 3 tests exist in the repository. One object per horizon; a Brief must contain both short and medium.",
+  "type": "object",
+  "required": [
+    "horizon",
+    "scoreVersion",
+    "statusBullets",
+    "keyNumbers",
+    "risks",
+    "checklist",
+    "gate",
+    "score",
+    "disclaimer"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "horizon": {
+      "type": "string",
+      "enum": ["short", "medium"],
+      "description": "Analysis horizon. short = up to 24h; medium = 7 to 30 days. A single ambiguous value is forbidden."
+    },
+    "scoreVersion": {
+      "type": "string",
+      "description": "Version of the score weights/formula used for this Brief. Any weight change must bump this value and add a test."
+    },
+    "statusBullets": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Two to four status bullets. Descriptive only; no imperative buy/sell language."
+    },
+    "keyNumbers": {
+      "type": "object",
+      "description": "Motor-derived numbers only. Every displayed number must also carry unit/asOf/source/quality in the UI.",
+      "additionalProperties": false,
+      "properties": {
+        "price": { "type": ["number", "null"], "description": "Motor price; null when unavailable." },
+        "bubble_pct": { "type": ["number", "null"], "description": "Bubble as a percentage of fair value; null when unavailable." },
+        "score": { "type": ["integer", "null"], "description": "Weighted score 0-100; null when coverage is insufficient." },
+        "implied_usd": { "type": ["number", "null"], "description": "Implied USD from the model; null when unavailable." }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Fixed risk codes, e.g. data_stale, extreme_retail_premium, implied_conflict, insufficient_coverage, low_liquidity."
+    },
+    "checklist": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Verification steps only. No action/order instructions."
+    },
+    "gate": {
+      "type": "object",
+      "required": ["status", "actionLanguageAllowed"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["green", "yellow", "red"],
+          "description": "Gate status. red must force actionLanguageAllowed=false."
+        },
+        "actionLanguageAllowed": {
+          "type": "boolean",
+          "description": "Must be false when status is red."
+        }
+      }
+    },
+    "score": {
+      "type": "object",
+      "required": ["value", "components", "weightsSum"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["integer", "null"], "description": "Total score 0-100; null when coverage is insufficient." },
+        "components": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "weight", "value", "note"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "weight": { "type": "number", "description": "Component weight; the sum of all weights must equal 1." },
+              "value": { "type": ["integer", "null"], "description": "Component score contribution; null when unavailable." },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "weightsSum": {
+          "type": "number",
+          "description": "Sum of component weights; must equal 1 (tolerance 1e-9) or validation fails."
+        }
+      }
+    },
+    "disclaimer": {
+      "type": "string",
+      "description": "Fixed Persian disclaimer from docs/phase3-disclaimer-fa.md. No target price, no profit promise."
+    }
+  }
+}

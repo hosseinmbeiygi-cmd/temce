@@ -1,0 +1,12 @@
+{
+  "comment": "Phase 3 source-layer fixture — read-only forward derivative (raw input).",
+  "symbol": "XAU_FWD_1M",
+  "price": 4100.0,
+  "unit": "USD/oz",
+  "spot": 4000.0,
+  "settlement": 4080.0,
+  "expiry": "2026-11-26",
+  "asOf": "2026-10-26T09:00:00+03:30",
+  "source": "motor_forward",
+  "quality": "LIVE"
+}

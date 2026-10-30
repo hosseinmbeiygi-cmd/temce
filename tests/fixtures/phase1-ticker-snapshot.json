@@ -1,0 +1,13 @@
+{
+  "symbol": "XAU18",
+  "price": 25500000,
+  "changePct": 1.2,
+  "changeAmt": 300000,
+  "intrinsic": 25000000,
+  "bubblePct": 2.0,
+  "bubbleAmt": 500000,
+  "impliedUsd": 240.5,
+  "asOf": "2026-10-25T14:30:00+03:30",
+  "source": "brsapi",
+  "quality": "LIVE"
+}

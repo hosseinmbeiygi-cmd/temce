@@ -1,0 +1,10 @@
+FAILED tests/unit/backtesting/test_tick_cutoff.py::test_real_files_respect_cutoff
+FAILED tests/unit/test_brsapi_client_retry.py::test_502_is_retried_then_succeeds
+FAILED tests/unit/test_brsapi_client_retry.py::test_502_exhausted_retries_fails
+FAILED tests/unit/test_brsapi_client_retry.py::test_504_is_retried - assert F...
+FAILED tests/unit/test_brsapi_client_retry.py::test_502_exhausted_logs_full_attempt_count_and_skips_last_sleep
+FAILED tests/unit/test_brsapi_client_retry.py::test_401_is_not_retried - Asse...
+FAILED tests/unit/test_check_secrets_and_gold_scope.py::test_working_tree_has_no_hardcoded_secrets
+FAILED tests/unit/test_gold_silver_funds_fixes.py::test_missing_price_is_unknown_not_false_zero
+FAILED tests/unit/test_gold_silver_funds_fixes.py::test_priced_holding_computes_pnl
+9 failed, 6367 passed, 21 skipped, 46 deselected, 8 warnings in 721.86s (0:12:01)

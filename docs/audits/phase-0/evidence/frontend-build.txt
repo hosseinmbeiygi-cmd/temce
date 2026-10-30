@@ -1,0 +1,189 @@
+
+> frontend@0.1.0 build
+> node scripts/build-with-heap.js
+
+[build] Setting --max-old-space-size=6144 MB
+(node:18616) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▲ Next.js 16.2.9 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · clientTraceMetadata
+  · optimizePackageImports
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.1min
+  Running next.config.js provided runAfterProductionCompile ...
+✓ Completed runAfterProductionCompile in 6.6s
+  Running TypeScript ...
+  Finished TypeScript in 90s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/147) ...
+  Generating static pages using 7 workers (36/147) 
+  Generating static pages using 7 workers (73/147) 
+  Generating static pages using 7 workers (110/147) 
+✓ Generating static pages using 7 workers (147/147) in 4.6s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /admin
+├ ƒ /admin/users
+├ ƒ /alerts
+├ ƒ /alpha
+├ ƒ /analysis
+├ ƒ /anomalies
+├ ƒ /armor
+├ ƒ /auth/login
+├ ƒ /auth/register
+├ ƒ /backtest
+├ ƒ /backtest/adaptive
+├ ƒ /backtest/cascade
+├ ƒ /backtest/compose
+├ ƒ /backtest/decision
+├ ƒ /backtest/engine
+├ ƒ /backtest/full-scan
+├ ƒ /backtest/generate
+├ ƒ /backtest/methods
+├ ƒ /backtest/monte-carlo
+├ ƒ /backtest/walk-forward
+├ ƒ /brsapi
+├ ƒ /brsapi/codal
+├ ƒ /brsapi/history/[symbol]
+├ ƒ /chat
+├ ƒ /codal
+├ ƒ /codal/[id]
+├ ƒ /codal/accounting/[symbol]
+├ ƒ /codal/analysis/[symbol]
+├ ƒ /codal/audit
+├ ƒ /codal/import
+├ ƒ /commodities
+├ ƒ /correlations
+├ ƒ /crypto
+├ ƒ /crypto-exchange
+├ ƒ /crypto-market
+├ ƒ /data
+├ ƒ /data-health
+├ ƒ /data-import
+├ ƒ /data-transfer
+├ ƒ /decision-engine
+├ ƒ /economic-calendar
+├ ƒ /experiments
+├ ƒ /fundamental
+├ ƒ /fundamental/balance-sheet
+├ ƒ /fundamental/capital-increase
+├ ƒ /fundamental/cashflow
+├ ƒ /fundamental/dps
+├ ƒ /fundamental/eps
+├ ƒ /fundamental/income
+├ ƒ /fundamental/production
+├ ƒ /fundamental/ratios
+├ ƒ /funds
+├ ƒ /funds/[symbol]
+├ ƒ /funds/intraday
+├ ƒ /gold
+├ ƒ /gold/alerts
+├ ƒ /gold/analytics
+├ ƒ /gold/antigravity
+├ ƒ /gold/backtest
+├ ƒ /gold/chat
+├ ƒ /gold/coins
+├ ƒ /gold/coverage
+├ ƒ /gold/dashboard
+├ ƒ /gold/dca
+├ ƒ /gold/etf
+├ ƒ /gold/funds
+├ ƒ /gold/futures
+├ ƒ /gold/health
+├ ƒ /gold/macro
+├ ƒ /gold/options
+├ ƒ /gold/physical
+├ ƒ /gold/portfolio
+├ ƒ /gold/settings
+├ ƒ /gold/technical
+├ ƒ /gold/terminal
+├ ƒ /gold/tokens
+├ ƒ /health
+├ ƒ /heatmap
+├ ƒ /indicators
+├ ƒ /instruments
+├ ƒ /instruments/import
+├ ƒ /jobs
+├ ƒ /macro
+├ ƒ /market-depth
+├ ƒ /market-insights
+├ ƒ /market-watch
+├ ƒ /markets
+├ ƒ /markets/bonds
+├ ƒ /markets/commodities-market
+├ ƒ /markets/commodity
+├ ƒ /markets/futures
+├ ƒ /markets/futures/salaf
+├ ƒ /markets/fx
+├ ƒ /markets/gold
+├ ƒ /markets/gold-fx
+├ ƒ /markets/indices
+├ ƒ /markets/options-market
+├ ƒ /markets/sales
+├ ƒ /markets/search
+├ ƒ /markets/silver
+├ ƒ /markets/stocks/bonds
+├ ƒ /markets/stocks/closing
+├ ƒ /markets/stocks/dividends
+├ ƒ /markets/stocks/maskan
+├ ƒ /markets/stocks/rights
+├ ƒ /markets/stocks/suspended
+├ ƒ /markets/stocks/tal
+├ ƒ /markets/tabaei
+├ ƒ /ml
+├ ƒ /multi-asset
+├ ƒ /multi-market-signals
+├ ƒ /news
+├ ƒ /options
+├ ƒ /paper-trading
+├ ƒ /personal
+├ ƒ /plugins
+├ ƒ /plugins/rahavard
+├ ƒ /portfolio
+├ ƒ /pre-buy
+├ ƒ /pre-buy/print/[sheetId]
+├ ƒ /predictions
+├ ƒ /profile
+├ ƒ /quotes
+├ ƒ /quotes/import
+├ ƒ /recommendations
+├ ƒ /reports
+├ ƒ /results
+├ ƒ /risk
+├ ƒ /scheduler
+├ ƒ /screener
+├ ƒ /screener110
+├ ƒ /settings
+├ ƒ /settings/security
+├ ƒ /signals
+├ ƒ /signals/all
+├ ƒ /signals/dashboard
+├ ƒ /signals/register
+├ ƒ /signals/stocks
+├ ƒ /smart-money
+├ ƒ /smart-money/monitor
+├ ƒ /smart-screener
+├ ƒ /symbol-details
+├ ƒ /symbol/[symbol]
+├ ƒ /sync
+├ ƒ /sync-manager
+├ ƒ /sync-settings
+├ ƒ /tabdeal-api
+├ ƒ /tables
+├ ƒ /trades
+├ ƒ /watchlist
+└ ƒ /widgets
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+
+EXIT=0

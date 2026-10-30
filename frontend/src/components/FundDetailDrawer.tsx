@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
-import { analyzeFund, type Fund } from "@/lib/fund-analysis";
+import type { Fund } from "@/lib/fund-analysis";
 import {
   detectFundGroup,
   getGroupDef,
@@ -87,7 +87,17 @@ interface FundDetailDrawerProps {
 }
 
 export default function FundDetailDrawer({ fund, onClose }: FundDetailDrawerProps) {
-  const analysis = useMemo(() => analyzeFund(fund), [fund]);
+  const totalScore = fund.total_score ?? 0;
+  const analysis = {
+    scores: { total: totalScore } as import("@/lib/fund-analysis").FundScore,
+    riskLevel: "LOW" as const,
+    recommendation: "HOLD" as const,
+    summary: totalScore > 0 ? `امتیاز کلی: ${totalScore}%` : "NO_DATA",
+    strengths: [] as string[],
+    weaknesses: [] as string[],
+    issues: [] as import("@/lib/fund-analysis").FundIssue[],
+    nextSteps: [] as string[],
+  };
   const group = useMemo(() => detectFundGroup(fund.name, fund.fund_type), [fund.name, fund.fund_type]);
   const groupDef = useMemo(() => getGroupDef(group), [group]);
   const bubble = calcBubble(fund.price_last, fund.nav);

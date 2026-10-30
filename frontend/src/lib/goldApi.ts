@@ -23,6 +23,13 @@ import type {
   Snapshot,
   Vehicle,
 } from "@/types/gold";
+import type { GoldTerminal, GoldWhatIf } from "@/types/phase1";
+import type {
+  FundMapResponse,
+  PlatformsResponse,
+  ReturnsMatrixResponse,
+  TehranBoardResponse,
+} from "@/types/phase2";
 
 export type { KillSwitchResp } from "@/types/gold";
 
@@ -196,6 +203,62 @@ export async function getSnapshotHistory(symbol: string, days: number): Promise<
 export async function getGoldLivePrices(): Promise<Record<string, number>> {
   return goldCall<Record<string, number>>("live-prices", null, () =>
     apiGet<unknown>("/gold/live-prices"),
+  );
+}
+
+// ── Phase 1 data terminal ───────────────────────────────────────
+//
+// Every value is Rial except ``xau_usd``. ``null`` is a real answer (source did
+// not provide it) and must be rendered «—», never as zero. The what-if route is
+// a preview: it writes nothing and its rows carry quality ``SAMPLE``.
+
+export async function getGoldTerminal(): Promise<GoldTerminal> {
+  return goldCall<GoldTerminal>("terminal", SNAPSHOT_UNAVAILABLE, () =>
+    apiGet<unknown>("/gold/terminal"),
+  );
+}
+
+export async function postGoldWhatIf(input: {
+  xau_usd: number;
+  usd_irt_rial: number;
+}): Promise<GoldWhatIf> {
+  return goldCall<GoldWhatIf>("what-if", SNAPSHOT_UNAVAILABLE, () =>
+    apiPost<unknown>("/gold/what-if", input),
+  );
+}
+
+// ── Phase 2 market coverage (read-only) ─────────────────────────
+//
+// Tehran shop prices, online-platform comparison, the returns matrix and the
+// fund market map. None of these routes can place an order or take payment —
+// the payloads carry `capabilities` with every trading flag false, and the UI
+// must not add a buy/cart/checkout control on top of them.
+
+export async function getGoldTehranBoard(): Promise<TehranBoardResponse> {
+  return goldCall<TehranBoardResponse>("tehran-board", SNAPSHOT_UNAVAILABLE, () =>
+    apiGet<unknown>("/gold/tehran-board"),
+  );
+}
+
+export async function getGoldPlatforms(): Promise<PlatformsResponse> {
+  return goldCall<PlatformsResponse>("platforms", SNAPSHOT_UNAVAILABLE, () =>
+    apiGet<unknown>("/gold/platforms"),
+  );
+}
+
+export async function getGoldReturnsMatrix(
+  baseCurrency: "IRR" | "USD" = "IRR",
+): Promise<ReturnsMatrixResponse> {
+  return goldCall<ReturnsMatrixResponse>("returns-matrix", SNAPSHOT_UNAVAILABLE, () =>
+    apiGet<unknown>(`/gold/returns-matrix?base_currency=${baseCurrency}`),
+  );
+}
+
+export async function getGoldFundMap(
+  sizeMetric: "trade_value" | "market_value" = "trade_value",
+): Promise<FundMapResponse> {
+  return goldCall<FundMapResponse>("fund-map", SNAPSHOT_UNAVAILABLE, () =>
+    apiGet<unknown>(`/gold/fund-map?size_metric=${sizeMetric}`),
   );
 }
 

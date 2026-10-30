@@ -7,7 +7,9 @@ export type Decision = "GREEN" | "YELLOW" | "RED" | "NO_DATA";
 export type RiskProfile = "conservative" | "balanced" | "aggressive";
 export type Vehicle = "etf" | "cert" | "melted" | "coin" | "jewelry";
 
-export type PriceQuality = "LIVE" | "DELAYED" | "SAMPLE" | "EDUCATIONAL";
+// NO_DATA is emitted by the Phase 1 terminal when the source has no price at
+// all; it is distinct from DELAYED (a stale but present price).
+export type PriceQuality = "LIVE" | "DELAYED" | "SAMPLE" | "EDUCATIONAL" | "NO_DATA";
 export type PriceUnit = "toman" | "rial" | "ounce";
 export type PriceSource = "brsapi" | "tgju" | "cache";
 
