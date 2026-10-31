@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -13,13 +14,13 @@ logger = get_logger(__name__)
 
 
 class RedisClient:
-    """Compatibility facade over the shared :class:`core.cache.CacheService`.
+    """DEPRECATED compatibility facade over :class:`core.cache.CacheService`.
 
-    Item 15 (Duplicate Cache) unification: the app owns a single Redis
-    connection via ``get_cache()`` (initialized in the API/scheduler
-    lifespan). ``RedisClient`` no longer opens a second connection — every
-    method delegates to the shared raw client, so there is exactly one
-    Redis connection per process.
+    The app owns a single Redis connection via ``get_cache()`` (initialized
+    in the API/scheduler lifespan). ``RedisClient`` opens no connection of
+    its own — every method delegates to the shared raw client, so there is
+    exactly one Redis connection per process. Import ``core.cache`` directly
+    in new code; this shim only keeps old imports working.
 
     When a *custom* ``url`` is supplied (different from ``REDIS_URL``) a
     private self-managed connection is used instead (legacy behaviour), so
@@ -37,6 +38,11 @@ class RedisClient:
     """
 
     def __init__(self, url: str | None = None):
+        warnings.warn(
+            "integrations.cache.RedisClient is deprecated; use core.cache.get_cache()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._url = url or settings.redis_url
         # Private connection — only used when a custom URL is supplied.
         self._own_client: aioredis.Redis | None = None

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import traceback
 from collections import deque
-from collections.abc import AsyncGenerator, Coroutine
+from collections.abc import AsyncGenerator, AsyncIterator, Coroutine, Sequence
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
@@ -29,6 +30,7 @@ from core.cache import get_cache
 from core.config import settings
 from core.database import close_database, get_session, init_database
 from core.logging import get_logger, setup_logging
+from core.shared_state import RedisStateDocument, state_transaction
 from ml.models import register_all_models
 
 # Fail fast: GoldDesk API-token hashing has no default salt. Importing this
@@ -96,11 +98,11 @@ async def _rate_limit_notify(message: str) -> None:
 
 
 # ── Orchestrator hourly cron state ──
-# In-memory working copy (fast path + fallback when Redis is unavailable).
-# When Redis is connected the state is mirrored there via set_persistent so
-# multiple API workers observe the same state (multi-worker safe).
+# Redis is the source of truth (core.shared_state) so every API worker sees
+# the same cron/alert state. The module dicts below are this worker's local
+# mirror; every read-modify-write cycle goes through _cron_state_transaction().
 
-_cron_state: dict = {
+_CRON_STATE_DEFAULTS: dict[str, Any] = {
     "last_run": None,
     "last_signal_count": 0,
     "last_accuracy": {},
@@ -108,21 +110,50 @@ _cron_state: dict = {
     "last_error": None,
     "run_count": 0,
     "enabled": True,
-    "history": deque(maxlen=100),
 }
 
 # Alert dedup: stores timestamp (time.time()) of last alert sent per type.
 # Re-alert blocked if less than 6 hours since the last alert.
 ALERT_COOLDOWN_S = 6 * 3600
-_alert_state: dict[str, float] = {
+_ALERT_STATE_DEFAULTS: dict[str, float] = {
     "consecutive_failures": 0.0,
     "accuracy_drop": 0.0,
     "was_in_failure_streak": 0.0,  # timestamp when streak started; 0 = not in streak
     "was_accuracy_below_50": 0.0,  # timestamp when accuracy first dropped; 0 = healthy
 }
 
+_cron_state: dict[str, Any] = {**copy.deepcopy(_CRON_STATE_DEFAULTS), "history": deque(maxlen=100)}
+_alert_state: dict[str, float] = dict(_ALERT_STATE_DEFAULTS)
+
 _CRON_STATE_KEY = "orchestrator:cron_state"
 _ALERT_STATE_KEY = "orchestrator:alert_state"
+_STATE_LOCK_KEY = "orchestrator:state_lock"
+
+# Distributed job locks: every worker runs the loops below, but only the
+# lock owner executes a tick. The TTL is renewed by the lock heartbeat for as
+# long as the job runs, and expires on its own if the worker dies.
+_HOURLY_CRON_LOCK = "orchestrator:hourly_tick"
+_HOURLY_CRON_LOCK_TTL = 900.0
+_FUND_SYNC_LOCK = "fund:sync_cycle"
+_FUND_SYNC_LOCK_TTL = 1800.0
+
+
+def _cron_documents() -> tuple[RedisStateDocument, RedisStateDocument]:
+    """Documents wrapping the *current* module mirrors.
+
+    Resolved per call so the documents always point at the live dicts (tests
+    replace ``_cron_state``/``_alert_state`` wholesale).
+    """
+    return (
+        RedisStateDocument(
+            _cron_state,
+            key=_CRON_STATE_KEY,
+            defaults=_CRON_STATE_DEFAULTS,
+            history_key="history",
+            history_limit=100,
+        ),
+        RedisStateDocument(_alert_state, key=_ALERT_STATE_KEY, defaults=_ALERT_STATE_DEFAULTS),
+    )
 
 
 async def _load_cron_state_from_store() -> None:
@@ -131,41 +162,81 @@ async def _load_cron_state_from_store() -> None:
     Multi-worker sync: every worker picks up the latest persisted state
     (e.g. a toggle made on another worker, or history appended by the cron
     process). Mutates the module dicts in place so callers keep their
-    references. No-op when Redis is unavailable (in-memory fallback).
+    references. No-op when Redis is unavailable (worker-local fallback).
     """
-    cache = get_cache()
-    if not cache.is_connected:
-        return
-    try:
-        raw = await cache.get(_CRON_STATE_KEY)
-        if isinstance(raw, dict):
-            raw["history"] = deque(raw.get("history", []), maxlen=100)
-            _cron_state.clear()
-            _cron_state.update(raw)
-        raw_alert = await cache.get(_ALERT_STATE_KEY)
-        if isinstance(raw_alert, dict):
-            _alert_state.clear()
-            _alert_state.update(raw_alert)
-    except Exception:
-        logger.debug("Cron state load from Redis failed", exc_info=True)
+    for doc in _cron_documents():
+        await doc.load()
 
 
-async def _save_cron_state_to_store() -> None:
-    """Persist ``_cron_state``/``_alert_state`` to Redis when connected.
+@asynccontextmanager
+async def _cron_state_transaction() -> AsyncIterator[None]:
+    """Atomically load → mutate → save the cron/alert state.
 
-    ``history`` is a ``deque`` — converted to a list so it round-trips
-    through JSON. No-op when Redis is unavailable.
+    Holds a Redis-backed lock, so concurrent writers on different workers
+    (hourly tick, manual run, admin toggle) compose instead of clobbering
+    each other. Keep the block short — no orchestrator runs inside it.
     """
-    cache = get_cache()
-    if not cache.is_connected:
-        return
-    try:
-        payload = dict(_cron_state)
-        payload["history"] = list(_cron_state["history"])
-        await cache.set_persistent(_CRON_STATE_KEY, payload)
-        await cache.set_persistent(_ALERT_STATE_KEY, dict(_alert_state))
-    except Exception:
-        logger.debug("Cron state save to Redis failed", exc_info=True)
+    async with state_transaction(_cron_documents(), lock_key=_STATE_LOCK_KEY):
+        yield
+
+
+def _record_cron_run(
+    *,
+    success: bool,
+    signals: int = 0,
+    accuracy: dict[str, Any] | None = None,
+    retrain_count: int = 0,
+    error: str | None = None,
+    source: str = "schedule",
+) -> None:
+    """Append one run to the shared history. Call inside the transaction."""
+    from datetime import UTC, datetime
+
+    _cron_state["last_run"] = datetime.now(UTC).isoformat()
+    _cron_state["last_signal_count"] = signals
+    _cron_state["last_accuracy"] = accuracy or {}
+    _cron_state["last_retrain_count"] = retrain_count
+    _cron_state["last_error"] = error[:500] if error else None
+    _cron_state["run_count"] += 1
+    entry: dict[str, Any] = {
+        "run": _cron_state["run_count"],
+        "timestamp": _cron_state["last_run"],
+        "signals": signals,
+        "accuracy": (accuracy or {}).get("overall", 0),
+        "retrain_count": retrain_count,
+        "success": success,
+        "source": source,
+    }
+    if error:
+        entry["error"] = error[:200]
+    _cron_state["history"].append(entry)
+
+
+async def _commit_cron_run(
+    *,
+    success: bool,
+    signals: int = 0,
+    accuracy: dict[str, Any] | None = None,
+    retrain_count: int = 0,
+    error: str | None = None,
+    source: str = "schedule",
+) -> None:
+    """Commit one run to shared state, then deliver any resulting alerts.
+
+    Alert delivery happens after the transaction commits so a slow Telegram
+    call can never hold the state lock.
+    """
+    async with _cron_state_transaction():
+        _record_cron_run(
+            success=success,
+            signals=signals,
+            accuracy=accuracy,
+            retrain_count=retrain_count,
+            error=error,
+            source=source,
+        )
+        alerts = await _check_cron_alerts(send=False)
+    await _dispatch_cron_alerts(alerts)
 
 
 async def _send_cron_alert(title: str, message: str, icon: str = "🔴") -> None:
@@ -180,18 +251,21 @@ async def _send_cron_alert(title: str, message: str, icon: str = "🔴") -> None
             logger.debug("Telegram alert not sent (not configured?): %s", result.error)
 
 
-async def _check_cron_alerts() -> None:
-    """Check cron history for alert conditions: 3 consecutive failures or accuracy < 50%.
+def _plan_cron_alerts(now_ts: float | None = None) -> list[tuple[str, str, str]]:
+    """Evaluate alert conditions and update the cooldown state.
 
-    Uses _alert_state timestamps for cooldown and recovery tracking.
+    Returns ``(title, message, icon)`` alerts to deliver. Sending is left to
+    the caller so delivery can happen outside the shared-state lock while the
+    cooldown timestamps are still committed atomically with the run record.
     """
     history = list(_cron_state["history"])
     if len(history) < 3:
-        return
+        return []
 
     import time
 
-    now_ts = time.time()
+    now_ts = time.time() if now_ts is None else now_ts
+    alerts: list[tuple[str, str, str]] = []
 
     latest = history[-1]
     latest_ok = latest.get("success", False)
@@ -207,28 +281,29 @@ async def _check_cron_alerts() -> None:
 
         if (now_ts - _alert_state["consecutive_failures"]) >= ALERT_COOLDOWN_S:
             errors = [h.get("error", "Unknown")[:100] for h in last_three]
-            await _send_cron_alert(
+            alerts.append((
                 "3 شکست متوالی کرون",
                 f"کرون orchestrator در ۳ اجرای متوالی شکست خورده است.\n"
                 f"آخرین خطا: {errors[-1]}\n"
                 f"اجراهای: {last_three[0]['run']}، {last_three[1]['run']}، {last_three[2]['run']}\n"
                 f"زمان آخرین شکست: {last_three[-1].get('timestamp', '?')}",
-            )
+                "🔴",
+            ))
             _alert_state["consecutive_failures"] = now_ts
-        return  # Don't send multiple alert types in the same check
+        return alerts  # Don't send multiple alert types in the same check
 
     # ── Recovery: cron succeeded after a failure streak ──
     if latest_ok and _alert_state["was_in_failure_streak"] > 0.0:
         streak_duration = now_ts - _alert_state["was_in_failure_streak"]
-        await _send_cron_alert(
+        alerts.append((
             "بازیابی کرون",
             f"کرون orchestrator پس از شکست‌های متوالی با موفقیت اجرا شد.\n"
             f"مدت زمان اختلال: {streak_duration / 60:.0f} دقیقه\n"
             f"شماره اجرای موفق: {latest.get('run', '?')}\n"
             f"سیگنال‌های تولیدشده: {latest.get('signals', 0)}\n"
             f"زمان بازیابی: {latest.get('timestamp', '?')}",
-            icon="🟢",
-        )
+            "🟢",
+        ))
         _alert_state["was_in_failure_streak"] = 0.0
         _alert_state["consecutive_failures"] = 0.0
 
@@ -242,27 +317,95 @@ async def _check_cron_alerts() -> None:
                 _alert_state["was_accuracy_below_50"] = now_ts
 
             if (now_ts - _alert_state["accuracy_drop"]) >= ALERT_COOLDOWN_S:
-                await _send_cron_alert(
+                alerts.append((
                     "کاهش دقت کل به زیر ۵۰٪",
                     f"دقت کل سیگنال‌ها به {acc:.1f}٪ کاهش یافته است (زیر آستانه ۵۰٪).\n"
                     f"سیگنال‌های آخرین اجرا: {latest.get('signals', 0)}\n"
                     f"زمان اجرا: {latest.get('timestamp', '?')}\n"
                     f"بازآموزی خودکار در اجرای بعدی فعال خواهد شد.",
-                )
+                    "🔴",
+                ))
                 _alert_state["accuracy_drop"] = now_ts
 
         # ── Recovery: accuracy climbed back above 50% ──
         elif acc >= 50 and _alert_state["was_accuracy_below_50"] > 0.0:
-            await _send_cron_alert(
+            alerts.append((
                 "بازگشت دقت به بالای ۵۰٪",
                 f"دقت کل سیگنال‌ها به {acc:.1f}٪ بازگشته است (بالای آستانه ۵۰٪).\n"
                 f"شماره اجرا: {latest.get('run', '?')}\n"
                 f"سیگنال‌های تولیدشده: {latest.get('signals', 0)}\n"
                 f"زمان بازیابی: {latest.get('timestamp', '?')}",
-                icon="🟢",
-            )
+                "🟢",
+            ))
             _alert_state["was_accuracy_below_50"] = 0.0
             _alert_state["accuracy_drop"] = 0.0
+
+    return alerts
+
+
+async def _dispatch_cron_alerts(alerts: Sequence[tuple[str, str, str]]) -> None:
+    for title, message, icon in alerts:
+        await _send_cron_alert(title, message, icon=icon)
+
+
+async def _check_cron_alerts(send: bool = True) -> list[tuple[str, str, str]]:
+    """Check cron history for alert conditions: 3 consecutive failures or accuracy < 50%.
+
+    Uses _alert_state timestamps for cooldown and recovery tracking. With
+    ``send=False`` only the state is updated and the alerts are returned, so
+    the caller can deliver them after committing shared state.
+    """
+    alerts = _plan_cron_alerts()
+    if send:
+        await _dispatch_cron_alerts(alerts)
+    return alerts
+
+
+async def _run_orchestrator_once() -> None:
+    """Execute one orchestrator pass and commit it to shared state."""
+    from services.quant_signal_orchestrator import QuantSignalOrchestrator
+
+    orchestrator = QuantSignalOrchestrator()
+    report = await orchestrator.generate(
+        market_filter="all",
+        timeframe_filter="all",
+        min_confidence=0.35,
+        limit=100,
+        use_ml=True,
+        use_voting=True,
+        use_confidence_calibration=True,
+    )
+
+    d = report.to_dict()
+    signals = d.get("signals", [])
+    accuracy = d.get("accuracy", {})
+    retrain = d.get("retrain", [])
+
+    # Commit under the shared-state lock: reload, increment, append,
+    # persist. Concurrent toggles on other workers are preserved.
+    await _commit_cron_run(
+        success=True,
+        signals=len(signals),
+        accuracy=accuracy,
+        retrain_count=len(retrain),
+    )
+
+    logger.info(
+        "Cron run complete: %d signals, %.0f%% overall accuracy, %d markets retrained",
+        len(signals),
+        accuracy.get("overall", 0),
+        len(retrain),
+    )
+
+    if retrain:
+        for rr in retrain:
+            logger.info(
+                "  [RETRAIN] %s: %s | %.1f%% -> %.1f%%",
+                rr.get("market", "?"),
+                rr.get("trigger", "?"),
+                rr.get("old_accuracy_pct", 0),
+                rr.get("new_accuracy_pct", 0),
+            )
 
 
 async def _orchestrator_hourly_cron() -> None:
@@ -271,17 +414,15 @@ async def _orchestrator_hourly_cron() -> None:
     This closes the feedback loop:
       generate signals -> persist -> evaluate outcomes -> retrain if needed
 
-    Each run produces signals, records outcomes for past signals, and
-    auto-retrains models when accuracy drops below threshold.
-    Over time, this drives the system toward >70% accuracy.
+    Every API worker starts this loop, but only the worker that wins the
+    ``orchestrator:hourly_tick`` distributed lock actually runs the pass; the
+    others skip the tick, so signals are generated once per hour no matter
+    how many workers are deployed.
     """
-    from datetime import UTC, datetime
-
-    from services.quant_signal_orchestrator import QuantSignalOrchestrator
-
     loop = asyncio.get_running_loop()
 
     while True:
+        tick_start = loop.time()
         try:
             # Multi-worker sync: pick up toggles/history written by other
             # workers (or by the manual run-now endpoint) before this tick.
@@ -291,87 +432,28 @@ async def _orchestrator_hourly_cron() -> None:
                 await asyncio.sleep(60)
                 continue
 
-            tick_start = loop.time()
-
             logger.info("=" * 50)
             logger.info("HOURLY ORCHESTRATOR CRON — run #%d", _cron_state["run_count"] + 1)
             logger.info("=" * 50)
 
-            orchestrator = QuantSignalOrchestrator()
-            report = await orchestrator.generate(
-                market_filter="all",
-                timeframe_filter="all",
-                min_confidence=0.35,
-                limit=100,
-                use_ml=True,
-                use_voting=True,
-                use_confidence_calibration=True,
-            )
-
-            d = report.to_dict()
-            signals = d.get("signals", [])
-            accuracy = d.get("accuracy", {})
-            retrain = d.get("retrain", [])
-
-            _cron_state["last_run"] = datetime.now(UTC).isoformat()
-            _cron_state["last_signal_count"] = len(signals)
-            _cron_state["last_accuracy"] = accuracy or {}
-            _cron_state["last_retrain_count"] = len(retrain)
-            _cron_state["last_error"] = None
-            _cron_state["run_count"] += 1
-            _cron_state["history"].append(
-                {
-                    "run": _cron_state["run_count"],
-                    "timestamp": _cron_state["last_run"],
-                    "signals": len(signals),
-                    "accuracy": accuracy.get("overall", 0),
-                    "retrain_count": len(retrain),
-                    "success": True,
-                }
-            )
-
-            logger.info(
-                "Cron run #%d complete: %d signals, %.0f%% overall accuracy, %d markets retrained",
-                _cron_state["run_count"],
-                len(signals),
-                accuracy.get("overall", 0),
-                len(retrain),
-            )
-
-            if retrain:
-                for rr in retrain:
-                    logger.info(
-                        "  [RETRAIN] %s: %s | %.1f%% -> %.1f%%",
-                        rr.get("market", "?"),
-                        rr.get("trigger", "?"),
-                        rr.get("old_accuracy_pct", 0),
-                        rr.get("new_accuracy_pct", 0),
-                    )
-
-            # Check alerts after successful run
-            await _check_cron_alerts()
-            await _save_cron_state_to_store()
+            locker = _get_job_locker()
+            if locker is None:
+                logger.error("Distributed lock unavailable — running orchestrator without a tick lock")
+                await _run_orchestrator_once()
+            else:
+                async with locker.hold(
+                    _HOURLY_CRON_LOCK,
+                    _distributed_owner("orch-cron"),
+                    ttl=_HOURLY_CRON_LOCK_TTL,
+                ) as acquired:
+                    if acquired:
+                        await _run_orchestrator_once()
+                    else:
+                        logger.info("Hourly tick already running on another worker — skipping")
 
         except Exception:
             logger.exception("Hourly orchestrator cron failed")
-            _cron_state["last_error"] = str(traceback.format_exc())[:500]
-            _cron_state["last_run"] = datetime.now(UTC).isoformat()
-            _cron_state["run_count"] += 1
-            _cron_state["history"].append(
-                {
-                    "run": _cron_state["run_count"],
-                    "timestamp": _cron_state["last_run"],
-                    "signals": 0,
-                    "accuracy": 0,
-                    "retrain_count": 0,
-                    "success": False,
-                    "error": _cron_state["last_error"][:200],
-                }
-            )
-
-            # Check alerts after failed run
-            await _check_cron_alerts()
-            await _save_cron_state_to_store()
+            await _commit_cron_run(success=False, error=traceback.format_exc())
 
         # Wait 1 hour before next run (drift-corrected)
         elapsed = loop.time() - tick_start
@@ -386,20 +468,27 @@ async def _orchestrator_hourly_cron() -> None:
 _startup_lock_owners: dict[str, str] = {}
 
 # Shared lock instance: the in-memory fallback keeps per-instance state, so a
-# single instance must be reused across acquire/release calls.
-_startup_locker = None  # lazy JobLocking singleton
+# single instance must be reused by every job in this process.
+_job_locker: Any | None = None  # lazy JobLocking singleton
 
 
-def _get_startup_locker():
-    global _startup_locker
-    if _startup_locker is None:
+def _get_job_locker() -> Any | None:
+    global _job_locker
+    if _job_locker is None:
         try:
             from jobs.locking import JobLocking
 
-            _startup_locker = JobLocking(default_ttl=600)
+            _job_locker = JobLocking(default_ttl=600)
         except Exception:
-            _startup_locker = None
-    return _startup_locker
+            _job_locker = None
+    return _job_locker
+
+
+def _distributed_owner(prefix: str) -> str:
+    """Unique lock owner for this process (host:pid + random suffix)."""
+    from jobs.locking import make_owner
+
+    return make_owner(prefix)
 
 
 async def _with_startup_lock(key: str, task: str) -> bool:
@@ -418,7 +507,7 @@ async def _with_startup_lock(key: str, task: str) -> bool:
     import socket
     import uuid
 
-    locker = _get_startup_locker()
+    locker = _get_job_locker()
     if locker is None:
         # Fail-open here means every replica runs the full BrsApi sync at once against
         # tables that have no uniqueness guard, so in production the lock being
@@ -442,7 +531,7 @@ async def _with_startup_lock(key: str, task: str) -> bool:
 
 
 async def _release_startup_lock(key: str) -> None:
-    locker = _get_startup_locker()
+    locker = _get_job_locker()
     if locker is None:
         return
     lock_key = f"startup:{key}"
@@ -478,6 +567,33 @@ async def _decision_engine_startup_seed() -> None:
         await _release_startup_lock("decision_seed")
 
 
+async def _run_fund_sync_cycle(
+    session_factory: Any,
+    fund_service_cls: Any,
+    brsapi_query_cls: Any,
+    fund_sync_cls: Any,
+) -> None:
+    """Run one fund sync pass. The caller holds the fund-sync cycle lock."""
+    from services.fund_sync_service import _is_market_open
+
+    async with session_factory() as session:
+        fund_service = fund_service_cls(session=session)
+        brsapi = brsapi_query_cls(session=session)
+        sync_service = fund_sync_cls(fund_service=fund_service, brsapi=brsapi)
+
+        report = await sync_service.sync_all_funds()
+        logger.info(
+            "Fund sync cycle: %s — next sync in %s",
+            report.summary,
+            "15 min (market open)" if _is_market_open() else "~24h (market closed)",
+        )
+
+        # Log failed symbols for monitoring
+        if report.errors:
+            for err in report.errors[:5]:  # First 5 only
+                logger.warning("  Fund sync error: %s — %s", err["symbol"], err["error"])
+
+
 async def _fund_sync_cron() -> None:
     """
     Background task: sync fund data from BrsApi every 15 minutes during market hours.
@@ -504,25 +620,24 @@ async def _fund_sync_cron() -> None:
                 await asyncio.sleep(60)
                 continue
 
-            async with async_session_factory() as session:
-                fund_service = FundService(session=session)
-                brsapi = BrsApiQueryService(session=session)
-                sync_service = FundSyncService(
-                    fund_service=fund_service,
-                    brsapi=brsapi,
-                )
-
-                report = await sync_service.sync_all_funds()
-                logger.info(
-                    "Fund sync cycle: %s — next sync in %s",
-                    report.summary,
-                    "15 min (market open)" if _is_market_open() else "~24h (market closed)",
-                )
-
-                # Log failed symbols for monitoring
-                if report.errors:
-                    for err in report.errors[:5]:  # First 5 only
-                        logger.warning("  Fund sync error: %s — %s", err["symbol"], err["error"])
+            locker = _get_job_locker()
+            if locker is None:
+                await _run_fund_sync_cycle(async_session_factory, FundService, BrsApiQueryService, FundSyncService)
+            else:
+                # One sync per cycle across all workers: concurrent upserts of
+                # the same NAV rows are not safe, and each cycle spends BrsApi
+                # quota.
+                async with locker.hold(
+                    _FUND_SYNC_LOCK,
+                    _distributed_owner("fund-sync"),
+                    ttl=_FUND_SYNC_LOCK_TTL,
+                ) as acquired:
+                    if acquired:
+                        await _run_fund_sync_cycle(
+                            async_session_factory, FundService, BrsApiQueryService, FundSyncService
+                        )
+                    else:
+                        logger.info("Fund sync already running on another worker — skipping this cycle")
 
         except Exception:
             logger.exception("Fund sync cron failed — retrying in 60s")
@@ -1025,18 +1140,15 @@ def create_app() -> FastAPI:
         _user: dict = Depends(require_roles("admin")),
     ):
         """Enable or disable the hourly orchestrator cron."""
-        # Use distributed lock to prevent lost updates when two admins toggle concurrently.
-        locked = await _with_startup_lock("cron_toggle", "cron-toggle")
-        try:
-            await _load_cron_state_from_store()
+        # The transaction reloads under a distributed lock, so two admins
+        # toggling on different workers can never lose an update.
+        async with _cron_state_transaction():
             _cron_state["enabled"] = not _cron_state["enabled"]
-            await _save_cron_state_to_store()
-            from schemas.common.responses import ApiResponse
+            enabled = _cron_state["enabled"]
 
-            return ApiResponse(success=True, data={"enabled": _cron_state["enabled"]})
-        finally:
-            if locked:
-                await _release_startup_lock("cron_toggle")
+        from schemas.common.responses import ApiResponse
+
+        return ApiResponse(success=True, data={"enabled": enabled})
 
     @app.post("/api/v1/orchestrator-cron/run-now")
     async def orchestrator_cron_run_now(
@@ -1046,12 +1158,9 @@ def create_app() -> FastAPI:
 
         Returns the full orchestrator report including signals, accuracy, and retrain status.
         """
-        from datetime import UTC, datetime
-
         from schemas.common.responses import ApiResponse
         from services.quant_signal_orchestrator import QuantSignalOrchestrator
 
-        await _load_cron_state_from_store()
         orchestrator = QuantSignalOrchestrator()
         report = await orchestrator.generate(
             market_filter="all",
@@ -1064,25 +1173,15 @@ def create_app() -> FastAPI:
         )
         d = report.to_dict()
 
-        # Update cron state too
-        _cron_state["last_run"] = datetime.now(UTC).isoformat()
-        _cron_state["last_signal_count"] = len(d.get("signals", []))
-        _cron_state["last_accuracy"] = d.get("accuracy", {})
-        _cron_state["last_retrain_count"] = len(d.get("retrain", []))
-        _cron_state["last_error"] = None
-        _cron_state["run_count"] += 1
-        _cron_state["history"].append(
-            {
-                "run": _cron_state["run_count"],
-                "timestamp": _cron_state["last_run"],
-                "signals": len(d.get("signals", [])),
-                "accuracy": d.get("accuracy", {}).get("overall", 0),
-                "retrain_count": len(d.get("retrain", [])),
-                "success": True,
-                "source": "manual",
-            }
+        # Record the manual run in shared state (same critical section the
+        # hourly tick uses, so run numbering stays consistent across workers).
+        await _commit_cron_run(
+            success=True,
+            signals=len(d.get("signals", [])),
+            accuracy=d.get("accuracy", {}),
+            retrain_count=len(d.get("retrain", [])),
+            source="manual",
         )
-        await _save_cron_state_to_store()
 
         return ApiResponse(success=True, data=d)
 

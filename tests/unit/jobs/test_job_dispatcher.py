@@ -14,6 +14,7 @@ Uses fakes for the registry, locking, deduplicator and retry policy.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -21,6 +22,26 @@ import pytest
 from jobs.job_context import JobContext
 from jobs.job_dispatcher import JobDispatcher
 from jobs.job_result import JobResult
+
+
+def _fake_hold(locking):
+    """``JobLocking.hold`` stand-in that delegates to the mocked acquire/release.
+
+    The dispatcher now holds the lock through the shared context manager
+    (TTL renewal + guaranteed release); this keeps the mocks' call assertions
+    meaningful without pulling in Redis.
+    """
+
+    @asynccontextmanager
+    async def hold(key, owner, ttl=None, **kwargs):
+        acquired = await locking.acquire(key, owner, ttl)
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                await locking.release(key, owner)
+
+    return hold
 
 
 def _make_job_cls(result: JobResult) -> MagicMock:
@@ -46,6 +67,7 @@ def _make_dispatcher(
     locking = locking or AsyncMock()
     locking.acquire = AsyncMock(return_value=True)
     locking.release = AsyncMock(return_value=True)
+    locking.hold = _fake_hold(locking)
 
     deduplicator = deduplicator or AsyncMock()
     deduplicator.is_duplicate = AsyncMock(return_value=False)

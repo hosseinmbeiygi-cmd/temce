@@ -56,24 +56,26 @@ class JobDispatcher:
                 logger.warning("Dedup: job %s already dispatched", dedup_key)
                 return JobResult.failure("Duplicate job", job_name=job_name)
             await self._deduplicator.mark(dedup_key)
+        # ``hold`` renews the TTL while the job runs, so a job that outlives
+        # the default lock TTL cannot be picked up by a second worker
+        # mid-flight. It also releases on every exit path.
         lock_key = f"job:{job_name}"
-        if not await self._locking.acquire(lock_key, context.job_id):
-            return JobResult.failure(f"Lock not acquired for {job_name}", job_name=job_name)
-        try:
-            async with self._semaphore:
-                job = self._registry.create(job_name)
-                if job is None:
-                    return JobResult.failure(f"Could not create job {job_name}", job_name=job_name)
-                context.record_start()
-                result = await job.run(context)
-                if result.success:
-                    self._retry_policy.clear_retries(context.job_id)
-                return result
-        except Exception as e:
-            logger.error("Dispatch error for %s: %s", job_name, e)
-            return JobResult.failure(str(e), job_name=job_name)
-        finally:
-            await self._locking.release(lock_key, context.job_id)
+        async with self._locking.hold(lock_key, context.job_id) as acquired:
+            if not acquired:
+                return JobResult.failure(f"Lock not acquired for {job_name}", job_name=job_name)
+            try:
+                async with self._semaphore:
+                    job = self._registry.create(job_name)
+                    if job is None:
+                        return JobResult.failure(f"Could not create job {job_name}", job_name=job_name)
+                    context.record_start()
+                    result = await job.run(context)
+                    if result.success:
+                        self._retry_policy.clear_retries(context.job_id)
+                    return result
+            except Exception as e:
+                logger.error("Dispatch error for %s: %s", job_name, e)
+                return JobResult.failure(str(e), job_name=job_name)
 
 
     async def _dispatch_brsapi_direct_job(self, job_name: str) -> JobResult | None:

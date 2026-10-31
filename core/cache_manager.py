@@ -4,6 +4,9 @@ Implements the ``CacheManager`` described in the platform upgrade plan:
 
 * **L1 — memory**: thread-of-execution safe OrderedDict LRU (fast path).
 * **L2 — Redis**: shared across workers/processes, TTL-based, JSON payloads.
+  Uses the process-wide client owned by :mod:`core.cache` — there is exactly
+  one Redis connection per process. A manager constructed with a *different*
+  ``redis_url`` keeps a private connection (audit/test scripts only).
 * **L3 — compute**: when neither L1 nor L2 has the value, ``func()`` is
   awaited (typically a database read) and the result is promoted back to
   both L1 and L2.  Concurrent misses on the same key are collapsed into a
@@ -109,16 +112,34 @@ class CacheManager:
         self._l1 = LRUCache(maxsize=max_memory_items)
         self._redis: Any = None
         self._redis_connected: bool | None = None  # None = not probed yet
+        self._owns_redis = False  # True only for a private (custom URL) client
         self._keys: set[str] = set()  # keys written through this manager
 
     # ── Redis lifecycle ──────────────────────────────────────────────────
 
     async def _ensure_redis(self) -> bool:
-        """Lazily connect to Redis. Returns True when usable.
+        """Return True when L2 is usable; otherwise fall back to L1-only.
 
-        The result of a failed attempt is cached so we don't hammer a down
-        server on every call; ``reset_redis_state()`` re-probes.
+        Default path: reuse the process-wide client from :mod:`core.cache`
+        (one connection, one circuit breaker, event-loop safe). Custom-URL
+        managers keep their own connection so audit scripts can target a
+        different server.
         """
+        if self._redis_url != settings.redis_url:
+            return await self._ensure_private_redis()
+
+        from core.cache import get_cache
+
+        cache = get_cache()
+        if cache.client is None:
+            await cache.initialize()
+        self._redis = cache.client
+        self._redis_connected = self._redis is not None
+        self._owns_redis = False
+        return self._redis_connected
+
+    async def _ensure_private_redis(self) -> bool:
+        """Legacy path: a private client for an explicit, non-default URL."""
         if self._redis is not None:
             try:
                 await self._redis.ping()
@@ -135,8 +156,9 @@ class CacheManager:
             await client.ping()
             self._redis = client
             self._redis_connected = True
+            self._owns_redis = True
             logger.info(
-                "CacheManager connected to Redis at %s",
+                "CacheManager connected to private Redis at %s",
                 redact_redis_url(self._redis_url),
             )
             return True
@@ -146,12 +168,30 @@ class CacheManager:
             logger.warning("CacheManager Redis unavailable — using L1-only cache")
             return False
 
+    async def _mark_shared_failure(self) -> None:
+        """Let the shared cache open its breaker after an L2 command failed.
+
+        Without this a dead shared connection would be retried on every cache
+        operation, each paying the socket timeout. ``ping()`` records the
+        failure and disables Redis for the breaker window instead.
+        """
+        if self._owns_redis:
+            return
+        try:
+            from core.cache import get_cache
+
+            await get_cache().ping()
+        except Exception:
+            logger.debug("Ping after L2 failure raised", exc_info=True)
+
     async def close(self) -> None:
-        if self._redis is not None:
+        # The shared client belongs to the app lifespan — never close it.
+        if self._owns_redis and self._redis is not None:
             with contextlib.suppress(Exception):
                 await self._redis.close()
         self._redis = None
         self._redis_connected = None
+        self._owns_redis = False
 
     def reset_redis_state(self) -> None:
         """Force a re-probe of Redis on the next operation (after a restart)."""
@@ -244,6 +284,7 @@ class CacheManager:
             logger.warning("CacheManager L2 read failed for %s", key, exc_info=True)
             self._redis = None
             self._redis_connected = None
+            await self._mark_shared_failure()
             return None
         return self._deserialize(raw) if raw is not None else None
 
@@ -265,6 +306,7 @@ class CacheManager:
             logger.warning("CacheManager L2 write failed for %s", key, exc_info=True)
             self._redis = None
             self._redis_connected = None
+            await self._mark_shared_failure()
 
     async def _await_winner(self, key: str) -> Any | None:
         """Poll L2 for the lock winner's write. Returns None if it never lands."""
@@ -326,7 +368,7 @@ class CacheManager:
         """
         return orjson.dumps(value, option=orjson.OPT_SERIALIZE_NUMPY)
 
-    def _deserialize(self, raw: bytes) -> Any:
+    def _deserialize(self, raw: bytes | str) -> Any:
         try:
             return orjson.loads(raw)
         except orjson.JSONDecodeError:

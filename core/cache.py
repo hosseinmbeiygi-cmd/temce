@@ -1,3 +1,13 @@
+"""The platform's single cache implementation.
+
+``get_cache()`` owns the one Redis connection per process (JSON payloads,
+circuit breaker, event-loop safety, null-cache fallback). All other cache
+modules — ``integrations.cache`` (deprecated shims), the screeners' local TTL
+stores, ``core.cache_manager``'s L1 fast path — are either layers on top of
+this service or worker-local caches; none of them open a competing Redis
+connection for shared state.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -224,19 +234,25 @@ class CacheService:
         except Exception as exc:  # noqa: BLE001
             self._record_failure(exc)
 
-    async def set_persistent(self, key: str, value: Any) -> None:
+    async def set_persistent(self, key: str, value: Any) -> bool:
         """Set a key with no expiry.
 
         Used for durable shared state (e.g. the orchestrator cron state)
         that must survive the default TTL and be visible across workers.
+
+        Returns True only when the value actually reached Redis, so callers
+        holding a distributed lock can tell a committed write from a silent
+        no-op while Redis is unavailable.
         """
         client = self._client()
         if client is None:
-            return
+            return False
         try:
             await client.set(key, self._serialize(value))
         except Exception as exc:  # noqa: BLE001
             self._record_failure(exc)
+            return False
+        return True
 
     async def delete(self, key: str) -> None:
         client = self._client()

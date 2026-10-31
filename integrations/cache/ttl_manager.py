@@ -1,9 +1,22 @@
+"""LEGACY TTL preset helper (deprecated). Pass ``ttl`` to core.cache directly."""
+
 from __future__ import annotations
+
+import warnings
 
 from core.config import settings
 
 
 class TTLManager:
+    """DEPRECATED TTL-preset helper kept for ``integrations.cache`` compatibility."""
+
+    def __init__(self) -> None:
+        warnings.warn(
+            "integrations.cache.TTLManager is deprecated; pass ttl= to core.cache",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     # Some CACHE_TTL_* settings may not exist in Settings — fall back to
     # sane defaults so importing this module never crashes at class definition.
     TTL_PRESETS: dict[str, int] = {

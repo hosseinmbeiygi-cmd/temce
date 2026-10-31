@@ -67,6 +67,8 @@ __all__ = [
 ]
 
 # name -> submodule that defines it
+# NOTE: the four ``integrations.cache`` names are deprecated shims — the
+# platform's only cache is ``core.cache`` (see core/cache.py).
 _EXPORTS: dict[str, str] = {
     "KeyBuilder": "integrations.cache",
     "MemoryCache": "integrations.cache",

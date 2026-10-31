@@ -1,10 +1,20 @@
+"""LEGACY cache-key helper (deprecated). Use plain key strings with core.cache."""
+
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 
 class KeyBuilder:
+    """DEPRECATED key-name helper kept for ``integrations.cache`` compatibility."""
+
     def __init__(self, prefix: str = "imp", separator: str = ":"):
+        warnings.warn(
+            "integrations.cache.KeyBuilder is deprecated; compose key strings directly",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._prefix = prefix
         self._separator = separator
 
