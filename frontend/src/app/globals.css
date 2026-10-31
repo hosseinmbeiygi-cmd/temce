@@ -198,10 +198,12 @@ body.dark-theme {
 }
 
 /* ── Base ──────────────────────────────── */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 body {
@@ -290,7 +292,11 @@ body.dark-theme .bg-grid {
 .dash-field::after {
   content: "";
   position: fixed;
-  inset: -18%;
+  /* `.page-enter` keeps a transform after its animation, making fixed
+     descendants use it as containing block. A negative inset therefore
+     widened the document by 18% (horizontal scroll). Keep the aurora inside
+     the viewport; the animation still provides the ambient drift. */
+  inset: 0;
   z-index: -2;
   pointer-events: none;
   /* Ambient aurora — three soft color fields drifting on the compositor
@@ -1898,6 +1904,11 @@ body.dark-theme .glass-card:hover {
 
 .page-enter {
   animation: pageRise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* pageRise keeps a transform on this wrapper, so the fixed aurora layer is
+     positioned against it. The aurora drift scales/translates beyond the
+     viewport; clip only horizontal overflow here (clip does not create a
+     scroll container, so sticky/fixed layout is unaffected). */
+  overflow-x: clip;
 }
 
 /* Opt-in render hint for long below-the-fold sections:
@@ -2009,10 +2020,9 @@ body.dark-theme .glass-card:hover {
    long page ends up under the nav at maximum scroll. It used to be 130px,
    because all fifteen tabs were crammed into that bar as three rows.
 
-   Plain CSS on purpose: the `* { margin: 0; padding: 0 }` reset above is
-   unlayered, and unlayered rules win over Tailwind v4's @layer utilities
-   regardless of specificity — a `pb-[130px]` utility on the element has no
-   effect. A class selector here beats the universal reset. */
+   Plain CSS on purpose: keep the gold shell's bottom padding explicit even
+   if a page omits the utility. (The universal reset now lives in @layer base,
+   so Tailwind utilities are no longer neutralised.) */
 .gold-main {
   padding-bottom: 84px;
 }

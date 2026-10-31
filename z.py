@@ -8,8 +8,15 @@ import time
 from collections import deque
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
+
+try:
+    from zoneinfo import ZoneInfo
+
+    TEHRAN_TZ = ZoneInfo("Asia/Tehran")
+except Exception:  # pragma: no cover - ویندوز بدون tzdata
+    TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
 import jdatetime
 import psycopg2
@@ -97,6 +104,11 @@ FIXED_SHAMSI_HOLIDAYS = (
 
 # تعطیلات متغیر (قمری) خودکار از پاسخ صریح API یاد گرفته و برای همه نمادها کش می‌شوند
 HOLIDAYS_FILE = os.path.join(BASE_DIR, "market_holidays.json")
+
+# دفتر مشترک «این تاریخ داده ندارد»: اگر آستانه‌ای نماد پشت‌سرهم ۴۲۴ بگیرند و
+# هیچ نمادی داده نداشته باشد، تاریخ برای بقیه نمادها رد می‌شود (صرفه‌جویی سهمیه).
+MARKET_NO_DATA_FILE = os.path.join(BASE_DIR, "market_no_data.json")
+MARKET_NO_DATA_THRESHOLD = 20
 
 # User-Agent استاندارد مرورگر — BrsApi ریکوئست‌های با UA پیش‌فرض پایتون را 403 می‌کند
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -231,12 +243,14 @@ class RateLimiter:
     """
 
     def __init__(self, daily_limit=DAILY_LIMIT, burst_limit=MAX_PER_BURST, burst_window=BURST_WINDOW,
-                 now_fn=time.time, mono_fn=time.monotonic):
+                 now_fn=time.time, mono_fn=time.monotonic, run_budget=None):
         self.daily_limit = daily_limit
         self.burst_limit = burst_limit
         self.burst_window = burst_window
         self._now_fn = now_fn
         self._mono_fn = mono_fn
+        self.run_budget = run_budget
+        self.run_slots = 0
         self.lock = threading.Lock()
         self._window = deque()
         self._day_counts = {}
@@ -249,7 +263,7 @@ class RateLimiter:
 
     @staticmethod
     def _today(now):
-        return datetime.fromtimestamp(now).strftime("%Y-%m-%d")
+        return datetime.fromtimestamp(now, tz=TEHRAN_TZ).strftime("%Y-%m-%d")
 
     def _read_state(self, today):
         """Counter و last_req_time امروز؛ None یعنی فایل نیست یا مال روز دیگری است."""
@@ -341,6 +355,8 @@ class RateLimiter:
         while True:
             sleep_time = 0.0
             with self.lock, _state_file_lock():
+                if self.run_budget is not None and self.run_slots >= self.run_budget:
+                    return False, "RUN_BUDGET_EXCEEDED"
                 now, mono = self._times()
                 self._since_reload += 1
                 if self._since_reload >= JOURNAL_RELOAD_EVERY:
@@ -389,6 +405,7 @@ class RateLimiter:
                         "last_req_time": now,
                     }
                     self._write_state_unlocked(self.state)
+                    self.run_slots += 1
                     return True, requests_today + 1
 
             time.sleep(max(sleep_time, 0.05))
@@ -443,6 +460,67 @@ def _mark_holiday(date_str):
             return
         _HOLIDAYS.add(date_str)
         _save_holidays()
+
+
+# ── دفتر مشترک تاریخ‌های بدون داده ──
+_NO_DATA_LOCK = threading.Lock()
+_NO_DATA = {}   # {"YYYY-MM-DD": [تعداد نمادِ بدون‌داده, تعداد نمادِ داده‌دار]}
+
+
+def _load_no_data_ledger():
+    """بارگذاری (و ادغام) دفتر تاریخ‌های بدون داده؛ خطای فایل فقط یعنی «رد نکن»."""
+    with _NO_DATA_LOCK:
+        if not os.path.exists(MARKET_NO_DATA_FILE):
+            return
+        try:
+            with open(MARKET_NO_DATA_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            logging.warning(f"دفتر تاریخ‌های بدون داده خوانده نشد (رد نخواهد شد): {e}")
+            return
+        if not isinstance(data, dict):
+            return
+        for day, counts in data.items():
+            if not (isinstance(counts, list) and len(counts) == 2):
+                continue
+            if not all(isinstance(x, int) and x >= 0 for x in counts):
+                continue
+            current = _NO_DATA.get(str(day), [0, 0])
+            _NO_DATA[str(day)] = [max(current[0], counts[0]), max(current[1], counts[1])]
+
+
+def _save_no_data_ledger():
+    tmp = f"{MARKET_NO_DATA_FILE}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_NO_DATA, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, MARKET_NO_DATA_FILE)
+    except OSError as e:
+        logging.warning(f"ذخیره دفتر تاریخ‌های بدون داده ناموفق: {e}")
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _record_date_status(date_str, has_data):
+    """ثبت نتیجه یک (نماد، تاریخ) در دفتر مشترک."""
+    if not date_str:
+        return
+    with _NO_DATA_LOCK:
+        entry = _NO_DATA.setdefault(date_str, [0, 0])
+        entry[1 if has_data else 0] += 1
+        _save_no_data_ledger()
+
+
+def _is_market_no_data(date_str):
+    """تاریخ برای بازار «بدون داده» است؟ فقط وقتی هیچ نمادی داده نداشته باشد."""
+    with _NO_DATA_LOCK:
+        entry = _NO_DATA.get(date_str)
+        if not entry:
+            return False
+        return entry[1] == 0 and entry[0] >= MARKET_NO_DATA_THRESHOLD
 
 
 def is_market_closed(jd) -> bool:
@@ -570,11 +648,24 @@ def _as_int(value, default=0):
         return default
 
 
-def _as_float(value, default=0.0):
+def _to_int(value):
+    """تبدیل سخت‌گیرانه؛ مقدار نامعتبر ⇒ None (نه صفر)."""
     try:
-        return float(str(value).replace(",", "").strip())
-    except (TypeError, ValueError):
-        return default
+        text = str(value).replace(",", "").strip()
+        if not text:
+            return None
+        number = float(text)
+        return int(number) if number.is_integer() else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _to_float(value):
+    try:
+        text = str(value).replace(",", "").strip()
+        return float(text) if text else None
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _as_bool(value):
@@ -584,7 +675,7 @@ def _as_bool(value):
 
 
 def _extract_trade_rows(data):
-    """تبدیل پاسخ Transaction.php به لیست ردیف‌های تراکنش (حالت تخت یا پاکت تودرتو)"""
+    """ردیف‌های معتبر تراکنش؛ ردیف با فیلد کلیدی نامعتبر ⇒ ValueError (بدون صفرسازی)."""
     if isinstance(data, dict):
         inner = data.get("data")
         if isinstance(inner, dict) and isinstance(inner.get("transaction"), list):
@@ -594,15 +685,25 @@ def _extract_trade_rows(data):
     if not isinstance(data, list):
         return []
     rows = []
-    for item in data:
+    for index, item in enumerate(data):
         if not isinstance(item, dict):
             continue
+        seq_no = _to_int(item.get("row") if item.get("row") is not None else item.get("id"))
+        volume = _to_int(item.get("volume") if item.get("volume") is not None else item.get("qTitTran"))
+        price = _to_float(item.get("price") if item.get("price") is not None else item.get("pTran"))
+        if seq_no is None or volume is None or price is None:
+            raise ValueError(
+                f"ردیف {index} نامعتبر است "
+                f"(row={item.get('row')!r}, volume={item.get('volume')!r}, price={item.get('price')!r})"
+            )
         rows.append({
-            "seq_no": _as_int(item.get("row") if item.get("row") is not None else item.get("id")),
+            "seq_no": seq_no,
             "time": str(item.get("time") or item.get("hEven") or ""),
-            "volume": _as_int(item.get("volume") if item.get("volume") is not None else item.get("qTitTran")),
-            "price": _as_float(item.get("price") if item.get("price") is not None else item.get("pTran")),
-            "is_canceled": 1 if _as_bool(item.get("canceled") if item.get("canceled") is not None else item.get("cCanceled")) else 0,
+            "volume": volume,
+            "price": price,
+            "is_canceled": 1 if _as_bool(
+                item.get("canceled") if item.get("canceled") is not None else item.get("cCanceled")
+            ) else 0,
         })
     return rows
 
@@ -634,10 +735,34 @@ def _pg_conn():
 
 def _pg_columns(cur):
     cur.execute(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = %s",
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = %s",
         (TRADES_TABLE,),
     )
     return {r[0] for r in cur.fetchall()}
+
+
+def _has_unique_trade_index(cur):
+    """آیا ایندکس یکتای دقیقاً روی (symbol, trade_date, row) وجود دارد؟"""
+    cur.execute(
+        """
+        SELECT 1
+        FROM pg_index i
+        JOIN pg_class t ON t.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = current_schema()
+          AND t.relname = %s
+          AND i.indisunique
+          AND (
+              SELECT array_agg(a.attname::text ORDER BY k.ord)
+              FROM unnest(i.indkey::smallint[]) WITH ORDINALITY AS k(attnum, ord)
+              JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+              WHERE k.ord <= i.indnkeyatts
+          ) = ARRAY['symbol', 'trade_date', 'row']
+        """,
+        (TRADES_TABLE,),
+    )
+    return cur.fetchone() is not None
 
 
 def _shamsi_to_gregorian(date_str):
@@ -657,21 +782,29 @@ def _shamsi_to_utc(date_str):
     return datetime(gregorian.year, gregorian.month, gregorian.day, tzinfo=UTC)
 
 
+def _tehran_today_jalali():
+    return jdatetime.date.fromgregorian(date=datetime.now(TEHRAN_TZ).date())
+
+
 def _parse_jalali(value):
     y, m, d = map(int, str(value).split("-"))
     return jdatetime.date(y, m, d)
 
 
-def _insert_sql(cols):
+def _insert_sql(cols, has_unique=False):
     """ستون‌های INSERT از اسکیمای واقعی جدول ساخته می‌شود تا drift جدول را نشکند."""
     missing = [c for c in REQUIRED_TRADE_COLUMNS if c not in cols]
     if missing:
         raise RuntimeError(f"ستون‌های لازم در {TRADES_TABLE} نیست: {', '.join(missing)}")
     optional = [c for c in OPTIONAL_TRADE_COLUMNS if c in cols]
     names = ['symbol', '"row"', 'time', 'volume', 'price', 'canceled', 'trade_date', *optional]
+    conflict = (
+        'ON CONFLICT (symbol, trade_date, "row") DO NOTHING'
+        if has_unique
+        else "ON CONFLICT DO NOTHING"
+    )
     return (
-        f"INSERT INTO {TRADES_TABLE} ({', '.join(names)}) VALUES %s "
-        "ON CONFLICT DO NOTHING RETURNING 1",
+        f"INSERT INTO {TRADES_TABLE} ({', '.join(names)}) VALUES %s {conflict} RETURNING 1",
         tuple(optional),
     )
 
@@ -726,7 +859,8 @@ def _insert_trades(symbol, date_str, rows, ins_map):
     try:
         with conn.cursor() as cur:
             if _PG_INSERT_SQL is None:
-                _PG_INSERT_SQL = _insert_sql(_pg_columns(cur))
+                has_unique = _has_unique_trade_index(cur)
+                _PG_INSERT_SQL = _insert_sql(_pg_columns(cur), has_unique)
 
             sql, optional = _PG_INSERT_SQL
             cur.execute(
@@ -774,7 +908,7 @@ def _insert_trades(symbol, date_str, rows, ins_map):
 
 
 def _check_pg():
-    """بررسی زودهنگام (fail-fast) اتصال و اسکیمای جدول ریز معاملات"""
+    """بررسی زودهنگام (fail-fast) اتصال، اسکیما و ایندکس یکتای ریز معاملات"""
     try:
         conn = psycopg2.connect(**PG_CONFIG)
     except Exception as e:
@@ -783,32 +917,39 @@ def _check_pg():
         conn.autocommit = True
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM " + TRADES_TABLE + " LIMIT 1")
-            _insert_sql(_pg_columns(cur))
+            has_unique = _has_unique_trade_index(cur)
+            _insert_sql(_pg_columns(cur), has_unique)
+            has_unique = _has_unique_trade_index(cur)
     except Exception as e:
         raise RuntimeError(f"جدول {TRADES_TABLE} در {_pg_target()} آماده نیست: {e}")
     finally:
         conn.close()
 
     logging.info(f"مقصد ذخیره ریز معاملات: {_pg_target()} :: {TRADES_TABLE}")
-    logging.info(
-        "یادآوری: یکتایی (symbol, trade_date, row) به ایندکس یکتای جدول وابسته است؛ "
-        "بدون آن درج هم‌زمان می‌تواند ردیف تکراری بسازد."
-    )
+    if has_unique:
+        logging.info("ایندکس یکتا روی (symbol, trade_date, row) موجود است؛ ON CONFLICT فعال است.")
+    else:
+        logging.warning(
+            "ایندکس یکتا روی (symbol, trade_date, row) وجود ندارد؛ "
+            "حفاظت از تکرار فقط درون‌پروسه‌ای است و اجرای هم‌زمان می‌تواند ردیف تکراری بسازد."
+        )
 
 
 # ============================ دانلودر ============================
 class SmartCollector:
-    def __init__(self, symbols, limiter, start_date=None, end_date=None,
-                 db_resume=False, run_limit=None):
+    def __init__(self, symbols, limiter, start_date=None, end_date=None, db_resume=False,
+                 market_skip=True):
         self.symbols = symbols
         self.skipped_closed = 0   # تعداد روزهای تعطیلی که بدون ریکوئست رد شدند
+        self.skipped_no_data = 0  # تعداد (نماد، تاریخ)هایی که دفتر مشترک رد کرد
+        self.data_errors = 0      # تعداد (نماد، تاریخ)هایی که داده نامعتبر داشتند
         self.limiter = limiter
         self.stop_event = threading.Event()
         self._http_local = threading.local()
         self.start_date = start_date or _parse_jalali(START_DATE_SHAMSI)
-        self.end_date = end_date or jdatetime.date.today()
+        self.end_date = end_date or _tehran_today_jalali()
         self.db_resume = db_resume
-        self.run_limit = run_limit
+        self.market_skip = market_skip
         os.makedirs(DATA_DIR, exist_ok=True)
         self.ins_map = _load_ins_id_map(symbols)
         if self.ins_map:
@@ -834,6 +975,8 @@ class SmartCollector:
         resp = None
         count_or_reason = 0
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            if self.stop_event.is_set():
+                return "API_STOP"
             try:
                 allowed, count_or_reason = self.limiter.acquire_slot()
             except Exception as e:
@@ -843,6 +986,8 @@ class SmartCollector:
             if not allowed:
                 if count_or_reason in ("DAILY_LIMIT_EXCEEDED", "ROLLING_LIMIT_EXCEEDED"):
                     return "DAILY_STOP"
+                if count_or_reason == "RUN_BUDGET_EXCEEDED":
+                    return "RUN_STOP"
                 logging.error(f"سهمیه متوقف شد: {count_or_reason}")
                 return "API_STOP"
             if self.stop_event.is_set():
@@ -882,11 +1027,6 @@ class SmartCollector:
             if resp.status_code == 403:
                 break
 
-            if resp.status_code == 424 and attempt < MAX_ATTEMPTS:
-                # منبع برای این (نماد، تاریخ) داده ندارد؛ یک تلاش دوباره قبل از ثبت خالی
-                time.sleep(2 ** attempt)
-                continue
-
             if resp.status_code in TRANSIENT_HTTP and attempt < MAX_ATTEMPTS:
                 time.sleep(2 ** attempt)
                 continue
@@ -910,6 +1050,7 @@ class SmartCollector:
 
         if resp.status_code == 424:
             # منبع برای این (نماد، تاریخ) ریز معامله‌ای ندارد (نماد در آن روز معامله نشده)
+            _record_date_status(date_str, has_data=False)
             _write_json_atomic(out_path, {"status": "no_data", "http": 424, "symbol": symbol, "date": date_str})
             logging.info(f"بدون داده (424): {symbol} | {date_str}")
             return "EMPTY"
@@ -924,7 +1065,14 @@ class SmartCollector:
             if isinstance(_err, dict) and isinstance(_err.get("message_error"), str):
                 _msg = _err["message_error"].lower()
                 detail = _err["message_error"][:160]
-                if "holiday" in _msg or "weekend" in _msg or "تعطیل" in _msg:
+                # فقط پیام صریح تعطیلی سراسری بازار؛ «تعطیل» تنها کافی نیست
+                market_wide = (
+                    "falls on a weekend" in _msg
+                    or "weekend" in _msg
+                    or "holiday" in _msg
+                    or ("تعطیل" in _msg and ("بازار" in _msg or "بورس" in _msg))
+                )
+                if market_wide:
                     # این تاریخ برای کل بازار تعطیل است ⇒ برای نمادهای بعدی بدون ریکوئست رد شود
                     _mark_holiday(date_str)
                     _write_json_atomic(out_path, [])
@@ -959,13 +1107,21 @@ class SmartCollector:
             logging.error(f"پاکت ناشناخته برای {symbol} در {date_str}; دانلودگر متوقف شد.")
             return "API_STOP"
         if isinstance(inner, dict) and not inner.get("transaction"):
+            _record_date_status(date_str, has_data=False)
             _write_json_atomic(out_path, data)
             logging.info(f"بدون تراکنش: {symbol} | {date_str}")
             return "EMPTY"
 
-        rows = _extract_trade_rows(data)
+        try:
+            rows = _extract_trade_rows(data)
+        except ValueError as e:
+            self.data_errors += 1
+            logging.error(f"داده نامعتبر ({symbol} | {date_str}): {e}; بدون درج و بدون marker رها شد.")
+            return "DATA_ERROR"
+
         inserted = skipped = 0
         if rows:
+            _record_date_status(date_str, has_data=True)
             try:
                 inserted, skipped = _insert_trades(symbol, date_str, rows, self.ins_map)
             except Exception as e:
@@ -975,6 +1131,8 @@ class SmartCollector:
                     f"{type(e).__name__}: {e}; دانلودگر متوقف شد."
                 )
                 return "API_STOP"
+        else:
+            _record_date_status(date_str, has_data=False)
 
         try:
             _write_json_atomic(out_path, data)
@@ -1000,6 +1158,7 @@ class SmartCollector:
         today = self.end_date
 
         for sym in self.symbols:
+            _load_no_data_ledger()   # هم‌ترازی با پروسه‌های دیگر
             # جلوگیری مجدد از کاراکترهای غیرمجاز در نام فولدر ویندوز
             safe_sym = re.sub(r'[\\/*?:"<>|]', "", sym).strip()
             if not safe_sym:
@@ -1024,7 +1183,9 @@ class SmartCollector:
                     continue
 
                 date_str = curr.strftime("%Y-%m-%d")
-                if date_str not in existing:
+                if self.market_skip and _is_market_no_data(date_str):
+                    self.skipped_no_data += 1
+                elif date_str not in existing:
                     yield (sym, date_str, os.path.join(sym_dir, f"{date_str}.json"))
 
                 curr += timedelta(days=1)
@@ -1033,25 +1194,28 @@ class SmartCollector:
         logging.info(
             f"آماده‌سازی صف کارها: {len(self.symbols)} نماد | "
             f"{self.start_date.strftime('%Y-%m-%d')} تا {self.end_date.strftime('%Y-%m-%d')} | "
-            f"db_resume={self.db_resume} | run_limit={self.run_limit or 'بدون سقف جدا'}"
+            f"db_resume={self.db_resume} | run_budget={self.limiter.run_budget or 'نامحدود (تا سقف روزانه)'}"
         )
         max_pending = MAX_WORKERS * 8   # پنجره محدود ⇒ حافظه ثابت و شروع فوری دانلود
         queued = 0
         daily_stop = False
         api_stop = False
-        run_capped = False
+        run_stop = False
 
         def _classify(futures):
-            nonlocal daily_stop, api_stop
+            nonlocal daily_stop, api_stop, run_stop
             for future in futures:
                 try:
                     result = future.result()
                 except Exception as e:
                     logging.error(f"خطای اجرای تسک: {type(e).__name__}: {e}")
                     api_stop = True
+                    self.stop_event.set()
                     continue
                 if result == "DAILY_STOP":
                     daily_stop = True
+                elif result == "RUN_STOP":
+                    run_stop = True
                 elif result == "API_STOP":
                     api_stop = True
                     self.stop_event.set()
@@ -1063,21 +1227,21 @@ class SmartCollector:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             pending = set()
             for task in self._iter_tasks():
-                if self.run_limit is not None and queued >= self.run_limit:
-                    run_capped = True
-                    break
                 pending.add(executor.submit(self.fetch_transaction, task))
                 queued += 1
                 if len(pending) < max_pending:
                     continue
                 done, pending = wait(pending, return_when=FIRST_COMPLETED)
                 _classify(done)
-                if daily_stop or api_stop:
+                if daily_stop or api_stop or run_stop:
                     break
 
-            if daily_stop or api_stop or run_capped:
-                if run_capped and not (daily_stop or api_stop):
-                    _finish(f"سقف این اجرا ({self.run_limit} درخواست) تکمیل شد.", logging.INFO)
+            if daily_stop or api_stop or run_stop:
+                if run_stop and not (daily_stop or api_stop):
+                    _finish(
+                        f"بودجه درخواست این اجرا ({self.limiter.run_budget}) تکمیل شد.",
+                        logging.INFO,
+                    )
                 elif daily_stop:
                     _finish("سقف ۱۰,۰۰۰ درخواست (روزانه/۲۴ ساعته) پر شد. کار تا آزادشدن ظرفیت متوقف می‌شود.", logging.INFO)
                 else:
@@ -1093,9 +1257,16 @@ class SmartCollector:
             if daily_stop:
                 _finish("سقف ۱۰,۰۰۰ درخواست (روزانه/۲۴ ساعته) پر شد. کار تا آزادشدن ظرفیت متوقف می‌شود.", logging.INFO)
                 return
+            if run_stop:
+                _finish(
+                    f"بودجه درخواست این اجرا ({self.limiter.run_budget}) تکمیل شد.",
+                    logging.INFO,
+                )
+                return
 
         logging.info(
-            f"صف تسک‌ها تمام شد (ارسال‌شده: {queued} | روز تعطیل رد‌شده: {self.skipped_closed})."
+            f"صف تسک‌ها تمام شد (ارسال‌شده: {queued} | روز تعطیل رد‌شده: {self.skipped_closed} | "
+            f"تاریخ بدون‌داده رد‌شده: {self.skipped_no_data} | داده نامعتبر: {self.data_errors})."
         )
 
 
@@ -1113,13 +1284,15 @@ if __name__ == "__main__":
     parser.add_argument("--end", type=_jalali_arg, default=None, help="تاریخ پایان شمسی (پیش‌فرض: امروز)")
     parser.add_argument("--db-resume", action="store_true",
                         help="تاریخ‌هایی که از قبل در جدول ریز معاملات هستند دوباره دانلود نشوند")
+    parser.add_argument("--no-market-skip", action="store_true",
+                        help="رد کردن تاریخ‌های «بدون داده در کل بازار» را غیرفعال کن")
     parser.add_argument("--max-requests", type=int, default=None,
-                        help=f"سقف درخواست این اجرا (حداکثر {DAILY_LIMIT})")
+                        help=f"بودجه کل درخواست HTTP این اجرا شامل retryها (حداکثر {DAILY_LIMIT})")
     args = parser.parse_args()
 
     try:
-        run_limit = min(args.max_requests, DAILY_LIMIT) if args.max_requests else None
-        if run_limit is not None and run_limit < 1:
+        run_budget = min(args.max_requests, DAILY_LIMIT) if args.max_requests else None
+        if run_budget is not None and run_budget < 1:
             raise ValueError("--max-requests باید حداقل ۱ باشد.")
 
         # اگر فایل کش قدیمی وجود دارد حذف شود تا دیتای خراب پاک شود
@@ -1133,8 +1306,9 @@ if __name__ == "__main__":
                 pass
 
         _load_holidays()   # تقویم تعطیلات یادگرفته‌شده از اجراهای قبلی
+        _load_no_data_ledger()   # دفتر تاریخ‌های بدون داده از اجراهای قبلی
         _check_pg()        # fail-fast پیش از مصرف سهمیه
-        limiter = RateLimiter()
+        limiter = RateLimiter(run_budget=run_budget)
         if args.symbols:
             symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
         else:
@@ -1145,7 +1319,7 @@ if __name__ == "__main__":
             start_date=args.start,
             end_date=args.end,
             db_resume=args.db_resume,
-            run_limit=run_limit,
+            market_skip=not args.no_market_skip,
         )
         collector.run()
     except (RuntimeError, ValueError) as e:

@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 
 import pytest
 
@@ -27,8 +28,46 @@ import z  # noqa: E402
 def quota(tmp_path, monkeypatch):
     monkeypatch.setattr(z, "STATE_FILE", str(tmp_path / "crawler_state.json"))
     monkeypatch.setattr(z, "QUOTA_JOURNAL", str(tmp_path / "crawler_quota.jsonl"))
+    monkeypatch.setattr(z, "HOLIDAYS_FILE", str(tmp_path / "market_holidays.json"))
+    monkeypatch.setattr(z, "MARKET_NO_DATA_FILE", str(tmp_path / "market_no_data.json"))
+    monkeypatch.setattr(z, "DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(z, "MIN_DELAY_PER_REQ", 0.0)
-    return tmp_path
+    z._HOLIDAYS.clear()
+    z._NO_DATA.clear()
+    yield tmp_path
+    z._HOLIDAYS.clear()
+    z._NO_DATA.clear()
+
+
+class FakeResponse:
+    def __init__(self, status, payload=None):
+        self.status_code = status
+        self._payload = payload
+        self.text = ""
+
+    def json(self):
+        if isinstance(self._payload, Exception):
+            raise self._payload
+        return self._payload
+
+
+class FakeSession:
+    def __init__(self, response):
+        self._response = response
+
+    def get(self, *args, **kwargs):
+        return self._response
+
+
+def make_collector(limiter, response):
+    collector = object.__new__(z.SmartCollector)
+    collector.limiter = limiter
+    collector.stop_event = threading.Event()
+    collector._http_local = threading.local()
+    collector.ins_map = {}
+    collector.data_errors = 0
+    collector._session = lambda: FakeSession(response)
+    return collector
 
 
 def make_limiter(limit, **kwargs):
@@ -192,24 +231,8 @@ def test_ten_thousand_requests_then_hard_stop(quota, monkeypatch):
 
 
 def test_retries_consume_quota(quota, monkeypatch):
-    class Response:
-        status_code = 500
-        text = ""
-
-        def json(self):
-            raise ValueError("not json")
-
-    class Session:
-        def get(self, *args, **kwargs):
-            return Response()
-
     monkeypatch.setattr(z.time, "sleep", lambda _seconds: None)
-    collector = object.__new__(z.SmartCollector)
-    collector.limiter = make_limiter(100)
-    collector.stop_event = threading.Event()
-    collector._http_local = threading.local()
-    collector.ins_map = {}
-    collector._session = lambda: Session()
+    collector = make_collector(make_limiter(100), FakeResponse(500, ValueError("not json")))
 
     result = collector.fetch_transaction(("X", "1403-01-01", str(quota / "x.json")))
 
@@ -217,26 +240,143 @@ def test_retries_consume_quota(quota, monkeypatch):
     assert read_state()["requests_today"] == z.MAX_ATTEMPTS
 
 
-def test_http_424_is_no_data(quota, monkeypatch):
-    class Response:
-        status_code = 424
-        text = ""
-
-    class Session:
-        def get(self, *args, **kwargs):
-            return Response()
-
-    monkeypatch.setattr(z.time, "sleep", lambda _seconds: None)
-    collector = object.__new__(z.SmartCollector)
-    collector.limiter = make_limiter(100)
-    collector.stop_event = threading.Event()
-    collector._http_local = threading.local()
-    collector.ins_map = {}
-    collector._session = lambda: Session()
+def test_http_424_is_no_data_single_request(quota):
+    collector = make_collector(make_limiter(100), FakeResponse(424, {"status": "dependency_failed"}))
 
     out = quota / "1402-07-05.json"
     result = collector.fetch_transaction(("X", "1402-07-05", str(out)))
 
     assert result == "EMPTY"
     assert out.exists()
-    assert read_state()["requests_today"] == z.MAX_ATTEMPTS
+    assert read_state()["requests_today"] == 1
+    with open(z.MARKET_NO_DATA_FILE, encoding="utf-8") as f:
+        assert json.load(f) == {"1402-07-05": [1, 0]}
+
+
+def test_invalid_rows_are_rejected_not_zeroed(quota):
+    for bad in (
+        {"row": None, "volume": "10", "price": "100"},
+        {"row": "abc", "volume": "10", "price": "100"},
+        {"row": "1", "volume": None, "price": "100"},
+        {"row": "1", "volume": "10", "price": "xyz"},
+    ):
+        with pytest.raises(ValueError):
+            z._extract_trade_rows([bad])
+
+    rows = z._extract_trade_rows(
+        [{"row": "1234.0", "volume": "1,200", "price": "10.5", "canceled": "0"}]
+    )
+    assert rows == [
+        {"seq_no": 1234, "time": "", "volume": 1200, "price": 10.5, "is_canceled": 0}
+    ]
+
+
+def test_invalid_payload_fails_task_without_marker(quota):
+    payload = [{"row": None, "volume": "1", "price": "2"}]
+    collector = make_collector(make_limiter(10), FakeResponse(200, payload))
+    out = quota / "bad.json"
+
+    assert collector.fetch_transaction(("X", "1405-01-11", str(out))) == "DATA_ERROR"
+    assert not out.exists()
+    assert collector.data_errors == 1
+
+
+def test_run_budget_counts_http_slots(quota):
+    limiter = make_limiter(100, run_budget=5)
+
+    assert sum(attempts(limiter, 10)) == 5
+    assert limiter.acquire_slot() == (False, "RUN_BUDGET_EXCEEDED")
+    assert read_state()["requests_today"] == 5
+
+
+def test_run_budget_limits_retries(quota, monkeypatch):
+    monkeypatch.setattr(z.time, "sleep", lambda _seconds: None)
+    collector = make_collector(
+        make_limiter(100, run_budget=1), FakeResponse(500, ValueError("not json"))
+    )
+
+    result = collector.fetch_transaction(("X", "1403-01-01", str(quota / "c.json")))
+
+    assert result == "RUN_STOP"
+    assert read_state()["requests_today"] == 1
+
+
+def test_quota_day_uses_tehran_timezone(quota):
+    late_utc = datetime(2026, 10, 30, 22, 0, tzinfo=UTC).timestamp()
+    assert z.RateLimiter._today(late_utc) == "2026-10-31"
+
+
+def test_generic_closed_message_does_not_blacklist_date(quota):
+    collector = make_collector(
+        make_limiter(10), FakeResponse(400, {"message_error": "این نماد تعطیل است"})
+    )
+
+    result = collector.fetch_transaction(("X", "1405-01-10", str(quota / "a.json")))
+
+    assert result == "API_STOP"
+    assert "1405-01-10" not in z._HOLIDAYS
+
+
+def test_explicit_weekend_marks_market_holiday(quota):
+    message = "The 'date' value falls on a weekend (Thursday). It is considered a holiday."
+    collector = make_collector(make_limiter(10), FakeResponse(400, {"message_error": message}))
+
+    result = collector.fetch_transaction(("X", "1405-01-10", str(quota / "b.json")))
+
+    assert result == "EMPTY"
+    assert "1405-01-10" in z._HOLIDAYS
+
+
+def test_market_no_data_cancelled_by_real_data(quota):
+    day = "1403-05-01"
+    for _ in range(z.MARKET_NO_DATA_THRESHOLD):
+        z._record_date_status(day, has_data=False)
+    assert z._is_market_no_data(day)
+
+    z._record_date_status(day, has_data=True)
+    assert not z._is_market_no_data(day)
+
+
+def test_market_no_data_date_is_skipped_in_tasks(quota):
+    day = z._parse_jalali("1403-05-01")
+    assert not z.is_market_closed(day)
+    date_str = day.strftime("%Y-%m-%d")
+    for _ in range(z.MARKET_NO_DATA_THRESHOLD):
+        z._record_date_status(date_str, has_data=False)
+
+    collector = object.__new__(z.SmartCollector)
+    collector.symbols = ["X"]
+    collector.skipped_closed = 0
+    collector.skipped_no_data = 0
+    collector.start_date = day
+    collector.end_date = day
+    collector.db_resume = False
+    collector.market_skip = True
+    assert list(collector._iter_tasks()) == []
+    assert collector.skipped_no_data == 1
+
+    collector.market_skip = False
+    collector.skipped_no_data = 0
+    assert len(list(collector._iter_tasks())) == 1
+
+
+def test_rows_record_data_status(quota, monkeypatch):
+    monkeypatch.setattr(z, "_insert_trades", lambda symbol, date, rows, ins_map: (len(rows), 0))
+    payload = [{"row": "1", "volume": "10", "price": "100"}]
+    collector = make_collector(make_limiter(10), FakeResponse(200, payload))
+
+    assert collector.fetch_transaction(("X", "1403-05-02", str(quota / "ok.json"))) == "OK"
+
+    with open(z.MARKET_NO_DATA_FILE, encoding="utf-8") as f:
+        assert json.load(f) == {"1403-05-02": [0, 1]}
+
+
+def test_insert_sql_uses_explicit_conflict_target(quota):
+    cols = {"symbol", "row", "time", "volume", "price", "canceled", "trade_date"}
+
+    sql_unique, _ = z._insert_sql(cols, has_unique=True)
+    assert 'ON CONFLICT (symbol, trade_date, "row") DO NOTHING' in sql_unique
+
+    sql_plain, _ = z._insert_sql(cols, has_unique=False)
+    assert "ON CONFLICT DO NOTHING" in sql_plain
+    assert "(symbol, trade_date" not in sql_plain
