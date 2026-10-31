@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [online, setOnline] = useState(true);
@@ -10,6 +10,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [staleRefused, setStaleRefused] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<{ prompt: () => Promise<unknown>; userChoice: Promise<{ outcome: string }> } | null>(null);
   const [showInstall, setShowInstall] = useState(false);
+  const swRegisteredRef = useRef(false);
 
   useEffect(() => {
     // ── Online/Offline status ──
@@ -32,7 +33,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     navigator.serviceWorker?.addEventListener("message", onSWMessage);
 
     // ── Service Worker registration ──
-    if ("serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator && !swRegisteredRef.current) {
+      swRegisteredRef.current = true;
       navigator.serviceWorker
         .register("/golddesk-sw.js", { scope: "/gold" })
         .then(() => {

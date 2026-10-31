@@ -50,7 +50,6 @@ self.addEventListener("install", (event) => {
       // ignore errors for not-yet-cached pages
     }))
   );
-  self.skipWaiting();
 });
 
 // ── Activate: clean old caches ───────────────────────────
@@ -64,7 +63,6 @@ self.addEventListener("activate", (event) => {
       )
     )
   );
-  self.clients.claim();
 });
 
 // ── Fetch ────────────────────────────────────────────────

@@ -8,9 +8,12 @@ import { AUTH_STATE_CLEARED_EVENT } from "@/lib/api";
 
 /** Register the service worker after hydration (replaces the old inline script). */
 function useServiceWorker() {
+  let registered = false;
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       const onLoad = () => {
+        if (registered) return;
+        registered = true;
         navigator.serviceWorker
           .register("/sw.js")
           .then((registration) => {
