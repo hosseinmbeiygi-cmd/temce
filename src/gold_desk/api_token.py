@@ -92,6 +92,12 @@ async def save_token(plain: str, info: TokenInfo) -> None:
             info_to_dict(info),
             ttl=None,
         )
+        # اندیس برای list_tokens
+        index_key = f"{STORAGE_KEY}:index"
+        index = await cache.get(index_key) or []
+        if info.token_id not in index:
+            index.append(info.token_id)
+            await cache.set(index_key, index, ttl=None)
     except Exception as exc:
         logger.warning("save_token failed: %s", exc)
 
@@ -109,6 +115,12 @@ async def verify_token(token: str) -> TokenInfo | None:
         info = dict_to_info(data)
         if not info.enabled:
             return None
+        # Revocation도 registrado در meta: اگر meta غیرفعال است، توکن معتبر نیست.
+        meta = await cache.get(f"{STORAGE_KEY}:meta:{info.token_id}")
+        if meta:
+            meta_info = dict_to_info(meta)
+            if not meta_info.enabled:
+                return None
         # update last_used (best effort)
         info_dict = info_to_dict(info)
         info_dict["last_used_at"] = utc_now_naive().isoformat()

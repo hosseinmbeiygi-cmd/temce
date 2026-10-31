@@ -577,10 +577,15 @@ async def record_trade(
 ) -> GoldTradeModel:
     fee_irt = amount_irt * (fee_pct / 100.0)
     pnl = 0.0
-    # هر معامله‌ای که holding_id دارد باید به یک دارایی موجود و حذف‌نشده اشاره کند؛
-    # قبلاً id نامعتبر/حذف‌شده بی‌صدا با pnl صفر ثبت می‌شد.
+    # هر معامله‌ای که holding_id دارد باید به یک دارایی موجود و حذف‌نشده اشاره کند.
     holding = await get_active_holding(session, holding_id) if holding_id else None
     if action == "sell" and holding is not None:
+        if quantity > holding.quantity + 1e-9:
+            raise ValueError(
+                f"فروش {quantity} واحد از '{symbol}' بیش از موجودی {holding.quantity} واحد است"
+            )
+        holding.quantity -= quantity
+        session.add(holding)
         pnl = (price - holding.buy_price) * quantity
     trade = GoldTradeModel(
         symbol=symbol,
