@@ -1,0 +1,10 @@
+FATAL locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: 'هوش مصنوعی', exact: true }).visible().first()[22m
+
+    at C:\Users\Iran\Desktop\temce\audit_out\_tmp\silver_ml_filter.js:25:105 {
+  log: [
+    "  - waiting for getByRole('button', { name: 'هوش مصنوعی', exact: true }).visible().first()"
+  ],
+  name: 'TimeoutError'
+}

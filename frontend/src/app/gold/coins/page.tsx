@@ -146,7 +146,11 @@ function CoinsTable({ rows }: { rows: AssetBlock[] }) {
 function CoinsSummary({ snap }: { snap: Snapshot }) {
   const coins = Object.values(snap.coins);
   const n = coins.length;
-  const avgBubble = n > 0 ? coins.reduce((s, c) => s + (c.bubble_pct ?? 0), 0) / n : 0;
+  const bubbles = coins
+    .map((c) => c.bubble_pct)
+    .filter((v): v is number => v !== null && Number.isFinite(v));
+  // Missing bubbles are ignored, not treated as zero.
+  const avgBubble = bubbles.length > 0 ? bubbles.reduce((sum, v) => sum + v, 0) / bubbles.length : null;
   const healthy = coins.filter((c) => c.bubble_pct !== null && c.bubble_pct < 5).length;
   const overheated = coins.filter((c) => c.bubble_pct !== null && c.bubble_pct >= 22).length;
   return (
@@ -156,7 +160,7 @@ function CoinsSummary({ snap }: { snap: Snapshot }) {
         icon={Sparkles}
         label="میانگین حباب"
         value={fmtPct(avgBubble)}
-        tone={avgBubble < 5 ? "good" : avgBubble < 12 ? "warn" : "bad"}
+        tone={avgBubble === null ? "neutral" : avgBubble < 5 ? "good" : avgBubble < 12 ? "warn" : "bad"}
       />
       <SummaryTile icon={TrendingUp} label="بدون حباب" value={fmt(healthy)} tone="good" />
       <SummaryTile icon={TrendingDown} label="حباب شدید" value={fmt(overheated)} tone={overheated > 0 ? "bad" : "neutral"} />

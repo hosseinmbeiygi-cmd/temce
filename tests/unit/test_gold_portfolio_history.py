@@ -152,6 +152,12 @@ class _ScalarResult:
     def scalar_one_or_none(self):
         return self._row
 
+    def scalars(self):
+        return self
+
+    def first(self):
+        return self._row
+
 
 class _FakeSession:
     def __init__(self, existing=None) -> None:

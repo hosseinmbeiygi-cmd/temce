@@ -38,10 +38,20 @@ def test_real_files_respect_cutoff():
     import json
     import os
 
+    import pytest
+
     from scripts.compare_backtest import aggregate_ticks
 
     checked = fixed = 0
     r = "transactions_data"
+    # Precondition: this test needs tick fixtures on disk. An empty (or absent)
+    # corpus must be reported as skipped, not as a broken cutoff rule.
+    if not os.path.isdir(r) or not any(
+        os.listdir(os.path.join(r, s))
+        for s in os.listdir(r)
+        if os.path.isdir(os.path.join(r, s))
+    ):
+        pytest.skip("transactions_data has no tick fixtures in this checkout")
     for s in os.listdir(r):
         sd = os.path.join(r, s)
         if not os.path.isdir(sd):
@@ -50,7 +60,8 @@ def test_real_files_respect_cutoff():
             if not f.endswith(".json"):
                 continue
             try:
-                ticks = json.load(open(os.path.join(sd, f), encoding="utf-8"))
+                with open(os.path.join(sd, f), encoding="utf-8") as fh:
+                    ticks = json.load(fh)
             except Exception:
                 continue
             if not isinstance(ticks, list) or not ticks:

@@ -8,6 +8,7 @@ from typing import Any
 @dataclass
 class JobResult:
     success: bool
+    skipped: bool = False
     job_name: str = ""
     message: str = ""
     data: dict[str, Any] = field(default_factory=dict)
@@ -33,9 +34,28 @@ class JobResult:
         now = datetime.now(UTC)
         return cls(success=False, job_name=job_name, message="Failed", error=error, started_at=now, completed_at=now)
 
+    @classmethod
+    def skipped_result(cls, job_name: str = "", reason: str = "") -> JobResult:
+        """The job ran its gate and had nothing to do (e.g. market closed).
+
+        This is deliberately distinct from both success and failure: calling
+        it success would fake freshness, and calling it failure would retry
+        and dead-letter work that is simply not due yet.
+        """
+        now = datetime.now(UTC)
+        return cls(
+            success=False,
+            skipped=True,
+            job_name=job_name,
+            message=f"Skipped: {reason}" if reason else "Skipped",
+            started_at=now,
+            completed_at=now,
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
+            "skipped": self.skipped,
             "job_name": self.job_name,
             "message": self.message,
             "data": self.data,

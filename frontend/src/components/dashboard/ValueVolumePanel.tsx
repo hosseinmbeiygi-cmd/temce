@@ -46,8 +46,16 @@ function Top5Table({ rows, market }: { rows: Top5Symbol[]; market: "tse" | "otc"
 }
 
 export default function ValueVolumePanel() {
-  const { data: live, isLive, isError, isLoading } = useMarketOverview();
-  const { data: active, isLive: aIsLive, isError: aIsError, isLoading: aIsLoading } = useActiveSymbols();
+  const { data: live, isLive, hasData, isFresh, isStale, isError, isLoading } = useMarketOverview();
+  const {
+    data: active,
+    isLive: aIsLive,
+    hasData: aHasData,
+    isFresh: aIsFresh,
+    isStale: aIsStale,
+    isError: aIsError,
+    isLoading: aIsLoading,
+  } = useActiveSymbols();
   // No silent mock substitution — deltas need the previous-day baseline which
   // has no live feed yet, so they are rendered as flat when data is absent.
   const tradeValueB = live?.tradeValueB ?? null;
@@ -64,6 +72,9 @@ export default function ValueVolumePanel() {
       <LiveDataBanner
         state={{
           isLive: isLive || aIsLive,
+          hasData: hasData || aHasData,
+          isFresh: isFresh && aIsFresh,
+          isStale: (hasData && isStale) || (aHasData && aIsStale),
           isError: isError || aIsError,
           isLoading: isLoading || aIsLoading,
         }}

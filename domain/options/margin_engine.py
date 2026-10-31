@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from domain.options.entities import DEFAULT_OPTION_CONTRACT_SIZE
+
 
 class LegType(Enum):
     STOCK = "stock"
@@ -39,7 +41,9 @@ class OptionLeg:
     underlying_price: float = 0.0
     days_to_expiry: int = 0
     implied_volatility: float = 0.0
-    contract_size: int = 1
+    # Equity options are quoted per 1,000-share contract (audit FIN-09: the old
+    # default of 1 under-computed margin by three orders of magnitude).
+    contract_size: int = DEFAULT_OPTION_CONTRACT_SIZE
     quantity: int = 1
     underlying_group: str = "default"
 
@@ -172,10 +176,32 @@ class UniversalMarginEngine:
                     stype,
                 )
 
-        # 4. Vertical Spread (2 legs, same type, opposite direction, different strikes)
+        # 4. Vertical Spread (2 legs, same type, same expiry, opposite
+        #    direction, different strikes). A pair with different expiries is a
+        #    DIAGONAL, not a vertical: its legs do not cap each other at one
+        #    expiry, so it must not get the width-based margin of a vertical
+        #    (audit FIN-10).
         if len(options) == 2 and options[0].leg_type == options[1].leg_type:
-            sorted_opts = sorted(options, key=lambda x: x.strike)
-            if sorted_opts[0].direction != sorted_opts[1].direction:
+            same_expiry = options[0].days_to_expiry == options[1].days_to_expiry
+            same_strike = options[0].strike == options[1].strike
+            opposite = options[0].direction != options[1].direction
+
+            if opposite and not same_expiry and not same_strike:
+                # Diagonal: keep full naked margin on the short leg.
+                short_leg = next(
+                    (lg for lg in options if lg.direction == Direction.SHORT), None
+                )
+                if short_leg is not None:
+                    margin = self._naked_short_margin(short_leg)
+                    return MarginResult(
+                        margin,
+                        margin * float(self.config["maintenance_ratio"]),
+                        net_premium,
+                        "diagonal_spread",
+                    )
+
+            if opposite and same_expiry:
+                sorted_opts = sorted(options, key=lambda x: x.strike)
                 short_leg = sorted_opts[0] if sorted_opts[0].direction == Direction.SHORT else sorted_opts[1]
                 long_leg = sorted_opts[1] if sorted_opts[0].direction == Direction.SHORT else sorted_opts[0]
                 spread_width = abs(long_leg.strike - short_leg.strike)

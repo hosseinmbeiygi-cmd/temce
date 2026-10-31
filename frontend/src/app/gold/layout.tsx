@@ -80,7 +80,7 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           {/* Tabs — desktop only */}
-          <nav className="hidden md:flex gap-1 bg-zinc-900/60 border border-zinc-800/60 rounded-lg p-1">
+          <nav className="hidden md:flex flex-nowrap gap-1 overflow-x-auto max-w-[62vw] bg-zinc-900/60 border border-zinc-800/60 rounded-lg p-1">
             {TABS.map((t) => {
               const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
               return (

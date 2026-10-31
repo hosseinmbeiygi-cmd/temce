@@ -340,20 +340,27 @@ class FundApiAdapter:
     async def fetch_nav(self, symbol: str, ins_id: str | None = None) -> dict[str, Any] | None:
         """NAV لحظه‌ای یک صندوق → مدل داخلی استاندارد یا None."""
         from brsapi.config import BrsApiEndpoints
+        from brsapi.parsers.errors import BrsApiParseError
         from brsapi.parsers.tsetmc import TsetmcParser
 
         raw = await self._raw_fetch(BrsApiEndpoints.NAV, {"l18": symbol})
         if raw is None:
             return None
-        parsed = TsetmcParser.parse_nav(raw)
-        if parsed is None:
+        try:
+            parsed = TsetmcParser.parse_nav(raw)
+        except BrsApiParseError as exc:
+            # Unreadable NAV payload → quarantine it instead of storing a
+            # zero-valued snapshot.
             await self.quarantine.quarantine(
                 source_endpoint="Tsetmc/Nav.php",
                 record=raw if isinstance(raw, dict) else {"raw": str(raw)[:500]},
-                reason="NAV payload is not a dict",
+                reason=str(exc),
                 rule="nav_payload_shape",
                 isin=None,
             )
+            return None
+        if parsed is None:
+            # Provider answered without a NAV row — nothing to store.
             return None
         nav_date = normalize_date(parsed.get("date"))
         rec = {
@@ -413,12 +420,17 @@ class FundApiAdapter:
 
     async def fetch_market_quote(self, symbol: str, ins_id: str | None = None) -> dict[str, Any] | None:
         from brsapi.config import BrsApiEndpoints
+        from brsapi.parsers.errors import BrsApiParseError
         from brsapi.parsers.tsetmc import TsetmcParser
 
         raw = await self._raw_fetch(BrsApiEndpoints.SYMBOL_DETAIL, {"l18": symbol})
         if raw is None:
             return None
-        parsed = TsetmcParser.parse_symbol_detail(raw) or {}
+        try:
+            parsed = TsetmcParser.parse_symbol_detail(raw) or {}
+        except BrsApiParseError:
+            logger.warning("Unreadable symbol detail for %s", symbol, exc_info=True)
+            return None
         rec = {
             "symbol": symbol,
             "ins_id": ins_id or "",

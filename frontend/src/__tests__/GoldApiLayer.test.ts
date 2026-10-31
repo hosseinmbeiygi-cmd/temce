@@ -11,7 +11,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const REFRESH_TOKEN = "test-access-token";
+const REFRESH_TOKEN = "fake-test-access-token";
 
 /** پاسخ‌های/scripted را به ازای مسیر برمی‌گرداند. */
 function installFetch(handler: (url: string) => { status: number; body: unknown }) {

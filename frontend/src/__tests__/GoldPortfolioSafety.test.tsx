@@ -203,7 +203,7 @@ describe("trade recording with a fresh holding id", () => {
     await openSellDialog();
 
     fireEvent.change(screen.getByLabelText("تعداد فروش"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("قیمت فروش (تومان)"), { target: { value: "60000000" } });
+    fireEvent.change(screen.getByLabelText("قیمت فروش (ریال)"), { target: { value: "60000000" } });
     fireEvent.click(screen.getByRole("button", { name: "ثبت فروش" }));
 
     await waitFor(() => expect(restApi.apiPost).toHaveBeenCalledTimes(1));
@@ -232,7 +232,7 @@ describe("trade recording with a fresh holding id", () => {
     await waitFor(() => expect(portfolioGetCount()).toBeGreaterThan(1));
 
     fireEvent.change(screen.getByLabelText("تعداد فروش"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("قیمت فروش (تومان)"), { target: { value: "60000000" } });
+    fireEvent.change(screen.getByLabelText("قیمت فروش (ریال)"), { target: { value: "60000000" } });
     fireEvent.click(screen.getByRole("button", { name: "ثبت فروش" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/لیست پورتفو تغییر کرده/);
@@ -246,7 +246,7 @@ describe("trade recording with a fresh holding id", () => {
     await openSellDialog();
     const before = portfolioGetCount();
     fireEvent.change(screen.getByLabelText("تعداد فروش"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("قیمت فروش (تومان)"), { target: { value: "60000000" } });
+    fireEvent.change(screen.getByLabelText("قیمت فروش (ریال)"), { target: { value: "60000000" } });
     fireEvent.click(screen.getByRole("button", { name: "ثبت فروش" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/قبلاً حذف شده/);
@@ -260,7 +260,7 @@ describe("trade recording with a fresh holding id", () => {
     await openSellDialog();
     const before = portfolioGetCount();
     fireEvent.change(screen.getByLabelText("تعداد فروش"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("قیمت فروش (تومان)"), { target: { value: "60000000" } });
+    fireEvent.change(screen.getByLabelText("قیمت فروش (ریال)"), { target: { value: "60000000" } });
     fireEvent.click(screen.getByRole("button", { name: "ثبت فروش" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/دارایی پیدا نشد/);

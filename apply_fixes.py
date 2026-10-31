@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-import sys
 
 # Fix 1: MACD validation
-with open('/c/Users/Iran/Desktop/temce/services/market_service.py', 'r', encoding='utf-8') as f:
+with open('/c/Users/Iran/Desktop/temce/services/market_service.py', encoding='utf-8') as f:
     content = f.read()
 
 # Add MACD validation after slow is set

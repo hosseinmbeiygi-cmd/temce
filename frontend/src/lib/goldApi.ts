@@ -6,6 +6,8 @@
 //   * ``/gold/analytics`` — apps/api/endpoints/gold_analytics.py
 
 import { apiDelete, apiGet, apiPost, apiPut, getStoredAccessToken } from "@/lib/api";
+import { ApiEnvelopeError } from "@/lib/api-envelope";
+import { fetchWsTicket } from "@/lib/wsTicket";
 import type {
   AlertEvent,
   AlertRule,
@@ -130,6 +132,16 @@ function unwrapGoldPayload<T>(payload: unknown, label: string, code: string | nu
 
 function normalizeGoldError(error: unknown, label: string, code: string | null): GoldAPIError {
   if (error instanceof GoldAPIError) return error;
+  // `api.ts` اکنون خودِ پاکت `success:false` را رد می‌کند (بخش ۰۵)، پس خطای
+  // snapshot پیش از رسیدن به `unwrapGoldPayload` پرتاب می‌شود. نگاشت C3 باید
+  // همان کد «داده در دسترس نیست» را بدهد تا UI کد ۵۰۳ را از خطای عمومی جدا کند.
+  if (error instanceof ApiEnvelopeError) {
+    console.warn(`[goldApi] ${label}: backend reported failure`, error.detail ?? error.message);
+    return new GoldAPIError(`${label}: داده در دسترس نیست`, {
+      code: error.code ?? code,
+      detail: error.detail === null || error.detail === undefined ? null : JSON.stringify(error.detail),
+    });
+  }
   const message = error instanceof Error ? error.message : String(error ?? "");
   const status = httpStatusFromMessage(message);
   if (status === 503) {
@@ -397,14 +409,15 @@ export interface GoldWSInfo {
 
 type WSListener = (state: WSState, snap: Snapshot | null, info: GoldWSInfo) => void;
 
-function goldWebSocketUrl(): string | null {
+function goldWebSocketUrl(ticket: string | null): string | null {
   if (typeof window === "undefined") return null;
   const base = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
   const root = base.startsWith("http")
     ? base.replace(/^http/, "ws")
     : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}${base}`;
-  const token = getStoredAccessToken();
-  return `${root.replace(/\/$/, "")}/gold/ws${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  // FE-06: only the single-use ticket belongs in the handshake URL; the
+  // access token must never be exposed to logs/history via the query string.
+  return `${root.replace(/\/$/, "")}/gold/ws${ticket ? `?ticket=${encodeURIComponent(ticket)}` : ""}`;
 }
 
 class GoldWSManager {
@@ -423,6 +436,8 @@ class GoldWSManager {
   private readonly maxRetryDelay = 30_000;
   private reconnectTimer: number | null = null;
   private pingInterval: number | null = null;
+  /** Bumped on every connect(): a slow ticket request must not dial late. */
+  private connectSeq = 0;
 
   private info(): GoldWSInfo {
     return {
@@ -457,9 +472,28 @@ class GoldWSManager {
       return;
     }
 
-    const url = goldWebSocketUrl();
-    if (!url) return;
+    // FE-06: exchange the session for a single-use ticket before dialing; the
+    // access token itself never enters the WebSocket URL.
+    const seq = ++this.connectSeq;
+    void fetchWsTicket()
+      .then((ticket) => {
+        if (seq !== this.connectSeq || this.listeners.size === 0) return;
+        if (!ticket) {
+          this.setState("error");
+          this.scheduleReconnect();
+          return;
+        }
+        const url = goldWebSocketUrl(ticket);
+        if (url) this.dial(url);
+      })
+      .catch(() => {
+        if (seq !== this.connectSeq || this.listeners.size === 0) return;
+        this.setState("error");
+        this.scheduleReconnect();
+      });
+  }
 
+  private dial(url: string) {
     this.setState("connecting");
     const ws = new WebSocket(url);
     this.ws = ws;
@@ -765,8 +799,8 @@ export async function getFuturesPositions(status: string): Promise<FuturesPositi
 
 export async function getFuturesHealth(): Promise<{
   health_ratio: number | null;
-  critical_count: number;
-  warning_count: number;
+  critical_count: number | null;
+  warning_count: number | null;
 }> {
   const r = await apiGet<{
     success: boolean;
@@ -779,9 +813,10 @@ export async function getFuturesHealth(): Promise<{
   const data = r.data;
   return {
     // The API names the portfolio-level figure ``aggregate_health_ratio``.
+    // Missing counts stay null so the UI renders "—" instead of a fabricated 0.
     health_ratio: data?.aggregate_health_ratio ?? null,
-    critical_count: data?.critical_count ?? 0,
-    warning_count: data?.warning_count ?? 0,
+    critical_count: data?.critical_count ?? null,
+    warning_count: data?.warning_count ?? null,
   };
 }
 
@@ -919,6 +954,7 @@ export type ETFNavRow = {
 export async function getETFSnapshot(symbol?: string): Promise<{
   best_opportunity: string | null;
   items: ETFNavRow[];
+  generated_at: string | null;
 }> {
   const r = await apiGet<{
     success: boolean;
@@ -956,6 +992,7 @@ export async function getETFSnapshot(symbol?: string): Promise<{
   return {
     best_opportunity: r.data?.best_opportunity ?? null,
     items: symbol ? items.filter((row) => row.symbol === symbol) : items,
+    generated_at: r.data?.generated_at ?? null,
   };
 }
 

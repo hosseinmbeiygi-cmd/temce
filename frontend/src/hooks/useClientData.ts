@@ -25,7 +25,7 @@ export function useClientData<T>(
 
   useEffect(() => {
     // Intentional mount-only client-side initialization to avoid hydration mismatches.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setData(generator());
   }, []);
 

@@ -9,6 +9,7 @@ from typing import Any, TypeVar, cast
 
 from core.config import settings
 from core.logging import get_logger
+from core.security.redaction import redact_redis_url
 
 logger = get_logger(__name__)
 
@@ -103,7 +104,7 @@ class CacheService:
             self._redis = client
             self._loop = asyncio.get_running_loop()
             self._unavailable_until = 0.0
-            logger.info("Connected to Redis at %s", self._redis_url)
+            logger.info("Connected to Redis at %s", redact_redis_url(self._redis_url))
             return
 
         logger.warning("Redis unavailable, using null cache: %s", last_exc)

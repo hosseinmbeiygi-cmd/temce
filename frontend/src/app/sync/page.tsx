@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
+import ParseErrorCodeBadge from "@/components/ParseErrorCodeBadge";
 import { apiGet, apiPost } from "@/lib/api";
 import { applyCustomThresholds } from "@/lib/sync-settings";
 import { useSyncSettings } from "@/hooks/useSyncSettings";
@@ -34,6 +35,8 @@ interface SyncLogEntry {
   endpoint: string;
   category: string;
   status: string;
+  outcome?: string;
+  error_message?: string | null;
   items_count: number;
   duration_ms: number;
   completed_at: string | null;
@@ -561,8 +564,18 @@ export default function SyncStatusPage() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0 text-[10px]">
                     <span className="text-surface-500">{ev.category}</span>
-                    <span className={`font-bold ${ev.status === "success" ? "text-accent-emerald" : "text-accent-rose"}`}>
-                      {ev.status === "success" ? `${ev.items_count} آیتم` : "خطا"}
+                    <span
+                      className={`font-bold ${ev.status === "success" ? "text-accent-emerald" : "text-accent-rose"}`}
+                      title={ev.status === "success" ? undefined : ev.error_message ?? undefined}
+                    >
+                      {ev.status === "success" ? (
+                        `${ev.items_count} آیتم`
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          {ev.outcome && ev.outcome !== "unknown" ? ev.outcome : "خطا"}
+                          <ParseErrorCodeBadge message={ev.error_message} />
+                        </span>
+                      )}
                     </span>
                     <span className="text-surface-600">{formatDuration(ev.duration_ms)}</span>
                     <span className="text-surface-500">{formatRelativeTime(ev.time)}</span>

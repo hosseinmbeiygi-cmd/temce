@@ -9,8 +9,8 @@ F = []
 
 
 def add(cat, file, anchor, occ, title, sev, status, impact, fix):
-    F.append(dict(cat=cat, file=file, anchor=anchor, occ=occ, title=title,
-                  sev=sev, status=status, impact=impact, fix=fix))
+    F.append({"cat": cat, "file": file, "anchor": anchor, "occ": occ, "title": title,
+                  "sev": sev, "status": status, "impact": impact, "fix": fix})
 
 
 # ROOT-002 — بخش تازه: نام متغیرهای محیطی

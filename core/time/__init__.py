@@ -59,6 +59,20 @@ def today_tehran() -> date:
     return now_tehran().date()
 
 
+def today_jalali_tehran() -> str:
+    """Today's Jalali date (``YYYY-MM-DD``) as seen in Tehran.
+
+    ``jdatetime.date.today()`` uses the host timezone. On a UTC host that is
+    one day behind Tehran from 20:30 UTC until midnight, so a market-date stamp
+    taken from it (NAV dedupe, intraday candle stamping) lands on the previous
+    trading day. Everything that stamps or compares an Iranian market day must
+    go through this helper.
+    """
+    import jdatetime
+
+    return jdatetime.date.fromgregorian(date=today_tehran()).strftime("%Y-%m-%d")
+
+
 def today_utc() -> date:
     return now_utc().date()
 

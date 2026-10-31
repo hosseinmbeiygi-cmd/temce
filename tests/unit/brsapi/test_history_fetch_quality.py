@@ -21,6 +21,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -42,17 +43,26 @@ def _bars() -> list[dict[str, Any]]:
 class _FakeSession:
     """Records executed statements; optionally fails one INSERT."""
 
-    def __init__(self, fail_on_call: int | None = None) -> None:
+    def __init__(
+        self,
+        fail_on_call: int | None = None,
+        existing_dates: set[str] | None = None,
+    ) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.commits = 0
         self.fail_on_call = fail_on_call
+        # Bars already stored: ON CONFLICT DO NOTHING reports rowcount 0.
+        self.existing_dates = existing_dates or set()
 
-    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> None:
+    async def execute(self, statement: Any, params: dict[str, Any] | None = None) -> Any:
         self.calls.append((str(statement), params or {}))
         if self.fail_on_call is not None and len(self.calls) == self.fail_on_call:
             raise RuntimeError(
                 "there is no unique or exclusion constraint matching the ON CONFLICT specification"
             )
+        date = (params or {}).get("date")
+        rowcount = 0 if date in self.existing_dates else 1
+        return SimpleNamespace(rowcount=rowcount)
 
     async def commit(self) -> None:
         self.commits += 1
@@ -106,6 +116,28 @@ def _run(monkeypatch: pytest.MonkeyPatch, session: _FakeSession, symbols: list[s
 
 
 class TestHistoryIngestionQuality:
+    def test_reingesting_an_existing_bar_does_not_rewrite_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Stage 8: history is append-only — a valid re-fetch keeps the stored bar."""
+        session = _FakeSession(existing_dates={"1405-06-23"})
+
+        reports = _run(monkeypatch, session, ["IR_COIN_EMAMI"])
+
+        sql = " ".join(str(s) for s, _p in session.calls).upper()
+        assert "ON CONFLICT (SYMBOL, DATE) DO NOTHING" in sql
+        assert "DO UPDATE" not in sql, "a background backfill must not rewrite history"
+        assert reports[0].record_count == 2, "an existing bar is not a written row"
+
+    def test_crypto_history_is_append_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        session = _FakeSession(existing_dates={"1405-06-22"})
+
+        reports = _run_crypto(monkeypatch, session, ["BTC_USDT"])
+
+        sql = " ".join(str(s) for s, _p in session.calls).upper()
+        assert "DO NOTHING" in sql and "DO UPDATE" not in sql
+        assert reports[0].record_count == 2
+
     def test_only_valid_bars_are_written_and_invalid_ones_are_counted(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

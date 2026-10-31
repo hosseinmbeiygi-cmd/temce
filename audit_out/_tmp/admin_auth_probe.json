@@ -1,0 +1,57 @@
+{
+  "admin": {
+    "afterLogin": {
+      "url": "http://127.0.0.1:3000/",
+      "cookies": [
+        {
+          "name": "im_refresh",
+          "domain": "127.0.0.1",
+          "httpOnly": true,
+          "secure": false,
+          "path": "/"
+        }
+      ],
+      "net": [
+        "200 GET /auth/login",
+        "401 POST /api/v1/auth/refresh",
+        "200 POST /api/v1/auth/login"
+      ]
+    },
+    "afterAdmin": {
+      "url": "http://127.0.0.1:3000/admin",
+      "cookies": [
+        {
+          "name": "im_refresh",
+          "domain": "127.0.0.1",
+          "httpOnly": true,
+          "secure": false,
+          "path": "/"
+        }
+      ],
+      "net": [],
+      "hasAdminText": true,
+      "has403": false,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت ورود بسته 0.00% بازار سرمایه بسته است — بازگشایی ساعت ۰۸:۴۵ بازگشایی بازار در 04:22:33 🛡️ پنل مدیریت مدیریت یکپار"
+    }
+  },
+  "user": {
+    "afterLogin": {
+      "url": "http://127.0.0.1:3000/auth/login",
+      "cookies": [],
+      "net": [
+        "200 GET /auth/login"
+      ]
+    },
+    "afterAdmin": {
+      "url": "http://127.0.0.1:3000/auth/login?redirect=%2Fadmin",
+      "cookies": [],
+      "net": [
+        "200 GET /auth/login?redirect=%2Fadmin",
+        "401 POST /api/v1/auth/refresh"
+      ],
+      "hasAdminText": true,
+      "has403": false,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه 📊 داشبورد 🤖 غربالگر هوشمند 📈 بازارها 💹 نمادها 🎯 آپشن 🏦 صندوق‌ها 💵 قیمت‌ها 🏢 کدال 📰 اخبار 🔍 تحلیل بازار 🎯 غربالگر 🗺️ نقشه بازار 🔔 اطلاعیه‌ها 🏛️ داده‌های کلان 👁️ دیده‌بان 📋 د"
+    }
+  }
+}

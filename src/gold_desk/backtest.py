@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from . import indicators
 from .constants import SMA_BUBBLE_WINDOW
 from .dates import jalali_days_ago
+from .entry_rules import dca_entry_signal
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,8 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class BacktestResult:
     total_days: int
+    # Days on which the live entry rule fired (bubble < threshold). The field
+    # name predates FIN-03 and is kept for API compatibility.
     score_above_threshold_days: int
     forward_return_30d_avg: float
     forward_return_30d_positive: int
@@ -83,6 +86,8 @@ async def run_backtest(
     """اجرای بک‌تست.
 
     ساده‌شده: bubble_threshold به‌جای امتیاز (score نیاز به همه componentها دارد).
+    Predicate مشترک با استراتژی زنده: روزهای ``bubble < bubble_threshold``
+    (``entry_rules.dca_entry_signal``) — نه ``bubble > threshold``.
     """
     rows = await _daily_bubble_pct(session, symbol, days)
     if not rows:
@@ -96,8 +101,11 @@ async def run_backtest(
             sample_warning="no data",
         )
 
-    # فیلتر درست: روزهای حباب بالا (TACTICAL bubble vs SMA30)
-    above = [(d, fwd) for d, bubble, fwd in rows if bubble > bubble_threshold]
+    # Same predicate as the live strategy (audit FIN-03): the strategy buys on
+    # days whose technical bubble is BELOW the trigger, so the study must
+    # measure the forward return of exactly those days. The old ``bubble > 8``
+    # test scored the opposite population.
+    above = [(d, fwd) for d, bubble, fwd in rows if dca_entry_signal(bubble, bubble_threshold)]
     if not above:
         return BacktestResult(
             total_days=len(rows),

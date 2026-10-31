@@ -1,6 +1,5 @@
-import re
 
-with open('/c/Users/Iran/Desktop/temce/services/market_service.py', 'r', encoding='utf-8') as f:
+with open('/c/Users/Iran/Desktop/temce/services/market_service.py', encoding='utf-8') as f:
     content = f.read()
 
 # Find and replace the _build_sectors function's avg_change calculation

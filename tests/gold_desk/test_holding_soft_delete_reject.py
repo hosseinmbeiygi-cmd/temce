@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import src.gold_desk.api as gold_api
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_current_user, get_db_session
 from src.gold_desk.portfolio import (
     HoldingDeletedError,
     HoldingNotFoundError,
@@ -61,6 +61,12 @@ def _holding(*, deleted: bool = False):
 def api_client():
     app = FastAPI()
     app.include_router(gold_api.router)
+    # These route tests predate ownership and mount the router without the
+    # production auth mount; inject an admin identity so scoping is a no-op.
+    app.dependency_overrides[get_current_user] = lambda: {
+        "sub": "test-admin",
+        "roles": ["admin"],
+    }
     yield app
     app.dependency_overrides.clear()
 

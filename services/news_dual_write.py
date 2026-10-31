@@ -69,6 +69,7 @@ class NewsDualWriter:
         is_breaking: bool,
         symbols: list[str],
         dedup_hash: str,
+        legacy_article_id: str | None = None,
     ) -> int | None:
         """Insert one article into ``news_items`` + its symbol tags.
 
@@ -80,13 +81,24 @@ class NewsDualWriter:
         if not self.enabled:
             return None
 
-        # Dedup fast-path: same content identity already mirrored.
+        # Dedup fast-path: same content identity already mirrored, or this
+        # legacy row is already linked (``legacy_article_id`` is UNIQUE — the
+        # link the parity audit joins on; it used to never be written).
         existing = await session.execute(
-            text("SELECT id FROM news_items WHERE dedup_hash = :h LIMIT 1"),
-            {"h": dedup_hash},
+            text(
+                "SELECT id FROM news_items "
+                "WHERE dedup_hash = :h OR (:legacy_id IS NOT NULL AND legacy_article_id = :legacy_id) "
+                "LIMIT 1"
+            ),
+            {"h": dedup_hash, "legacy_id": legacy_article_id},
         )
         row = existing.scalar_one_or_none()
         if row is not None:
+            # Traceable skip: the article is already mirrored under this
+            # content identity, so the legacy save stands alone for it.
+            logger.debug(
+                "news_items mirror skipped: dedup_hash already present (%s…)", dedup_hash[:12]
+            )
             return None
 
         # ── Upsert the source registry (feeds the dead-source alert) ──
@@ -103,11 +115,12 @@ class NewsDualWriter:
         inserted = await session.execute(
             text(
                 "INSERT INTO news_items "
-                "(title, body, source, source_url, published_at, category, is_breaking, dedup_hash) "
-                "VALUES (:title, :body, :source, :url, :published_at, :category, :is_breaking, :dedup_hash) "
+                "(legacy_article_id, title, body, source, source_url, published_at, category, is_breaking, dedup_hash) "
+                "VALUES (:legacy_id, :title, :body, :source, :url, :published_at, :category, :is_breaking, :dedup_hash) "
                 "RETURNING id"
             ),
             {
+                "legacy_id": legacy_article_id,
                 "title": title,
                 "body": body,
                 "source": source,

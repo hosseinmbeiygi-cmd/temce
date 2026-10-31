@@ -5,6 +5,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Path, Query
 
 from apps.api.dependencies import get_brsapi_query_service, get_market_service
+from core.agg_invalidation import AGG_TOKEN_KEY as _AGG_TOKEN_KEY
+from core.agg_invalidation import AGG_TOKEN_TTL as _AGG_TOKEN_TTL  # noqa: F401 — re-exported for the TTL invariant test
+from core.agg_invalidation import new_agg_token, publish_agg_token
 from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from core.result import PaginatedResult
@@ -298,7 +301,7 @@ async def market_enriched_heatmap(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         cache_key = f"enriched-heatmap:{limit}"
-        cached, cached_as_of = _agg_cache_get(cache_key)
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
             return ApiResponse[list[dict[str, Any]]](success=True, data=cached, data_as_of=cached_as_of, cache_hit=True)
         enriched = await brsapi.get_enriched_snapshots(limit=limit)
@@ -346,7 +349,7 @@ async def market_treemap(
         from collections import defaultdict
 
         cache_key = f"treemap:{limit}"
-        cached, cached_as_of = _agg_cache_get(cache_key)
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
             return ApiResponse[dict[str, Any]](
                 success=True, data={"children": cached}, data_as_of=cached_as_of, cache_hit=True
@@ -510,7 +513,11 @@ async def market_flow_history(
                 "legal_net_b": round(legal_net / 1e9, 1),
             })
         flows.sort(key=lambda x: abs(x["real_net_b"]), reverse=True)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=flows[:limit])
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=flows[:limit],
+            data_as_of=_newest_created_at(r.created_at for r in rows),
+        )
     except Exception as exc:
         logger.exception("Market flow history failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -580,6 +587,70 @@ def _classify_asset(name: str) -> str | None:
 _AGG_CACHE: dict[str, tuple[float, Any, str | None]] = {}
 _AGG_TTL = 300.0  # seconds
 
+# Cross-process invalidation (audit API-03). The sync worker runs in its own
+# container, so clearing this process's dict never reached the API workers:
+# their copies survived the whole TTL after a fresh snapshot landed. Instead,
+# an invalidation publishes a generation token to L2 (Redis); each API process
+# drops its local entries as soon as it observes a different token. When Redis
+# is unavailable the cache degrades to the local TTL — never to an error.
+# The token key/TTL and publication helper live in core.agg_invalidation so the
+# sync worker can invalidate without importing the API (AUD-ARCH-01).
+# One L2 read per process per interval: polling widgets must not pay a Redis
+# round-trip on every request, and a 5s propagation delay is well below the
+# 5-minute TTL it protects.
+_AGG_TOKEN_CHECK_INTERVAL = 5.0
+_agg_local_token: str | None = None
+_agg_token_checked_at: float = 0.0
+_agg_publish_tasks: set[Any] = set()
+
+
+async def _read_shared_token() -> str | None:
+    """Current L2 generation token, or ``None`` when Redis cannot answer."""
+    from core.cache_manager import get_cache_manager
+
+    try:
+        token = await get_cache_manager().get(_AGG_TOKEN_KEY)
+    except Exception:  # noqa: BLE001 — the cache must never fail a request
+        logger.debug("aggregate-cache token read failed", exc_info=True)
+        return None
+    return token if isinstance(token, str) else None
+
+
+async def _refresh_shared_token(*, force: bool = False) -> None:
+    """Adopt a newer generation token, dropping entries another process killed."""
+    global _agg_local_token, _agg_token_checked_at
+    import time
+
+    now = time.monotonic()
+    if not force and now - _agg_token_checked_at < _AGG_TOKEN_CHECK_INTERVAL:
+        return
+    token = await _read_shared_token()
+    # Throttle even a failed read: a dead Redis must not add latency (or a
+    # retry storm) to every widget poll.
+    _agg_token_checked_at = now
+    if token is not None and token != _agg_local_token:
+        _AGG_CACHE.clear()
+        _agg_local_token = token
+
+
+async def publish_agg_invalidation(token: str | None = None) -> str:
+    """Publish a generation token to L2 so every API process drops its cache."""
+    global _agg_local_token, _agg_token_checked_at
+    import time
+
+    token = token or new_agg_token()
+    _agg_local_token = token
+    _agg_token_checked_at = time.monotonic()
+    try:
+        await publish_agg_token(token)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "aggregate-cache token publish failed — other workers keep their "
+            "cached aggregates until the L2 TTL (audit API-03)",
+            exc_info=True,
+        )
+    return token
+
 
 def _rows_data_as_of(rows: list[dict[str, Any]] | None) -> str | None:
     """Return the newest ``fetched_at`` carried by *rows* (ISO-8601), if any.
@@ -592,10 +663,28 @@ def _rows_data_as_of(rows: list[dict[str, Any]] | None) -> str | None:
     return newest_fetched_at(rows)
 
 
-def _agg_cache_get(key: str) -> tuple[Any | None, str | None]:
+def _newest_created_at(values: Any) -> str | None:
+    """Newest DB write time among *values* (ORM columns), as ISO-8601 text.
+
+    Daily-history tables carry a Jalali market ``date`` (not an instant) and a
+    ``created_at`` stamp; the latter is the only honest source timestamp the
+    envelope can publish for them.
+    """
+    latest: str | None = None
+    for value in values:
+        if value is None:
+            continue
+        text = value.isoformat() if hasattr(value, "isoformat") else str(value)
+        if latest is None or text > latest:
+            latest = text
+    return latest
+
+
+async def _agg_cache_get(key: str) -> tuple[Any | None, str | None]:
     """Return ``(value, data_as_of)`` for a fresh hit, else ``(None, None)``."""
     import time
 
+    await _refresh_shared_token()
     hit = _AGG_CACHE.get(key)
     if hit and (time.monotonic() - hit[0]) < _AGG_TTL:
         return hit[1], hit[2]
@@ -613,9 +702,32 @@ def _agg_cache_set(key: str, val: Any, as_of: str | None = None) -> None:
 
 
 def invalidate_agg_cache() -> None:
-    """Drop every cached aggregate. Call after a successful BrsApi sync so the
-    next request refetches instead of serving potentially stale snapshots."""
+    """Drop every cached aggregate here and tell the other processes to do the same.
+
+    A local ``clear()`` alone only reached the process that ran the sync; the
+    generation token in L2 is what reaches the other API containers (API-03).
+    """
+    import asyncio
+
+    global _agg_local_token
+
     _AGG_CACHE.clear()
+    token = new_agg_token()
+    _agg_local_token = token
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop (CLI/test/direct call): the local clear is all that can
+        # be done synchronously; there is no loop to publish the token on.
+        logger.debug(
+            "aggregate cache cleared outside an event loop — L2 token not published"
+        )
+        return
+    task = loop.create_task(publish_agg_invalidation(token))
+    # Keep a strong reference until the task finishes: a fire-and-forget task
+    # may otherwise be garbage-collected before it writes to Redis.
+    _agg_publish_tasks.add(task)
+    task.add_done_callback(_agg_publish_tasks.discard)
 
 
 def _fa_weekday(date_str: str) -> str:
@@ -663,7 +775,7 @@ async def market_asset_allocation(
     """
     try:
         cache_key = f"asset-allocation:{limit}"
-        cached, cached_as_of = _agg_cache_get(cache_key)
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
             return ApiResponse[list[dict[str, Any]]](success=True, data=cached, data_as_of=cached_as_of, cache_hit=True)
         # Plain snapshots (no heavy detail JOIN) — classification and
@@ -709,7 +821,7 @@ async def market_cashflow_by_sector(
     """Per-sector net real flow: (buy_real_volume − sell_real_volume) × price_last."""
     try:
         cache_key = f"cashflow-by-sector:{limit}"
-        cached, cached_as_of = _agg_cache_get(cache_key)
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
             return ApiResponse[list[dict[str, Any]]](success=True, data=cached, data_as_of=cached_as_of, cache_hit=True)
         # Plain snapshots (no heavy detail JOIN) — sector/flow fields are
@@ -769,6 +881,7 @@ async def market_value_history(
             select(
                 HistoricalDailyModel.date,
                 func.sum(HistoricalDailyModel.trade_value).label("total_value"),
+                func.max(HistoricalDailyModel.created_at).label("created_at"),
             )
             .where(HistoricalDailyModel.date.in_(latest_dates))
             .group_by(HistoricalDailyModel.date)
@@ -783,7 +896,11 @@ async def market_value_history(
                 "day": _fa_weekday(r.date),
                 "value_b": round((r.total_value or 0) / 1e9, 0),
             })
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=data,
+            data_as_of=_newest_created_at(r.created_at for r in rows),
+        )
     except Exception as exc:
         logger.exception("Market value history failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -822,6 +939,7 @@ async def market_ownership_history(
                 func.sum(HistoricalRealLegalModel.sell_real_value).label("real_sell"),
                 func.sum(HistoricalRealLegalModel.buy_legal_value).label("legal_buy"),
                 func.sum(HistoricalRealLegalModel.sell_legal_value).label("legal_sell"),
+                func.max(HistoricalRealLegalModel.created_at).label("created_at"),
             )
             .where(HistoricalRealLegalModel.date.in_(latest_dates))
             .group_by(HistoricalRealLegalModel.date)
@@ -837,7 +955,11 @@ async def market_ownership_history(
                 "real_b": round(((r.real_buy or 0) - (r.real_sell or 0)) / 1e9, 1),
                 "legal_b": round(((r.legal_buy or 0) - (r.legal_sell or 0)) / 1e9, 1),
             })
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=data,
+            data_as_of=_newest_created_at(r.created_at for r in rows),
+        )
     except Exception as exc:
         logger.exception("Market ownership history failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})

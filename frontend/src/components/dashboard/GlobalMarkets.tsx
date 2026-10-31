@@ -7,7 +7,7 @@ import LiveDataBanner from "./LiveDataBanner";
 import { DeltaBadge, SectionHeader, Sparkline } from "./primitives";
 
 export default function GlobalMarkets() {
-  const { data: markets, isLive, isError, isLoading } = useGlobalMarkets();
+  const { data: markets, isLive, hasData, isFresh, isStale, isError, isLoading } = useGlobalMarkets();
 
   return (
     <section data-widget="GlobalMarkets" className="space-y-3">
@@ -16,7 +16,7 @@ export default function GlobalMarkets() {
         title="بازارهای جهانی"
         subtitle="انس طلا، نفت برنت و بیت‌کوین — از BrsApi"
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {markets.map((g) => (
           <div

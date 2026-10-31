@@ -16,7 +16,7 @@ export default function GoldAnalyticsPage() {
   const [days, setDays] = useState(7);
   const [compareSymbols, setCompareSymbols] = useState<string[]>(["IR_COIN_EMAMI"]);
 
-  const { data: scoreHist } = useQuery({
+  const { data: scoreHist, isError: scoreError } = useQuery({
     queryKey: ["gold", "analytics", "score", days],
     queryFn: () => getScoreHistory(days),
     refetchInterval: 60_000,
@@ -48,6 +48,12 @@ export default function GoldAnalyticsPage() {
           ))}
         </div>
       </div>
+
+      {scoreError && (
+        <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          دریافت تاریخچهٔ امتیاز ناموفق بود؛ نمودار خالی به‌معنای «امتیاز صفر» نیست.
+        </div>
+      )}
 
       {/* Score over time */}
       <section className="rounded-2xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-6">
@@ -167,7 +173,7 @@ function ScoreChart({ points }: { points: Array<{ score_at: string; total: numbe
 }
 
 function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: number; color: string }) {
-  const { data: hist } = useQuery({
+  const { data: hist, isError } = useQuery({
     queryKey: ["gold", "analytics", "bubble", symbol, days],
     queryFn: () => getSnapshotHistory(symbol, days),
     refetchInterval: 60_000,
@@ -182,6 +188,9 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
     }))
     .filter((p): p is { date: string; value: number } => p.value !== null && p.value !== undefined);
 
+  if (isError) {
+    return <div className="text-xs text-rose-300">{symbol}: دریافت تاریخچه ناموفق بود</div>;
+  }
   if (points.length < 2) {
     return <div className="text-xs text-zinc-500">{symbol}: داده کافی نیست</div>;
   }
@@ -202,7 +211,8 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
   return (
     <div>
       <div className="text-xs text-zinc-400 mb-1">
-        حباب امروز: <span className="font-mono text-zinc-100">{points[points.length - 1].value.toFixed(2)}٪</span>
+        آخرین حباب ثبت‌شده ({points[points.length - 1].date}):{" "}
+        <span className="font-mono text-zinc-100">{points[points.length - 1].value.toFixed(2)}٪</span>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
@@ -219,12 +229,13 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
 }
 
 function FundsHeatmap() {
-  const { data: snap } = useQuery({
+  const { data: snap, isError } = useQuery({
     queryKey: ["gold", "snapshot"],
     queryFn: async () => (await import("@/lib/goldApi")).getSnapshot(),
     refetchInterval: 60_000,
   });
 
+  if (isError) return <div className="text-rose-300 text-sm">دریافت اسنپ‌شات صندوق‌ها ناموفق بود.</div>;
   if (!snap) return <div className="text-zinc-500 text-sm">در حال بارگذاری...</div>;
   if (snap.funds.length === 0) {
     return <div className="text-zinc-500 text-sm text-center py-4">صندوقی موجود نیست</div>;
@@ -234,13 +245,14 @@ function FundsHeatmap() {
   // never folded into a heat bucket as if it were 0٪.
   const funds = snap.funds.map((f) => {
     const bubble = f.bubble_pct;
+    const bpr = f.bpr;
     const heat = (() => {
       if (bubble === null || bubble === undefined) return "nodata";
-      if (bubble > 3 || f.bpr < 1) return "hot"; // اشباع خرید یا فروش
-      if (bubble > 1.5 || f.bpr < 1.5) return "warm";
+      if (bubble > 3 || (bpr !== null && bpr < 1)) return "hot"; // اشباع خرید یا فروش
+      if (bubble > 1.5 || (bpr !== null && bpr < 1.5)) return "warm";
       return "cold";
     })();
-    return { ...f, heat, bubble };
+    return { ...f, heat, bubble, bpr };
   });
 
   return (
@@ -260,7 +272,7 @@ function FundsHeatmap() {
               {f.bubble === null || f.bubble === undefined ? "—" : `${f.bubble.toFixed(1)}٪`}
             </div>
             <div className="text-[10px] opacity-70 mt-1">{label}</div>
-            <div className="text-[10px] opacity-60 mt-0.5">BPR {f.bpr.toFixed(2)}</div>
+            <div className="text-[10px] opacity-60 mt-0.5">BPR {f.bpr == null ? "—" : f.bpr.toFixed(2)}</div>
           </div>
         );
       })}

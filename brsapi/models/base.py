@@ -9,6 +9,8 @@ from datetime import datetime
 from sqlalchemy import BigInteger, DateTime, Float, Index, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from core.time import utc_now_naive
+
 
 class BrsApiBase(DeclarativeBase):
     """Base class for all BrsApi ORM models."""
@@ -58,7 +60,7 @@ class RawPayloadModel(BrsApiBase):
     status_code: Mapped[int] = mapped_column(Integer, default=200)
     payload: Mapped[str] = mapped_column(Text, nullable=False, comment="Raw JSON payload")
     size_bytes: Mapped[int] = mapped_column(Integer, default=0)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
@@ -99,11 +101,22 @@ class SyncLogModel(BrsApiBase):
     endpoint: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     category: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="success", comment="success | partial | error")
+    # Machine-readable reason behind ``status``: success | empty | skipped |
+    # parse_error | malformed | provider_blocked | timeout | source_error |
+    # storage_error | unknown. Lets the admin history show *why* a run failed
+    # instead of only that it did.
+    outcome: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="unknown",
+        server_default="unknown",
+        comment="machine-readable sync outcome",
+    )
     items_count: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
     params_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (Index("idx_sync_log_endpoint_time", "endpoint", "started_at"),)

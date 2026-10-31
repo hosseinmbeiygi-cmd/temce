@@ -29,15 +29,14 @@ const SORT_OPTIONS = [
   { key: "name", label: "نام" },
   { key: "nav", label: "NAV" },
   { key: "premium", label: "پرمیوم" },
-  { key: "bubble", label: "حباب" },
 ];
 
 export default function GoldETFPage() {
-  const [sortKey, setSortKey] = useState<"name" | "nav" | "premium" | "bubble">("name");
+  const [sortKey, setSortKey] = useState<"name" | "nav" | "premium">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["gold", "etf"],
     queryFn: () => getETFSnapshot(),
     refetchInterval: 30_000,
@@ -65,9 +64,6 @@ export default function GoldETFPage() {
       } else if (sortKey === "nav") {
         av = a.nav_per_unit;
         bv = b.nav_per_unit;
-      } else if (sortKey === "premium") {
-        av = a.bubble_pct;
-        bv = b.bubble_pct;
       } else {
         av = a.bubble_pct;
         bv = b.bubble_pct;
@@ -111,6 +107,12 @@ export default function GoldETFPage() {
         </div>
       </div>
 
+      {isError && (
+        <div className="rounded-xl border border-rose-800/40 bg-rose-950/20 p-3 text-xs text-rose-300">
+          دریافت جدول ETF ناموفق بود؛ مقادیر نمایش‌داده‌شده معتبر نیستند.
+        </div>
+      )}
+
       {best && (
         <div className="rounded-xl ring-1 ring-amber-500/40 bg-amber-950/20 border border-amber-700/40 p-4 backdrop-blur">
           <div className="flex items-center justify-between gap-4">
@@ -120,7 +122,9 @@ export default function GoldETFPage() {
             </div>
             <div className="text-right">
               <div className="text-xs text-zinc-400">تاریخ بروزرسانی</div>
-              <div className="text-sm text-zinc-200 font-mono">—</div>
+              <div className="text-sm text-zinc-200 font-mono">
+                {data?.generated_at ? new Date(data.generated_at).toLocaleString("fa-IR") : "—"}
+              </div>
             </div>
           </div>
         </div>
@@ -156,7 +160,6 @@ export default function GoldETFPage() {
               <th className="text-right p-3">NAV</th>
               <th className="text-right p-3">بازار</th>
               <th className="text-right p-3">پرمیوم / تخفیف</th>
-              <th className="text-right p-3">حباب</th>
               <th className="text-right p-3">سیگنال</th>
               <th className="text-right p-3">نقدشوندگی</th>
               <th className="text-right p-3">کارمزد</th>
@@ -185,14 +188,11 @@ export default function GoldETFPage() {
                   <td className="p-3 text-right font-mono font-semibold">
                     {fmtPct(row.bubble_pct)}
                   </td>
-                  <td className="p-3 text-right font-mono font-bold">
-                    {fmtPct(row.bubble_pct)}
-                  </td>
                   <td className={cn("p-3 text-right font-mono", ss)}>
                     {row.signal ?? "—"}
                   </td>
                   <td className="p-3 text-right text-zinc-400 text-xs uppercase tracking-wide">
-                    {row.liquidity ?? "متوسط"}
+                    {row.liquidity && row.liquidity !== "UNKNOWN" ? row.liquidity : "—"}
                   </td>
                   <td className="p-3 text-right text-zinc-400 text-xs">
                     {row.management_fee ?? "—"}
@@ -203,7 +203,7 @@ export default function GoldETFPage() {
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={9} className="p-6 text-center text-zinc-500 text-sm">
-                  {isLoading ? "در حال بارگذاری…" : "صندوقی یافت نشد"}
+                  {isLoading ? "در حال بارگذاری…" : isError ? "خطا در دریافت داده" : "صندوقی یافت نشد"}
                 </td>
               </tr>
             )}
@@ -228,7 +228,11 @@ export default function GoldETFPage() {
               <span
                 className={cn(
                   "text-[10px] px-2 py-0.5 rounded-full font-semibold",
-                  (row.bubble_pct ?? 0) > 0 ? "bg-rose-950/40 text-rose-300" : "bg-emerald-950/40 text-emerald-300",
+                  row.bubble_pct === null
+                    ? "bg-zinc-800/60 text-zinc-300"
+                    : row.bubble_pct > 0
+                      ? "bg-rose-950/40 text-rose-300"
+                      : "bg-emerald-950/40 text-emerald-300",
                 )}
               >
                 {fmtPct(row.bubble_pct)}

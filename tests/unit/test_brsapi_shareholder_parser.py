@@ -4,7 +4,10 @@ Covers the recently-added ``shareholder_id`` mapping (TSETMC's internal
 shareholder id from the API ``id`` field) plus the model column wiring.
 """
 
+import pytest
+
 from brsapi.parsers import TsetmcParser
+from brsapi.parsers.errors import BrsApiParseError
 
 
 def test_parse_shareholders_includes_shareholder_id():
@@ -39,10 +42,16 @@ def test_parse_shareholders_change_trailing_minus():
     assert records[2]["change"] == 12345
 
 
-def test_parse_shareholders_non_list_returns_empty():
+def test_parse_shareholders_valid_empty_envelope_stays_empty():
     assert TsetmcParser.parse_shareholders({"data": []}) == []
-    assert TsetmcParser.parse_shareholders(None) == []
-    assert TsetmcParser.parse_shareholders("garbage") == []
+
+
+def test_parse_shareholders_malformed_payload_raises():
+    # A payload we cannot read must not look like "the provider had nothing".
+    with pytest.raises(BrsApiParseError):
+        TsetmcParser.parse_shareholders(None)
+    with pytest.raises(BrsApiParseError):
+        TsetmcParser.parse_shareholders("garbage")
 
 
 def test_shareholder_model_has_shareholder_id_column():

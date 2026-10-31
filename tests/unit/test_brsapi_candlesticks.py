@@ -11,12 +11,15 @@ Covers:
 """
 
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import jdatetime
+import pytest
 
 from brsapi.models import CandlestickModel
 from brsapi.parsers import TsetmcParser
+from brsapi.parsers.errors import BrsApiParseError
 from brsapi.services.sync_service import BrsApiSyncService, SyncReport
 
 # ── Parser: Jalali → dual dates ───────────────────────────────────────
@@ -135,6 +138,38 @@ def test_parse_candlesticks_stamps_intraday_with_today():
     assert records[0]["time"] == "12:28"
 
 
+# ── Parser: BrsApiParseError contract ──────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("payload", "code"),
+    [
+        (None, "missing_payload"),
+        ("{\"candles\": []}", "unexpected_shape"),
+        (42, "unexpected_shape"),
+        ({"candles": "not-a-list"}, "unexpected_shape"),
+        ({"candle_daily": {"date": "1404/02/23"}}, "unexpected_shape"),
+        ({"unexpected": []}, "unrecognised_envelope"),
+        ({"foo": 1, "bar": 2}, "unrecognised_envelope"),
+    ],
+)
+def test_parse_candlesticks_raises_typed_error(payload, code):
+    """Unreadable payloads raise BrsApiParseError carrying a stable code,
+    instead of logging a warning and returning ``[]`` like a no-data day."""
+    with pytest.raises(BrsApiParseError) as excinfo:
+        TsetmcParser.parse_candlesticks(payload)
+    assert excinfo.value.code == code
+
+
+def test_parse_candlesticks_empty_response_stays_empty_not_an_error():
+    """An envelope that explicitly says "no bars" is a successful empty
+    parse — it must not be reported as malformed data."""
+    assert TsetmcParser.parse_candlesticks({}) == []
+    assert TsetmcParser.parse_candlesticks({"status": "no_data"}) == []
+    assert TsetmcParser.parse_candlesticks({"candles": []}) == []
+    assert TsetmcParser.parse_candlesticks({"l18": "فولاد", "type": 3, "count": 0}) == []
+
+
 # ── Model: dual-date columns declared ─────────────────────────────────
 
 
@@ -193,6 +228,104 @@ async def test_sync_candlesticks_omits_count_when_none():
 
     await svc.sync_candlesticks(svc._session, "فولاد", candle_type="3")
     assert captured["params"] == {"l18": "فولاد", "type": "3"}
+
+
+# ── Sync: malformed payload → parse_error, code preserved ─────────────
+
+
+class _EmptyResult:
+    """Stand-in for a SQLAlchemy Result whose lookup found nothing."""
+
+    def scalar_one_or_none(self):
+        return None
+
+
+class _FakeSession:
+    """Minimal session: the ins_id lookup, the sync-log add and the commit."""
+
+    def __init__(self) -> None:
+        self.added: list = []
+        self.commits = 0
+
+    def add(self, obj) -> None:
+        self.added.append(obj)
+
+    async def execute(self, *_args, **_kwargs):
+        return _EmptyResult()
+
+    async def flush(self) -> None:
+        return None
+
+    async def commit(self) -> None:
+        self.commits += 1
+
+    async def rollback(self) -> None:
+        return None
+
+
+class _FakeClient:
+    def __init__(self, data) -> None:
+        self.data = data
+
+    async def fetch(self, endpoint, params=None, category_override=None):
+        return SimpleNamespace(
+            success=True,
+            value=SimpleNamespace(
+                endpoint=endpoint.path,
+                data=self.data,
+                is_empty=not self.data,
+                raw_bytes=None,
+                status_code=200,
+                received_at=None,
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("payload", "code"),
+    [
+        ({"candles": "not-a-list"}, "unexpected_shape"),
+        ({"unexpected": []}, "unrecognised_envelope"),
+    ],
+)
+async def test_sync_candlesticks_malformed_payload_is_parse_error(payload, code):
+    """A malformed candlestick response must fail the sync with
+    ``outcome=parse_error`` and the structured code in the message — not a
+    successful sync with ``items_count=0``. The code reaches both the report
+    and the ``brsapi_sync_log`` row the dashboards read."""
+    session = _FakeSession()
+    svc = BrsApiSyncService(client=_FakeClient(payload), session=session)
+
+    report = await svc.sync_candlesticks(session, "فولاد", candle_type="3")
+
+    assert report.success is False
+    assert report.outcome == "parse_error"
+    assert report.items_count == 0
+    assert f"ParseError[{code}]" in (report.error or "")
+
+    # Only the sync-log entry was added — no candle row was written.
+    assert len(session.added) == 1
+    log_row = session.added[0]
+    assert log_row.status == "error"
+    assert log_row.outcome == "parse_error"
+    assert log_row.items_count == 0
+    assert f"ParseError[{code}]" in (log_row.error_message or "")
+    assert session.commits == 1
+
+
+async def test_sync_candlesticks_no_data_envelope_stays_empty_success():
+    """The counterpart guarantee: a recognised no-data answer is a successful
+    empty sync, so the parse-error path above does not swallow quiet days."""
+    session = _FakeSession()
+    svc = BrsApiSyncService(
+        client=_FakeClient({"status": "no_data"}), session=session
+    )
+
+    report = await svc.sync_candlesticks(session, "فولاد", candle_type="3")
+
+    assert report.success is True
+    assert report.outcome == "empty"
+    assert session.added[0].outcome == "empty"
 
 
 async def test_sync_candlesticks_refreshes_realtime_series():

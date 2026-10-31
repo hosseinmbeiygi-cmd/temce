@@ -15,6 +15,8 @@ from typing import Any
 import jdatetime
 
 from brsapi.parsers.errors import BrsApiParseError, ensure_payload, is_no_data
+from brsapi.quality import normalize_jalali_date
+from core.time import today_jalali_tehran
 
 logger = getLogger(__name__)
 
@@ -541,39 +543,41 @@ class TsetmcParser:
                 continue
             records.append({
                 "date": item.get("date", ""),
-                "buy_real_count": cls._int(item.get("Buy_CountI", 0)),
-                "buy_legal_count": cls._int(item.get("Buy_CountN", 0)),
-                "sell_real_count": cls._int(item.get("Sell_CountI", 0)),
-                "sell_legal_count": cls._int(item.get("Sell_CountN", 0)),
-                "buy_real_volume": cls._int(item.get("Buy_I_Volume", 0)),
-                "buy_legal_volume": cls._int(item.get("Buy_N_Volume", 0)),
-                "sell_real_volume": cls._int(item.get("Sell_I_Volume", 0)),
-                "sell_legal_volume": cls._int(item.get("Sell_N_Volume", 0)),
-                "buy_real_value": cls._float(item.get("Buy_I_Value", 0)),
-                "buy_legal_value": cls._float(item.get("Buy_N_Value", 0)),
-                "sell_real_value": cls._float(item.get("Sell_I_Value", 0)),
-                "sell_legal_value": cls._float(item.get("Sell_N_Value", 0)),
+                "buy_real_count": cls._int(item.get("Buy_CountI")),
+                "buy_legal_count": cls._int(item.get("Buy_CountN")),
+                "sell_real_count": cls._int(item.get("Sell_CountI")),
+                "sell_legal_count": cls._int(item.get("Sell_CountN")),
+                "buy_real_volume": cls._int(item.get("Buy_I_Volume")),
+                "buy_legal_volume": cls._int(item.get("Buy_N_Volume")),
+                "sell_real_volume": cls._int(item.get("Sell_I_Volume")),
+                "sell_legal_volume": cls._int(item.get("Sell_N_Volume")),
+                "buy_real_value": cls._float(item.get("Buy_I_Value")),
+                "buy_legal_value": cls._float(item.get("Buy_N_Value")),
+                "sell_real_value": cls._float(item.get("Sell_I_Value")),
+                "sell_legal_value": cls._float(item.get("Sell_N_Value")),
             })
         return records
 
     @classmethod
     def _history_item(cls, item: dict[str, Any]) -> dict[str, Any]:
+        # Every numeric column is nullable: an absent field stays ``None`` so a
+        # missing price is never published as a real-looking 0 (DS-05).
         return {
             "date": item.get("date", ""),
             "time": item.get("time", ""),
-            "trade_count": cls._int(item.get("tno", 0)),
-            "trade_volume": cls._int(item.get("tvol", 0)),
-            "trade_value": cls._float(item.get("tval", 0)),
-            "price_min": cls._float(item.get("pmin", 0)),
-            "price_max": cls._float(item.get("pmax", 0)),
-            "price_yesterday": cls._float(item.get("py", 0)),
-            "price_first": cls._float(item.get("pf", 0)),
-            "price_last": cls._float(item.get("pl", 0)),
-            "price_last_change": cls._float(item.get("plc", 0)),
-            "price_last_change_pct": cls._float(item.get("plp", 0)),
-            "price_close": cls._float(item.get("pc", 0)),
-            "price_close_change": cls._float(item.get("pcc", 0)),
-            "price_close_change_pct": cls._float(item.get("pcp", 0)),
+            "trade_count": cls._int(item.get("tno")),
+            "trade_volume": cls._int(item.get("tvol")),
+            "trade_value": cls._float(item.get("tval")),
+            "price_min": cls._float(item.get("pmin")),
+            "price_max": cls._float(item.get("pmax")),
+            "price_yesterday": cls._float(item.get("py")),
+            "price_first": cls._float(item.get("pf")),
+            "price_last": cls._float(item.get("pl")),
+            "price_last_change": cls._float(item.get("plc")),
+            "price_last_change_pct": cls._float(item.get("plp")),
+            "price_close": cls._float(item.get("pc")),
+            "price_close_change": cls._float(item.get("pcc")),
+            "price_close_change_pct": cls._float(item.get("pcp")),
         }
 
     # ── Candlestick ────────────────────────────────
@@ -654,10 +658,11 @@ class TsetmcParser:
             )
 
         # Intraday bars have no ``date`` field — stamp them with today's
-        # Jalali date so gregorian/shamsi enrichment still works. Uses
-        # server-local time like the NAV sync (``jdatetime.date.today()``);
-        # bars only exist during market hours when UTC/Tehran dates agree.
-        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        # Jalali date so gregorian/shamsi enrichment still works. The date is
+        # Tehran's market day, not the host's: a UTC server's host-local day
+        # is one behind between 20:30 UTC and midnight, which would date the
+        # bars to the previous session.
+        today_jalali = today_jalali_tehran()
 
         records: list[dict[str, Any]] = []
         for c in candles:
@@ -668,12 +673,14 @@ class TsetmcParser:
             records.append({
                 "date": raw_date or today_jalali,
                 "time": c.get("time", ""),
-                "open": cls._float(c.get("open", 0)),
-                "high": cls._float(c.get("high", 0)),
-                "low": cls._float(c.get("low", 0)),
-                "close": cls._float(c.get("close", 0)),
-                "volume": cls._int(c.get("volume", 0)),
-                "count": cls._int(c.get("count", 0)),
+                # Nullable columns: an absent field stays None instead of being
+                # published as a real-looking 0 price/volume (DS-05).
+                "open": cls._float(c.get("open")),
+                "high": cls._float(c.get("high")),
+                "low": cls._float(c.get("low")),
+                "close": cls._float(c.get("close")),
+                "volume": cls._int(c.get("volume")),
+                "count": cls._int(c.get("count")),
                 "gregorian_date": gregorian_date,
                 "shamsi_date": shamsi_date,
             })
@@ -687,21 +694,23 @@ class TsetmcParser:
         Returns a **real ``datetime.date`` object** (not a string) because
         ``brsapi_candlesticks.gregorian_date`` is a DATE column and asyncpg
         rejects plain strings for date types (the same DataError class the
-        codebase hit with ``fetched_at``). Unparseable values return
-        ``(None, None)`` so the caller can keep the raw string untouched.
+        codebase hit with ``fetched_at``). Values outside the Jalali domain
+        (a Gregorian ``2026-…``, month 13, an impossible day) return
+        ``(None, None)``: interpreting them as Jalali would silently move the
+        bar centuries away, so the row keeps only its raw string.
         """
-        if not value:
+        from datetime import date
+
+        # One Jalali parser for the whole codebase (Persian digits, ``/``/``.``
+        # separators, year 1200..1599) — see ``brsapi.quality``.
+        normalized = normalize_jalali_date(value)
+        if normalized is None:
             return None, None
         try:
-            from datetime import date
-
-            import jdatetime
-
-            s = str(value).strip().replace("/", "-")
-            jy, jm, jd = (int(p) for p in s.split("-"))
+            jy, jm, jd = (int(part) for part in normalized.split("-"))
             g = jdatetime.date(jy, jm, jd).togregorian()
-            return date(g.year, g.month, g.day), f"{jy:04d}-{jm:02d}-{jd:02d}"
-        except Exception:
+            return date(g.year, g.month, g.day), normalized
+        except (TypeError, ValueError):
             return None, None
 
     # ── Shareholder ────────────────────────────────

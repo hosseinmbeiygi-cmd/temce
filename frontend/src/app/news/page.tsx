@@ -135,7 +135,7 @@ export default function NewsPage() {
 
   // Reset page when filters change — event-driven pagination sync, not derived state.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setPage(1);
   }, [filter, sourceFilter, searchQuery]);
 

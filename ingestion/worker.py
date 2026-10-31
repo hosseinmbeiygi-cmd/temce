@@ -10,6 +10,7 @@ from .config import IngestionConfig
 from .http_client import HttpClient
 from .lake import RawDataLake
 from .parser import ParserRegistry
+from .parser.errors import ParseError
 from .sources.derivatives import TsetmcFutureSource, TsetmcOptionSource
 from .sources.library_sources import FinpyTseSource, TehranStocksSource, TsetmcLibSource, TseUtilsSource
 from .sources.tsetmc import TsetmcOrderBookSource, TsetmcTradeSource
@@ -99,12 +100,28 @@ class IngestionWorker:
                 logger.exception("Failed to refresh instruments")
 
     async def _ingest_source(self, source: Any, context: dict[str, Any] | None = None) -> int:
+        """Fetch, parse and persist one source.
+
+        Returns the number of events that were **successfully written** to
+        storage (not the number parsed). A payload is marked as seen in the
+        dedup window only after every event in it has been written, so a
+        partial write failure is retried instead of being silently dropped.
+        """
         fetch_result = await source.fetch(context)
         if not fetch_result.payloads:
             return 0
-        count = 0
+        written = 0
 
         for payload in fetch_result.payloads:
+            if self._dedup is not None:
+                try:
+                    if await self._dedup.is_duplicate(payload.source, payload.raw_data):
+                        logger.debug("Skipping duplicate payload for source=%s", payload.source)
+                        continue
+                except Exception:
+                    # A broken dedup backend must not stop ingestion.
+                    logger.warning("Dedup check failed for source=%s", payload.source, exc_info=True)
+
             object_key = await self._lake.store_raw(
                 source=payload.source,
                 endpoint=payload.endpoint,
@@ -125,6 +142,19 @@ class IngestionWorker:
 
             try:
                 events = await parser.parse(payload.raw_data)
+            except ParseError as exc:
+                # A payload we could not read is a failed ingest, not an empty
+                # one: the raw copy stays in the lake for replay, and
+                # ``ingest_all`` records the source as failed (-1) instead of
+                # reporting zero written events as if the source were healthy.
+                logger.error(
+                    "Parse failed for source=%s endpoint=%s reason=%s. Raw payload kept at %s",
+                    payload.source,
+                    payload.endpoint,
+                    exc.reason,
+                    object_key,
+                )
+                raise
             except Exception:
                 logger.exception(
                     "Parse failed for source=%s endpoint=%s. Raw payload kept at %s",
@@ -134,6 +164,7 @@ class IngestionWorker:
                 )
                 continue
 
+            payload_written_all = True
             for event in events:
                 event.raw_object_key = object_key
                 event.parsed_at = datetime.now(UTC).isoformat()
@@ -144,38 +175,47 @@ class IngestionWorker:
                         external_id=event.data.get("instrument_id", ""),
                         symbol=event.data.get("symbol"),
                     )
-                    if ins_id:                        event.data["instrument_id"] = ins_id
+                    if not ins_id:
+                        # The storage tables require a resolved instrument_id;
+                        # writing None would fail on every retry forever.
+                        logger.warning(
+                            "Unresolved instrument for source=%s external_id=%r symbol=%r — skipping event",
+                            event.source,
+                            event.data.get("instrument_id", ""),
+                            event.data.get("symbol"),
+                        )
+                        continue
+                    event.data["instrument_id"] = ins_id
 
                 if self._identity and self._storage:
                     try:
                         await self._write_event(event, ins_id)
-                        # Only mark as seen after successful write
-                        if self._dedup is not None:
-                            await self._dedup.mark_seen(payload.source, payload.raw_data)
                     except Exception:
-                        logger.exception("Failed to write event for %s", instrument_id)
-                        # If write fails, don't mark as seen so retry will work
+                        logger.exception("Failed to write event for %s", ins_id)
+                        # Do not mark the payload as seen: the next tick retries it.
+                        payload_written_all = False
+                        continue
+                    written += 1
 
-            count += len(events)
+            # Only after the whole payload was written successfully.
+            if self._dedup is not None and payload_written_all:
+                try:
+                    await self._dedup.mark_seen(payload.source, payload.raw_data)
+                except Exception:
+                    logger.warning("Failed to mark payload seen for source=%s", payload.source, exc_info=True)
 
-        return count
+        return written
 
     async def _write_event(self, event: Any, instrument_id: str) -> None:
+        """Persist one parsed event; exceptions propagate to the caller."""
         if self._storage is None:
             return
         event_type = event.event_type
-        try:
-            if event_type == "trade_tick":
-                await self._storage.write_trade_tick(instrument_id, event.data)
-            elif event_type == "market_snapshot":
-                await self._storage.write_market_snapshot(instrument_id, event.data)
-            elif event_type == "orderbook_level":
-                await self._storage.write_orderbook_level(instrument_id, event.data)
-            elif event_type == "daily_ohlcv":
-                await self._storage.write_daily_ohlcv(instrument_id, event.data)
-        except Exception:
-            logger.exception("Failed to write %s for %s", event_type, instrument_id)
-            # If write fails, don't mark as seen so retry will work
-            if self._dedup is not None:
-                # Re-queue by not marking as seen - the event will be processed again
-                pass
+        if event_type == "trade_tick":
+            await self._storage.write_trade_tick(instrument_id, event.data)
+        elif event_type == "market_snapshot":
+            await self._storage.write_market_snapshot(instrument_id, event.data)
+        elif event_type == "orderbook_level":
+            await self._storage.write_orderbook_level(instrument_id, event.data)
+        elif event_type == "daily_ohlcv":
+            await self._storage.write_daily_ohlcv(instrument_id, event.data)

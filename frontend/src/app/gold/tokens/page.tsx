@@ -13,8 +13,9 @@ export default function GoldTokensPage() {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<GoldApiToken | null>(null);
+  const [adminAck, setAdminAck] = useState(false);
 
-  const { data: tokens } = useQuery({
+  const { data: tokens, isError } = useQuery({
     queryKey: ["gold", "tokens"],
     queryFn: getApiTokens,
     refetchInterval: 30_000,
@@ -22,6 +23,10 @@ export default function GoldTokensPage() {
 
   const onCreate = async () => {
     if (!name.trim()) return;
+    if (scopes === "admin" && !adminAck) {
+      setError("برای ساخت token با scope ادمین، تأیید دسترسی کامل را بزنید.");
+      return;
+    }
     setError(null);
     try {
       const r = await createApiToken(name.trim(), scopes);
@@ -40,6 +45,8 @@ export default function GoldTokensPage() {
     try {
       await revokeApiToken(pendingRevoke.token_id);
       qc.invalidateQueries({ queryKey: ["gold", "tokens"] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "لغو token ناموفق بود.");
     } finally {
       setPendingRevoke(null);
     }
@@ -47,7 +54,9 @@ export default function GoldTokensPage() {
 
   const copyToken = () => {
     if (newToken) {
-      navigator.clipboard.writeText(newToken);
+      void navigator.clipboard.writeText(newToken).catch(() => {
+        setError("کپی خودکار ممکن نشد؛ token را دستی انتخاب و کپی کنید.");
+      });
     }
   };
 
@@ -95,9 +104,15 @@ export default function GoldTokensPage() {
           <option value="write">write — خواندن + نوشتن</option>
           <option value="admin">admin — دسترسی کامل</option>
         </select>
+        {scopes === "admin" && (
+          <label className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: "var(--gd-bg-3)", color: "var(--gd-warning, #f59e0b)" }}>
+            <input type="checkbox" checked={adminAck} onChange={(e) => setAdminAck(e.target.checked)} className="mt-0.5" />
+            می‌دانم scope ادمین اجازهٔ مدیریت tokenها و همهٔ نوشتن‌ها را می‌دهد.
+          </label>
+        )}
         <button
           onClick={onCreate}
-          disabled={!name.trim()}
+          disabled={!name.trim() || (scopes === "admin" && !adminAck)}
           className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white rounded px-3 py-2 text-sm font-semibold"
         >
           ساخت Token
@@ -109,9 +124,15 @@ export default function GoldTokensPage() {
         )}
       </div>
 
+      {isError && (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--gd-bg-3)", color: "var(--gd-danger)" }}>
+          دریافت لیست tokenها ناموفق بود؛ لیست زیر معتبر نیست.
+        </div>
+      )}
+
       <div className="rounded-xl overflow-hidden" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}>
         <div className="px-4 py-3 text-sm font-semibold" style={{ color: "var(--gd-text)" }}>
-          Tokenهای فعال ({tokens?.length ?? 0})
+          Tokenهای فعال ({tokens ? tokens.filter((t) => t.enabled).length : "—"})
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -156,8 +177,8 @@ export default function GoldTokensPage() {
 
       <div className="rounded-xl p-4 text-xs space-y-2" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)", color: "var(--gd-text-2)" }}>
         <div className="font-semibold" style={{ color: "var(--gd-text)" }}>نحوه استفاده:</div>
-        <code className="block bg-zinc-950 p-2 rounded font-mono text-emerald-300">
-          curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; http://localhost:8000/api/v1/gold/snapshot
+        <code className="block bg-zinc-950 p-2 rounded font-mono text-emerald-300" dir="ltr">
+          curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; &lt;YOUR_HOST&gt;/api/v1/gold/snapshot
         </code>
         <div>لیست کامل endpointها: <code className="text-amber-400">/api/v1/gold/docs/endpoints</code></div>
       </div>

@@ -23,7 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.logging import get_logger
 from core.time import utc_now_naive
 from models.stock_enterprise import StockIndicatorsSnapshotModel
-from services.adjusted_price_reader import load_daily_candles
+from services.adjusted_price_reader import (
+    AdjustedPriceSourceUnavailable,
+    load_daily_candles,
+)
 from services.stock_technical_engine import compute_indicator_snapshot
 
 logger = get_logger(__name__)
@@ -209,8 +212,15 @@ class IndicatorPrecomputeService:
         snapshot column set — MA/EMA, RSI, MACD, Bollinger, Ichimoku, ATR,
         pivots — corporate-action safe: every one of them is a function of the
         close series handed to ``compute_indicator_snapshot``.
+
+        DB-04: no silent raw fallback. A missing adjusted view yields an empty
+        series (snapshot reports "not ok"), never indicators over fetch dates.
         """
-        return await load_daily_candles(self.session, symbol, limit)
+        try:
+            return await load_daily_candles(self.session, symbol, limit)
+        except AdjustedPriceSourceUnavailable as exc:
+            logger.error("precompute skipped %s: %s", symbol, exc)
+            return []
 
 
 __all__ = ["IndicatorPrecomputeService"]

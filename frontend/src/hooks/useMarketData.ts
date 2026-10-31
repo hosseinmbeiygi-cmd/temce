@@ -786,27 +786,25 @@ export function useSectorMap(): LiveDataResult<SectorCell[]> {
 
 /** Live per-symbol real/legal net flow (top movers) for OwnershipChange. */
 export function useOwnershipFlows(): LiveDataResult<FlowRow[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-ownership-flows"],
-    queryFn: async (): Promise<FlowRow[]> => {
-      const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; real_net_b: number; legal_net_b: number }> }>(
+    queryFn: async (): Promise<{ rows: FlowRow[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ symbol: string; real_net_b: number; legal_net_b: number }>; data_as_of?: string | null }>(
         "/market/flow-history?limit=8"
       );
       const rows = extractArray<{ symbol: string; real_net_b: number; legal_net_b: number }>(res);
-      return rows.map((r) => ({ symbol: r.symbol, name: r.symbol, realNet: r.real_net_b, legalNet: r.legal_net_b }));
+      return {
+        rows: rows.map((r) => ({ symbol: r.symbol, name: r.symbol, realNet: r.real_net_b, legalNet: r.legal_net_b })),
+        dataAsOf: getDataAsOf(res),
+      };
     },
     refetchInterval: 180_000,
     staleTime: 90_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return liveResult(rows, {
-    hasData: rows.length > 0,
-    isFresh: false,
-    isStale: false,
-    isError,
-    isLoading,
-  });
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live market-wide real/legal totals + queue counts for LiquidityBlocks / MarketOverview. */
@@ -870,16 +868,17 @@ export function useIndexImpacts(): LiveDataResult<{ positive: ImpactRow[]; negat
   });
 }
 
-/** Live economic/market events from /economic-calendar (upcoming 30 days). */
+/** Live economic/market events from /economic-calendar (stored rows + data_as_of). */
 export function useMarketEvents(): LiveDataResult<CalendarEvent[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-market-events"],
-    queryFn: async (): Promise<CalendarEvent[]> => {
-      const res = await apiGet<{ success: boolean; data: { events?: Array<Record<string, unknown>> } | Array<Record<string, unknown>> }>(
+    queryFn: async (): Promise<{ rows: CalendarEvent[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: { events?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>; data_as_of?: string | null }>(
         "/economic-calendar?min_importance=1"
       );
       const raw = Array.isArray(res?.data) ? res.data : (res?.data?.events ?? []);
-      return (raw as Array<Record<string, unknown>>)
+      const rows = (raw as Array<Record<string, unknown>>)
         .map((e, i) => ({
           id: String(e.id ?? `ev-${i}`),
           title: String(e.title ?? ""),
@@ -890,19 +889,14 @@ export function useMarketEvents(): LiveDataResult<CalendarEvent[]> {
           importance: typeof e.importance === "number" ? e.importance : undefined,
         }))
         .slice(0, 8);
+      return { rows, dataAsOf: getDataAsOf(res) };
     },
     refetchInterval: 600_000,
     staleTime: 300_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return liveResult(rows, {
-    hasData: rows.length > 0,
-    isFresh: false,
-    isStale: false,
-    isError,
-    isLoading,
-  });
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 // ── AssetAllocationPie ────────────────────────────────────────────────
@@ -990,57 +984,53 @@ export function useCashflowBySector(): LiveDataResult<SectorFlowBar[]> {
 
 /** Live daily market trade value from /market/value-history. */
 export function useValueHistory(): LiveDataResult<ValueDayBar[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-value-history"],
-    queryFn: async (): Promise<ValueDayBar[]> => {
-      const res = await apiGet<{ success: boolean; data: Array<{ date: string; day: string; value_b: number }> }>(
+    queryFn: async (): Promise<{ rows: ValueDayBar[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ date: string; day: string; value_b: number }>; data_as_of?: string | null }>(
         "/market/value-history?days=5"
       );
-      return extractArray<{ date: string; day: string; value_b: number }>(res).map((r) => ({
-        day: r.day,
-        date: r.date,
-        valueB: r.value_b,
-      }));
+      return {
+        rows: extractArray<{ date: string; day: string; value_b: number }>(res).map((r) => ({
+          day: r.day,
+          date: r.date,
+          valueB: r.value_b,
+        })),
+        dataAsOf: getDataAsOf(res),
+      };
     },
     refetchInterval: 300_000,
     staleTime: 120_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return liveResult(rows, {
-    hasData: rows.length > 0,
-    isFresh: false,
-    isStale: false,
-    isError,
-    isLoading,
-  });
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }
 
 /** Live daily real/legal net flow from /market/ownership-history. */
 export function useOwnershipHistory(): LiveDataResult<OwnershipDayBar[]> {
-  const { data, isError, isLoading } = useQuery({
+  const now = useNow();
+  const { data: feed, isError, isLoading } = useQuery({
     queryKey: ["live-ownership-history"],
-    queryFn: async (): Promise<OwnershipDayBar[]> => {
-      const res = await apiGet<{ success: boolean; data: Array<{ date: string; day: string; real_b: number; legal_b: number }> }>(
+    queryFn: async (): Promise<{ rows: OwnershipDayBar[]; dataAsOf: string | null }> => {
+      const res = await apiGet<{ success: boolean; data: Array<{ date: string; day: string; real_b: number; legal_b: number }>; data_as_of?: string | null }>(
         "/market/ownership-history?days=5"
       );
-      return extractArray<{ date: string; day: string; real_b: number; legal_b: number }>(res).map((r) => ({
-        day: r.day,
-        date: r.date,
-        realB: r.real_b,
-        legalB: r.legal_b,
-      }));
+      return {
+        rows: extractArray<{ date: string; day: string; real_b: number; legal_b: number }>(res).map((r) => ({
+          day: r.day,
+          date: r.date,
+          realB: r.real_b,
+          legalB: r.legal_b,
+        })),
+        dataAsOf: getDataAsOf(res),
+      };
     },
     refetchInterval: 300_000,
     staleTime: 120_000,
     retry: 1,
   });
-  const rows = data ?? [];
-  return liveResult(rows, {
-    hasData: rows.length > 0,
-    isFresh: false,
-    isStale: false,
-    isError,
-    isLoading,
-  });
+  const rows = feed?.rows ?? [];
+  return envelopeResult(rows, rows.length > 0, feed?.dataAsOf ?? null, now, isError, isLoading);
 }

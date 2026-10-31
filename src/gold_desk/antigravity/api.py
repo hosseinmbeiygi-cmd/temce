@@ -5,6 +5,7 @@ prefix: /gold/antigravity
 
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -23,6 +24,7 @@ from .kill_switch import evaluate_kill_switch
 from .signal_engine import generate_antigravity_signal
 
 router = APIRouter(prefix="/antigravity", tags=["GoldDesk-Antigravity"])
+logger = logging.getLogger(__name__)
 
 
 class AntigravitySignalRequest(BaseModel):
@@ -83,36 +85,51 @@ async def quick_signal(
     from ..snapshot_service import _read_brsapi_prices
 
     prices = await _read_brsapi_prices()
-    xau = prices.get("XAUUSD") or 2000
-    usd = prices.get("USD") or 70000
-    # تخمین بازار ETF از NAV (در حالت live باید از برآپی خوانده شود)
-    # fallback: از snapshot_service
+    xau = prices.get("XAUUSD")
+    usd = prices.get("USD")
+    # No synthetic fallbacks: without a real ounce and USD rate there is no signal.
+    if not xau or not usd or xau <= 0 or usd <= 0:
+        return {
+            "success": False,
+            "error": {"message": "قیمت انس یا دلار در دسترس نیست؛ سیگنال تولید نمی‌شود"},
+        }
     try:
         from ..snapshot_service import build_snapshot
 
         snap = await build_snapshot(session)
-        # پیدا کردن NAV نزدیک‌ترین صندوق
-        nav_val = 3500
-        mkt_val = 3600
-        if snap.funds:
-            f = snap.funds[0]
-            nav_val = f.nav_per_unit
-            mkt_val = f.market_price
-        coin_price = 400_000_000  # fallback
-        if snap.coins.get("coin_emami"):
-            coin_price = snap.coins["coin_emami"].market_price
+        fund = next((f for f in snap.funds if f.fund_name == etf_name), None)
+        if fund is None:
+            fund = next(
+                (f for f in snap.funds if f.nav_per_unit > 0 and f.market_price),
+                None,
+            )
+        if fund is None or fund.nav_per_unit <= 0 or not fund.market_price:
+            return {
+                "success": False,
+                "error": {"message": "NAV یا قیمت بازار صندوق در دسترس نیست؛ سیگنال تولید نمی‌شود"},
+            }
+        coin = snap.coins.get("coin_emami")
+        if coin is None or coin.market_price <= 0:
+            return {
+                "success": False,
+                "error": {"message": "قیمت سکه در دسترس نیست؛ سیگنال تولید نمی‌شود"},
+            }
         sig = generate_antigravity_signal(
             etf_name=etf_name,
-            market_price=mkt_val,
-            nav=nav_val,
-            coin_price_irr=coin_price,
+            market_price=fund.market_price,
+            nav=fund.nav_per_unit,
+            coin_price_irr=coin.market_price,
             gold_oz_usd=xau,
             usd_rate=usd,
             leverage=leverage,
         )
         return {"success": True, "data": sig.model_dump(mode="json"), "source": snap.references.source}
-    except Exception as exc:
-        return {"success": False, "error": {"message": str(exc)}}
+    except Exception:
+        logger.exception("antigravity quick-signal failed")
+        return {
+            "success": False,
+            "error": {"message": "تولید سیگنال با داده فعلی ممکن نیست"},
+        }
 
 
 @router.post("/kill-switch/check", summary="Evaluate Kill-Switch status")

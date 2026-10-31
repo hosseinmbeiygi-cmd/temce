@@ -27,6 +27,12 @@ logger = logging.getLogger(__name__)
 # «عیار» با سه هفته تأخیر همان عدد را به امتیاز TSETMC می‌داد.
 MAX_MARKET_DATA_AGE_DAYS: int = 7
 
+# NAV older than this must not be compared with a live market price (stage 8:
+# «مقایسهٔ NAV با قیمت بازار»). A month-old NAV against today's price produced
+# a bubble that looked like a real premium/discount; the bubble is now `None`
+# (no comparison) while the NAV itself is still reported for display.
+MAX_NAV_AGE_DAYS: int = 7
+
 # اختلاف نسبی NAV صدور و NAV ابطال که از آن به بعد «ناهمخوانی» باور می‌شود و
 # لاگ می‌شود. واحد: درصد نسبت به NAV صدور. صفر یعنی همان NAV؛ مقدار کوچک طبیعی
 # است، پس آستانه ۱٪ گرفته شده تا فقط شکاف واقعی گزارش شود (E-M3).
@@ -50,6 +56,10 @@ class FundNAVStatus:
     real_sell_value: int
     net_inflow: int
     nav_7d_pct: float | None
+    # Jalali date of the NAV that produced `nav_per_unit`; `None` when the row
+    # carries no date. The bubble is suppressed when this is missing or older
+    # than MAX_NAV_AGE_DAYS.
+    nav_as_of: str | None = None
 
 
 def _resolve_nav(nav_issue: Any, nav_redemption: Any, label: str = "") -> float | None:
@@ -105,18 +115,53 @@ def _pick_nav(row: Any) -> float | None:
     return _resolve_nav(issue, redemption)
 
 
-async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
-    """آخرین NAV ثبت‌شده برای یک صندوق."""
+async def _latest_nav_with_date(
+    session: AsyncSession, symbol: str
+) -> tuple[float | None, str | None]:
+    """آخرین NAV و تاریخ شمسی همان ردیف — برای هم‌ترازی با قیمت بازار."""
     from brsapi.models import NavRecordModel
 
     stmt = (
-        select(NavRecordModel.nav_issue, NavRecordModel.nav_redemption)
+        select(
+            NavRecordModel.nav_issue,
+            NavRecordModel.nav_redemption,
+            NavRecordModel.date,
+        )
         .where(NavRecordModel.symbol == symbol)
         .order_by(desc(_date_key(NavRecordModel)))
         .limit(1)
     )
     result = await session.execute(stmt)
-    return _pick_nav(result.first())
+    row = result.first()
+    if row is None:
+        return None, None
+    date_value = row[2] if len(row) > 2 else None
+    return _pick_nav((row[0], row[1])), (str(date_value) if date_value else None)
+
+
+async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
+    """آخرین NAV ثبت‌شده برای یک صندوق."""
+    nav, _date = await _latest_nav_with_date(session, symbol)
+    return nav
+
+
+def _nav_is_comparable(nav_date: str | None, symbol: str = "") -> bool:
+    """آیا NAV به‌قدری تازه است که مقایسه با قیمت بازار معنا داشته باشد؟
+
+    ``None`` (ردیف بدون تاریخ یا تاریخ نامعتبر) هم غیرقابل‌مقایسه است: بدون
+    تاریخ نمی‌توان فهمید NAV مربوط به همان روزِ قیمت است یا نه.
+    """
+    age_days = _jalali_days_old(nav_date) if nav_date else None
+    if age_days is None or age_days > MAX_NAV_AGE_DAYS:
+        logger.warning(
+            "stale or undated NAV%s: %r (age=%s days, max %s) — bubble suppressed",
+            f" for {symbol}" if symbol else "",
+            nav_date,
+            age_days,
+            MAX_NAV_AGE_DAYS,
+        )
+        return False
+    return True
 
 
 async def _nav_7d_ago(session: AsyncSession, symbol: str) -> float | None:
@@ -227,7 +272,7 @@ async def get_fund_status(
         استفاده می‌شود؛ اگر هیچ‌کدام از منابع قیمت آن را ندهند، market_price None می‌ماند
         و حباب محاسبه نمی‌شود.
     """
-    nav = await _latest_nav(session, symbol)
+    nav, nav_date = await _latest_nav_with_date(session, symbol)
     if nav is None:
         return None
 
@@ -280,7 +325,10 @@ async def get_fund_status(
     if nav_7d and nav_7d > 0:
         nav_7d_pct = ((nav - nav_7d) / nav_7d) * 100.0
 
-    bubble_abs = None if market_price is None else market_price - nav
+    # Compare only a NAV that belongs to a recent session: a month-old NAV
+    # against today's price is not a premium/discount (stage 8).
+    comparable_price = market_price if _nav_is_comparable(nav_date, symbol) else None
+    bubble_abs = None if comparable_price is None else comparable_price - nav
     bubble_pct = (
         None
         if bubble_abs is None or nav <= 0
@@ -299,6 +347,7 @@ async def get_fund_status(
         real_sell_value=sell_val,
         net_inflow=net,
         nav_7d_pct=nav_7d_pct,
+        nav_as_of=nav_date,
     )
 
 
@@ -331,20 +380,29 @@ async def _latest_rows_by_symbol(session, model, columns, symbols, extra_where=N
     return result.all()
 
 
-async def _latest_nav_batch(session: AsyncSession, symbols: list[str]) -> dict[str, float]:
+async def _latest_nav_batch(
+    session: AsyncSession, symbols: list[str]
+) -> dict[str, tuple[float | None, str | None]]:
+    """آخرین NAV هر نماد + تاریخ همان ردیف (برای هم‌ترازی با قیمت بازار)."""
     from brsapi.models import NavRecordModel
 
     rows = await _latest_rows_by_symbol(
         session,
         NavRecordModel,
-        (NavRecordModel.symbol, NavRecordModel.nav_issue, NavRecordModel.nav_redemption),
+        (
+            NavRecordModel.symbol,
+            NavRecordModel.nav_issue,
+            NavRecordModel.nav_redemption,
+            NavRecordModel.date,
+        ),
         symbols,
     )
-    out: dict[str, float] = {}
-    for symbol, issue, redemption in rows:
-        nav = _resolve_nav(issue, redemption, label=symbol)
-        if nav is not None:
-            out[symbol] = nav
+    out: dict[str, tuple[float | None, str | None]] = {}
+    for symbol, issue, redemption, row_date in rows:
+        out[symbol] = (
+            _resolve_nav(issue, redemption, label=symbol),
+            str(row_date) if row_date else None,
+        )
     return out
 
 
@@ -464,6 +522,7 @@ async def get_all_funds_status(
         return []
 
     navs = await _latest_nav_batch(session, symbols)
+    navs = {sym: value for sym, value in navs.items() if value[0] is not None}
     if not navs:
         return []
 
@@ -484,7 +543,10 @@ async def get_all_funds_status(
 
     out: list[FundNAVStatus] = []
     for symbol in symbols:
-        nav = navs.get(symbol)
+        entry = navs.get(symbol)
+        if entry is None:
+            continue
+        nav, nav_date = entry
         if nav is None:
             continue
         data = market_data.get(symbol) or {}
@@ -498,7 +560,8 @@ async def get_all_funds_status(
         if nav_7d_value and nav_7d_value > 0:
             nav_7d_pct = ((nav - nav_7d_value) / nav_7d_value) * 100.0
 
-        bubble_abs = None if market_price is None else market_price - nav
+        comparable_price = market_price if _nav_is_comparable(nav_date, symbol) else None
+        bubble_abs = None if comparable_price is None else comparable_price - nav
         bubble_pct = None if bubble_abs is None or nav <= 0 else bubble_abs / nav * 100.0
 
         out.append(
@@ -514,6 +577,7 @@ async def get_all_funds_status(
                 real_sell_value=sell_val,
                 net_inflow=net,
                 nav_7d_pct=nav_7d_pct,
+                nav_as_of=nav_date,
             )
         )
     return out

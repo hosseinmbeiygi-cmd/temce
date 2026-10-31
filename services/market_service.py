@@ -497,14 +497,17 @@ class MarketService:
             tenkan, kijun, senkou_a, senkou_b, chikou = MarketService._ichimoku(
                 highs or [], lows or [], closes, tenkan_p, kijun_p, senkou_b_p,
             )
-            # Align all series to same date axis
-            offset = kijun_p
-            tenkan_aligned = tenkan[offset:] if len(tenkan) > offset else []
-            kijun_aligned = kijun
-            senkou_a_aligned = senkou_a
-            senkou_b_aligned = senkou_b
-            chikou_aligned = chikou[offset:] if len(chikou) > offset else []
-            return {"tenkan": tenkan_aligned, "kijun": kijun_aligned, "senkou_a": senkou_a_aligned, "senkou_b": senkou_b_aligned, "chikou": chikou_aligned, "offset": offset}
+            # Raw series keep their natural (unequal) warm-up lengths. The API
+            # aligns the date axis to the first series; truncating here made
+            # tenkan/kijun shorter than their own periods' output and hid the
+            # real warm-up from the chart (audit NEW-01).
+            return {
+                "tenkan": tenkan,
+                "kijun": kijun,
+                "senkou_a": senkou_a,
+                "senkou_b": senkou_b,
+                "chikou": chikou,
+            }
         raise ValueError(f"Unknown indicator: {indicator}")
 
     # ── Indicator implementations ───────────────────
@@ -616,13 +619,11 @@ class MarketService:
                 raw_k.append(((closes[i] - window_low) / (window_high - window_low)) * 100.0)
         # Smooth %K (SMA of raw %K)
         k_line = MarketService._sma(raw_k, k_smooth)
-        # %D = SMA of smoothed %K
+        # %D = SMA of smoothed %K. It is naturally shorter than %K by
+        # (d_smooth - 1); that is the indicator's honest warm-up, not a value
+        # to fabricate. The API aligns dates to the first series and the chart
+        # renders the missing leading points as gaps (audit NEW-01).
         d_line = MarketService._sma(k_line, d_smooth)
-        # Align d_line to same length as k_line by padding with first value
-        if len(d_line) < len(k_line):
-            d_line = d_line + [d_line[0]] * (len(k_line) - len(d_line))
-        elif len(d_line) > len(k_line):
-            d_line = d_line[:len(k_line)]
         return k_line, d_line
 
     # ── ATR (Average True Range) ──────────────────────

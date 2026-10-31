@@ -7,6 +7,7 @@ import redis.asyncio as aioredis
 
 from core.config import settings
 from core.logging import get_logger
+from core.security.redaction import redact_redis_url
 
 logger = get_logger(__name__)
 
@@ -61,7 +62,7 @@ class RedisClient:
             # Custom URL → manage a private connection (legacy behaviour).
             self._own_client = aioredis.from_url(self._url, decode_responses=True)
             await self._own_client.ping()
-            logger.info("Connected to Redis at %s", self._url)
+            logger.info("Connected to Redis at %s", redact_redis_url(self._url))
         else:
             # Default URL → reuse the app-wide shared connection.
             # Best-effort: initialize() never raises (falls back to null cache).

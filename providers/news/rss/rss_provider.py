@@ -24,6 +24,15 @@ class RSSNewsProvider(NewsProvider):
         self.client = RSSClient()
         self.parser = RSSParser()
         self.feeds: dict[str, str] = {}
+        # Per-source outcome of the most recent ``fetch_news`` call: which feeds
+        # answered, which were empty, and which failed (with the reason).
+        # ``Result`` carries only one error string, so a partial outage used to
+        # be visible only in a log line (audit stage 9: per-source counter).
+        self.last_feed_report: dict[str, Any] = {
+            "ok": [],
+            "empty": [],
+            "failed": {},
+        }
 
     async def fetch_feed(self, url: str) -> Result[list[dict[str, Any]]]:
         """Fetch and parse a single RSS/Atom feed URL."""
@@ -54,6 +63,9 @@ class RSSNewsProvider(NewsProvider):
         limit: int = 50,
         **kwargs: Any,
     ) -> Result[list[dict[str, Any]]]:
+        # Every call starts with a clean report — a stale partial-outage list
+        # from the previous run must never be attributed to this one.
+        self.last_feed_report = {"ok": [], "empty": [], "failed": {}}
         if not self.feeds:
             # A configuration gap is not a successful empty fetch: ``ok([])``
             # here made a misconfigured deployment look like a healthy ingest
@@ -90,6 +102,7 @@ class RSSNewsProvider(NewsProvider):
         ok_feeds: list[str] = []
         empty_feeds: list[str] = []
         failed_feeds: list[str] = []
+        failed_by_feed: dict[str, str] = {}
         for feed_name, _feed_url, result in results:
             if result.success and result.value:
                 # Tag each article with its feed source key
@@ -100,7 +113,15 @@ class RSSNewsProvider(NewsProvider):
             elif result.success:
                 empty_feeds.append(feed_name)
             else:
-                failed_feeds.append(f"{feed_name} ({result.error})")
+                reason = result.error or "unknown error"
+                failed_feeds.append(f"{feed_name} ({reason})")
+                failed_by_feed[feed_name] = reason
+
+        self.last_feed_report = {
+            "ok": ok_feeds,
+            "empty": empty_feeds,
+            "failed": failed_by_feed,
+        }
 
         # Per-source outcome is logged even on success, so a partial outage is
         # traceable instead of hiding inside a healthy record count.

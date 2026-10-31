@@ -264,6 +264,11 @@ class JobQueueConsumer:
             self.processed += 1
             return
 
+        if getattr(result, "skipped", False):
+            logger.info("Job %s skipped: %s", job_name, getattr(result, "message", ""))
+            self.processed += 1
+            return
+
         error = getattr(result, "error", "") or "unknown error"
         # Benign: another worker already ran this job (distributed lock).
         if any(marker in error for marker in _BENIGN_ERROR_MARKERS):

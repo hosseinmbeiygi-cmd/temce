@@ -38,6 +38,7 @@ import orjson
 
 from core.config import settings
 from core.logging import get_logger
+from core.security.redaction import redact_redis_url
 
 logger = get_logger(__name__)
 
@@ -134,7 +135,10 @@ class CacheManager:
             await client.ping()
             self._redis = client
             self._redis_connected = True
-            logger.info("CacheManager connected to Redis at %s", self._redis_url)
+            logger.info(
+                "CacheManager connected to Redis at %s",
+                redact_redis_url(self._redis_url),
+            )
             return True
         except Exception:
             self._redis_connected = False

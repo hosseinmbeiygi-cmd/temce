@@ -27,6 +27,7 @@ from . import indicators
 from .black76 import IRAN_RISK_FREE_RATE
 from .constants import COIN_WEIGHTS, SMA_BUBBLE_WINDOW, VEHICLE_FEES
 from .dates import jalali_days_ago
+from .entry_rules import dca_entry_signal
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,11 @@ def _simulate_dca(
 
     هر پله فقط یک بار اجرا می‌شود و بودجه‌اش از **کل سرمایه** است (نه از
     باقی‌مانده)، پس مجموع پله‌ها از سرمایه بیشتر نمی‌شود و نقدِ اجرانشده می‌ماند.
+
+    اجرا در **کندل بعدی** (FIN-08): سیگنال از close روز i خوانده می‌شود و پر
+    شدن سفارش با close روز i+1 انجام می‌شود؛ سیگنال روز آخر (بدون کندل بعدی)
+    قابل اجرا نیست و شمرده نمی‌شود. قبلاً همان close سیگنال هم پر می‌شد که
+    بازده را مصنوعاً بهتر می‌کرد.
     """
     if len(closes) < MIN_SIMULATION_DAYS or not tranches_pct:
         return []
@@ -167,7 +173,9 @@ def _simulate_dca(
     last_buy_price: float | None = None
     tranche_idx = 0  # شمارهٔ پلهٔ بعدی که باید بررسی شود
 
-    for i, (d, price) in enumerate(closes):
+    # last bar has no next bar to execute the signal on
+    for i in range(len(closes) - 1):
+        d, price = closes[i]
         if tranche_idx >= len(tranches_pct) or price <= 0:
             continue
 
@@ -178,7 +186,8 @@ def _simulate_dca(
 
         trigger_met = False
         if tranche_idx == 0:
-            trigger_met = (not np.isnan(bubble[i])) and bool(bubble[i] < bubble_trigger)
+            # Shared with backtest.run_backtest (audit FIN-03).
+            trigger_met = dca_entry_signal(bubble[i], bubble_trigger)
         elif tranche_idx == 1 and last_buy_price:
             change_pct = (price - last_buy_price) / last_buy_price * 100.0
             pullback = -change_pct
@@ -190,16 +199,19 @@ def _simulate_dca(
         if not trigger_met:
             continue
 
+        exec_date, exec_price = closes[i + 1]
+        if exec_price <= 0:
+            continue
         budget = min(initial_capital * pct, cash)
         if budget <= 0:
             continue
         fee = budget * fee_pct
-        units = (budget - fee) / price
+        units = (budget - fee) / exec_price
         trades.append(
             BacktestTrade(
-                date=d,
+                date=exec_date,
                 tranche=tranche_idx + 1,
-                price=price,
+                price=exec_price,
                 amount_irt=budget,
                 units=units,
                 trigger_met=True,
@@ -207,7 +219,7 @@ def _simulate_dca(
             )
         )
         cash -= budget
-        last_buy_price = price
+        last_buy_price = exec_price
         tranche_idx += 1
 
     return trades

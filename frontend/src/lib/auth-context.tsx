@@ -129,6 +129,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const json = await res.json();
+
+    // The backend reports credential failures as HTTP 200 with success:false.
+    // Reading only res.ok here made every wrong password surface as
+    // "missing access token" instead of the server's message.
+    if (json?.success === false) {
+      const error = json.error;
+      const message =
+        (error &&
+          typeof error === "object" &&
+          typeof error.message === "string" &&
+          error.message) ||
+        (typeof error === "string" && error) ||
+        (typeof json.message === "string" && json.message) ||
+        `Login failed (${res.status})`;
+      throw new Error(message);
+    }
+
     const data = json.data ?? json;
 
     if (data?.mfa_required) {

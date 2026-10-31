@@ -16,7 +16,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import (
+    current_user_id,
+    get_current_user,
+    get_db_session,
+    owned_scope,
+)
 from core.time import utc_now_naive
 
 from . import dca_planner, phase1, phase2, snapshot_service
@@ -387,8 +392,14 @@ async def post_dca_plan(req: DCARequest) -> DCAResponse:
 
 
 @router.get("/alerts/rules", summary="List alert rules")
-async def list_alert_rules(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def list_alert_rules(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    scope = owned_scope(current_user)
     stmt = select(AlertRuleModel).order_by(AlertRuleModel.id)
+    if scope is not None:
+        stmt = stmt.where(AlertRuleModel.user_id == scope)
     rows = (await session.execute(stmt)).scalars().all()
     return {
         "success": True,
@@ -412,8 +423,12 @@ async def list_alert_rules(session: AsyncSession = Depends(get_db_session)) -> d
 
 
 @router.post("/alerts/rules", summary="Create alert rule")
-async def create_alert_rule(rule: AlertRuleCreate, session: AsyncSession = Depends(get_db_session)) -> dict:
-    new_rule = AlertRuleModel(**rule.model_dump())
+async def create_alert_rule(
+    rule: AlertRuleCreate,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    new_rule = AlertRuleModel(**rule.model_dump(), user_id=current_user_id(current_user))
     session.add(new_rule)
     await session.commit()
     await session.refresh(new_rule)
@@ -425,9 +440,11 @@ async def update_alert_rule(
     rule_id: int,
     update: AlertRuleUpdate,
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
-    rule = (await session.execute(select(AlertRuleModel).where(AlertRuleModel.id == rule_id))).scalars().first()
-    if not rule:
+    scope = owned_scope(current_user)
+    rule = await session.get(AlertRuleModel, rule_id)
+    if not rule or (scope is not None and getattr(rule, "user_id", None) != scope):
         raise HTTPException(status_code=404, detail="rule not found")
     for k, v in update.model_dump(exclude_unset=True).items():
         setattr(rule, k, v)
@@ -436,9 +453,14 @@ async def update_alert_rule(
 
 
 @router.delete("/alerts/rules/{rule_id}", summary="Delete alert rule")
-async def delete_alert_rule(rule_id: int, session: AsyncSession = Depends(get_db_session)) -> dict:
-    rule = (await session.execute(select(AlertRuleModel).where(AlertRuleModel.id == rule_id))).scalars().first()
-    if not rule:
+async def delete_alert_rule(
+    rule_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    scope = owned_scope(current_user)
+    rule = await session.get(AlertRuleModel, rule_id)
+    if not rule or (scope is not None and getattr(rule, "user_id", None) != scope):
         raise HTTPException(status_code=404, detail="rule not found")
     await session.delete(rule)
     await session.commit()
@@ -450,9 +472,13 @@ async def list_alert_events(
     days: int = Query(7, ge=1, le=90),
     unread_only: bool = Query(False),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     cutoff = utc_now_naive() - timedelta(days=days)
+    scope = owned_scope(current_user)
     stmt = select(AlertEventModel).where(AlertEventModel.sent_at >= cutoff)
+    if scope is not None:
+        stmt = stmt.where(AlertEventModel.user_id == scope)
     if unread_only:
         stmt = stmt.where(AlertEventModel.read_at.is_(None))
     stmt = stmt.order_by(desc(AlertEventModel.sent_at)).limit(200)
@@ -478,9 +504,14 @@ async def list_alert_events(
 
 
 @router.post("/alerts/{event_id}/ack", summary="Mark alert as read")
-async def ack_alert(event_id: int, session: AsyncSession = Depends(get_db_session)) -> dict:
-    ev = (await session.execute(select(AlertEventModel).where(AlertEventModel.id == event_id))).scalars().first()
-    if not ev:
+async def ack_alert(
+    event_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    scope = owned_scope(current_user)
+    ev = await session.get(AlertEventModel, event_id)
+    if not ev or (scope is not None and getattr(ev, "user_id", None) != scope):
         raise HTTPException(status_code=404, detail="event not found")
     ev.read_at = utc_now_naive()
     await session.commit()
@@ -488,8 +519,11 @@ async def ack_alert(event_id: int, session: AsyncSession = Depends(get_db_sessio
 
 
 @router.post("/alerts/seed", summary="Seed default alert rules (idempotent)")
-async def post_seed_rules(session: AsyncSession = Depends(get_db_session)) -> dict:
-    n = await seed_default_rules(session)
+async def post_seed_rules(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    n = await seed_default_rules(session, user_id=current_user_id(current_user))
     return {"success": True, "data": {"inserted": n}}
 
 
@@ -497,13 +531,18 @@ async def post_seed_rules(session: AsyncSession = Depends(get_db_session)) -> di
 
 
 @router.get("/watchlist", response_model=WatchlistResponse, summary="Get watchlist")
-async def get_watchlist() -> WatchlistResponse:
+async def get_watchlist(
+    current_user: dict = Depends(get_current_user),
+) -> WatchlistResponse:
     from core.cache import get_cache
 
     from .constants import REDIS_KEY_WATCHLIST
 
+    uid = current_user_id(current_user)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
     cache = get_cache()
-    raw = await cache.get(REDIS_KEY_WATCHLIST)
+    raw = await cache.get(f"{REDIS_KEY_WATCHLIST}:{uid}")
     if raw:
         with contextlib.suppress(Exception):
             data = json.loads(raw) if isinstance(raw, str) else raw
@@ -515,16 +554,22 @@ async def get_watchlist() -> WatchlistResponse:
 
 
 @router.put("/watchlist", response_model=WatchlistResponse, summary="Replace watchlist")
-async def put_watchlist(payload: WatchlistResponse) -> WatchlistResponse:
+async def put_watchlist(
+    payload: WatchlistResponse,
+    current_user: dict = Depends(get_current_user),
+) -> WatchlistResponse:
     from core.cache import get_cache
 
     from .constants import REDIS_KEY_WATCHLIST
 
+    uid = current_user_id(current_user)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
     cache = get_cache()
     now = utc_now_naive()
     payload.updated_at = now
     await cache.set_persistent(
-        REDIS_KEY_WATCHLIST,
+        f"{REDIS_KEY_WATCHLIST}:{uid}",
         json.dumps({"symbols": payload.symbols, "updated_at": now.isoformat()}),
     )
     return payload
@@ -582,8 +627,6 @@ async def health(session: AsyncSession = Depends(get_db_session)):
     """
     import contextlib
 
-    from fastapi import Response
-
     from core.cache import get_cache
 
     redis_ok = False
@@ -629,10 +672,24 @@ async def health(session: AsyncSession = Depends(get_db_session)):
     ).scalar() or 0
 
     if not db_ok or not redis_ok:
-        return Response(
+        # Keep the per-dependency flags in the 503 body: a probe/client must be
+        # able to say WHICH dependency died, not just "unhealthy".
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
             status_code=503,
-            content='{"status":"unhealthy","reason":"redis_or_db"}',
-            media_type="application/json",
+            content={
+                "status": "unhealthy",
+                "reason": "redis_or_db",
+                "brsapi_ok": brsapi_ok_real,
+                "redis_ok": redis_ok,
+                "db_ok": db_ok,
+                "last_snapshot_at": last_snap,
+                "scheduler_jobs": _scheduled_job_count(),
+                "telegram_configured": TelegramConfig.from_env().is_configured(),
+                "active_alert_rules": int(active_rules),
+                "unread_alerts": int(unread),
+            },
         )
 
     return HealthResponse(
@@ -918,7 +975,8 @@ async def create_token(
         scope_list = ["read"]
 
     plain, info = generate_token(name, scope_list)
-    await save_token(plain, info)
+    if not await save_token(plain, info):
+        raise HTTPException(503, "token store is unavailable; token was not created")
     return {
         "success": True,
         "data": {
@@ -1024,9 +1082,10 @@ def _returns_payload(returns) -> dict:
 async def get_portfolio_history(
     days: int = Query(90, ge=2, le=730),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """سری ارزش روزانهٔ پرتفوی (جدول ``gold_portfolio_values``)."""
-    rows = await load_value_history(session, days=days)
+    rows = await load_value_history(session, days=days, user_id=owned_scope(current_user))
     return {
         "success": True,
         "data": {
@@ -1053,18 +1112,26 @@ async def get_portfolio_history(
 async def get_portfolio_performance(
     days: int = Query(PORTFOLIO_PERFORMANCE_WINDOW_DAYS, ge=2, le=730),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """بازده وزنی‌زمان (TWR) + نوسان/شارپ/افت + مقایسه با طلا، دلار و شاخص کل."""
     snap = await get_hot_snapshot()
-    report = await build_performance_report(session, days=days, snapshot=snap)
+    report = await build_performance_report(
+        session, days=days, snapshot=snap, user_id=owned_scope(current_user)
+    )
     return {"success": True, "data": report.as_dict()}
 
 
 @router.post("/portfolio/snapshot", summary="Persist today's portfolio value")
-async def post_portfolio_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def post_portfolio_snapshot(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
     """ثبت فوری ارزش پرتفوی برای امروز (idempotent) — پر کردن تاریخچه بدون انتظار برای scheduler."""
     snap = await get_hot_snapshot()
-    row = await capture_portfolio_value(session, snapshot=snap)
+    row = await capture_portfolio_value(
+        session, snapshot=snap, user_id=current_user_id(current_user)
+    )
     return {
         "success": True,
         "data": {
@@ -1078,24 +1145,35 @@ async def post_portfolio_snapshot(session: AsyncSession = Depends(get_db_session
 
 
 @router.get("/portfolio/returns", summary="Portfolio returns (nominal / real / USD)")
-async def get_portfolio_returns(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_portfolio_returns(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
     """بازده پورتفوی: اسمی (XIRR) + واقعی (تعدیل تورم) + دلاری."""
     snap = await get_hot_snapshot()
-    returns = await build_portfolio_returns(session, snapshot=snap)
+    returns = await build_portfolio_returns(
+        session, snapshot=snap, user_id=owned_scope(current_user)
+    )
     return {"success": True, "data": {"returns": _returns_payload(returns)}}
 
 
 @router.get("/portfolio/tax", summary="Portfolio FIFO cost basis and realized P&L")
-async def get_portfolio_tax(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_portfolio_tax(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
     """بهای تمام‌شده و سود/زیان تحقق‌یافتهٔ معاملات با روش FIFO."""
-    summary = await build_tax_summary(session)
+    summary = await build_tax_summary(session, user_id=owned_scope(current_user))
     return {"success": True, "data": summary}
 
 
 @router.get("/portfolio/export.csv", summary="Export recorded trades as CSV")
-async def export_portfolio_trades_csv(session: AsyncSession = Depends(get_db_session)) -> Response:
+async def export_portfolio_trades_csv(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> Response:
     """خروجی CSV معاملات ثبت‌شده (برای گزارش و مالیات)."""
-    csv_text = await build_trades_csv(session)
+    csv_text = await build_trades_csv(session, user_id=owned_scope(current_user))
     return Response(
         content=csv_text,
         media_type="text/csv",
@@ -1104,12 +1182,16 @@ async def export_portfolio_trades_csv(session: AsyncSession = Depends(get_db_ses
 
 
 @router.get("/portfolio", summary="Get portfolio summary with P&L")
-async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_portfolio(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
+) -> dict:
     """خلاصه portfolio با P&L بر اساس قیمت‌های فعلی از snapshot."""
     snap = await get_hot_snapshot()
     prices = get_current_prices(snap)
-    summary = await get_holdings_grouped(session, prices)
-    returns = await build_portfolio_returns(session, snapshot=snap)
+    scope = owned_scope(current_user)
+    summary = await get_holdings_grouped(session, prices, user_id=scope)
+    returns = await build_portfolio_returns(session, snapshot=snap, user_id=scope)
     return {
         "success": True,
         "data": {
@@ -1147,10 +1229,11 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
 async def add_holding(
     h: HoldingCreate,
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     from .models import GoldHoldingModel
 
-    new_h = GoldHoldingModel(**h.model_dump())
+    new_h = GoldHoldingModel(**h.model_dump(), user_id=current_user_id(current_user))
     session.add(new_h)
     await session.commit()
     await session.refresh(new_h)
@@ -1162,6 +1245,7 @@ async def delete_holding(
     holding_id: int,
     force: bool = Query(False, description="حذف سخت فقط با ?force=true"),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """حذف دارایی.
 
@@ -1172,8 +1256,11 @@ async def delete_holding(
     """
     from .models import GoldHoldingModel
 
+    scope = owned_scope(current_user)
     h = await session.get(GoldHoldingModel, holding_id)
     if not h:
+        raise HTTPException(404, "holding not found")
+    if scope is not None and getattr(h, "user_id", None) != scope:
         raise HTTPException(404, "holding not found")
     if h.deleted_at is not None and not force:
         # دارایی soft-delete‌شده دیگر قابل حذف/تغییر نیست مگر با force صریح.
@@ -1193,6 +1280,7 @@ async def delete_holding(
 async def create_dca_plan(
     p: DCAPlanCreate,
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """ساخت پلن DCA با محاسبه ladder از dca_planner."""
     from .dca_planner import plan_dca
@@ -1218,6 +1306,7 @@ async def create_dca_plan(
         ]
     )
     new_plan = GoldDCAPlanModel(
+        user_id=current_user_id(current_user),
         name=p.name,
         total_capital_irt=p.total_capital_irt,
         risk_profile=p.risk_profile,
@@ -1247,10 +1336,15 @@ async def create_dca_plan(
 async def list_dca_plans(
     current_score: int = Query(60, ge=0, le=100),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     from .models import GoldDCAPlanModel
 
-    rows = (await session.execute(select(GoldDCAPlanModel).order_by(GoldDCAPlanModel.id))).scalars().all()
+    stmt = select(GoldDCAPlanModel).order_by(GoldDCAPlanModel.id)
+    scope = owned_scope(current_user)
+    if scope is not None:
+        stmt = stmt.where(GoldDCAPlanModel.user_id == scope)
+    rows = (await session.execute(stmt)).scalars().all()
     return {
         "success": True,
         "data": [
@@ -1283,11 +1377,15 @@ async def execute_dca_tranche(
     plan_id: int,
     tranche: int = Query(..., ge=1, le=10),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """افزایش executed_tranches (manual confirmation)."""
     from .models import GoldDCAPlanModel
 
+    scope = owned_scope(current_user)
     plan = await session.get(GoldDCAPlanModel, plan_id)
+    if plan is not None and scope is not None and getattr(plan, "user_id", None) != scope:
+        plan = None
     if not plan:
         raise HTTPException(404, "plan not found")
     if tranche > plan.executed_tranches + 1:
@@ -1302,10 +1400,14 @@ async def execute_dca_tranche(
 async def delete_dca_plan(
     plan_id: int,
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     from .models import GoldDCAPlanModel
 
+    scope = owned_scope(current_user)
     plan = await session.get(GoldDCAPlanModel, plan_id)
+    if plan is not None and scope is not None and getattr(plan, "user_id", None) != scope:
+        plan = None
     if not plan:
         raise HTTPException(404, "plan not found")
     await session.delete(plan)
@@ -1317,6 +1419,7 @@ async def delete_dca_plan(
 async def post_trade(
     t: TradeCreate,
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     try:
         trade = await record_trade(
@@ -1330,6 +1433,8 @@ async def post_trade(
             holding_id=t.holding_id,
             plan_id=t.plan_id,
             note=t.note,
+            user_id=current_user_id(current_user),
+            allow_any_owner=owned_scope(current_user) is None,
         )
     except HoldingDeletedError as exc:
         raise HTTPException(409, str(exc)) from exc
@@ -1349,14 +1454,15 @@ async def post_trade(
 async def list_trades(
     limit: int = Query(50, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     from .models import GoldTradeModel
 
-    rows = (
-        (await session.execute(select(GoldTradeModel).order_by(desc(GoldTradeModel.traded_at)).limit(limit)))
-        .scalars()
-        .all()
-    )
+    stmt = select(GoldTradeModel).order_by(desc(GoldTradeModel.traded_at)).limit(limit)
+    scope = owned_scope(current_user)
+    if scope is not None:
+        stmt = stmt.where(GoldTradeModel.user_id == scope)
+    rows = (await session.execute(stmt)).scalars().all()
     return {
         "success": True,
         "data": [
@@ -1427,13 +1533,16 @@ class ChatRequest(BaseModel):
 async def post_chat(
     req: ChatRequest,
     session: AsyncSession = Depends(get_db_session),
+    current_user: dict = Depends(get_current_user),
 ) -> dict:
     """پرسش از دستیار هوشمند. snapshot + portfolio + patterns به context اضافه می‌شود."""
     snap = await get_hot_snapshot()
     portfolio_data = None
     with contextlib.suppress(Exception):
         prices = get_current_prices(snap)
-        portfolio = await get_holdings_grouped(session, prices)
+        portfolio = await get_holdings_grouped(
+            session, prices, user_id=owned_scope(current_user)
+        )
         portfolio_data = {
             "total_value": portfolio.total_value,
             "total_cost": portfolio.total_cost,

@@ -183,22 +183,25 @@ async def capture_portfolio_value(
     snapshot: dict | None = None,
     prices: Mapping[str, float] | None = None,
     asof: date | None = None,
+    user_id: str | None = None,
 ) -> GoldPortfolioValueModel:
-    """ثبت/به‌روزرسانی ارزش پرتفوی برای یک روز (idempotent روی ``as_of``)."""
+    """ثبت/به‌روزرسانی ارزش پرتفوی برای یک روز (idempotent روی user+as_of)."""
     day = asof or now_tehran().date()
-    holdings, trades = await load_holdings_and_trades(session)
+    holdings, trades = await load_holdings_and_trades(session, user_id=user_id)
     live = dict(prices) if prices is not None else get_current_prices(snapshot)
-    summary = await get_holdings_grouped(session, live)
+    summary = await get_holdings_grouped(session, live, user_id=user_id)
     net_flow = daily_net_flow_irt(holdings, trades, day)
 
-    row = (
-        await session.execute(
-            select(GoldPortfolioValueModel).where(GoldPortfolioValueModel.as_of == day)
-        )
-    ).scalar_one_or_none()
+    stmt = select(GoldPortfolioValueModel).where(GoldPortfolioValueModel.as_of == day)
+    if user_id is not None:
+        stmt = stmt.where(GoldPortfolioValueModel.user_id == user_id)
+    else:
+        stmt = stmt.where(GoldPortfolioValueModel.user_id.is_(None))
+    row = (await session.execute(stmt)).scalars().first()
 
     if row is None:
         row = GoldPortfolioValueModel(
+            user_id=user_id,
             as_of=day,
             total_value_irt=summary.total_value,
             total_cost_irt=summary.total_cost,
@@ -218,15 +221,20 @@ async def capture_portfolio_value(
 
 
 async def load_value_history(
-    session: AsyncSession, *, days: int = PORTFOLIO_PERFORMANCE_WINDOW_DAYS
+    session: AsyncSession,
+    *,
+    days: int = PORTFOLIO_PERFORMANCE_WINDOW_DAYS,
+    user_id: str | None = None,
 ) -> list[GoldPortfolioValueModel]:
-    """سری ارزش پرتفوی در پنجرهٔ ``days`` روز گذشته (صعودی)."""
+    """سری ارزش پرتفوی در پنجرهٔ ``days`` روز گذشته (صعودی، محدود به مالک)."""
     cutoff = now_tehran().date() - timedelta(days=max(1, int(days)))
     stmt = (
         select(GoldPortfolioValueModel)
         .where(GoldPortfolioValueModel.as_of >= cutoff)
         .order_by(GoldPortfolioValueModel.as_of)
     )
+    if user_id is not None:
+        stmt = stmt.where(GoldPortfolioValueModel.user_id == user_id)
     return list((await session.execute(stmt)).scalars().all())
 
 
@@ -364,6 +372,7 @@ async def build_performance_report(
     snapshot: dict | None = None,
     prices: Mapping[str, float] | None = None,
     include_benchmarks: bool = True,
+    user_id: str | None = None,
 ) -> PortfolioPerformance:
     """کارایی/ریسک پرتفوی از سری ارزش ذخیره‌شده + مقایسه با طلا/دلار/شاخص.
 
@@ -375,12 +384,12 @@ async def build_performance_report(
     start = end - timedelta(days=window)
     unavailable: dict[str, str] = {}
 
-    rows = await load_value_history(session, days=window)
+    rows = await load_value_history(session, days=window, user_id=user_id)
     _, valuations, flows = value_series(rows)
     points = len(valuations)
 
     live = dict(prices) if prices is not None else get_current_prices(snapshot)
-    summary = await get_holdings_grouped(session, live)
+    summary = await get_holdings_grouped(session, live, user_id=user_id)
 
     latest_value = valuations[-1] if valuations else summary.total_value
     latest_cost = float(rows[-1].total_cost_irt) if rows else summary.total_cost

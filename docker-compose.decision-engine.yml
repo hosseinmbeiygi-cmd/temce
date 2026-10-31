@@ -46,7 +46,7 @@ services:
   redis:
     image: redis:7.0-alpine
     container_name: de_redis
-    command: redis-server --appendonly yes --requirepass de_redis_pass_789
+    command: redis-server --appendonly yes --requirepass ${DECISION_REDIS_PASSWORD:?DECISION_REDIS_PASSWORD must be set in .env}
     ports:
       - "6380:6379"
     volumes:
@@ -70,10 +70,10 @@ services:
       - "8002:8002"
     environment:
       # Database
-      - DATABASE_URL=postgresql://decision_user:decision_pass_456@postgres:5432/decision_engine
-      - DATABASE_URL_ASYNC=postgresql+asyncpg://decision_user:decision_pass_456@postgres:5432/decision_engine
+      - DATABASE_URL=postgresql://decision_user:${DECISION_POSTGRES_PASSWORD:?DECISION_POSTGRES_PASSWORD must be set in .env}@postgres:5432/decision_engine
+      - DATABASE_URL_ASYNC=postgresql+asyncpg://decision_user:${DECISION_POSTGRES_PASSWORD:?DECISION_POSTGRES_PASSWORD must be set in .env}@postgres:5432/decision_engine
       # Redis
-      - REDIS_URL=redis://:de_redis_pass_789@redis:6379/0
+      - REDIS_URL=redis://:${DECISION_REDIS_PASSWORD:?DECISION_REDIS_PASSWORD must be set in .env}@redis:6379/0
       # Service config
       - DECISION_ENGINE_PORT=8002
       - API_PREFIX=/api/v1

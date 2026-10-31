@@ -330,10 +330,30 @@ TABDEAL_SYMBOLS: list[tuple[str, str]] = [
 
 
 
+def _canonical_market_sector(raw_sector: str | None) -> str:
+    """Collapse a granular sector label into a market sector.
+
+    Fund-ish labels from the enriched file (``صندوق سرمایه گذاری قابل معامله``)
+    must land on ``صندوق``; leaving them granular makes ``sector_summary`` fold
+    the row into ``سهام``, i.e. publish a fund as a stock.
+    """
+    sector = (raw_sector or "").strip()
+    if "صندوق" in sector:
+        return "صندوق"
+    return sector
+
+
 def _load_selected_symbols() -> list[dict[str, str]]:
-    """Best-effort load of ``scripts/selected_symbols.json`` (symbol/name/sector)."""
-    path = Path(__file__).resolve().parents[1] / "scripts" / "selected_symbols.json"
+    """Best-effort load of ``scripts/selected_symbols.json`` (symbol/name/sector).
+
+    Resolution is relative to the repository root (``parents[2]`` — this module
+    lives at ``domain/instruments/``). An earlier refactor used ``parents[1]``,
+    which points at the non-existent ``domain/scripts/`` and silently dropped
+    every enriched entry (no exception, no log, empty list).
+    """
+    path = Path(__file__).resolve().parents[2] / "scripts" / "selected_symbols.json"
     if not path.exists():
+        logger.debug("Enriched symbol file not found at %s — using curated lists only", path)
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -343,7 +363,7 @@ def _load_selected_symbols() -> list[dict[str, str]]:
             {
                 "symbol": str(item.get("symbol", "")).strip(),
                 "name": str(item.get("name", "") or ""),
-                "sector": str(item.get("sector", "") or ""),
+                "sector": _canonical_market_sector(item.get("sector", "")),
             }
             for item in data
             if isinstance(item, dict) and str(item.get("symbol", "")).strip()

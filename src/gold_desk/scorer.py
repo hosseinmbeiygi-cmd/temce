@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .constants import (
+    BUBBLE_ANOMALY_FLOOR_PCT,
     BUBBLE_GREEN_MAX,
     BUBBLE_ORANGE_MAX,
     BUBBLE_YELLOW_MAX,
@@ -77,6 +78,12 @@ def score_bubble(bubble_pct: float | None) -> ScoreComponent:
     max_v = SCORE_WEIGHTS["bubble"]
     if bubble_pct is None:
         return ScoreComponent(0, max_v, "داده حباب موجود نیست")
+    if bubble_pct < BUBBLE_ANOMALY_FLOOR_PCT:
+        # A deeply negative bubble is a data/price anomaly, not a bargain:
+        # the old rule gave it full marks (audit FIN-12).
+        return ScoreComponent(
+            0, max_v, f"حباب {bubble_pct:.1f}٪ غیرعادی (زیر {BUBBLE_ANOMALY_FLOOR_PCT:.0f}٪) — داده مشکوک"
+        )
     if bubble_pct <= BUBBLE_GREEN_MAX:
         return ScoreComponent(max_v, max_v, f"حباب {bubble_pct:.1f}٪ < {BUBBLE_GREEN_MAX}٪ — عالی")
     if bubble_pct <= BUBBLE_YELLOW_MAX:

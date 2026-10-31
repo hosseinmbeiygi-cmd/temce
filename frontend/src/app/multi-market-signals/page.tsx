@@ -601,7 +601,7 @@ export default function MultiMarketSignalsPage() {
     }
 
     if (msgs.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional synchronous state reset on mount/filter change
+       
       setRecoveryMessage(msgs.join(" | "));
     }
 

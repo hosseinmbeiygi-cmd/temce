@@ -274,9 +274,9 @@ async def test_needs_sync_expired_interval(db_session: AsyncSession, sync_log_re
 @pytest.mark.asyncio
 async def test_needs_sync_exact_interval_boundary(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """When elapsed time equals interval, needs_sync should return True (boundary case)."""
+
     from brsapi.models.base import SyncLogModel
-    from sqlalchemy import select
-    
+
     now = utc_now_naive()
     endpoint = "/Test/Endpoint.php"
     row = SyncLogModel(
@@ -290,7 +290,7 @@ async def test_needs_sync_exact_interval_boundary(db_session: AsyncSession, sync
     )
     sync_log_repo.session.add(row)
     await sync_log_repo.session.commit()
-    
+
     # Elapsed = 60s, interval = 60s → 60 >= 60 → True (needs sync)
     result = await sync_log_repo.needs_sync(endpoint, interval_seconds=60)
     assert result is True  # boundary: elapsed == interval
@@ -299,9 +299,9 @@ async def test_needs_sync_exact_interval_boundary(db_session: AsyncSession, sync
 @pytest.mark.asyncio
 async def test_needs_sync_zero_interval(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """When interval is 0, needs_sync should always return True (immediate sync)."""
+
     from brsapi.models.base import SyncLogModel
-    from sqlalchemy import select
-    
+
     now = utc_now_naive()
     endpoint = "/Test/Endpoint.php"
     row = SyncLogModel(
@@ -315,7 +315,7 @@ async def test_needs_sync_zero_interval(db_session: AsyncSession, sync_log_repo:
     )
     sync_log_repo.session.add(row)
     await sync_log_repo.session.commit()
-    
+
     # Interval = 0s → elapsed (10s) >= 0 → True (always needs sync)
     result = await sync_log_repo.needs_sync(endpoint, interval_seconds=0)
     assert result is True  # zero interval always triggers sync
@@ -324,9 +324,9 @@ async def test_needs_sync_zero_interval(db_session: AsyncSession, sync_log_repo:
 @pytest.mark.asyncio
 async def test_needs_sync_large_interval(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """When interval is very large (1 day), needs_sync should return False (recent sync)."""
+
     from brsapi.models.base import SyncLogModel
-    from sqlalchemy import select
-    
+
     now = utc_now_naive()
     endpoint = "/Test/Endpoint.php"
     row = SyncLogModel(
@@ -340,7 +340,7 @@ async def test_needs_sync_large_interval(db_session: AsyncSession, sync_log_repo
     )
     sync_log_repo.session.add(row)
     await sync_log_repo.session.commit()
-    
+
     # Interval = 86400s (1 day), elapsed = 30s → 30 < 86400 → False (skip sync)
     result = await sync_log_repo.needs_sync(endpoint, interval_seconds=86400)
     assert result is False  # 30s elapsed < 1 day interval, skip sync
@@ -349,12 +349,12 @@ async def test_needs_sync_large_interval(db_session: AsyncSession, sync_log_repo
 @pytest.mark.asyncio
 async def test_needs_sync_multiple_syncs_decreasing_interval(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """Test that needs_sync correctly handles multiple syncs with decreasing intervals."""
+
     from brsapi.models.base import SyncLogModel
-    from sqlalchemy import select
-    
+
     now = utc_now_naive()
     endpoint = "/Test/Endpoint.php"
-    
+
     # First sync: 2 hours ago
     row1 = SyncLogModel(
         endpoint=endpoint,
@@ -366,7 +366,7 @@ async def test_needs_sync_multiple_syncs_decreasing_interval(db_session: AsyncSe
         completed_at=now - timedelta(hours=2),
     )
     sync_log_repo.session.add(row1)
-    
+
     # Second sync: 1 hour ago (more recent)
     row2 = SyncLogModel(
         endpoint=endpoint,
@@ -379,7 +379,7 @@ async def test_needs_sync_multiple_syncs_decreasing_interval(db_session: AsyncSe
     )
     sync_log_repo.session.add(row2)
     await sync_log_repo.session.commit()
-    
+
     # With interval=60s: last sync was 1 hour ago = 3600s > 60s → True (needs sync)
     result = await sync_log_repo.needs_sync(endpoint, interval_seconds=60)
     assert result is True  # 3600s elapsed >= 60s interval
@@ -388,12 +388,12 @@ async def test_needs_sync_multiple_syncs_decreasing_interval(db_session: AsyncSe
 @pytest.mark.asyncio
 async def test_needs_sync_recent_multiple_syncs(db_session: AsyncSession, sync_log_repo: SyncLogRepository) -> None:
     """Test that needs_sync uses the MOST RECENT sync (not the first)."""
+
     from brsapi.models.base import SyncLogModel
-    from sqlalchemy import select
-    
+
     now = utc_now_naive()
     endpoint = "/Test/Endpoint.php"
-    
+
     # First sync: 2 hours ago
     row1 = SyncLogModel(
         endpoint=endpoint,
@@ -405,7 +405,7 @@ async def test_needs_sync_recent_multiple_syncs(db_session: AsyncSession, sync_l
         completed_at=now - timedelta(hours=2),
     )
     sync_log_repo.session.add(row1)
-    
+
     # Second sync: 10 seconds ago (more recent)
     row2 = SyncLogModel(
         endpoint=endpoint,
@@ -418,8 +418,41 @@ async def test_needs_sync_recent_multiple_syncs(db_session: AsyncSession, sync_l
     )
     sync_log_repo.session.add(row2)
     await sync_log_repo.session.commit()
-    
+
     # With interval=60s: last sync was 10s ago = 10s < 60s → False (skip sync)
     # The method should use the most recent (row2), not the oldest (row1)
     result = await sync_log_repo.needs_sync(endpoint, interval_seconds=60)
     assert result is False  # 10s elapsed < 60s interval, skip sync (uses most recent)
+
+
+@pytest.mark.asyncio
+async def test_record_persists_outcome(
+    db_session: AsyncSession, sync_log_repo: SyncLogRepository
+) -> None:
+    """The machine-readable outcome must survive the round-trip to the table."""
+    entry = await sync_log_repo.record(
+        endpoint="/Test/Outcome.php",
+        category="test",
+        status="error",
+        error_message="BrsApi returned an HTML page instead of JSON",
+        outcome="malformed",
+    )
+    await db_session.commit()
+
+    stored = await db_session.get(SyncLogModel, entry.id)
+    assert stored is not None
+    assert stored.outcome == "malformed"
+
+
+@pytest.mark.asyncio
+async def test_record_defaults_outcome_to_unknown(
+    db_session: AsyncSession, sync_log_repo: SyncLogRepository
+) -> None:
+    """Callers that do not classify a run must not claim a success outcome."""
+    entry = await sync_log_repo.record(
+        endpoint="/Test/Unclassified.php",
+        category="test",
+    )
+    await db_session.commit()
+
+    assert entry.outcome == "unknown"

@@ -10,6 +10,18 @@ const eslintConfig = defineConfig([
       // Hydration pattern: setState inside useEffect after mount is intentional
       // for adopting localStorage / market session / theme — otherwise SSR mismatch.
       "react-hooks/set-state-in-effect": "off",
+      // Underscore-prefixed names are intentionally unused (mock params, skipped
+      // destructuring). Keep the rule on for real unused values.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
     },
   },
   // Override default ignores of eslint-config-next.

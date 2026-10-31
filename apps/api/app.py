@@ -23,6 +23,7 @@ from apps.api.middleware import (
     SecurityMiddleware,
     TimingMiddleware,
 )
+from apps.api.openapi_security import install_openapi_security
 from apps.api.router import Router
 from core.cache import get_cache
 from core.config import settings
@@ -1130,6 +1131,7 @@ def create_app() -> FastAPI:
 
     router = Router()
     app.include_router(router.setup(), prefix=settings.api_prefix)
+    install_openapi_security(app)
 
     return app
 

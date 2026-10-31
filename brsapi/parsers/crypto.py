@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
+from brsapi.parsers.errors import BrsApiParseError
+
 logger = getLogger(__name__)
 
 
@@ -45,8 +47,10 @@ class CryptoParser:
                 if isinstance(entry, dict) and "name" in entry:
                     items[entry["name"]] = entry
         else:
-            logger.warning("Crypto: unexpected data type %s", type(data).__name__)
-            return []
+            raise BrsApiParseError(
+                f"Crypto: unexpected data type {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         common_date = data.get("date", "") if isinstance(data, dict) else ""
         common_time = data.get("time", "") if isinstance(data, dict) else ""

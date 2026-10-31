@@ -387,18 +387,19 @@ def resolve_manual() -> tuple[list[dict], list[str]]:
             continue
         line = hits[m["occ"] - 1]
         out.append(
-            dict(
-                cat=m["cat"], file=m["file"], line=line, sev=m["sev"], status=m["status"],
-                title=m["title"], impact=m["impact"], fix=m["fix"], anchor=m["anchor"],
-                snippet=snippet(m["file"], line), source="دستی/تأییدشده",
-            )
+            {
+                "cat": m["cat"], "file": m["file"], "line": line, "sev": m["sev"], "status": m["status"],
+                "title": m["title"], "impact": m["impact"], "fix": m["fix"], "anchor": m["anchor"],
+                "snippet": snippet(m["file"], line), "source": "دستی/تأییدشده",
+            }
         )
     return out, unresolved
 
 
 def load_ruff(path: str) -> list[dict]:
     try:
-        data = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
     except (OSError, json.JSONDecodeError):
         return []
     out = []
@@ -411,16 +412,17 @@ def load_ruff(path: str) -> list[dict]:
             continue
         sev, title, impact, fix = RUFF_META[code]
         out.append(
-            dict(cat=category_for(f), file=f, line=x["location"]["row"], sev=sev, status="ابزار (ruff)",
-                 title=f"{title} [{code}]", impact=impact, fix=fix,
-                 snippet=snippet(f, x["location"]["row"]), source="ruff")
+            {"cat": category_for(f), "file": f, "line": x["location"]["row"], "sev": sev, "status": "ابزار (ruff)",
+                 "title": f"{title} [{code}]", "impact": impact, "fix": fix,
+                 "snippet": snippet(f, x["location"]["row"]), "source": "ruff"}
         )
     return out
 
 
 def load_patterns(path: str) -> list[dict]:
     try:
-        data = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
     except (OSError, json.JSONDecodeError):
         return []
     out = []
@@ -431,9 +433,9 @@ def load_patterns(path: str) -> list[dict]:
         sev, title, impact, fix = meta
         f = x["file"]
         out.append(
-            dict(cat=category_for(f), file=f, line=x["line"], sev=sev, status="الگو (regex)",
-                 title=f"{title} [{x['rule']}]", impact=impact, fix=fix,
-                 snippet=x["snippet"], source="pattern")
+            {"cat": category_for(f), "file": f, "line": x["line"], "sev": sev, "status": "الگو (regex)",
+                 "title": f"{title} [{x['rule']}]", "impact": impact, "fix": fix,
+                 "snippet": x["snippet"], "source": "pattern"}
         )
     return out
 
@@ -443,7 +445,8 @@ ESLINT_FILE_MAP = {}
 
 def load_eslint(path: str) -> list[dict]:
     try:
-        data = json.load(open(path, encoding="utf-8"))
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
     except (OSError, json.JSONDecodeError):
         return []
     out = []
@@ -454,9 +457,9 @@ def load_eslint(path: str) -> list[dict]:
             sev, title, impact, fix = ESLINT_META.get(rule, ("P3", f"قاعده {rule}", "کیفیت کد", "رفع"))
             line = m.get("line") or 1
             out.append(
-                dict(cat="FE", file=f, line=line, sev=sev, status="ابزار (eslint)",
-                     title=f"{title} [{rule or 'parse'}]", impact=impact, fix=fix,
-                     snippet=snippet(f, line), source="eslint")
+                {"cat": "FE", "file": f, "line": line, "sev": sev, "status": "ابزار (eslint)",
+                     "title": f"{title} [{rule or 'parse'}]", "impact": impact, "fix": fix,
+                     "snippet": snippet(f, line), "source": "eslint"}
             )
     return out
 
@@ -546,8 +549,8 @@ def build() -> None:
     w("متن کد نقل‌شده از همان خط خوانده شده است، نه از حافظه یا گزارش قبلی.")
     w("")
     w(f"- تعداد ردیف: **{len(selected)}**")
-    w(f"- توزیع شدت: " + " · ".join(f"{k}={sev_count[k]}" for k in ["P0", "P1", "P2", "P3"]))
-    w(f"- منبع هر ردیف: " + " · ".join(f"{k}={v}" for k, v in src_count.most_common()))
+    w("- توزیع شدت: " + " · ".join(f"{k}={sev_count[k]}" for k in ["P0", "P1", "P2", "P3"]))
+    w("- منبع هر ردیف: " + " · ".join(f"{k}={v}" for k, v in src_count.most_common()))
     w("")
     w("## راهنمای شدت و وضعیت")
     w("")

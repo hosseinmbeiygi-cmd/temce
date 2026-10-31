@@ -105,28 +105,33 @@ class BrsApiQueryService:
         max_id = (
             await self.session.execute(select(func.max(SymbolSnapshotModel.id)))
         ).scalar_one()
-        latest_q = (
-            select(
-                SymbolSnapshotModel.symbol,
-                func.max(SymbolSnapshotModel.id).label("max_id"),
+        ranked_q = select(
+            SymbolSnapshotModel.id.label("id"),
+            func.row_number()
+            .over(
+                partition_by=SymbolSnapshotModel.symbol,
+                order_by=[
+                    SymbolSnapshotModel.fetched_at.desc().nullslast(),
+                    SymbolSnapshotModel.id.desc(),
+                ],
             )
-            .where(SymbolSnapshotModel.symbol.isnot(None))
-            .where(SymbolSnapshotModel.symbol != "")
+            .label("rn"),
+        ).where(
+            SymbolSnapshotModel.symbol.isnot(None),
+            SymbolSnapshotModel.symbol != "",
         )
         if max_id is not None:
-            latest_q = latest_q.where(
+            ranked_q = ranked_q.where(
                 SymbolSnapshotModel.id > max_id - _SNAPSHOT_SCAN_WINDOW
             )
-        subq = (
-            latest_q.group_by(SymbolSnapshotModel.symbol)
-            .order_by(func.max(SymbolSnapshotModel.trade_value).desc().nullslast())
-            .limit(limit)
-        ).subquery()
+        ranked = ranked_q.subquery()
 
         stmt = (
             select(SymbolSnapshotModel)
-            .join(subq, SymbolSnapshotModel.id == subq.c.max_id)
+            .join(ranked, SymbolSnapshotModel.id == ranked.c.id)
+            .where(ranked.c.rn == 1)
             .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
+            .limit(limit)
         )
         snaps = (await self.session.execute(stmt)).scalars().all()
 
@@ -179,12 +184,13 @@ class BrsApiQueryService:
 
         The snapshot table grows by one full fetch cycle (~1.2–1.7k rows)
         every few minutes, so a full-table ``GROUP BY symbol`` costs tens
-        of seconds on the multi-million-row table. Instead, group only over
-        the last ``_SNAPSHOT_SCAN_WINDOW`` ids (a handful of recent cycles
-        — an index range scan) and take MAX(id) per symbol; the result is
-        identical to a full-table dedup for every symbol that traded in
-        the window. Falls back to the full GROUP BY when the window is
-        empty (fresh DB) or the windowed query fails.
+        of seconds on the multi-million-row table. Instead, rank only the
+        rows inside the last ``_SNAPSHOT_SCAN_WINDOW`` ids (an index range
+        scan) and keep the row with the **greatest ``fetched_at``** per
+        symbol (``id`` breaks ties). Ordering by ``fetched_at`` rather than
+        ``id`` matters: a late/backfilled row inserted later must not win
+        over a newer market snapshot. Falls back to the full-table ranking
+        when the window is empty (fresh DB) or the windowed query fails.
 
         NOTE: The ``limit`` caps the number of symbols returned in the API
         response. It does NOT pre-filter symbols before the deduplication,
@@ -194,60 +200,60 @@ class BrsApiQueryService:
         """
         from sqlalchemy import func, select
 
+        def _latest_stmt(window_floor: int | None):
+            ranked_q = select(
+                SymbolSnapshotModel.id.label("id"),
+                func.row_number()
+                .over(
+                    partition_by=SymbolSnapshotModel.symbol,
+                    order_by=[
+                        SymbolSnapshotModel.fetched_at.desc().nullslast(),
+                        SymbolSnapshotModel.id.desc(),
+                    ],
+                )
+                .label("rn"),
+            ).where(
+                SymbolSnapshotModel.symbol.isnot(None),
+                SymbolSnapshotModel.symbol != "",
+            )
+            if window_floor is not None:
+                ranked_q = ranked_q.where(SymbolSnapshotModel.id > window_floor)
+            ranked = ranked_q.subquery()
+            return (
+                select(SymbolSnapshotModel)
+                .join(ranked, SymbolSnapshotModel.id == ranked.c.id)
+                .where(ranked.c.rn == 1)
+                # Keep the API's "most active first" contract.
+                .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
+                .limit(limit)
+            )
+
         try:
             max_id = (
                 await self.session.execute(select(func.max(SymbolSnapshotModel.id)))
             ).scalar_one()
-            if max_id is not None:
-                window = (
-                    select(
-                        SymbolSnapshotModel.symbol,
-                        func.max(SymbolSnapshotModel.id).label("max_id"),
-                    )
-                    .where(
-                        SymbolSnapshotModel.id > max_id - _SNAPSHOT_SCAN_WINDOW,
-                        SymbolSnapshotModel.symbol.isnot(None),
-                        SymbolSnapshotModel.symbol != "",
-                    )
-                    .group_by(SymbolSnapshotModel.symbol)
-                ).subquery()
-                stmt = (
-                    select(SymbolSnapshotModel)
-                    .join(window, SymbolSnapshotModel.id == window.c.max_id)
-                    .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
-                    .limit(limit)
-                )
-                rows = (await self.session.execute(stmt)).scalars().all()
-                if rows:
-                    return [self._row_dict(r) for r in rows]
+            window_floor = (
+                max_id - _SNAPSHOT_SCAN_WINDOW if max_id is not None else None
+            )
+            rows = (await self.session.execute(_latest_stmt(window_floor))).scalars().all()
+            if rows:
+                return [self._row_dict(r) for r in rows]
         except Exception:
             logger.warning(
-                "get_latest_snapshots windowed dedup failed — falling back to full GROUP BY",
+                "get_latest_snapshots windowed dedup failed — falling back to full ranking",
                 exc_info=True,
             )
 
-        subq = (
-            select(
-                SymbolSnapshotModel.symbol,
-                func.max(SymbolSnapshotModel.id).label("max_id"),
-            )
-            .where(SymbolSnapshotModel.symbol.isnot(None))
-            .where(SymbolSnapshotModel.symbol != "")
-            .group_by(SymbolSnapshotModel.symbol)
-            .order_by(func.max(SymbolSnapshotModel.trade_value).desc().nullslast())
-            .limit(limit)
-        ).subquery()
-
-        stmt = (
-            select(SymbolSnapshotModel)
-            .join(subq, SymbolSnapshotModel.id == subq.c.max_id)
-            .order_by(SymbolSnapshotModel.trade_value.desc().nullslast())
-        )
-        result = await self.session.execute(stmt)
+        result = await self.session.execute(_latest_stmt(None))
         return [self._row_dict(r) for r in result.scalars().all()]
 
     async def get_symbol_snapshot(self, symbol: str, ins_id: str | None = None) -> dict[str, Any] | None:
-        """Get the latest snapshot for a single symbol or ins_id."""
+        """Get the latest snapshot for a single symbol or ins_id.
+
+        "Latest" means the greatest source fetch time (``fetched_at``), not
+        the most recently inserted row: a late backfill must not shadow a
+        newer market snapshot. ``id`` breaks equal-timestamp ties.
+        """
         from sqlalchemy import or_
 
         stmt = select(SymbolSnapshotModel)
@@ -260,7 +266,10 @@ class BrsApiQueryService:
             )
         else:
             stmt = stmt.where(SymbolSnapshotModel.symbol == symbol)
-        stmt = stmt.order_by(SymbolSnapshotModel.created_at.desc()).limit(1)
+        stmt = stmt.order_by(
+            SymbolSnapshotModel.fetched_at.desc().nullslast(),
+            SymbolSnapshotModel.id.desc(),
+        ).limit(1)
         result = await self.session.execute(stmt)
         row = result.scalar_one_or_none()
         return self._row_dict(row) if row else None
@@ -273,19 +282,14 @@ class BrsApiQueryService:
         for a **single** symbol via LEFT JOIN on ``SymbolDetailModel`` using ``ins_id``.
         Latest snapshot is selected by ``fetched_at`` (most recent fetch cycle),
         with ``id`` as tie-breaker when fetch timestamps are equal;
-        returns None for stale data to avoid displaying old snapshots
-        as current trade data.
+        returns None when the symbol has no snapshot.
         """
-        from sqlalchemy import join, or_, select, func as sa_func
-        import time
+        from sqlalchemy import join, or_, select
 
-        # Check if there's fresh data (within same fetch cycle)
-        # Use fetched_at as primary, id as tie-breaker for equal timestamps
-        latest_fetched = (await self.session.execute(
-            select(sa_func.max(SymbolSnapshotModel.fetched_at))
-        )).scalar_one_or_none()
-
-        # Get the latest snapshot id based on fetched_at, with id descending as tie-breaker
+        # Latest row for *this* symbol. Do not compare against a global
+        # MAX(fetched_at): with more than one writer (or per-symbol fetches)
+        # another symbol can be fresher, and the equality filter would then
+        # wrongly return None for this one.
         latest_id = (await self.session.execute(
             select(SymbolSnapshotModel.id)
             .where(SymbolSnapshotModel.symbol == symbol)
@@ -314,7 +318,6 @@ class BrsApiQueryService:
                     SymbolSnapshotModel.ins_id == symbol,
                 )
             )
-            .where(SymbolSnapshotModel.fetched_at == latest_fetched)
             .where(SymbolSnapshotModel.id == latest_id)
             .order_by(SymbolSnapshotModel.created_at.desc())
             .limit(1)
@@ -377,12 +380,17 @@ class BrsApiQueryService:
     # ── Indices ────────────────────────────────────
 
     async def get_latest_indices(self) -> list[dict[str, Any]]:
-        """Latest index values — one row per unique index name."""
-        # Subquery: latest created_at per unique index name
+        """Latest index values — one row per unique index name.
+
+        ``fetched_at`` is the source fetch time; ``created_at`` is insertion
+        time and can be newer for a late/backfilled row. Fall back to
+        ``created_at`` only when ``fetched_at`` is NULL.
+        """
+        latest_ts = sa_func.coalesce(IndexValueModel.fetched_at, IndexValueModel.created_at)
         latest_per_name = (
             select(
                 IndexValueModel.name,
-                sa_func.max(IndexValueModel.created_at).label("max_created"),
+                sa_func.max(latest_ts).label("max_ts"),
             )
             .where(IndexValueModel.name != "")
             .group_by(IndexValueModel.name)
@@ -393,7 +401,7 @@ class BrsApiQueryService:
             .join(
                 latest_per_name,
                 (IndexValueModel.name == latest_per_name.c.name)
-                & (IndexValueModel.created_at == latest_per_name.c.max_created),
+                & (latest_ts == latest_per_name.c.max_ts),
             )
             .order_by(IndexValueModel.name)
         )
@@ -401,11 +409,13 @@ class BrsApiQueryService:
         return [self._row_dict(r) for r in result.scalars().all()]
 
     async def get_index_history(self, name: str, limit: int = 100) -> list[dict[str, Any]]:
-        """Historical index values for a given index name."""
+        """Historical index values for a given index name (source time first)."""
         stmt = (
             select(IndexValueModel)
             .where(IndexValueModel.name == name)
-            .order_by(IndexValueModel.created_at.desc())
+            .order_by(
+                sa_func.coalesce(IndexValueModel.fetched_at, IndexValueModel.created_at).desc()
+            )
             .limit(limit)
         )
         result = await self.session.execute(stmt)
@@ -713,17 +723,21 @@ class BrsApiQueryService:
     async def get_crypto_prices(
         self, limit: int = 50, sort_by: str = "rank"
     ) -> list[dict[str, Any]]:
-        """Latest crypto prices, sorted by rank by default."""
+        """Latest crypto price per symbol, sorted by ``sort_by`` (rank default)."""
         order_col = getattr(CryptoPriceModel, sort_by, CryptoPriceModel.rank)
-        stmt = select(CryptoPriceModel).order_by(order_col.asc()).limit(limit)
+        stmt = (
+            self._latest_per_symbol(CryptoPriceModel)
+            .order_by(order_col.asc())
+            .limit(limit)
+        )
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]
 
     # ── Gold & Coins ─────────────────────────────────
 
     async def get_gold_coin_prices(self) -> list[dict[str, Any]]:
-        """Latest gold & coin prices."""
-        stmt = select(GoldCoinPriceModel).order_by(GoldCoinPriceModel.symbol)
+        """Latest gold & coin price per symbol."""
+        stmt = self._latest_per_symbol(GoldCoinPriceModel).order_by(GoldCoinPriceModel.symbol)
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]
 
@@ -736,8 +750,8 @@ class BrsApiQueryService:
     # ── Currency ─────────────────────────────────────
 
     async def get_currency_prices(self) -> list[dict[str, Any]]:
-        """Latest currency/forex prices."""
-        stmt = select(CurrencyPriceModel).order_by(CurrencyPriceModel.symbol)
+        """Latest currency/forex price per symbol."""
+        stmt = self._latest_per_symbol(CurrencyPriceModel).order_by(CurrencyPriceModel.symbol)
         result = await self.session.execute(stmt)
         return [self._row_dict(r) for r in result.scalars().all()]
 
@@ -818,6 +832,29 @@ class BrsApiQueryService:
         return rows
 
     # ── Helper ─────────────────────────────────────
+
+    @staticmethod
+    def _latest_per_symbol(model: Any):
+        """Select the newest row per symbol (``fetched_at`` then ``id``).
+
+        Used for append-only price tables (gold/currency/crypto) that receive
+        a new row per sync cycle. Without the dedup the API would return one
+        row per historical cycle for the same symbol.
+        """
+        ranked = select(
+            model.id.label("id"),
+            sa_func.row_number()
+            .over(
+                partition_by=model.symbol,
+                order_by=[model.fetched_at.desc().nullslast(), model.id.desc()],
+            )
+            .label("rn"),
+        ).subquery()
+        return (
+            select(model)
+            .join(ranked, model.id == ranked.c.id)
+            .where(ranked.c.rn == 1)
+        )
 
     @staticmethod
     def _row_dict(row: Any) -> dict[str, Any]:

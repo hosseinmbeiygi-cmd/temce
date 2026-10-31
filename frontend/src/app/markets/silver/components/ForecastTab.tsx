@@ -86,11 +86,13 @@ function BandChart({ points, anchor, height = 260 }: { points: ForecastPoint[]; 
   );
 }
 
-function bridge(direction: string, probUp: number): { text: string; tone: string } {
-  if (direction === "up" && probUp >= 0.55) return { text: "سوگیری صعودی — خرید Call / فروش Put / Bull Call Spread", tone: "text-up" };
-  if (direction === "down" && probUp <= 0.45) return { text: "سوگیری نزولی — خرید Put / فروش Call / Bear Put Spread", tone: "text-down" };
-  if (direction === "neutral") return { text: "بازار خنثی — Iron Condor / Short Straddle برای فروش نوسان", tone: "text-warn" };
-  return { text: "جهت‌گیری ضعیف — پوشش ریسک با Covered Call یا Protective Put", tone: "text-ink-2" };
+function bridge(direction: string, probUp: number | null): { text: string; tone: string } {
+  // No probability ⇒ no directional claim and no instrument recommendation.
+  if (probUp === null) return { text: "احتمال جهت از مدل نرسیده — فقط فیلتر هزینه و ریسک بررسی می‌شود", tone: "text-ink-2" };
+  if (direction === "up" && probUp >= 0.55) return { text: "سوگیری صعودی — بررسی خرید نقره با فیلتر هزینه و ریسک", tone: "text-up" };
+  if (direction === "down" && probUp <= 0.45) return { text: "سوگیری نزولی — احتیاط در خرید و پوشش ریسک", tone: "text-down" };
+  if (direction === "neutral") return { text: "بازار خنثی — بدون سیگنال جهت‌دار", tone: "text-warn" };
+  return { text: "جهت‌گیری ضعیف — صبر تا تأیید", tone: "text-ink-2" };
 }
 
 export default function ForecastTab() {
@@ -140,7 +142,7 @@ export default function ForecastTab() {
   const last = active && active.forecast.length > 0 ? active.forecast[active.forecast.length - 1] : null;
   const expected = last && anchor ? ((last.p50 - anchor) / anchor) * 100 : null;
   const direction = expected == null ? "neutral" : expected > 0.5 ? "up" : expected < -0.5 ? "down" : "neutral";
-  const probUp = last?.direction_probability_up ?? 0.5;
+  const probUp = last?.direction_probability_up ?? null;
   const advice = bridge(direction, probUp);
 
   // §۲۶ — همان دو کفی که گیت `signal_decision_engine` اجرا می‌کند، از همان پاسخ
@@ -165,7 +167,8 @@ export default function ForecastTab() {
       direction: planDirection,
     });
     // `p` = احتمال سود همین برنامه؛ برای پوزیشن فروش، آینهٔ احتمال رشد.
-    const probability = planDirection === "long" ? probUp : 1 - probUp;
+    // Missing probability stays null so the gate cannot claim an opportunity.
+    const probability = probUp === null ? null : planDirection === "long" ? probUp : 1 - probUp;
     const evaluation = evaluateTrade({
       entry: anchor,
       target,
@@ -195,7 +198,7 @@ export default function ForecastTab() {
           <div>
             <h3 className="text-sm font-black text-ink">پیش‌بینی انس جهانی نقره (XAG/USD)</h3>
             <p className="mt-1 text-[11px] text-ink-3">
-              مدل {active?.model?.name ?? "xgboost_ensemble"} · بازه اطمینان ۸۰٪ · داده تا {active?.data_as_of ? faDate(active.data_as_of) : "—"}
+              مدل {active?.model?.name ?? "—"} · بازه اطمینان ۸۰٪ · داده تا {active?.data_as_of ? faDate(active.data_as_of) : "—"}
             </p>
           </div>
           <div className="flex flex-wrap gap-1 rounded-xl bg-soft p-1">
@@ -240,7 +243,7 @@ export default function ForecastTab() {
               </div>
               <div className="rounded-xl bg-soft px-3 py-3 text-center">
                 <p className="text-[10px] text-ink-3">احتمال رشد</p>
-                <p className="mt-1 font-mono text-sm font-black text-ink" dir="ltr">{Math.round(probUp * 100)}%</p>
+                <p className="mt-1 font-mono text-sm font-black text-ink" dir="ltr">{probUp === null ? "—" : `${Math.round(probUp * 100)}%`}</p>
               </div>
             </div>
 

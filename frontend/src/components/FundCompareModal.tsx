@@ -76,10 +76,17 @@ interface FundCompareModalProps {
 }
 
 export default function FundCompareModal({ funds, onClose, onRemove }: FundCompareModalProps) {
-  const analyses = funds.map((f) => ({
+  const analyses: FundAnalysis[] = funds.map((f) => ({
+    symbol: f.symbol,
+    name: f.name,
     scores: { total: f.total_score ?? 0 } as import("@/lib/fund-analysis").FundScore,
     recommendation: "HOLD" as const,
     riskLevel: "LOW" as const,
+    issues: [],
+    strengths: [],
+    weaknesses: [],
+    summary: "",
+    nextSteps: [],
   }));
 
   useEffect(() => {

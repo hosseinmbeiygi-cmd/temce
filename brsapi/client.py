@@ -39,7 +39,7 @@ from brsapi.budget import (
 from brsapi.config import BrsApiEndpoints, EndpointCategory, EndpointConfig
 from brsapi.config import settings as brsapi_settings
 from brsapi.rate_limiter import RateLimiter, RateLimitExhaustedError, get_rate_limiter
-from core.circuit_breaker import CircuitBreaker
+from core.resilience.circuit_breaker import CircuitBreaker
 from core.result import Result
 
 T = TypeVar("T")
@@ -72,10 +72,22 @@ BrsApiErrorCode = Literal[
     "network_error",  # connection/protocol failure
     "http_error",  # explicit non-200 HTTP status
     "retries_exhausted",  # retryable statuses exhausted
+    "circuit_open",  # breaker tripped; the request was never sent
     "disabled",  # BRSAPI_ENABLED=false
     "not_started",  # client used before ``start()``
     "source_error",  # anything unclassified
 ]
+
+# BrsApi never serves a 3xx we should follow: the anti-abuse redirect points at
+# a multi-gigabyte file. Every redirect is treated as a block signal, without
+# arming the retry loop.
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+# Transient failures: retry with backoff / Retry-After.
+_RETRYABLE_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+# The account's quota is spent — retrying only burns more of it.
+_QUOTA_STATUSES = frozenset({402})
+# Credential/plan-level rejection — retrying cannot fix it.
+_BLOCKED_STATUSES = frozenset({401, 403, 451})
 
 
 class BrsApiMalformedResponseError(Exception):
@@ -344,18 +356,27 @@ class BrsApiClient:
                 logger.warning("BrsApi key in 302-cooldown — request rejected fast")
                 return Result.fail(str(exc), code="provider_blocked")
 
-        # Circuit breaker for this endpoint path
+        # Circuit breaker for this endpoint path. ``_do_fetch`` turns expected
+        # failures into ``Result`` values instead of raising, so the outcome is
+        # fed back explicitly — otherwise the breaker would see every call as a
+        # success and never open while a provider is down.
         cb = self._circuit_breaker(endpoint.path)
+        if cb.state == "open":
+            return Result.fail(
+                f"Circuit breaker open for {endpoint.path} — the provider kept "
+                "failing; retry after the recovery window",
+                code="circuit_open",
+            )
 
         try:
-            return await cb.call(
-                self._do_fetch,
+            result = await self._do_fetch(
                 url,
                 request_params,
                 category,
                 endpoint,
             )
         except Exception as exc:
+            cb.record_failure()
             safe_error = _redact_sensitive_text(str(exc))
             logger.warning("BrsApi fetch failed [%s]: %s", endpoint.path, safe_error)
             # Typed errors (malformed body, provider block) carry their own code;
@@ -363,6 +384,12 @@ class BrsApiClient:
             return Result.fail(
                 safe_error, code=getattr(exc, "code", "source_error")
             )
+
+        if result.success:
+            cb.record_success()
+        else:
+            cb.record_failure()
+        return result
 
     # ── Internal fetch logic ─────────────────────
 
@@ -427,16 +454,18 @@ class BrsApiClient:
                     )
                     return Result.ok(brs_resp)
 
-                if resp.status_code == 302:
+                if resp.status_code in _REDIRECT_STATUSES:
                     # BrsApi anti-abuse: when the account's request count is
                     # above the plan threshold, EVERY live call is redirected
-                    # to a massive file (e.g. a Windows ISO). Never follow the
-                    # redirect, never retry — just fail fast with a clear
-                    # message so jobs don't hammer a still-exhausted account.
+                    # to a massive file (e.g. a Windows ISO). Never follow a
+                    # redirect (httpx default), never retry — just fail fast
+                    # with a clear message so jobs don't hammer a still-
+                    # exhausted account.
                     location = resp.headers.get("Location", "?")
                     logger.warning(
-                        "BrsApi quota exceeded — HTTP 302 redirect to %r "
-                        "(server-side usage above plan threshold)",
+                        "BrsApi redirect — HTTP %d to %r (server-side usage "
+                        "above plan threshold?)",
+                        resp.status_code,
                         location,
                     )
                     # Arm the governor cooldown so subsequent calls reject fast
@@ -446,14 +475,31 @@ class BrsApiClient:
                     except Exception:  # noqa: BLE001
                         logger.debug("budget governor report_302 failed", exc_info=True)
                     return Result.fail(
-                        "BrsApi quota exceeded (HTTP 302 → heavy-file redirect). "
-                        "Server-side usage is above the plan threshold — keep "
-                        "DB-only mode (BRSAPI_ENABLED=false) until the counter "
-                        "resets or the plan is upgraded.",
+                        f"BrsApi quota exceeded (HTTP {resp.status_code} → "
+                        f"{location}). Server-side usage is above the plan "
+                        "threshold — keep DB-only mode (BRSAPI_ENABLED=false) "
+                        "until the counter resets or the plan is upgraded.",
                         code="provider_blocked",
                     )
 
-                if resp.status_code in (429, 502, 503, 504):
+                if resp.status_code in _QUOTA_STATUSES:
+                    # 402 Payment Required: the plan allowance is spent. A
+                    # retry cannot pay for it and would only burn budget.
+                    return Result.fail(
+                        f"HTTP {resp.status_code}: payment required — the BrsApi "
+                        "plan allowance for this period is exhausted",
+                        code="quota_exhausted",
+                    )
+
+                if resp.status_code in _BLOCKED_STATUSES:
+                    # 401/403/451: the key is rejected or the source is blocked
+                    # for legal reasons. Retrying cannot fix either.
+                    return Result.fail(
+                        f"HTTP {resp.status_code}: {resp.text[:200]}",
+                        code="provider_blocked",
+                    )
+
+                if resp.status_code in _RETRYABLE_STATUSES:
                     # Rate limit / gateway hiccup / service unavailable → retry.
                     # BrsApi's nginx intermittently returns 502 Bad Gateway for a
                     # few seconds; without this the whole backfill aborts.
@@ -574,6 +620,7 @@ class BrsApiClient:
     def _circuit_breaker(self, path: str) -> CircuitBreaker:
         if path not in self._circuit_breakers:
             self._circuit_breakers[path] = CircuitBreaker(
+                name=f"brsapi:{path}",
                 failure_threshold=5,
                 recovery_timeout=30.0,
             )

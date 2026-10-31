@@ -27,11 +27,11 @@ export function useNotificationSound(options: UseNotificationSoundOptions = {}) 
   // the 🔊/🔕 icon can't mismatch during hydration; adopt the stored value
   // after mount (same pattern as useTheme / useSyncSettings).
   const [muted, setMuted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt persisted mute after mount
+   
   useEffect(() => {
     if (typeof window === "undefined") return;
     setMuted(localStorage.getItem(storageKey) === "true");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [storageKey]);
 
   const toggleMute = useCallback(() => {

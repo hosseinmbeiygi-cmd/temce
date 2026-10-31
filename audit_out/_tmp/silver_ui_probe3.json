@@ -1,0 +1,171 @@
+{
+  "afterLogin": "http://127.0.0.1:3000/",
+  "hydrationWaitMs": 36000,
+  "tabs": {
+    "overview": {
+      "clicked": true,
+      "active": [
+        "نمای کلی"
+      ],
+      "mainLen": 886,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت ورود بسته 0.00% بازار سرمایه بسته است — بازگشایی ساعت ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": true,
+      "hasEmptyState": true
+    },
+    "forecast": {
+      "clicked": true,
+      "active": [
+        "پیش‌بینی"
+      ],
+      "mainLen": 665,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت ورود بسته 0.00% بازار سرمایه بسته است — بازگشایی ساعت ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": true,
+      "hasEmptyState": false
+    },
+    "funds": {
+      "clicked": true,
+      "active": [
+        "صندوق‌ها"
+      ],
+      "mainLen": 657,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت ورود بسته 0.00% بازار سرمایه بسته است — بازگشایی ساعت ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": true,
+      "hasEmptyState": false
+    },
+    "futures": {
+      "clicked": true,
+      "active": [
+        "آتی (IME)"
+      ],
+      "mainLen": 620,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت ورود بسته 0.00% بازار سرمایه بسته است — بازگشایی ساعت ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": true,
+      "hasEmptyState": false
+    },
+    "backtest": {
+      "clicked": true,
+      "active": [
+        "بک‌تست"
+      ],
+      "mainLen": 847,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت ورود بسته 0.00% بازار سرمایه بسته است — بازگشایی ساعت ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": false,
+      "hasEmptyState": false
+    },
+    "ml": {
+      "clicked": true,
+      "active": [
+        "هوش مصنوعی"
+      ],
+      "mainLen": 709,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت audit_ui_silver_20261030 بسته 0.00% بازار سرمایه بسته ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": true,
+      "hasEmptyState": false
+    },
+    "news": {
+      "clicked": true,
+      "active": [
+        "اخبار"
+      ],
+      "mainLen": 603,
+      "markerPresent": true,
+      "excerpt": "پرش به محتوای اصلی بازار سرمایه IRAN MARKET TERMINAL داشبورد بازارها ابزارها تحلیل و سیگنال داده و مدیریت audit_ui_silver_20261030 بسته 0.00% بازار سرمایه بسته ",
+      "hasErrorBanner": false,
+      "hasLoadingSkeleton": true,
+      "hasEmptyState": false
+    }
+  },
+  "checks": {
+    "rulesPanel": {
+      "loadingVisible": false,
+      "thresholdsVisible": true,
+      "unavailableVisible": false,
+      "verdict": "فقط پایش — EV نامشخص"
+    },
+    "converter": {
+      "0": "مبدل سریع (گرم ⇄ انس ⇄ ریال) گرم نقره ≈ — • — انس — دلار × دلار — ریال (هر انس = ۳۱.۱۰۳۵ گرم)",
+      "10": "مبدل سریع (گرم ⇄ انس ⇄ ریال) گرم نقره ≈ — • — انس — دلار × دلار — ریال (هر انس = ۳۱.۱۰۳۵ گرم)",
+      "abc": "مبدل سریع (گرم ⇄ انس ⇄ ریال) گرم نقره ≈ — • — انس — دلار × دلار — ریال (هر انس = ۳۱.۱۰۳۵ گرم)",
+      "empty": "مبدل سریع (گرم ⇄ انس ⇄ ریال) گرم نقره ≈ — • — انس — دلار × دلار — ریال (هر انس = ۳۱.۱۰۳۵ گرم)"
+    },
+    "forecast": {
+      "horizonButtons": 6,
+      "horizonDisabled": true,
+      "unavailableText": false
+    },
+    "funds": {
+      "tableRows": 0,
+      "emptyState": false
+    },
+    "futures": {
+      "tableRows": 0,
+      "errorState": false,
+      "emptyState": false
+    },
+    "backtest": {
+      "runDisabledEmptySymbol": true,
+      "strategyOptions": 15,
+      "datalistOptions": 0,
+      "invalidJsonError": true,
+      "runDisabledAfterSymbol": false
+    },
+    "ml": {
+      "modelCards": 0,
+      "runsRows": 0,
+      "emptyModels": false,
+      "searchPresent": true,
+      "searchFilter": {
+        "rowsBefore": 0,
+        "rowsAfter": 0
+      }
+    },
+    "news": {
+      "cards": 0,
+      "emptyState": false
+    }
+  },
+  "netNon2xx": [
+    "401 POST /api/v1/auth/refresh"
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "hydration": {
+    "readyState": "complete",
+    "tabReactKeys": [
+      "__reactFiber$cakhoh8haab",
+      "__reactProps$cakhoh8haab"
+    ],
+    "mainLen": 886
+  },
+  "netAll": [
+    "200 GET /auth/login",
+    "401 POST /api/v1/auth/refresh",
+    "200 POST /api/v1/auth/login",
+    "200 GET /api/v1/brsapi/gold-coin",
+    "200 POST /api/v1/auth/refresh",
+    "200 GET /api/v1/gold/assistant-rules",
+    "200 GET /api/v1/funds?market=ime&limit=200",
+    "200 GET /api/v1/funds?search=%D8%B3%DB%8C%D9%84%D9%88%D8%B1&limit=50",
+    "200 GET /api/v1/funds?search=%D8%B3%DB%8C%D9%85%DB%8C%D9%86&limit=50",
+    "200 GET /api/v1/brsapi/commodities?category=precious_metal&latest_only=true",
+    "200 GET /api/v1/brsapi/currency",
+    "200 GET /api/v1/market/enriched-heatmap?limit=500",
+    "200 GET /api/v1/funds?search=%D9%86%D9%82%D8%B1%D9%87&limit=50",
+    "200 GET /api/v1/backtests/strategies",
+    "200 GET /api/v1/brsapi/commodities?category=precious_metal&limit=2000"
+  ]
+}

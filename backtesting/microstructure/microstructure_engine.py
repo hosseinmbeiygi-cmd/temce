@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from backtesting.costs.iran_costs import DEFAULT_IRAN_COSTS, IranTransactionCosts
-from backtesting.engine.event_builder import EventType, MarketEvent
+from backtesting.event_types import EventType, MarketEvent
 from backtesting.market.market_engine import MarketEngine
 from backtesting.microstructure.auction_engine import AuctionEngine, AuctionResult
 from backtesting.microstructure.cancel_model import CancelModel

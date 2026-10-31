@@ -9,6 +9,16 @@ logger = get_logger(__name__)
 
 
 class NewsSyncJob:
+    """Placeholder — NOT implemented.
+
+    Superseded by ``jobs.definitions.news_jobs.NewsIngestionJob`` (the wired
+    job). This stub used to answer ``{"status": "completed", "records": 0}``,
+    which reads as a healthy sync that found nothing; it fails closed instead.
+    """
+
     async def execute(self, payload: dict[str, Any]) -> Result[dict[str, Any]]:
-        logger.info("News sync job started")
-        return Result.ok({"status": "completed", "records": 0})
+        logger.error("NewsSyncJob.execute called but the sync job is not implemented")
+        return Result.fail(
+            "not_implemented: NewsSyncJob is a placeholder; use "
+            "jobs.definitions.news_jobs.NewsIngestionJob"
+        )

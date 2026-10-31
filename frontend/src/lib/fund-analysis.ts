@@ -1,5 +1,14 @@
 export interface FundScore {
   total: number;
+  // The legacy six-dimension engine was removed; these are optional so
+  // consumers that still render a breakdown can degrade without breaking
+  // the type contract when only ``total`` is available.
+  financial?: number;
+  liquidity?: number;
+  management?: number;
+  risk?: number;
+  cost?: number;
+  transparency?: number;
 }
 
 export interface FundIssue {

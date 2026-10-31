@@ -178,6 +178,26 @@ class Router:
                 },
             )
 
+        # ── API-05 decision: seven routers stay unmounted (2026-10-29) ──
+        # Their modules exist in ``apps/api/endpoints`` but are deliberately not
+        # mounted; a guard test (``tests/unit/api/test_api05_mount_decisions.py``)
+        # fails if one is mounted without updating this record.
+        #   * symbol_alerts, proposals, sentiment — the backing subsystem is only
+        #     reachable through these routers (dead code). ``/alerts`` already
+        #     serves the hardened, owner-scoped equivalent of symbol_alerts.
+        #     Removal needs the owner's approval (files are never deleted here).
+        #   * monitoring — no Prometheus scrape is configured, and mounting
+        #     ``/metrics`` / ``/data-quality`` unauthenticated would expose
+        #     internal counters and DB diagnostics for no consumer.
+        #   * scanner — POST /scan runs a full-market scan; the service is
+        #     already exercised by the mounted backtests surface, and no UI
+        #     calls these routes, so mounting only adds a costly surface.
+        #   * ime — read-only duplicates of the mounted ``/gold/ime`` futures
+        #     surface (plus routes with no consumer).
+        #   * comprehensive_analysis — overlaps the mounted ``/analysis/overview``.
+        # Revisit condition: a real consumer (scraper, UI tab) plus auth/role
+        # scoping for the route in question.
+
         # ── Lazy imports: all endpoint routers ─────────────────────────
         # These are imported here (not at module level) so that importing
         # the Router class (~300ms) doesn't trigger loading all 45 endpoint

@@ -13,14 +13,18 @@ class Result(Generic[T]):
     value: T | None = None
     error: str | None = None
     success: bool = True
+    # Machine-readable failure reason (e.g. ``malformed``, ``timeout``,
+    # ``quota_exhausted``). Callers branch on this instead of pattern-matching
+    # ``error`` text, which is prose and free to change.
+    error_code: str | None = None
 
     @classmethod
     def ok(cls, value: T) -> Result[T]:
         return cls(value=value, error=None, success=True)
 
     @classmethod
-    def fail(cls, error: str) -> Result[T]:
-        return cls(value=None, error=error, success=False)
+    def fail(cls, error: str, code: str | None = None) -> Result[T]:
+        return cls(value=None, error=error, success=False, error_code=code)
 
     def unwrap(self) -> T:
         if not self.success or self.value is None:

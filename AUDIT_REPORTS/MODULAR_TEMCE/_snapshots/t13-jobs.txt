@@ -1,0 +1,345 @@
+﻿SNAPSHOT t13-jobs
+captured_at=2026-10-29T14:09:31+03:30
+repo_root=C:\Users\Iran\Desktop\temce
+branch=integration/golddesk-fixes
+head=be8b4ff4839ee1e2bdacd791e7be176044e1eebd
+status_entries=322
+staged=138
+unstaged=145
+untracked=70
+
+[key_file_sha256]
+apps/worker/app.py 5816415939B8EA71A984A86F8D65647AFD02521D7918DD03ACC90BCB5978C9F6
+apps/worker/__main__.py 84DDEA035C60F2EF63F7526A444457165B53CBEF01725E9DC786535521473595
+apps/worker/consumer.py 43A386036375BE35AE65415A2F1F58D3451C0138DE7E676BD18F09C7DF2C9547
+apps/scheduler/app.py BF1DF2B6D89E149E6B615618001F40EBF6A598E378CC46016FA3A7B6A04DF272
+Dockerfile.worker 0C3AD5B23CFC67DEFF5E4463B7642329D7BCF5983ECC8C0BA72329FE89ED3A08
+Dockerfile.scheduler 1864A9567F592C15652883627B61ECC7D2118920473C1BE9407B88ADA69D9137
+jobs/job_dispatcher.py 5667EDF5EF3FA5589C86C3E71A6929E626F5C6A32D6878E25B1EBBCB641F79DE
+jobs/queue_consumer.py 8289EF3C2833F6E0AB9442A0420A2A9EBF0D7BDE0101A90A784C9E2A271555B0
+jobs/queue_publisher.py E8714F5DAF797B8DBEE42ADB377B0C42976DCF0E051BBB62153AA6FDE77BC557
+jobs/registry.py 21FDDCF00DA3187A53ED584D3FD47571C264AD7B42964F3B5ED2335FA0B01E37
+
+[porcelain]
+ M .env.example
+A  DATA_500_PROBLEMS_REPORT.md
+ M Dockerfile.scheduler
+ M Dockerfile.worker
+ M InkGist
+AM apply_fixes.py
+MM apps/api/dependencies.py
+ M apps/api/endpoints/alerts.py
+ M apps/api/endpoints/brsapi.py
+ M apps/api/endpoints/codal.py
+ M apps/api/endpoints/funds.py
+MM apps/api/endpoints/market.py
+ M apps/api/endpoints/market_dashboard.py
+ M apps/api/endpoints/market_info.py
+ M apps/api/endpoints/market_watch.py
+ M apps/api/endpoints/news.py
+ M apps/api/endpoints/portfolios.py
+M  apps/api/endpoints/stocks_v2.py
+ M apps/api/endpoints/symbols.py
+ M apps/api/endpoints/watchlist.py
+ M apps/worker/app.py
+ M backtesting/engine/backtest_engine.py
+ M backtesting/engine/execution_simulator.py
+ M brsapi/client.py
+ M brsapi/migrations/001_create_brsapi_tables.py
+ M brsapi/models/base.py
+ M brsapi/models/commodity.py
+ M brsapi/parsers/codal.py
+ M brsapi/parsers/commodity.py
+ M brsapi/parsers/crypto.py
+ M brsapi/parsers/ime.py
+ M brsapi/parsers/tsetmc.py
+ M brsapi/pipelines/news/symbol_linker.py
+ M brsapi/services/history_fetch_service.py
+MM brsapi/services/query_service.py
+MM brsapi/services/sync_service.py
+ M core/typing/__init__.py
+ M docker-compose.decision-engine.yml
+ M docker-compose.override.yml
+ M docker-compose.yml
+A  docs/SESSION_REPORT_2026-09-16.zip
+A  docs/audits/ISSUE_CATALOG_1000.md
+A  docs/audits/ROOT_CAUSE_BATCH10.md
+A  docs/audits/phase-0/API_CONTRACTS.md
+A  docs/audits/phase-0/ARCHITECTURE_MAP.md
+A  docs/audits/phase-0/BASELINE.md
+A  docs/audits/phase-0/CAPABILITY_INVENTORY.md
+A  docs/audits/phase-0/DATA_QUALITY_AUDIT.md
+A  docs/audits/phase-0/DECISIONS_AND_BLOCKERS.md
+A  docs/audits/phase-0/FINANCIAL_FORMULA_AUDIT.md
+A  docs/audits/phase-0/FRONTEND_AUDIT.md
+A  docs/audits/phase-0/ISSUE_REGISTRY.md
+A  docs/audits/phase-0/MASTER_READINESS_REPORT.md
+A  docs/audits/phase-0/PERFORMANCE_AUDIT.md
+A  docs/audits/phase-0/PROGRESS_TRACKING.md
+A  docs/audits/phase-0/ROADMAP.md
+A  docs/audits/phase-0/SECURITY_REVIEW_PLAN.md
+A  docs/audits/phase-0/TEST_STRATEGY.md
+A  docs/audits/phase-0/THREE_ASSISTANTS_RUNBOOK.md
+A  docs/audits/phase-0/WORK_OWNERSHIP.md
+A  docs/audits/phase-0/evidence/e2e-suite.txt
+A  docs/audits/phase-0/evidence/frontend-build.txt
+A  docs/audits/phase-0/evidence/gold-suite.txt
+A  docs/audits/phase-0/evidence/integration-suite.txt
+A  docs/audits/phase-0/evidence/isolated-itest-run.md
+A  docs/audits/phase-0/evidence/route-inventory.txt
+A  docs/audits/phase-0/evidence/startup-measurements.txt
+A  docs/audits/phase-0/evidence/unit-baseline-failures.txt
+AM docs/audits/tools/_build_report.py
+A  docs/audits/tools/_eslint.json
+AM docs/audits/tools/_manual_findings.py
+AM docs/audits/tools/_manual_findings2.py
+AM docs/audits/tools/_manual_findings3.py
+AM docs/audits/tools/_manual_findings4.py
+AM docs/audits/tools/_manual_findings5.py
+AM docs/audits/tools/_manual_findings6.py
+AM docs/audits/tools/_manual_findings7.py
+AM docs/audits/tools/_manual_findings8.py
+AM docs/audits/tools/_manual_findings9.py
+A  docs/audits/tools/_pattern_findings.json
+AM docs/audits/tools/_pattern_scan.py
+A  docs/audits/tools/_ruff_broad.json
+A  docs/contracts/gold-price-schema.json
+A  docs/contracts/phase1-gold.json
+A  docs/contracts/phase3-decision.json
+A  docs/data-sources-phase0.md
+A  docs/data-sources-phase1.md
+A  docs/data-sources-phase2.md
+A  docs/data-sources-phase3.md
+A  docs/data-sources.md
+M  docs/handoff.md
+M  docs/phase0-gold-foundation.md
+A  docs/phase1-certificate-api.md
+A  docs/phase1-funds-api.md
+A  docs/phase1-gold-parity.md
+A  docs/phase1-physical-api.md
+A  docs/phase1-ticker-api.md
+A  docs/phase1-what-if-api.md
+A  docs/phase2-market-coverage.md
+A  docs/phase3-decision-assistant.md
+A  docs/phase3-disclaimer-fa.md
+A  docs/phase3-vocabulary-fa.md
+ M domain/instruments/symbol_catalog.py
+M  domain/options/margin_engine.py
+M  domain/options/pricing.py
+ M domain/options/probability.py
+AM fix_avg.py
+AM fix_function.py
+AM fix_sector.py
+ M frontend/src/__tests__/GoldApiLayer.test.ts
+M  frontend/src/__tests__/GoldFrontendSurfaces.test.tsx
+A  frontend/src/__tests__/GoldMarketCoverage.test.tsx
+A  frontend/src/__tests__/GoldTerminalPhase1.test.tsx
+M  frontend/src/__tests__/fund-analysis.test.ts
+ M frontend/src/__tests__/useMarketData.test.tsx
+ M frontend/src/__tests__/useSymbolPrices.test.ts
+ M frontend/src/app/admin/page.tsx
+M  frontend/src/app/globals.css
+A  frontend/src/app/gold/components/Phase2Overview.tsx
+A  frontend/src/app/gold/components/SummarySection.tsx.bak
+A  frontend/src/app/gold/coverage/FundMarketMap.tsx
+A  frontend/src/app/gold/coverage/PlatformsTable.tsx
+A  frontend/src/app/gold/coverage/ReturnsMatrix.tsx
+A  frontend/src/app/gold/coverage/SectionFeedback.tsx
+A  frontend/src/app/gold/coverage/TehranBoardTable.tsx
+A  frontend/src/app/gold/coverage/page.tsx
+M  frontend/src/app/gold/layout.tsx
+A  frontend/src/app/gold/terminal/CertificateTable.tsx
+A  frontend/src/app/gold/terminal/GoldFundsTable.tsx
+A  frontend/src/app/gold/terminal/Phase1Ticker.tsx
+A  frontend/src/app/gold/terminal/PhysicalParityTable.tsx
+A  frontend/src/app/gold/terminal/TerminalBits.tsx
+A  frontend/src/app/gold/terminal/WhatIfCalculator.tsx
+A  frontend/src/app/gold/terminal/format.ts
+A  frontend/src/app/gold/terminal/page.tsx
+ M frontend/src/app/heatmap/page.tsx
+ M frontend/src/app/market-depth/page.tsx
+ M frontend/src/app/markets/gold-fx/page.tsx
+ M frontend/src/app/markets/gold/page.tsx
+ M frontend/src/app/sync-manager/page.tsx
+ M frontend/src/app/sync/page.tsx
+MM frontend/src/components/FundAnalysisModal.tsx
+M  frontend/src/components/FundCard.tsx
+MM frontend/src/components/FundCompareModal.tsx
+MM frontend/src/components/FundDetailDrawer.tsx
+ M frontend/src/components/FundScorecardPanel.tsx
+ M frontend/src/components/dashboard/AssetAllocationPie.tsx
+ M frontend/src/components/dashboard/EventCalendar.tsx
+ M frontend/src/components/dashboard/GlobalMarkets.tsx
+ M frontend/src/components/dashboard/IndexCards.tsx
+ M frontend/src/components/dashboard/IndexImpacts.tsx
+ M frontend/src/components/dashboard/LiquidityBlocks.tsx
+ M frontend/src/components/dashboard/LiveDataBanner.tsx
+ M frontend/src/components/dashboard/MarketMap.tsx
+ M frontend/src/components/dashboard/MarketOverview.tsx
+ M frontend/src/components/dashboard/NewsStrip.tsx
+ M frontend/src/components/dashboard/OwnershipChange.tsx
+ M frontend/src/components/dashboard/QuoteCards.tsx
+ M frontend/src/components/dashboard/TopStocksToday.tsx
+ M frontend/src/components/dashboard/TrendChart.tsx
+ M frontend/src/components/dashboard/TripleChartsGroup.tsx
+ M frontend/src/components/dashboard/ValueVolumePanel.tsx
+M  frontend/src/components/gold/DataTrustBadge.tsx
+ M frontend/src/components/widgets/LiveMarketWidget.tsx
+MM frontend/src/hooks/useMarketData.ts
+ M frontend/src/hooks/useWebSocket.ts
+ M frontend/src/lib/api.ts
+MM frontend/src/lib/fund-analysis.ts
+MM frontend/src/lib/goldApi.ts
+M  frontend/src/types/gold.ts
+A  frontend/src/types/phase1.ts
+A  frontend/src/types/phase2.ts
+ M ingestion/parser/library_parsers.py
+M  ingestion/parser/tsetmc_parsers.py
+ M ingestion/storage/__init__.py
+ M ingestion/storage/layered_pipeline.py
+MM ingestion/worker.py
+M  integrations/__init__.py
+M  integrations/observability/__init__.py
+ M jobs/definitions/news_jobs.py
+ M jobs/job_dispatcher.py
+ M jobs/job_result.py
+ M jobs/news_sync.py
+ M jobs/queue_consumer.py
+ M models/alert.py
+ M orchestration/codal_flow.py
+ M orchestration/fund_flow.py
+ M orchestration/market_flow.py
+ M orchestration/news_flow.py
+ M orchestration/runners.py
+ M providers/news/foreign/commodities_news_provider.py
+ M providers/news/foreign/fx_news_provider.py
+ M providers/news/foreign/global_market_news_provider.py
+ M providers/news/foreign/health.py
+ M providers/news/parser.py
+ M providers/news/rss/rss_parser.py
+ M providers/news/rss/rss_provider.py
+ M repositories/portfolio_repository.py
+ M repositories/quote_repository.py
+ M schemas/common/responses.py
+ M services/alert_service.py
+M  services/auto_retrain_pipeline.py
+ M services/ensemble_engine.py
+ M services/fund_api_adapter.py
+ M services/gold/black76_engine.py
+MM services/market_service.py
+A  services/market_service.py.bak
+ M services/news_dual_write.py
+ M services/news_ingestion.py
+ M services/news_tag_symbol_mapper.py
+ M services/portfolio_service.py
+ M services/signal_performance_tracker.py
+ M services/symbol_detail_service.py
+ M services/watchlist_service.py
+MM src/gold_desk/api.py
+M  src/gold_desk/backtest.py
+MM src/gold_desk/backtest_runner.py
+M  src/gold_desk/black76.py
+ M src/gold_desk/freshness.py
+MM src/gold_desk/pattern_detector.py
+A  src/gold_desk/phase1.py
+A  src/gold_desk/phase1_schemas.py
+A  src/gold_desk/phase2.py
+A  src/gold_desk/phase2_schemas.py
+M  src/gold_desk/portfolio.py
+ M tests/e2e/test_gold_session_reload.py
+M  tests/fixtures/ingestion/test_parsers.py
+A  tests/fixtures/phase1-fund-no-nav.json
+A  tests/fixtures/phase1-fund-snapshot.json
+A  tests/fixtures/phase1-ticker-snapshot.json
+A  tests/fixtures/phase1-what-if-snapshot.json
+A  tests/fixtures/phase3-derivative.json
+A  tests/fixtures/phase3-news.json
+A  tests/fixtures/phase3-secret.json
+A  tests/fixtures/phase3-silver.json
+A  tests/fixtures/phase3-stale.json
+A  tests/gold_desk/test_phase1_terminal.py
+A  tests/gold_desk/test_phase2_market_coverage.py
+A  tests/gold_desk/test_phase3_adapters.py
+ M tests/unit/backtesting/test_tick_cutoff.py
+ M tests/unit/jobs/test_job_dispatcher.py
+ M tests/unit/jobs/test_queue.py
+ M tests/unit/repositories/conftest.py
+MM tests/unit/repositories/test_sync_log_repository.py
+ M tests/unit/services/test_all_services.py
+ M tests/unit/services/test_black76_and_greeks.py
+ M tests/unit/services/test_market_service.py
+ M tests/unit/services/test_symbol_catalog.py
+ M tests/unit/test_brsapi_candlesticks.py
+ M tests/unit/test_brsapi_shareholder_parser.py
+ M tests/unit/test_brsapi_sync_nav_all_endpoint.py
+ M tests/unit/test_trades_e2e.py
+?? .claude/settings.local.json
+?? AUDIT_REPORTS/
+?? brsapi/parsers/errors.py
+?? brsapi/parsers/numeric.py
+?? brsapi/quality.py
+?? frontend/src/__tests__/AdminSyncEventsParseErrorCode.test.tsx
+?? frontend/src/__tests__/HeatmapNoMock.test.tsx
+?? frontend/src/__tests__/LiveDataBanner.test.tsx
+?? frontend/src/__tests__/LiveMarketNoMock.test.tsx
+?? frontend/src/__tests__/MarketDepthNoMock.test.tsx
+?? frontend/src/__tests__/SyncManagerEventsParseErrorCode.test.tsx
+?? frontend/src/__tests__/SyncPageParseErrorCode.test.tsx
+?? frontend/src/__tests__/apiEnvelope.test.ts
+?? frontend/src/components/ParseErrorCodeBadge.tsx
+?? frontend/src/lib/api-envelope.ts
+?? ingestion/parser/errors.py
+?? migrations/versions/0116_sync_log_outcome.py
+?? migrations/versions/0117_user_owned_alerts_watchlist.py
+?? migrations/versions/0118_core_tables_backfill.py
+?? migrations/versions/0119_service_private_tables.py
+?? ruff-report.txt
+?? scripts/history_quality_preflight.py
+?? tests/fixtures/brsapi/
+?? tests/unit/api/test_auth_flag_semantics.py
+?? tests/unit/api/test_market_aggregate_cache.py
+?? tests/unit/api/test_market_endpoint_contracts.py
+?? tests/unit/api/test_personal_data_authz.py
+?? tests/unit/api/test_reference_data_write_authz.py
+?? tests/unit/backtesting/test_engine_cash_accounting.py
+?? tests/unit/brsapi/test_error_codes.py
+?? tests/unit/brsapi/test_history_fetch_quality.py
+?? tests/unit/brsapi/test_history_quality.py
+?? tests/unit/brsapi/test_history_quality_preflight.py
+?? tests/unit/brsapi/test_numeric_parsing.py
+?? tests/unit/brsapi/test_parser_contracts.py
+?? tests/unit/brsapi/test_sync_all_isolation.py
+?? tests/unit/brsapi/test_sync_log_outcome.py
+?? tests/unit/brsapi/test_sync_outcomes.py
+?? tests/unit/gold_desk/
+?? tests/unit/jobs/test_dispatcher_brsapi_jobs.py
+?? tests/unit/jobs/test_news_ingestion_job_outcome.py
+?? tests/unit/options/test_probability_of_touch.py
+?? tests/unit/orchestration/
+?? tests/unit/parsers/
+?? tests/unit/providers/test_foreign_placeholder_providers.py
+?? tests/unit/providers/test_news_rss_provider_status.py
+?? tests/unit/providers/test_news_symbol_extraction.py
+?? tests/unit/providers/test_rss_malformed_feed.py
+?? tests/unit/repositories/test_bulk_upsert_repository.py
+?? tests/unit/repositories/test_clock_semantics.py
+?? tests/unit/repositories/test_enriched_symbol_detail.py
+?? tests/unit/repositories/test_query_index_latest.py
+?? tests/unit/repositories/test_query_latest_commodity.py
+?? tests/unit/repositories/test_query_latest_snapshot.py
+?? tests/unit/repositories/test_quote_top_lists.py
+?? tests/unit/services/test_alert_ownership.py
+?? tests/unit/services/test_black76_theta_derivative.py
+?? tests/unit/services/test_market_service_error_envelope.py
+?? tests/unit/services/test_news_ingestion_skips.py
+?? tests/unit/services/test_watchlist_ownership.py
+?? tests/unit/test_compose_service_topology.py
+?? tests/unit/test_core_tables_migration.py
+?? tests/unit/test_ingestion_worker_persistence.py
+?? tests/unit/test_migration_revision_ids.py
+?? tests/unit/test_news_stub_paths.py
+?? tests/unit/test_runtime_ddl_consistency.py
+?? tests/unit/test_service_private_tables_migration.py
+?? tests/unit/test_storage_layer_params.py
+?? tests/unit/test_sync_service_persistence_scope.py
+?? tests/unit/test_worker_app.py

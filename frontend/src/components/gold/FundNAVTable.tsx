@@ -21,8 +21,8 @@ export function FundNAVTable({ funds, className = "" }: Props) {
         <thead>
           <tr className="text-xs text-zinc-500 border-b border-zinc-800">
             <th className="text-right p-3">صندوق</th>
-            <th className="text-left p-3">NAV</th>
-            <th className="text-left p-3">بازار</th>
+            <th className="text-left p-3">NAV (ریال)</th>
+            <th className="text-left p-3">بازار (ریال)</th>
             <th className="text-left p-3">حباب NAV</th>
             <th className="text-left p-3">BPR</th>
             <th className="text-left p-3">ورود خالص</th>
@@ -43,16 +43,16 @@ export function FundNAVTable({ funds, className = "" }: Props) {
             return (
               <tr key={f.symbol} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                 <td className="p-3 text-zinc-200">{f.fund_name}</td>
-                <td className="p-3 text-left text-zinc-100 font-mono">{f.nav_per_unit.toLocaleString("fa-IR")}</td>
-                <td className="p-3 text-left text-zinc-100 font-mono">{f.market_price.toLocaleString("fa-IR")}</td>
+                <td className="p-3 text-left text-zinc-100 font-mono">{f.nav_per_unit == null ? "—" : f.nav_per_unit.toLocaleString("fa-IR")}</td>
+                <td className="p-3 text-left text-zinc-100 font-mono">{f.market_price == null ? "—" : f.market_price.toLocaleString("fa-IR")}</td>
                 <td className={`p-3 text-left font-mono font-bold ${navPctColor}`}>
                   {f.bubble_pct === null || f.bubble_pct === undefined
                     ? "—"
                     : `${f.bubble_pct > 0 ? "+" : ""}${f.bubble_pct.toFixed(2)}٪`}
                 </td>
-                <td className="p-3 text-left text-zinc-300 font-mono">{f.bpr.toFixed(2)}</td>
+                <td className="p-3 text-left text-zinc-300 font-mono">{f.bpr == null ? "—" : f.bpr.toFixed(2)}</td>
                 <td className="p-3 text-left text-zinc-300 font-mono">
-                  {(f.net_inflow / 1e9).toFixed(2)}B
+                  {f.net_inflow == null ? "—" : `${(f.net_inflow / 1e9).toFixed(2)}B ریال`}
                 </td>
               </tr>
             );

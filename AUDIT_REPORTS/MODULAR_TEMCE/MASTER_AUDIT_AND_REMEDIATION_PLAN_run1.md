@@ -3,7 +3,7 @@
 - **تاریخ/زمان snapshot:** 2026-10-29T06:54Z (Iran: 10:24)
 - **ریشه:** `C:/Users/Iran/Desktop/temce`
 - **Branch:** `integration/golddesk-fixes`
-- **HEAD:** ابتدا `90597e05b9f4328bcd82ee819a31ba5c55413c12` — در جریان کار به `be8b4ff4` تغییر کرد (commit عامل هم‌زمان، سپس push شد؛ §۲.۳)
+- **HEAD:** ابتدا `90597e05…` → `be8b4ff4…` → `46946947…` (۶ commit از عامل هم‌زمان در طول کار؛ §۲.۳)
 - **وضعیت کاری:** **داغ/در حال تغییر هم‌زمان** — یک agent دیگر همین حالا در همین working tree اصلاح و تست اضافه می‌کند
 - **نتیجهٔ کلی:** `PARTIAL` — ممیزی ۹ دامنه با شاهد کد؛ اصلاح ۳ مورد P0 امنیتی پس از تأیید صریح کاربر (بند ۸.۲)؛ بقیهٔ اصلاحات به‌دلیل ناپایداری tree متوقف است. موارد نیازمند DB/Redis/Docker: `BLOCKED`.
 
@@ -67,6 +67,7 @@
 | S4 | 06:44:36 | 90597e05 | `e302b0bb55e6316a9589aa703591fd4e` | 225 | **تغییر کرد** |
 | S5 | 06:54:13 | 90597e05 | `e302b0bb…` | 227 | untracked رشد کرد |
 | S6 | 10:39:07 | **be8b4ff4** | — | — | **HEAD جابه‌جا شد**: commit «style(lint): clear all ruff findings under project config» (۱۳۵ فایل) توسط عامل هم‌زمان ساخته و به `origin` push شد |
+| S7 | ~14:45:00 | **46946947** | — | — | ۵ commit دیگر عامل هم‌زمان روی `6e0ac36d` (jobs/API-05/R2) در میانهٔ اجرای کل تست‌ها اضافه شد |
 
 ### ۲.۳ شاهد تغییر هم‌زمان توسط عامل دیگر
 
@@ -244,9 +245,9 @@
 | ID | عنوان | شاهد | علت ریشه‌ای | اصلاح حداقلی | اعتبارسنجی |
 |---|---|---|---|---|---|
 | API-02 | **FIXED (۸.۱۱)** — خطای منبع با `success=True, data=[]` پنهان می‌شد | `services/market_service.py:78,122,249,288,815` = `Result.ok([])` / `Result.ok({})` پس از شکست DB و live | exception به «خالی موفق» تنزل داده می‌شد | `Result.fail` اگر هیچ منبعی داده نداده و خطایی رخ داده؛ `ok([])` فقط برای خالی واقعی | DIRECT |
-| API-03 | کش aggregate بین‌فرایندی نامعتبر نمی‌شود | `apps/api/endpoints/market.py:573,614-617` (`_AGG_CACHE` dict) و فراخوانی invalidation از `brsapi/services/sync_service.py:527-529` در container دیگر | کش درون‌فرایندی | انتقال به L2/Redis + version key | DIRECT |
+| API-03 | **FIXED (۸.۱۶)** — کش aggregate بین‌فرایندی نامعتبر نمی‌شد | `apps/api/endpoints/market.py` (`_AGG_CACHE` + `_AGG_TOKEN_KEY`/`publish_agg_invalidation`)؛ فراخوانی از `brsapi/services/sync_service.py:618,2041` | کش درون‌فرایندی | توکن نسل در L2؛ هر process با دیدن توکن تازه کش محلی را دور می‌ریزد | DIRECT |
 | API-04 | **FIXED (۸.۱۴)** — متادیتای freshness در endpointهای داشبورد نبود | `market_dashboard.py`, `market_watch.py`, `/market/overview` | قرارداد ناقص | `core/freshness.py` + محاسبه از snapshot و ارسال در envelope | DIRECT |
-| API-05 | ۷ ماژول router هرگز mount نمی‌شوند | `apps/api/router.py` بدون import برای `comprehensive_analysis, ime, monitoring, proposals, scanner, sentiment, symbol_alerts` | drift | mount با role dep یا حذف | SUB |
+| API-05 | **DECIDED (۸.۱۶)** — ۷ router mount‌نشده عمداً mount نمی‌شوند | `apps/api/router.py` (بلوک «API-05 decision»)؛ `tests/unit/api/test_api05_mount_decisions.py` | drift | نه mount، نه حذف: ۳ زیرسیستم مرده (نیازمند تأیید مالک برای حذف) و ۴ سطح بدون مصرف‌کننده؛ گارد روی mount تصادفی | DIRECT |
 | API-06 | **FIXED (۸.۱۲)** — نوشتن news/نماد/کدال فقط با «کاربر معتبر» | `router.py:15` + `news.py:233,434`, `symbols.py:62,124`, `codal.py:620`, `funds.py:1562` | authorization با authentication اشتباه گرفته شده | `require_roles("admin")` روی این مسیرها | DIRECT |
 | SCH-01 | lock با TTL=300s تمدید نمی‌شود | `jobs/locking.py:43`; هیچ caller برای `extend` | بدون heartbeat | watchdog renew | SUB |
 | SCH-02 | retry با dedup هم‌کلید می‌شود و «Duplicate» شمرده می‌شود | `jobs/job_dispatcher.py:47-51`, `jobs/queue_consumer.py:269-272` | key شامل `job_id`، mark قبل از اجرا | dedup بر اساس کلید طبیعی؛ mark بعد از موفقیت | SUB |
@@ -264,18 +265,18 @@
 | FE-03 | **FIXED (۸.۱۴)** — خطای بک‌اند = «ساخته نشد» در funds/markets | `app/funds/page.tsx`, `app/markets/page.tsx` | `isError` خوانده نمی‌شد | پنل خطای صریح | DIRECT |
 | FE-04 | **FIXED (۸.۱۴)** — `isFresh` در ۵ هوک hard-code شده بود | `useMarketData.ts` | نبود `data_as_of` از API | `useMarketOverview` از envelope؛ banner بدون timestamp ساکت | DIRECT |
 | FE-05 | **FIXED (۸.۱۵)** — WS فریم قدیمی را می‌پذیرفت و نماد حذف‌شده را نگه می‌داشت | `useWebSocket.ts` | freshness = زمان دریافت | مقایسه timestamp + prune | DIRECT |
-| FE-06 | توکن دسترسی در query string WS | `useWebSocket.ts:41`; `goldApi.ts:418`; `apps/api/endpoints/websocket.py:46` | محدودیت handshake | WS ticket یک‌بار‌مصرف | SUB |
+| FE-06 | **FIXED (۸.۱۶)** — توکن دسترسی در query string WS | `useWebSocket.ts`, `goldApi.ts`, `apps/api/endpoints/websocket.py`, `core/security/tokens.py`, `auth.py` | محدودیت handshake مرورگر | بلیت یک‌بارمصرف ۶۰ثانیه‌ای (`POST /auth/ws-ticket`، ذخیره SHA-256، `GETDEL`)؛ توکن فقط در هدر/HTTP | DIRECT |
 | FE-07 | **FIXED (۸.۱۴)** — دکمه‌های بازهٔ TrendChart فقط polling را چند برابر می‌کردند | `TrendChart.tsx`, `useMarketData.ts` | range فقط در queryKey | `INDEX_RANGE_LIMITS` → `?limit=` | DIRECT |
-| DB-02 | زنجیرهٔ Alembic جدول‌هایی را ALTER می‌کند که هیچ migration نمی‌سازد | `migrations/versions/0054_news_module_foundation.py:23` (خودش اقرار می‌کند)؛ `0005`, `0102` روی `quotes` | legacy قبل از Alembic | baseline revision یا guard | DIRECT |
+| DB-02 | **FIXED — PASS روی DB خالی (۸.۱۶)** — زنجیرهٔ Alembic جدول‌هایی را ALTER/INDEX می‌کرد که migration جدا نداشت؛ baseline `0004b_core_baseline` (۳۴ جدول + ۷۶ ایندکس) بین 0004 و 0005 اضافه شد | `migrations/versions/0004b_core_baseline.py`؛ `0005.down_revision`؛ اصلاحات 0006/0011/0012/0099 (کار هم‌زمان)؛ `0118:489` | baseline/ترتیب غلط | اجرای تمیز: `upgrade head` exit 0، `current=0119`، ۲۱۸ جدول؛ شاهد: گزارش ۳۳؛ بازبینی مستقل + تست: گزارش ۳۴ | DIRECT — باقی‌مانده: DB-13 |
 | DB-03 | مدل ORM روی View نوشته می‌شود | `migrations/versions/0034…:9-12`; `models/market_data.py:47-51,70-77` | drift | حذف/read-only کردن مدل | SUB |
-| DB-04 | `trade_date` = تاریخ fetch است و شاخص‌ها با آن مرتب می‌شوند | `migrations/versions/0109_true_trade_date.py:10-14`; `services/adjusted_price_reader.py:77-79` | اصلاح فقط در view | استفادهٔ اجباری از view اصلاح‌شده | SUB |
+| DB-04 | **FIXED (۸.۱۶)** — `trade_date` = تاریخ fetch و شاخص‌ها با آن مرتب می‌شدند | `migrations/versions/0109_true_trade_date.py`; `services/adjusted_price_reader.py:171`؛ `services/populate_profiles_service.py:217` | اصلاح فقط در view؛ fallback خام همان محور خراب را می‌داد | view اصلاح‌شده اجباری شد؛ `AdjustedPriceSourceUnavailable` به‌جای سری اشتباه؛ مصرف‌کننده‌ها «بدون شاخص» صریح | DIRECT |
 | DB-05 | قید یکتای quotes در ORM نیست و `timeframe` nullable است | `models/quote.py:11-13,38`; `0102…:68-70` | drift + NULL در unique | UniqueConstraint + NOT NULL + فیلتر در read | SUB |
 | DB-06 | `ON CONFLICT DO NOTHING` بدون قید تضمین‌شده | `brsapi/repositories/base.py:330-331`; `brsapi/models/tsetmc.py:435-442` | PK خودافزا | unique model + 0066 fail-loud | SUB |
 | DB-07 | **FIXED (۸.۱۵)** — یک ردیف خراب کل batch را rollback می‌کرد ولی گزارش می‌گفت ذخیره شد | `brsapi/services/history_fetch_service.py` | بدون SAVEPOINT | `begin_nested()` per row | DIRECT |
 | DB-08 | جدول‌های بزرگ history بدون retention | `jobs/definitions/housekeeping_jobs.py:21-25`; `purge_older_than` بدون caller | فراموشی | زمان‌بندی purge | SUB |
-| FIN-03 | بک‌تست قاعدهٔ معاملهٔ زنده را نمی‌سنجد | `src/gold_desk/backtest.py:100` (`bubble > 8`) در برابر `backtest_runner.py:182` (`bubble < 5`) | دو predicate متفاوت | یک predicate مشترک | SUB |
+| FIN-03 | **FIXED (۸.۱۶)** — بک‌تست قاعدهٔ معاملهٔ زنده را نمی‌سنجید | `src/gold_desk/entry_rules.py`; `backtest.py`; `backtest_runner.py` | دو predicate متفاوت | `dca_entry_signal` مشترک: `bubble < threshold` در هر دو | DIRECT |
 | FIN-04 | **FIXED (۸.۱۵)** — IV solver بدون کران آربیتراژ و بدون نتیجهٔ همگرایی | `domain/options/pricing.py` | `return sigma` در واگرایی | کران + bisection + `None` | DIRECT |
-| FIN-05 | نشت زمانی در تقسیم train/test | `ml/datasets/splitting.py:11-18`; `ml/datasets/labeling.py:42-43` | برچسب آخرین horizon از آینده | `train_end -= horizon` + purge | SUB |
+| FIN-05 | **FIXED (۸.۱۶)** — نشت زمانی در تقسیم train/test | `ml/datasets/splitting.py`; `ml/datasets/builders.py` | برچسب آخرین horizon از آینده | `label_horizon` + شکاف purge (train/val و val/test)؛ builder از config | DIRECT |
 | FIN-06 | **FIXED (۸.۱۲)** — Sharpe با rf=0 در حالی که دامنه rf=۳۰٪ دارد | `src/gold_desk/performance.py:48`; `backtest_runner.py:71`; `black76.py:30` | wiring نشده بود | `_annualized_sharpe` نرخ داخلی را کم می‌کند | DIRECT |
 | FIN-07 | **FIXED (۸.۱۲)** — NAV ۷روزه می‌توانست همان ردیف را با خودش مقایسه کند | `src/gold_desk/nav_checker.py:345,452,484-485` | بدون بررسی تاریخ | `date_key < max(date_key)` | DIRECT |
 | SEC-03 | پورتفوی بدون مالکیت (IDOR) | `apps/api/endpoints/portfolios.py:17-21,45-50`; `services/portfolio_service.py:16,34` | بدون `current_user` | `WHERE owner_id` | DIRECT |
@@ -288,16 +289,29 @@
 | DEP-11 | **FIXED (۸.۵)** — override سرویس‌های بدون image/build اعلام می‌کرد و کل project را نامعتبر می‌ساخت | `docker-compose.override.yml` (نسخهٔ قبلی): `api`, `admin`, `scheduler` بدون build؛ `postgres` در حالی که base `timescaledb` دارد | override برای base دیگری نوشته شده بود | حذف استنزهای مرده + نگاشت `api→backend` | DIRECT |
 | SCH-06 | **FIXED (۸.۱۵)** — `NewsIngestionJob` بدون `max_instances=1` | `apps/scheduler/app.py` | پیش‌فرض ۳ | `max_instances=1` | DIRECT |
 | SCH-07 | BrsApi APScheduler بدون lock در حالت in-process | `brsapi/jobs/registry.py:510-528,610+`; پیش‌فرض `JOB_QUEUE_ENABLED=false` | طراحی فقط queue | lock یا اجبار queue | SUB |
+| NEW-01 | **FIXED (۸.۱۶)** — `%D` با تکرار مقدار اول به طول `%K` می‌رسید و Ichimoku کلید `offset` اضافه داشت (۶ تست شکست می‌خورد) | `services/market_service.py`؛ `frontend/src/app/indicators/page.tsx` | هم‌ترازی نمایشی با ساخت داده | حذف پدینگ؛ سری‌ها با طول طبیعی، هم‌ترازی راست‌چین با `null` در نمودار | DIRECT |
+| DB-13 | **P1 — باز (بلوکر deployment تازه)** — در DB تازهٔ مهاجرت‌شده، ۲۱ جدول `brsapi_*` ستون‌های mixin اورم (`ins_id`/`instrument_id`) را ندارند؛ orphan/baseline آن‌ها را نمی‌سازند و هیچ migration بعدی اضافه نمی‌کند | `brsapi/models/base.py` (`InstrumentRefMixin`); `migrations/versions/0004b_core_baseline.py`; تأیید روی `tse_quant_clean_1030`؛ تست xfail: `tests/unit/test_db02_baseline_review.py` | DDL منبع (orphan) قدیمی‌تر از ORM | migration تکمیلی افزودن ستون‌های mixin | DIRECT — گزارش ۳۴ |
 
 ### ۶.۳ P2/P3 — فشرده
 
 | ID | شدت | عنوان | شاهد |
 |---|---|---|---|
-| DS-08 | P2 | `_ensure_list` هر dict ناشناخته را یک رکورد می‌کند | `brsapi/parsers/ime.py:367-372` |
-| DS-09 | P2 | نگاشت خبر به صندوق اولویت دارد و برخورد بین دو جدول را نمی‌بیند | `services/news_tag_symbol_mapper.py:174-188` |
-| DS-10 | P3 | `count_page` کدال بدون guard | `brsapi/parsers/codal.py:79-80`; `sync_service.py:1734-1735` |
-| DS-11 | P3 | fallback معنایی غلط در close | `ingestion/parser/library_parsers.py:88` |
-| DS-12 | P3 | شکست sentiment = neutral | `services/news_ingestion.py:298-300` |
+| DQ-01 | P2 | **FIXED (۸.۱۶)** — backfill تاریخچه را با `ON CONFLICT DO UPDATE` بازنویسی می‌کرد | `brsapi/services/history_fetch_service.py:269,381` | upsert مخرب | `DO NOTHING` (append-only) + شمارش «already stored» |
+| DQ-02 | P2 | **FIXED (۸.۱۶)** — مهر تاریخ بازار با ساعت میزبان (UTC) یک روز عقب بود | `brsapi/parsers/tsetmc.py`; `brsapi/services/sync_service.py` | `jdatetime.date.today()` | `core/time.today_jalali_tehran()` (Asia/Tehran) |
+| DQ-03 | P2 | **FIXED (۸.۱۶)** — NAV کهنه/بی‌تاریخ با قیمت زندهٔ امروز مقایسه می‌شد | `src/gold_desk/nav_checker.py:34,148` | نبود هم‌ترازی تاریخ | سقف ۷ روز؛ حباب `None` + `nav_as_of` |
+| NEWS-01 | P2 | **FIXED (۸.۱۶)** — شکست یک فید فقط در log دیده می‌شد و در stats نبود | `providers/news/rss/rss_provider.py`؛ `services/news_ingestion.py` | `Result` فقط یک رشتهٔ خطا دارد | `last_feed_report` (ok/empty/failed+reason) → `stats["source_report"]` |
+| NEWS-02 | P2 | **FIXED (۸.۱۶)** — یک مقاله می‌توانست ده‌ها نماد را تگ کند | `providers/news/parser.py::extract_symbols` | بدون سقف | `MAX_SYMBOLS_PER_ARTICLE=8` |
+| NEWS-03 | P2 | **FIXED (۸.۱۶)** — dual-write زندهٔ خبر `legacy_article_id` را نمی‌نوشت (پاریتی فقط fuzzy) | `services/news_dual_write.py`؛ `services/news_ingestion.py` | ستون یکتا بی‌استفاده | درج لینک + dedup روی `legacy_article_id` یا hash |
+| DS-08 | P2 | **FIXED (۸.۱۶)** — `_ensure_list` هر dict ناشناخته را یک رکورد می‌کرد | `brsapi/parsers/ime.py` (`unrecognised_envelope`) — ویرایش tree توسط کار هم‌زمان، تست سبز |
+| DS-09 | P2 | **FIXED (۸.۱۶)** — نگاشت خبر فقط صندوق را می‌دید و برخورد بین دو جدول را پنهان می‌کرد | `services/news_tag_symbol_mapper.py::_probe_tables` — probe هر دو جدول + log ابهام (tree، uncommitted) |
+| DS-10 | P3 | **FIXED (۸.۱۶)** — `count_page` کدال بدون guard | `brsapi/parsers/codal.py` — `int()` با `TypeError/ValueError → unexpected_shape` |
+| DS-11 | P3 | **FIXED (پیش از این برش، commit `997de6c2`)** — fallback معنایی غلط در close | `ingestion/parser/library_parsers.py:57` — `("pClosing", "closingPrice", "close")` بدون `lastPrice` |
+| DS-12 | P3 | **FIXED (۸.۱۶)** — شکست sentiment = neutral و بی‌شمارش | `services/news_ingestion.py` — `stats["sentiment_errors"]` + log؛ تست `test_sentiment_failure_is_counted_and_does_not_fail_the_run` |
+| DS-13 | P1 | **FIXED (۸.۱۶)** — circuit breaker هرگز باز نمی‌شد چون `_do_fetch` خطا را به `Result` تبدیل می‌کند و raise نمی‌کند؛ provider مرده تا ابد retry می‌شد | `brsapi/client.py::fetch` — گارد `circuit_open` + گزارش صریح نتیجه به breaker |
+| DS-14 | P1 | **BLOCKED** — `ImeParser._int/_float` و `CryptoParser._int/_float` مقدار نامعتبر را `0` می‌کنند (نشت DS-05) | `brsapi/parsers/ime.py:423-438`; `brsapi/parsers/crypto.py:83-97` — هر دو فایل در حال ویرایش agent هم‌زمان |
+| DS-15 | P1 | **FIXED (۸.۱۶)** — تاریخ خارج از دامنه در candlestick بی‌صدا Jalali خوانده می‌شد (Gregorian → قرن ۲۷) | `brsapi/parsers/tsetmc.py::_jalali_to_gregorian` — `normalize_jalali_date` (۱۲۰۰..۱۵۹۹) |
+| DS-16 | P2 | کندل روزانهٔ بدون `date` با تاریخ «امروز» مهر می‌خورد (مهر زدن فقط برای intraday مستند است) | `brsapi/parsers/tsetmc.py:656-670` — نیازمند تصمیم (ستون NOT NULL): حذف ردیف یا `date` خالی |
+| DS-17 | P1 | **FIXED (۸.۱۶)** — 301/303/307/308 و 402 و 401/403/451 به `http_error` می‌رفتند و 408/500 retry نمی‌شدند | `brsapi/client.py` — `_REDIRECT_STATUSES/_QUOTA_STATUSES/_BLOCKED_STATUSES/_RETRYABLE_STATUSES` |
 | DB-01 | P1 | **FIXED (۸.۱۲)** — درخت migration سایه با revision تکراری `0022` | `brsapi/migrations/001_create_brsapi_tables.py:22-23`; `migrations/versions/0022_…`; `alembic.ini:2` |
 | DB-09 | P2 | DDL در زمان اجرا + commit مستقل | `ingestion/storage/layered_pipeline.py:94-107` |
 | DB-10 | P2 | بازهٔ تاریخ رشته‌ای روی Jalali/Gregorian مخلوط | `repositories/quote_repository.py:144-146,176-180` |
@@ -310,14 +324,15 @@
 | FE-08 | P2 | sparkline از یک درصد ساخته می‌شود و قیمت غایب ۰ می‌شود | `useMarketData.ts:234-243`; `QuoteCards.tsx:86,250-260` |
 | FE-09 | P2 | فید ناموفق ۰.۰۰٪ نشان می‌دهد | `TickerBar.tsx:54,82-84`; `app/markets/page.tsx:134,229-234` |
 | FE-10 | P3 | صفر با «—» یکی شده؛ تاریخ شمسی نیست؛ pagination سمت کلاینت | `components/funds/ui.tsx:26,41-44`; `app/news/page.tsx:59`; `apps/api/endpoints/news.py:165` |
-| FIN-08 | P2 | DCA در همان close سیگنال پر می‌شود | `src/gold_desk/backtest_runner.py:182,198` |
-| FIN-09 | P2 | contract_size پیش‌فرض ۱ در برابر ۱۰۰۰ | `domain/options/margin_engine.py:42`; `entities.py:19` |
-| FIN-10 | P2 | diagonal spread به‌جای calendar/vertical | `margin_engine.py:176-194` |
-| FIN-11 | P2 | VaR واحد درصد/اعشار را قاطی می‌کند | `domain/options/var_calculator.py:50,61-62,75` |
-| FIN-12 | P2 | حباب منفی شدید = امتیاز کامل و سیگنال buy | `src/gold_desk/scorer.py:80`; `hotpath.py:46-47` |
-| SEC-06 | P2 | rate-limit لاگین با XFF قابل دور زدن؛ refresh/logout بدون limit | `apps/api/endpoints/auth.py:62-66,77-82,258,381` |
-| SEC-07 | P2 | revoke fail-open و توکن بعد از تغییر رمز معتبر می‌ماند | `core/security/tokens.py:70-77,84-88`; `services/user_service.py:559-560` |
-| SEC-08 | P2 | اولین ثبت‌نام admin می‌شود (race) | `services/user_service.py:44-50` |
+| FIN-08 | P2 | **FIXED (۸.۱۶)** — DCA در همان close سیگنال پر می‌شد | `src/gold_desk/backtest_runner.py::_simulate_dca` | look-ahead اجرا | پر شدن در close کندل بعد؛ سیگنال کندل آخر اجرا نمی‌شود |
+| FIN-09 | P2 | **FIXED (۸.۱۶)** — contract_size پیش‌فرض ۱ در برابر ۱۰۰۰ | `domain/options/margin_engine.py`; `entities.py` (`DEFAULT_OPTION_CONTRACT_SIZE`) | پیش‌فرض ناهمگون | یک منبع واحد ۱۰۰۰ برای هر دو |
+| FIN-10 | P2 | **FIXED (۸.۱۶)** — diagonal به‌جای calendar/vertical | `domain/options/margin_engine.py` | تشخیص بدون expiry | دیاگونال = naked short؛ vertical فقط با expiry یکسان |
+| FIN-11 | P2 | **FIXED (۸.۱۶)** — VaR واحد درصد/اعشار را قاطی می‌کرد | `domain/options/var_calculator.py` | doc «درصد» + محاسبهٔ اعشاری | قرارداد اعشاری + رد ورودی درصدی + `*_pct` واقعی |
+| FIN-12 | P2 | **FIXED (۸.۱۶)** — حباب منفی شدید = امتیاز کامل و سیگنال buy | `src/gold_desk/scorer.py`; `hotpath.py` | بدون کف | `BUBBLE_ANOMALY_FLOOR_PCT=-10` → 0/wait |
+| SEC-06 | P2 | **FIXED (۸.۱۶)** — rate-limit با XFF قابل دور زدن؛ refresh/logout بدون limit | `apps/api/endpoints/auth.py` | XFF بی‌قید اعتماد می‌شد | فقط از `TRUSTED_PROXIES` (IP/CIDR)؛ limit روی refresh/logout |
+| SEC-07 | P2 | **FIXED (۸.۱۶)** — توکن بعد از تغییر رمز معتبر می‌ماند | `core/security/tokens.py`; `dependencies.py`; `auth.py`; `user_service.py` | فقط jti همان درخواست باطل می‌شد | `iat` + cutoff کاربر (`revoke_user_access_tokens`)؛ تغییر رمز بدون store → 503 |
+| SEC-08 | P2 | **FIXED (۸.۱۶)** — اولین ثبت‌نام admin (race) | `services/user_service.py::register` | count+create بدون سریال‌سازی | advisory lock + `BOOTSTRAP_FIRST_ADMIN` |
+| SEC-09 | P1 | **باز** — URL کامل Redis (شامل رمز) در لاگ نوشته می‌شود | `core/cache_manager.py:137`؛ `core/cache.py:106` (`Connected to Redis at %s` با `_redis_url`) | لاگ‌های شاهد این دور با `***` redact شدند، ولی خود کد اصلاح نشده | پاک‌سازی URL پیش از log |
 | DEP-06 | P1 | compose.production خودکفا نیست (بدون image، secret فایل، driver cloudstor) | `docker-compose.production.yml:25,98,110,186` |
 | DEP-07 | P2 | healthcheck/ordering ضعیف | `docker-compose.yml:49,148` |
 | DEP-08 | P2 | CI با `|| true` و build matrix ناقص | `.github/workflows/ci.yml:102,105,212,318-328`; `ci-pr.yml:209` |
@@ -546,11 +561,11 @@
   - `MarketService.get_overview()` زمان جدیدترین `fetched_at` snapshotها را در payload می‌گذارد؛ `/market/overview` آن را به envelope منتقل می‌کند.
   - `/market-dashboard` از overview (و در نبود آن از rows ایندکس) `data_as_of` می‌سازد؛ `/market-watch` از snapshotهای سروشده.
   - تست: `tests/unit/api/test_market_freshness_envelope.py` — ۴ تست (service + سه endpoint).
-  - **بیرون از دامنه:** `stocks_v2.py` هنوز `data_as_of` ندارد (پاسخ‌های غیر-envelope)؛ در گزارش باز ماند.
+  - **بیرون از دامنه (اکنون در tree):** `stocks_v2.py` در همین برش قبلاً `data_as_of` نداشت؛ در working tree همهٔ ۱۱ مسیر آن (۹ تب + CSV + monitoring) `data_as_of` می‌دهند و `tests/unit/api/test_stocks_v2_freshness_envelope.py` (۱۱ تست) سبز است. این تغییر از کار عامل هم‌زمان است و در commit این نشست ادعا نمی‌شود.
 - **FE-04 — freshness از API:**
   - `useMarketOverview` حالا `data_as_of` پاکت را می‌خواند و با `envelopeResult` تازگی را محاسبه می‌کند (به‌جای `isFresh:false`).
   - `LiveDataBanner`: اگر `dataAsOf == null` باشد و هیچ ادعای صریح fresh/stale وجود نداشته باشد، بنر ساکت است — «unknown» دائمی روی فیدهای بدون timestamp حذف شد. تست قبلی به دو تست تفکیک شد (timestamp + پرچم‌ها → unknown؛ بدون timestamp → ساکت).
-  - **باقی‌مانده:** چهار هوک دیگر (`flow-history`, `economic-calendar`, `value-history`, `ownership-history`) منبع timestamp در API ندارند؛ پرچم‌هایشان دست‌نخورده ماند و بنر برای آن‌ها ساکت است. افزودن `fetched_at` به این endpointها در گروه DB-04/DEP باقی می‌ماند.
+  - **باقی‌مانده (اکنون در ۸.۱۶ حل شد):** چهار هوک (`flow-history`, `economic-calendar`, `value-history`, `ownership-history`) `data_as_of` می‌گیرند: سه endpoint تاریخی از `max(created_at)` ردیف‌های سروشده (تاریخ بازار Jalali است، نه instant) و تقویم اقتصادی از `max(fetched_at)` جدول. `/economic-calendar` دیگر فهرست ثابت درون‌کد را سرو نمی‌کند؛ از `gold_economic_calendar_events` می‌خواند (خالی = `events: []` و `data_as_of: null`).
 - **FE-02 — جریان پول:**
   - `useFlowSummary()` حالا `{ summary, isError }` برمی‌گرداند (catch بی‌صدا حذف شد).
   - `MarketOverview` در نبود عدد، جملهٔ «وارد بازار کردند» را رندر نمی‌کند و «جریان پول حقیقی در دسترس نیست» نشان می‌دهد؛ `LiquidityBlocks` از `flow.summary` می‌خواند و خطای آن را به بنر می‌دهد.
@@ -659,6 +674,7 @@
 | رگرسیون فرانت: WS ordering + useMarketData + LiveMarketNoMock + GoldWebSocket + LiveDataBanner | همان | **38 passed** | 0 |
 | `npx tsc --noEmit` (پس از FE-05) | TypeScript | **0 error** | 0 |
 | `eslint` (useWebSocket + تست) / `ruff` (۶ فایل بک‌اند + ۴ فایل تست) | — | 0 خطا | 0 |
+| **اجرای کل `pytest tests/`** (۱۲ بخش، هر بخش process جدا) | py3.11 venv | **6347 passed / 178 failed / 38 skipped / 16 errors**؛ جزئیات و exit code هر بخش: `evidence/full-pytest-run_20261029.md` | 1 (مجموع) |
 | علت ۵ شکست (اثبات‌شده) | — | `RuntimeError: Cannot connect to PostgreSQL database … localhost:5432/market` — هر ۵ تست در `test_gold_personal_surface_auth.py` به DB نیاز دارند و marker `needs_db` ندارند | — |
 
 تست‌های اجرانشده: کل مجموعه (۵۴۸ فایل)، تست‌های نیازمند DB/Redis/Docker، تست‌های frontend (vitest) — همه `BLOCKED`.
@@ -701,23 +717,23 @@
 
 | ID | موضوع | پیش‌نیاز |
 |---|---|---|
-| DB-02 | زنجیرهٔ Alembic جدول‌های `quotes`/`news_articles` را ALTER می‌کند ولی نمی‌سازد | baseline revision + اجرای `upgrade head` روی DB خالی |
+| DB-02 | زنجیرهٔ Alembic جدول‌های `quotes`/`news_articles` را ALTER می‌کند ولی نمی‌سازد | **حل شد (۸.۱۶)** — baseline `0004b` + اجرای تمیز روی DB خالی: exit 0، current 0119، ۲۱۸ جدول (گزارش ۳۳)؛ ۲ شکست محیطی needs_db باقی است |
 | DB-03 | مدل ORM روی View (`daily_history`, `intraday_trades`) | بررسی `pg_class.relkind` |
-| DB-04 | `trade_date` = تاریخ fetch و شاخص‌ها با آن مرتب می‌شوند | شمارش ردیف‌ها + اصلاح مسیر raw |
+| DB-04 | مسیر raw با `trade_date` تاریخ fetch | **حل شد (۸.۱۶)** — view اجباری شد؛ فقط اجرای دستی migration 0109 روی DB واقعی باقی است |
 | DB-05 | قید یکتای quotes در ORM نیست و `timeframe` nullable است | migration + تست IntegrityError |
 | DB-06 | `ON CONFLICT DO NOTHING` بدون قید تضمین‌شده | migration قید یکتا + تست insert دوباره |
 | DB-08 | retention برای جدول‌های بزرگ history نیست | زمان‌بندی purge + تست حذف دسته‌ای |
-| SEC-07 | revoke fail-open و توکن بعد از تغییر رمز معتبر می‌ماند | ستون `token_version`/`pwd_changed_at` + migration |
+| SEC-07 | revoke fail-open و توکن بعد از تغییر رمز معتبر می‌ماند | **حل شد (۸.۱۶)** — cutoff کاربر بدون migration (Redis + `iat`)؛ باقی‌مانده: fail-open در قطعی Redis تا انقضای توکن |
 
 #### دستهٔ D — نیازمند تصمیم محصولی/امنیتی — ۶ مورد
 
 | ID | موضوع | تصمیم لازم |
 |---|---|---|
 | API-05 | ۷ ماژول router هرگز mount نمی‌شوند | mount با نقش مناسب یا حذف کد |
-| FIN-03 | بک‌تست `bubble > 8` را می‌سنجد، استراتژی `bubble < 5` می‌خرد | کدام predicate قرارداد رسمی است |
-| FE-06 | access token در query string وب‌سوکت | WS ticket یک‌بارمصرف یا پذیرش ریسک |
-| SEC-06 | `X-Forwarded-For` بدون trusted-proxy و بدون limit روی refresh/logout | سیاست proxy + آستانه‌ها |
-| SEC-08 | اولین ثبت‌نام admin می‌شود (race) | provision خارج از ثبت‌نام یا قید DB |
+| FIN-03 | بک‌تست `bubble > 8` را می‌سنجد، استراتژی `bubble < 5` می‌خرد | **حل شد (۸.۱۶)** — قرارداد رسمی = قاعدهٔ زنده (`bubble < threshold`)؛ predicate مشترک `entry_rules.dca_entry_signal` |
+| FE-06 | access token در query string وب‌سوکت | **حل شد (۸.۱۶)** — بلیت یک‌بارمصرف؛ پذیرش ریسک لازم نیست |
+| SEC-06 | `X-Forwarded-For` بدون trusted-proxy و بدون limit روی refresh/logout | **حل شد (۸.۱۶)** — `TRUSTED_PROXIES` + limit؛ سیاست proxy باید در prod مقدار بگیرد |
+| SEC-08 | اولین ثبت‌نام admin می‌شود (race) | **حل شد (۸.۱۶)** — advisory lock + `BOOTSTRAP_FIRST_ADMIN` (پیش‌فرض روشن برای bootstrap مالک) |
 | DEP-03 | `--only gold_desk` در CMD وجود ندارد | معنای دقیق image گلدبل |
 
 #### دستهٔ E — نیازمند محیط Docker/CI — ۵ مورد
@@ -737,11 +753,32 @@
 
 ---
 
+### ۱۰.۲ وضعیت مراحل ۱۲‌گانه (§۱۷-C) — پس از commit `6e0ac36d`
+
+| # | مرحله | وضعیت | انجام‌شده | باقی‌مانده |
+|---|---|---|---|---|
+| ۱ | Baseline و حفاظت Git | **DONE** (با هشدار) | snapshotها، drift، commit محدود، بدون عملیات مخرب | پایداری tree هنوز تضمین‌شده نیست (ویرایش هم‌زمان) |
+| ۲ | منبع داده و Parser | **PARTIAL (۸.۱۶)** | DS-01…13، DS-15، DS-17: ماتریس end-to-end وضعیت HTTP (3xx/402/429/500/timeout) و بودجه/backoff/circuit-breaker با ۲۸ تست؛ ماتریس کهنه/خارج از دامنه با ۴۹ تست؛ شاهد: `evidence/source_parser_stage_20261029.md` | DS-14 (numeric zero-fill در IME/Crypto — ویرایش هم‌زمان)، DS-16 (تصمیم تاریخ کندل روزانه)، تأیید با پاسخ واقعی BrsApi (ممنوع/بدون محیط) |
+| ۳ | Scheduler/Worker/Queue | **BLOCKED** | Redis واقعی (compose) اکنون در دسترس و با JobLocking اثبات شد (SET NX، non-owner extend/release رد می‌شود) | SCH-01/02/03/04/07 هنوز نیازمند دو worker/scheduler هم‌زمان برای اثبات هم‌پوشانی |
+| ۴ | پایگاه داده و Repository | **PARTIAL** | **DB-02 PASS روی DB خالی** (گزارش ۳۳: `upgrade head` exit 0، current 0119، ۲۱۸ جدول)؛ بازبینی مستقل + ۱۳ تست بس‌لاین (گزارش ۳۴)؛ DB-01/07 | **DB-13 (P1)**: ستون‌های mixin اورم در ۲۱ جدول `brsapi_*` روی DB تازه غایب‌اند؛ needs_db: 42P/6F/3S (۶ شکست محیطی)؛ DB-03/05/06/08 باز؛ اجرای بازسازی volume BLOCKED تا تأیید |
+| ۵ | API و Cache | **PARTIAL (۸.۱۶)** | API-01/02/04/06، API-03 (توکن نسل در L2 + تست دو-instance)، API-05 (تصمیم مستند + گارد)، `stocks_v2`/۹-تب با `data_as_of` (در tree توسط کار هم‌زمان، ۱۱ تست سبز)؛ شاهد: `evidence/api_cache_stage_20261029.md` | اثبات دو-فرایندی واقعی روی Redis (اعتبارنامهٔ Redis محلی نامعتبر → BLOCKED)؛ API-08 (screener cache envelope) و API-09/10 (P2) باز |
+| ۶ | فرانت‌اند و WebSocket | **PARTIAL (۸.۱۶)** | FE-01/02/03/04/05/07/11، FE-06 (بلیت WS در `useWebSocket` و `goldApi`؛ ۲۸ تست فرانت/بک‌اند)، ۴ endpoint با `data_as_of` و تقویم DB-backed (۸ تست بک‌اند + typecheck)؛ شاهد: `evidence/frontend_ws_stage_20261029.md` | **تأیید مرورگر/E2E انجام نشد**؛ `goldApi.ts` در tree کار هم‌زمان بود (ویرایش با mtime قدیم، تست‌ها سبز) |
+| ۷ | Docker و Deployment | **PARTIAL** | DEP-01/02/11 | DEP-03/04/06/07/08/09؛ **build/compose up اجرا نشد** |
+| ۸ | کیفیت داده، تاریخچه، NAV | **PARTIAL (۸.۱۶)** | FIN-07، DB-04 (view اصلاح‌شده اجباری + مصرف‌کننده‌ها fail-closed)، DQ-01 (history append-only)، DQ-02 (تاریخ بازار به وقت تهران)، DQ-03 (هم‌ترازی تاریخ NAV/قیمت)؛ ۵۴ تست مرحله + `tests/unit/brsapi`/`gold_desk` ۷۳۳ سبز؛ شاهد: `evidence/data_quality_nav_stage_20261029.md` | اجرای migration 0109 روی DB واقعی (بدون PostgreSQL → BLOCKED)؛ قواعد OHLC هنوز روی مسیر candlestick و `sync_history_price` اعمال نمی‌شود؛ DB-03/05/06/08 باز |
+| ۹ | خبر، صندوق، نگاشت نماد | **PARTIAL (۸.۱۶)** | DS-03/04/06/12، API-06، DS-09 (هر دو جدول + ابهام، ۱۳ تست)، NEWS-01 (per-source report)، NEWS-02 (سقف ۸ نماد)، NEWS-03 (لینک `legacy_article_id`)، ابزار read-only پاریتی `services/news_parity.py` + `scripts/news_parity_report.py`؛ ۱۵ تست جدید + ۱۲۵ تست خبر/نگاشت سبز؛ شاهد: `evidence/news_funds_mapping_stage_20261029.md` | **اجرای پاریتی روی DB واقعی BLOCKED** (PostgreSQL auth)؛ شمارندهٔ per-source روی `news_ingestion_sources`/alert فید مرده وصل نشد؛ cap نماد فقط در استخراج (نه در backfill قدیمی) |
+| ۱۰ | محاسبات مالی، آپشن، بک‌تست | **PARTIAL (۸.۱۶)** | FIN-01/02/03/04/05/06/07/08/09/10/11/12؛ FIFO/کارمزد/لغزش موجود و با ۳۹۵ تست `tests/unit/backtesting` تأیید شد (کار قبلی، ادعای مالکیت نیست)؛ ۲۴ تست جدید مرحله + ۱۲۵۰ تست options/ml/gold_desk/backtesting سبز (۶ شکست DB)؛ شاهد: `evidence/finance_backtest_stage_20261029.md` | predicate پیکربندی‌پذیر برای استراتژی‌های دیگر ندارد (فقط DCA)؛ شارپ بک‌تست واقعی روی بازده هر معامله (تعریف متفاوت، عمداً)؛ backtest runner فقط close دارد (پر شدن در close فردا، نه open)؛ مالیات/کارمزد لحظه‌ای در `src/gold_desk/backtest_runner` فقط کارمزد خرید دارد |
+| ۱۱ | امنیت و حریم خصوصی | **PARTIAL (۸.۱۶)** | SEC-01…08؛ sweep با `scripts/check_router_auth.py`: ۷۱۰ عملیات router + ۸ مسیر app سطح، همه authenticated یا در allowlist مستند؛ بازبینی مالکیت سطوح شخصی (portfolios/alerts/watchlist/paper-trading/pre-buy-sheets/saved-filters)؛ ۲۵ تست جدید؛ شاهد: `evidence/security_stage_20261029.md` | revoke در قطعی Redis همچنان fail-open (محدود به TTL توکن؛ تغییر رمز در قطعی ۵۰۳ می‌دهد)؛ نقش‌ها هنوز در JWT و بدون بازخوانی DB؛ sweep مالکیت روی همهٔ دامنه‌های شخصی به‌صورت تست خودکار نیست |
+| ۱۲ | یکپارچه‌سازی و Release Gate | **PARTIAL / BLOCKED** | کل `pytest tests/` در ۱۲ بخش اجرا شد: ۶۳۴۷ passed، ۱۷۸ failed، ۱۶ errors؛ جزئیات در `evidence/full-pytest-run_20261029.md`؛ NEW-01 رفع شد (۱۰۱ تست indicators سبز) | باقی شکست‌ها DB/سرویس زنده/شبکه‌اند؛ اجرا روی tree در حال حرکت انجام شد (۵ commit جدید در میانه)؛ e2e با سرویس واقعی، migration روی DB خالی و compose build/up هنوز اجرا نشده؛ کل تغییرات این دور (۱۱ مرحله) هنوز commit/تست کامل نشده |
+
+**مناطق هرگز بررسی‌نشده (از §۴.۲):** `backtesting/` (۲۹۸ فایل لایهٔ قدیمی)، بخش‌هایی از `ml/`، `orchestration/` (state machine/checkpoints)، بخشی از `jobs/definitions`، `apps/admin`، و repoهای تودرتو (`InkGist`, `claw-code`, …).
+
+**جمع‌بندی:** ۱۲ مرحله «شروع و پیش‌رفته» شده‌اند؛ مرحلهٔ ۱۲ (Release Gate) هنوز اجرا نشده و ۳ مرحله (Scheduler/Queue، DB، بخشی از Deploy) بدون محیط `BLOCKED` هستند.
+
 ## ۱۱) معیارهای پذیرش هر مرحله
 
 | مرحله | معیار بستن (قابل اندازه‌گیری) |
 |---|---|
-| ۰ — Baseline | HEAD/branch ثبت؛ ۳+ snapshot؛ drift مشخص؛ هیچ اصلاحی روی tree ناپایدار انجام نشود — **PASS نسبی** (drift شناسایی شد، اصلاح متوقف شد) |
+| ۰ — Baseline | HEAD/branch ثبت؛ ۳+ snapshot؛ drift مشخص؛ هیچ اصلاحی روی tree ناپایدار انجام نشود — **PARTIAL** (drift شناسایی شد، اصلاح متوقف شد) |
 | ۱ — منبع/Parser | هیچ مسیر خطا به `success=True` یا `ok([])` نرسد؛ تست 200+HTML، 429، timeout، بدنهٔ خالی، RSS خراب، `no_data` همه fail/empty را تفکیک کنند |
 | ۲ — Worker/Queue | دو dispatch هم‌زمان هیچ‌گاه هم‌پوشانی نداشته باشند؛ retry واقعاً تکرار شود؛ skip در counter جدا؛ orphan بدون restart جمع شود |
 | ۳ — DB | `alembic upgrade head` روی DB خالی موفق؛ هیچ مدل روی view؛ unique quotes در ORM؛ bulk insert دوم ردیف اضافه نکند |
@@ -791,7 +828,7 @@
 **وضعیت کلی پروژه: `PARTIAL`.**
 - **همهٔ ۸ مورد P0 بسته شد** (۷ مورد اولیه + FE-11): SEC-01، SEC-02، FIN-01، FIN-02، DEP-01، FE-01، FE-11، API-01.
 - از P1ها هم بسته شدند: SEC-03/04/05، DEP-02/11، API-02/06، SCH-05، FIN-06/07، DB-01، **DS-01…07**. **migration `0117` هنوز روی PostgreSQL اجرا نشده** (BLOCKED؛ نیازمند DB آزمایشی).
-- کار باقی‌مانده: ~۲۷ مورد P1/P2 باز؛ دسته‌بندی و دلیل هر گروه در §۱۰.۱ آمده است.
+- کار باقی‌مانده: ~۲۷ مورد P1/P2 باز (شامل NEW-01)؛ دسته‌بندی و دلیل هر گروه در §۱۰.۱ آمده است.
 - اصلاح بقیهٔ دامنه‌ها همچنان مشروط به پایدار شدن tree است (ویرایش هم‌زمان توسط عامل دیگر).
 
 در مجموع ۸ مورد P0 و ~۵۷ مورد P1/P2 با شاهد کد مستند شد. برای رسیدن به `PASS`:

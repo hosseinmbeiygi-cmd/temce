@@ -17,7 +17,9 @@ Scopes:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import json
 import logging
 import os
 import secrets
@@ -34,7 +36,7 @@ if not salt_value:
     # هیچ salt پیش‌فرضی وجود ندارد: بدون آن همهٔ hashها حدس‌زدنی می‌شدند.
     raise RuntimeError(
         "GOLD_API_TOKEN_SALT is not set; API token hashing needs an explicit salt "
-        "(tests/conftest.py sets a test-only value for pytest)"
+        "(tests/conftest.py sets a test-only value for pytest; see docs/env-vars.md)"
     )
 SALT = salt_value
 STORAGE_KEY = "golddesk:api_tokens"
@@ -48,7 +50,7 @@ def has_scope(info: TokenInfo, scope: str) -> bool:
 
 @dataclass(frozen=True)
 class TokenInfo:
-    token_id: str  # 8 chars (preview)
+    token_id: str  # public opaque id (not a prefix of the secret)
     name: str
     scopes: list[Scope]
     created_at: datetime
@@ -63,7 +65,9 @@ def _hash(token: str) -> str:
 def generate_token(name: str, scopes: list[Scope]) -> tuple[str, TokenInfo]:
     """ساخت token جدید. فقط یک‌بار plain token برمی‌گرداند."""
     plain = secrets.token_urlsafe(32)
-    token_id = plain[:8]
+    # Never derive the public id from the secret: an 8-char prefix leaks part
+    # of the token and makes it easier to guess/reconstruct.
+    token_id = secrets.token_hex(8)
     info = TokenInfo(
         token_id=token_id,
         name=name,
@@ -75,25 +79,40 @@ def generate_token(name: str, scopes: list[Scope]) -> tuple[str, TokenInfo]:
     return plain, info
 
 
-async def save_token(plain: str, info: TokenInfo) -> None:
-    """ذخیره hash + metadata در Redis."""
+async def save_token(plain: str, info: TokenInfo) -> bool:
+    """ذخیره hash + metadata + index در Redis. False = ذخیره نشد."""
     try:
         from core.cache import get_cache
 
         cache = get_cache()
         token_hash = _hash(plain)
+        # Keep the hash inside the metadata so revoke can delete the hash entry
+        # (a one-way hash cannot be reversed from the id).
+        payload = info_to_dict(info)
+        payload["token_hash"] = token_hash
         await cache.set(
             f"{STORAGE_KEY}:hash:{token_hash}",
-            info_to_dict(info),
+            payload,
             ttl=None,  # persistent
         )
         await cache.set(
             f"{STORAGE_KEY}:meta:{info.token_id}",
-            info_to_dict(info),
+            payload,
             ttl=None,
         )
+        index = await cache.get(f"{STORAGE_KEY}:index") or []
+        if isinstance(index, str):
+            with contextlib.suppress(Exception):
+                index = json.loads(index)
+        if not isinstance(index, list):
+            index = []
+        if info.token_id not in index:
+            index.append(info.token_id)
+            await cache.set_persistent(f"{STORAGE_KEY}:index", index)
+        return True
     except Exception as exc:
         logger.warning("save_token failed: %s", exc)
+        return False
 
 
 async def verify_token(token: str) -> TokenInfo | None:
@@ -109,10 +128,21 @@ async def verify_token(token: str) -> TokenInfo | None:
         info = dict_to_info(data)
         if not info.enabled:
             return None
-        # update last_used (best effort)
+        # Revocation writes enabled=False to the meta key; check it too so an
+        # old hash entry cannot keep a revoked token alive.
+        meta = await cache.get(f"{STORAGE_KEY}:meta:{info.token_id}")
+        if meta is not None and not dict_to_info(meta).enabled:
+            return None
+        # update last_used in both hash and metadata (best effort)
         info_dict = info_to_dict(info)
         info_dict["last_used_at"] = utc_now_naive().isoformat()
+        if isinstance(data, dict) and data.get("token_hash"):
+            info_dict["token_hash"] = data["token_hash"]
         await cache.set(f"{STORAGE_KEY}:hash:{token_hash}", info_dict, ttl=None)
+        if meta is not None and isinstance(meta, dict):
+            meta_dict = dict(meta)
+            meta_dict["last_used_at"] = info_dict["last_used_at"]
+            await cache.set(f"{STORAGE_KEY}:meta:{info.token_id}", meta_dict, ttl=None)
         return info
     except Exception as exc:
         logger.warning("verify_token failed: %s", exc)
@@ -128,9 +158,12 @@ async def revoke_token(token_id: str) -> bool:
         meta = await cache.get(f"{STORAGE_KEY}:meta:{token_id}")
         if not meta:
             return False
-        # حذف hash entry (نمی‌تونیم plain token رو از hash برگردونیم)
-        # فقط revoke با ID ممکنه
-        meta_dict = info_to_dict(dict_to_info(meta))
+        meta_dict = dict(meta) if isinstance(meta, dict) else info_to_dict(dict_to_info(meta))
+        # Delete the hash entry so verify cannot find the token at all, and mark
+        # the metadata disabled for the audit/list view.
+        token_hash = meta_dict.get("token_hash")
+        if token_hash:
+            await cache.delete(f"{STORAGE_KEY}:hash:{token_hash}")
         meta_dict["enabled"] = False
         await cache.set(f"{STORAGE_KEY}:meta:{token_id}", meta_dict, ttl=None)
         return True
@@ -147,6 +180,11 @@ async def list_tokens() -> list[TokenInfo]:
 
         cache = get_cache()
         ids = await cache.get(f"{STORAGE_KEY}:index") or []
+        if isinstance(ids, str):
+            with contextlib.suppress(Exception):
+                ids = json.loads(ids)
+        if not isinstance(ids, list):
+            ids = []
         out: list[TokenInfo] = []
         for tid in ids:
             meta = await cache.get(f"{STORAGE_KEY}:meta:{tid}")

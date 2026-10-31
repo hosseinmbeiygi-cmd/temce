@@ -45,9 +45,11 @@ const RISK_LABELS: Record<string, string> = {
   UNKNOWN: "نامشخص",
 };
 
-const DEFAULT_EQUITY = 1_000_000_000;
+// Educational sample only. It is never the initial portfolio and is always
+// labelled; the real portfolio comes from the user's own inputs.
+const SAMPLE_EQUITY = 1_000_000_000;
 
-const DEFAULT_POSITIONS: GoldRiskPositionInput[] = [
+const SAMPLE_POSITIONS: GoldRiskPositionInput[] = [
   {
     symbol: "IR_COIN_EMAMI",
     asset_type: "coin",
@@ -187,10 +189,9 @@ function Metric({
 }
 
 export default function GoldDerivativesRiskPage() {
-  const [equity, setEquity] = useState<number>(DEFAULT_EQUITY);
-  const [positions, setPositions] = useState<GoldRiskPositionInput[]>(() =>
-    DEFAULT_POSITIONS.map((position) => ({ ...position })),
-  );
+  const [equity, setEquity] = useState<number>(0);
+  const [positions, setPositions] = useState<GoldRiskPositionInput[]>([]);
+  const [isSample, setIsSample] = useState(false);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
 
   const scenariosQuery = useQuery({
@@ -219,6 +220,7 @@ export default function GoldDerivativesRiskPage() {
     patch: Partial<GoldRiskPositionInput>,
   ) => {
     clearResult();
+    setIsSample(false);
     setPositions((prev) =>
       prev.map((position, current) =>
         current === index ? { ...position, ...patch } : position,
@@ -228,6 +230,7 @@ export default function GoldDerivativesRiskPage() {
 
   const addPosition = () => {
     clearResult();
+    setIsSample(false);
     setPositions((prev) => [
       ...prev,
       {
@@ -245,13 +248,23 @@ export default function GoldDerivativesRiskPage() {
 
   const removePosition = (index: number) => {
     clearResult();
+    setIsSample(false);
     setPositions((prev) => prev.filter((_, current) => current !== index));
   };
 
   const resetPortfolio = () => {
     stress.reset();
-    setEquity(DEFAULT_EQUITY);
-    setPositions(DEFAULT_POSITIONS.map((position) => ({ ...position })));
+    setEquity(0);
+    setPositions([]);
+    setIsSample(false);
+    setSelectedScenarioId(null);
+  };
+
+  const loadSample = () => {
+    stress.reset();
+    setEquity(SAMPLE_EQUITY);
+    setPositions(SAMPLE_POSITIONS.map((position) => ({ ...position })));
+    setIsSample(true);
     setSelectedScenarioId(null);
   };
 
@@ -368,10 +381,18 @@ export default function GoldDerivativesRiskPage() {
       <section className="space-y-4 rounded-xl border p-4" style={cardStyle}>
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-200">پورتفوی تحت آزمون</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
+              پورتفوی تحت آزمون
+              {isSample && (
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-500/30">
+                  نمونهٔ آموزشی — دارایی واقعی شما نیست
+                </span>
+              )}
+            </h2>
             <p className="mt-1 text-[11px] leading-5 text-zinc-500">
               ارزش اسمی موقعیت‌ها به ریال است. دلتا و وگا فقط برای اختیارها اثر
-              معنادار دارند؛ برای سایر دارایی‌ها صفر بگذارید.
+              معنادار دارند؛ برای سایر دارایی‌ها صفر بگذارید. با تغییر هر مقدار،
+              برچسب نمونه برداشته می‌شود.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -385,6 +406,7 @@ export default function GoldDerivativesRiskPage() {
                 value={equity}
                 onChange={(event) => {
                   clearResult();
+                  setIsSample(false);
                   setEquity(numberValue(event.target.value));
                 }}
                 className={`${inputCls} mt-1 w-44`}
@@ -393,16 +415,29 @@ export default function GoldDerivativesRiskPage() {
             </label>
             <button
               type="button"
+              onClick={loadSample}
+              className="rounded-md border px-3 py-1.5 text-[11px] text-amber-300 transition hover:bg-amber-500/10"
+              style={{ borderColor: "var(--gd-border)" }}
+            >
+              بارگذاری نمونهٔ آموزشی
+            </button>
+            <button
+              type="button"
               onClick={resetPortfolio}
               className="rounded-md border px-3 py-1.5 text-[11px] text-zinc-300 transition hover:text-amber-300"
               style={{ borderColor: "var(--gd-border)" }}
             >
-              بازنشانی
+              پاک‌سازی
             </button>
           </div>
         </div>
 
         <div className="space-y-3">
+          {positions.length === 0 && (
+            <div className="rounded-lg border border-dashed p-5 text-center text-xs text-zinc-500" style={{ borderColor: "var(--gd-border)" }}>
+              هیچ موقعیتی ثبت نشده است. «افزودن موقعیت» را بزنید یا برای آشنایی، نمونهٔ آموزشی را بارگذاری کنید.
+            </div>
+          )}
           {positions.map((position, index) => (
             <div
               key={`${position.symbol}-${index}`}
@@ -568,7 +603,7 @@ export default function GoldDerivativesRiskPage() {
             type="button"
             data-testid="run-stress"
             onClick={runStress}
-            disabled={stress.isPending || equity <= 0}
+            disabled={stress.isPending || equity <= 0 || positions.length === 0}
             className="rounded-md bg-amber-500 px-4 py-1.5 text-[11px] font-semibold text-zinc-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {stress.isPending ? "در حال محاسبه…" : "اجرای استرس‌تست"}
@@ -576,6 +611,11 @@ export default function GoldDerivativesRiskPage() {
           {equity <= 0 && (
             <span className="text-[11px] text-rose-300">
               سرمایهٔ پایه باید بزرگ‌تر از صفر باشد.
+            </span>
+          )}
+          {positions.length === 0 && (
+            <span className="text-[11px] text-rose-300">
+              حداقل یک موقعیت برای استرس‌تست لازم است.
             </span>
           )}
           {stress.isError && (

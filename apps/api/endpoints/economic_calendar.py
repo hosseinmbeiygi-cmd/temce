@@ -4,9 +4,11 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Depends, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.dependencies import get_db_session
 from apps.api.error_handlers import safe_error_message
 from schemas.common.responses import ApiResponse
 
@@ -60,7 +62,13 @@ def _subscribe(sub: SubscriptionCreate) -> SubscriptionResponse:
 
 
 # ── Economic events database ──────────────────────────────────────────────
-
+# LEGACY STATIC FIXTURE — no longer served. The endpoint used to return this
+# hand-written list, which the UI presented as live events; the audit found it
+# could not carry a source timestamp because it had no source. ``GET ""`` now
+# reads ``gold_economic_calendar_events`` (ingested by
+# ``GoldEconomicCalendarSyncJob``) and publishes the newest ``fetched_at`` as
+# ``data_as_of``. The constant is kept only so historical reports/references
+# remain readable; do not wire it back into a route.
 EVENTS: list[dict[str, Any]] = [
     # ── Central Bank ──
     {
@@ -541,14 +549,27 @@ async def delete_subscription(sub_id: str) -> ApiResponse[dict[str, Any]]:
 @router.get(
     "",
     summary="Economic calendar",
-    description="Upcoming economic events with importance, forecast, and previous values",
+    description="Stored economic events (CPI/NFP/FOMC + Iran manual) with "
+    "importance, source and the newest fetch time in ``data_as_of``.",
 )
 async def get_economic_calendar(
     start: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
     end: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     category: str | None = Query(None, description="Filter by category"),
     min_importance: int = Query(1, ge=1, le=3, description="Minimum importance (1=low, 2=medium, 3=high)"),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
+    """Serve the persisted calendar — never a hard-coded fixture.
+
+    The previous implementation returned a hand-written list of events dated
+    in the past, presented to the UI as live data and impossible to timestamp.
+    Rows now come from ``gold_economic_calendar_events`` (seeded +
+    ``GoldEconomicCalendarSyncJob``) and ``data_as_of`` is the newest
+    ``fetched_at`` among them; a genuinely empty table yields ``events: []``
+    with ``data_as_of: None`` (explicit empty, not fabricated data).
+    """
+    from services.gold.economic_calendar import list_economic_calendar
+
     today = date.today()
 
     if start:
@@ -567,53 +588,54 @@ async def get_economic_calendar(
     else:
         end_date = today + timedelta(days=30)
 
-    # Filter events
-    filtered = []
-    for ev in EVENTS:
-        try:
-            ev_date = date.fromisoformat(ev["date"])
-        except (ValueError, KeyError):
+    rows = await list_economic_calendar(
+        session, start=start_date, end=end_date, limit=500
+    )
+
+    events: list[dict[str, Any]] = []
+    for row in rows:
+        if category and row.category != category:
             continue
-
-        if ev_date < start_date or ev_date > end_date:
+        importance = row.importance if row.importance is not None else 2
+        if importance < min_importance:
             continue
-        if category and ev["category"] != category:
-            continue
-        if ev["importance"] < min_importance:
-            continue
+        events.append({
+            "id": row.event_id,
+            "date": row.event_date.isoformat() if row.event_date else "",
+            "time": row.event_time or "—",
+            "title": row.title or "",
+            "country": row.country or "",
+            "category": row.category or "",
+            "importance": importance,
+            "is_high_volatility": bool(row.is_high_volatility),
+            "source": row.source or "",
+        })
 
-        filtered.append(ev)
+    events.sort(key=lambda ev: (ev["date"], ev["time"]))
 
-    # Sort by date then time
-    def _sort_key(ev: dict[str, Any]) -> tuple:
-        t = ev.get("time", "—")
-        time_sort = 0 if t == "—" else 1
-        return (ev["date"], time_sort, t)
-
-    filtered.sort(key=_sort_key)
-
-    # Group by date
     grouped: dict[str, list[dict[str, Any]]] = {}
     date_counts: dict[str, int] = {}
-    for ev in filtered:
-        d = ev["date"]
-        if d not in grouped:
-            grouped[d] = []
-            date_counts[d] = 0
-        grouped[d].append(ev)
-        date_counts[d] += 1
+    for ev in events:
+        grouped.setdefault(ev["date"], []).append(ev)
+        date_counts[ev["date"]] = date_counts.get(ev["date"], 0) + 1
+
+    fetched_values = [row.fetched_at for row in rows if row.fetched_at is not None]
+    data_as_of = (
+        max(fetched_values).isoformat() if fetched_values else None
+    )
 
     return ApiResponse[dict[str, Any]](
         success=True,
         data={
-            "events": filtered,
+            "events": events,
             "grouped": grouped,
             "date_counts": date_counts,
-            "total": len(filtered),
-            "categories": CATEGORIES,
+            "total": len(events),
+            "categories": sorted({ev["category"] for ev in events if ev["category"]}),
             "date_range": {
                 "start": start_date.isoformat(),
                 "end": end_date.isoformat(),
             },
         },
+        data_as_of=data_as_of,
     )

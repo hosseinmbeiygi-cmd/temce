@@ -8,6 +8,8 @@ claimed the rows were written.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from brsapi.quality import normalize_jalali_date
@@ -37,6 +39,7 @@ class _Session:
         self.attempted.append(date)
         if date == FAIL_DATE:
             raise RuntimeError("boom")
+        return SimpleNamespace(rowcount=1)
 
     async def commit(self) -> None:
         self.commits += 1

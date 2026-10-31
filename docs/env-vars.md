@@ -127,6 +127,7 @@ flowchart TB
 | `BRSAPI_API_KEY` | کلید API سرویس BrsApi.ir | بدون آن هیچ داده‌ی زنده‌ای دریافت نمی‌شود |
 | `SECRET_KEY` | کلید امضای JWT و سشن | در production **حتماً** از مقدار پیش‌فرض تغییر دهید |
 | `ADMIN_SECRET_KEY` | کلید پنل ادمین | **الزامی** (حداقل ۱۶ کاراکتر — بدون آن اپ استارت نمی‌شود) |
+| `GOLD_API_TOKEN_SALT` | salt هش توکن‌های GoldDesk | **الزامی برای import API**؛ بدون آن `apps.api.app` با `RuntimeError` بالا نمی‌آید (هیچ پیش‌فرضی ندارد) |
 | `DATABASE_URL` | آدرس کامل PostgreSQL | `postgresql+asyncpg://user:pass@host:5432/db` |
 | `REDIS_URL` | آدرس Redis (کش، صف، قفل) | `redis://localhost:6379/0` |
 

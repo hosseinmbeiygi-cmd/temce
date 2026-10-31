@@ -24,7 +24,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from core.logging import get_logger
 from core.time import now_tehran, utc_now_naive
-from services.adjusted_price_reader import load_daily_candles
+from services.adjusted_price_reader import (
+    AdjustedPriceSourceUnavailable,
+    load_daily_candles,
+)
 from services.stock_signal_engine import (
     LayerInputs,
     compute_composite_signal,
@@ -386,8 +389,16 @@ class StockReadThroughService:
         Shares ``services/adjusted_price_reader.py`` with the nightly
         precompute so the JIT path and ``stock_indicators_snapshot`` can never
         disagree about corporate actions (migration 0108).
+
+        DB-04: when the corrected view is missing the reader raises instead of
+        using the fetch-date axis; the tab then shows "no indicators" rather
+        than a series built from duplicated days.
         """
-        return await load_daily_candles(self.session, symbol, limit)
+        try:
+            return await load_daily_candles(self.session, symbol, limit)
+        except AdjustedPriceSourceUnavailable as exc:
+            logger.error("indicators unavailable for %s: %s", symbol, exc)
+            return []
 
     # ── ۴. Signal کامل (کارت تصمیم‌گیری) ──
 

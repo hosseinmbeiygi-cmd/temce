@@ -53,4 +53,8 @@ COPY --chown=app:app *.py ./
 
 USER app
 
-CMD ["python", "-m", "apps.worker.app"]
+# Healthcheck: verify the worker module is importable (no HTTP endpoint).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD python -c "import apps.worker.app; print('ok')" || exit 1
+
+CMD ["python", "-m", "apps.worker"]

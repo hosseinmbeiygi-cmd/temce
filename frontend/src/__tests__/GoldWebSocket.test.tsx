@@ -93,9 +93,30 @@ async function freshManager() {
   return { gold, api };
 }
 
+/**
+ * FE-06: the socket now dials only after the client trades its access token
+ * for a single-use ticket over HTTP. Tests must let that microtask chain run
+ * before inspecting `FakeWebSocket.instances`.
+ */
+async function flush() {
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+}
+
+function ticketResponse(): Response {
+  return {
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    headers: new Headers({ "content-type": "application/json" }),
+    json: async () => ({ success: true, data: { ticket: "ws-ticket-1", expires_in: 60 } }),
+    text: async () => "",
+  } as unknown as Response;
+}
+
 beforeEach(() => {
   FakeWebSocket.instances = [];
   vi.stubGlobal("WebSocket", FakeWebSocket);
+  vi.stubGlobal("fetch", vi.fn(async () => ticketResponse()));
   vi.useFakeTimers();
 });
 
@@ -112,6 +133,7 @@ describe("GoldWSManager (C10)", () => {
     gold.getGoldWSManager().subscribe((state, snap, info) => {
       seen.push({ state, snap, info: info as unknown as Record<string, unknown> });
     });
+    await flush();
 
     const socket = FakeWebSocket.instances[0];
     expect(socket).toBeDefined();
@@ -136,6 +158,7 @@ describe("GoldWSManager (C10)", () => {
   it("reconnects with exponential backoff and resets after a successful open", async () => {
     const { gold } = await freshManager();
     const unsubscribe = gold.getGoldWSManager().subscribe(() => {});
+    await flush();
 
     expect(FakeWebSocket.instances).toHaveLength(1);
     FakeWebSocket.instances[0].drop();
@@ -144,6 +167,7 @@ describe("GoldWSManager (C10)", () => {
     vi.advanceTimersByTime(999);
     expect(FakeWebSocket.instances).toHaveLength(1);
     vi.advanceTimersByTime(1);
+    await flush();
     expect(FakeWebSocket.instances).toHaveLength(2);
 
     // دومین تلاش باید ۲ ثانیه بعد بیاید، نه ۱ ثانیه بعد
@@ -151,12 +175,14 @@ describe("GoldWSManager (C10)", () => {
     vi.advanceTimersByTime(1999);
     expect(FakeWebSocket.instances).toHaveLength(2);
     vi.advanceTimersByTime(1);
+    await flush();
     expect(FakeWebSocket.instances).toHaveLength(3);
 
     // بعد از یک اتصال موفق backoff به اول برمی‌گردد
     FakeWebSocket.instances[2].open();
     FakeWebSocket.instances[2].drop();
     vi.advanceTimersByTime(1000);
+    await flush();
     expect(FakeWebSocket.instances).toHaveLength(4);
 
     unsubscribe();
@@ -165,9 +191,11 @@ describe("GoldWSManager (C10)", () => {
   it("never lets the backoff exceed its ceiling", async () => {
     const { gold } = await freshManager();
     gold.getGoldWSManager().subscribe(() => {});
+    await flush();
     for (let i = 0; i < 12; i++) {
       FakeWebSocket.instances[FakeWebSocket.instances.length - 1].drop();
       vi.advanceTimersByTime(30_000);
+      await flush();
     }
     // ۱+۲+۴+۸+۱۶ سپس سقف ۳۰ ثانیه؛ هیچ‌وقت بیشتر از سقف نمی‌شود
     const sockets = FakeWebSocket.instances;
@@ -182,7 +210,9 @@ describe("useGoldWS staleness from as_of (backend 731de301)", () => {
     const api = await import("@/lib/api");
     api.storeAuth({ user: {}, access_token: "tok" });
     const { useGoldWS } = await import("@/hooks/useGoldWS");
-    return renderHook(() => useGoldWS());
+    const rendered = renderHook(() => useGoldWS());
+    await flush();
+    return rendered;
   }
 
   it("uses the frame's as_of, so an old data timestamp is stale on arrival", async () => {
@@ -261,6 +291,7 @@ describe("useGoldWS staleness from as_of (backend 731de301)", () => {
     gold.getGoldWSManager().subscribe((_state, _snap, info) => {
       seen.push(info as unknown as Record<string, unknown>);
     });
+    await flush();
     const socket = FakeWebSocket.instances[0];
     const asOf = new Date(Date.now() - 5_000).toISOString();
 
@@ -283,6 +314,7 @@ describe("useGoldWS staleness (F6)", () => {
     const { useGoldWS } = await import("@/hooks/useGoldWS");
 
     const { result } = renderHook(() => useGoldWS());
+    await flush();
     const socket = FakeWebSocket.instances[0];
     act(() => {
       socket.open();
@@ -317,6 +349,7 @@ describe("useGoldWS staleness (F6)", () => {
     const { useGoldWS } = await import("@/hooks/useGoldWS");
 
     const { result } = renderHook(() => useGoldWS());
+    await flush();
     act(() => {
       FakeWebSocket.instances[0].open();
       FakeWebSocket.instances[0].drop();

@@ -1,0 +1,36 @@
+{
+  "info": {
+    "readyState": "interactive",
+    "nextF": 7,
+    "reactKeysOnTab": [],
+    "reactKeysOnMain": [],
+    "main": {
+      "textLen": 886,
+      "scrollHeight": 458,
+      "clientHeight": 458,
+      "overflow": "visible",
+      "contentVisibility": "visible",
+      "rect": [
+        80,
+        105,
+        1600,
+        458
+      ]
+    },
+    "hiddenDescendants": 0,
+    "cvAuto": 0,
+    "htmlHasConverter": true,
+    "htmlHasRulesLoading": true,
+    "htmlHasForecast": false,
+    "htmlHasChartHint": true,
+    "scriptChunkCount": 27,
+    "styleSheets": 1,
+    "buttonHeight": 16,
+    "paddingTop": "0px"
+  },
+  "bad": [
+    "401 POST http://127.0.0.1:3000/api/v1/auth/refresh"
+  ],
+  "failed": []
+}
+CONVERTER_PRESENT true VALUE_AFTER_FILL 5

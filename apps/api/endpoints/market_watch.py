@@ -16,7 +16,7 @@ from schemas.common.responses import ApiResponse
 logger = get_logger(__name__)
 router = APIRouter()
 
-@router.get("", summary="Market watch dashboard data")
+@router.get("", summary="Market watch dashboard data", operation_id="market_watch_dashboard")
 async def market_watch(
     market: str = Query("all", description="Market filter: all, bourse, farabourse, top30, top50"),
     sector: str | None = Query(None, description="Sector name filter"),

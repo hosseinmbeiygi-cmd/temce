@@ -1,0 +1,14 @@
+# Local audit override — DO NOT use for normal deploys.
+#
+# Purpose: the host already has a native PostgreSQL (5432) and Memurai (6379)
+# running as admin-owned services that cannot be stopped from this session, so
+# the compose services are published on alternate ports for the audit proofs.
+# Usage:
+#   docker compose -f docker-compose.yml -f AUDIT_REPORTS/MODULAR_TEMCE/evidence/docker-compose.audit-ports.yml up -d timescaledb redis
+services:
+  timescaledb:
+    ports: !override
+      - "15432:5432"
+  redis:
+    ports: !override
+      - "16379:6379"

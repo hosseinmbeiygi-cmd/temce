@@ -201,6 +201,11 @@ class NewsIngestionService:
             # dead feed set looked identical to "feeds returned nothing".
             "fetch_error": "",
             "errors": 0,
+            # Classifier failures are counted separately: they degrade a single
+            # field (score/label stay neutral), they do not fail the ingestion.
+            "sentiment_errors": 0,
+            # Per-feed outcome of the fetch: ok/empty/failed-with-reason.
+            "source_report": {"ok": [], "empty": [], "failed": {}},
             "articles": [],
         }
 
@@ -221,6 +226,15 @@ class NewsIngestionService:
 
         raw_articles: list[dict[str, Any]] = []
         fetch_result = await provider.fetch_news(limit=limit_per_source)
+        # Per-source outcome, regardless of overall success: a partial feed
+        # outage must stay visible in the run stats (audit stage 9).
+        feed_report = getattr(provider, "last_feed_report", None)
+        if isinstance(feed_report, dict):
+            stats["source_report"] = {
+                "ok": list(feed_report.get("ok") or []),
+                "empty": list(feed_report.get("empty") or []),
+                "failed": dict(feed_report.get("failed") or {}),
+            }
         if fetch_result.success and fetch_result.value:
             raw_articles = fetch_result.value
             # Preserve _source_feed set by the provider (feed name), only fall back to RSS source tag
@@ -285,6 +299,7 @@ class NewsIngestionService:
 
         # ── Step 5: Enrich with sentiment ──────────────────────────
         enriched: list[dict[str, Any]] = []
+        sentiment_errors = 0
         if not skip_sentiment:
             if verbose:
                 print("\n  🧠  RUNNING SENTIMENT ANALYSIS...")
@@ -295,7 +310,16 @@ class NewsIngestionService:
                     sentiment_result = self.sentiment.classify(text)
                     article["sentiment_score"] = sentiment_result.get("compound", 0.0)
                     article["sentiment_label"] = sentiment_result.get("sentiment", "neutral")
-                except Exception:
+                except Exception as exc:
+                    # Keep the neutral display default, but never hide the
+                    # failure: a classifier outage must show up in the run
+                    # stats instead of looking like "every article is neutral".
+                    sentiment_errors += 1
+                    logger.warning(
+                        "Sentiment classification failed for '%s': %s",
+                        article.get("title", "?"),
+                        exc,
+                    )
                     article["sentiment_score"] = 0.0
                     article["sentiment_label"] = "neutral"
                 article["relevance_score"] = self.news_filter.score_relevance(article)
@@ -306,6 +330,8 @@ class NewsIngestionService:
                 neg = sum(1 for a in enriched if a.get("sentiment_label") == "negative")
                 neu = sum(1 for a in enriched if a.get("sentiment_label") == "neutral")
                 print(f"  ✅ Sentiment: {pos} positive, {neg} negative, {neu} neutral")
+                if sentiment_errors:
+                    print(f"  ⚠️  Sentiment failed for {sentiment_errors} article(s)")
         else:
             if verbose:
                 print("\n  ⏭️   Sentiment analysis SKIPPED")
@@ -356,6 +382,7 @@ class NewsIngestionService:
                 )
 
         stats["articles"] = enriched
+        stats["sentiment_errors"] = sentiment_errors
         stats["finished_at"] = datetime.now(UTC).isoformat()
         stats["deduplicator_total_removed"] = self.deduplicator.duplicates_removed
 
@@ -456,6 +483,10 @@ class NewsIngestionService:
             is_breaking=bool(article.get("is_breaking", False)),
             symbols=symbols,
             dedup_hash=compute_dedup_hash(item.title, url),
+            # The legacy row's id is generated client-side above, so it is
+            # known before the flush: link the mirror row to it for the parity
+            # audit and any future join (stage 9).
+            legacy_article_id=item.id,
         )
         return "saved"
 
@@ -470,6 +501,12 @@ class NewsIngestionService:
         print(f"  Saved to DB:       {stats['saved']:>6,d}")
         print(f"  Already present:   {stats.get('skipped_existing', 0):>6,d}")
         print(f"  Errors:            {stats['errors']:>6,d}")
+        source_report = stats.get("source_report") or {}
+        failed_sources = source_report.get("failed") or {}
+        if failed_sources:
+            print(f"  Failed sources:    {len(failed_sources):>6,d}")
+            for name, reason in failed_sources.items():
+                print(f"    - {name}: {reason}")
         print("-" * 70)
 
         articles = stats.get("articles", [])

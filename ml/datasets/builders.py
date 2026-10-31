@@ -51,9 +51,12 @@ class DatasetBuilder(BaseDatasetBuilder):
 
     def split(self, features: FeatureMatrix, targets: TargetVector, config: dict[str, Any]) -> SplitMeta:
         method = config.get("split_method", "time")
+        # FIN-05: purge the label horizon from the end of each training window,
+        # otherwise the last h training labels are computed from validation rows.
+        horizon = int(config.get("horizon", 5) or 0)
         if method == "time":
-            return self.splitter.time_based(features, targets)
-        return self.splitter.time_based(features, targets)
+            return self.splitter.time_based(features, targets, label_horizon=horizon)
+        return self.splitter.time_based(features, targets, label_horizon=horizon)
 
     def get_split(self, features: FeatureMatrix, targets: TargetVector, config: dict[str, Any]) -> SplitMeta:
         return self.split(features, targets, config)

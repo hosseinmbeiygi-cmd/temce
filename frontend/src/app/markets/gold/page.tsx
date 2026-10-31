@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, extractArray } from "@/lib/api";
@@ -65,7 +66,7 @@ type LiveRow = {
 
 function useLiveMarketData() {
   const trackedSymbols = ["IR_COIN_EMAMI", "IR_GOLD_18K", "XAUUSD", "USD", "IR_COIN_BAHAR"];
-  const { prices: wsPrices, connected: wsConnected, error: wsError } = useMarketWebSocket(trackedSymbols);
+  const { prices: wsPrices, connected: wsConnected, stale: wsStale, error: wsError } = useMarketWebSocket(trackedSymbols);
   // ponytail: WS hook no longer reports latency after the sidebar refactor;
   // add a ping/pong round-trip back into useWebSocket if the badge should show ms again.
   const latencyMs: number | null = null;
@@ -98,6 +99,7 @@ function useLiveMarketData() {
     bySymbol,
     cryptoRows: (query.data?.rows ?? []).filter((r) => r.price_usd !== undefined),
     wsConnected,
+    wsStale,
     wsError,
     latencyMs,
     isLoading: query.isLoading,
@@ -280,55 +282,6 @@ function useTseIndex() {
   return { value: main[0]?.index_value ?? null, changePct: main[0]?.index_change_pct || computedChange, isLoading: query.isLoading };
 }
 
-/* ────────────────────────── portfolio (localStorage) ────────────────────────── */
-
-type Trade = {
-  id: string;
-  symbol: string;
-  label: string;
-  side: "BUY" | "SELL";
-  quantity: number;
-  entryPrice: number;
-  date: string;
-};
-
-const TRADES_KEY = "multi-as…s-v1";
-
-function useStoredTrades() {
-  const [trades, setTrades] = useState<Trade[]>([]);
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(TRADES_KEY);
-      if (raw) setTrades(JSON.parse(raw) as Trade[]);
-    } catch {
-      /* corrupted storage → start empty */
-    }
-  }, []);
-  const save = (trade: Trade) => {
-    setTrades((current) => {
-      const next = [trade, ...current];
-      try {
-        window.localStorage.setItem(TRADES_KEY, JSON.stringify(next));
-      } catch {
-        /* quota errors are non-fatal for this session */
-      }
-      return next;
-    });
-  };
-  const remove = (id: string) => {
-    setTrades((current) => {
-      const next = current.filter((t) => t.id !== id);
-      try {
-        window.localStorage.setItem(TRADES_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  };
-  return { trades, save, remove };
-}
-
 /* ────────────────────────── formatting ────────────────────────── */
 
 function faNumber(value: number, maximumFractionDigits = 0) {
@@ -385,12 +338,13 @@ function StatusPill({ children, tone = "neutral" }: { children: React.ReactNode;
   return <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${styles[tone]}`}>{children}</span>;
 }
 
-function LiveStatusBadge({ connected, latencyMs }: { connected: boolean; latencyMs: number | null }) {
+function LiveStatusBadge({ connected, stale, latencyMs }: { connected: boolean; stale?: boolean; latencyMs: number | null }) {
   const latencyLabel = latencyMs === null ? "— ms" : `${faNumber(latencyMs)} ms`;
+  const isLive = connected && !stale;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${connected ? "bg-up/10 text-up" : "bg-warn/10 text-warn"}`}>
-      <span className={`size-1.5 rounded-full ${connected ? "bg-up animate-pulse" : "bg-warn"}`} aria-hidden="true" />
-      {connected ? `LIVE · ${latencyLabel}` : "POLLING · stale"}
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${isLive ? "bg-up/10 text-up" : "bg-warn/10 text-warn"}`}>
+      <span className={`size-1.5 rounded-full ${isLive ? "bg-up animate-pulse" : "bg-warn"}`} aria-hidden="true" />
+      {isLive ? `LIVE · ${latencyLabel}` : connected ? "STALE · polling" : "POLLING · stale"}
     </span>
   );
 }
@@ -453,7 +407,7 @@ function normalizeSeries(values: number[]): number[] {
 
 function LiveMarketLayer({ live }: { live: ReturnType<typeof useLiveMarketData> }) {
   const latencyLabel = live.latencyMs === null ? "— ms" : `${faNumber(live.latencyMs)} ms`;
-  const latencyTone = !live.wsConnected || live.latencyMs === null || live.latencyMs > 1000 ? "warn" : "up";
+  const latencyTone = !live.wsConnected || live.wsStale || live.latencyMs === null || live.latencyMs > 1000 ? "warn" : "up";
   const get = (symbol: string) => live.bySymbol.get(symbol);
   const priceOf = (symbol: string) => {
     const row = get(symbol);
@@ -476,9 +430,9 @@ function LiveMarketLayer({ live }: { live: ReturnType<typeof useLiveMarketData> 
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-card px-4 py-3 shadow-[var(--shadow-card)]">
         <span className="mr-1 text-[10px] font-bold text-ink-3">کانال داده</span>
-        <LiveStatusBadge connected={live.wsConnected} latencyMs={live.latencyMs} />
+        <LiveStatusBadge connected={live.wsConnected} stale={live.wsStale} latencyMs={live.latencyMs} />
         <ChannelBadge label="BrsApi REST" detail={live.updatedAt ? `OK · Refresh ${REALTIME_REFRESH_LABEL}` : "در انتظار"} tone={live.isError ? "warn" : "up"} />
-        <ChannelBadge label="WebSocket" detail={live.wsConnected ? `LIVE · ${latencyLabel}` : "fallback polling"} tone={latencyTone} />
+        <ChannelBadge label="WebSocket" detail={live.wsConnected ? (live.wsStale ? "STALE · fallback polling" : `LIVE · ${latencyLabel}`) : "fallback polling"} tone={latencyTone} />
       </div>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map((item) => (
@@ -528,6 +482,8 @@ function GoldChart({ history, live, timeframe, setTimeframe }: {
       <div className="mt-5 rounded-xl bg-soft/60 p-3">
         {history.isLoading ? (
           <p className="py-10 text-center text-xs text-ink-3">در حال دریافت تاریخچه واقعی…</p>
+        ) : history.isError ? (
+          <p className="py-10 text-center text-xs text-rose-300">دریافت تاریخچهٔ طلا ناموفق بود؛ نمودار خالی به‌معنای نبود داده نیست.</p>
         ) : withLive.length < 2 ? (
           <p className="py-10 text-center text-xs text-warn">دادهٔ تاریخی در دسترس نیست — همگام‌سازی تاریخچه BrsApi انجام نشده است.</p>
         ) : (
@@ -766,7 +722,9 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
     if (closes.length < 70) return null;
     const livePrice = live.bySymbol.get("IR_GOLD_18K")?.price ?? null;
     const last = livePrice ?? closes[closes.length - 1];
-    const atrValue = atr(history.highs, history.lows, closes) ?? last * 0.02;
+    const atrValue = atr(history.highs, history.lows, closes);
+    // No ATR ⇒ no stop/target arithmetic. A 2%-of-price fallback would invent levels.
+    if (atrValue === null) return null;
     const windows = windowSignals(closes);
     const bullish = windows.filter((w) => w.bullish).length;
     const action = windows.length === 0 ? "NEUTRAL" : bullish > windows.length / 2 ? "BUY" : bullish === 0 ? "SELL" : "HOLD";
@@ -783,7 +741,8 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
     const xau = live.bySymbol.get("XAUUSD")?.price ?? null;
     const usd = live.bySymbol.get("USD")?.price ?? null;
     const bubble = emami && xau && usd ? (emami / (xau * usd * EMAMI_PURE_GOLD_OZ) - 1) * 100 : null;
-    const nav = sekke.navRow?.nav_issue ?? null;
+    // §۶: the bubble reference is redemption NAV; issuance is only a fallback.
+    const nav = sekke.navRow?.nav_redemption ?? sekke.navRow?.nav_issue ?? null;
     const price = sekke.row?.price_last ?? null;
     const premium = nav && price ? (price / nav - 1) * 100 : null;
     const momentum20 = closes.length > 20 ? (last / closes[closes.length - 21] - 1) * 100 : null;
@@ -839,7 +798,7 @@ function StructuredSignalCard({ history, live }: { history: ReturnType<typeof us
   if (!signal) {
     return (
       <SectionCard title="سیگنال ساختاریافتهٔ طلا" subtitle="خروجی محاسبه‌شده از دادهٔ واقعی" icon={Sparkles}>
-        <p className="py-6 text-center text-xs text-warn">دادهٔ تاریخی کافی (حداقل ۷۰ روز) برای محاسبهٔ سیگنال موجود نیست.</p>
+        <p className="py-6 text-center text-xs text-warn">دادهٔ تاریخی کافی (حداقل ۷۰ روز) یا ATR معتبر برای محاسبهٔ سیگنال موجود نیست؛ سطح ساختگی جایگزین نمی‌شود.</p>
       </SectionCard>
     );
   }
@@ -1124,182 +1083,9 @@ function CryptoModule({ live }: { live: ReturnType<typeof useLiveMarketData> }) 
   );
 }
 
-/* ────────────────────────── portfolio tab ────────────────────────── */
-
-const TRADE_ASSETS: { symbol: string; label: string }[] = [
-  { symbol: "IR_COIN_EMAMI", label: "سکه امامی (فیزیکی)" },
-  { symbol: "IR_GOLD_18K", label: "طلای ۱۸ عیار" },
-  { symbol: "USD", label: "دلار" },
-  { symbol: "طلا", label: "صندوق کالای پارسیان" },
-  { symbol: "عیار", label: "صندوق طلای عیار مفید" },
-  { symbol: "گوهر", label: "صندوق کالای کیان" },
-  { symbol: "زر", label: "صندوق کالای امید ثروت" },
-  { symbol: "زرافشان", label: "زرافشان" },
-];
-
-function priceForSymbol(symbol: string, live: ReturnType<typeof useLiveMarketData>, fundCache: Map<string, number | null>): number | null {
-  const row = live.bySymbol.get(symbol);
-  const direct = row?.price ?? row?.price_irr ?? null;
-  if (direct) return direct;
-  const fund = fundCache.get(symbol);
-  if (fund) return fund;
-  const usdt = live.bySymbol.get("USDT");
-  const usd = live.bySymbol.get("USD")?.price ?? null;
-  if (symbol === "USDT" && usdt?.price_usd && usd) return usdt.price_usd * usd;
-  return null;
-}
-
-function PortfolioModule({ trades, remove, live }: { trades: Trade[]; remove: (id: string) => void; live: ReturnType<typeof useLiveMarketData> }) {
-  const funds = useFundSnapshots(GOLD_FUNDS);
-  const zarafshan = useSymbolDetail("زرافشان");
-  const zarafshanPrice = (zarafshan.detail?.price_last as number | undefined) ?? null;
-  const fundCache = useMemo(() => {
-    const map = new Map<string, number | null>();
-    for (const fund of funds) map.set(fund.symbol, fund.data.row?.price_last ?? null);
-    map.set("زرافشان", zarafshanPrice);
-    return map;
-  }, [funds, zarafshanPrice]);
-  const usdRate = live.bySymbol.get("USD")?.price ?? null;
-
-  const positions = useMemo(() => {
-    const grouped = new Map<string, { trade: Trade; quantity: number; cost: number }>();
-    for (const trade of trades) {
-      const existing = grouped.get(trade.symbol);
-      if (trade.side === "SELL") {
-        if (existing) {
-          existing.quantity = Math.max(0, existing.quantity - trade.quantity);
-          if (existing.quantity <= 0) grouped.delete(trade.symbol);
-        }
-        continue;
-      }
-      if (existing) {
-        const totalQty = existing.quantity + trade.quantity;
-        existing.cost = (existing.cost + trade.quantity * trade.entryPrice) / totalQty;
-        existing.quantity = totalQty;
-      } else {
-        grouped.set(trade.symbol, { trade, quantity: trade.quantity, cost: trade.entryPrice });
-      }
-    }
-    const rows = [...grouped.values()].map((entry) => {
-      const price = priceForSymbol(entry.trade.symbol, live, fundCache);
-      const value = price !== null ? price * entry.quantity : null;
-      const pnl = price !== null ? (price / entry.cost - 1) * 100 : null;
-      return { ...entry.trade, quantity: entry.quantity, cost: entry.cost, price, value, pnl };
-    });
-    const total = rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
-    return { rows, total: total > 0 ? total : null };
-  }, [trades, live.bySymbol, fundCache]);
-
-  const weightedPnl = positions.total
-    ? positions.rows.reduce((sum, row) => sum + ((row.pnl ?? 0) * (row.value ?? 0)) / positions.total!, 0)
-    : null;
-
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
-          <p className="text-xs text-ink-3">ارزش کل پورتفولیو (ریالی)</p>
-          <p className="mt-2 font-mono text-2xl font-black text-ink">{positions.total === null ? "—" : `${faNumber(positions.total / 10)} تومان`}</p>
-          {weightedPnl !== null && <p className={`mt-2 font-mono text-sm font-bold ${weightedPnl >= 0 ? "text-up" : "text-down"}`}>بازده ترکیبی: {faPct(weightedPnl, 1)}</p>}
-          {positions.total === null && <p className="mt-2 text-[10px] text-ink-3">با ثبت اولین معاملهٔ دستی محاسبه می‌شود.</p>}
-        </div>
-        <div className="rounded-2xl border border-line bg-card p-5 shadow-[var(--shadow-card)]">
-          <p className="text-xs text-ink-3">ارزش دلاری</p>
-          <p className="mt-2 font-mono text-2xl font-black text-ink">{positions.total === null || !usdRate ? "—" : `$${faNumber(positions.total / usdRate)}`}</p>
-          <p className="mt-1 text-[10px] text-ink-3">مبنای تبدیل: نرخ دلار BrsApi {faPrice(usdRate)} ریال</p>
-        </div>
-      </div>
-      <SectionCard title="پوزیشن‌ها" subtitle="ارزش‌گذاری با قیمت لحظه‌ای BrsApi · P/L از قیمت ثبت‌شدهٔ شما" icon={WalletCards}>
-        {positions.rows.length === 0 ? (
-          <p className="py-6 text-center text-xs text-ink-3">هنوز معامله‌ای ثبت نشده — از فرم «ثبت دستی معامله» استفاده کنید.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px] text-right text-xs">
-              <thead>
-                <tr className="border-b border-line text-[10px] text-ink-3">
-                  <th className="pb-3">دارایی</th><th className="pb-3">حجم</th><th className="pb-3">قیمت ورود</th><th className="pb-3">قیمت فعلی</th><th className="pb-3">ارزش</th><th className="pb-3">وزن</th><th className="pb-3">P/L</th><th className="pb-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {positions.rows.map((row) => (
-                  <tr key={row.id} className="border-b border-line/60 last:border-0">
-                    <td className="py-3"><div className="font-bold text-ink">{row.label}</div><div className="mt-0.5 font-mono text-[10px] text-ink-3">{row.symbol}</div></td>
-                    <td className="py-3 font-mono text-ink-2">{faNumber(row.quantity)}</td>
-                    <td className="py-3 font-mono text-ink-2">{faPrice(row.cost)}</td>
-                    <td className="py-3 font-mono text-ink">{faPrice(row.price)}</td>
-                    <td className="py-3 font-mono font-bold text-ink">{faPrice(row.value)}</td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-16 rounded-full bg-line"><div className="h-full rounded-full bg-primary-500" style={{ width: `${row.value && positions.total ? (row.value / positions.total) * 100 : 0}%` }} /></div>
-                        <span className="font-mono text-[10px] text-ink-3">{row.value && positions.total ? faNumber((row.value / positions.total) * 100, 1) : "—"}٪</span>
-                      </div>
-                    </td>
-                    <td className={`py-3 font-mono font-bold ${(row.pnl ?? 0) >= 0 ? "text-up" : "text-down"}`}>{faPct(row.pnl, 1)}</td>
-                    <td className="py-3"><button type="button" onClick={() => remove(row.id)} className="text-[10px] text-warn hover:underline">حذف</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
-    </div>
-  );
-}
-
-function ManualTradeEntry({ onSaved }: { onSaved: (entry: Trade) => void }) {
-  const [form, setForm] = useState({ symbol: "IR_COIN_EMAMI", side: "BUY" as "BUY" | "SELL", quantity: 1, entryPrice: 0, date: new Date().toISOString().slice(0, 10) });
-  const [saved, setSaved] = useState(false);
-  const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
-    setForm((current) => ({ ...current, [key]: value }));
-    setSaved(false);
-  };
-  const label = TRADE_ASSETS.find((a) => a.symbol === form.symbol)?.label ?? form.symbol;
-  const valid = form.quantity > 0 && form.entryPrice > 0;
-  return (
-    <SectionCard title="ثبت دستی معامله" subtitle="بدون ارسال سفارش؛ فقط ثبت برای محاسبهٔ عملکرد و ریسک" icon={WalletCards}>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <label className="text-[10px] text-ink-3">دارایی
-          <select value={form.symbol} onChange={(event) => update("symbol", event.target.value)} className="mt-1 w-full rounded-xl border border-line bg-soft px-3 py-2 text-xs text-ink">
-            {TRADE_ASSETS.map((asset) => <option key={asset.symbol} value={asset.symbol}>{asset.label}</option>)}
-          </select>
-        </label>
-        <label className="text-[10px] text-ink-3">نوع
-          <select value={form.side} onChange={(event) => update("side", event.target.value as "BUY" | "SELL")} className="mt-1 w-full rounded-xl border border-line bg-soft px-3 py-2 text-xs text-ink">
-            <option value="BUY">خرید</option><option value="SELL">فروش</option>
-          </select>
-        </label>
-        <label className="text-[10px] text-ink-3">تاریخ
-          <input type="date" value={form.date} onChange={(event) => update("date", event.target.value)} className="mt-1 w-full rounded-xl border border-line bg-soft px-3 py-2 text-xs text-ink" />
-        </label>
-        <label className="text-[10px] text-ink-3">حجم / تعداد
-          <input type="number" min={0} value={form.quantity || ""} onChange={(event) => update("quantity", Number(event.target.value))} className="mt-1 w-full rounded-xl border border-line bg-soft px-3 py-2 text-xs font-mono text-ink" />
-        </label>
-        <label className="text-[10px] text-ink-3">قیمت ورود (ریال)
-          <input type="number" min={0} value={form.entryPrice || ""} onChange={(event) => update("entryPrice", Number(event.target.value))} className="mt-1 w-full rounded-xl border border-line bg-soft px-3 py-2 text-xs font-mono text-ink" />
-        </label>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[10px] text-ink-3">{valid ? `${form.side === "BUY" ? "خرید" : "فروش"} ${faNumber(form.quantity)} ${label} در {faPrice(form.entryPrice)} ریال` : "حجم و قیمت ورود را وارد کنید."}</span>
-        <button
-          type="button"
-          disabled={!valid}
-          onClick={() => {
-            onSaved({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, symbol: form.symbol, label, side: form.side, quantity: form.quantity, entryPrice: form.entryPrice, date: form.date });
-            setSaved(true);
-          }}
-          className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saved ? "ثبت شد ✓" : "ثبت معامله دستی"}
-        </button>
-      </div>
-    </SectionCard>
-  );
-}
-
 /* ────────────────────────── page ────────────────────────── */
 
-type Tab = "gold" | "stocks" | "crypto" | "portfolio";
+type Tab = "gold" | "stocks" | "crypto";
 
 export default function GoldMarketPage() {
   const [tab, setTab] = useState<Tab>("gold");
@@ -1310,21 +1096,9 @@ export default function GoldMarketPage() {
   const futures = useGoldFutures();
   const news = useCodalNews();
   const brs = useBrSHealth();
-  const { trades, save, remove } = useStoredTrades();
-
-  const portfolioValue = useMemo(() => {
-    let total = 0;
-    let known = true;
-    for (const trade of trades) {
-      if (trade.side !== "BUY") continue;
-      const price = priceForSymbol(trade.symbol, live, new Map());
-      if (price === null) { known = false; continue; }
-      total += price * trade.quantity;
-    }
-    return trades.length === 0 ? null : { total, known };
-  }, [trades, live.bySymbol]);
 
   const goldSync = brs.sync?.gold_coin;
+  const goldAgeHours = goldSync?.age_minutes == null ? null : goldSync.age_minutes / 60;
 
   return (
     <AppLayout title="بازار طلا" subtitle="تحلیل یکپارچه طلا، سهام، کریپتو و سبد — همهٔ داده‌ها از BrsApi.ir">
@@ -1338,11 +1112,14 @@ export default function GoldMarketPage() {
                 <StatusPill tone="warn">بدون داده ساختگی</StatusPill>
               </div>
               <h2 className="text-xl font-black tracking-tight lg:text-2xl">بازار طلا — کنسول تصمیم‌گیری</h2>
-              <p className="mt-1 text-xs text-brand-200/80">آخرین همگام‌سازی طلا: {formatDateTime(goldSync?.last_fetched)} — وضعیت: {goldSync?.status === "fresh" ? "تازه" : goldSync ? `${faNumber((goldSync.age_minutes ?? 0) / 60, 1)} ساعت پیش` : "—"}</p>
+              <p className="mt-1 text-xs text-brand-200/80">آخرین همگام‌سازی طلا: {formatDateTime(goldSync?.last_fetched)} — وضعیت: {goldSync?.status === "fresh" ? "تازه" : goldSync ? `${goldAgeHours === null ? "—" : `${faNumber(goldAgeHours, 1)} ساعت پیش`}` : "—"}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-[10px] text-brand-200/70">ارزش سبد</p><p className="mt-1 font-mono text-base font-black">{portfolioValue?.known ? `${faNumber(portfolioValue.total / 10)} تومان` : "—"}</p></div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-[10px] text-brand-200/70">معاملات ثبت‌شده</p><p className="mt-1 font-mono text-base font-black">{faNumber(trades.length)}</p></div>
+              <Link href="/gold/portfolio" className="rounded-2xl border border-white/10 bg-white/5 p-3 transition hover:bg-white/10">
+                <p className="text-[10px] text-brand-200/70">پورتفوی</p>
+                <p className="mt-1 font-mono text-base font-black">GoldDesk ←</p>
+              </Link>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-[10px] text-brand-200/70">مبلغ‌ها</p><p className="mt-1 font-mono text-base font-black">ریال</p></div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-3"><p className="text-[10px] text-brand-200/70">تاریخچهٔ طلا</p><p className="mt-1 font-mono text-base font-black">{faNumber(history.closes.length)} روز</p></div>
             </div>
           </div>
@@ -1353,7 +1130,6 @@ export default function GoldMarketPage() {
             ["gold", "طلا", CircleDollarSign],
             ["stocks", "سهام", LineChart],
             ["crypto", "کریپتو", Sparkles],
-            ["portfolio", "پورتفولیو", WalletCards],
           ] as const).map(([key, label, Icon]) => (
             <button key={key} onClick={() => setTab(key)} className={`flex min-w-[110px] flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${tab === key ? "bg-primary-600 text-white shadow" : "text-ink-3 hover:bg-soft hover:text-ink"}`}>
               <Icon className="size-4" />{label}
@@ -1384,12 +1160,6 @@ export default function GoldMarketPage() {
 
         {tab === "stocks" && <StockModule live={live} />}
         {tab === "crypto" && <CryptoModule live={live} />}
-        {tab === "portfolio" && (
-          <>
-            <PortfolioModule trades={trades} remove={remove} live={live} />
-            <ManualTradeEntry onSaved={save} />
-          </>
-        )}
 
         <section className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
           <div className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)]">
@@ -1404,18 +1174,20 @@ export default function GoldMarketPage() {
               <table className="w-full min-w-[520px] text-right text-xs">
                 <thead>
                   <tr className="border-b border-line text-[10px] text-ink-3">
-                    <th className="pb-3">نماد</th><th className="pb-3">نام</th><th className="pb-3">قیمت (ریال)</th><th className="pb-3">تغییر</th><th className="pb-3">زمان</th>
+                    <th className="pb-3">نماد</th><th className="pb-3">نام</th><th className="pb-3">قیمت</th><th className="pb-3">تغییر</th><th className="pb-3">زمان</th>
                   </tr>
                 </thead>
                 <tbody>
                   {["IR_COIN_EMAMI", "IR_COIN_BAHAR", "IR_GOLD_18K", "IR_GOLD_MELTED", "XAUUSD", "USD"].map((symbol) => {
                     const row = live.bySymbol.get(symbol);
+                    const unit = symbol === "XAUUSD" ? "دلار" : symbol === "USD" ? "ریال" : (row?.unit ?? "ریال");
+                    const digits = symbol === "XAUUSD" ? 2 : 0;
                     return (
                       <tr key={symbol} className="border-b border-line/60 last:border-0">
                         <td className="py-3 font-mono font-bold text-ink">{symbol}</td>
                         <td className="py-3 text-ink-2">{row?.name ?? "—"}</td>
-                        <td className="py-3 font-mono font-bold text-ink">{faPrice(row?.price ?? row?.price_irr ?? null, 0)}</td>
-                        <td className={`py-3 font-mono font-bold ${(row?.change_percent ?? 0) >= 0 ? "text-up" : "text-down"}`}>{row ? faPct(row.change_percent) : "—"}</td>
+                        <td className="py-3 font-mono font-bold text-ink">{faPrice(row?.price ?? row?.price_irr ?? null, digits)} <span className="text-[9px] font-normal text-ink-3">{unit}</span></td>
+                        <td className={`py-3 font-mono font-bold ${row?.change_percent == null ? "text-ink-3" : row.change_percent >= 0 ? "text-up" : "text-down"}`}>{row?.change_percent == null ? "—" : faPct(row.change_percent)}</td>
                         <td className="py-3 font-mono text-[10px] text-ink-3">{row?.date ? `${row.date} ${row.time ?? ""}` : "—"}</td>
                       </tr>
                     );

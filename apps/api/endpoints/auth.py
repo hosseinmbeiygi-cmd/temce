@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -49,24 +50,66 @@ _AUTH_LIMITS: dict[str, tuple[float, int]] = {
     "mfa_setup": (3 / 300.0, 3),       # 3 setups per 5min per IP
     "mfa_confirm": (5 / 300.0, 5),     # 5 attempts per 5min per IP
     "mfa_disable": (5 / 300.0, 5),     # 5 attempts per 5min per IP
+    # Each ticket is a 60s WebSocket handshake credential; a client needs one
+    # per (re)connect, not one per message. 30/min covers reconnect storms
+    # without turning this into a ticket-minting service.
+    "ws_ticket": (30 / 60.0, 30),
+    # SEC-06: refresh and logout were unlimited, so a stolen refresh cookie
+    # could be replayed in a tight loop and a scripted logout could churn the
+    # revocation store. One refresh per few seconds is plenty for a browser.
+    "refresh": (30 / 60.0, 30),
+    "logout": (10 / 60.0, 10),
 }
 
 _limiter = get_rate_limiter()
 
 
+def _peer_ip(request: Request) -> str | None:
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None) if client else None
+    return host or None
+
+
+def _is_trusted_proxy(peer: str | None) -> bool:
+    """Is the *direct* peer one of the configured proxies (audit SEC-06)?"""
+    if not peer:
+        return False
+    import ipaddress
+
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    for entry in getattr(settings, "trusted_proxies", []) or []:
+        try:
+            if "/" in entry:
+                if peer_ip in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif peer_ip == ipaddress.ip_address(entry):
+                return True
+        except ValueError:
+            logger.warning("Ignoring invalid TRUSTED_PROXIES entry %r", entry)
+    return False
+
+
 def _get_client_ip(request: Request) -> str:
+    """Rate-limit identity: X-Forwarded-For only from a trusted proxy.
+
+    Trusting the header unconditionally (the old behaviour) let any client
+    pick its own bucket by sending ``X-Forwarded-For: <random>``, defeating
+    the login/OTP limits entirely (audit SEC-06). Without a configured
+    ``TRUSTED_PROXIES`` the socket peer address is authoritative.
+    """
+    peer = _peer_ip(request)
     with contextlib.suppress(Exception):
         headers = getattr(request, "headers", None)
-        if headers is not None:
-            # Starlette Headers or plain dict
-            xff = headers.get("x-forwarded-for") if hasattr(headers, "get") else None
-            if xff:
-                first = xff.split(",")[0].strip()
-                if first:
-                    return first
-    client = getattr(request, "client", None)
-    if client and getattr(client, "host", None):
-        return client.host
+        xff = headers.get("x-forwarded-for") if headers is not None else None
+        if xff and _is_trusted_proxy(peer):
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
+    if peer:
+        return peer
     return "unknown"
 
 
@@ -261,6 +304,7 @@ async def refresh(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse:
+    _rate_limit_auth(request, "refresh")
     svc = UserService(session)
     token = _refresh_token_from_cookie(request)
     if not token:
@@ -359,11 +403,32 @@ async def change_password(
     session: AsyncSession = Depends(get_session),
     _: None = Depends(change_password_rate_limit),
 ) -> ApiResponse:
+    # SEC-07: a password change is only meaningful if every older session can
+    # be revoked. Refuse while the revocation store is down instead of leaving
+    # the old access tokens valid for the rest of their lifetime.
+    from core.cache import get_cache
+
+    if not get_cache().is_connected:
+        raise HTTPException(
+            status_code=503,
+            detail="Session store unavailable — try again shortly",
+        )
+
     svc = UserService(session)
     result = await svc.change_password(current_user["sub"], req.current_password, req.new_password)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
-    # Revoke the current access token so the old session cannot be reused after password change.
+    # End every session of this user: the jti blacklist only covers the token
+    # presented here, while other devices hold their own tokens (SEC-07).
+    from core.security.tokens import revoke_user_access_tokens
+
+    if not await revoke_user_access_tokens(current_user.get("sub")):
+        logger.error(
+            "Password changed for %s but user-wide revocation failed — old "
+            "sessions stay valid until their tokens expire (SEC-07)",
+            current_user.get("sub"),
+        )
+    # Also revoke the exact token used for this request (defence in depth).
     token = ""
     parts = authorization.split()
     if len(parts) == 2 and parts[0].lower() == "bearer":
@@ -376,6 +441,42 @@ async def change_password(
         except Exception:
             logger.debug("Failed to revoke token after password change", exc_info=True)
     return ApiResponse(success=True, message="Password changed successfully. Please login again.")
+
+
+@router.post("/ws-ticket", summary="Single-use ticket for a WebSocket handshake")
+async def create_websocket_ticket(
+    request: Request,
+    response: Response,
+    user: dict = Depends(get_current_user),
+) -> ApiResponse[dict[str, Any]]:
+    """Trade the access token for a single-use WebSocket ticket (audit FE-06).
+
+    Browsers cannot attach an ``Authorization`` header to a WebSocket
+    handshake, and embedding the long-lived access token in the socket URL
+    leaks it into proxy/access logs and browser history. The client asks for a
+    ticket over authenticated HTTP and presents only the ticket.
+
+    The ticket is stored in Redis (SHA-256 of the value, never the value
+    itself) for ``WS_TICKET_TTL_SECONDS`` and redeemed exactly once via
+    ``GETDEL``. Deliberate trade-off: when Redis is unavailable no ticket can
+    be minted (503) and the socket cannot be authenticated — an unverifiable
+    handshake is rejected rather than accepted.
+    """
+    _rate_limit_auth(request, "ws_ticket")
+
+    from core.security.tokens import WS_TICKET_TTL_SECONDS, create_ws_ticket
+
+    subject = str(user.get("sub") or user.get("id") or "")
+    ticket = await create_ws_ticket(subject)
+    if ticket is None:
+        raise HTTPException(
+            status_code=503, detail="WebSocket ticket store unavailable"
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={"ticket": ticket, "expires_in": WS_TICKET_TTL_SECONDS},
+    )
 
 
 @router.post("/logout")
@@ -391,6 +492,8 @@ async def logout(
     cookie, and clears the server-side refresh token so it can no longer be
     used to mint new tokens.
     """
+    _rate_limit_auth(request, "logout")
+
     from sqlalchemy import select
 
     from models.user import UserModel

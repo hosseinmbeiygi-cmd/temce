@@ -27,13 +27,16 @@ router = APIRouter()
 
 
 async def verify_websocket_token(websocket: WebSocket) -> bool:
-    """Authenticate a WebSocket handshake (audit API-003).
+    """Authenticate a WebSocket handshake (audit API-003, FE-06).
 
     The Origin guard only stops a *foreign page* from using the visitor's
     browser; it does nothing about a script that simply opens the socket and
     reads the market stream. Browsers cannot attach headers to a WebSocket
-    handshake, so the access token is accepted from the ``token`` query
-    parameter or a bearer ``Authorization`` header.
+    handshake, so the client presents a **single-use ticket** obtained from
+    ``POST /auth/ws-ticket`` (60s TTL, GETDEL). The long-lived access token is
+    no longer accepted in the query string (FE-06: it leaked into access logs,
+    proxy logs and browser history); a bearer ``Authorization`` header remains
+    supported for non-browser clients.
 
     Honours the same ``AUTH_DISABLED`` gate as the HTTP dependencies, so a
     deployment that deliberately runs without auth keeps working.
@@ -43,8 +46,26 @@ async def verify_websocket_token(websocket: WebSocket) -> bool:
     if not _auth_required():
         return True
 
+    ticket = websocket.query_params.get("ticket", "")
+    if ticket:
+        from core.security.tokens import consume_ws_ticket
+
+        if await consume_ws_ticket(ticket):
+            return True
+        # A presented-but-invalid ticket is a rejection, never a downgrade to
+        # the legacy token path.
+        logger.warning("WebSocket handshake rejected: invalid or spent ticket")
+        return False
+
     token = websocket.query_params.get("token", "")
-    if not token:
+    if token:
+        # Deprecated: accepted only until every client uses tickets. Kept out
+        # of the primary path so a migration cannot silently regress.
+        logger.warning(
+            "WebSocket handshake used a deprecated access token in the query "
+            "string (FE-06) — switch the client to POST /auth/ws-ticket"
+        )
+    else:
         header = websocket.headers.get("authorization", "")
         if header.lower().startswith("bearer "):
             token = header[len("bearer "):].strip()

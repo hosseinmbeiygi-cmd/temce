@@ -410,17 +410,4 @@ CREATE TABLE IF NOT EXISTS strategy_performance (
 );
 
 SELECT create_hypertable('strategy_performance', 'time', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE);
-
--- Portfolio positions
-CREATE TABLE IF NOT EXISTS portfolio_positions (
-    time TIMESTAMPTZ NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    qty DOUBLE PRECISION,
-    avg_price DOUBLE PRECISION,
-    market_value DOUBLE PRECISION,
-    unrealized_pnl DOUBLE PRECISION,
-    weight DOUBLE PRECISION
-);
-
-SELECT create_hypertable('portfolio_positions', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE);
 """

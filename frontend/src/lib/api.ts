@@ -1,3 +1,5 @@
+import { assertSuccessEnvelope } from './api-envelope';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 const LONG_TIMEOUT_MS = 600_000; // 10 minutes for heavy sync operations
@@ -217,7 +219,7 @@ async function apiRequest<T>(
   if (authToken) (headers as Record<string, string>).Authorization = `Bearer ${authToken}`;
 
   const timeoutMs = init.timeoutMs ?? REQUEST_TIMEOUT_MS;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- timeoutMs is consumed, rest is fetch init
+   
   const { timeoutMs: _t, ...fetchInit } = init as RequestInit & { timeoutMs?: number };
 
   let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { ...fetchInit, headers }, timeoutMs);
@@ -237,7 +239,13 @@ async function apiRequest<T>(
     const errorText = await response.text();
     throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
   }
-  return response.json() as Promise<T>;
+  const payload = (await response.json()) as T;
+  // HTTP 200 با `success:false` یعنی منبع داده خطا داده است؛ اگر پاکت را
+  // همان‌طور برگردانیم، `extractArray` آن را به `[]` تبدیل می‌کند و صفحه
+  // «خالی» را از «خطا» تشخیص نمی‌دهد. پرتاب خطا این حالت را به React Query
+  // می‌رساند تا بنر خطا نمایش داده شود (بخش ۰۵).
+  assertSuccessEnvelope(payload, endpoint);
+  return payload;
 }
 
 export async function apiGet<T>(endpoint: string, token?: string | null, signal?: AbortSignal): Promise<T> {

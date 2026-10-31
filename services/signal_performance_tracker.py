@@ -13,7 +13,8 @@ Workflow:
 Data sources:
   - signals table (generated signals with entry data)
   - brsapi_historical_daily (for actual price after signal)
-  - signal_accuracy table (for cumulative accuracy tracking)
+  - signal_weight_accuracy table (for per-source weight tracking; PRIVATE to
+    this tracker — deliberately NOT the canonical ``signal_accuracy`` table)
 """
 
 from __future__ import annotations
@@ -58,7 +59,15 @@ class SignalPerformanceTracker:
         self._session = session
 
     async def ensure_tables(self) -> None:
-        """Create signal_performance and signal_accuracy tables if they don't exist."""
+        """Create this tracker's private tables if they don't exist.
+
+        ``signal_weight_accuracy`` is tracker-private and must NOT be confused
+        with the canonical ``signal_accuracy`` table (migration 0007 /
+        ``models.signal_accuracy``): the canonical table has no
+        ``period``/``weight``/``total_signals`` columns, so redefining it here
+        used to make ``CREATE TABLE IF NOT EXISTS`` silently no-op and every
+        weight-update query fail at runtime.
+        """
         if self._session is None:
             return
 
@@ -83,7 +92,7 @@ class SignalPerformanceTracker:
         """))
 
         await self._session.execute(text("""
-            CREATE TABLE IF NOT EXISTS signal_accuracy (
+            CREATE TABLE IF NOT EXISTS signal_weight_accuracy (
                 id SERIAL PRIMARY KEY,
                 source VARCHAR(64) NOT NULL,
                 period VARCHAR(16) NOT NULL,
@@ -239,12 +248,12 @@ class SignalPerformanceTracker:
         )
 
     async def _update_accuracy_summary(self) -> None:
-        """Update the signal_accuracy table with latest stats."""
+        """Update the tracker-private ``signal_weight_accuracy`` table with latest stats."""
         from sqlalchemy import text
 
         # Update 3-day accuracy per source
         await self._session.execute(text("""
-            INSERT INTO signal_accuracy (source, period, total_signals, correct_signals, avg_return, weight, updated_at)
+            INSERT INTO signal_weight_accuracy (source, period, total_signals, correct_signals, avg_return, weight, updated_at)
             SELECT source, '3d',
                    COUNT(*),
                    SUM(CASE WHEN was_correct_3d THEN 1 ELSE 0 END),
@@ -267,7 +276,7 @@ class SignalPerformanceTracker:
 
         # Update 10-day accuracy per source
         await self._session.execute(text("""
-            INSERT INTO signal_accuracy (source, period, total_signals, correct_signals, avg_return, weight, updated_at)
+            INSERT INTO signal_weight_accuracy (source, period, total_signals, correct_signals, avg_return, weight, updated_at)
             SELECT source, '10d',
                    COUNT(*),
                    SUM(CASE WHEN was_correct_10d THEN 1 ELSE 0 END),
@@ -299,7 +308,7 @@ class SignalPerformanceTracker:
 
         result = await self._session.execute(text("""
             SELECT source, total_signals, correct_signals, avg_return, weight
-            FROM signal_accuracy
+            FROM signal_weight_accuracy
             WHERE period = :period
             ORDER BY weight DESC
         """), {"period": period})

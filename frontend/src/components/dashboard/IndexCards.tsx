@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import { DeltaBadge, Flash, Sparkline } from "./primitives";
 
 export default function IndexCards() {
-  const { data: INDICES, isLive, isError, isLoading } = useIndices();
+  const { data: INDICES, isLive, hasData, isFresh, isStale, isError, isLoading } = useIndices();
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -23,7 +23,7 @@ export default function IndexCards() {
           همه شاخص‌ها ←
         </Link>
       </div>
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         {INDICES.map((idx) => {
           const pos = idx.changePct > 0;

@@ -1,0 +1,8 @@
+FATAL locator.fill: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('input[placeholder="نام پلن"]:visible')[22m
+
+    at C:\Users\Iran\Desktop\temce\audit_out\_tmp\storage_wave4.js:200:62 {
+  log: [ `  - waiting for locator('input[placeholder="نام پلن"]:visible')` ],
+  name: 'TimeoutError'
+}

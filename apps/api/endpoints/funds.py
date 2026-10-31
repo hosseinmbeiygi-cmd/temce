@@ -1531,6 +1531,40 @@ async def get_fund_nav(
     }
 
 
+@router.get("/{symbol}/nav-split", summary="آخرین NAV صدور/ابطال (عمومی)")
+async def get_fund_nav_split(
+    symbol: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Latest issue/redemption NAV without the admin-only ``/manage`` route.
+
+    ``_load_nav_history`` collapses both values into one ``nav``; the §6 bubble
+    rule needs them separately, so this read-only endpoint exposes them.
+    """
+    try:
+        result = await session.execute(
+            select(NavRecordModel)
+            .where(NavRecordModel.symbol == symbol)
+            .order_by(NavRecordModel.date.desc())
+            .limit(1)
+        )
+        row = result.scalars().first()
+    except Exception as exc:
+        logger.debug("NAV split unavailable for %s: %s", symbol, exc)
+        row = None
+    if row is None:
+        return {"symbol": symbol, "found": False, "latest": None}
+    return {
+        "symbol": symbol,
+        "found": True,
+        "latest": {
+            "date": row.date,
+            "nav_issue": row.nav_issue,
+            "nav_redemption": row.nav_redemption,
+        },
+    }
+
+
 @router.get("/{symbol}", summary="جزئیات یک صندوق")
 async def get_fund(
     symbol: str,

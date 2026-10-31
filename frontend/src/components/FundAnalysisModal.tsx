@@ -223,12 +223,12 @@ export default function FundAnalysisModal({ fund, onClose }: FundAnalysisModalPr
             <ScoreRadar scores={analysis.scores} />
             <div className="flex-1 space-y-2">
               <ScoreBar label="امتیاز کل" score={analysis.scores.total} />
-              <ScoreBar label="مالی" score={analysis.scores.financial} />
-              <ScoreBar label="نقدشوندگی" score={analysis.scores.liquidity} />
-              <ScoreBar label="مدیریت" score={analysis.scores.management} />
-              <ScoreBar label="ریسک" score={analysis.scores.risk} />
-              <ScoreBar label="هزینه" score={analysis.scores.cost} />
-              <ScoreBar label="شفافیت" score={analysis.scores.transparency} />
+              <ScoreBar label="مالی" score={analysis.scores.financial ?? 0} />
+              <ScoreBar label="نقدشوندگی" score={analysis.scores.liquidity ?? 0} />
+              <ScoreBar label="مدیریت" score={analysis.scores.management ?? 0} />
+              <ScoreBar label="ریسک" score={analysis.scores.risk ?? 0} />
+              <ScoreBar label="هزینه" score={analysis.scores.cost ?? 0} />
+              <ScoreBar label="شفافیت" score={analysis.scores.transparency ?? 0} />
             </div>
           </div>
 

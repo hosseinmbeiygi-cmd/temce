@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import type { Fund } from "@/lib/fund-analysis";
 import {
@@ -241,12 +241,12 @@ export default function FundDetailDrawer({ fund, onClose }: FundDetailDrawerProp
           {/* 6-dimension scores */}
           <div className="glass-card p-4 space-y-2.5">
             <p className="text-xs font-bold text-ink mb-2">تحلیل ۶‌بعدی</p>
-            <ScoreBar label="مالی (بازدهی و عملکرد)" value={analysis.scores.financial} />
-            <ScoreBar label="نقدشوندگی (حجم و عمق بازار)" value={analysis.scores.liquidity} />
-            <ScoreBar label="مدیریت (تجربه و ثبات)" value={analysis.scores.management} />
-            <ScoreBar label="ریسک (نوسان و افت)" value={analysis.scores.risk} />
-            <ScoreBar label="هزینه (کارمزد و صرف)" value={analysis.scores.cost} />
-            <ScoreBar label="شفافیت (گزارش‌دهی)" value={analysis.scores.transparency} />
+            <ScoreBar label="مالی (بازدهی و عملکرد)" value={analysis.scores.financial ?? 0} />
+            <ScoreBar label="نقدشوندگی (حجم و عمق بازار)" value={analysis.scores.liquidity ?? 0} />
+            <ScoreBar label="مدیریت (تجربه و ثبات)" value={analysis.scores.management ?? 0} />
+            <ScoreBar label="ریسک (نوسان و افت)" value={analysis.scores.risk ?? 0} />
+            <ScoreBar label="هزینه (کارمزد و صرف)" value={analysis.scores.cost ?? 0} />
+            <ScoreBar label="شفافیت (گزارش‌دهی)" value={analysis.scores.transparency ?? 0} />
           </div>
 
           {/* Strengths */}

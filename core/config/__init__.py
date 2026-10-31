@@ -117,6 +117,19 @@ class Settings(BaseSettings):
         default=["http://localhost:3000"], alias="CORS_ORIGINS"
     )
 
+    # Proxy addresses (IPs or CIDRs) whose X-Forwarded-For is trusted for rate
+    # limiting and audit logging (audit SEC-06). Empty = trust nobody and use
+    # the socket peer address: a client-supplied header can then never mint a
+    # fresh rate-limit bucket. Production behind nginx must list the proxy.
+    trusted_proxies: Annotated[list[str], NoDecode] = Field(
+        default_factory=list, alias="TRUSTED_PROXIES"
+    )
+
+    # SEC-08: the very first registration may bootstrap the owner account as
+    # admin. Registration is serialized (PostgreSQL advisory lock), and this
+    # dial lets an operator provision the admin out-of-band instead.
+    bootstrap_first_admin: bool = Field(default=True, alias="BOOTSTRAP_FIRST_ADMIN")
+
     secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
     # Explicit, auditable auth bypass (API-008). Never inferred from ENV.
     auth_disabled: bool = Field(default=False, alias="AUTH_DISABLED")
@@ -379,6 +392,11 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def validate_cors_origins(cls, value: Any) -> Any:
+        return _parse_origin_list(value)
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def validate_trusted_proxies(cls, value: Any) -> Any:
         return _parse_origin_list(value)
 
     @model_validator(mode="after")

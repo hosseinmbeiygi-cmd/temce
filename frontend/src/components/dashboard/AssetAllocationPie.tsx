@@ -9,7 +9,7 @@ import { ChartTooltip, SectionHeader } from "./primitives";
 const COLORS = ["#33486b", "#718db0", "#d97706", "#a3b7d2", "#64748b"];
 
 export default function AssetAllocationPie() {
-  const { data: slices, isLive, isError, isLoading } = useAssetAllocation();
+  const { data: slices, isLive, hasData, isFresh, isStale, isError, isLoading } = useAssetAllocation();
   const total = slices.reduce((s, a) => s + a.valueB, 0);
 
   return (
@@ -19,8 +19,8 @@ export default function AssetAllocationPie() {
         title="انواع دارایی"
         subtitle="سهم هر کلاس از ارزش بازار — طبقه‌بندی تقریبی"
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
-      {!isLive ? (
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
+      {!hasData ? (
         <div className="mt-2 flex h-44 items-center justify-center gap-2 text-[11px] text-ink-3">
           <ChartNoAxesColumn className="size-4" aria-hidden />
           داده زنده‌ای برای ترکیب دارایی در دسترس نیست.

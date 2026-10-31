@@ -320,3 +320,78 @@ async def test_consumer_requeues_then_dead_letters():
     dead = _decode(client._lists["job:dead"][0])
     assert dead["attempt"] == 2
     assert "boom" in dead.get("error", "")
+
+
+# ── real dispatcher through the retry chain (regression for J1) ──────────
+
+
+class _AlwaysFailJob:
+    """One registry name whose run() always reports a transient failure."""
+
+    def __init__(self, name: str = "") -> None:
+        self.name = name or "AlwaysFailJob"
+        self.runs = 0
+
+    async def run(self, context):  # noqa: ANN001, ANN201
+        from jobs.job_result import JobResult
+
+        self.runs += 1
+        return JobResult.failure("transient-db", job_name=self.name)
+
+
+@pytest.mark.asyncio
+async def test_real_dispatcher_retries_same_job_id_not_treated_as_duplicate():
+    """The queue republishes the *same* payload (same ``job_id``) on retry.
+
+    Regression for the dispatcher deduping on ``job_name:job_id`` and thus
+    swallowing every retry (and the dead-letter path) as a benign
+    "Duplicate job". Uses the real ``JobDispatcher`` + ``JobDeduplicator``
+    because a ``FakeDispatcher`` cannot reproduce the defect.
+    """
+    from jobs.job_dispatcher import JobDispatcher
+    from jobs.job_registry import JobRegistry
+
+    class _Registry(JobRegistry):
+        def __init__(self) -> None:
+            super().__init__()
+            self.created: list[_AlwaysFailJob] = []
+
+        def get(self, name: str):  # noqa: ANN001
+            return _AlwaysFailJob if name == "AlwaysFailJob" else None
+
+        def create(self, name: str):  # noqa: ANN001
+            job = _AlwaysFailJob(name)
+            self.created.append(job)
+            return job
+
+    registry = _Registry()
+    real_dispatcher = JobDispatcher(registry=registry)
+
+    client = FakeRedis()
+    consumer = JobQueueConsumer(
+        redis_client=client,
+        queue_name="job:queue",
+        token="t",
+        dispatcher=real_dispatcher,
+        max_retries=2,
+    )
+
+    payload = {
+        "type": "job",
+        "job_name": "AlwaysFailJob",
+        "params": {},
+        "job_id": "job-fixed-1",
+        "token": "t",
+        "attempt": 1,
+    }
+    await consumer._handle_message(json.dumps(payload))
+    assert consumer.failed == 1
+    requeued = _decode(client._lists["job:queue"].pop())
+    assert requeued["job_id"] == "job-fixed-1"  # same occurrence id on retry
+    assert requeued["attempt"] == 2
+
+    # Attempt 2 reuses the SAME job_id → must still execute and dead-letter.
+    await consumer._handle_message(json.dumps(requeued))
+    assert consumer.dead_lettered == 1
+    assert [j.runs for j in registry.created] == [1, 1]
+    assert await client.llen("job:dead") == 1

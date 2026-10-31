@@ -13,10 +13,14 @@ Gregorian ``date`` used by the maths **and** ``date_shamsi`` for display.
 
 Two safety properties:
 
-* **Fallback, never a hard failure.** If the view is missing (migration not
-  applied yet) or ``INDICATOR_ADJUSTED_PRICES=false``, the reader falls back
-  to the raw ``daily_history`` columns. Indicator output is then identical to
-  the pre-0108 behaviour (``date_shamsi`` is ``None`` in that mode).
+* **The corrected view is mandatory (audit DB-04).** The raw fallback used to
+  read ``daily_history.trade_date``, which is the **fetch** date: thousands of
+  rows share one date and only ~17 distinct dates existed for 5.45M rows, so
+  an "RSI(14)" over that axis was not a daily series at all. When the dial is
+  on (the default) and the view is missing, the reader raises
+  :class:`AdjustedPriceSourceUnavailable` instead of silently returning a
+  wrong series; callers degrade to "no indicators" (explicitly) and log.
+  ``adjusted=False`` remains the deliberate raw mode for parity/backtests.
 * **Cheap.** The view is not materialised and the query orders by
   ``trade_date_shamsi``, which is the leading edge of
   ``idx_hist_symbol_date`` — so the planner stops the index scan after
@@ -46,6 +50,16 @@ logger = get_logger(__name__)
 
 ADJUSTED_VIEW = "vw_daily_history_adjusted"
 RAW_SOURCE = "daily_history"
+
+
+class AdjustedPriceSourceUnavailable(RuntimeError):
+    """The corrected price view is missing; indicators must not guess.
+
+    Raw ``daily_history.trade_date`` is the fetch date, not the trading day
+    (audit DB-04), so falling back to it produces indicators over hundreds of
+    duplicate "days". Failing here is the honest option; callers turn it into
+    an explicit "no indicators" result.
+    """
 
 # Process-level cache of the view-existence probe (one catalog lookup per
 # process instead of one per symbol) — mirrors the restart-to-flip behaviour
@@ -135,13 +149,14 @@ async def adjusted_view_available(session: AsyncSession) -> bool:
                 await session.execute(text(f"SELECT to_regclass('public.{ADJUSTED_VIEW}')"))
             ).scalar()
             _view_available = found is not None
-        except Exception as exc:  # noqa: BLE001 — never block indicator reads
-            logger.warning("adjusted-price view probe failed (%s); using raw prices", exc)
+        except Exception as exc:  # noqa: BLE001 — probe failure is "not available"
+            logger.warning("adjusted-price view probe failed (%s)", exc)
             return False
         if not _view_available:
-            logger.warning(
-                "%s not found — indicators fall back to RAW prices until "
-                "migration 0108 is applied and the process restarts",
+            logger.error(
+                "%s not found — indicators cannot be computed on the raw "
+                "daily_history axis (its trade_date is the FETCH date, audit "
+                "DB-04). Apply migrations through 0109 and restart.",
                 ADJUSTED_VIEW,
             )
     return _view_available
@@ -154,10 +169,22 @@ def reset_adjusted_source_cache() -> None:
 
 
 async def resolve_price_source(session: AsyncSession) -> tuple[str, bool]:
-    """Return ``(source_table_or_view, adjusted)`` for the indicator read path."""
-    if adjustment_enabled() and await adjusted_view_available(session):
+    """Return ``(source_table_or_view, adjusted)`` for the indicator read path.
+
+    Raises :class:`AdjustedPriceSourceUnavailable` when the adjusted view is
+    missing. The raw table is only returned when the operator explicitly turns
+    the dial off (``INDICATOR_ADJUSTED_PRICES=false``) or a caller passes
+    ``adjusted=False`` — never as a silent default.
+    """
+    if not adjustment_enabled():
+        return RAW_SOURCE, False
+    if await adjusted_view_available(session):
         return ADJUSTED_VIEW, True
-    return RAW_SOURCE, False
+    raise AdjustedPriceSourceUnavailable(
+        f"{ADJUSTED_VIEW} is missing (migrations < 0108?). Indicators must not "
+        "run on raw daily_history: its trade_date is the fetch date, so the "
+        "'daily' series has thousands of rows per calendar day."
+    )
 
 
 async def load_daily_candles(
@@ -245,6 +272,7 @@ def build_range_query(source: str, adjusted: bool) -> str:
 __all__ = [
     "ADJUSTED_VIEW",
     "RAW_SOURCE",
+    "AdjustedPriceSourceUnavailable",
     "adjusted_view_available",
     "adjustment_enabled",
     "build_candle_query",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import re
 
-with open('/c/Users/Iran/Desktop/temce/services/market_service.py', 'r', encoding='utf-8') as f:
+with open('/c/Users/Iran/Desktop/temce/services/market_service.py', encoding='utf-8') as f:
     content = f.read()
 
 # Find and replace the sector line - look for the pattern sector = s.get("sector_name") or s.get("industry",

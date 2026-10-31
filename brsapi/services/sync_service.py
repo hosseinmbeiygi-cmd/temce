@@ -70,7 +70,7 @@ from brsapi.repositories import (
     RawPayloadRepository,
     SyncLogRepository,
 )
-from core.time import now_tehran
+from core.time import now_tehran, today_jalali_tehran
 
 logger = getLogger(__name__)
 
@@ -279,6 +279,7 @@ _FETCH_OUTCOME_BY_CODE: dict[str, SyncOutcome] = {
     "quota_exhausted": "provider_blocked",
     "budget_soft_limit": "provider_blocked",
     "timeout": "timeout",
+    "circuit_open": "provider_blocked",
 }
 
 
@@ -614,9 +615,9 @@ class BrsApiSyncService:
             # the in-process cache instead of waiting for the 300s TTL.
             if model_class is SymbolSnapshotModel:
                 try:
-                    from apps.api.endpoints.market import invalidate_agg_cache
+                    from core.agg_invalidation import new_agg_token, publish_agg_token
 
-                    invalidate_agg_cache()
+                    await publish_agg_token(new_agg_token())
                 except Exception:  # noqa: BLE001 — cache invalidation must not fail a sync
                     logger.exception("Market aggregate cache invalidation failed")
 
@@ -743,10 +744,9 @@ class BrsApiSyncService:
             reports yesterday's NAV), the record is dropped instead of
             creating a duplicate row.
         """
-        import jdatetime
         from sqlalchemy import select
 
-        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        today_jalali = today_jalali_tehran()
         try:
             has_today = (
                 await session.execute(
@@ -834,7 +834,6 @@ class BrsApiSyncService:
             max_symbols: Cap the number of symbols processed in this run.
                 ``None`` or a non-positive value means "no limit".
         """
-        import jdatetime
         from sqlalchemy import select
 
         if symbols is None:
@@ -881,7 +880,7 @@ class BrsApiSyncService:
         # Fast path: drop symbols that already hold today's NAV in one query.
         # sync_nav would skip them anyway, but doing it here avoids the 11s
         # sleep per skipped symbol — a second daily run then finishes in ~1s.
-        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        today_jalali = today_jalali_tehran()
         try:
             done_rows = await session.execute(
                 select(NavRecordModel.symbol)
@@ -2037,9 +2036,9 @@ class BrsApiSyncService:
         # refetches from the just-synced snapshot cycle instead of serving a
         # stale cache hit (_AGG_CACHE, 300s TTL, apps/api/endpoints/market.py).
         try:
-            from apps.api.endpoints.market import invalidate_agg_cache
+            from core.agg_invalidation import new_agg_token, publish_agg_token
 
-            invalidate_agg_cache()
+            await publish_agg_token(new_agg_token())
         except Exception:  # noqa: BLE001 — cache invalidation must not fail a sync
             logger.exception("Market aggregate cache invalidation failed")
         return reports

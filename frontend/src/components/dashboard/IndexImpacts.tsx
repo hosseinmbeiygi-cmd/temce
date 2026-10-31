@@ -46,7 +46,7 @@ function ImpactList({ rows, positive }: { rows: ImpactRow[]; positive: boolean }
 }
 
 export default function IndexImpacts() {
-  const { data, isLive, isError, isLoading } = useIndexImpacts();
+  const { data, isLive, hasData, isFresh, isStale, isError, isLoading } = useIndexImpacts();
   return (
     <section data-widget="IndexImpacts" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
@@ -54,7 +54,7 @@ export default function IndexImpacts() {
         title="تأثیر بر شاخص کل"
         subtitle="سهم تقریبی هر نماد از تغییر شاخص — بر پایه جریان داده زنده"
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-up">

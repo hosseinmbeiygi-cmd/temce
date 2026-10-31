@@ -103,7 +103,7 @@ export function loadSwSource(
     registration: { showNotification: () => Promise.resolve() },
   };
   const names = Object.keys(env);
-  // eslint-disable-next-line no-new-func -- تست SW یعنی اجرای همین اسکریپت در sandbox
+   
   const run = new Function("self", ...names, source) as (...args: unknown[]) => void;
   run(selfObj, ...names.map((n) => env[n]));
   return {

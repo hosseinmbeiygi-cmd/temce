@@ -222,6 +222,7 @@ class HistoryFetchService:
                     continue
 
                 inserted = 0
+                existing = 0
                 invalid = 0
                 failed = 0
                 last_error: str | None = None
@@ -255,22 +256,25 @@ class HistoryFetchService:
                             # Audit DB-07: a failed row must not abort the whole
                             # batch on PostgreSQL — wrap each INSERT in its own
                             # SAVEPOINT so the transaction stays usable.
+                            #
+                            # History is append-only: a re-fetch must not
+                            # rewrite a bar that is already stored (audit
+                            # stage 8). A provider revision needs an explicit
+                            # maintenance action, not a background backfill.
                             async with self._session.begin_nested():
-                                await self._session.execute(sql_text("""
+                                result = await self._session.execute(sql_text("""
                                 INSERT INTO brsapi_crypto_daily_history
                                     (symbol, date, price_open, price_high, price_low, price_close, volume, fetched_at)
                                 VALUES (:sym, :date, :o, :h, :low, :c, :v, :fetched_at)
-                                ON CONFLICT (symbol, date) DO UPDATE SET
-                                    price_open = EXCLUDED.price_open,
-                                    price_high = EXCLUDED.price_high,
-                                    price_low = EXCLUDED.price_low,
-                                    price_close = EXCLUDED.price_close,
-                                    volume = EXCLUDED.volume
+                                ON CONFLICT (symbol, date) DO NOTHING
                             """), {
                                 "sym": sym, "date": trading_date, "o": o, "h": h,
                                 "low": low, "c": c, "v": v, "fetched_at": fetched_at,
                             })
-                            inserted += 1
+                            if result.rowcount:
+                                inserted += 1
+                            else:
+                                existing += 1
                         except Exception as exc:  # noqa: BLE001 — count, never hide
                             failed += 1
                             last_error = f"{type(exc).__name__}: {exc}"
@@ -290,8 +294,8 @@ class HistoryFetchService:
                     duration_ms=dur,
                 ))
                 logger.info(
-                    "Crypto %s: %d written, %d quarantined, %d failed (%.0fms)",
-                    sym, inserted, invalid, failed, dur,
+                    "Crypto %s: %d written, %d already stored, %d quarantined, %d failed (%.0fms)",
+                    sym, inserted, existing, invalid, failed, dur,
                 )
 
             except Exception as e:
@@ -334,6 +338,7 @@ class HistoryFetchService:
 
                 table = "brsapi_gold_coin_history" if sym in GOLD_SYMBOLS else "brsapi_gold_currency_pro_daily_history"
                 inserted = 0
+                existing = 0
                 invalid = 0
                 failed = 0
                 last_error: str | None = None
@@ -366,21 +371,22 @@ class HistoryFetchService:
                             continue
                         try:
                             # Audit DB-07: per-row SAVEPOINT (see crypto loop).
+                            # Append-only history (stage 8): an existing bar is
+                            # kept as stored; re-fetches never rewrite it.
                             async with self._session.begin_nested():
-                                await self._session.execute(sql_text(f"""
+                                result = await self._session.execute(sql_text(f"""
                                 INSERT INTO {table}
                                     (symbol, date, price_open, price_high, price_low, price_close, fetched_at)
                                 VALUES (:sym, :date, :o, :h, :low, :c, :fetched_at)
-                                ON CONFLICT (symbol, date) DO UPDATE SET
-                                    price_open = EXCLUDED.price_open,
-                                    price_high = EXCLUDED.price_high,
-                                    price_low = EXCLUDED.price_low,
-                                    price_close = EXCLUDED.price_close
+                                ON CONFLICT (symbol, date) DO NOTHING
                             """), {
                                 "sym": sym, "date": trading_date, "o": o, "h": h,
                                 "low": low, "c": c, "fetched_at": fetched_at,
                             })
-                            inserted += 1
+                            if result.rowcount:
+                                inserted += 1
+                            else:
+                                existing += 1
                         except Exception as exc:  # noqa: BLE001 — count, never hide
                             failed += 1
                             last_error = f"{type(exc).__name__}: {exc}"
@@ -400,8 +406,8 @@ class HistoryFetchService:
                     duration_ms=dur,
                 ))
                 logger.info(
-                    "Gold/Currency %s → %s: %d written, %d quarantined, %d failed (%.0fms)",
-                    sym, table, inserted, invalid, failed, dur,
+                    "Gold/Currency %s → %s: %d written, %d already stored, %d quarantined, %d failed (%.0fms)",
+                    sym, table, inserted, existing, invalid, failed, dur,
                 )
 
             except Exception as e:

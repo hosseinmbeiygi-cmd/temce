@@ -7,6 +7,12 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _first_not_none(data: dict[str, Any], primary: str, fallback: str) -> Any:
+    """Return *primary* unless it is missing/None; 0 is a valid value."""
+    value = data.get(primary)
+    return value if value is not None else data.get(fallback)
+
+
 class StorageLayer:
     def __init__(self, db: Any) -> None:
         self._db = db
@@ -82,10 +88,10 @@ class StorageLayer:
             """,
             instrument_id,
             data.get("trade_date"),
-            data.get("first_price") or data.get("open"),
-            data.get("high_price") or data.get("high"),
-            data.get("low_price") or data.get("low"),
-            data.get("close_price") or data.get("close"),
+            _first_not_none(data, "first_price", "open"),
+            _first_not_none(data, "high_price", "high"),
+            _first_not_none(data, "low_price", "low"),
+            _first_not_none(data, "close_price", "close"),
             data.get("volume", 0),
             data.get("value"),
             data.get("trade_count", 0),

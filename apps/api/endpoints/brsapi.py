@@ -59,6 +59,18 @@ async def brsapi_health(
 # ── Commodities ────────────────────────────────────────────────────
 
 
+def _latest_fetched_at(rows: list[dict[str, Any]] | None) -> str | None:
+    latest: str | None = None
+    for row in rows or []:
+        value = row.get("fetched_at")
+        if value is None:
+            continue
+        text = value.isoformat() if hasattr(value, "isoformat") else str(value)
+        if latest is None or text > latest:
+            latest = text
+    return latest
+
+
 @router.get(
     "/commodities",
     summary="Global commodity prices",
@@ -79,7 +91,9 @@ async def get_commodity_prices(
         data = await service.get_commodity_prices(
             category=category, limit=limit, latest_only=latest_only
         )
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True, data=data, data_as_of=_latest_fetched_at(data)
+        )
     except Exception as exc:
         logger.exception("Failed to fetch commodity prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
@@ -121,7 +135,9 @@ async def get_crypto_prices(
         sort_by = "rank"
     try:
         data = await service.get_crypto_prices(limit=limit, sort_by=sort_by)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True, data=data, data_as_of=_latest_fetched_at(data)
+        )
     except Exception as exc:
         logger.exception("Failed to fetch crypto prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
@@ -158,7 +174,9 @@ async def get_gold_coin_prices(
     """Return latest gold & coin prices."""
     try:
         data = await service.get_gold_coin_prices()
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True, data=data, data_as_of=_latest_fetched_at(data)
+        )
     except Exception as exc:
         logger.exception("Failed to fetch gold/coin prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
@@ -182,7 +200,9 @@ async def get_currency_prices(
     """Return latest currency/forex prices."""
     try:
         data = await service.get_currency_prices()
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True, data=data, data_as_of=_latest_fetched_at(data)
+        )
     except Exception as exc:
         logger.exception("Failed to fetch currency prices")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": _safe_error_message(exc)})
@@ -1171,6 +1191,7 @@ async def sync_section(
                     "endpoint": report.endpoint,
                     "section_id": section_id,
                     "success": report.success,
+                    "outcome": report.outcome,
                     "items_count": report.items_count,
                     "duration_ms": report.duration_ms,
                     "skipped": report.skipped,
@@ -1196,6 +1217,7 @@ async def sync_section(
                     "endpoint": report.endpoint,
                     "section_id": section_id,
                     "success": report.success,
+                    "outcome": report.outcome,
                     "items_count": report.items_count,
                     "duration_ms": report.duration_ms,
                     "skipped": report.skipped,
@@ -1248,6 +1270,7 @@ async def sync_section(
                 "endpoint": report.endpoint,
                 "section_id": section_id,
                 "success": report.success,
+                "outcome": report.outcome,
                 "items_count": report.items_count,
                 "duration_ms": report.duration_ms,
                 "skipped": report.skipped,
@@ -2781,6 +2804,7 @@ async def sync_history(
                 "endpoint": r.endpoint,
                 "category": r.category,
                 "status": r.status,
+                "outcome": r.outcome,
                 "items_count": r.items_count,
                 "duration_ms": r.duration_ms,
                 "completed_at": r.completed_at.isoformat() if r.completed_at else None,

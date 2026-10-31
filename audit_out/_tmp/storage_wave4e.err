@@ -1,0 +1,29 @@
+ERROR:  column "nan" does not exist
+LINE 1: ...essage, read_at, user_id from gold_alert_events where id=NaN
+                                                                    ^
+FATAL Error: Command failed: docker exec tse_timescaledb psql -U quant_dev -d tse_quant_verify -At -F | -c select id, rule_id, rule_name, message, read_at, user_id from gold_alert_events where id=NaN
+ERROR:  column "nan" does not exist
+LINE 1: ...essage, read_at, user_id from gold_alert_events where id=NaN
+                                                                    ^
+
+    at genericNodeError (node:internal/errors:985:15)
+    at wrappedFn (node:internal/errors:539:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at db (C:\Users\Iran\Desktop\temce\audit_out\_tmp\storage_wave4.js:23:10)
+    at C:\Users\Iran\Desktop\temce\audit_out\_tmp\storage_wave4.js:332:25 {
+  status: 1,
+  signal: null,
+  output: [
+    null,
+    '',
+    'ERROR:  column "nan" does not exist\n' +
+      'LINE 1: ...essage, read_at, user_id from gold_alert_events where id=NaN\n' +
+      '                                                                    ^\n'
+  ],
+  pid: 19752,
+  stdout: '',
+  stderr: 'ERROR:  column "nan" does not exist\n' +
+    'LINE 1: ...essage, read_at, user_id from gold_alert_events where id=NaN\n' +
+    '                                                                    ^\n'
+}

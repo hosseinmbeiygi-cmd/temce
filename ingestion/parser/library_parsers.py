@@ -7,8 +7,16 @@ from typing import Any
 from core.logging import get_logger
 
 from . import ParsedEvent, Parser
+from .errors import ParseError
 
 logger = get_logger(__name__)
+
+# Keys a well-formed library envelope carries. A JSON object with none of them
+# did not come from the adapter we expected, so it is a parse failure rather
+# than a valid empty response.
+_ENVELOPE_KEYS = frozenset(
+    {"data_type", "records", "data", "stocks", "info", "stats", "symbol", "tsetmc_code"}
+)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -91,11 +99,38 @@ class _BaseLibParser(Parser):
         return source == self._source_name
 
     async def parse(self, payload: bytes) -> list[ParsedEvent]:
+        """Parse one raw payload into events.
+
+        Raises :class:`ParseError` when the payload cannot be understood. A
+        valid response that simply carries no records still returns ``[]``.
+        """
+        body = payload.strip()
+        if not body:
+            raise ParseError("invalid_json", "empty payload", source=self._source_name)
+        if body.startswith(b"<"):
+            raise ParseError(
+                "html_response",
+                "response is HTML, not JSON",
+                source=self._source_name,
+            )
         try:
-            data = json.loads(payload)
-        except Exception:
-            logger.exception("Failed to parse %s payload", self._source_name)
-            return []
+            data = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ParseError(
+                "invalid_json", f"invalid JSON: {exc}", source=self._source_name
+            ) from exc
+        if not isinstance(data, dict):
+            raise ParseError(
+                "unexpected_shape",
+                f"expected a JSON object, got {type(data).__name__}",
+                source=self._source_name,
+            )
+        if data and not _ENVELOPE_KEYS.intersection(data):
+            raise ParseError(
+                "missing_required_fields",
+                f"no recognised envelope field in {sorted(data)[:5]}",
+                source=self._source_name,
+            )
         return self._dispatch(data)
 
     def _dispatch(self, data: dict[str, Any]) -> list[ParsedEvent]:

@@ -65,14 +65,23 @@ class HoldingDeletedError(RuntimeError):
     """holding با این id soft-delete شده است."""
 
 
-async def get_active_holding(session: AsyncSession, holding_id: int) -> GoldHoldingModel:
+async def get_active_holding(
+    session: AsyncSession,
+    holding_id: int,
+    *,
+    user_id: str | None = None,
+) -> GoldHoldingModel:
     """خواندن holding با id و رد دارایی حذف‌نرم‌شده.
 
     ``deleted_at`` مجموعه یعنی دارایی حذف شده است، حتی اگر ردیف و معامله‌هایش
-    برای گزارش مالیاتی باقی مانده باشند.
+    برای گزارش مالیاتی باقی مانده باشند. ``user_id`` مانع دسترسی به دارایی
+    کاربر دیگر می‌شود (None = admin/legacy scope).
     """
     holding = await session.get(GoldHoldingModel, holding_id)
     if holding is None:
+        raise HoldingNotFoundError(f"holding {holding_id} not found")
+    if user_id is not None and getattr(holding, "user_id", None) != user_id:
+        # Do not reveal another user's row: same 404 as a missing holding.
         raise HoldingNotFoundError(f"holding {holding_id} not found")
     if holding.deleted_at is not None:
         raise HoldingDeletedError(f"holding {holding_id} is soft-deleted")
@@ -321,15 +330,15 @@ def trades_to_csv(trades: Iterable[object]) -> str:
     return buf.getvalue()
 
 
-async def build_tax_summary(session: AsyncSession) -> dict:
-    """خلاصهٔ مالیاتی FIFO بر اساس معاملات ثبت‌شده."""
-    holdings, trades = await load_holdings_and_trades(session)
+async def build_tax_summary(session: AsyncSession, *, user_id: str | None = None) -> dict:
+    """خلاصهٔ مالیاتی FIFO بر اساس معاملات ثبت‌شده (محدود به مالک)."""
+    holdings, trades = await load_holdings_and_trades(session, user_id=user_id)
     return fifo_realized(trades)
 
 
-async def build_trades_csv(session: AsyncSession) -> str:
-    """CSV معاملات ثبت‌شده."""
-    _, trades = await load_holdings_and_trades(session)
+async def build_trades_csv(session: AsyncSession, *, user_id: str | None = None) -> str:
+    """CSV معاملات ثبت‌شده (محدود به مالک)."""
+    _, trades = await load_holdings_and_trades(session, user_id=user_id)
     return trades_to_csv(trades)
 
 
@@ -340,24 +349,29 @@ def _live_prices_from_snapshot(snap: dict | None) -> dict[str, float]:
     return get_current_prices(snap)
 
 
-async def load_holdings_and_trades(session: AsyncSession) -> tuple[list, list]:
+async def load_holdings_and_trades(
+    session: AsyncSession,
+    *,
+    user_id: str | None = None,
+) -> tuple[list, list]:
     """خواندن holdings (حذف‌نشده) و معاملات برای ساخت جریان‌های نقدی.
 
     دارایی‌های soft-delete شده (deleted_at null نیست) از نمای پورتفوی خارج می‌شوند،
-    اما معامله‌های آن‌ها برای گزارش مالیاتی باقی می‌مانند.
+    اما معامله‌های آن‌ها برای گزارش مالیاتی باقی می‌مانند. ``user_id=None`` یعنی
+    بدون فیلتر (admin)؛ کاربر عادی فقط ردیف‌های دارای مالکیت خودش را می‌بیند و
+    ردیف‌های legacy با user_id NULL برای او پنهان می‌مانند.
     """
-    holdings = (
-        await session.execute(
-            select(GoldHoldingModel)
-            .where(GoldHoldingModel.deleted_at.is_(None))
-            .order_by(GoldHoldingModel.bought_at)
-        )
-    ).scalars().all()
-    trades = (
-        (await session.execute(select(GoldTradeModel).order_by(GoldTradeModel.traded_at)))
-        .scalars()
-        .all()
+    holdings_stmt = (
+        select(GoldHoldingModel)
+        .where(GoldHoldingModel.deleted_at.is_(None))
+        .order_by(GoldHoldingModel.bought_at)
     )
+    trades_stmt = select(GoldTradeModel).order_by(GoldTradeModel.traded_at)
+    if user_id is not None:
+        holdings_stmt = holdings_stmt.where(GoldHoldingModel.user_id == user_id)
+        trades_stmt = trades_stmt.where(GoldTradeModel.user_id == user_id)
+    holdings = (await session.execute(holdings_stmt)).scalars().all()
+    trades = (await session.execute(trades_stmt)).scalars().all()
     return list(holdings), list(trades)
 
 
@@ -405,12 +419,13 @@ async def build_portfolio_returns(
     cpi: Mapping[date, float] | None = None,
     cpi_basis: str | None = None,
     usd_basis: str | None = None,
+    user_id: str | None = None,
 ) -> PortfolioReturns:
     """بازده پورتفوی از holdings/trades + قیمت‌های snapshot (+ سری FX/CPI اختیاری)."""
-    holdings, trades = await load_holdings_and_trades(session)
+    holdings, trades = await load_holdings_and_trades(session, user_id=user_id)
     flows = build_cash_flows(holdings=holdings, trades=trades)
     prices = _live_prices_from_snapshot(snapshot)
-    summary = await get_holdings_grouped(session, prices)
+    summary = await get_holdings_grouped(session, prices, user_id=user_id)
 
     if fx is None:
         loaded = await _load_fx_series(session)
@@ -432,13 +447,17 @@ async def build_portfolio_returns(
 async def get_holdings_grouped(
     session: AsyncSession,
     current_prices: dict[str, float],
+    *,
+    user_id: str | None = None,
 ) -> PortfolioSummary:
-    """Holdings گروه‌شده بر اساس symbol با P&L."""
+    """Holdings گروه‌شده بر اساس symbol با P&L (محدود به مالک)."""
     stmt = (
         select(GoldHoldingModel)
         .where(GoldHoldingModel.deleted_at.is_(None))
         .order_by(GoldHoldingModel.symbol, GoldHoldingModel.bought_at)
     )
+    if user_id is not None:
+        stmt = stmt.where(GoldHoldingModel.user_id == user_id)
     rows = (await session.execute(stmt)).scalars().all()
 
     by_symbol: dict[str, list] = {}
@@ -574,15 +593,26 @@ async def record_trade(
     holding_id: int | None = None,
     plan_id: int | None = None,
     note: str | None = None,
+    user_id: str | None = None,
+    allow_any_owner: bool = False,
 ) -> GoldTradeModel:
     fee_irt = amount_irt * (fee_pct / 100.0)
     pnl = 0.0
     # هر معامله‌ای که holding_id دارد باید به یک دارایی موجود و حذف‌نشده اشاره کند؛
     # قبلاً id نامعتبر/حذف‌شده بی‌صدا با pnl صفر ثبت می‌شد.
-    holding = await get_active_holding(session, holding_id) if holding_id else None
+    holding = (
+        await get_active_holding(
+            session,
+            holding_id,
+            user_id=None if allow_any_owner else user_id,
+        )
+        if holding_id
+        else None
+    )
     if action == "sell" and holding is not None:
         pnl = (price - holding.buy_price) * quantity
     trade = GoldTradeModel(
+        user_id=user_id,
         symbol=symbol,
         action=action,
         quantity=quantity,

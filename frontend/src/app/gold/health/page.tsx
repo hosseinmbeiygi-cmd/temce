@@ -52,22 +52,30 @@ function SourceRow({ source }: { source: FreshnessSource }) {
 }
 
 export default function GoldHealthPage() {
-  const { data: freshness, isLoading } = useQuery({
+  const { data: freshness, isLoading, isError: freshnessError } = useQuery({
     queryKey: ["gold", "freshness"],
     queryFn: getFreshness,
     refetchInterval: 60_000,
   });
 
-  const { data: health } = useQuery({
+  const { data: health, isError: healthError } = useQuery({
     queryKey: ["gold", "health"],
     queryFn: getHealth,
     refetchInterval: 60_000,
   });
 
-  const overall = freshness ? STATUS_STYLE[freshness.overall] : STATUS_STYLE.empty;
+  const overall = freshness
+    ? STATUS_STYLE[freshness.overall]
+    : { dot: "bg-zinc-500", text: "text-zinc-300", label: "نامشخص" };
 
   return (
     <div className="space-y-6" dir="rtl">
+      {(freshnessError || healthError) && (
+        <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          بخشی از گزارش سلامت دریافت نشد؛ «نامشخص» با «خراب» یکی نیست.
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {(
           [
@@ -87,7 +95,7 @@ export default function GoldHealthPage() {
               {label}
             </div>
             <div className={`text-2xl font-bold mt-1 ${STATUS_STYLE[key].text}`}>
-              {(freshness?.counts?.[key] ?? 0).toLocaleString("fa-IR")}
+              {freshness?.counts?.[key] == null ? "—" : freshness.counts[key].toLocaleString("fa-IR")}
             </div>
           </div>
         ))}
@@ -122,8 +130,8 @@ export default function GoldHealthPage() {
             </span>
           </span>
           <span>
-            DB: <span className={health?.db_ok ? "text-emerald-400" : "text-rose-400"}>{health?.db_ok ? "✓" : "✗"}</span> |
-            Redis: <span className={health?.redis_ok ? "text-emerald-400" : "text-amber-400"}>{health?.redis_ok ? "✓" : "✗"}</span>
+            DB: <span className={health?.db_ok == null ? "text-zinc-400" : health.db_ok ? "text-emerald-400" : "text-rose-400"}>{health?.db_ok == null ? "نامشخص" : health.db_ok ? "✓" : "✗"}</span> |
+            Redis: <span className={health?.redis_ok == null ? "text-zinc-400" : health.redis_ok ? "text-emerald-400" : "text-amber-400"}>{health?.redis_ok == null ? "نامشخص" : health.redis_ok ? "✓" : "✗"}</span>
           </span>
         </div>
       </div>
@@ -133,7 +141,7 @@ export default function GoldHealthPage() {
         style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}
       >
         <div className="px-4 py-3 text-sm font-semibold" style={{ color: "var(--gd-text)" }}>
-          منابع داده ({freshness?.sources.length ?? 0})
+          منابع داده ({freshness ? freshness.sources.length : "—"})
         </div>
         {isLoading ? (
           <div className="p-8 text-center text-sm" style={{ color: "var(--gd-text-2)" }}>

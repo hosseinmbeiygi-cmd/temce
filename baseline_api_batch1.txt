@@ -53,7 +53,7 @@
 2026-10-23 18:36:22 [info     ] GET /api/v1/gold/snapshot -> 200 (1.724s) [trace=71e148c46df9412b93bb5b57f547c637]
 2026-10-23 18:36:22 [debug    ] Response: 200 [trace=71e148c46df9412b93bb5b57f547c637]
 .{"event": "SENTRY_DSN is set but sentry-sdk is not installed \u2014 run: pip install 'sentry-sdk[fastapi]>=2.0'", "level": "warning", "logger": "core.observability_sentry", "timestamp": "2026-10-23T15:06:22.147629Z"}
-{"positional_args": ["redis://:rD8wN5sYh2JqX6vB@localhost:6379/0"], "event": "Connected to Redis at %s", "level": "info", "logger": "core.cache", "timestamp": "2026-10-23T15:06:24.879942Z"}
+{"positional_args": ["redis://***@localhost:6379/0"], "event": "Connected to Redis at %s", "level": "info", "logger": "core.cache", "timestamp": "2026-10-23T15:06:24.879942Z"}
 {"event": "BrsApi usage recorder started \u2014 flushing daily usage every 60s", "level": "info", "logger": "apps.api.app", "timestamp": "2026-10-23T15:06:24.887301Z"}
 {"event": "Accuracy outcome queue flusher started \u2014 flushing every 30s", "level": "info", "logger": "apps.api.app", "timestamp": "2026-10-23T15:06:24.892676Z"}
 {"positional_args": [4000, 1000], "event": "Rate limiter initialized: daily=%d, 5min=%d", "level": "info", "logger": "apps.api.app", "timestamp": "2026-10-23T15:06:24.892880Z"}

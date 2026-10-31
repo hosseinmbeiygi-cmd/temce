@@ -14,9 +14,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, time
-from typing import Callable
 
 import jdatetime
 import numpy as np

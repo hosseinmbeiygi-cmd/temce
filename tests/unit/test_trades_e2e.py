@@ -503,17 +503,22 @@ async def test_brsapi_parser_handles_transaction_response():
 
 @pytest.mark.asyncio
 async def test_brsapi_parser_handles_empty_response():
-    """Verify parser handles empty/malformed responses gracefully."""
+    """A valid empty response stays empty; an unreadable one is an error."""
     from brsapi.parsers import TsetmcParser
+    from brsapi.parsers.errors import BrsApiParseError
 
-    # Empty data
+    # Empty mapping: the provider answered, with no rows
     assert TsetmcParser.parse_transactions({}) == []
 
-    # None data
-    assert TsetmcParser.parse_transactions(None) == []
-
-    # Missing transaction key
+    # Provider envelope carrying an empty data payload
     assert TsetmcParser.parse_transactions({"code_http": 200, "successful": True, "data": {}}) == []
+
+    # No payload / an envelope we do not recognise is a parse failure, not an
+    # empty success.
+    with pytest.raises(BrsApiParseError):
+        TsetmcParser.parse_transactions(None)
+    with pytest.raises(BrsApiParseError):
+        TsetmcParser.parse_transactions({"unexpected": []})
 
 
 # ═══════════════════════════════════════════════════════════════

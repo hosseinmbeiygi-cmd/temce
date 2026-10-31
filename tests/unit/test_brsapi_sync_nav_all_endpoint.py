@@ -128,6 +128,7 @@ async def test_response_serializes_sync_report_fields() -> None:
     assert set(data) == {
         "endpoint",
         "success",
+        "outcome",
         "items_count",
         "duration_ms",
         "error",

@@ -159,10 +159,37 @@ async def evaluate_rules(
 
     events: list[AlertEventModel] = []
     now = utc_now_naive()
+    # Per-owner portfolio metrics: a user's concentration/drawdown rule must not
+    # be evaluated against another user's book.
+    metrics_cache: dict[str | None, Mapping[str, float | None]] = {}
+    prices = {
+        **{sym: a.market_price for sym, a in snap.coins.items() if a.market_price},
+        **{sym: a.market_price for sym, a in snap.gold.items() if a.market_price},
+        **{f.symbol: f.market_price for f in snap.funds if f.market_price},
+    }
 
     for rule in rules:
         if rule.rule_type in PORTFOLIO_RULE_TYPES:
-            value = _get_portfolio_value(portfolio_metrics, rule.rule_type)
+            if rule.user_id:
+                if rule.user_id not in metrics_cache:
+                    try:
+                        from .portfolio_history import build_performance_report
+
+                        report = await build_performance_report(
+                            session,
+                            include_benchmarks=False,
+                            prices=prices,
+                            user_id=rule.user_id,
+                        )
+                        metrics_cache[rule.user_id] = report.risk_metrics()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "portfolio metrics unavailable for %s: %s", rule.user_id, exc
+                        )
+                        metrics_cache[rule.user_id] = {}
+                value = _get_portfolio_value(metrics_cache[rule.user_id], rule.rule_type)
+            else:
+                value = _get_portfolio_value(portfolio_metrics, rule.rule_type)
         else:
             value = _get_value(snap, rule.rule_type, rule.symbol)
         if value is None:
@@ -178,6 +205,7 @@ async def evaluate_rules(
 
         # ساخت رویداد
         event = AlertEventModel(
+            user_id=rule.user_id,
             rule_id=rule.id,
             rule_name=rule.name,
             symbol=rule.symbol,
@@ -272,14 +300,14 @@ DEFAULT_RULES: list[dict[str, Any]] = [
 ]
 
 
-async def seed_default_rules(session: AsyncSession) -> int:
-    """درج قوانین پیش‌فرض در صورت عدم وجود."""
-    stmt = select(AlertRuleModel).limit(1)
+async def seed_default_rules(session: AsyncSession, user_id: str | None = None) -> int:
+    """درج قوانین پیش‌فرض برای یک مالک (idempotent per owner)."""
+    stmt = select(AlertRuleModel).where(AlertRuleModel.user_id == user_id).limit(1)
     if (await session.execute(stmt)).first():
         return 0
 
     for r in DEFAULT_RULES:
-        session.add(AlertRuleModel(**r, enabled=True))
+        session.add(AlertRuleModel(**r, enabled=True, user_id=user_id))
     await session.commit()
     return len(DEFAULT_RULES)
 

@@ -177,10 +177,13 @@ class TestSourceResolution:
         assert await reader.resolve_price_source(session) == (reader.RAW_SOURCE, False)
         assert session.calls == 0
 
-    async def test_missing_view_falls_back_to_raw(self, monkeypatch):
+    async def test_missing_view_refuses_the_raw_fetch_date_axis(self, monkeypatch):
+        """DB-04: raw daily_history.trade_date is the FETCH date, not a daily
+        series; the indicator path must fail loudly instead of using it."""
         monkeypatch.setattr(settings, "indicator_adjusted_prices", True, raising=False)
         session = _RecordingSession(None)
-        assert await reader.resolve_price_source(session) == (reader.RAW_SOURCE, False)
+        with pytest.raises(reader.AdjustedPriceSourceUnavailable):
+            await reader.resolve_price_source(session)
         assert session.calls == 1
 
     async def test_present_view_selects_adjusted(self, monkeypatch):
@@ -199,12 +202,10 @@ class TestSourceResolution:
         await reader.resolve_price_source(session)
         assert session.calls == 2
 
-    async def test_probe_failure_degrades_to_raw(self, monkeypatch):
+    async def test_probe_failure_does_not_silently_use_raw(self, monkeypatch):
         monkeypatch.setattr(settings, "indicator_adjusted_prices", True, raising=False)
-        assert await reader.resolve_price_source(_RecordingSession(raises=True)) == (
-            reader.RAW_SOURCE,
-            False,
-        )
+        with pytest.raises(reader.AdjustedPriceSourceUnavailable):
+            await reader.resolve_price_source(_RecordingSession(raises=True))
 
     async def test_explicit_override_bypasses_the_dial(self):
         session = _RecordingSession(None)

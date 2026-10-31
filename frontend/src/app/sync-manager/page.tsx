@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
+import ParseErrorCodeBadge from "@/components/ParseErrorCodeBadge";
 import JobControlRow from "@/components/sync/JobControlRow";
 import { formatCron, formatTime, type SchedulerJobInfo } from "@/lib/job-format";
 import { apiGet, apiPost } from "@/lib/api";
@@ -38,6 +39,8 @@ interface SyncLogEntry {
   endpoint: string;
   category: string;
   status: string;
+  outcome?: string;
+  error_message?: string | null;
   items_count: number;
   duration_ms: number;
   completed_at: string | null;
@@ -913,9 +916,16 @@ export default function SyncManagerPage() {
               <div className="space-y-1 max-h-[300px] overflow-y-auto">
                 {recentEvents.map((ev, i) => (
                   <div key={i} className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-surface-800/20 transition-colors">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className="flex items-center gap-2.5 min-w-0"
+                      title={ev.status === "success" ? undefined : ev.error_message ?? undefined}
+                    >
                       <span className={`w-2 h-2 rounded-full shrink-0 ${ev.status === "success" ? "bg-accent-emerald" : "bg-accent-rose"}`} />
                       <span className="text-[10px] text-surface-400 font-mono truncate max-w-[180px]">{ev.endpoint}</span>
+                      {ev.status !== "success" && ev.outcome && ev.outcome !== "unknown" && (
+                        <span className="text-[9px] font-mono text-accent-rose/80">{ev.outcome}</span>
+                      )}
+                      {ev.status !== "success" && <ParseErrorCodeBadge message={ev.error_message} />}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 text-[9px]">
                       <span className="text-surface-600">{ev.items_count} آیتم</span>

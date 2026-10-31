@@ -7,7 +7,11 @@ from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
-from core.security.tokens import decode_access_token, is_token_revoked
+from core.security.tokens import (
+    decode_access_token,
+    is_token_revoked,
+    is_user_session_revoked,
+)
 
 logger = get_logger(__name__)
 
@@ -19,9 +23,18 @@ S = TypeVar("S")
 
 
 async def _reject_if_revoked(payload: dict) -> dict:
-    """Reject a decoded token if its jti is in the revocation blacklist."""
+    """Reject a decoded token if its jti is revoked or a password change ended it.
+
+    The second check (SEC-07) covers *all* sessions of the user: a password
+    change writes a cutoff, so every access token issued before it is rejected
+    even though only the current request's token was blacklisted by jti.
+    """
     if await is_token_revoked(payload.get("jti")):
         raise HTTPException(status_code=401, detail="Token has been revoked")
+    if await is_user_session_revoked(payload.get("sub"), payload.get("iat")):
+        raise HTTPException(
+            status_code=401, detail="Session ended by a password change — sign in again"
+        )
     return payload
 
 
@@ -281,6 +294,8 @@ async def get_optional_user(authorization: str = Header("")) -> dict | None:
         if payload.get("type") == "refresh":
             return None
         if await is_token_revoked(payload.get("jti")):
+            return None
+        if await is_user_session_revoked(payload.get("sub"), payload.get("iat")):
             return None
         return payload
     except Exception as e:

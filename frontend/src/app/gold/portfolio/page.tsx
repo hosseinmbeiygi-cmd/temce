@@ -297,12 +297,12 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <StatCard label="ارزش فعلی" value={fmt(portfolio.total_value)} unit="تومان" />
-        <StatCard label="هزینه" value={fmt(portfolio.total_cost)} unit="تومان" />
+        <StatCard label="ارزش فعلی" value={fmt(portfolio.total_value)} unit="ریال" />
+        <StatCard label="هزینه" value={fmt(portfolio.total_cost)} unit="ریال" />
         <StatCard
           label="P&L"
           value={signedFmt(portfolio.total_pnl)}
-          unit="تومان"
+          unit="ریال"
           sub={
             // C7: مخرج P&L کل فقط دارایی‌های قیمت‌دار است؛ null یعنی «نامعلوم».
             portfolio.priced_cost === null || portfolio.priced_cost === undefined
@@ -453,9 +453,9 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
                 />
               </label>
               <label className="block text-xs" style={{ color: "var(--gd-text-2)" }}>
-                قیمت فروش (تومان)
+                قیمت فروش (ریال)
                 <input
-                  aria-label="قیمت فروش (تومان)"
+                  aria-label="قیمت فروش (ریال)"
                   type="number"
                   value={sellPrice}
                   onChange={(event) => setSellPrice(parseFloat(event.target.value) || 0)}
@@ -637,16 +637,20 @@ function PerformancePanel() {
 function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
   const [symbol, setSymbol] = useState("IR_COIN_EMAMI");
   const [name, setName] = useState("سکه امامی");
-  const [vehicle, setVehicle] = useState("etf");
+  // A coin purchase must not be stored as an ETF (the old default was "etf").
+  const [vehicle, setVehicle] = useState("coin");
   const [quantity, setQuantity] = useState(1);
   const [buyPrice, setBuyPrice] = useState(0);
   const [amount, setAmount] = useState(0);
+  const [feePct, setFeePct] = useState(0);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
     if (quantity <= 0 || buyPrice <= 0) return;
     setSubmitting(true);
+    setError(null);
     try {
       await apiPost("/gold/portfolio/holdings", {
         symbol,
@@ -655,14 +659,17 @@ function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
         quantity,
         buy_price: buyPrice,
         buy_amount_irt: amount || quantity * buyPrice,
-        buy_fee_pct: 0,
+        buy_fee_pct: feePct,
         note: note || null,
       });
       onAdded();
       setQuantity(1);
       setBuyPrice(0);
       setAmount(0);
+      setFeePct(0);
       setNote("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ثبت خرید ناموفق بود.");
     } finally {
       setSubmitting(false);
     }
@@ -671,7 +678,18 @@ function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
   return (
     <div className="max-w-md rounded-xl p-4 space-y-3" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}>
       <h3 className="text-sm font-semibold" style={{ color: "var(--gd-text)" }}>ثبت خرید جدید</h3>
-      <input value={symbol} onChange={(e) => setSymbol(e.target.value)} placeholder="IR_COIN_EMAMI" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+      <p className="text-[11px]" style={{ color: "var(--gd-text-2)" }}>همهٔ مبالغ در این صفحه به ریال وارد و نمایش داده می‌شوند.</p>
+      <input
+        value={symbol}
+        onChange={(e) => {
+          const next = e.target.value;
+          setSymbol(next);
+          setVehicle(next.startsWith("IR_COIN") ? "coin" : next.startsWith("IR_GOLD") ? "melted" : "etf");
+        }}
+        placeholder="IR_COIN_EMAMI"
+        className="w-full px-3 py-2 rounded text-sm"
+        style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }}
+      />
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
       <select value={vehicle} onChange={(e) => setVehicle(e.target.value)} className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }}>
         <option value="etf">صندوق ETF</option>
@@ -680,9 +698,11 @@ function AddHoldingTab({ onAdded }: { onAdded: () => void }) {
         <option value="coin">سکه فیزیکی</option>
       </select>
       <input type="number" step="0.01" value={quantity} onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)} placeholder="تعداد" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
-      <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(parseFloat(e.target.value) || 0)} placeholder="قیمت خرید (تومان)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
-      <input type="number" value={amount} onChange={(e) => setAmount(parseFloat(e.target.value) || 0)} placeholder="مبلغ کل (اختیاری)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+      <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(parseFloat(e.target.value) || 0)} placeholder="قیمت خرید (ریال)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+      <input type="number" value={amount} onChange={(e) => setAmount(parseFloat(e.target.value) || 0)} placeholder="مبلغ کل (ریال، اختیاری)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+      <input type="number" step="0.01" value={feePct} onChange={(e) => setFeePct(parseFloat(e.target.value) || 0)} placeholder="کارمزد (٪، اختیاری)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
       <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت (اختیاری)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+      {error && <div className="rounded px-3 py-2 text-xs" style={{ color: "var(--gd-danger)", background: "var(--gd-bg-3)" }}>{error}</div>}
       <button onClick={onSubmit} disabled={submitting} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white rounded px-3 py-2 text-sm font-semibold">
         {submitting ? "در حال ثبت..." : "ثبت خرید"}
       </button>
@@ -742,7 +762,7 @@ function DCATab({ plans, onChange }: { plans: PlanStatus[]; onChange: () => void
       <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)" }}>
         <h3 className="text-sm font-semibold" style={{ color: "var(--gd-text)" }}>ساخت پلن DCA</h3>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام پلن" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
-        <input type="number" value={capital} onChange={(e) => setCapital(parseInt(e.target.value) || 0)} placeholder="سرمایه (تومان)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
+        <input type="number" value={capital} onChange={(e) => setCapital(parseInt(e.target.value) || 0)} placeholder="سرمایه (ریال)" className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }} />
         <select value={risk} onChange={(e) => setRisk(e.target.value as "balanced" | "conservative" | "aggressive")} className="w-full px-3 py-2 rounded text-sm" style={{ background: "var(--gd-bg)", color: "var(--gd-text)", border: "1px solid var(--gd-border)" }}>
           <option value="conservative">محافظه‌کار (20/40/40)</option>
           <option value="balanced">متعادل (30/40/30)</option>
@@ -783,7 +803,7 @@ function DCATab({ plans, onChange }: { plans: PlanStatus[]; onChange: () => void
             ) : (
               <div className="space-y-2">
                 <div className="rounded p-2" style={{ background: "var(--gd-bg-3)" }}>
-                  <div className="text-xs" style={{ color: "var(--gd-text-2)" }}>پله بعدی: {(s.next_tranche_pct * 100).toFixed(0)}٪ = {fmt(s.next_tranche_amount)} تومان</div>
+                  <div className="text-xs" style={{ color: "var(--gd-text-2)" }}>پله بعدی: {(s.next_tranche_pct * 100).toFixed(0)}٪ = {fmt(s.next_tranche_amount)} ریال</div>
                   <div className="text-[10px] mt-1" style={{ color: "var(--gd-text-3)" }}>📌 {s.next_trigger}</div>
                 </div>
                 <div className="text-[10px] flex justify-between" style={{ color: "var(--gd-text-3)" }}>

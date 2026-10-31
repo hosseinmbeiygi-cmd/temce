@@ -36,15 +36,33 @@ class UserService:
 
     async def register(self, username: str, email: str, password: str, full_name: str = "", phone: str = "") -> Result[dict[str, Any]]:
         try:
+            # SEC-08: two concurrent first registrations used to both read
+            # count=0 and both become admin. Serialize the bootstrap decision
+            # for the rest of this transaction (PostgreSQL advisory lock; a
+            # non-PostgreSQL test double simply skips it).
+            from sqlalchemy import text as _sql_text
+
+            try:
+                await self.session.execute(
+                    _sql_text("SELECT pg_advisory_xact_lock(:k)"), {"k": 0x74656D6365}
+                )
+            except Exception:  # noqa: BLE001 — SQLite/fakes have no advisory locks
+                logger.debug("Bootstrap advisory lock unavailable", exc_info=True)
+
             existing = await self.session.execute(
                 select(UserModel).where((UserModel.username == username) | (UserModel.email == email))
             )
             if existing.scalar_one_or_none():
                 return Result.fail("Username or email already exists")
 
-            # Personal system: first user gets admin role automatically
+            # Owner bootstrap: first user becomes admin only while the table is
+            # empty AND the operator dial allows it (SEC-08).
+            from core.config import settings as _settings
+
             total_users = await self.session.scalar(select(func.count(UserModel.id)))
-            is_first_user = (total_users or 0) == 0
+            is_first_user = bool(getattr(_settings, "bootstrap_first_admin", True)) and (
+                (total_users or 0) == 0
+            )
             initial_role = "admin" if is_first_user else "user"
 
             user = UserModel(
@@ -625,6 +643,11 @@ class UserService:
             user.hashed_password = hash_password(new_password)
             user.refresh_token = None
             await self.session.flush()
+            # SEC-07: a reset must end existing sessions too — the old access
+            # tokens were minted before this change and are still valid.
+            from core.security.tokens import revoke_user_access_tokens
+
+            await revoke_user_access_tokens(user.id)
             logger.info("Password reset via code for %s", user.id)
             return Result.ok(None)
         except Exception as e:

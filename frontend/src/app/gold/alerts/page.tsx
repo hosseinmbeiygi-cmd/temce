@@ -5,37 +5,57 @@ import { useState } from "react";
 import { getAlertRules, getAlertEvents, seedDefaultRules, deleteAlertRule, updateAlertRule } from "@/lib/goldApi";
 import { AlertRuleForm } from "@/components/gold/AlertRuleForm";
 import { AlertEventList } from "@/components/gold/AlertEventList";
+import { ConfirmDialog } from "@/components/gold/ConfirmDialog";
 
 export default function GoldAlertsPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"rules" | "events">("rules");
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const { data: rules } = useQuery({
+  const { data: rules, isError: rulesError, isLoading: rulesLoading } = useQuery({
     queryKey: ["gold", "alerts", "rules"],
     queryFn: getAlertRules,
     refetchInterval: 30_000,
   });
 
-  const { data: events } = useQuery({
+  const { data: events, isError: eventsError, isLoading: eventsLoading } = useQuery({
     queryKey: ["gold", "alerts", "events"],
     queryFn: () => getAlertEvents(7),
     refetchInterval: 30_000,
   });
 
   const onSeed = async () => {
-    await seedDefaultRules();
-    qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
+    setError(null);
+    try {
+      await seedDefaultRules();
+      qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "درج قوانین پیش‌فرض ناموفق بود.");
+    }
   };
 
-  const onDelete = async (id: number) => {
-    if (!confirm("حذف شود؟")) return;
-    await deleteAlertRule(id);
-    qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setError(null);
+    try {
+      await deleteAlertRule(pendingDelete.id);
+      qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "حذف قانون ناموفق بود.");
+    } finally {
+      setPendingDelete(null);
+    }
   };
 
   const onToggle = async (id: number, enabled: boolean) => {
-    await updateAlertRule(id, { enabled });
-    qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
+    setError(null);
+    try {
+      await updateAlertRule(id, { enabled });
+      qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تغییر وضعیت قانون ناموفق بود.");
+    }
   };
 
   return (
@@ -47,7 +67,7 @@ export default function GoldAlertsPage() {
             tab === "rules" ? "border-emerald-500 text-emerald-400" : "border-transparent text-zinc-400"
           }`}
         >
-          قوانین ({rules?.length ?? 0})
+          قوانین ({rules ? rules.length : rulesLoading ? "…" : "—"})
         </button>
         <button
           onClick={() => setTab("events")}
@@ -55,9 +75,20 @@ export default function GoldAlertsPage() {
             tab === "events" ? "border-emerald-500 text-emerald-400" : "border-transparent text-zinc-400"
           }`}
         >
-          رویدادها ({events?.length ?? 0})
+          رویدادها ({events ? events.length : eventsLoading ? "…" : "—"})
         </button>
       </div>
+
+      {(rulesError || eventsError) && (
+        <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          دریافت دادهٔ هشدارها ناموفق بود؛ لیست خالی به‌معنای «هیچ هشدار» نیست.
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          {error}
+        </div>
+      )}
 
       {tab === "rules" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -90,7 +121,7 @@ export default function GoldAlertsPage() {
                   >
                     {r.enabled ? "فعال" : "غیرفعال"}
                   </button>
-                  <button onClick={() => onDelete(r.id)} className="text-xs text-rose-400 hover:text-rose-300">
+                  <button onClick={() => setPendingDelete({ id: r.id, name: r.name })} className="text-xs text-rose-400 hover:text-rose-300">
                     حذف
                   </button>
                 </div>
@@ -109,6 +140,15 @@ export default function GoldAlertsPage() {
           onAck={() => qc.invalidateQueries({ queryKey: ["gold", "alerts", "events"] })}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`حذف قانون «${pendingDelete?.name ?? ""}»؟`}
+        description="این قانون دیگر ارزیابی نمی‌شود و رویدادهای گذشته‌اش باقی می‌مانند."
+        confirmLabel="حذف"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

@@ -47,7 +47,6 @@ from services.gold import (
     GoldLiveService,
     calculate_coin_bubble,
     evaluate_kill_switch,
-    scan_gold_arbitrage,
 )
 
 logger = get_logger(__name__)
@@ -152,7 +151,8 @@ async def get_etf_nav_premium(
             premium_pct=None,
             signal="NO_DATA",
             reason="قیمت معاملاتی این صندوق به دادهٔ بازار متصل نیست؛ پرمیوم اندازه‌گیری نمی‌شود.",
-            liquidity="high" if symbol in ("ZARFSHANG", "LOTUS") else "medium",
+            # Liquidity is not measured yet; do not invent high/medium tiers.
+            liquidity="UNKNOWN",
             management_fee=info["management_fee"],
         )
         items.append(row)
@@ -189,17 +189,18 @@ async def get_arbitrage(
             error={"message": "داده‌های بازار برای محاسبه آربیتراژ کافی نیست"},
         )
 
-    # صندوق طلا در بورس ≈ قیمت گرم طلا + 0.5% کارمزد مدیریت
-    etf_per_gram = gold_18k * 1.005
-    # طلای فیزیکی (آب‌شده) ≈ قیمت ۱۸ عیار - 2% تخفیف عیار
-    physical_per_gram = gold_18k * 0.98
-
-    result = scan_gold_arbitrage(
-        etf_price_per_gram=etf_per_gram,
-        physical_gold_price_per_gram=physical_per_gram,
-        pair_label="ETF طلا (میانگین) ↔ طلای آب‌شده بازار",
+    # Both legs must be observed prices. Only the 18k gram price is wired today;
+    # an ETF traded price and a physical (melted) price are not, so the spread
+    # would be a constructed constant. Report "unavailable" instead.
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "available": False,
+            "reason": "قیمت معاملاتی ETF و طلای آب‌شده به داده بازار متصل نیست؛ اسپرد ساخته نمی‌شود.",
+            "missing_symbols": ["ETF_GOLD", "GOLD_MELTED"],
+            "gold_18k_irr": gold_18k,
+        },
     )
-    return ApiResponse[dict[str, Any]](success=True, data=result.__dict__)
 
 
 # ── 5. Futures Margin Calculator ──────────────────────────────
@@ -349,7 +350,7 @@ async def get_futures_health(
         data=FuturesHealthResponse(
             positions=positions,
             total_used_margin=round(total_used, 2),
-            total_equity=0.0,  # TODO: زمانی که account snapshot اضافه شد
+            total_equity=None,  # Account equity is not wired yet; 0 would be a fake value.
             aggregate_health_ratio=None,
             critical_count=crit,
             warning_count=warn,

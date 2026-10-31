@@ -34,7 +34,9 @@ from playwright.sync_api import sync_playwright  # noqa: E402
 
 FRONTEND = os.environ.get("GOLD_E2E_FRONTEND", "http://localhost:3000")
 BACKEND = os.environ.get("GOLD_E2E_BACKEND", "http://127.0.0.1:8000")
-PASSWORD = "GoldQa#2026!pass"
+# Credentials must not live in source: the previous literal was a real QA
+# account password committed to git, so it also needs rotating.
+PASSWORD = os.environ.get("GOLD_E2E_PASSWORD", "")
 RELOADS = 3
 
 pytestmark = [pytest.mark.e2e, pytest.mark.slow]
@@ -74,6 +76,8 @@ def _register(username: str, timeout: float = 20.0) -> None:
 def live_stack() -> None:
     if not _reachable(FRONTEND) or not _reachable(f"{BACKEND}/api/v1/gold/health"):
         pytest.skip("gold reload e2e needs the live frontend (:3000) and API (:8000)")
+    if not PASSWORD:
+        pytest.skip("set GOLD_E2E_PASSWORD to run the gold reload e2e")
 
 
 def test_gold_survives_three_reloads(live_stack: None) -> None:

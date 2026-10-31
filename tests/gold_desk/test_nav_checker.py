@@ -158,8 +158,59 @@ def test_all_funds_status_uses_batch_queries():
 
 
 def test_all_funds_status_maps_batched_nav_rows_to_symbols():
-    rows = [("عیار", 1_000.0, 1_100.0), ("طلا", 2_000.0, 2_100.0), ("زر", 3_000.0, 3_100.0)]
+    fresh = jalali_days_ago(1)
+    rows = [
+        ("عیار", 1_000.0, 1_100.0, fresh),
+        ("طلا", 2_000.0, 2_100.0, fresh),
+        ("زر", 3_000.0, 3_100.0, fresh),
+    ]
     session = _RoutedSession(nav_rows=rows)
     out = asyncio.run(get_all_funds_status(session, ["عیار", "طلا", "زر"], market_prices={}))
     assert [s.symbol for s in out] == ["عیار", "طلا", "زر"]
     assert [s.nav_per_unit for s in out] == [1_000.0, 2_000.0, 3_000.0]
+    assert [s.nav_as_of for s in out] == [fresh, fresh, fresh]
+
+
+# ── stage 8: NAV vs market price needs a shared, recent date ──────────────
+
+
+def _status_rows(date_value: str):
+    return [("عیار", 1_000.0, 1_050.0, date_value)]
+
+
+def test_fresh_nav_computes_the_bubble():
+    session = _RoutedSession(nav_rows=_status_rows(jalali_days_ago(1)))
+    out = asyncio.run(
+        get_all_funds_status(session, ["عیار"], market_prices={"عیار": 1_100.0})
+    )
+    status = out[0]
+    assert status.market_price == 1_100.0
+    assert status.nav_per_unit == 1_000.0
+    assert status.bubble_abs == 100.0
+    assert status.bubble_pct == 10.0
+    assert status.nav_as_of == jalali_days_ago(1)
+
+
+def test_stale_nav_is_not_compared_with_a_live_price(caplog):
+    """A month-old NAV vs today's price is not a premium — no bubble."""
+    stale = jalali_days_ago(30)
+    session = _RoutedSession(nav_rows=_status_rows(stale))
+    with caplog.at_level(logging.WARNING, logger="src.gold_desk.nav_checker"):
+        out = asyncio.run(
+            get_all_funds_status(session, ["عیار"], market_prices={"عیار": 1_100.0})
+        )
+    status = out[0]
+    assert status.nav_per_unit == 1_000.0, "the NAV itself is still reported"
+    assert status.market_price == 1_100.0
+    assert status.bubble_abs is None and status.bubble_pct is None
+    assert status.nav_as_of == stale
+    assert any("stale" in r.message.lower() for r in caplog.records)
+
+
+def test_undated_nav_is_not_compared():
+    session = _RoutedSession(nav_rows=[("عیار", 1_000.0, 1_050.0, None)])
+    out = asyncio.run(
+        get_all_funds_status(session, ["عیار"], market_prices={"عیار": 1_100.0})
+    )
+    assert out[0].bubble_abs is None
+    assert out[0].nav_as_of is None

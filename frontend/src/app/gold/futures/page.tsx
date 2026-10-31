@@ -137,13 +137,8 @@ export default function GoldFuturesPage() {
   });
 
   const m: FuturesMarginResp | undefined = marginMut.data;
-  const ksStatus: KillSwitchResp = ks ?? {
-    status: "NORMAL",
-    reason: null,
-    triggered_at: null,
-    active_rules: [],
-    directive: null,
-  };
+  // A missing kill-switch is NOT "NORMAL": keep null and let the banner say so.
+  const ksStatus: KillSwitchResp | null = ks ?? null;
 
   // ``live`` is undefined until the first quote response lands — indexing it
   // unguarded crashed the whole page on its first render. The upstream feed
@@ -158,7 +153,7 @@ export default function GoldFuturesPage() {
         <div>
           <h1 className="text-2xl font-bold text-zinc-100">آتی سکه (IME)</h1>
           <p className="text-xs text-zinc-500 mt-1">
-            محاسبه مارجین، لیکوئیدیشن و Health Ratio — اهرم ۱۰ برابر
+            محاسبه مارجین، لیکوئیدیشن و Health Ratio — اهرم قابل تنظیم
           </p>
         </div>
         <div className="text-left text-xs text-zinc-400">
@@ -381,10 +376,12 @@ export default function GoldFuturesPage() {
                     </td>
                     <td className="p-2 text-right">
                       <button
-                        onClick={() =>
-                          closeMut.mutate({ id: p.id, exit: p.current_price ?? p.entry_price })
-                        }
-                        disabled={closeMut.isPending}
+                        onClick={() => {
+                          if (p.current_price == null) return;
+                          closeMut.mutate({ id: p.id, exit: p.current_price });
+                        }}
+                        disabled={closeMut.isPending || p.current_price == null}
+                        title={p.current_price == null ? "قیمت فعلی در دسترس نیست؛ بستن پوزیشن غیرفعال است" : undefined}
                         className="text-xs text-rose-300 hover:text-rose-200 transition disabled:opacity-50"
                       >
                         بسته شدن

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { getStoredAccessToken } from '@/lib/api';
+import { fetchWsTicket } from '@/lib/wsTicket';
 
 interface MarketPrice {
   symbol: string;
@@ -36,9 +37,13 @@ export interface SymbolPriceUpdate {
   timestamp?: number;
 }
 
-function _getWsUrl(): string {
-  const token = getStoredAccessToken();
-  const suffix = token ? `?token=${encodeURIComponent(token)}` : '';
+/**
+ * Handshake URL. FE-06: only the single-use ticket goes in the query string —
+ * the access token must never appear here (it leaks into access/proxy logs and
+ * browser history). Non-browser clients can still send a bearer header.
+ */
+function _getWsUrl(ticket: string | null): string {
+  const suffix = ticket ? `?ticket=${encodeURIComponent(ticket)}` : '';
   if (typeof window === 'undefined') return `ws://localhost:8000/api/v1/ws/market${suffix}`;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
   // If NEXT_PUBLIC_API_URL is absolute (http://host:8000/api/v1), derive WS from it.
@@ -115,6 +120,9 @@ export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn 
 
   useEffect(() => {
     let disposed = false;
+    // Monotonic attempt id: an in-flight ticket request must not open a socket
+    // after a newer connect()/teardown has superseded it.
+    let connectSeq = 0;
 
     function closeSocket() {
       if (reconnectTimerRef.current) {
@@ -149,9 +157,37 @@ export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn 
 
     function connect() {
       closeSocket();
+      const seq = ++connectSeq;
 
+      // No session (anonymous visitor, or AUTH_DISABLED): dial directly. The
+      // backend accepts an unauthenticated handshake only in that mode.
+      if (!getStoredAccessToken()) {
+        openSocket(null);
+        return;
+      }
+
+      // FE-06: trade the access token for a single-use ticket; the token
+      // itself never enters the handshake URL.
+      void fetchWsTicket()
+        .then((ticket) => {
+          if (disposed || seq !== connectSeq) return;
+          if (!ticket) {
+            setError('WebSocket ticket unavailable');
+            scheduleReconnect();
+            return;
+          }
+          openSocket(ticket);
+        })
+        .catch((err: unknown) => {
+          if (disposed || seq !== connectSeq) return;
+          setError(err instanceof Error ? err.message : 'Failed to obtain WebSocket ticket');
+          scheduleReconnect();
+        });
+    }
+
+    function openSocket(ticket: string | null) {
       try {
-        const ws = new WebSocket(_getWsUrl());
+        const ws = new WebSocket(_getWsUrl(ticket));
         wsRef.current = ws;
 
         ws.onopen = () => {

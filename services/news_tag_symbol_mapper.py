@@ -87,6 +87,21 @@ def _spelling_variants(value: str | None) -> set[str]:
     return {v for v in (value.strip(), norm, arabic) if v}
 
 
+# Deterministic single-candidate probes. ``ORDER BY id`` makes the pick stable
+# when two rows share a symbol — ``LIMIT 1`` alone left the choice to the query
+# planner, which attached a tag to an arbitrary row. ``LIMIT 2`` lets the
+# caller *see* the ambiguity and log it rather than hide it.
+_PROBE_SQL: dict[str, str] = {
+    "funds": "SELECT id, symbol FROM funds WHERE symbol = :c ORDER BY id LIMIT 2",
+    "symbols": "SELECT id, symbol FROM symbols WHERE symbol = :c ORDER BY id LIMIT 2",
+}
+
+
+def _probe_sql(table: str) -> str:
+    """SQL for one deterministic probe (``funds`` or ``symbols``)."""
+    return _PROBE_SQL[table]
+
+
 class NewsTagSymbolMapper:
     """Resolves and persists news-tag → symbol/fund mappings."""
 
@@ -152,24 +167,40 @@ class NewsTagSymbolMapper:
 
         Returns ``(resolved_type, resolved_id, resolved_symbol)`` or None.
         The Arabic↔Persian normalization above makes a single equality
-        probe per table sufficient in either stage.
+        probe per table sufficient in either stage. When several rows share
+        the symbol the lowest ``id`` wins (deterministic) and the ambiguity is
+        logged.
         """
-        row = (
+        rows = (
             await self.session.execute(
-                text("SELECT id, symbol FROM funds WHERE symbol = :c LIMIT 1"),
+                text(_probe_sql("funds")),
                 {"c": candidate},
             )
-        ).first()
-        if row:
-            return ("fund", str(row[0]), row[1])  # funds.id is VARCHAR
-        row = (
+        ).all()
+        if rows:
+            if len(rows) > 1:
+                logger.warning(
+                    "Ambiguous news tag mapping: %d funds rows match %r — using the lowest id %s",
+                    len(rows),
+                    candidate,
+                    rows[0][0],
+                )
+            return ("fund", str(rows[0][0]), rows[0][1])  # funds.id is VARCHAR
+        rows = (
             await self.session.execute(
-                text("SELECT id, symbol FROM symbols WHERE symbol = :c LIMIT 1"),
+                text(_probe_sql("symbols")),
                 {"c": candidate},
             )
-        ).first()
-        if row:
-            return ("symbol", str(row[0]), row[1])
+        ).all()
+        if rows:
+            if len(rows) > 1:
+                logger.warning(
+                    "Ambiguous news tag mapping: %d symbols rows match %r — using the lowest id %s",
+                    len(rows),
+                    candidate,
+                    rows[0][0],
+                )
+            return ("symbol", str(rows[0][0]), rows[0][1])
         return None
 
     # ── persistence ───────────────────────────────────────────────────

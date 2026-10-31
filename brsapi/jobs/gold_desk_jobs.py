@@ -25,7 +25,12 @@ from core.logging import get_logger
 from src.gold_desk import snapshot_service
 from src.gold_desk.alert_engine import evaluate_rules
 from src.gold_desk.constants import REDIS_KEY_SNAPSHOT
-from src.gold_desk.models import GoldFundNAVModel, GoldScoreHistoryModel, GoldSnapshotModel
+from src.gold_desk.models import (
+    GoldFundNAVModel,
+    GoldHoldingModel,
+    GoldScoreHistoryModel,
+    GoldSnapshotModel,
+)
 from src.gold_desk.schemas import SnapshotResponse
 
 logger = get_logger(__name__)
@@ -279,16 +284,33 @@ async def job_gold_portfolio_value(force: bool = False) -> None:
 
         async for session in get_session():
             snap = await snapshot_service.build_snapshot(session)
-            row = await capture_portfolio_value(
-                session, snapshot=snap.model_dump(mode="json")
+            owners = list(
+                (
+                    await session.execute(
+                        select(GoldHoldingModel.user_id)
+                        .where(GoldHoldingModel.deleted_at.is_(None))
+                        .distinct()
+                    )
+                )
+                .scalars()
+                .all()
             )
-            logger.info(
-                "gold_portfolio_value: as_of=%s value=%.0f cost=%.0f flow=%.0f",
-                row.as_of,
-                row.total_value_irt,
-                row.total_cost_irt,
-                row.net_flow_irt,
-            )
+            if not owners:
+                owners = [None]
+            for user_id in owners:
+                row = await capture_portfolio_value(
+                    session,
+                    snapshot=snap.model_dump(mode="json"),
+                    user_id=user_id,
+                )
+                logger.info(
+                    "gold_portfolio_value: owner=%s as_of=%s value=%.0f cost=%.0f flow=%.0f",
+                    user_id or "legacy",
+                    row.as_of,
+                    row.total_value_irt,
+                    row.total_cost_irt,
+                    row.net_flow_irt,
+                )
             break
     except Exception as exc:
         logger.exception("gold_portfolio_value failed: %s", exc)

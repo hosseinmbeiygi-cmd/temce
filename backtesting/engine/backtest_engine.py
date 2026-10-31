@@ -14,6 +14,7 @@ from backtesting.engine.slippage import SlippageModel
 from backtesting.strategies.base import BaseStrategy
 from backtesting.types import BacktestResult, EquityPoint
 from core.logging import get_logger
+from domain.common.enum_types import OrderSide
 
 logger = get_logger(__name__)
 
@@ -59,8 +60,22 @@ class BacktestEngine:
                 if next_open is None:
                     next_open = bar.get("close")
                 if next_open is not None:
+                    bar_ts = bar.get("timestamp")
                     for order in pending_orders:
                         order.price = next_open
+                        # Fills belong to the bar they trade on, not the bar
+                        # that raised the signal.
+                        if bar_ts is not None:
+                            order.timestamp = bar_ts
+                        # Positions never go short (PositionState clamps at
+                        # zero), so selling more than is held would credit
+                        # cash for shares that were never bought.
+                        if order.side == OrderSide.SELL:
+                            held = self.position_manager.get_position(order.instrument_id)
+                            held_qty = held.quantity if held else 0
+                            if held_qty <= 0:
+                                continue
+                            order.quantity = min(order.quantity, held_qty)
                         fill = self.execution.execute(order, self.cash_manager)
                         if fill:
                             self.accounting.apply_fill(fill)

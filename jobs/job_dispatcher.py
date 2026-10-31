@@ -77,24 +77,27 @@ class JobDispatcher:
 
 
     async def _dispatch_brsapi_direct_job(self, job_name: str) -> JobResult | None:
-        """Run a function-based BrsApi job (e.g. ``gold_snapshot``) if registered.
+        """Run a job registered in the BrsApi job registry.
 
-        Returns ``None`` when ``job_name`` is not a known direct job so the
-        caller can report it as unknown.
+        The registry is the single source of truth for names published by the
+        scheduler, and ``run_job`` is the single execution entry point: it
+        applies the market-hours gate, routes direct-function jobs and opens
+        its own DB session. Keeping a second, hard-coded allow-list here made
+        every non-GoldDesk ``brsapi_*`` job resolve to "not found".
+
+        Returns ``None`` only when the name is unknown to the registry so the
+        caller can report it as such.
         """
-        try:
-            from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOB_FUNCTIONS
-        except Exception:  # noqa: BLE001
-            logger.debug("GoldDesk job registry unavailable", exc_info=True)
-            return None
-        if job_name not in GOLD_DESK_JOB_FUNCTIONS:
-            return None
-
         from brsapi.jobs.registry import get_brsapi_job_registry
 
-        report = await get_brsapi_job_registry()._run_direct_job(job_name)
+        registry = get_brsapi_job_registry()
+        if registry.get(job_name) is None:
+            return None
+
+        report = await registry.run_job(job_name)
         if report is None:
-            return JobResult.failure(f"Job {job_name} not found", job_name=job_name)
+            # The gate closed (outside market hours) — not due, not broken.
+            return JobResult.skipped_result(job_name=job_name, reason="not due (market-hours gate)")
         if report.success:
             return JobResult.success_result(job_name=job_name, message="Completed")
         return JobResult.failure(report.error or "unknown error", job_name=job_name)

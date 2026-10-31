@@ -68,6 +68,9 @@ alembic upgrade head
 
 > ⚠️ اگر `alembic history` خطای «Revision X referenced from ... is not present» بدهد یعنی زنجیره شکسته است و `upgrade head` کار نخواهد کرد.
 
+> `0004b_core_baseline` بین `0004` و `0005` قرار دارد و جدول‌های هسته، `brsapi_*` و
+> `dual_date_columns` را برای DB خالی می‌سازد (DB-02، ۲۰۲۶-۱۰-۳۰).
+
 ---
 
 ## ساختار فایل‌ها
@@ -96,6 +99,10 @@ def downgrade() -> None: ...
 # توسعه محلی (sqlite یا postgres با DATABASE_URL در .env)
 alembic upgrade head
 
+# DB خالی: baseline 0004b خودکار جدول‌های هسته، brsapi_* و dual_date_columns را می‌سازد؛
+# نیازی به scripts/install_dual_dates.py یا create_all نیست. انتظار: current = 0119.
+alembic current
+
 # CI — fund-service.yml و decision-engine.yml
 alembic upgrade head --raiseerr
 
@@ -111,7 +118,10 @@ alembic revision --autogenerate -m "describe change"
 2. **هماهنگی revision/down_revision**: `revision` هر فایل باید دقیقاً برابر `down_revision` فایل بعدی باشد.
 3. **بازگشت‌پذیری**: همه مهاجرت‌ها `downgrade()` دارند (ایندکس‌ها قبل از جدول حذف می‌شوند).
 4. **ایندکس‌های مشخص**: هر جدول time-series با `create_hypertable()` (TimescaleDB) و ایندکس‌های کوئری‌های پرکاربرد ساخته می‌شود.
-5. **ایمنی idempotent**: در مهاجرت‌های الحاقی از `IF NOT EXISTS`/`contextlib.suppress` استفاده می‌شود تا روی دیتابیس‌های موجود هم اجرا شوند.
+5. **ایمنی idempotent**: در مهاجرت‌های الحاقی از SQL با `IF NOT EXISTS` و
+   `ALTER TABLE IF EXISTS ... ADD COLUMN IF NOT EXISTS` استفاده می‌شود. از
+   `contextlib.suppress(Exception)` دور `op.add_column` استفاده نکنید: خطا را می‌پوشاند
+   ولی تراکنش PostgreSQL را abort می‌کند و ادامهٔ زنجیره (و حتی UPDATE نسخه) می‌شکند.
 6. **نوع ستون‌ها**: `BigInteger` برای حجم/تعداد، `Numeric` برای قیمت (دقت اعشار)، `DateTime(timezone=True)` برای تایم‌استمپ‌ها.
 
 ---
@@ -121,3 +131,10 @@ alembic revision --autogenerate -m "describe change"
 1. **🔴 شکستگی زنجیره (بحرانی)** — ریویژن `0011` به `down_revision="0010"` اشاره می‌کرد اما هیچ فایل `0010` وجود نداشت → `alembic history`/`heads`/`upgrade head` همگی کرش می‌کردند. با دو مهاجرت no-op (`0009_rechain_stub`, `0010_rechain_stub`) زنجیره ترمیم شد: `0008 → 0009 → 0010 → 0011`.
 2. **🔴 down_revision ناهماهنگ** — `0019` به `"0018_add_codal_content_hash"` اشاره می‌کرد در حالی که `revision` واقعی فایل 0018 فقط `"0018"` است (و `0020` هم به `"0019_codal_attachments"` به‌جای `"0019"`) → اصلاح شد تا زنجیره کامل در `alembic history` نمایش داده شود.
 3. **تأیید نهایی** — `alembic history` حالا کل زنجیره را سالم نشان می‌دهد و `alembic heads` دقیقاً یک سر (`0020_brsapi_snapshots_unique`) برمی‌گرداند.
+4. **DB-02 — دستیابی DB خالی به head (۲۰۲۶-۱۰-۳۰)** — زنجیره به جدول‌هایی ارجاع می‌داد که
+   فقط در `0118` (هسته)، درخت یتیم `brsapi/migrations` یا
+   `scripts/install_dual_dates.py` ساخته می‌شدند. ریویژن جدید `0004b_core_baseline`
+   (بین `0004` و `0005`) این جدول‌ها را با DDL فریز‌شده و `IF NOT EXISTS` می‌سازد.
+   هم‌زمان `0006`/`0099` به `ADD COLUMN IF NOT EXISTS`، `0011` به cast `::text`،
+   `0012` به حذف ایندکس تکراری، و `env.py` به عرض `VARCHAR(255)` برای `alembic_version`
+   و commit صریح اصلاح شدند. نتیجه: `upgrade head` روی DB خالی exit 0 و `current = 0119`.

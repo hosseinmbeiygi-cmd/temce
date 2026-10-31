@@ -71,14 +71,14 @@ export function useTheme() {
 
   // Adopt the stored choice + whatever the <head> script painted before
   // hydration. Runs once after mount.
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration: adopt stored theme after mount
+   
   useEffect(() => {
     const stored = getStoredMode();
     const resolved = paintedTheme() ?? resolve(stored);
     setMode(stored);
     setTheme(resolved);
     setReady(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Keep the DOM in sync once the real theme is known (no-op on first

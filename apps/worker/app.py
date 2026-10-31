@@ -15,9 +15,31 @@ class WorkerApp:
         self.consumer = WorkerConsumer()
         self.error_policy = ErrorPolicy()
 
+    def _register_jobs(self) -> None:
+        """Populate the process-local job registries used by the dispatcher.
+
+        Registries are per-process objects. ``SchedulerApp.start`` populates
+        them in the scheduler process only, so a worker started on its own
+        resolved every queue message to ``Job <name> not found`` and the work
+        was retried into the dead-letter queue.
+        """
+        from brsapi.jobs.registry import register_all_brsapi_jobs
+        from jobs import definitions as job_definitions
+        from jobs.registry import job_registry
+
+        job_registry.register_module(job_definitions)
+        brsapi_registry = register_all_brsapi_jobs()
+        logger.info(
+            "Worker registered %d job classes and %d BrsApi jobs",
+            len(job_registry.list_names()),
+            len(brsapi_registry.all),
+        )
+
     async def start(self) -> None:
         self._running = True
         logger.info("Worker started")
+
+        self._register_jobs()
 
         # Connect Redis in the background so JobQueueConsumer + JobLocking
         # use the distributed backend. Non-blocking: until the connection is

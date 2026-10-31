@@ -1,0 +1,18 @@
+{
+  "_note": "Captured console output from audit_out/_tmp/silver_ml_filter.js at ~2026-10-31 02:57 local, before the test user audit_ui_silver_20261030 was deleted. The same script re-run after cleanup could not log in (test user intentionally removed), so the live output is preserved verbatim here.",
+  "url": "http://127.0.0.1:3000/markets/silver",
+  "rows": 3,
+  "runsText": "xgboost-v1-فولاد xgboost — completed accuracy=0.8710 — rf-v2-شپنا-وبملت random_forest — completed accuracy=0.8430 — lstm-trend-v1 lstm — failed accuracy=0.0000 —",
+  "modelEmpty": false,
+  "searchPresent": true,
+  "afterFilter": {
+    "rows": 0,
+    "emptyRunMsg": true,
+    "emptyModelMsg": true
+  },
+  "afterClear": 3,
+  "mlNet": [
+    "200 /api/v1/ml/models",
+    "200 /api/v1/ml/runs"
+  ]
+}
