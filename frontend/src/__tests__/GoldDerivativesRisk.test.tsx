@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 const mocks = vi.hoisted(() => ({
   getGoldRiskScenarios: vi.fn(),
   runGoldRiskStress: vi.fn(),
+  getOptionsChainAnalytics: vi.fn(),
+  runOptionsStrategy: vi.fn(),
 }));
 
 vi.mock("@/lib/goldApi", () => mocks);
@@ -134,17 +136,37 @@ function renderPage() {
   return render(<GoldDerivativesRiskPage />, { wrapper: Wrapper });
 }
 
+/** The page starts empty by design; load the educational sample before acting. */
+async function renderWithSample() {
+  const user = userEvent.setup();
+  renderPage();
+  await screen.findByTestId("scenario-card-black_swan");
+  await user.click(
+    screen.getByRole("button", { name: "بارگذاری نمونهٔ آموزشی" }),
+  );
+  return user;
+}
+
 describe("GoldDerivativesRiskPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getGoldRiskScenarios.mockResolvedValue(scenarioCatalogue);
     mocks.runGoldRiskStress.mockResolvedValue(stressResult);
+    mocks.getOptionsChainAnalytics.mockResolvedValue({
+      available: false,
+      reason: "unavailable in tests",
+      contracts: [],
+    });
+    mocks.runOptionsStrategy.mockResolvedValue({
+      available: false,
+      reason: "unavailable in tests",
+    });
   });
 
-  it("renders the scenario catalogue and the default portfolio", async () => {
-    renderPage();
+  it("renders the scenario catalogue and the sample portfolio", async () => {
+    await renderWithSample();
 
-    expect(await screen.findByTestId("scenario-card-black_swan")).toBeInTheDocument();
+    expect(screen.getByTestId("scenario-card-black_swan")).toBeInTheDocument();
     expect(screen.getByTestId("scenario-card-usd_spike")).toBeInTheDocument();
     expect(screen.getByDisplayValue("IR_COIN_EMAMI")).toBeInTheDocument();
     expect(screen.getByDisplayValue("ZARFSHANG")).toBeInTheDocument();
@@ -152,9 +174,7 @@ describe("GoldDerivativesRiskPage", () => {
   });
 
   it("runs the stress test and renders the worst case", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByTestId("scenario-card-black_swan");
+    const user = await renderWithSample();
 
     await user.click(screen.getByTestId("run-stress"));
 
@@ -185,9 +205,7 @@ describe("GoldDerivativesRiskPage", () => {
   });
 
   it("shows margin-call and liquidation flags per scenario", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByTestId("scenario-card-black_swan");
+    const user = await renderWithSample();
 
     await user.click(screen.getByTestId("run-stress"));
     const row = await screen.findByTestId("scenario-row-black_swan");
@@ -197,9 +215,7 @@ describe("GoldDerivativesRiskPage", () => {
   });
 
   it("renders the position-level breakdown for the selected scenario", async () => {
-    const user = userEvent.setup();
-    renderPage();
-    await screen.findByTestId("scenario-card-black_swan");
+    const user = await renderWithSample();
 
     await user.click(screen.getByTestId("run-stress"));
     await screen.findByTestId("scenario-row-black_swan");

@@ -105,7 +105,7 @@ export default function GoldTokensPage() {
           <option value="admin">admin — دسترسی کامل</option>
         </select>
         {scopes === "admin" && (
-          <label className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: "var(--gd-bg-3)", color: "var(--gd-warning, #f59e0b)" }}>
+          <label className="flex items-start gap-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: "var(--gd-bg-3)", color: "var(--gd-warn, #f59e0b)" }}>
             <input type="checkbox" checked={adminAck} onChange={(e) => setAdminAck(e.target.checked)} className="mt-0.5" />
             می‌دانم scope ادمین اجازهٔ مدیریت tokenها و همهٔ نوشتن‌ها را می‌دهد.
           </label>
