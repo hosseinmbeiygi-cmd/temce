@@ -26,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 Flow = tuple[date, float]
 
+# Tolerance for float quantity arithmetic (grams/coins). Anything below this is
+# treated as fully consumed; without it, FIFO subtraction leaves 1e-16
+# remainders that keep soft-deleted lots alive.
+_QTY_EPS = 1e-9
+
 
 @dataclass(frozen=True)
 class HoldingPnL:
