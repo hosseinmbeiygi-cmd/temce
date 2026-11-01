@@ -1,8 +1,0 @@
-{
-  "label_shuffle_n": 30,
-  "label_shuffle_ic_mean": -0.0097,
-  "label_shuffle_ic_std": 0.048,
-  "canary_feature_ic": 0.999,
-  "pipeline_caught_canary": false,
-  "note": "canary = future label appended as a feature; the pipeline accepted it silently"
-}

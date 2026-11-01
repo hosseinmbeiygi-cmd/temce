@@ -1,7 +1,0 @@
-2026-10-11 12:30:35 [info     ] Database connected: localhost:5432/my_first_db
-nav tables: ['brsapi_nav_records']
-brsapi_nav_records cols: id, symbol, nav_issue, nav_redemption, date, time, fetched_at, raw_json, created_at, ins_id, instrument_id, updated_at, gregorian_date, shamsi_date
-brsapi_nav_records rows: 3588
-gold fund symbols in nav_records: [('کهربا', 9, '1405-06-04', '1405-07-12'), ('زر', 12, '1405-05-17', '1405-07-13'), ('نفیس', 9, '1405-06-04', '1405-07-12'), ('آلتون', 13, '1405-05-12', '1405-07-12'), ('گوهر', 9, '1405-06-04', '1405-07-12'), ('زرفام', 10, '1405-05-17', '1405-07-12'), ('تابش', 12, '1405-05-12', '1405-07-13'), ('ناب', 9, '1405-06-04', '1405-07-13'), ('عیار', 9, '1405-06-04', '1405-07-12'), ('طلا', 9, '1405-06-04', '1405-07-12')]
-brsapi_nav_records ERROR ProgrammingError (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedColumnError'>: column "nav" does not exist
-[SQL: SELECT 

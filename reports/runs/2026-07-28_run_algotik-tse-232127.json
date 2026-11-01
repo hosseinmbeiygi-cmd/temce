@@ -1,6 +1,0 @@
-{
-  "library": "algotik-tse",
-  "status": "failed",
-  "error": "cannot import name 'TSE' from 'algotik_tse' (C:\\Users\\Iran\\Desktop\\temce\\venv\\Lib\\site-packages\\algotik_tse\\__init__.py)",
-  "trace": "Traceback (most recent call last):\n  File \"C:\\Users\\Iran\\Desktop\\temce\\test_options.py\", line 86, in test_algotik_tse\n    from algotik_tse import TSE\nImportError: cannot import name 'TSE' from 'algotik_tse' (C:\\Users\\Iran\\Desktop\\temce\\venv\\Lib\\site-packages\\algotik_tse\\__init__.py)\n"
-}

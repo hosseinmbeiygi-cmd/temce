@@ -1,4 +1,0 @@
-/** Join truthy class names — the tiny `cn` helper this app needs. */
-export function cn(...parts: Array<string | false | null | undefined>): string {
-  return parts.filter(Boolean).join(" ");
-}

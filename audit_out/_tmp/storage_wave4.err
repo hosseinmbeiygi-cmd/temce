@@ -1,6 +1,0 @@
-FATAL page.evaluate: Execution context was destroyed, most likely because of a navigation
-    at waitHydrated (C:\Users\Iran\Desktop\temce\audit_out\_tmp\storage_wave4.js:69:27)
-    at async C:\Users\Iran\Desktop\temce\audit_out\_tmp\storage_wave4.js:185:3 {
-  log: [],
-  name: 'Error'
-}
