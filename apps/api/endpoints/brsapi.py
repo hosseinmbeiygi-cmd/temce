@@ -2676,7 +2676,7 @@ _SYNC_STATUS_SECTIONS: dict[str, tuple[str, int]] = {
 }
 
 
-@router.get("/sync-status", summary="Sync freshness status for the frontend")
+@router.get("/sync-status", summary="Sync freshness status for the frontend", dependencies=_manage_admin)
 async def sync_status(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[dict[str, Any]]:
@@ -2791,7 +2791,7 @@ async def sync_history(
     return ApiResponse[list[dict[str, Any]]](success=True, data=items)
 
 
-@router.get("/nav-sync-status", summary="NAV sync status (latest date, success/fail, today's symbols)")
+@router.get("/nav-sync-status", summary="NAV sync status (latest date, success/fail, today's symbols)", dependencies=_manage_admin)
 async def nav_sync_status(
     days: int = Query(7, ge=1, le=90, description="Look-back window (days) for sync-log counts"),
     session: AsyncSession = Depends(get_db_session),
