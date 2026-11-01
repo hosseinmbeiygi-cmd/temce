@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0",
+  "skill": "analyze-project",
+  "generated_at": "2026-11-01",
+  "mode": "read-only",
+  "repo": "C:\\Users\\Iran\\Desktop\\temce",
+  "scope": {
+    "branch": "w4-fix-security",
+    "head_commit": "df979ca0",
+    "working_tree": "dirty",
+    "dirty_entries": 236,
+    "note": "Line numbers cite the observed working tree, not a frozen commit."
+  },
+  "project": {
+    "name": "iran-market-platform",
+    "kind": "iran-capital-market data/analytics platform",
+    "backend": "Python 3.11 + FastAPI + SQLAlchemy 2 async",
+    "frontend": "Next.js 16 + React 19 + Vitest",
+    "stores": ["PostgreSQL/TimescaleDB", "Redis", "SQLite transactions.db", "MinIO (client dep)"],
+    "deployables": ["api", "admin", "currency_service", "decision_engine", "funds", "gateway", "scheduler", "worker", "ingestion"]
+  },
+  "checks": [
+    {"id": "C01", "name": "module and directory map", "status": "PASS", "evidence": ["top-level inventory", "apps/* layout", "services/ domain/ core/ repositories/"]},
+    {"id": "C02", "name": "entrypoint identification", "status": "PASS", "evidence": ["main.py", "apps/api/app.py:1064", "apps/api/router.py", "docker-compose.yml", "jobs/scheduler.py"]},
+    {"id": "C03", "name": "configuration binding map", "status": "PASS", "evidence": ["core/config/__init__.py", ".env.example", "core/config/api.py"]},
+    {"id": "C04", "name": "frontend surface inventory", "status": "PASS", "evidence": ["152 page.tsx", "81 test files", "frontend/package.json"]},
+    {"id": "C05", "name": "test surface inventory", "status": "PASS", "evidence": ["631 test_*.py", "16 needs_db files", "pyproject.toml:125-155"]},
+    {"id": "C06", "name": "default test coverage of DB-backed paths", "status": "PARTIAL", "evidence": ["pyproject.toml:130"], "detail": "addopts excludes needs_db; the 5.5M-row admin path is out of the default run."},
+    {"id": "C07", "name": "lint gate", "status": "PASS", "evidence": [".github/workflows/ci.yml:99"], "detail": "ruff hard-fails CI; not executed locally in this run."},
+    {"id": "C08", "name": "type gate", "status": "FAIL", "evidence": [".github/workflows/ci.yml:105", "pyproject.toml:108"]},
+    {"id": "C09", "name": "architecture boundary gate", "status": "FAIL", "evidence": [".github/workflows/ci.yml:102", ".importlinter:59-63"]},
+    {"id": "C10", "name": "tracked secret hygiene", "status": "PASS", "evidence": ["git ls-tree shows only .env.example and frontend/.env.sentry.example", ".github/workflows/secrets-scan.yml"]},
+    {"id": "C11", "name": "repository hygiene (large/duplicate artifacts)", "status": "FAIL", "evidence": ["transactions.db-wal tracked 26322712 bytes", "BACKTEST_ALL_CODE.txt 2.4MB", "gold_complete_bundle.txt 4.8MB", "_audit_base 308M", "_base_wt 216M", "_base_wt_clean 226M", "venv 2.4G", "InkGist 219M gitlink", "dsh-our-free-model 182M gitlink"]},
+    {"id": "C12", "name": "production configuration guard", "status": "PASS", "evidence": ["core/config/__init__.py:473", "apps/api/app.py:899", "apps/admin/app.py:19", "apps/currency_service/app.py:26"]},
+    {"id": "C13", "name": "API documentation exposure policy", "status": "PARTIAL", "evidence": ["apps/api/app.py:1068-1069"], "detail": "docs/openapi served unconditionally in every environment."},
+    {"id": "C14", "name": "skill shared reference availability", "status": "BLOCKED", "evidence": ["../ai-research-reproduction/references/agent-operating-principles.md not present in .agents/skills"], "detail": "Fell back to references/analysis-policy.md and SKILL.md only."},
+    {"id": "C15", "name": "heavy execution (pytest/ruff/mypy/compose)", "status": "BLOCKED", "evidence": [], "detail": "Not run: read-only, low-execution policy of this skill."}
+  ],
+  "findings": [
+    {"id": "R1", "title": "type checking is not a gate", "severity": "High", "evidence_class": "confirmed-fact", "paths": [".github/workflows/ci.yml:105", "pyproject.toml:108"]},
+    {"id": "R2", "title": "layering contract measured, not enforced", "severity": "High", "evidence_class": "confirmed-fact", "paths": [".importlinter:59-63", ".github/workflows/ci.yml:102"]},
+    {"id": "R3", "title": "default pytest run excludes DB-backed tests", "severity": "Medium", "evidence_class": "confirmed-fact", "paths": ["pyproject.toml:130", "pyproject.toml:140"]},
+    {"id": "R4", "title": "tracked SQLite WAL without its database", "severity": "Medium", "evidence_class": "confirmed-fact", "paths": ["transactions.db-wal", "Redis/*.pdb", "Redis/Redis.zip"]},
+    {"id": "R5", "title": "generated code dumps tracked beside sources", "severity": "Medium", "evidence_class": "confirmed-fact", "paths": ["BACKTEST_ALL_CODE.txt", "GOLD_CODE_FULL.txt", "gold_complete_bundle.txt"]},
+    {"id": "R6", "title": "duplicated backend trees including security code", "severity": "Medium", "evidence_class": "confirmed-fact", "paths": ["_FRONTEND_BACKEND_COPY/backend/core/security/secrets.py", "_audit_base/", "_base_wt/", "_base_wt_clean/"]},
+    {"id": "R7", "title": "UTF-8 BOM in a strict-mypy module", "severity": "Low", "evidence_class": "confirmed-fact", "paths": ["services/quant_signal_orchestrator.py:1"], "detail": "ast.parse with utf-8 fails; CPython/mypy tolerate the BOM."},
+    {"id": "R8", "title": "API docs always exposed", "severity": "Medium", "evidence_class": "confirmed-fact", "paths": ["apps/api/app.py:1068-1069", "apps/api/middleware.py:125"]},
+    {"id": "R9", "title": "CORS wildcard default corrected only by production validator", "severity": "Low", "evidence_class": "confirmed-fact", "paths": ["core/config/api.py:16", "core/config/__init__.py:484", "apps/api/app.py:1075-1076"]},
+    {"id": "R10", "title": "analysis snapshot taken on a dirty tree", "severity": "Medium", "evidence_class": "methodological", "paths": ["git status: 236 entries"]},
+    {"id": "R11", "title": "scratch artifacts at repo root", "severity": "Low", "evidence_class": "confirmed-fact", "paths": ["105 root .txt/.log/.db/.bin files", ".env.bak.1790980646", ".env.production"]},
+    {"id": "R12", "title": "undeclared nested repositories (gitlinks without .gitmodules)", "severity": "Medium", "evidence_class": "confirmed-fact", "paths": ["InkGist (mode 160000, 219M)", "dsh-our-free-model (mode 160000, 182M)", "no .gitmodules"], "detail": "A clean clone cannot materialise either directory; InkGist gitlink is dirty."}
+  ],
+  "non_findings": [
+    "no silent bare except handlers across 1488 backend modules (AST scan)",
+    "no tracked .env or key material",
+    "72 of 80 router mounts carry an explicit auth dependency; the other 8 are justified in code",
+    "production config validation is fail-closed and wired at startup"
+  ],
+  "counts": {
+    "backend_python_files_scanned": 1488,
+    "test_files": 631,
+    "needs_db_test_files": 16,
+    "frontend_pages": 152,
+    "frontend_tests": 81,
+    "api_endpoint_modules": 85,
+    "router_mounts": 80,
+    "router_mounts_with_dependency": 72,
+    "alembic_versions": 93,
+    "empty_functions": 19,
+    "except_pass_only": 4,
+    "type_ignore_comments": 81,
+    "noqa_comments": 172,
+    "todo_fixme": 8
+  },
+  "outputs": {
+    "summary": "analysis_outputs/2026-11-01-repo/SUMMARY.md",
+    "risks": "analysis_outputs/2026-11-01-repo/RISKS.md",
+    "research_map": "analysis_outputs/2026-11-01-repo/RESEARCH_MAP.md",
+    "change_map": "analysis_outputs/2026-11-01-repo/CHANGE_MAP.md",
+    "eval_contract": "analysis_outputs/2026-11-01-repo/EVAL_CONTRACT.md",
+    "status": "analysis_outputs/2026-11-01-repo/status.json",
+    "evidence": "analysis_outputs/2026-11-01-repo/evidence/evidence-2026-11-01.md",
+    "index": "analysis_outputs/INDEX.md"
+  }
+}
