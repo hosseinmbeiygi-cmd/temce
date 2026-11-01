@@ -98,11 +98,23 @@ jobs:
       - name: Lint Python with ruff
         run: ruff check . --output-format=github
 
-      - name: Import contracts (advisory — Phase 0, ADR-0001)
-        run: lint-imports --config .importlinter || echo "::warning::import contract violations present (baseline tracked in ADR-0001); hard-fail lands in Phase 1"
+      # The ratchet baseline is only meaningful with pinned versions.
+      - name: Pin quality tools
+        run: pip install mypy==2.1.0 ruff==0.15.17 import-linter==2.15
 
-      - name: Typecheck Python with mypy
-        run: mypy apps core domain services --ignore-missing-imports || true
+      - name: Import contracts (ratchet — new violations fail)
+        run: python scripts/quality_ratchet.py check --tool imports
+
+      - name: Typecheck Python (ratchet — new error/code pairs fail)
+        run: python scripts/quality_ratchet.py check --tool mypy
+
+      # core/security is clean under strict; keep it blocking.
+      - name: Typecheck core/security (strict, blocking)
+        run: mypy core/security --strict --explicit-package-bases --ignore-missing-imports
+
+      # src/gold_desk strict starts at 221 errors; the ratchet blocks new ones.
+      - name: Typecheck src/gold_desk (strict ratchet)
+        run: python scripts/quality_ratchet.py check --tool mypy-strict-gold
 
       - name: Lint Dockerfiles
         uses: hadolint/hadolint-action@v3.1.0
@@ -305,6 +317,70 @@ jobs:
         env:
           REDIS_URL: redis://localhost:6379/0
           ENV: test
+
+  # ── Backend Tests — DB-backed paths ───────────────────────
+  # The main test job runs with ``-m "not needs_db"`` (pyproject addopts), so
+  # the 16 needs_db modules never execute in CI. This job gives them a real
+  # PostgreSQL + Redis. Separate on purpose: a DB stall cannot eat the unit
+  # suite results. Advisory until a freshly migrated DB is validated.
+  needs-db:
+    name: Backend Tests (needs_db)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: market_test
+          POSTGRES_USER: market
+          POSTGRES_PASSWORD: market
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-asyncio pytest-timeout
+
+      - name: Migrate database
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://market:market@localhost:5432/market_test
+          ENV: test
+
+      - name: Run needs_db tests
+        run: |
+          pytest -m needs_db \
+            tests/unit tests/gold_desk tests/test_db.py \
+            --timeout=300 -v
+        env:
+          DATABASE_URL: postgresql://market:market@localhost:5432/market_test
+          DATABASE_URL_ASYNC: postgresql+asyncpg://market:market@localhost:5432/market_test
+          REDIS_URL: redis://localhost:6379/0
+          ENV: test
+          GOLD_API_TOKEN_SALT: ci-only-salt-not-a-real-secret
 
   # ── Docker Build & Push (main only) ───────────────────────
   build:
