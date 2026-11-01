@@ -62,6 +62,7 @@ type LiveRow = {
   date?: string;
   time?: string;
   timestamp?: string | number;
+  unit?: string;
 };
 
 function useLiveMarketData() {

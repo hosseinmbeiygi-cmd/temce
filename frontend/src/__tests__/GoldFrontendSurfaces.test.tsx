@@ -5,13 +5,35 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/gold" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/gold",
+  // Next 16.4's layout calls useRouter; the old mock only provided usePathname
+  // and every render of GoldLayout threw "No useRouter export".
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
     <a href={href} {...rest}>
       {children}
     </a>
   ),
+}));
+// GoldLayout now calls useAuth(); the test renders the layout without the
+// app-level AuthProvider, so provide the two fields the layout consumes.
+vi.mock("@/lib/auth-context", () => ({
+  useAuth: () => ({
+    isAuthenticated: false,
+    user: null,
+    isLoading: false,
+    logout: vi.fn(),
+  }),
 }));
 
 // ── layout ────────────────────────────────────────────────────────────
