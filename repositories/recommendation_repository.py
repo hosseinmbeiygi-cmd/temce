@@ -9,7 +9,7 @@ from repositories.base_repository import InMemoryRepository
 
 class RecommendationRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
-        self._mem: InMemoryRepository[Recommendation] | None = InMemoryRepository(Recommendation)
+        self._mem: InMemoryRepository[Recommendation] = InMemoryRepository(Recommendation)
 
     async def get(self, id: str) -> Result[Recommendation]:
         return await self._mem.get(id)

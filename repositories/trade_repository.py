@@ -43,7 +43,7 @@ class Trade(BaseEntity):
 class TradeRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Trade] | None = None if session else InMemoryRepository(Trade)
+        self._mem: InMemoryRepository[Trade] = InMemoryRepository(Trade)
         self._db: _TradeDbRepo | None = None if not session else _TradeDbRepo(session)
 
     async def get(self, id: str) -> Result[Trade]:

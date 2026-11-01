@@ -21,7 +21,7 @@ from repositories.db_base import DbRepository
 class CodalRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Disclosure] | None = None if session else InMemoryRepository(Disclosure)
+        self._mem: InMemoryRepository[Disclosure] = InMemoryRepository(Disclosure)
         self._db: _CodalDbRepo | None = None if not session else _CodalDbRepo(session)
 
     async def get(self, id: str) -> Result[Disclosure]:

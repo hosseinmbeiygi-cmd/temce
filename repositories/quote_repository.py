@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import Select, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.result import Result
@@ -16,7 +16,7 @@ from repositories.db_base import DbRepository
 class QuoteRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Quote] | None = None if session else InMemoryRepository(Quote)
+        self._mem: InMemoryRepository[Quote] = InMemoryRepository(Quote)
         self._db: _QuoteDbRepo | None = None if not session else _QuoteDbRepo(session)
 
     async def get(self, id: str) -> Result[Quote]:
@@ -37,7 +37,7 @@ class QuoteRepository:
     async def get_all(self) -> Result[list[Quote]]:
         if self._db:
             stmt = select(QuoteModel)
-            result = await self._session.execute(stmt)
+            result = await self._db.session.execute(stmt)
             rows = result.scalars().all()
             return Result.ok([self._db._to_domain(r) for r in rows])
         return Result.ok(list(self._mem._store.values()))
@@ -238,7 +238,7 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
             }
         )
 
-    def _latest_ranked_quotes(self):
+    def _latest_ranked_quotes(self) -> Any:
         """Row-numbered ids of the current quote per symbol on the newest date.
 
         ``quotes.date`` is a VARCHAR of ISO Gregorian dates for recent rows, so
@@ -262,7 +262,7 @@ class _QuoteDbRepo(DbRepository[Quote, QuoteModel]):
             .subquery()
         )
 
-    def _top_stmt(self, order_by, limit: int):
+    def _top_stmt(self, order_by: Any, limit: int) -> Select[Any]:
         ranked = self._latest_ranked_quotes()
         return (
             select(QuoteModel)

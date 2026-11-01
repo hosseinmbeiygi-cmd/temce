@@ -25,7 +25,7 @@ from repositories.news_items_read_repo import NewsItemsReadRepo
 class NewsRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[NewsItem] | None = None if session else InMemoryRepository(NewsItem)
+        self._mem: InMemoryRepository[NewsItem] = InMemoryRepository(NewsItem)
         self._db: _NewsDbRepo | None = None if not session else _NewsDbRepo(session)
         # Canary READ path (NEWS_READ_MODE off/shadow/canary/full + legacy
         # boolean NEWS_READ_FROM_ITEMS forcing full): serves list/search/
@@ -108,7 +108,7 @@ class NewsRepository:
             served = await self._mem.list(page, page_size)
         if decision.shadow and items is not None and self._db is not None:
             with contextlib.suppress(Exception):  # noqa: BLE001 — probe failure must not break serving
-                probed = await self._items_read_probe(page, page_size, date_from, date_to, category)
+                probed = await self._items_read_probe(items, page, page_size, date_from, date_to, category)
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
@@ -126,7 +126,7 @@ class NewsRepository:
         served = None
         probed = None
         if decision.serve_items and items is not None:
-            served = await self._items_read.search(query, page, page_size, date_from=date_from, date_to=date_to)
+            served = await items.search(query, page, page_size, date_from=date_from, date_to=date_to)
         elif self._db is not None:
             served = await self._db.search(query, page, page_size, date_from=date_from, date_to=date_to)
         elif self._mem is not None:
@@ -145,7 +145,7 @@ class NewsRepository:
             )
         if decision.shadow and items is not None and self._db is not None:
             with contextlib.suppress(Exception):  # noqa: BLE001
-                probed = await self._items_read.search(query, page, page_size, date_from=date_from, date_to=date_to)
+                probed = await items.search(query, page, page_size, date_from=date_from, date_to=date_to)
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
@@ -178,7 +178,7 @@ class NewsRepository:
         served = None
         probed = None
         if decision.serve_items and items is not None:
-            served = await self._items_read.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
+            served = await items.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         elif self._db is not None:
             served = await self._db.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         elif self._mem is not None:
@@ -198,7 +198,7 @@ class NewsRepository:
             )
         if decision.shadow and items is not None and self._db is not None:
             with contextlib.suppress(Exception):  # noqa: BLE001
-                probed = await self._items_read.get_by_symbol(
+                probed = await items.get_by_symbol(
                     symbol, page, page_size, date_from=date_from, date_to=date_to
                 )
         await self._record_parity(decision, served, probed)
@@ -206,10 +206,18 @@ class NewsRepository:
             return served
         return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
-    async def _items_read_probe(self, page, page_size, date_from, date_to, category=None):
+    async def _items_read_probe(
+        self,
+        items_repo: NewsItemsReadRepo,
+        page: int,
+        page_size: int,
+        date_from: datetime | None,
+        date_to: datetime | None,
+        category: str | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         """Shadow probe of list() on the items repo (kept separate so the
         legacy-served list() path stays symmetric with search/symbol)."""
-        return await self._items_read.list(
+        return await items_repo.list(
             page, page_size, date_from=date_from, date_to=date_to, category=category
         )
 

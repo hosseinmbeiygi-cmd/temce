@@ -88,7 +88,6 @@ exclude = [
     "ml",
     "migrations",
     "scripts",
-    "repositories",
     "reports",
     "integrations",
     "models",
@@ -98,7 +97,7 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
     "backtesting.*", "ml.*", "scripts.*", "migrations.*",
-    "brsapi.*", "repositories.*", "reports.*",
+    "brsapi.*", "reports.*",
     "integrations.*", "models.*",
     "core.typing.*", "core.time.*",
     "services.smart_money.*", "services.chat.*",

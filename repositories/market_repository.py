@@ -43,7 +43,7 @@ class Market(BaseEntity):
 class MarketRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Market] | None = None if session else InMemoryRepository(Market)
+        self._mem: InMemoryRepository[Market] = InMemoryRepository(Market)
         self._db: _MarketDbRepo | None = None if not session else _MarketDbRepo(session)
 
     async def get(self, id: str) -> Result[Market]:

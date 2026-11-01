@@ -25,6 +25,7 @@ Domain mapping (``news_items`` -> ``domain.news.NewsItem``):
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Select, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,7 +81,7 @@ class NewsItemsReadRepo:
         """Thin wrapper over :func:`core.dbcompat.naive_utc` (trap #2)."""
         return naive_utc(dt)
 
-    def _order_expr(self):
+    def _order_expr(self) -> tuple[Any, Any]:
         """Deterministic ordering: published TIMESTAMP desc, then title desc.
 
         The title tie-break mirrors the legacy repo exactly (titles are
@@ -132,7 +133,7 @@ class NewsItemsReadRepo:
 
     def _window_clauses(
         self, date_from: datetime | None, date_to: datetime | None
-    ) -> list:
+    ) -> list[Any]:
         col = func.coalesce(NewsItemModel.published_at, NewsItemModel.created_at)
         clauses = []
         if date_from is not None:
@@ -143,7 +144,7 @@ class NewsItemsReadRepo:
 
     async def _run_query(
         self,
-        stmt: Select,
+        stmt: Select[Any],
         page: int,
         page_size: int,
         date_from: datetime | None,

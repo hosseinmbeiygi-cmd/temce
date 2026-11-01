@@ -38,7 +38,7 @@ class AlertHistory(BaseEntity):
 class AlertRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Alert] | None = None if session else InMemoryRepository(Alert)
+        self._mem: InMemoryRepository[Alert] = InMemoryRepository(Alert)
         self._db: _AlertDbRepo | None = None if not session else _AlertDbRepo(session)
 
     async def get(self, id: str) -> Result[Alert]:

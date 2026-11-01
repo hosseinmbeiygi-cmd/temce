@@ -9,7 +9,7 @@ from repositories.base_repository import InMemoryRepository
 
 class IndicatorRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
-        self._mem: InMemoryRepository[Indicator] | None = InMemoryRepository(Indicator)
+        self._mem: InMemoryRepository[Indicator] = InMemoryRepository(Indicator)
 
     async def get(self, id: str) -> Result[Indicator]:
         return await self._mem.get(id)

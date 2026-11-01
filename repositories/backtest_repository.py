@@ -17,7 +17,7 @@ from repositories.db_base import DbRepository
 class BacktestRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[BacktestRun] | None = None if session else InMemoryRepository(BacktestRun)
+        self._mem: InMemoryRepository[BacktestRun] = InMemoryRepository(BacktestRun)
         self._db: _BacktestDbRepo | None = None if not session else _BacktestDbRepo(session)
 
     async def get(self, id: str) -> Result[BacktestRun]:
