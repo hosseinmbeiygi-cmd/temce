@@ -199,3 +199,12 @@ json/brsapi/symbol_details.json
 # SHAs are recorded in docs/audits/gitlinks-2026-11-01.md before untracking.
 /InkGist/
 /dsh-our-free-model/
+
+# Remediation-wave test logs at repo root (after_issue1_*.txt, …)
+/after_issue*.txt
+
+# Local archives kept on disk, never in git
+/docs/*.rar
+
+# Scratch patch proposals from a superseded worktree
+/proposed_patches/
