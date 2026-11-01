@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,11 +87,9 @@ def main() -> None:
         from core.database import init_database
 
         await init_database()
-        try:
-            await get_cache().initialize()
-        except Exception:
+        with suppress(Exception):
             # Auth works without Redis; rate limiting degrades to null cache.
-            pass
+            await get_cache().initialize()
         yield
 
     from fastapi import FastAPI

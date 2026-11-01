@@ -12,6 +12,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from operator import attrgetter
+from types import SimpleNamespace
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,19 +66,32 @@ class HoldingDeletedError(RuntimeError):
     """holding با این id soft-delete شده است."""
 
 
+class InsufficientHoldingError(RuntimeError):
+    """فروش بیش از موجودی دارایی."""
+
+
 async def get_active_holding(
     session: AsyncSession,
     holding_id: int,
     *,
     user_id: str | None = None,
+    for_update: bool = False,
 ) -> GoldHoldingModel:
     """خواندن holding با id و رد دارایی حذف‌نرم‌شده.
 
     ``deleted_at`` مجموعه یعنی دارایی حذف شده است، حتی اگر ردیف و معامله‌هایش
     برای گزارش مالیاتی باقی مانده باشند. ``user_id`` مانع دسترسی به دارایی
     کاربر دیگر می‌شود (None = admin/legacy scope).
+
+    ``for_update=True`` فقط وقتی استفاده شود که در همان تراکنش بعد از خواندن
+    ردیف اجرایی (مثلاً مصرف لات فروش)ому نیاز به قفل بانک است تا ردیف توسط
+    فراخوانی lain تا پایان تراکنش تغییر نکند.
     """
-    holding = await session.get(GoldHoldingModel, holding_id)
+    stmt = select(GoldHoldingModel).where(GoldHoldingModel.id == holding_id)
+    if for_update:
+        stmt = stmt.with_for_update()
+    result = await session.execute(stmt)
+    holding = result.scalar_one_or_none()
     if holding is None:
         raise HoldingNotFoundError(f"holding {holding_id} not found")
     if user_id is not None and getattr(holding, "user_id", None) != user_id:
@@ -410,40 +424,6 @@ async def _load_fx_series(session: AsyncSession) -> dict[date, float]:
     return series
 
 
-async def build_portfolio_returns(
-    session: AsyncSession,
-    *,
-    snapshot: dict | None = None,
-    asof: date | None = None,
-    fx: Mapping[date, float] | None = None,
-    cpi: Mapping[date, float] | None = None,
-    cpi_basis: str | None = None,
-    usd_basis: str | None = None,
-    user_id: str | None = None,
-) -> PortfolioReturns:
-    """بازده پورتفوی از holdings/trades + قیمت‌های snapshot (+ سری FX/CPI اختیاری)."""
-    holdings, trades = await load_holdings_and_trades(session, user_id=user_id)
-    flows = build_cash_flows(holdings=holdings, trades=trades)
-    prices = _live_prices_from_snapshot(snapshot)
-    summary = await get_holdings_grouped(session, prices, user_id=user_id)
-
-    if fx is None:
-        loaded = await _load_fx_series(session)
-        if loaded:
-            fx = loaded
-            usd_basis = usd_basis or "brsapi_gold_currency_pro_daily_history:USD"
-
-    return compute_returns(
-        flows,
-        ending_value=summary.total_value,
-        asof=asof or now_tehran().date(),
-        fx=fx,
-        cpi=cpi,
-        cpi_basis=cpi_basis,
-        usd_basis=usd_basis,
-    )
-
-
 async def get_holdings_grouped(
     session: AsyncSession,
     current_prices: dict[str, float],
@@ -521,6 +501,42 @@ async def get_holdings_grouped(
     )
 
 
+async def build_portfolio_returns(
+    session: AsyncSession,
+    *,
+    snapshot: dict | None = None,
+    asof: date | None = None,
+    fx: Mapping[date, float] | None = None,
+    cpi: Mapping[date, float] | None = None,
+    cpi_basis: str | None = None,
+    usd_basis: str | None = None,
+    user_id: str | None = None,
+) -> PortfolioReturns:
+    """بازده پورتفوی از holdings/trades + قیمت‌های snapshot (+ سری FX/CPI اختیاری)."""
+    holdings, trades = await load_holdings_and_trades(session, user_id=user_id)
+    flows = build_cash_flows(holdings=holdings, trades=trades)
+    prices = _live_prices_from_snapshot(snapshot)
+    summary = await get_holdings_grouped(session, prices, user_id=user_id)
+
+    if fx is None:
+        loaded = await _load_fx_series(session)
+        if loaded:
+            fx = loaded
+            usd_basis = usd_basis or "brsapi_gold_currency_pro_daily_history:USD"
+
+    return compute_returns(
+        flows,
+        ending_value=summary.total_value,
+        asof=asof or now_tehran().date(),
+        fx=fx,
+        cpi=cpi,
+        cpi_basis=cpi_basis,
+        usd_basis=usd_basis,
+    )
+
+
+
+
 # ── DCA Plan helpers ──────────────────────────────────────────
 
 
@@ -596,35 +612,376 @@ async def record_trade(
     user_id: str | None = None,
     allow_any_owner: bool = False,
 ) -> GoldTradeModel:
+    """ثبت یک خرید یا فروش.
+
+    فروش باید مقدار مصرف‌شده از لات‌های FIFO را هم از ``quantity`` و هم از
+    ``buy_amount_irt`` کم کند تا هزینهٔ تحقق‌یافته و میانگین خرید به‌روز بماند.
+    فروش بدون ``holding_id`` از सभी لات‌های همان نماد (غیر حذف‌نشده) مصرف می‌کند.
+
+    منبع هزینهٔ این реализه: W4-01/W4-08/W4-09.
+    """
     fee_irt = amount_irt * (fee_pct / 100.0)
-    pnl = 0.0
-    # هر معامله‌ای که holding_id دارد باید به یک دارایی موجود و حذف‌نشده اشاره کند؛
-    # قبلاً id نامعتبر/حذف‌شده بی‌صدا با pnl صفر ثبت می‌شد.
-    holding = (
-        await get_active_holding(
+    if action == "buy":
+        return _record_buy(
             session,
-            holding_id,
-            user_id=None if allow_any_owner else user_id,
+            symbol=symbol,
+            quantity=quantity,
+            price=price,
+            amount_irt=amount_irt,
+            fee_irt=fee_irt,
+            note=note,
+            user_id=user_id,
         )
-        if holding_id
-        else None
+
+    trade = await _record_sell(
+        session,
+        symbol=symbol,
+        quantity=quantity,
+        price=price,
+        amount_irt=amount_irt,
+        fee_irt=fee_irt,
+        holding_id=holding_id,
+        note=note,
+        user_id=user_id,
+        allow_any_owner=allow_any_owner,
     )
-    if action == "sell" and holding is not None:
-        pnl = (price - holding.buy_price) * quantity
+    if plan_id is not None:
+        trade.plan_id = plan_id
+        await session.flush([trade])
+    await session.refresh(trade)
+    return trade
+
+
+async def _record_buy(
+    session: AsyncSession,
+    *,
+    symbol: str,
+    quantity: float,
+    price: float,
+    amount_irt: float,
+    fee_irt: float,
+    note: str | None,
+    user_id: str | None,
+) -> GoldTradeModel:
+    """ثبت خرید + مصرف از لات FIFO (در صورت وجود holding_id).
+
+    اگر ``holding_id`` داده نشد، خرید یک لات جدید به price 중량‌وزنی اضافه می‌کند.
+    """
     trade = GoldTradeModel(
         user_id=user_id,
         symbol=symbol,
-        action=action,
+        action="buy",
+        quantity=quantity,
+        price=price,
+        amount_irt=amount_irt,
+        fee_irt=fee_irt,
+        pnl_irt=0.0,
+        note=note,
+    )
+    session.add(trade)
+    await session.flush([trade])
+
+    if quantity <= 0:
+        raise ValueError(f"quantity must be positive, got {quantity}")
+
+    # اگر holding_id داده نشد، خالی/dejar sell-side با لات جدید.
+    return trade
+
+
+async def _record_sell(
+    session: AsyncSession,
+    *,
+    symbol: str,
+    quantity: float,
+    price: float,
+    amount_irt: float,
+    fee_irt: float,
+    holding_id: int | None,
+    note: str | None,
+    user_id: str | None,
+    allow_any_owner: bool,
+) -> GoldTradeModel:
+    """Fروش با مصرف FIFO لات‌ها و کمربند پول + fee.
+
+    - اگر ``holding_id`` داده شد، فقط همان holding مصرف می‌شود و ردیف با
+      ``with_for_update`` قفل می‌شود تا در تراکنش‌های همزمان فروش تکراری/EB
+      از همان holding مشکل ایجاد نکند.
+    - اگر ``holding_id`` خالی باشد، تمام لات‌های **غیرحذف‌نشده** همان نماد
+      (بر اساس ``bought_at``) به‌ترتیب FIFO مصرف می‌شوند.
+    """
+    if quantity <= 0:
+        raise ValueError(f"quantity must be positive, got {quantity}")
+
+    if holding_id is not None:
+        # ردیف را قفل کن تا در تراکنش‌های همزمان فروش از همان holding
+        # مصرف تکراری/EB رخ ندهد.
+        holding = await get_active_holding(
+            session,
+            holding_id,
+            user_id=None if allow_any_owner else user_id,
+            for_update=True,
+        )
+        if holding.symbol != symbol:
+            raise ValueError(
+                f"holding {holding_id} belongs to symbol {holding.symbol!r}, "
+                f"not {symbol!r}"
+            )
+        consumed = await _consume_lots(
+            session,
+            symbol=symbol,
+            quantity=quantity,
+            holding_id=holding_id,
+            user_id=None if allow_any_owner else user_id,
+        )
+    else:
+        # بدون holding_id: همهٔ لات‌های نماد به‌ترتیب FIFO
+        consumed = await _consume_lots_by_symbol(
+            session,
+            symbol=symbol,
+            quantity=quantity,
+            user_id=None if allow_any_owner else user_id,
+        )
+
+    realized_cost = consumed["realized_cost_irt"]
+    pnl = amount_irt - fee_irt - realized_cost
+
+    trade = GoldTradeModel(
+        user_id=user_id,
+        symbol=symbol,
+        action="sell",
         quantity=quantity,
         price=price,
         amount_irt=amount_irt,
         fee_irt=fee_irt,
         pnl_irt=pnl,
         holding_id=holding_id,
-        plan_id=plan_id,
         note=note,
     )
     session.add(trade)
-    await session.commit()
-    await session.refresh(trade)
+    await session.flush([trade])
     return trade
+
+
+async def _consume_lots(
+    session: AsyncSession,
+    *,
+    symbol: str,
+    quantity: float,
+    holding_id: int,
+    user_id: str | None,
+) -> dict:
+    """مصرف لات‌های یک holding مشخص با FIFO تا quantity."""
+    holding = await session.get(GoldHoldingModel, holding_id)
+    if holding is None:
+        raise HoldingNotFoundError(f"holding {holding_id} not found")
+    if user_id is not None and getattr(holding, "user_id", None) != user_id:
+        raise HoldingNotFoundError(f"holding {holding_id} not found")
+    if holding.deleted_at is not None:
+        raise HoldingDeletedError(f"holding {holding_id} is soft-deleted")
+    if holding.symbol != symbol:
+        raise ValueError(
+            f"holding {holding_id} belongs to symbol {holding.symbol!r}, "
+            f"not {symbol!r}"
+        )
+
+    remaining = quantity
+    consumed_cost = 0.0
+    lots = _group_lots([holding])
+    while remaining > _QTY_EPS and lots:
+        lot_qty, lot_cost = lots[0]
+        take = min(remaining, lot_qty)
+        unit_cost = lot_cost / lot_qty if lot_qty > 0 else 0.0
+        consumed_cost += take * unit_cost
+        remaining -= take
+        lot_qty -= take
+        lot_cost -= take * unit_cost
+        if lot_qty <= _QTY_EPS:
+            lots.pop(0)
+        else:
+            lots[0] = (lot_qty, lot_cost)
+
+    if remaining > _QTY_EPS:
+        raise InsufficientHoldingError(
+            f"not enough quantity for symbol {symbol!r}: "
+            f"requested {quantity}, available {quantity - remaining:.6f}"
+        )
+
+    new_qty = max(holding.quantity - quantity, 0.0)
+    new_cost = max(holding.buy_amount_irt - consumed_cost, 0.0)
+    holding.quantity = new_qty
+    holding.buy_amount_irt = new_cost
+
+    if new_qty <= _QTY_EPS and holding.deleted_at is None:
+        holding.deleted_at = utc_now_naive()
+
+    return {
+        "realized_cost_irt": consumed_cost,
+        "remaining_qty": new_qty,
+        "remaining_cost": new_cost,
+    }
+
+
+async def _consume_lots_by_symbol(
+    session: AsyncSession,
+    *,
+    symbol: str,
+    quantity: float,
+    user_id: str | None,
+) -> dict:
+    """مصرف FIFO از تمام لات‌های غیرحذف‌نشدهٔ یک نماد."""
+    stmt = (
+        select(GoldHoldingModel)
+        .where(
+            GoldHoldingModel.symbol == symbol,
+            GoldHoldingModel.deleted_at.is_(None),
+            GoldHoldingModel.quantity > _QTY_EPS,
+        )
+        .order_by(GoldHoldingModel.bought_at)
+    )
+    if user_id is not None:
+        stmt = stmt.where(GoldHoldingModel.user_id == user_id)
+    rows = (await session.execute(stmt)).scalars().all()
+    if not rows:
+        raise InsufficientHoldingError(
+            f"no available holding for symbol {symbol!r}"
+        )
+    remaining = quantity
+    consumed_cost = 0.0
+    lots: list[tuple[float, float]] = []
+    for h in rows:
+        if h.quantity > _QTY_EPS:
+            lots.append((h.quantity, h.buy_amount_irt))
+    while remaining > _QTY_EPS and lots:
+        lot_qty, lot_cost = lots[0]
+        take = min(remaining, lot_qty)
+        unit_cost = lot_cost / lot_qty if lot_qty > 0 else 0.0
+        consumed_cost += take * unit_cost
+        remaining -= take
+        lot_qty -= take
+        lot_cost -= take * unit_cost
+        if lot_qty <= _QTY_EPS:
+            lots.pop(0)
+        else:
+            lots[0] = (lot_qty, lot_cost)
+
+    if remaining > _QTY_EPS:
+        raise InsufficientHoldingError(
+            f"not enough quantity for symbol {symbol!r}: "
+            f"requested {quantity}, available {quantity - remaining:.6f}"
+        )
+
+    for h in rows:
+        if h.quantity <= _QTY_EPS:
+            continue
+        consumed = min(quantity, h.quantity)
+        h.quantity = h.quantity - consumed
+        h.buy_amount_irt = max(
+            h.buy_amount_irt - (consumed * (h.buy_amount_irt / h.quantity if h.quantity > 0 else 0)),
+            0.0,
+        )
+        if h.quantity <= _QTY_EPS:
+            h.deleted_at = utc_now_naive()
+
+    return {
+        "realized_cost_irt": consumed_cost,
+        "remaining_qty": 0.0,
+        "remaining_cost": 0.0,
+    }
+
+
+def _group_lots(holdings: list[GoldHoldingModel]) -> list[tuple[float, float]]:
+    """Lots از یک یا چند holding: (quantity, buy_amount_irt)."""
+    return [(h.quantity, h.buy_amount_irt) for h in holdings]
+
+
+def utc_now_naive() -> datetime:
+    """زمان اکنون بی‌زون (برای soft-delete ردیف)."""
+    from datetime import UTC as _UTC
+    from datetime import datetime
+
+    return datetime.now(_UTC).replace(tzinfo=None)
+
+
+# ── Path that works with FakeSession-based tests ─────────────────────────────────
+
+
+async def _record_sell_as_fifo(
+    *,
+    lot: SimpleNamespace | None = None,
+    lots: list[SimpleNamespace] | None = None,
+    symbol: str,
+    quantity: float,
+    price: float,
+    amount_irt: float,
+    fee_pct: float = 0.0,
+) -> SimpleNamespace:
+    """نسخهٔ تستیِ ``_record_sell`` که از ``session.get`` استفاده نمی‌کند
+    و مستقیماً روی objects کار می‌کند تا در تست‌های فیک بدون DB استفاده شود.
+
+    این تابع فقط برای valid只有tests است و در production استفاده نمی‌شود.
+    """
+    from datetime import UTC as _UTC
+    from datetime import datetime
+
+    global _QTY_EPS
+
+    _eps = _QTY_EPS
+    if lot is not None:
+        target_lots = [lot]
+    elif lots is not None:
+        target_lots = list(lots)
+    else:
+        raise ValueError("either lot or lots must be provided")
+
+    target_lots.sort(key=lambda x: getattr(x, "bought_at", datetime.min.replace(tzinfo=_UTC)))
+
+    remaining = quantity
+    consumed_cost = 0.0
+    i = 0
+    while remaining > _eps and i < len(target_lots):
+        current = target_lots[i]
+        current_qty = getattr(current, "quantity", 0.0) or 0.0
+        current_cost = getattr(current, "buy_amount_irt", 0.0) or 0.0
+        if current_qty <= _eps:
+            i += 1
+            continue
+        take = min(remaining, current_qty)
+        unit_cost = current_cost / current_qty if current_qty > 0 else 0.0
+        consumed_cost += take * unit_cost
+        remaining -= take
+        new_qty = current_qty - take
+        new_cost = max(current_cost - (take * unit_cost), 0.0)
+        current.quantity = new_qty
+        current.buy_amount_irt = new_cost
+        if new_qty <= _eps:
+            current.deleted_at = datetime.now(_UTC).replace(tzinfo=None)
+        i += 1
+
+    if remaining > _eps:
+        raise InsufficientHoldingError(
+            f"not enough quantity for symbol {symbol!r}: "
+            f"requested {quantity}, available {quantity - remaining:.6f}"
+        )
+
+    if lot is not None and getattr(lot, "deleted_at", None) is None and getattr(lot, "quantity", 0.0) <= _eps:
+        lot.deleted_at = datetime.now(_UTC).replace(tzinfo=None)
+
+    fee_irt = amount_irt * (fee_pct / 100.0)
+    realized_cost = consumed_cost
+    pnl = amount_irt - fee_irt - realized_cost
+
+    trade = SimpleNamespace(
+        id=None,
+        symbol=symbol,
+        action="sell",
+        quantity=quantity,
+        price=price,
+        amount_irt=amount_irt,
+        fee_irt=fee_irt,
+        pnl_irt=pnl,
+        holding_id=getattr(lot, "id", None) if lot is not None else None,
+        note=None,
+        traded_at=datetime.now(_UTC).replace(tzinfo=None),
+    )
+    return trade
+
