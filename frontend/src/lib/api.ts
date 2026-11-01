@@ -1,4 +1,6 @@
 import { assertSuccessEnvelope } from './api-envelope';
+import { withCsrf } from './csrf';
+import { ApiError, ApiTimeoutError, ApiUnauthorizedError } from './api-errors';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -19,6 +21,11 @@ interface InMemoryAuth {
 }
 
 let _memoryAuth: InMemoryAuth = { access_token: null, user: null };
+
+// Single-flight guard for the 401 path. Many parallel requests fail together
+// when a token expires; without this every one of them fired its own logout
+// request and its own redirect to /auth/login (a redirect storm).
+let _sessionTerminationStarted = false;
 
 /**
  * Access token from storage, or null when nobody is signed in.
@@ -45,6 +52,9 @@ function clearStoredAuth() {
 
 function writeStoredAuth(data: { access_token: string }) {
   _memoryAuth.access_token = data.access_token;
+  // A fresh token means the session is healthy again; a later 401 must be
+  // able to terminate it.
+  _sessionTerminationStarted = false;
 }
 
 // Session restore after a page reload: the access token is gone from memory
@@ -90,7 +100,7 @@ async function _silentRefresh(): Promise<string | null> {
       // The refresh token lives in an httpOnly cookie — the server reads it.
       const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         body: JSON.stringify({}),
         credentials: "include",
       });
@@ -120,6 +130,11 @@ async function _silentRefresh(): Promise<string | null> {
 // ── 401 Handler ─────────────────────────────────────────────────
 
 function _handle401() {
+  // Concurrent 401s: only the first caller terminates the session. The rest
+  // see the flag and return without a second logout call or redirect.
+  if (_sessionTerminationStarted) return;
+  _sessionTerminationStarted = true;
+
   const accessToken = getStoredAccessToken();
   clearAuth();
 
@@ -132,7 +147,7 @@ function _handle401() {
     void Promise.resolve(
       fetch(`${API_BASE_URL}/auth/logout`, {
         method: "POST",
-        headers,
+        headers: withCsrf(headers, "POST"),
         credentials: "include",
       }),
     ).catch(() => undefined);
@@ -143,7 +158,9 @@ function _handle401() {
   if (typeof window !== "undefined") {
     const currentPath = window.location.pathname;
     if (!currentPath.startsWith("/auth/")) {
-      window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`;
+      // `reason` lets the login page explain why the user landed there.
+      window.location.href =
+        `/auth/login?redirect=${encodeURIComponent(currentPath)}&reason=session_expired`;
     }
   }
 }
@@ -175,6 +192,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   try {
     const response = await fetch(url, {
       ...options,
+      headers: withCsrf(options.headers, options.method),
       signal: combined,
       credentials: "include",
     });
@@ -185,7 +203,10 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
     // mask it as a timeout.
     if (externalSignal?.aborted) throw e;
     if (e instanceof DOMException && e.name === "AbortError") {
-      throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+      // The internal timeout controller is the only remaining abort source.
+      // A dedicated type keeps it out of the generic failure path (React Query
+      // must not retry it, and the UI shows a timeout-specific message).
+      throw new ApiTimeoutError(url, timeoutMs);
     }
     throw e;
   } finally {
@@ -237,7 +258,9 @@ async function apiRequest<T>(
   if (response.status === 401) { _handle401(); }
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+    const message = `HTTP ${response.status}: ${errorText || response.statusText}`;
+    if (response.status === 401) throw new ApiUnauthorizedError(message);
+    throw new ApiError(message, { status: response.status });
   }
   const payload = (await response.json()) as T;
   // HTTP 200 با `success:false` یعنی منبع داده خطا داده است؛ اگر پاکت را
@@ -309,6 +332,7 @@ export function storeAuth(data: { user: Record<string, unknown>; access_token: s
   _memoryAuth.user = data.user ?? _memoryAuth.user;
   setAccessToken(data.access_token);
   setAuthUser(data.user ?? _memoryAuth.user);
+  _sessionTerminationStarted = false;
 }
 
 // ------ Array Extraction (اصلاح‌شده) ------------------------------------------------------------------------------------------------------

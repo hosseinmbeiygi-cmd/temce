@@ -456,3 +456,47 @@ async def test_record_defaults_outcome_to_unknown(
     await db_session.commit()
 
     assert entry.outcome == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_needs_sync_scopes_to_params(
+    db_session: AsyncSession, sync_log_repo: SyncLogRepository
+) -> None:
+    """A recent sync of one param set must not suppress a different param set."""
+    endpoint = f"/Test/ScopedParams-{uuid4()}.php"
+    await sync_log_repo.record(
+        endpoint=endpoint, category="test", params={"type": "1"}
+    )
+    await db_session.commit()
+
+    assert (
+        await sync_log_repo.needs_sync(
+            endpoint, interval_seconds=60, params={"type": "1"}
+        )
+        is False
+    )
+    assert (
+        await sync_log_repo.needs_sync(
+            endpoint, interval_seconds=60, params={"type": "2"}
+        )
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_needs_sync_redacts_credentials_before_matching(
+    db_session: AsyncSession, sync_log_repo: SyncLogRepository
+) -> None:
+    """API keys must not break dedup: both sides are stored/looked up redacted."""
+    endpoint = f"/Test/Redacted-{uuid4()}.php"
+    await sync_log_repo.record(
+        endpoint=endpoint, category="test", params={"key": "s3cret", "type": "1"}
+    )
+    await db_session.commit()
+
+    assert (
+        await sync_log_repo.needs_sync(
+            endpoint, interval_seconds=60, params={"key": "other-key", "type": "1"}
+        )
+        is False
+    )

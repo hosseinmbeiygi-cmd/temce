@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, Loader2 } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import { useStaleGuard } from "@/lib/use-stale-guard";
 import AddAlertButton from "@/components/AddAlertButton";
 import { fmt } from "../helpers";
 import { TableSkeleton } from "./Skeleton";
@@ -129,20 +130,26 @@ export default function ChainTab() {
   const [moneyness, setMoneyness] = useState<Moneyness>("all");
   const [minOi, setMinOi] = useState("0");
   const [maxSpread, setMaxSpread] = useState("15");
+  const beginRequest = useStaleGuard();
 
   useEffect(() => {
+    const isCurrent = beginRequest();
     if (source !== "tsetmc") return;
     apiGet<{ success: boolean; data: LiveSymbol[] }>("/options/live/symbols")
       .then((r) => {
+        if (!isCurrent()) return;
         const list = r.success ? r.data ?? [] : [];
         setSymbols(list);
         if (list.length && !underlying) setUnderlying(list[0].symbol);
       })
-      .catch(() => setSymbols([]));
+      .catch(() => {
+        if (isCurrent()) setSymbols([]);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source]);
 
   useEffect(() => {
+    const isCurrent = beginRequest();
     const key = source === "tsetmc" ? underlying : commodity;
     if (!key) return;
     setLoading(true);
@@ -152,15 +159,19 @@ export default function ChainTab() {
         : `/options/live/commodity-chain?commodity=${encodeURIComponent(commodity)}&limit=50`;
     apiGet<{ success: boolean; data: ChainData }>(url)
       .then((r) => {
+        if (!isCurrent()) return;
         setChain(r.success ? r.data : null);
         if (source === "ime") setImeReady(r.success);
       })
       .catch(() => {
+        if (!isCurrent()) return;
         setChain(null);
         if (source === "ime") setImeReady(false);
       })
-      .finally(() => setLoading(false));
-  }, [source, underlying, commodity]);
+      .finally(() => {
+        if (isCurrent()) setLoading(false);
+      });
+  }, [source, underlying, commodity, beginRequest]);
 
   const spot = chain?.underlying_price ?? 0;
 

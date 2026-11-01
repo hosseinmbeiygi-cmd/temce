@@ -12,18 +12,22 @@ from __future__ import annotations
 
 import asyncio
 import mimetypes
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from brsapi.models.codal import CodalAttachmentModel
+from core.exceptions import NotFoundError
 from core.logging import get_logger
 from core.paths import data_path, safe_resolve
+from core.result import Result
 
 logger = get_logger(__name__)
 
@@ -36,9 +40,10 @@ DEFAULT_DELAY_SECONDS = 1.0
 DEFAULT_CHUNK_SIZE = 8192
 
 
-def _file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE):
+def _file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> Iterator[bytes]:
     """Yield chunks of a local file for streaming responses (sync variant)."""
-    def _iter():
+
+    def _iter() -> Iterator[bytes]:
         with open(path, "rb") as f:
             while True:
                 chunk = f.read(chunk_size)
@@ -49,11 +54,10 @@ def _file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE):
     return _iter()
 
 
-async def _async_file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE):
+def _async_file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> AsyncIterator[bytes]:
     """Yield chunks of a local file asynchronously (offloaded to a thread)."""
-    import asyncio
 
-    async def _iter():
+    async def _iter() -> AsyncIterator[bytes]:
         loop = asyncio.get_running_loop()
         f = await loop.run_in_executor(None, open, path, "rb")
         try:
@@ -68,9 +72,10 @@ async def _async_file_chunk_iterator(path: Path, chunk_size: int = DEFAULT_CHUNK
     return _iter()
 
 
-async def _async_iter_chunks(chunks: list[bytes]):
+def _async_iter_chunks(chunks: list[bytes]) -> AsyncIterator[bytes]:
     """Yield a fixed list of byte chunks asynchronously."""
-    async def _iter():
+
+    async def _iter() -> AsyncIterator[bytes]:
         for chunk in chunks:
             yield chunk
 
@@ -112,10 +117,11 @@ class CodalAttachmentDownloadService:
         self.timeout = timeout
         self._stale_threshold = timedelta(seconds=STALE_DOWNLOADING_THRESHOLD_SECONDS)
         self._http_client: httpx.AsyncClient | None = None
+        self._s3_storage: Any | None = None
         self._semaphore = asyncio.Semaphore(concurrency)
         bind = getattr(session, "bind", None)
         if isinstance(bind, AsyncEngine):
-            self._session_factory: async_sessionmaker | None = async_sessionmaker(
+            self._session_factory: async_sessionmaker[AsyncSession] | None = async_sessionmaker(
                 bind,
                 class_=AsyncSession,
                 expire_on_commit=False,
@@ -142,6 +148,9 @@ class CodalAttachmentDownloadService:
         if self._http_client:
             await self._http_client.aclose()
             self._http_client = None
+        if self._s3_storage is not None:
+            await self._s3_storage.close()
+            self._s3_storage = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -245,7 +254,7 @@ class CodalAttachmentDownloadService:
         params["storage_type"] = self.storage_type
         result = await self.session.execute(stmt, params)
         await self.session.commit()
-        count = result.rowcount or 0
+        count = getattr(result, "rowcount", 0) or 0
         if count:
             logger.info("Enqueued %d Codal attachment rows", count)
         return count
@@ -292,7 +301,8 @@ class CodalAttachmentDownloadService:
             rows = [CodalAttachmentModel(**dict(r)) for r in result.mappings()]
             await self.session.commit()
             return rows
-        except Exception:  # noqa: BLE001
+        except SQLAlchemyError as exc:
+            logger.warning("SKIP LOCKED claim failed; falling back to update+returning: %s", exc)
             await self.session.rollback()
             # Fallback for databases without SKIP LOCKED: atomic update+returning.
             update_sql = text(
@@ -422,9 +432,17 @@ class CodalAttachmentDownloadService:
         if self.storage_type == "database":
             return None
 
-        if self.storage_type in ("local", "s3"):
-            key = self._make_key(row, mime)
+        key = self._make_key(row, mime)
+        if self.storage_type == "local":
             await self._write_local(key, content)
+            return key
+        if self.storage_type == "s3":
+            storage = await self._get_s3_storage()
+            result = await storage.write(key, content, content_type=mime)
+            if not result.success:
+                raise RuntimeError(
+                    f"S3 persist failed ({result.error_code or 's3_error'}): {result.error}"
+                )
             return key
 
         raise ValueError(f"Unsupported storage_type: {self.storage_type}")
@@ -482,40 +500,64 @@ class CodalAttachmentDownloadService:
         if storage_type == "database":
             return row.content or b""
 
-        if storage_type in ("local", "s3"):
+        if storage_type == "local":
             if not row.storage_path:
                 return b""
-            if storage_type == "local":
-                base = data_path("codal_attachments")
-                path = safe_resolve(base, row.storage_path)
-                return path.read_bytes()
-            result = await self._s3_read(row.storage_path)
-            return result or b""
+            base = data_path("codal_attachments")
+            path = safe_resolve(base, row.storage_path)
+            return path.read_bytes()
+
+        if storage_type == "s3":
+            if not row.storage_path:
+                return b""
+            result = await self._read_s3(row.storage_path)
+            if result.success:
+                return result.value or b""
+            legacy = await self._read_local_copy(row.storage_path)
+            if legacy is not None:
+                logger.info(
+                    "S3 read failed (%s); served legacy local copy for %s",
+                    result.error_code or "error",
+                    row.storage_path,
+                )
+                return legacy
+            return b""
         return b""
 
-    async def _s3_read(self, key: str) -> bytes | None:
-        """Read a file from S3/MinIO via ``S3CompatibleStorage``."""
-        from integrations.filesystems.s3_compatible_storage import S3CompatibleStorage
-
-        storage = S3CompatibleStorage()
+    async def _read_s3(self, key: str) -> Result[bytes]:
+        """Read an object from S3/MinIO, preserving the failure classification."""
+        storage = await self._get_s3_storage()
         try:
             result = await storage.read(key)
-            if result.success:
-                return result.value
-            logger.warning("S3 read failed for %s: %s", key, result.error)
         except Exception as exc:  # noqa: BLE001
             logger.warning("S3 read error for %s: %s", key, exc)
-        finally:
-            await storage.close()
-        return None
+            return Result.fail(str(exc), code="client_error")
+        if not result.success:
+            logger.warning(
+                "S3 read failed for %s (%s): %s",
+                key,
+                result.error_code or "error",
+                result.error,
+            )
+        return cast("Result[bytes]", result)
 
-    def _get_s3_storage(self):
-        """Return a configured S3 storage client (for streaming reads)."""
+    async def _read_local_copy(self, key: str) -> bytes | None:
+        """Serve the legacy local copy of rows written while s3-as-local was in use."""
+        base = data_path("codal_attachments")
+        path = safe_resolve(base, key)
+        if not path.is_file():
+            return None
+        return await asyncio.to_thread(path.read_bytes)
+
+    async def _get_s3_storage(self) -> Any:
+        """Return the shared, configured S3 client for this service instance."""
         from integrations.filesystems.s3_compatible_storage import S3CompatibleStorage
 
-        return S3CompatibleStorage()
+        if self._s3_storage is None:
+            self._s3_storage = S3CompatibleStorage()
+        return self._s3_storage
 
-    async def get_attachment_stream(self, row: CodalAttachmentModel):
+    async def get_attachment_stream(self, row: CodalAttachmentModel) -> AsyncIterator[bytes]:
         """Return an async iterator that yields chunks of the attachment.
 
         For local files this avoids loading the whole file into memory. S3
@@ -527,25 +569,46 @@ class CodalAttachmentDownloadService:
             content = row.content or b""
             return _async_iter_chunks([content])
 
-        if storage_type in ("local", "s3"):
+        if storage_type == "local":
             if not row.storage_path:
                 return _async_iter_chunks([b""])
-            if storage_type == "local":
-                base = data_path("codal_attachments")
-                path = safe_resolve(base, row.storage_path)
-                if not path.exists():
-                    from core.exceptions import NotFoundError
-                    raise NotFoundError(
-                        entity="CodalAttachment file",
-                        identifier=row.storage_path,
-                    )
-                return _async_file_chunk_iterator(path)
-            # S3: read the object and stream it back in one chunk.
-            content = await self._s3_read(row.storage_path)
-            return _async_iter_chunks([content or b""])
+            base = data_path("codal_attachments")
+            path = safe_resolve(base, row.storage_path)
+            if not path.exists():
+                raise NotFoundError(
+                    entity="CodalAttachment file",
+                    identifier=row.storage_path,
+                )
+            return _async_file_chunk_iterator(path)
+
+        if storage_type == "s3":
+            if not row.storage_path:
+                return _async_iter_chunks([b""])
+            result = await self._read_s3(row.storage_path)
+            if result.success:
+                return _async_iter_chunks([result.value or b""])
+            legacy = await self._read_local_copy(row.storage_path)
+            if legacy is not None:
+                logger.info(
+                    "S3 read failed (%s); streamed legacy local copy for %s",
+                    result.error_code or "error",
+                    row.storage_path,
+                )
+                return _async_iter_chunks([legacy])
+            if result.error_code == "not_found":
+                raise NotFoundError(
+                    entity="CodalAttachment file",
+                    identifier=row.storage_path,
+                )
+            logger.error(
+                "S3 stream unavailable for %s (%s)",
+                row.storage_path,
+                result.error_code or "error",
+            )
+            return _async_iter_chunks([b""])
         return _async_iter_chunks([b""])
 
-    async def get_attachment_stream_legacy(self, row: CodalAttachmentModel):
+    async def get_attachment_stream_legacy(self, row: CodalAttachmentModel) -> Iterator[bytes]:
         """Backward-compatible sync-iterator variant (wraps the async one)."""
         chunks = []
         async for chunk in await self.get_attachment_stream(row):

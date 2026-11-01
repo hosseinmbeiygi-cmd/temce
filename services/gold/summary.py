@@ -11,8 +11,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from core.logging import get_logger
 from services.gold.constants import AED_PEG, MESGHAL_GRAMS
 from services.gold.physical_arbitrage import calculate_coin_bubbles
+
+logger = get_logger(__name__)
 
 # ── Shape helpers ──────────────────────────────────────────────────────
 
@@ -43,7 +46,8 @@ def _coin_bubble_from_price(
     try:
         bubbles = calculate_coin_bubbles(ounce_usd, usd_irr, valid_prices)
         return bubbles
-    except Exception:
+    except (ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+        logger.warning("coin bubble calculation failed: %s", exc, exc_info=True)
         return None
 
 
@@ -62,7 +66,8 @@ async def _fetch_ounce_usd() -> float | None:
         if ounce is None or ounce <= 0:
             return None
         return float(ounce)
-    except Exception:
+    except Exception as exc:
+        logger.warning("ounce USD provider failed: %s", exc, exc_info=True)
         return None
 
 
@@ -79,7 +84,8 @@ async def _fetch_usd_irr() -> float | None:
         if usd is None or usd <= 0:
             return None
         return float(usd)
-    except Exception:
+    except Exception as exc:
+        logger.warning("USD/IRR provider failed: %s", exc, exc_info=True)
         return None
 
 
@@ -97,7 +103,8 @@ async def _fetch_melted_irr() -> float | None:
         if gold_18k is None or gold_18k <= 0:
             return None
         return gold_18k * MESGHAL_GRAMS
-    except Exception:
+    except Exception as exc:
+        logger.warning("melted gold provider failed: %s", exc, exc_info=True)
         return None
 
 
@@ -117,7 +124,8 @@ async def _fetch_coin_prices() -> dict[str, float | None]:
             "quarter": None,
             "gerami": None,
         }
-    except Exception:
+    except Exception as exc:
+        logger.warning("coin price provider failed: %s", exc, exc_info=True)
         return { "emami": None, "half": None, "quarter": None, "gerami": None }
 
 
@@ -136,7 +144,8 @@ async def _fetch_aed_implied_usd(usd_irr: float | None) -> float | None:
         if aed_irr is None or aed_irr <= 0:
             return None
         return aed_irr / usd_irr
-    except Exception:
+    except Exception as exc:
+        logger.warning("AED implied USD provider failed: %s", exc, exc_info=True)
         return None
 
 

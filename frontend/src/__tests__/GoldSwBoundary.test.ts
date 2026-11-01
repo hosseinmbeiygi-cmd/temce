@@ -116,4 +116,41 @@ describe("S1 — no SW cache-firsts gold financial data", () => {
     expect(app).toBe(gold);
     expect(gold).toBe(300_000);
   });
+
+  // W4-03 — cache-first برای HTML صفحات /gold حلقهٔ reload می‌ساخت.
+  describe("W4-03 — gold HTML navigations are network-first", () => {
+    const PAGE = "http://localhost/gold/portfolio";
+    const HTML = { headers: { accept: "text/html", "content-type": "text/html" } };
+
+    async function seedCachedPage() {
+      const cache = await caches.open("golddesk-static-v3");
+      await cache.put(
+        new Request(PAGE),
+        new Response("<html>old-shell</html>", { status: 200, headers: { "content-type": "text/html" } }),
+      );
+    }
+
+    it("serves the fresh network page even though a cached shell exists", async () => {
+      await seedCachedPage();
+      fetchMock.mockResolvedValue(
+        new Response("<html>fresh</html>", { status: 200, headers: { "content-type": "text/html" } }),
+      );
+
+      const sw = boot(GOLD_SW, fetchMock, caches);
+      const res = await respondWith(sw, PAGE, HTML);
+
+      expect(await res.text()).toContain("fresh");
+      expect(fetchMock).toHaveBeenCalledWith(expect.anything());
+    });
+
+    it("uses the cached shell only when the network fails", async () => {
+      await seedCachedPage();
+      fetchMock.mockRejectedValue(new Error("network down"));
+
+      const sw = boot(GOLD_SW, fetchMock, caches);
+      const res = await respondWith(sw, PAGE, HTML);
+
+      expect(await res.text()).toContain("old-shell");
+    });
+  });
 });

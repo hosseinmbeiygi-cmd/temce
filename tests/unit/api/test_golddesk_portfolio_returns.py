@@ -17,7 +17,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_current_user, get_db_session
 from src.gold_desk import api as gold_api
 from src.gold_desk.portfolio import PortfolioReturns
 
@@ -44,6 +44,8 @@ def client() -> TestClient:
     app = FastAPI()
     app.include_router(gold_api.router)
     app.dependency_overrides[get_db_session] = lambda: None
+    # شکل پاسخ این مسیرها را می‌سنجیم؛ احراز هویت اینجا stubbed می‌شود.
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test-admin", "roles": ["admin"]}
 
     stubs = {
         "get_hot_snapshot": AsyncMock(return_value={"snapshot_at": "2026-10-12T00:00:00"}),

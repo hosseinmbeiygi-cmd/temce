@@ -77,10 +77,15 @@ def _load_macroeconomics_config() -> tuple[dict[str, float], dict[str, float]]:
     Returns (macro_economics, portfolio) dicts, falling back to hardcoded
     defaults if the file is missing or malformed.
     """
-    try:
-        import os
+    import os
 
+    try:
         import yaml
+    except ImportError as exc:
+        logger.debug("PyYAML unavailable (%s) — using default macroeconomics", exc)
+        return dict(_DEFAULT_MACRO_ECONOMICS), dict(_DEFAULT_PORTFOLIO)
+
+    try:
         config_path = os.path.join(
             os.path.dirname(__file__), "..", "config", "macroeconomics.yaml"
         )
@@ -97,7 +102,7 @@ def _load_macroeconomics_config() -> tuple[dict[str, float], dict[str, float]]:
         else:
             pf = dict(_DEFAULT_PORTFOLIO)
         return me, pf
-    except Exception as e:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, yaml.YAMLError) as e:
         logger.debug("Could not load macroeconomics.yaml: %s — using defaults", e)
         return dict(_DEFAULT_MACRO_ECONOMICS), dict(_DEFAULT_PORTFOLIO)
 
@@ -140,8 +145,8 @@ class FeatureEngine:
                 )
             else:
                 logger.warning("FeatureEngine: features.json not found at %s", json_path)
-        except Exception:
-            logger.exception("FeatureEngine: failed to load features.json")
+        except (OSError, ValueError, TypeError) as exc:
+            logger.exception("FeatureEngine: failed to load features.json: %s", exc)
 
     # ═══════════════════════════════════════════════════════════════
     #  PUBLIC API
@@ -367,7 +372,9 @@ class FeatureEngine:
         f["industry_name"] = enriched.get("sector", "")
 
         # سهام شناور آزاد — از free_float_pct و shares_count
-        free_float_pct = float(enriched.get("free_float_pct", 0) or 0)
+        # Same 0..100 clamp as Block D/E: a fraction or bad value must never
+        # inflate float shares beyond the total share count.
+        free_float_pct = min(max(float(enriched.get("free_float_pct", 0) or 0), 0.0), 100.0)
         shares_count = float(enriched.get("shares_count", 0) or 0)
         f["float_shares"] = int(shares_count * free_float_pct / 100) if free_float_pct > 0 else 0
 
@@ -390,9 +397,17 @@ class FeatureEngine:
         f: dict[str, Any] = {}
 
         # EPS از snapshot یا detail
+        # BrsApi ``eps`` is the announced annual EPS — ``pe_ratio`` equals
+        # ``price_last / eps`` for every stored record, and
+        # ``eps_ttm * shares_count`` must reconcile with
+        # ``market_value / pe_ratio``. Annualising it (previously ×4) overstated
+        # earnings fourfold. Losses (negative EPS) are kept, not zeroed, so
+        # loss-making symbols are not silently reported as earnings-neutral.
         eps_raw = float(enriched.get("eps", 0) or 0)
-        f["eps_ttm"] = eps_raw * 4 if eps_raw > 0 else 0  # تعدیل به 12 ماه
-        f["eps_last_year"] = eps_raw * 3 if eps_raw > 0 else 0  # تخمین سال قبل
+        f["eps_ttm"] = eps_raw
+        # No historical EPS feed exists, so last-year EPS is declared absent
+        # rather than invented as a fixed multiple of the current figure.
+        f["eps_last_year"] = 0
 
         me = _macroeconomics
         # نرخ ارز مبنا
@@ -413,16 +428,18 @@ class FeatureEngine:
         f["inflation_rate"] = me["inflation_rate"]
 
         # رشد اسمی EPS
+        # Growth is only defined when a prior-year EPS exists. Deflating a
+        # missing growth of 0 by inflation would report a ~-26% real contraction
+        # for every symbol and cost them 20 fundamental points.
         if f["eps_last_year"] > 0:
             f["eps_nominal_growth"] = round((f["eps_ttm"] / f["eps_last_year"]) - 1, 4)
+            inflation_decimal = me["inflation_rate"] / 100.0
+            f["eps_real_growth"] = round(
+                (1 + f["eps_nominal_growth"]) / (1 + inflation_decimal) - 1, 4
+            ) if inflation_decimal > 0 else f["eps_nominal_growth"]
         else:
             f["eps_nominal_growth"] = 0.0
-
-        # رشد واقعی سود
-        inflation_decimal = me["inflation_rate"] / 100.0
-        f["eps_real_growth"] = round(
-            (1 + f["eps_nominal_growth"]) / (1 + inflation_decimal) - 1, 4
-        ) if inflation_decimal > 0 else f["eps_nominal_growth"]
+            f["eps_real_growth"] = 0.0
 
         # سود خالص (تخمین از market_value / PE)
         market_value = float(enriched.get("market_value", 0) or 0)
@@ -462,9 +479,10 @@ class FeatureEngine:
         else:
             f["pe_relative"] = 0.0
 
-        # بازده سود
-        if f["last_price"] > 0 and block_b.get("eps_ttm", 0) > 0:
-            f["earnings_yield"] = round((block_b["eps_ttm"] * 4 / f["last_price"]) * 100, 2)
+        # بازده سود — EPS_TTM is already annual, so this is EPS / Price (no ×4).
+        # Losses keep a negative yield instead of collapsing to "no data" (0).
+        if f["last_price"] > 0 and block_b.get("eps_ttm", 0) != 0:
+            f["earnings_yield"] = round(block_b["eps_ttm"] / f["last_price"] * 100, 2)
         else:
             f["earnings_yield"] = 0.0
 
@@ -671,7 +689,8 @@ class FeatureEngine:
 
         f["agm_proximity"] = 1.0 if (today.month == 12 and today.day >= 22) else (0.5 if today.day == 1 else 0.0)
 
-        f["market_index_3m"] = 0.3 if today.weekday() == 5 else 0.0
+        # Index momentum needs a 3-month index series; no feed is wired yet.
+        f["market_index_3m"] = 0.0
 
         return f
 
@@ -838,8 +857,8 @@ class FeatureEngine:
         pe_rel = float(c.get("pe_relative", 0))
         if 0 < pe_rel < 0.8:
             score += 25
-        elif pe_rel < 1.2:
-            score += 10
+        elif 0 < pe_rel < 1.2:
+            score += 10  # a missing (0) P/E must not earn this cheapness bonus
         elif pe_rel > 2:
             score -= 20
         elif pe_rel > 1.5:

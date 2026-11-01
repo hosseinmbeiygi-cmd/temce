@@ -1969,7 +1969,8 @@ class StockAssistantService:
                 history = await self._get_stock_history(sym)
                 if history and len(history) >= 10:
                     history_data[sym] = [h.get("close", 0) for h in history]
-            except Exception:
+            except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+                logger.debug("correlation history unavailable for %s: %s", sym, exc)
                 continue
 
         if len(history_data) < 2:

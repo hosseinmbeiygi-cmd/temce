@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import Header, HTTPException, status
 
 from core.logging import get_logger
-from core.security.tokens import decode_access_token
+from core.security.tokens import validate_access_token
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,7 @@ async def resolve_user(
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1].strip()
         try:
-            claims = decode_access_token(token)
+            claims = await validate_access_token(token)
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

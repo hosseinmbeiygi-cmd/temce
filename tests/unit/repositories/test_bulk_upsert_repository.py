@@ -18,7 +18,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from brsapi.models.tsetmc import SymbolSnapshotModel
-from brsapi.repositories.base import BulkUpsertRepository
+from brsapi.repositories.base import (
+    BulkInsertRowCountUnavailable,
+    BulkUpsertRepository,
+    _affected_row_count,
+)
 
 TABLE_DDL = """
 CREATE TABLE brsapi_symbol_snapshots (
@@ -116,3 +120,47 @@ async def test_delete_where_rejects_unknown_columns(session: AsyncSession) -> No
     repo = BulkUpsertRepository(session, SymbolSnapshotModel)
     with pytest.raises(ValueError, match="Invalid SQL identifier|Unknown column"):
         await repo.delete_where("symbol; DROP TABLE users; --", "A")
+
+
+# ── Truthful counters when the driver omits rowcount ─────────────────────────
+
+
+class _Result:
+    def __init__(self, rowcount: int | None) -> None:
+        self.rowcount = rowcount
+
+
+class _NoRowcount:
+    @property
+    def rowcount(self) -> int:
+        raise NotImplementedError("driver does not expose rowcount")
+
+
+def test_rowcount_is_used_when_available() -> None:
+    assert (
+        _affected_row_count(_Result(7), attempted=10, on_conflict_update=False, table_name="t")
+        == 7
+    )
+
+
+def test_unknown_rowcount_for_do_nothing_fails_instead_of_claiming_success() -> None:
+    with pytest.raises(BulkInsertRowCountUnavailable):
+        _affected_row_count(_Result(None), attempted=10, on_conflict_update=False, table_name="t")
+
+
+def test_negative_rowcount_is_treated_as_unknown() -> None:
+    with pytest.raises(BulkInsertRowCountUnavailable):
+        _affected_row_count(_Result(-1), attempted=10, on_conflict_update=False, table_name="t")
+
+
+def test_missing_rowcount_attribute_is_treated_as_unknown() -> None:
+    with pytest.raises(BulkInsertRowCountUnavailable):
+        _affected_row_count(_NoRowcount(), attempted=10, on_conflict_update=False, table_name="t")
+
+
+def test_unknown_rowcount_for_upsert_reports_attempted_rows() -> None:
+    """DO UPDATE touches every deduplicated row, so the attempted count is exact."""
+    assert (
+        _affected_row_count(_Result(None), attempted=10, on_conflict_update=True, table_name="t")
+        == 10
+    )

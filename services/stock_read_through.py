@@ -83,7 +83,8 @@ def _is_market_open() -> bool:
         import pytz
 
         now = datetime.now(pytz.timezone("Asia/Tehran")).time()
-    except Exception:
+    except ImportError as exc:
+        logger.debug("pytz unavailable (%s); using project timezone helper", exc)
         now = now_tehran().time()
     return dt.time(8, 45) <= now <= dt.time(12, 35)
 

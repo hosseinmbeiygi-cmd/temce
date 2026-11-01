@@ -742,29 +742,6 @@ def _pg_columns(cur):
     return {r[0] for r in cur.fetchall()}
 
 
-def _has_unique_trade_index(cur):
-    """آیا ایندکس یکتای دقیقاً روی (symbol, trade_date, row) وجود دارد؟"""
-    cur.execute(
-        """
-        SELECT 1
-        FROM pg_index i
-        JOIN pg_class t ON t.oid = i.indrelid
-        JOIN pg_namespace n ON n.oid = t.relnamespace
-        WHERE n.nspname = current_schema()
-          AND t.relname = %s
-          AND i.indisunique
-          AND (
-              SELECT array_agg(a.attname::text ORDER BY k.ord)
-              FROM unnest(i.indkey::smallint[]) WITH ORDINALITY AS k(attnum, ord)
-              JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
-              WHERE k.ord <= i.indnkeyatts
-          ) = ARRAY['symbol', 'trade_date', 'row']
-        """,
-        (TRADES_TABLE,),
-    )
-    return cur.fetchone() is not None
-
-
 def _shamsi_to_gregorian(date_str):
     """تاریخ شمسی YYYY-MM-DD → date میلادی (نبودِ مقدار → None)"""
     try:
@@ -791,20 +768,16 @@ def _parse_jalali(value):
     return jdatetime.date(y, m, d)
 
 
-def _insert_sql(cols, has_unique=False):
+def _insert_sql(cols):
     """ستون‌های INSERT از اسکیمای واقعی جدول ساخته می‌شود تا drift جدول را نشکند."""
     missing = [c for c in REQUIRED_TRADE_COLUMNS if c not in cols]
     if missing:
         raise RuntimeError(f"ستون‌های لازم در {TRADES_TABLE} نیست: {', '.join(missing)}")
     optional = [c for c in OPTIONAL_TRADE_COLUMNS if c in cols]
     names = ['symbol', '"row"', 'time', 'volume', 'price', 'canceled', 'trade_date', *optional]
-    conflict = (
-        'ON CONFLICT (symbol, trade_date, "row") DO NOTHING'
-        if has_unique
-        else "ON CONFLICT DO NOTHING"
-    )
     return (
-        f"INSERT INTO {TRADES_TABLE} ({', '.join(names)}) VALUES %s {conflict} RETURNING 1",
+        f"INSERT INTO {TRADES_TABLE} ({', '.join(names)}) VALUES %s "
+        "ON CONFLICT DO NOTHING RETURNING 1",
         tuple(optional),
     )
 
@@ -859,8 +832,7 @@ def _insert_trades(symbol, date_str, rows, ins_map):
     try:
         with conn.cursor() as cur:
             if _PG_INSERT_SQL is None:
-                has_unique = _has_unique_trade_index(cur)
-                _PG_INSERT_SQL = _insert_sql(_pg_columns(cur), has_unique)
+                _PG_INSERT_SQL = _insert_sql(_pg_columns(cur))
 
             sql, optional = _PG_INSERT_SQL
             cur.execute(
@@ -917,22 +889,13 @@ def _check_pg():
         conn.autocommit = True
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM " + TRADES_TABLE + " LIMIT 1")
-            has_unique = _has_unique_trade_index(cur)
-            _insert_sql(_pg_columns(cur), has_unique)
-            has_unique = _has_unique_trade_index(cur)
+            _insert_sql(_pg_columns(cur))
     except Exception as e:
         raise RuntimeError(f"جدول {TRADES_TABLE} در {_pg_target()} آماده نیست: {e}")
     finally:
         conn.close()
 
     logging.info(f"مقصد ذخیره ریز معاملات: {_pg_target()} :: {TRADES_TABLE}")
-    if has_unique:
-        logging.info("ایندکس یکتا روی (symbol, trade_date, row) موجود است؛ ON CONFLICT فعال است.")
-    else:
-        logging.warning(
-            "ایندکس یکتا روی (symbol, trade_date, row) وجود ندارد؛ "
-            "حفاظت از تکرار فقط درون‌پروسه‌ای است و اجرای هم‌زمان می‌تواند ردیف تکراری بسازد."
-        )
 
 
 # ============================ دانلودر ============================

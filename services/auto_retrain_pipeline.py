@@ -289,7 +289,8 @@ class AutoRetrainPipeline:
         """
         try:
             from core.database import async_session_factory
-        except Exception:
+        except ImportError as exc:
+            logger.debug("core.database unavailable; holdout accuracy unknown: %s", exc)
             return None
         if async_session_factory is None:
             return None

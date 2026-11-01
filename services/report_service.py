@@ -112,7 +112,13 @@ class ReportService:
         logger.info("Generating backtest report for backtest=%s", backtest_id)
         try:
             result = await self._backtest_builder.build({"backtest_id": backtest_id})
-        except Exception:
+        except (OSError, ValueError, KeyError, RuntimeError) as exc:
+            logger.warning(
+                "backtest report build failed for %s; retrying once: %s",
+                backtest_id,
+                exc,
+                exc_info=True,
+            )
             result = await self._backtest_builder.build({"backtest_id": backtest_id})
         if not result.success:
             return Result.fail(f"Failed to generate backtest report: {result.error}")

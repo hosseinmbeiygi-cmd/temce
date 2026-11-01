@@ -134,7 +134,7 @@ class WalkForwardEngine:
         is_results = []
         oos_results = []
 
-        for train, test in pairs:
+        for window_index, (train, test) in enumerate(pairs):
 
             try:
                 is_metrics = strategy_fn(train, **kwargs)
@@ -146,8 +146,13 @@ class WalkForwardEngine:
 
                     oos_results.append(oos_metrics)
 
-            except Exception:
-
+            except (ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+                logger.warning(
+                    "walk-forward window %d failed and was skipped: %s",
+                    window_index,
+                    exc,
+                    exc_info=True,
+                )
                 continue
 
         if not is_results or not oos_results:

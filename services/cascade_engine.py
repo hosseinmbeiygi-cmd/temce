@@ -273,7 +273,8 @@ class GeneticOptimizer:
                 return None
             metrics = compute_metrics(result.value, capital)
             return metrics, params
-        except Exception:
+        except (ValueError, TypeError, KeyError, ZeroDivisionError, RuntimeError) as exc:
+            logger.warning("cascade _evaluate failed for %s: %s", getattr(cls, "__name__", "unknown"), exc, exc_info=True)
             return None
 
     def _tournament_select(self, results: list[dict], n: int) -> list[dict]:
@@ -358,7 +359,8 @@ class WalkForwardValidator:
                 if is_result.success:
                     is_metrics = compute_metrics(is_result.value, capital)
                     is_results.append(is_metrics)
-            except Exception:
+            except (ValueError, TypeError, KeyError, ZeroDivisionError, RuntimeError) as exc:
+                logger.debug("cascade validate: in-sample window skipped for %s: %s", getattr(cls, "__name__", "unknown"), exc)
                 continue
 
             # Out-of-Sample (testing)
@@ -368,7 +370,8 @@ class WalkForwardValidator:
                 if oos_result.success:
                     oos_metrics = compute_metrics(oos_result.value, capital)
                     oos_results.append(oos_metrics)
-            except Exception:
+            except (ValueError, TypeError, KeyError, ZeroDivisionError, RuntimeError) as exc:
+                logger.debug("cascade validate: out-of-sample window skipped for %s: %s", getattr(cls, "__name__", "unknown"), exc)
                 continue
 
         if not is_results or not oos_results:
@@ -638,7 +641,14 @@ class CascadeEngine:
                 return None
             metrics = compute_metrics(result.value, capital)
             return metrics, strategy_name, clean_params
-        except Exception:
+        except (ValueError, TypeError, KeyError, ZeroDivisionError, RuntimeError) as exc:
+            logger.warning(
+                "cascade _run_single failed for %s/%s: %s",
+                getattr(cls, "__name__", "unknown"),
+                strategy_name,
+                exc,
+                exc_info=True,
+            )
             return None
 
     def get_results(self) -> dict[str, Any]:

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { clearAuth, getStoredAuth, hydrateSession, storeAuth } from "@/lib/api";
+import { withCsrf } from "@/lib/csrf";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
       body: JSON.stringify({ username, password }),
       credentials: "include",
     });
@@ -189,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }) => {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -241,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
-        headers,
+        headers: withCsrf(headers, "POST"),
         credentials: "include",
       });
     } catch {
@@ -258,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         body: JSON.stringify({}),
         credentials: "include",
       });

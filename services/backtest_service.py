@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from datetime import date
 from typing import Any
 
@@ -51,14 +50,16 @@ def _compute_metrics(result: BacktestResult, risk_free_rate: float | None = None
 
     all_metrics: dict[str, float] = {}
 
-    with contextlib.suppress(Exception):
-        all_metrics.update(RiskMetrics.compute(result, risk_free_rate))
-    with contextlib.suppress(Exception):
-        all_metrics.update(TradeMetrics.compute(result))
-    with contextlib.suppress(Exception):
-        all_metrics.update(ReturnMetrics.compute(result))
-    with contextlib.suppress(Exception):
-        all_metrics.update(DrawdownMetrics.compute(result))
+    for name, compute in (
+        ("risk", lambda: RiskMetrics.compute(result, risk_free_rate)),
+        ("trade", lambda: TradeMetrics.compute(result)),
+        ("return", lambda: ReturnMetrics.compute(result)),
+        ("drawdown", lambda: DrawdownMetrics.compute(result)),
+    ):
+        try:
+            all_metrics.update(compute())
+        except (ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+            logger.warning("%s metrics failed: %s", name, exc, exc_info=True)
 
     # Ensure backward-compatible keys exist
     trading_days = len(result.equity_curve)
@@ -686,9 +687,12 @@ class BacktestService:
         try:
             model_obj, _ = artifact_mgr.load_model(model_id)
             model = model_obj
-        except Exception:
-            with contextlib.suppress(Exception):
+        except (OSError, ValueError, KeyError, RuntimeError, ImportError) as exc:
+            logger.warning("Could not load ML model %s: %s; trying a fresh model", model_id, exc)
+            try:
                 model = model_registry.create("xgboost")
+            except (ImportError, RuntimeError, ValueError) as create_exc:
+                logger.warning("Fresh model creation failed: %s", create_exc)
 
         if model is None or not hasattr(model, "predict"):
             logger.warning("No ML model available for %s, using zero predictions", symbol)
@@ -736,7 +740,8 @@ class BacktestService:
             try:
                 result = model.predict(fm)
                 predictions = result.predictions
-            except Exception:
+            except (ValueError, TypeError, KeyError, RuntimeError) as exc:
+                logger.warning("ML prediction failed for %s; using zero predictions: %s", symbol, exc)
                 predictions = [0.0] * len(fm)
 
             # Align predictions back to original bars (some may have been dropped by feature engineering)

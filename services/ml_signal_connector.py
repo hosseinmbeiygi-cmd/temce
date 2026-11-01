@@ -259,7 +259,8 @@ class MLSignalConnector:
                 if not closes:
                     try:
                         closes = getattr(features, "closes", [])
-                    except Exception:
+                    except AttributeError as exc:
+                        logger.debug("feature payload has no closes attribute: %s", exc)
                         closes = []
 
                 if closes and len(closes) >= 10:

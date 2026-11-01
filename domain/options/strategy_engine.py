@@ -23,9 +23,9 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
-from domain.options.payoff import OptionLeg
+from domain.options.payoff import LegAction, LegType, OptionLeg
 from domain.options.pricing import black_scholes_price
 
 # ── Chain lookup (§7.9 ChainLookup) ─────────────────────────────────────
@@ -221,8 +221,8 @@ class StrategyTemplateLibrary:
     def _payoff(self, legs: Iterable[TemplateLeg]) -> list[OptionLeg]:
         return [
             OptionLeg(
-                type=leg.option_type,  # type: ignore[arg-type]
-                action=leg.action,  # type: ignore[arg-type]
+                type=cast(LegType, leg.option_type),
+                action=cast(LegAction, leg.action),
                 strike=leg.strike or 0.0,
                 premium=leg.premium,
                 quantity=leg.quantity,
@@ -422,8 +422,8 @@ class GreeksAggregator:
 
         payoff_legs = [
             OptionLeg(
-                type=leg.option_type,  # type: ignore[arg-type]
-                action=leg.action,  # type: ignore[arg-type]
+                type=cast(LegType, leg.option_type),
+                action=cast(LegAction, leg.action),
                 strike=leg.strike or 0.0,
                 premium=leg.premium,
                 quantity=leg.quantity,

@@ -1,15 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import { apiGet } from "@/lib/api";
-
-const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 280 }} />,
-});
 
 // ------ Types ----------------------------------------------------------------
 interface PhaseData {
@@ -50,42 +44,6 @@ const PHASE_ORDER = [
   "early_accumulation",
   "neutral",
 ];
-
-// ------ Mock Data ------------------------------------------------------------
-const MOCK_SYMBOLS = ["فولاد", "شپنا", "وبملت", "خودرو", "فملی", "کگل", "پترول", "مس", "شبندر", "خساپا"];
-
-function generateMockPhaseData(): PhaseData[] {
-  return MOCK_SYMBOLS.map((symbol, i) => ({
-    symbol,
-    phase: PHASE_ORDER[Math.floor((i * 7 + 3) % 6)],
-    smc: 0.3 + (i * 0.07) % 0.6,
-    scores: {
-      accumulation: 0.2 + (i * 0.08) % 0.7,
-      absorption: 0.2 + (i * 0.06) % 0.7,
-      float_lock: 0.2 + (i * 0.05) % 0.7,
-      breakout_readiness: 0.2 + (i * 0.09) % 0.7,
-    },
-    timestamp: Date.now(),
-  }));
-}
-
-function generateMockHistory(days: number = 30) {
-  const data: { date: string; time: string; value: number }[] = [];
-  let base = 45;
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    if (d.getDay() === 5 || d.getDay() === 6) continue;
-    base = Math.max(10, Math.min(90, base + (Math.random() - 0.48) * 8));
-    data.push({
-      date: d.toLocaleDateString("fa-IR", { month: "short", day: "numeric" }),
-      time: d.toLocaleDateString("fa-IR", { month: "short", day: "numeric" }),
-      value: Math.round(base),
-    });
-  }
-  return data;
-}
 
 // ------ Phase Distribution Chart ---------------------------------------------
 function PhaseDistribution({ data }: { data: PhaseData[] }) {
@@ -158,6 +116,9 @@ function PhaseTimeline({ transitions }: { transitions: PhaseTransition[] }) {
 function SymbolGrid({ data, onSelect }: { data: PhaseData[]; onSelect: (s: string) => void }) {
   return (
     <Card title="وضعیت نمادها">
+      {data.length === 0 && (
+        <p className="py-6 text-center text-xs text-surface-500">وضعیت فازی برای هیچ نمادی از سرور دریافت نشد.</p>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 py-2">
         {data.map((d) => {
           const meta = PHASE_META[d.phase] || PHASE_META.neutral;
@@ -197,39 +158,38 @@ export default function PhaseMonitorPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const prevDataRef = useRef<Map<string, string>>(new Map());
 
   const fetchData = useCallback(async () => {
     try {
       const res = await apiGet<{ success: boolean; data: PhaseData[] }>("/smart-money/monitor");
-      if (res?.data) {
-        // Detect transitions
-        const newTransitions: PhaseTransition[] = [];
-        for (const item of res.data) {
-          const prevPhase = prevDataRef.current.get(item.symbol);
-          if (prevPhase && prevPhase !== item.phase) {
-            newTransitions.push({
-              symbol: item.symbol,
-              from: prevPhase,
-              to: item.phase,
-              timestamp: Date.now(),
-            });
-          }
-          prevDataRef.current.set(item.symbol, item.phase);
+      if (!res?.data) throw new Error("empty payload");
+      // Detect transitions
+      const newTransitions: PhaseTransition[] = [];
+      for (const item of res.data) {
+        const prevPhase = prevDataRef.current.get(item.symbol);
+        if (prevPhase && prevPhase !== item.phase) {
+          newTransitions.push({
+            symbol: item.symbol,
+            from: prevPhase,
+            to: item.phase,
+            timestamp: Date.now(),
+          });
         }
-        if (newTransitions.length > 0) {
-          setTransitions((prev) => [...newTransitions, ...prev].slice(0, 50));
-        }
-        setPhaseData(res.data);
-        setLastUpdate(new Date());
-        setConnected(true);
+        prevDataRef.current.set(item.symbol, item.phase);
       }
-    } catch {
-      // Fallback to mock data
-      const mock = generateMockPhaseData();
-      setPhaseData(mock);
-      setConnected(false);
+      if (newTransitions.length > 0) {
+        setTransitions((prev) => [...newTransitions, ...prev].slice(0, 50));
+      }
+      setPhaseData(res.data);
       setLastUpdate(new Date());
+      setConnected(true);
+      setError(null);
+    } catch {
+      // No sample rows: show the outage and keep the last real snapshot.
+      setConnected(false);
+      setError("دریافت وضعیت فاز نمادها ناموفق بود — ارتباط با سرور برقرار نشد.");
     }
   }, []);
 
@@ -240,7 +200,6 @@ export default function PhaseMonitorPage() {
     return () => { clearTimeout(timer); clearInterval(interval); };
   }, [fetchData]);
 
-  const historyData = generateMockHistory(30);
   const activeCount = phaseData.filter((d) => d.phase !== "neutral").length;
   const avgSmc = phaseData.length
     ? Math.round((phaseData.reduce((s, d) => s + d.smc, 0) / phaseData.length) * 100)
@@ -259,7 +218,7 @@ export default function PhaseMonitorPage() {
         </div>
         {lastUpdate && (
           <span className="text-[10px] text-surface-600">
-            آخرین بروزرسانی: {lastUpdate.toLocaleTimeString("fa-IR")}
+            آخرین بروزرسانی موفق: {lastUpdate.toLocaleTimeString("fa-IR")}
           </span>
         )}
         <button
@@ -269,6 +228,13 @@ export default function PhaseMonitorPage() {
           <span className="material-icons text-sm align-middle">refresh</span>
         </button>
       </div>
+
+      {error && (
+        <div role="alert" aria-live="polite" className="mb-4 flex items-center gap-2 rounded-xl border border-accent-rose/30 bg-accent-rose/10 px-4 py-2.5 text-xs text-accent-rose">
+          <span className="material-icons text-base">wifi_off</span>
+          {error}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -301,19 +267,12 @@ export default function PhaseMonitorPage() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <Card title="روند میانگین SMC بازار">
-          <AreaChartCard
-            title=""
-            data={historyData}
-            height={260}
-            yAxisFormatter={(v) => `${v}%`}
-            tooltipFormatter={(v) => `${v}%`}
-            strokeColor="#06b6d4"
-            gradientId="monitorGradient"
-            crosshair
-            animate
-            showAverage
-            primaryLabel="میانگین SMC"
-          />
+          <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 px-6 text-center">
+            <span className="material-icons text-3xl text-surface-600">show_chart</span>
+            <p className="text-xs text-surface-500">
+              سری تاریخی میانگین SMC از سرور در دسترس نیست؛ به‌جای نمایش نمودار ساختگی، این بخش خالی می‌ماند.
+            </p>
+          </div>
         </Card>
         <PhaseTimeline transitions={transitions} />
       </div>

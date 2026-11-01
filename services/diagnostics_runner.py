@@ -257,6 +257,7 @@ class DiagnosticsRunner:
                         message="Database connectivity: OK",
                     ))
         except Exception as exc:
+            logger.debug("database connectivity check failed: %s", exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="CRITICAL", category="system", symbol="__ALL__",
                 message=f"Database connectivity failed: {exc}",
@@ -308,6 +309,7 @@ class DiagnosticsRunner:
                 return [{"symbol": r[0], "name": r[1] or "", "market_type": ""} for r in rows]
 
         except Exception as exc:
+            logger.debug("symbol fetch failed: %s", exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="CRITICAL", category="system", symbol="__ALL__",
                 message=f"Failed to fetch symbols: {exc}",
@@ -398,7 +400,8 @@ class DiagnosticsRunner:
                                 }
                                 for r in reversed(rows)
                             ]
-                    except Exception:
+                    except (TypeError, ValueError, KeyError, ZeroDivisionError) as exc:
+                        logger.debug("history row skipped during diagnostics: %s", exc)
                         continue
 
                 return []
@@ -438,7 +441,8 @@ class DiagnosticsRunner:
                     result = await session.execute(query)
                     rows = result.fetchall()
                     return [{"date": str(r[0]), "price": r[1], "volume": r[2]} for r in rows]
-                except Exception:
+                except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                    logger.debug("intraday row parse skipped for %s: %s", symbol, exc)
                     return []
         except Exception as exc:
             logger.debug("Intraday fetch skipped for %s: %s", symbol, exc)
@@ -615,6 +619,7 @@ class DiagnosticsRunner:
                         ))
 
                 except Exception as exc:
+                    logger.debug("backtest smoke failed for %s/%s: %s", symbol, strat_name, exc)
                     elapsed_ms = (time.perf_counter() - t0) * 1000
                     self.result.add_finding(DiagnosticFinding(
                         level="ERROR", category="backtest", symbol=symbol,
@@ -631,6 +636,7 @@ class DiagnosticsRunner:
                 details="Ensure backtesting modules are installed and importable.",
             ))
         except Exception as exc:
+            logger.debug("backtest smoke tests failed: %s", exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="ERROR", category="system", symbol="__ALL__",
                 message=f"Backtest smoke tests failed: {exc}",
@@ -697,6 +703,7 @@ class DiagnosticsRunner:
                         ))
 
         except Exception as exc:
+            logger.debug("ML check failed for %s: %s", symbol, exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="WARNING", category="ml", symbol=symbol,
                 message=f"ML check failed: {exc}",
@@ -723,7 +730,8 @@ class DiagnosticsRunner:
                             level="INFO", category="data", symbol="__ALL__",
                             message=f"Signal accuracy records: {count}",
                         ))
-                except Exception:
+                except Exception as exc:
+                    logger.debug("signal_accuracy table check failed: %s", exc)
                     self.result.add_finding(DiagnosticFinding(
                         level="WARNING", category="data", symbol="__ALL__",
                         message="signal_accuracy table missing or empty",

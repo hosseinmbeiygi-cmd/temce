@@ -225,8 +225,10 @@ def price_commodity_option(params: CommodityOptionParams) -> OptionPrice:
             )
     else:
         # Black-Scholes-Merton with dividend yield q
-        price_fn = commodity_bs_call if params.option_type == "call" else commodity_bs_put  # type: ignore[assignment]
-        price = price_fn(S, K, T, r, q, sigma)  # type: ignore[call-arg]
+        if params.option_type == "call":
+            price = commodity_bs_call(S, K, T, r, q, sigma)
+        else:
+            price = commodity_bs_put(S, K, T, r, q, sigma)
 
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
         d2 = d1 - sigma * math.sqrt(T)

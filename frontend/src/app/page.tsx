@@ -16,6 +16,7 @@ import ValueVolumePanel from "@/components/dashboard/ValueVolumePanel";
 import EventCalendar from "@/components/dashboard/EventCalendar";
 import LiquidityBlocks from "@/components/dashboard/LiquidityBlocks";
 import GlobalMarkets from "@/components/dashboard/GlobalMarkets";
+import PersonaBar from "@/components/dashboard/PersonaBar";
 import { SkeletonBlock } from "@/components/dashboard/primitives";
 import { useMarketSession } from "@/hooks/useMarketData";
 import { cn } from "@/lib/cn";
@@ -118,6 +119,9 @@ export default function DashboardPage() {
       </div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+        <motion.section variants={item}>
+          <PersonaBar />
+        </motion.section>
         <motion.section variants={item}>
           <NewsStrip />
         </motion.section>

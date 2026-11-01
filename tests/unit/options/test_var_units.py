@@ -72,3 +72,23 @@ def test_non_finite_returns_are_rejected() -> None:
     bad[0] = np.nan
     with pytest.raises(ValueError, match="NaN"):
         VaRCalculator.historical_simulation(bad, portfolio_value=1_000_000_000)
+
+
+def test_greeks_var_cvar_is_finite_normal_expected_shortfall() -> None:
+    """CVaR must derive from the Gaussian ES ratio, never a magic multiplier."""
+    result = VaRCalculator.greeks_based_var(
+        portfolio_delta=1000.0,
+        portfolio_gamma=2.0,
+        portfolio_vega=5000.0,
+        spot_price=10_000.0,
+        spot_move_pct=0.02,
+        vol_move_pct=0.10,
+        portfolio_value=1_000_000_000.0,
+    )
+
+    assert np.isfinite(result.cvar_95)
+    assert np.isfinite(result.cvar_99)
+    assert result.cvar_95 == pytest.approx(result.var_95 * 1.25363, rel=1e-4)
+    assert result.cvar_99 == pytest.approx(result.var_99 * 1.14676, rel=1e-4)
+    assert result.cvar_95 >= result.var_95
+    assert result.cvar_99 >= result.var_99

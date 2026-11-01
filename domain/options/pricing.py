@@ -35,6 +35,20 @@ def _d1(S: float, K: float, T: float, r: float, sigma: float) -> float:
     return (math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
 
 
+def _vol_sqrt_t(sigma: float, T: float) -> float:
+    """``sigma * sqrt(T)``, the Black-Scholes time-vol scale.
+
+    Returns 0.0 when the product underflows to zero. Guarding only
+    ``T <= 0 or sigma <= 0`` misses ``sigma=1e-300, T=1e-300``, where the
+    product is exactly 0.0 and ``_d1`` raises ZeroDivisionError.
+    """
+    try:
+        value = sigma * math.sqrt(T)
+    except (OverflowError, ValueError):
+        return 0.0
+    return value if math.isfinite(value) else 0.0
+
+
 def _d2(d1: float, sigma: float, T: float) -> float:
     """Calculate d2 in Black-Scholes formula.
 
@@ -58,6 +72,8 @@ def black_scholes_call(S: float, K: float, T: float, r: float, sigma: float) -> 
     """
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
         return max(0.0, S - K)
+    if _vol_sqrt_t(sigma, T) <= 0.0:
+        return max(0.0, S - K)
     d1 = _d1(S, K, T, r, sigma)
     d2 = _d2(d1, sigma, T)
     return S * stats.norm.cdf(d1) - K * math.exp(-r * T) * stats.norm.cdf(d2)
@@ -77,6 +93,8 @@ def black_scholes_put(S: float, K: float, T: float, r: float, sigma: float) -> f
         Put option price
     """
     if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return max(0.0, K - S)
+    if _vol_sqrt_t(sigma, T) <= 0.0:
         return max(0.0, K - S)
     d1 = _d1(S, K, T, r, sigma)
     d2 = _d2(d1, sigma, T)
@@ -98,7 +116,10 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
         OptionPrice dataclass with price, Greeks, and intrinsic/time values.
         Theta is per calendar day. Vega is per 1%% vol change. Rho is per 1%% rate change.
     """
-    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+    degenerate = T <= 0 or sigma <= 0 or S <= 0 or K <= 0
+    if not degenerate:
+        degenerate = _vol_sqrt_t(sigma, T) <= 0.0
+    if degenerate:
         intrinsic = max(0.0, S - K) if option_type == "call" else max(0.0, K - S)
         return OptionPrice(
             model=PRICING_MODEL_BLACK_SCHOLES,
@@ -142,6 +163,18 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
     if not math.isfinite(rho):
         rho = 0.0
 
+    # API contract: every number here is serialised with allow_nan=False, so a
+    # single inf/NaN must never escape (extreme sigma/T can overflow theta).
+    if not math.isfinite(price):
+        price = intrinsic
+    if not math.isfinite(delta):
+        delta = 0.0
+    if not math.isfinite(theta):
+        theta = 0.0
+    time_value = price - intrinsic
+    if not math.isfinite(time_value):
+        time_value = 0.0
+
     return OptionPrice(
         model=PRICING_MODEL_BLACK_SCHOLES,
         price=price,
@@ -151,7 +184,7 @@ def black_scholes_price(S: float, K: float, T: float, r: float, sigma: float, op
         vega=vega,
         rho=rho,
         intrinsic_value=intrinsic,
-        time_value=price - intrinsic,
+        time_value=time_value,
         parameters={"S": S, "K": K, "T": T, "r": r, "sigma": sigma, "option_type": option_type},
     )
 

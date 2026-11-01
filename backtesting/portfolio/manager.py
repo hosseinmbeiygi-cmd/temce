@@ -29,6 +29,7 @@ class PortfolioManager:
         if fill.side == "buy":
             # FIFO tax lot: record the actual fill price, oldest-first.
             pos.lots.append((fill.quantity, fill.price))
+            pos.lot_commissions.append(fill.commission)
             pos.quantity += fill.quantity
             pos.avg_price = lots_avg_price(pos.lots)
             self._cash -= cost + fill.commission
@@ -38,7 +39,10 @@ class PortfolioManager:
                 fill.quantity = pos.quantity
 
             # FIFO: realize PnL against the oldest lots, not a blended average.
-            pos.realized_pnl += consume_lots_fifo(pos, fill.quantity, fill.price)
+            # Net of entry/exit commissions so it reconciles with cash.
+            pos.realized_pnl += consume_lots_fifo(
+                pos, fill.quantity, fill.price, fill.commission,
+            )
             pos.avg_price = lots_avg_price(pos.lots)
             self._cash += (fill.price * fill.quantity) - fill.commission
 
@@ -64,6 +68,10 @@ class PortfolioManager:
 
     def get_cash(self) -> float:
         return self._cash
+
+    def get_realized_pnl(self) -> float:
+        """Net realized PnL across positions (entry and exit costs deducted)."""
+        return sum(pos.realized_pnl for pos in self._positions.values())
 
     def get_positions_value(self) -> float:
         total = 0.0

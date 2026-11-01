@@ -14,6 +14,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { apiGet } from "@/lib/api";
+import { withCsrf } from "@/lib/csrf";
 import { getPrecomputeStore, type PrecomputeStatus, type SymbolArmorResult } from "@/stores/precomputeStore";
 import { getSoundManager } from "@/lib/sound/SoundEffectManager";
 
@@ -443,7 +444,7 @@ export function usePrecomputeStatus(options?: { autoConnect?: boolean; pollWhenH
       store.setError(null);
       const res = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || "/api/v1").replace(/\/$/, "")}/precompute/start`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         credentials: "include",
         body: JSON.stringify({}),
       });

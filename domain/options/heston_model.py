@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from logging import getLogger
 
 import numpy as np
 from scipy import integrate
 
 from domain.options.pricing import OptionPrice
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -267,7 +270,14 @@ def calibrate_heston(
                 )
                 model_price = _heston_call_price_semi_closed(params)
                 total_error += (model_price - mkt_price) ** 2
-            except Exception:
+            except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
+                logger.debug(
+                    "Heston calibration: unpriceable parameter set (S=%s, K=%s, T=%s): %s",
+                    S,
+                    K,
+                    T,
+                    exc,
+                )
                 total_error += 1e6
         return total_error
 

@@ -6,7 +6,10 @@ import time
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from core.logging import get_logger
 from models.base import Base, TimestampMixin
+
+logger = get_logger(__name__)
 
 TTL = {"price_min":300,"nav_hourly":3600,"fundamental_weekly":7*86400}  # 1.2
 QUOTA = {"used":0,"limit":1000,"warned":False}
@@ -69,7 +72,8 @@ def fetch_with_fallback(primary, fallback, symbol, session=None):
             continue
         try:
             return fn(symbol),"primary" if fn is primary else "fallback"
-        except Exception:
+        except Exception as exc:
+            logger.warning("data source %s failed for %s: %s", getattr(fn, "__name__", fn), symbol, exc)
             time.sleep(0)
             delay*=2
     if session is not None:

@@ -10,7 +10,10 @@
 
 // v2: ساختار ورودی کش عوض شد (مهر زمانی). نسخهٔ قبلی باید دور ریخته شود،
 // وگرنه response های بی‌مهرِ v1 «کهنه» حساب شده و آفلاین هیچ داده‌ای نیست.
-const CACHE_VERSION = "v2";
+// v3: HTML صفحات /gold با cache-first سرو می‌شد و پس از deploy/با سشن‌های مختلف
+// حلقهٔ reload می‌ساخت (W4-03). حالا ناوبری‌ها network-first هستند و فقط همین
+// ورژن کش زنده است؛ کش‌های v2 در activate پاک می‌شوند.
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `golddesk-static-${CACHE_VERSION}`;
 const API_CACHE = `golddesk-api-${CACHE_VERSION}`;
 
@@ -46,9 +49,23 @@ const CACHED_AT_HEADER = "x-golddesk-cached-at";
 // ── Install: cache static shell ─────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS).catch(() => {
-      // ignore errors for not-yet-cached pages
-    }))
+    (async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      // تک‌تک (نه addAll) تا پاسخ‌های ریدایرکت‌شده به /auth/login وارد کش نشوند
+      // و پوستهٔ آفلاین هرگز صفحهٔ ورود را به‌جای داشبورد نشان ندهد.
+      await Promise.all(
+        STATIC_ASSETS.map(async (asset) => {
+          try {
+            const response = await fetch(asset, { cache: "reload" });
+            if (response.ok && !response.redirected) {
+              await cache.put(asset, response);
+            }
+          } catch {
+            // ignore errors for not-yet-available pages
+          }
+        })
+      );
+    })()
   );
   self.skipWaiting();
 });
@@ -87,9 +104,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // GoldDesk pages: cache-first (اسکلت آفلاین)
+  // GoldDesk pages: HTML ناوبری network-first (W4-03)؛ دادهٔ RSC/جزئی هرگز از
+  // کش پوسته سرو نمی‌شود تا chunk/سشن کهنه به حلقهٔ reload تبدیل نشود.
   if (url.pathname.startsWith("/gold")) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    if (isHtmlNavigation(request)) {
+      event.respondWith(networkFirstPage(request, STATIC_CACHE));
+    } else {
+      event.respondWith(networkOnly(request));
+    }
     return;
   }
 
@@ -171,6 +193,32 @@ async function networkOnly(request) {
   } catch (err) {
     notify("offline");
     return offlineJson("offline", 503);
+  }
+}
+
+function isHtmlNavigation(request) {
+  if (request.mode === "navigate") return true;
+  const accept = request.headers.get("accept") || "";
+  return accept.includes("text/html");
+}
+
+/** صفحهٔ HTML: همیشه اول شبکه، و کش فقط پشتیبانِ آفلاین (W4-03). */
+async function networkFirstPage(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request);
+    // ریدایرکت (مثلاً به /auth/login) کش نمی‌شود؛ وگرنه پوستهٔ آفلاین صفحهٔ
+    // ورود را به‌جای داشبورد به کاربر لاگین‌شده می‌دهد.
+    if (response.ok && !response.redirected) {
+      cache.put(request, response.clone()).catch(() => undefined);
+    }
+    return response;
+  } catch (err) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    const shell = await caches.match("/gold");
+    if (shell) return shell;
+    return new Response("Offline", { status: 503 });
   }
 }
 

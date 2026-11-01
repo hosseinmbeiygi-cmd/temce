@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ShieldCheck, Loader2, Wallet } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import { useStaleGuard } from "@/lib/use-stale-guard";
 import { fmt } from "../helpers";
 
 interface Greeks {
@@ -26,11 +27,13 @@ export default function RiskTab() {
   const [greeks, setGreeks] = useState<Greeks | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const beginRequest = useStaleGuard();
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [k]: e.target.value });
 
   const calc = async () => {
+    const isCurrent = beginRequest();
     setLoading(true);
     setError("");
     try {
@@ -40,16 +43,18 @@ export default function RiskTab() {
       const r = await apiGet<{ success: boolean; data: Greeks; error?: { message?: string } }>(
         `/options/greeks?${qs.toString()}`
       );
+      if (!isCurrent()) return;
       if (r.success) setGreeks(r.data);
       else {
         setGreeks(null);
         setError(r.error?.message ?? "خطا در محاسبه");
       }
     } catch {
+      if (!isCurrent()) return;
       setGreeks(null);
       setError("اتصال به سرور برقرار نشد");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 

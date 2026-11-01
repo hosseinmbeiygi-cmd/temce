@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.config import settings
+from core.context import get_correlation_id, get_request_id, get_user_id
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -76,24 +77,49 @@ class RedisLogHandler(logging.Handler):
         if client is None:
             return
         try:
-            payload: dict[str, Any] = {
-                "source": self.source,
-                "level": record.levelname,
-                "timestamp": datetime.now(UTC).isoformat(),
-                "name": record.name,
-                "message": record.getMessage(),
-                "module": record.module,
-                "function": record.funcName,
-                "line": record.lineno,
-            }
-            if record.exc_info and record.exc_info[0]:
-                payload["exception"] = self.formatException(record.exc_info)
-            entry = json.dumps(payload, ensure_ascii=False, default=str)
+            entry = self._render(record)
             client.xadd(_STREAM_KEY, {"data": entry}, maxlen=_MAX_STREAM_LEN)
             self._published += 1
         except Exception:  # noqa: BLE001 — logging must never crash the app
             self._publish_failures += 1
             self._client = None  # reconnect on next emit
+
+    def _render(self, record: logging.LogRecord) -> str:
+        """Render one record as a JSON line for the stream.
+
+        When a ``ProcessorFormatter`` is attached (the normal setup) this is
+        byte-for-byte the same JSON the console/file handlers emit, plus the
+        producer's ``source`` label. Otherwise a minimal payload is built.
+        """
+        if isinstance(record.msg, dict):
+            record.msg.setdefault("source", self.source)
+        else:
+            record.__dict__.setdefault("source", self.source)
+
+        if self.formatter is not None:
+            return self.format(record)
+
+        payload: dict[str, Any] = {
+            "source": self.source,
+            "level": record.levelname,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "logger": record.name,
+            "event": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+        for key, getter in (
+            ("request_id", get_request_id),
+            ("correlation_id", get_correlation_id),
+            ("user_id", get_user_id),
+        ):
+            value = getter()
+            if value:
+                payload[key] = value
+        if record.exc_info and record.exc_info[0]:
+            payload["exception"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False, default=str)
 
 
 _handler: RedisLogHandler | None = None
@@ -107,9 +133,15 @@ def get_redis_log_handler() -> RedisLogHandler | None:
     return _handler
 
 
-def install_aggregation_handler(source: str | None = None) -> RedisLogHandler | None:
+def install_aggregation_handler(
+    source: str | None = None,
+    formatter: logging.Formatter | None = None,
+) -> RedisLogHandler | None:
     """Attach the aggregation handler to the root logger.
 
+    ``formatter`` is normally the JSON ``ProcessorFormatter`` built by
+    ``core.logging.setup_logging``; passing it guarantees the shipped line is
+    identical to the console JSON (structured fields, context IDs, exception).
     Returns the handler (so callers can inspect stats) or None when
     aggregation is disabled via ``LOG_AGGREGATION_ENABLED=false``.
     """
@@ -118,6 +150,8 @@ def install_aggregation_handler(source: str | None = None) -> RedisLogHandler | 
     handler = get_redis_log_handler()
     if source:
         handler.source = source
+    if formatter is not None:
+        handler.setFormatter(formatter)
     root = logging.getLogger()
     if handler not in root.handlers:
         root.addHandler(handler)

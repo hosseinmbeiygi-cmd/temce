@@ -14,7 +14,10 @@ Spec reference: ``تکمیل-بخش-موتور-استراتژی.md`` §7.3-7.5.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from logging import getLogger
 from typing import Any
+
+logger = getLogger(__name__)
 
 # ── Signal generator (§7.3) ──────────────────────────────────────────────
 
@@ -288,7 +291,8 @@ class RuleEngine:
                 try:
                     if self._eval_group(item, facts):
                         reasons.append(", ".join(item.keys()))
-                except Exception:
+                except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                    logger.debug("Rule group evaluation skipped an item: %s", exc)
                     continue
         for key in ("profit_target_pct", "stop_loss_pct"):
             if key in group and self._eval_condition({key: group[key]}, facts):

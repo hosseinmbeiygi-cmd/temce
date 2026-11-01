@@ -64,6 +64,13 @@ def create_refresh_token(data: dict[str, Any], expires_delta: timedelta | None =
     to_encode = data.copy()
     expire = datetime.now(UTC) + (expires_delta or timedelta(days=settings.refresh_token_expire_days))
     to_encode.update({"exp": expire, "type": "refresh"})
+    # jti lets a rotated/logged-out refresh token be blacklisted immediately
+    # (multi-worker safe, Redis-backed) instead of relying solely on the
+    # single-token column in the users table. iat powers the SEC-07 cutoff.
+    if not to_encode.get("jti"):
+        to_encode["jti"] = _new_jti()
+    if not to_encode.get("iat"):
+        to_encode["iat"] = int(datetime.now(UTC).timestamp())
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 
@@ -175,6 +182,29 @@ async def is_user_session_revoked(user_id: str | None, issued_at: Any) -> bool:
     return issued < cutoff
 
 
+async def validate_access_token(token: str) -> dict[str, Any]:
+    """Decode an access token and enforce every revocation invariant.
+
+    Single source of truth for request authentication so the HTTP dependency,
+    middleware, WebSocket handshake and side services cannot drift apart:
+
+    - signature + expiry (``decode_access_token``),
+    - ``type`` must not be ``refresh`` (a refresh token is not a credential),
+    - the ``jti`` must not be blacklisted,
+    - the ``iat`` must not predate the user's last password change (SEC-07).
+
+    Raises :class:`AuthenticationError` with a caller-safe message.
+    """
+    payload = decode_access_token(token)
+    if payload.get("type") == "refresh":
+        raise AuthenticationError("Invalid token type")
+    if await is_token_revoked(payload.get("jti")):
+        raise AuthenticationError("Token has been revoked")
+    if await is_user_session_revoked(payload.get("sub"), payload.get("iat")):
+        raise AuthenticationError("Session ended — sign in again")
+    return payload
+
+
 async def revoke_token(jti: str | None, ttl: int = 3600) -> None:
     """Revoke an access token by its jti for ``ttl`` seconds (token lifetime).
 
@@ -194,19 +224,35 @@ async def revoke_token(jti: str | None, ttl: int = 3600) -> None:
         logger.debug("Revoke failed for jti=%s", jti, exc_info=True)
 
 
+def _ttl_until_expiry(payload: dict[str, Any], default: int = 3600) -> int:
+    """Seconds to keep a revocation marker: the token's remaining lifetime."""
+    exp = payload.get("exp")
+    if isinstance(exp, (int, float)):
+        remaining = float(exp) - datetime.now(UTC).timestamp()
+        if remaining > 0:
+            return int(remaining) + 60  # small grace window
+    return default
+
+
 async def revoke_access_token(token: str) -> None:
     """Revoke an access token (decode first, then blacklist until its expiry)."""
     try:
         payload = decode_access_token(token)
     except AuthenticationError:
         return
-    exp = payload.get("exp")
-    ttl = 3600
-    if isinstance(exp, (int, float)):
-        remaining = float(exp) - datetime.now(UTC).timestamp()
-        if remaining > 0:
-            ttl = int(remaining) + 60  # small grace window
-    await revoke_token(payload.get("jti"), ttl=ttl)
+    await revoke_token(payload.get("jti"), ttl=_ttl_until_expiry(payload))
+
+
+async def revoke_refresh_token(token: str) -> None:
+    """Blacklist a refresh token by jti until it would have expired anyway."""
+    try:
+        payload = decode_refresh_token(token)
+    except AuthenticationError:
+        return
+    await revoke_token(
+        payload.get("jti"),
+        ttl=_ttl_until_expiry(payload, default=settings.refresh_token_expire_days * 86400),
+    )
 
 
 def _ws_ticket_key(ticket: str) -> str:

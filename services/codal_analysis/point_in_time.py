@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Schema names are SQL identifiers (binds cannot carry identifiers), so a
+# non-snake_case value must never reach the query text.
+_SAFE_SCHEMA = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 
 @dataclass
@@ -110,6 +115,8 @@ class MaterializedViewBuilder:
     """Creates and manages pivoted materialized views for performance"""
 
     def build_pivoted_snapshot_sql(self, schema: str = "public") -> str:
+        if not _SAFE_SCHEMA.fullmatch(schema or ""):
+            raise ValueError(f"Invalid schema identifier: {schema!r}")
         return f"""
         CREATE MATERIALIZED VIEW {schema}.mv_financial_snapshot AS
         SELECT

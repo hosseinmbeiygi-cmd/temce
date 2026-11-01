@@ -211,7 +211,8 @@ class InferenceService:
                     if loaded:
                         model, feature_names, from_path = loaded
                         break
-                except Exception:
+                except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+                    logger.debug("DB model artifact %s unusable: %s", cid, exc)
                     continue
 
         # b) artifact file via ArtifactManager (model.pkl + metadata.json)
@@ -223,7 +224,8 @@ class InferenceService:
                     feature_names = meta.feature_names or feature_names
                     from_path = True
                     break
-                except Exception:
+                except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+                    logger.debug("artifact file %s unusable: %s", cid, exc)
                     continue
 
         if model is None:

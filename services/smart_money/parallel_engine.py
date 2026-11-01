@@ -103,15 +103,18 @@ class ParallelScoringEngine:
                     score=result,
                     elapsed_ms=round(elapsed, 2),
                 )
-            except TimeoutError:
+            except TimeoutError as exc:
                 last_error = f"Timeout after {self._timeout_per_symbol_ms}ms"
-            except Exception as exc:
+                logger.debug("screening attempt %d timed out for %s: %s", attempt, symbol, exc)
+            except (ValueError, TypeError, KeyError, ZeroDivisionError, RuntimeError) as exc:
                 last_error = str(exc)
+                logger.debug("screening attempt %d failed for %s: %s", attempt, symbol, exc)
 
             if attempt < self._retry_count:
                 await asyncio.sleep(self._retry_delay_ms / 1000.0)
 
         elapsed = (time.monotonic() - start) * 1000
+        logger.warning("screening failed for %s after retries: %s", symbol, last_error)
         return ScreeningResult(
             symbol=symbol,
             score={},

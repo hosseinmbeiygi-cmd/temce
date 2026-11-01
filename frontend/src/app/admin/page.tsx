@@ -4,10 +4,12 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, apiPost } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import {
   saveSyncSettings, resetSyncSettings,
   DEFAULT_SYNC_SETTINGS, ALL_SECTION_KEYS, type SyncSettingsMap,
@@ -119,7 +121,50 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
 
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
-export default function AdminUnifiedPage() {
+// W5-01: پنل مدیریت قبلاً هیچ gate نقشی نداشت و هر کاربر احرازشده پوسته را
+// می‌دید (APIها ۴۰۳ می‌دادند، UI نه). gate قبل از mount شدن کوئری‌های ادمین است.
+export default function AdminPage() {
+  const router = useRouter();
+  const { isLoading, isAuthenticated, hasRole } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/auth/login?redirect=%2Fadmin");
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading) {
+    return (
+      <div className="p-8 space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) return null;
+  if (!hasRole("admin")) {
+    return (
+      <div className="p-8" dir="rtl">
+        <div
+          role="alert"
+          className="mx-auto max-w-md rounded-xl border px-5 py-4 text-sm"
+          style={{ borderColor: "var(--color-danger, #f87171)" }}
+        >
+          <div className="font-bold mb-1">دسترسی غیرمجاز</div>
+          <div>پنل مدیریت فقط برای نقش «ادمین» در دسترس است.</div>
+          <Link href="/" className="inline-block mt-3 underline">
+            بازگشت به داشبورد
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  return <AdminUnifiedPage />;
+}
+
+// named export برای تست‌های محتوای تب‌ها؛ دسترسی از مسیر واقعی فقط از default
+// (با gate نقش) می‌گذرد.
+export function AdminUnifiedPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("overview");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);

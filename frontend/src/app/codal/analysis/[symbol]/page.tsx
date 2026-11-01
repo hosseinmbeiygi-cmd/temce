@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
@@ -12,7 +12,6 @@ import { RealLegalCard } from "@/components/RealLegalCard";
 import { AuditBadge } from "@/components/AuditBadge";
 import { apiGet } from "@/lib/api";
 import { formatDateShamsi } from "@/lib/dates";
-import { seededRandom } from "@/lib/seeded-random";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -166,19 +165,6 @@ export default function CodalAnalysisPage() {
   const epsStatus = analysis?.fundamental?.eps ?
     (analysis.fundamental.eps > 0 ? "text-accent-emerald" : "text-accent-rose") : "text-surface-500";
 
-  const sparkData = useMemo(() => {
-    if (!analysis?.price?.last) return [];
-    const base = analysis.price.last;
-    const rnd = seededRandom(0x9e3779b9); // deterministic seed — stable fallback sparkline
-    const data: number[] = [];
-    let v = base * 0.85;
-    for (let i = 0; i < 40; i++) {
-      v += (rnd() - 0.48) * 0.03 * v;
-      data.push(v);
-    }
-    return data;
-  }, [analysis?.price?.last]);
-
   const isAllowed = analysis?.state === "مجاز";
   const isBanned = analysis?.state === "ممنوع" || analysis?.state === "متوقف";
   const stateColor = isAllowed ? "bg-accent-emerald/15 text-accent-emerald" :
@@ -312,15 +298,8 @@ export default function CodalAnalysisPage() {
                     </div>
                   </div>
 
-                  {/* Sparkline */}
-                  <div className="pt-2">
-                    <svg width="100%" height="50" viewBox="0 0 200 50" preserveAspectRatio="none">
-                      <path
-                        d={sparkData.map((v, i) => `${i === 0 ? "M" : "L"}${(i / (sparkData.length - 1)) * 200},${50 - ((v - Math.min(...sparkData)) / (Math.max(...sparkData) - Math.min(...sparkData) || 1)) * 45}`).join(" ")}
-                        fill="none" stroke={analysis.price.change >= 0 ? "#22c55e" : "#ef4444"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
+                  {/* No sparkline: the analysis payload carries no price history,
+                      so drawing one would mean inventing the series. */}
                 </div>
               </Card>
 

@@ -18,9 +18,10 @@ def profit_factor(winning: list[float], losing: list[float]) -> float:
     over a floor of 1.0 keeps the figure finite and identical everywhere.
 
     ``losing`` may carry negative values (the analytics engine keeps the sign)
-    — only their absolute sum matters. :meth:`TradeMetrics.compute` keeps its
-    own historical rule for the composer's quality filter; this helper is what
-    ``AnalyticsEngine`` and ``SignalBacktestEngine`` now share.
+    — only their absolute sum matters. This is also what
+    :meth:`TradeMetrics.compute` reports: the old local rule returned 0.0 for
+    a strategy with no losing round trip, so the quality gate rejected the
+    best (all-winning) samples.
     """
     return sum(winning) / max(abs(sum(losing)), 1.0)
 
@@ -96,7 +97,7 @@ class TradeMetrics:
         metrics["avg_profit"] = float(np.mean(round_trips)) if round_trips else 0.0
         metrics["avg_win"] = float(np.mean(winning)) if winning else 0.0
         metrics["avg_loss"] = float(np.mean(losing)) if losing else 0.0
-        metrics["profit_factor"] = abs(sum(winning) / sum(losing)) if losing and sum(losing) != 0 else 0.0
+        metrics["profit_factor"] = profit_factor(winning, losing)
         metrics["largest_win"] = float(max(round_trips)) if round_trips else 0.0
         metrics["largest_loss"] = float(min(round_trips)) if round_trips else 0.0
         metrics["total_pnl"] = float(sum(round_trips))

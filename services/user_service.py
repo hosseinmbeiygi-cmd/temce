@@ -1,17 +1,27 @@
 from __future__ import annotations
 
+import hashlib
+import secrets
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings as app_settings
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
 from core.security import hash_password, verify_password
 from core.security.secrets import generate_otp
-from core.security.tokens import create_access_token, create_refresh_token, decode_refresh_token
+from core.security.tokens import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    is_token_revoked,
+    is_user_session_revoked,
+    revoke_refresh_token,
+)
 from core.security.totp import build_totp_uri, generate_totp_secret, verify_totp
 from models.user import UserModel
 
@@ -28,6 +38,46 @@ _MFA_OTP_TTL = 5 * 60  # codes expire after 5 minutes
 # MFA methods that deliver a generated code (via generate_otp) instead of
 # requiring a TOTP authenticator app.
 _OTP_DELIVERY_METHODS = ("email", "telegram")
+
+# Recovery codes: shown once at enrollment, stored only as SHA-256 digests.
+# The index key lists the digests still available; every digest also has its
+# own claim key so consumption is atomic through GETDEL (cache.pop) and safe
+# across workers.
+_MFA_RECOVERY_PREFIX = "auth:mfa:recovery:"
+_MFA_RECOVERY_CLAIM_PREFIX = "auth:mfa:recovery_claim:"
+RECOVERY_CODE_COUNT = 10
+
+# Last successfully used TOTP code per user, kept for the drift window so a
+# captured code cannot be replayed twice.
+_MFA_TOTP_REPLAY_PREFIX = "auth:mfa:totp_used:"
+_TOTP_REPLAY_TTL = 3 * 30 + 5
+
+
+def _normalize_recovery_code(code: str) -> str:
+    return code.strip().lower().replace("-", "").replace(" ", "")
+
+
+def _hash_recovery_code(code: str) -> str:
+    return hashlib.sha256(_normalize_recovery_code(code).encode("utf-8")).hexdigest()
+
+
+def _mfa_enforced_for(user: Any) -> bool:
+    """Whether the enforcement policy requires MFA for this user.
+
+    Defaults are inert: an empty ``MFA_REQUIRED_ROLES`` and
+    ``MFA_REQUIRED_FOR_ALL=False`` mean MFA stays optional.
+    """
+    if getattr(app_settings, "mfa_required_for_all", False):
+        return True
+    required = {
+        role.strip().lower()
+        for role in (getattr(app_settings, "mfa_required_roles", None) or [])
+        if role and role.strip()
+    }
+    if not required:
+        return False
+    user_roles = {r.strip().lower() for r in (getattr(user, "roles", "") or "").split(",") if r.strip()}
+    return bool(required & user_roles)
 
 
 class UserService:
@@ -150,6 +200,26 @@ class UserService:
                     },
                 })
 
+            # Enforcement: this account's role mandates MFA but it has not
+            # enrolled yet. No access/refresh token is issued — the caller must
+            # complete TOTP enrollment through the mfa_token below.
+            if _mfa_enforced_for(user):
+                token = await self._issue_mfa_token(user.id)
+                if not token:
+                    logger.error("MFA enrollment blocked: could not persist token for user %s", user.id)
+                    return Result.fail("MFA is temporarily unavailable. Please try again later.")
+                return Result.ok({
+                    "mfa_required": True,
+                    "enrollment_required": True,
+                    "mfa_token": token,
+                    "method": "totp",
+                    "user": {
+                        "id": user.id,
+                        "username": user.username,
+                        "roles": roles_list,
+                    },
+                })
+
             return await self._complete_login(user)
         except Exception:
             logger.error("Login failed", exc_info=True)
@@ -226,13 +296,233 @@ class UserService:
             else:
                 if not user.totp_secret:
                     return Result.fail("MFA is not enabled for this account")
-                if not verify_totp(user.totp_secret, code):
+                if not await self._verify_totp_once(user.id, user.totp_secret, code):
                     return Result.fail("Invalid authentication code")
             return await self._complete_login(user)
         except Exception:
             # Never leak internal error details to the client.
             logger.error("MFA login failed", exc_info=True)
             return Result.fail("MFA login failed. Please try again.")
+
+    async def _verify_totp_once(self, user_id: str, secret: str, code: str) -> bool:
+        """Verify a TOTP code and reject a replay within the drift window.
+
+        RFC 6238 codes stay valid for ±1 step (≈90s); without this an
+        observer of one code could reuse it for another login. The marker is
+        Redis-backed so every worker sees it. If the store is unavailable the
+        check degrades to plain verification — losing a login to a cache blip
+        is worse than the short replay window.
+        """
+        if not verify_totp(secret, code):
+            return False
+        try:
+            from core.cache import get_cache
+
+            cache = get_cache()
+            if not cache.is_connected:
+                return True
+            key = _MFA_TOTP_REPLAY_PREFIX + str(user_id)
+            if await cache.get(key) == code:
+                logger.warning("TOTP replay rejected for user %s", user_id)
+                return False
+            await cache.set(key, code, ttl=_TOTP_REPLAY_TTL)
+        except Exception:  # noqa: BLE001 — replay marker is best-effort
+            logger.debug("TOTP replay marker failed for %s", user_id, exc_info=True)
+        return True
+
+    # ── Recovery codes ───────────────────────────────────────────────────────
+
+    async def _persist(self, cache: Any, key: str, value: Any) -> bool:
+        setter = getattr(cache, "set_persistent", None)
+        if setter is not None:
+            return bool(await setter(key, value))
+        await cache.set(key, value, ttl=None)
+        return True
+
+    async def _issue_recovery_codes(self, user_id: str) -> list[str]:
+        """Create a fresh set of single-use recovery codes (plaintext returned once)."""
+        codes = [f"{secrets.token_hex(3)}-{secrets.token_hex(2)}" for _ in range(RECOVERY_CODE_COUNT)]
+        try:
+            from core.cache import get_cache
+
+            cache = get_cache()
+            if not cache.is_connected:
+                logger.warning("Recovery codes not issued: cache unavailable for %s", user_id)
+                return []
+            index_key = _MFA_RECOVERY_PREFIX + str(user_id)
+            await cache.delete(index_key)
+            for code in codes:
+                digest = _hash_recovery_code(code)
+                await self._persist(cache, _MFA_RECOVERY_CLAIM_PREFIX + f"{user_id}:{digest}", "1")
+            await self._persist(cache, index_key, [_hash_recovery_code(c) for c in codes])
+            return codes
+        except Exception:  # noqa: BLE001 — enrollment must not fail on this
+            logger.error("Recovery code issuance failed for %s", user_id, exc_info=True)
+            return []
+
+    async def _consume_recovery_code(self, user_id: str, code: str) -> bool:
+        """Redeem a recovery code exactly once (atomic claim via cache.pop)."""
+        if not code:
+            return False
+        try:
+            from core.cache import get_cache
+
+            cache = get_cache()
+            if not cache.is_connected:
+                logger.warning("Recovery code check skipped: cache unavailable for %s", user_id)
+                return False
+            digest = _hash_recovery_code(code)
+            index_key = _MFA_RECOVERY_PREFIX + str(user_id)
+            hashes = await cache.get(index_key)
+            if not isinstance(hashes, list) or digest not in hashes:
+                return False
+            claimed = await cache.pop(_MFA_RECOVERY_CLAIM_PREFIX + f"{user_id}:{digest}")
+            if not claimed:
+                return False  # already used (claim consumed by an earlier login)
+            remaining = [h for h in hashes if h != digest]
+            await self._persist(cache, index_key, remaining)
+            return True
+        except Exception:  # noqa: BLE001
+            logger.error("Recovery code consumption failed for %s", user_id, exc_info=True)
+            return False
+
+    async def _clear_recovery_codes(self, user_id: str) -> None:
+        """Drop every recovery code (used when MFA is disabled)."""
+        try:
+            from core.cache import get_cache
+
+            cache = get_cache()
+            if not cache.is_connected:
+                return
+            index_key = _MFA_RECOVERY_PREFIX + str(user_id)
+            hashes = await cache.get(index_key)
+            await cache.delete(index_key)
+            if isinstance(hashes, list):
+                for digest in hashes:
+                    await cache.delete(_MFA_RECOVERY_CLAIM_PREFIX + f"{user_id}:{digest}")
+        except Exception:  # noqa: BLE001
+            logger.debug("Recovery code cleanup failed for %s", user_id, exc_info=True)
+
+    async def _recovery_codes_remaining(self, user_id: str) -> int:
+        try:
+            from core.cache import get_cache
+
+            cache = get_cache()
+            if not cache.is_connected:
+                return 0
+            hashes = await cache.get(_MFA_RECOVERY_PREFIX + str(user_id))
+            return len(hashes) if isinstance(hashes, list) else 0
+        except Exception:  # noqa: BLE001
+            return 0
+
+    async def login_with_recovery_code(self, mfa_token: str, code: str) -> Result[dict[str, Any]]:
+        """Complete a two-factor login with a single-use recovery code."""
+        try:
+            user_id = await self._consume_mfa_token(mfa_token)
+            if not user_id:
+                return Result.fail("MFA token expired or already used. Please login again.")
+            result = await self.session.execute(select(UserModel).where(UserModel.id == user_id))
+            user = result.scalar_one_or_none()
+            if not user or not user.is_active or not user.totp_enabled:
+                return Result.fail("User not found or MFA not enabled")
+            if not await self._consume_recovery_code(user.id, code):
+                return Result.fail("Invalid or already used recovery code")
+            remaining = await self._recovery_codes_remaining(user.id)
+            logger.warning("MFA login via recovery code for user %s (%d left)", user.id, remaining)
+            completed = await self._complete_login(user)
+            if completed.success and completed.value is not None:
+                completed.value["recovery_codes_remaining"] = remaining
+            return completed
+        except Exception:
+            logger.error("Recovery-code login failed", exc_info=True)
+            return Result.fail("MFA login failed. Please try again.")
+
+    async def regenerate_recovery_codes(self, user_id: str, password: str) -> Result[dict[str, Any]]:
+        """Replace the recovery-code set (requires password and enabled MFA)."""
+        try:
+            result = await self.session.execute(select(UserModel).where(UserModel.id == user_id))
+            user = result.scalar_one_or_none()
+            if not user:
+                return Result.fail("User not found")
+            if not user.totp_enabled:
+                return Result.fail("MFA is not enabled for this account")
+            if not verify_password(password, user.hashed_password):
+                return Result.fail("Current password is incorrect")
+            codes = await self._issue_recovery_codes(user.id)
+            if not codes:
+                return Result.fail("Recovery codes are temporarily unavailable. Please try again later.")
+            return Result.ok({"recovery_codes": codes})
+        except Exception as e:
+            logger.error("Recovery code regeneration failed: %s", e)
+            return Result.fail(str(e))
+
+    # ── Enforced MFA enrollment (pre-login) ──────────────────────────────────
+
+    async def start_enrollment(self, mfa_token: str, password: str) -> Result[dict[str, Any]]:
+        """Begin TOTP enrollment for an account that is required to use MFA.
+
+        Runs before any access token exists: the password login returned a
+        single-use ``mfa_token`` instead of tokens. A fresh ``mfa_token`` is
+        returned so the caller can finish with :meth:`finish_enrollment`.
+        """
+        try:
+            user_id = await self._consume_mfa_token(mfa_token)
+            if not user_id:
+                return Result.fail("MFA token expired or already used. Please login again.")
+            result = await self.session.execute(select(UserModel).where(UserModel.id == user_id))
+            user = result.scalar_one_or_none()
+            if not user or not user.is_active:
+                return Result.fail("User not found or inactive")
+            if not verify_password(password, user.hashed_password):
+                return Result.fail("Current password is incorrect")
+
+            secret = generate_totp_secret()
+            user.mfa_method = "totp"
+            user.totp_secret = secret
+            user.totp_enabled = False
+            user.totp_confirmed_at = None
+            await self.session.flush()
+
+            next_token = await self._issue_mfa_token(user.id)
+            if not next_token:
+                return Result.fail("MFA is temporarily unavailable. Please try again later.")
+            return Result.ok({
+                "method": "totp",
+                "secret": secret,
+                "uri": build_totp_uri(secret, user.username or user.email),
+                "mfa_token": next_token,
+            })
+        except Exception:
+            logger.error("MFA enrollment start failed", exc_info=True)
+            return Result.fail("MFA enrollment failed. Please try again.")
+
+    async def finish_enrollment(self, mfa_token: str, code: str) -> Result[dict[str, Any]]:
+        """Confirm the TOTP secret and complete the blocked login."""
+        try:
+            user_id = await self._consume_mfa_token(mfa_token)
+            if not user_id:
+                return Result.fail("MFA token expired or already used. Please login again.")
+            result = await self.session.execute(select(UserModel).where(UserModel.id == user_id))
+            user = result.scalar_one_or_none()
+            if not user or not user.is_active:
+                return Result.fail("User not found or inactive")
+            if not user.totp_secret:
+                return Result.fail("MFA setup has not been started")
+            if not verify_totp(user.totp_secret, code):
+                return Result.fail("Invalid authentication code")
+
+            user.totp_enabled = True
+            user.totp_confirmed_at = datetime.now(UTC).replace(tzinfo=None)
+            await self.session.flush()
+
+            codes = await self._issue_recovery_codes(user.id)
+            completed = await self._complete_login(user)
+            if completed.success and completed.value is not None:
+                completed.value["recovery_codes"] = codes
+            return completed
+        except Exception:
+            logger.error("MFA enrollment finish failed", exc_info=True)
+            return Result.fail("MFA enrollment failed. Please try again.")
 
     # ── OTP delivery (email / Telegram) ──────────────────────────────────────
 
@@ -412,7 +702,13 @@ class UserService:
             user.totp_enabled = True
             user.totp_confirmed_at = datetime.now(UTC).replace(tzinfo=None)
             await self.session.flush()
-            return Result.ok({"enabled": True, "method": method})
+            # Shown exactly once; only digests are persisted.
+            recovery_codes = await self._issue_recovery_codes(user.id)
+            return Result.ok({
+                "enabled": True,
+                "method": method,
+                "recovery_codes": recovery_codes,
+            })
         except Exception as e:
             logger.error("MFA confirm failed: %s", e)
             return Result.fail(str(e))
@@ -454,6 +750,7 @@ class UserService:
             user.totp_confirmed_at = None
             user.mfa_method = None
             await self.session.flush()
+            await self._clear_recovery_codes(user.id)
             return Result.ok({"enabled": False})
         except Exception as e:
             logger.error("MFA disable failed: %s", e)
@@ -473,6 +770,9 @@ class UserService:
                 ),
                 "method": user.mfa_method or "totp",
                 "telegram_chat_id": user.telegram_chat_id,
+                "recovery_codes_remaining": (
+                    await self._recovery_codes_remaining(user.id) if user.totp_enabled else 0
+                ),
             })
         except Exception as e:
             logger.error("MFA status failed: %s", e)
@@ -484,6 +784,12 @@ class UserService:
             user_id = payload.get("sub")
             if not user_id:
                 return Result.fail("Invalid token")
+            # Blacklist (logout / rotation on any worker) and password-change
+            # cutoff both apply to refresh tokens now that they carry jti/iat.
+            if await is_token_revoked(payload.get("jti")):
+                return Result.fail("Token has been revoked")
+            if await is_user_session_revoked(user_id, payload.get("iat")):
+                return Result.fail("Session ended — sign in again")
 
             result = await self.session.execute(select(UserModel).where(UserModel.id == user_id))
             user = result.scalar_one_or_none()
@@ -497,6 +803,11 @@ class UserService:
             new_refresh = create_refresh_token({"sub": user.id})
             user.refresh_token = new_refresh
             await self.session.flush()
+
+            # Rotation invalidates the presented token in Redis as well, so a
+            # replayed copy is rejected by any worker even if it still matches
+            # a stale in-memory user row.
+            await revoke_refresh_token(refresh_token)
 
             # Include the user profile so browser clients can restore their
             # session (access token + user) from the httpOnly refresh cookie

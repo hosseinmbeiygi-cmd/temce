@@ -12,12 +12,13 @@ Fallback می‌کند. منطق تصمیم‌گیری خالص (``decide_state`
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import time
 from dataclasses import dataclass
 from typing import Any
+
+from redis.exceptions import RedisError
 
 from core.logging import get_logger
 
@@ -92,11 +93,16 @@ class FundCircuitBreaker:
         self._tried_redis = True
         try:
             import redis.asyncio as aioredis
-
+        except ImportError as exc:
+            logger.debug("redis-py unavailable; fund breaker uses memory only: %s", exc)
+            self._redis = None
+            return self._redis
+        try:
             client = aioredis.from_url(self._redis_url, decode_responses=True)
             await client.ping()
             self._redis = client
-        except Exception:  # noqa: BLE001 — Redis اختیاری است
+        except (RedisError, OSError, TimeoutError) as exc:
+            logger.debug("Redis unavailable; fund breaker uses memory only: %s", exc)
             self._redis = None
         return self._redis
 
@@ -116,7 +122,8 @@ class FundCircuitBreaker:
                 last_error=str(data.get("last_error", ""))[:200],
                 trips=int(data.get("trips", 0)),
             )
-        except Exception:  # noqa: BLE001
+        except (RedisError, OSError, TimeoutError, ValueError, TypeError, KeyError) as exc:
+            logger.debug("breaker state read failed for %s; using memory: %s", fund_id, exc)
             return self._memory.get(fund_id, BreakerState())
 
     async def _save(self, fund_id: str, state: BreakerState) -> None:
@@ -186,14 +193,17 @@ class FundCircuitBreaker:
                 out.append(fid)
         redis = await self._get_redis()
         if redis is not None:
-            with contextlib.suppress(Exception):
+            try:
                 async for key in redis.scan_iter(match=self.KEY_PREFIX + "*", count=200):
                     try:
                         data = json.loads(await redis.get(key) or "{}")
                         if float(data.get("open_until", 0.0)) > now:
                             out.append(key[len(self.KEY_PREFIX):])
-                    except Exception:  # noqa: BLE001
+                    except (RedisError, OSError, ValueError, TypeError) as exc:
+                        logger.debug("breaker key %s skipped: %s", key, exc)
                         continue
+            except (RedisError, OSError, TimeoutError) as exc:
+                logger.debug("breaker scan failed; returning memory-only open funds: %s", exc)
         return sorted(set(out))
 
 

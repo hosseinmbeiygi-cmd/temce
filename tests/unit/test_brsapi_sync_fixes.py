@@ -72,8 +72,9 @@ async def test_bulk_insert_conflict_update_never_touches_pk():
 async def test_bulk_insert_default_still_do_nothing():
     """Plain inserts keep the safe ``ON CONFLICT DO NOTHING`` (no target needed)."""
     session = AsyncMock()
+    session.execute.return_value.rowcount = 1  # realistic driver rowcount
     repo = BulkUpsertRepository(session, SymbolSnapshotModel)
-    await repo.bulk_insert([{"symbol": "X", "fetched_at": "2026-01-01 00:00:00"}])
+    assert await repo.bulk_insert([{"symbol": "X", "fetched_at": "2026-01-01 00:00:00"}]) == 1
     sql = str(session.execute.call_args.args[0])
     assert "ON CONFLICT DO NOTHING" in sql
 

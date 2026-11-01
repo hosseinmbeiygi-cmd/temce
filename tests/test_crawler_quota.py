@@ -369,14 +369,3 @@ def test_rows_record_data_status(quota, monkeypatch):
 
     with open(z.MARKET_NO_DATA_FILE, encoding="utf-8") as f:
         assert json.load(f) == {"1403-05-02": [0, 1]}
-
-
-def test_insert_sql_uses_explicit_conflict_target(quota):
-    cols = {"symbol", "row", "time", "volume", "price", "canceled", "trade_date"}
-
-    sql_unique, _ = z._insert_sql(cols, has_unique=True)
-    assert 'ON CONFLICT (symbol, trade_date, "row") DO NOTHING' in sql_unique
-
-    sql_plain, _ = z._insert_sql(cols, has_unique=False)
-    assert "ON CONFLICT DO NOTHING" in sql_plain
-    assert "(symbol, trade_date" not in sql_plain

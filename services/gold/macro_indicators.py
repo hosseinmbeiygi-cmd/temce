@@ -78,6 +78,10 @@ def _get_provider_executor() -> ThreadPoolExecutor:
 class GoldFeedUnavailableError(RuntimeError):
     """همهٔ ارائه‌دهنده‌ها شکست خوردند، timeout دادند یا دادهٔ کهنه دادند."""
 
+    check_id: str
+    checked_at: datetime
+    primary: dict[str, Any] | None
+
     def __init__(self, attempts: list[dict[str, Any]]) -> None:
         self.attempts = attempts
         summary = ", ".join(f"{a['provider']}:{a['status']}" for a in attempts)

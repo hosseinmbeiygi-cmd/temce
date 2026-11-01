@@ -24,6 +24,10 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
 REQUIRED_MARGIN_KEYS = (
     "initial_margin_ratio",
     "maintenance_margin_ratio",
@@ -50,7 +54,8 @@ def _configured_margin_config() -> dict[str, Any]:
         from core.config.ime_engine import load_ime_config
 
         return dict(load_ime_config().get("derivatives", {}).get("margin", {}) or {})
-    except Exception:  # pragma: no cover - config fallback is deliberately safe
+    except (ImportError, OSError, TypeError, ValueError) as exc:  # pragma: no cover
+        logger.warning("IME margin config unavailable; using defaults: %s", exc)
         return {}
 
 

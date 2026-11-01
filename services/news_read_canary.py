@@ -33,6 +33,8 @@ import hashlib
 import time
 from typing import Any
 
+from redis.exceptions import RedisError
+
 from core.cache import get_cache
 from core.config import settings
 from core.logging import get_logger
@@ -386,7 +388,8 @@ async def halt_status() -> dict[str, Any]:
     if cache.is_connected and cache.client is not None:
         try:
             halted = bool(await cache.client.get(_HALT_KEY))
-        except Exception:  # noqa: BLE001
+        except (RedisError, OSError, TimeoutError) as exc:
+            logger.warning("halt key unreadable; assuming canary is not halted: %s", exc)
             halted = False
     return {"halted": halted, "mode": await resolve_mode(), **await window_stats()}
 

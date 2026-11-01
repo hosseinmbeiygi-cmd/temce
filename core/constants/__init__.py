@@ -11,10 +11,14 @@ class MarketType(StrEnum):
     OPTION = "option"
     FUTURES = "futures"
     ETF = "etf"
+    SUKUK = "sukuk"
+    FX = "fx"
+    COMMODITY = "commodity"
 
 
 class AssetClass(StrEnum):
     EQUITY = "equity"
+    SUKUK = "sukuk"
     BOND = "bond"
     COMMODITY = "commodity"
     CURRENCY = "currency"
@@ -51,6 +55,8 @@ class TimeFrame(StrEnum):
     D1 = "1d"
     W1 = "1w"
     M1_MONTH = "1M"
+    # Alias kept for the historical ``domain.common.enum_types`` name.
+    MONTHLY = "1M"
 
 
 class SignalType(StrEnum):
@@ -101,6 +107,15 @@ class ProviderHealth(StrEnum):
     DEGRADED = "degraded"
     DOWN = "down"
     UNKNOWN = "unknown"
+
+
+class TimeSeriesGranularity(StrEnum):
+    TICK = "tick"
+    MINUTE = "minute"
+    HOUR = "hour"
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
 
 
 CURRENCY_PAIRS = ("USD_IRR", "EUR_IRR", "GBP_IRR", "TRY_IRR", "AED_IRR")

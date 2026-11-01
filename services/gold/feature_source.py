@@ -787,7 +787,8 @@ def _configured_event_horizon_days() -> int:
         from core.config import get_settings
 
         return int(get_settings().gold_event_horizon_days)
-    except Exception:  # pragma: no cover - config fallback is deliberately safe
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:  # pragma: no cover
+        logger.debug("gold_event_horizon_days config unavailable: %s", exc)
         return DEFAULT_EVENT_HORIZON_DAYS
 
 

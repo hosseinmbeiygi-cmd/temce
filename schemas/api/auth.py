@@ -109,6 +109,33 @@ class MFALoginRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
 
 
+class MFARecoveryRequest(BaseModel):
+    """Second step of a two-factor login using a one-time recovery code."""
+
+    mfa_token: str = Field(..., min_length=8)
+    code: str = Field(..., min_length=8, max_length=32, pattern=r"^[A-Za-z0-9 -]+$")
+
+
+class MFAEnrollStartRequest(BaseModel):
+    """Begin MFA enrollment for an account that is required to use MFA."""
+
+    mfa_token: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=1)
+
+
+class MFAEnrollFinishRequest(BaseModel):
+    """Finish enforced MFA enrollment: proves possession of the new secret."""
+
+    mfa_token: str = Field(..., min_length=8)
+    code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
+
+
+class MFARegenerateRecoveryRequest(BaseModel):
+    """Replace the recovery-code set (requires the current password)."""
+
+    password: str = Field(..., min_length=1)
+
+
 class MFAStatusResponse(BaseModel):
     """MFA state for the current user.
 
@@ -125,6 +152,7 @@ class MFAStatusResponse(BaseModel):
     secret: str | None = None
     uri: str | None = None
     telegram_chat_id: str | None = None
+    recovery_codes_remaining: int = 0
 
     @classmethod
     def for_status(
@@ -133,6 +161,7 @@ class MFAStatusResponse(BaseModel):
         enabled: bool,
         method: str | None = None,
         telegram_chat_id: str | None = None,
+        recovery_codes_remaining: int = 0,
     ) -> MFAStatusResponse:
         """Status view — never carries secret material."""
         return cls(
@@ -142,6 +171,7 @@ class MFAStatusResponse(BaseModel):
             secret=None,
             uri=None,
             telegram_chat_id=telegram_chat_id,
+            recovery_codes_remaining=recovery_codes_remaining,
         )
 
     @classmethod

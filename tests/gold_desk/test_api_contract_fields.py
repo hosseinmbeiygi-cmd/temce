@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import src.gold_desk.api as gold_api
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_current_user, get_db_session
 from src.gold_desk.portfolio import HoldingPnL, PortfolioReturns, PortfolioSummary
 
 
@@ -112,6 +112,8 @@ def app(monkeypatch) -> FastAPI:
     application = FastAPI()
     application.include_router(gold_api.router)
     application.dependency_overrides[get_db_session] = lambda: None
+    # این تست قرارداد سریال‌سازی است، نه احراز هویت؛ نقش admin تا scoping no-op شود.
+    application.dependency_overrides[get_current_user] = lambda: {"sub": "test-admin", "roles": ["admin"]}
     return application
 
 

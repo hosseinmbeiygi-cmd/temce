@@ -4,7 +4,6 @@ Generic BrsApi repository with bulk-insert / upsert support and sync logging.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import os
@@ -54,6 +53,50 @@ def _quote_model_identifier(model_class: type[Any], name: str) -> str:
 
 T = TypeVar("T")
 
+
+class BulkInsertRowCountUnavailable(RuntimeError):
+    """The driver did not report how many rows the batch affected.
+
+    Raised instead of guessing: reporting ``len(records)`` after
+    ``ON CONFLICT DO NOTHING`` would claim rows were written when they were
+    skipped.
+    """
+
+
+def _affected_row_count(
+    result: Any,
+    *,
+    attempted: int,
+    on_conflict_update: bool,
+    table_name: str,
+) -> int:
+    """Return the number of rows the batch actually inserted or updated.
+
+    ``ON CONFLICT DO UPDATE`` touches every (deduplicated) row, so the
+    attempted count is exact there.  For ``DO NOTHING`` an unknown count is
+    genuinely unknowable without extra queries, so it fails loudly.
+    """
+    try:
+        rowcount = result.rowcount
+    except (AttributeError, NotImplementedError):
+        rowcount = None
+
+    if isinstance(rowcount, int) and rowcount >= 0:
+        return rowcount
+
+    if on_conflict_update:
+        logger.debug(
+            "bulk_insert: no rowcount for %s; DO UPDATE affects all %d rows",
+            table_name,
+            attempted,
+        )
+        return attempted
+
+    raise BulkInsertRowCountUnavailable(
+        f"Driver did not report rowcount for {table_name}; the number of "
+        f"rows inserted by ON CONFLICT DO NOTHING is unknown"
+    )
+
 # ──────────────────────────────────────────────
 #  Sync Log Repository
 # ──────────────────────────────────────────────
@@ -91,23 +134,40 @@ class SyncLogRepository:
         await self.session.flush()
         return entry
 
-    async def last_sync(self, endpoint: str, max_age_seconds: int = 120) -> SyncLogModel | None:
-        """Return the most recent successful sync for *endpoint*."""
-        stmt = (
-            select(SyncLogModel)
-            .where(SyncLogModel.endpoint == endpoint, SyncLogModel.status == "success")
-            .order_by(SyncLogModel.completed_at.desc())
-            .limit(1)
+    async def last_sync(
+        self,
+        endpoint: str,
+        max_age_seconds: int = 120,
+        params: dict[str, str] | None = None,
+    ) -> SyncLogModel | None:
+        """Return the most recent successful sync for *endpoint*.
+
+        When *params* is supplied the lookup is scoped to that exact
+        (redacted) parameter snapshot.  Without this, syncing one symbol
+        would suppress the next symbol's sync of the same endpoint.
+        """
+        stmt = select(SyncLogModel).where(
+            SyncLogModel.endpoint == endpoint, SyncLogModel.status == "success"
         )
+        if params is not None:
+            stmt = stmt.where(
+                SyncLogModel.params_snapshot == json.dumps(_redact_params(params))
+            )
+        stmt = stmt.order_by(SyncLogModel.completed_at.desc()).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def needs_sync(self, endpoint: str, interval_seconds: int = 60) -> bool:
+    async def needs_sync(
+        self,
+        endpoint: str,
+        interval_seconds: int = 60,
+        params: dict[str, str] | None = None,
+    ) -> bool:
         """
         Return ``True`` if enough time has passed since the last
-        successful sync for *endpoint*.
+        successful sync for *endpoint* (and *params*, when given).
         """
-        last = await self.last_sync(endpoint)
+        last = await self.last_sync(endpoint, params=params)
         if last is None:
             return True
         if last.completed_at is None:
@@ -355,20 +415,14 @@ class BulkUpsertRepository(Generic[T]):
             records,
         )
         await self.session.flush()
-        # ``rowcount`` is the number of rows actually inserted/updated. Drivers
-        # may report None; in that case the return value falls back to the
-        # number of attempted rows, which is logged so callers can tell the
-        # two apart.
-        with contextlib.suppress(Exception):
-            rc = result.rowcount  # type: ignore[attr-defined]
-            if rc is not None and rc >= 0:
-                return int(rc)
-        logger.warning(
-            "bulk_insert: driver did not report rowcount for %s; returning attempted=%d",
-            table_name,
-            len(records),
+        # ``rowcount`` is the number of rows actually inserted/updated. It is
+        # not guessed when the driver omits it — see _affected_row_count.
+        return _affected_row_count(
+            result,
+            attempted=len(records),
+            on_conflict_update=on_conflict_update,
+            table_name=table_name,
         )
-        return len(records)
 
     async def delete_where(self, column: str, value: Any) -> int:
         """Delete rows whose *column* equals *value* (scoped replace).
@@ -387,11 +441,12 @@ class BulkUpsertRepository(Generic[T]):
             {"value": value},
         )
         await self.session.flush()
-        with contextlib.suppress(Exception):
-            rc = result.rowcount  # type: ignore[attr-defined]
-            if rc is not None and rc >= 0:
-                return int(rc)
-        return 0
+        try:
+            rc = result.rowcount  # type: ignore[attr-defined]  # CursorResult only; Result protocol omits it
+        except (AttributeError, NotImplementedError) as exc:
+            logger.debug("delete_where: driver did not report rowcount for %s: %s", table_name, exc)
+            return 0
+        return rc if isinstance(rc, int) and rc >= 0 else 0
 
     async def truncate(self) -> None:
         """Truncate the table (use with caution — for full-refresh endpoints).

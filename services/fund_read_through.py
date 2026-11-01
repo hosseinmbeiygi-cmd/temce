@@ -65,7 +65,8 @@ def _is_market_open() -> bool:
 
         tehran = pytz.timezone("Asia/Tehran")
         now = datetime.now(tehran).time()
-    except Exception:
+    except ImportError as exc:
+        logger.debug("pytz unavailable (%s); using project timezone helper", exc)
         now = now_tehran().time()
     return dt.time(8, 45) <= now <= dt.time(12, 30)
 
@@ -98,7 +99,13 @@ class DistributedMutex:
             return None
         try:
             import redis.asyncio as aioredis
+        except ImportError as exc:
+            logger.debug("redis-py unavailable; distributed mutex uses the local lock: %s", exc)
+            self._redis_checked = True
+            self._redis_retry_at = now + 30.0
+            return None
 
+        try:
             self._redis = aioredis.from_url(
                 self._redis_url,
                 decode_responses=True,
@@ -108,7 +115,10 @@ class DistributedMutex:
             await self._redis.ping()
             self._redis_checked = False
             return self._redis
-        except Exception:
+        except (aioredis.RedisError, OSError, TimeoutError) as exc:
+            logger.warning(
+                "Redis mutex backend unavailable; falling back to the local lock: %s", exc
+            )
             self._redis = None
             self._redis_checked = True
             self._redis_retry_at = now + 30.0

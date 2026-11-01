@@ -2,9 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { getTelegramStatus } from "@/lib/goldApi";
+import { useAuth } from "@/lib/auth-context";
 import { formatAge, useGoldWS } from "@/hooks/useGoldWS";
 import { ThemeProvider, ThemeToggle } from "@/components/gold/ThemeProvider";
 import { GoldDisclaimer } from "@/components/gold/GoldDisclaimer";
@@ -40,10 +41,26 @@ const TABS = [
 
 export default function GoldLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { isAuthenticated, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
   // F6: نشانگر باید از خودِ سوکت و از تازگی پیام بیاید. پیش از این یک
   // `setTimeout(…, 3000)` بی‌قیدوشرط «Live» را خاموش می‌کرد.
   const ws = useGoldWS();
+
+  // W4-07: GoldDesk هدر مستقل دارد و خارج از TopNavbar است؛ بدون این دکمه
+  // کاربر باید اول از بخش طلا بیرون می‌رفت تا خارج شود.
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.push("/auth/login");
+      setLoggingOut(false);
+    }
+  };
 
   const { data: tg } = useQuery({
     queryKey: ["gold", "telegram", "status"],
@@ -120,6 +137,17 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
             </div>
             {tg?.data?.is_operational && (
               <span className="text-emerald-500 hidden sm:inline">📨 TG</span>
+            )}
+            {isAuthenticated && (
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="px-2 py-1 rounded text-[11px] border disabled:opacity-50"
+                style={{ color: "var(--gd-text-2)", borderColor: "var(--gd-border)" }}
+                aria-label="خروج"
+              >
+                {loggingOut ? "…" : "خروج"}
+              </button>
             )}
           </div>
         </div>

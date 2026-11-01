@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import PriceChart, { type Candle } from "./components/PriceChart";
+import { gramsToUsd, parseGramsInput, usdToIrr } from "@/lib/silver-converter";
 import ForecastTab from "./components/ForecastTab";
 import BacktestTab from "./components/BacktestTab";
 import MlTab from "./components/MlTab";
@@ -286,12 +287,13 @@ export default function SilverMarketPage() {
   const candleMin = candles.length ? Math.min(...candles.map((c) => c.low)) : null;
   const candleMax = candles.length ? Math.max(...candles.map((c) => c.high)) : null;
 
+  const gramsValue = useMemo(() => parseGramsInput(grams), [grams]);
+
   const converter = useMemo(() => {
-    const g = parseFloat(grams) || 0;
-    const toUsd = ounce?.price == null ? null : (g / 31.1035) * ounce.price;
-    const toIrr = toUsd == null || usd == null ? null : toUsd * usd;
+    const toUsd = gramsToUsd(gramsValue, ounce?.price);
+    const toIrr = usdToIrr(toUsd, usd);
     return { toUsd, toIrr };
-  }, [grams, ounce, usd]);
+  }, [gramsValue, ounce, usd]);
 
   const heroCards = [
     { label: "انس جهانی نقره (XAG/USD)", value: ounce?.price != null ? ounce.price.toFixed(2) : "—", unit: "دلار / انس", change: ounce?.change_percent ?? ounce?.price_change_pct ?? null },
@@ -399,6 +401,8 @@ export default function SilverMarketPage() {
                     className="w-24 rounded-xl border border-line bg-soft px-3 py-2 font-mono text-sm text-ink"
                     placeholder="گرم"
                     inputMode="decimal"
+                    min="0"
+                    aria-invalid={gramsValue == null}
                     dir="ltr"
                   />
                   <span className="text-xs text-ink-3">گرم نقره ≈</span>
@@ -409,6 +413,11 @@ export default function SilverMarketPage() {
                   <span className="font-mono text-sm font-bold text-ink" dir="ltr">
                     {converter.toIrr == null ? "—" : `${fa(Math.round(converter.toIrr))} ریال`}
                   </span>
+                  {gramsValue == null && (
+                    <span role="status" className="text-[10px] text-warn">
+                      عدد معتبر بزرگ‌تر از صفر وارد کنید.
+                    </span>
+                  )}
                 </div>
                 <p className="mt-3 text-[10px] text-ink-3">
                   انس {ounce?.price != null ? ounce.price.toFixed(2) : "—"} دلار × دلار {usd != null ? fa(Math.round(usd)) : "—"} ریال (هر انس = ۳۱.۱۰۳۵ گرم)
@@ -463,7 +472,14 @@ export default function SilverMarketPage() {
             ) : fundsQ.isError ? (
               <p className="py-8 text-center text-xs text-rose-300">دریافت صندوق‌ها ناموفق بود؛ «صندوقی نیست» نتیجه‌گیری نمی‌شود.</p>
             ) : fundsQ.data?.length ? (
-              <div className="overflow-x-auto">
+              <>
+                {navsQ.some((q) => q.isError) && (
+                  <div role="status" className="mb-3 rounded-xl border border-amber-700/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300">
+                    خواندن NAV صدور/ابطال از سرور ناموفق بود؛ در ستون‌های NAV مقدار
+                    جایگزین «NAV کل صندوق» نشان داده می‌شود و حباب ممکن است دقیق نباشد.
+                  </div>
+                )}
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-right text-ink-3">
@@ -512,6 +528,7 @@ export default function SilverMarketPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             ) : (
               <p className="py-8 text-center text-xs text-ink-3">صندوق نقره‌ای در API موجود نیست.</p>
             )}

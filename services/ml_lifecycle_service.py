@@ -25,7 +25,8 @@ def _is_production(meta_path: Path) -> bool:
     try:
         data = json.loads(meta_path.read_text(encoding="utf-8"))
         return data.get("stage") == "production"
-    except Exception:
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("ML artifact metadata unreadable at %s: %s", meta_path, exc)
         return False
 
 

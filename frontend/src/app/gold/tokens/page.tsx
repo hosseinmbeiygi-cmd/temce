@@ -102,6 +102,7 @@ export default function GoldTokensPage() {
         >
           <option value="read">read — فقط خواندن</option>
           <option value="write">write — خواندن + نوشتن</option>
+          <option value="metrics">metrics — اسکرپ Prometheus</option>
           <option value="admin">admin — دسترسی کامل</option>
         </select>
         {scopes === "admin" && (
@@ -140,13 +141,21 @@ export default function GoldTokensPage() {
               <th className="text-right p-3">ID</th>
               <th className="text-right p-3">نام</th>
               <th className="text-right p-3">Scopes</th>
+              <th className="text-right p-3">وضعیت</th>
               <th className="text-right p-3">آخرین استفاده</th>
               <th className="text-right p-3">عملیات</th>
             </tr>
           </thead>
           <tbody>
             {(tokens ?? []).map((t) => (
-              <tr key={t.token_id} style={{ borderTop: "1px solid var(--gd-border)" }}>
+              <tr
+                key={t.token_id}
+                style={{
+                  borderTop: "1px solid var(--gd-border)",
+                  // توکن‌های لغوشده کم‌رنگ می‌شوند اما برای حسابرسی باقی می‌مانند (W4-06).
+                  opacity: t.enabled ? 1 : 0.55,
+                }}
+              >
                 <td className="p-3 font-mono text-xs" style={{ color: "var(--gd-text-2)" }}>{t.token_id}</td>
                 <td className="p-3" style={{ color: "var(--gd-text)" }}>{t.name}</td>
                 <td className="p-3">
@@ -156,18 +165,33 @@ export default function GoldTokensPage() {
                     </span>
                   ))}
                 </td>
+                <td className="p-3">
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded"
+                    style={{
+                      background: "var(--gd-bg-3)",
+                      color: t.enabled ? "var(--gd-success, #34d399)" : "var(--gd-danger, #f87171)",
+                    }}
+                  >
+                    {t.enabled ? "فعال" : "لغوشده"}
+                  </span>
+                </td>
                 <td className="p-3 text-xs" style={{ color: "var(--gd-text-2)" }}>
                   {t.last_used_at ? new Date(t.last_used_at).toLocaleString("fa-IR") : "هرگز"}
                 </td>
                 <td className="p-3">
-                  <button
-                    onClick={() => setPendingRevoke(t)}
-                    className="text-xs hover:underline"
-                    style={{ color: "var(--gd-danger)" }}
-                    aria-label={`لغو token ${t.name}`}
-                  >
-                    لغو
-                  </button>
+                  {t.enabled ? (
+                    <button
+                      onClick={() => setPendingRevoke(t)}
+                      className="text-xs hover:underline"
+                      style={{ color: "var(--gd-danger)" }}
+                      aria-label={`لغو token ${t.name}`}
+                    >
+                      لغو
+                    </button>
+                  ) : (
+                    <span className="text-[10px]" style={{ color: "var(--gd-text-3)" }}>—</span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -177,9 +201,18 @@ export default function GoldTokensPage() {
 
       <div className="rounded-xl p-4 text-xs space-y-2" style={{ background: "var(--gd-bg-2)", border: "1px solid var(--gd-border)", color: "var(--gd-text-2)" }}>
         <div className="font-semibold" style={{ color: "var(--gd-text)" }}>نحوه استفاده:</div>
+        <div>
+          در حال حاضر تنها مسیری که API token را می‌پذیرد اسکرپ متریک است؛ سایر
+          مسیرهای <code dir="ltr">/api/v1/gold/*</code> با نشست کاربر (JWT) محافظت
+          می‌شوند و Bearer API token را قبول نمی‌کنند.
+        </div>
         <code className="block bg-zinc-950 p-2 rounded font-mono text-emerald-300" dir="ltr">
-          curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; &lt;YOUR_HOST&gt;/api/v1/gold/snapshot
+          curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; &lt;YOUR_HOST&gt;/api/v1/gold/metrics
         </code>
+        <div>
+          برای این مسیر، token باید scope <code dir="ltr">metrics</code> داشته باشد؛
+          <code dir="ltr">read</code>/<code dir="ltr">write</code> جای آن را نمی‌گیرند.
+        </div>
         <div>لیست کامل endpointها: <code className="text-amber-400">/api/v1/gold/docs/endpoints</code></div>
       </div>
 

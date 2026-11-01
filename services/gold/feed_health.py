@@ -153,9 +153,9 @@ async def check_gold_feed_health(
     }
 
     if error is not None:
-        error.check_id = check_id  # type: ignore[attr-defined]
-        error.checked_at = checked_at  # type: ignore[attr-defined]
-        error.primary = summarize_primary_status(normalized, checked_at)  # type: ignore[attr-defined]
+        error.check_id = check_id
+        error.checked_at = checked_at
+        error.primary = summarize_primary_status(normalized, checked_at)
         error.attempts = normalized
         raise error
 

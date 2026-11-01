@@ -19,6 +19,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
@@ -450,7 +451,8 @@ class FundDiscoveryService:
                 async with self.session.begin_nested():
                     rows = (await self.session.execute(text(sql))).fetchall()
                     return {str(r[0]) for r in rows if r[0]}
-            except Exception:  # noqa: BLE001 — منبع ممکن است خالی/ناموجود باشد
+            except (SQLAlchemyError, ValueError, TypeError, KeyError) as exc:  # source may be absent
+                logger.debug("detection source unavailable (%s): %s", sql.split()[0], exc)
                 return set()
 
         return {
@@ -499,7 +501,8 @@ class FundDiscoveryService:
                     )
                 ).fetchall()
                 nav_counts = {r[0]: int(r[1]) for r in rows}
-        except Exception:  # noqa: BLE001
+        except (SQLAlchemyError, ValueError, TypeError, KeyError) as exc:
+            logger.debug("fund NAV coverage query failed: %s", exc)
             nav_counts = {}
 
         quote_ages: dict[str, float] = {}
@@ -516,7 +519,8 @@ class FundDiscoveryService:
                     )
                 ).fetchall()
                 quote_ages = {r[0]: float(r[1]) for r in rows if r[1] is not None}
-        except Exception:  # noqa: BLE001
+        except (SQLAlchemyError, ValueError, TypeError, KeyError) as exc:
+            logger.debug("fund quote-age query failed: %s", exc)
             quote_ages = {}
 
         universe = (
@@ -590,7 +594,8 @@ class FundDiscoveryService:
                 )
             ).first()
             return int(row[0]) if row else None
-        except Exception:  # noqa: BLE001
+        except (SQLAlchemyError, ValueError, TypeError, KeyError) as exc:
+            logger.warning("discovery run row could not be created: %s", exc)
             return None
 
     async def _finish_run(self, run_id: int | None, stats: DiscoveryStats, *, status: str) -> None:
@@ -637,7 +642,8 @@ class FundDiscoveryService:
             from services.fund_api_adapter import _fingerprint  # noqa: PLC0415
 
             fingerprint = _fingerprint(payload)
-        except Exception:  # noqa: BLE001
+        except (AttributeError, TypeError, ValueError, KeyError) as exc:
+            logger.debug("quarantine fingerprint failed: %s", exc)
             fingerprint = None
         try:
             await self.session.execute(

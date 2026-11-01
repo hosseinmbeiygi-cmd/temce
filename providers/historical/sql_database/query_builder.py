@@ -1,15 +1,29 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
+
+# SQL identifiers are the only part of these statements that cannot be bound
+# as a parameter, so they must be validated instead. A table name comes from
+# the caller and column names come from the record dicts, which reach this
+# builder from parsed provider payloads — neither may smuggle SQL.
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _identifier(name: object) -> str:
+    """Return *name* unchanged when it is a plain identifier, else raise."""
+    if not isinstance(name, str) or not _IDENTIFIER.fullmatch(name):
+        raise ValueError(f"Unsafe SQL identifier: {name!r}")
+    return name
 
 
 class QueryBuilder:
     def __init__(self, table: str = "historical_data") -> None:
-        self.table = table
+        self.table = _identifier(table)
 
     def insert(self, data: dict[str, Any]) -> tuple[str, list[Any]]:
-        cols = ", ".join(data.keys())
+        cols = ", ".join(_identifier(col) for col in data)
         placeholders = ", ".join("?" for _ in data)
         sql = f"INSERT INTO {self.table} ({cols}) VALUES ({placeholders})"
         return sql, list(data.values())
@@ -17,7 +31,7 @@ class QueryBuilder:
     def insert_many(self, rows: list[dict[str, Any]]) -> tuple[str, list[list[Any]]]:
         if not rows:
             return "", []
-        cols = ", ".join(rows[0].keys())
+        cols = ", ".join(_identifier(col) for col in rows[0])
         placeholders = ", ".join("?" for _ in rows[0])
         sql = f"INSERT INTO {self.table} ({cols}) VALUES ({placeholders})"
         params = [list(r.values()) for r in rows]

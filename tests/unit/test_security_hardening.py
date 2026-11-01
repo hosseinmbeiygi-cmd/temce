@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.testclient import TestClient
 
 from apps.api.metrics import MetricsMiddleware, get_prometheus_exporter
@@ -56,6 +56,15 @@ def _create_csrf_app() -> FastAPI:
 
     @app.post("/api/v1/auth/login")
     async def login():
+        return {"ok": True}
+
+    @app.post("/api/v1/auth/login-with-session")
+    async def login_with_session(response: Response):
+        response.set_cookie(key=settings.auth_cookie_name, value="refresh-abc", httponly=True)
+        return {"ok": True}
+
+    @app.post("/api/v1/portfolio")
+    async def portfolio():
         return {"ok": True}
 
     @app.get("/api/v1/signals")
@@ -148,6 +157,56 @@ class TestCSRFMiddleware:
         client = TestClient(_create_csrf_app(), raise_server_exceptions=False)
         res = client.post("/api/v1/auth/login", headers={"Referer": "https://evil.example.com/x"})
         assert res.status_code == 403
+
+    def test_sec_fetch_site_cross_site_blocked_without_origin(self):
+        """A browser-identified cross-site POST is blocked even without Origin."""
+        client = TestClient(_create_csrf_app(), raise_server_exceptions=False)
+        res = client.post("/api/v1/auth/login", headers={"Sec-Fetch-Site": "cross-site"})
+        assert res.status_code == 403
+        assert res.json()["code"] == "CSRF_BLOCKED"
+
+    def test_safe_method_ignores_sec_fetch_site(self):
+        client = TestClient(_create_csrf_app(), raise_server_exceptions=False)
+        res = client.get("/api/v1/signals", headers={"Sec-Fetch-Site": "cross-site"})
+        assert res.status_code == 200
+
+
+class TestCSRFDoubleSubmit:
+    """Double-submit token for cookie-authenticated browsers."""
+
+    def _session_client(self) -> TestClient:
+        client = TestClient(_create_csrf_app(), raise_server_exceptions=False)
+        res = client.post("/api/v1/auth/login-with-session")
+        assert res.status_code == 200
+        return client
+
+    def test_session_login_issues_csrf_cookie(self):
+        client = self._session_client()
+        assert settings.auth_cookie_name in client.cookies
+        assert settings.csrf_cookie_name in client.cookies
+
+    def test_unsafe_request_with_matching_token_passes(self):
+        client = self._session_client()
+        token = client.cookies[settings.csrf_cookie_name]
+        res = client.post("/api/v1/portfolio", headers={settings.csrf_header_name: token})
+        assert res.status_code == 200
+
+    def test_unsafe_request_without_token_blocked(self):
+        client = self._session_client()
+        res = client.post("/api/v1/portfolio")
+        assert res.status_code == 403
+        assert res.json()["code"] == "CSRF_BLOCKED"
+
+    def test_unsafe_request_with_wrong_token_blocked(self):
+        client = self._session_client()
+        res = client.post("/api/v1/portfolio", headers={settings.csrf_header_name: "forged"})
+        assert res.status_code == 403
+
+    def test_bearer_only_client_not_token_checked(self):
+        """No cookie session → no ambient credential → CSRF check stays inert."""
+        client = TestClient(_create_csrf_app(), raise_server_exceptions=False)
+        res = client.post("/api/v1/portfolio", headers={"Authorization": "Bearer xyz"})
+        assert res.status_code == 200
 
 
 # ════════════════════════════════════════════════════════════════

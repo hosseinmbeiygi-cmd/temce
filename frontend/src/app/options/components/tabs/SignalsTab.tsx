@@ -15,6 +15,7 @@ import {
   type OptionSignal,
   type SignalsResponse,
 } from "@/lib/options-api";
+import { useStaleGuard } from "@/lib/use-stale-guard";
 import { fmt } from "../helpers";
 import { CardSkeletonGrid } from "./Skeleton";
 
@@ -57,8 +58,10 @@ export default function SignalsTab() {
   const [payload, setPayload] = useState<SignalsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const beginRequest = useStaleGuard();
 
   const load = async () => {
+    const isCurrent = beginRequest();
     setLoading(true);
     setError("");
     try {
@@ -67,12 +70,14 @@ export default function SignalsTab() {
         iv_rank: Number(ivRank) || 50,
         guarded: true,
       });
+      if (!isCurrent()) return;
       setPayload(r);
     } catch {
+      if (!isCurrent()) return;
       setError("اتصال به سرور برقرار نشد");
       setPayload(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 

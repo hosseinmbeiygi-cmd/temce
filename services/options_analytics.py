@@ -33,7 +33,25 @@ class ArbitrageDetector:
         self, call_price: float, put_price: float,
         stock_price: float, strike: float, time_to_expiry: float
     ) -> dict[str, Any]:
-        """Check Put-Call Parity: C + Ke^(-rT) = P + S"""
+        """Check Put-Call Parity: C + Ke^(-rT) = P + S
+
+        Raises ``ValueError`` for non-finite inputs or a negative horizon: a
+        negative ``T`` turns ``exp(-rT)`` into an unbounded discount factor and
+        the endpoint would serialise ``Infinity``/``NaN``.
+        """
+        inputs = {
+            "call_price": call_price,
+            "put_price": put_price,
+            "stock_price": stock_price,
+            "strike": strike,
+            "time_to_expiry": time_to_expiry,
+        }
+        bad = [name for name, value in inputs.items() if not math.isfinite(value)]
+        if bad:
+            raise ValueError(f"non-finite values: {', '.join(bad)}")
+        if time_to_expiry < 0:
+            raise ValueError("time_to_expiry must be >= 0")
+
         pv_strike = strike * math.exp(-self.risk_free_rate * time_to_expiry)
         left = call_price + pv_strike
         right = put_price + stock_price
@@ -41,7 +59,7 @@ class ArbitrageDetector:
 
         has_arbitrage = abs(diff) > 1  # > 1 Toman threshold
 
-        result = {
+        result: dict[str, Any] = {
             "parity_violated": has_arbitrage,
             "left_side": round(left, 2),
             "right_side": round(right, 2),
@@ -69,7 +87,7 @@ class ArbitrageDetector:
         opportunities = []
 
         # Group by expiry
-        by_expiry: dict[str, list] = {}
+        by_expiry: dict[str, list[dict[str, Any]]] = {}
         for opt in options_chain:
             exp = opt.get("expiry", "")
             by_expiry.setdefault(exp, []).append(opt)

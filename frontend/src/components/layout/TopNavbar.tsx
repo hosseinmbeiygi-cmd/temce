@@ -25,6 +25,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/cn";
 import { SEARCH_SYMBOLS } from "@/lib/market-mock";
 import { useAuth } from "@/lib/auth-context";
+import PersonaSwitcher from "@/components/layout/PersonaSwitcher";
 
 /* ── Small shared bits ──────────────────────────────────────── */
 
@@ -400,6 +401,7 @@ export default function TopNavbar() {
           </Link>
           <IconButton label="همگام‌سازی" icon={RefreshCw} onClick={() => router.push("/sync")} />
           <ThemeToggle />
+          <PersonaSwitcher />
           {isAuthenticated ? (
             <>
               <button

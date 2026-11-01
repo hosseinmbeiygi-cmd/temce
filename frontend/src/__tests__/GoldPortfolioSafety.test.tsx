@@ -4,7 +4,7 @@
 //   * گروه چندردیفی فقط `holding_ids` دارد و `id` ندارد؛ دکمهٔ حذف باید بماند.
 //   * هر id جداگانه و پشت‌سرهم حذف می‌شود؛ هیچ‌وقت `force` فرستاده نمی‌شود.
 //   * 409 یعنی «قبلاً حذف شده» و 404/شبکه پیام روشن + refetch پورتفو.
-//   * ثبت فروش فقط idی را می‌فرستد که در پاسخ تازهٔ /portfolio بوده است.
+//   * ثبت فروش idهای تازهٔ /portfolio را در holding_ids می‌فرستد (گروه چندردیفی هم مجاز است).
 //   * pnl_pct/current_value/pnl_irt/priced_cost خالی «—» است، نه صفر.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -215,9 +215,25 @@ describe("trade recording with a fresh holding id", () => {
       quantity: 1,
       price: 60_000_000,
       amount_irt: 60_000_000,
-      holding_id: 7,
+      holding_ids: [7],
     });
     expect(JSON.stringify(body)).not.toMatch(/force/);
+  });
+
+  it("sells a multi-row group by sending every holding id (W4-08)", async () => {
+    installPortfolio(portfolio([holding({ id: undefined, holding_ids: [7, 8], quantity: 3 })]));
+    const { client } = await openSellDialog();
+
+    fireEvent.change(screen.getByLabelText("تعداد فروش"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("قیمت فروش (ریال)"), { target: { value: "60000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "ثبت فروش" }));
+
+    await waitFor(() => expect(restApi.apiPost).toHaveBeenCalledTimes(1));
+    const [url, body] = restApi.apiPost.mock.calls[0];
+    expect(url).toBe("/gold/portfolio/trades");
+    expect(body).toMatchObject({ action: "sell", quantity: 2, holding_ids: [7, 8] });
+    expect(body).not.toHaveProperty("holding_id");
+    expect(client).toBeTruthy();
   });
 
   it("refuses to post a holding_id that is no longer in the fresh portfolio", async () => {
@@ -249,7 +265,7 @@ describe("trade recording with a fresh holding id", () => {
     fireEvent.change(screen.getByLabelText("قیمت فروش (ریال)"), { target: { value: "60000000" } });
     fireEvent.click(screen.getByRole("button", { name: "ثبت فروش" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/قبلاً حذف شده/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/موجودی کافی نیست|حذف شده/);
     await waitFor(() => expect(portfolioGetCount()).toBeGreaterThan(before));
   });
 

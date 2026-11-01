@@ -102,6 +102,7 @@ class Sector(IntEnum):
 
 class InstrumentGroup(StrEnum):
     EQUITY = "equity"
+    SUKUK = "sukuk"
     BOND = "bond"
     FUND = "fund"
     FUTURES = "futures"
@@ -120,6 +121,30 @@ class Board(StrEnum):
     OPTION = "option"
     FUTURES = "futures"
     ETF = "etf"
+    BOND = "bond"
+    SUKUK = "sukuk"
+    COMMODITY = "commodity"
+    CURRENCY = "currency"
+
+
+class CommodityKind(StrEnum):
+    """IME commodity segments."""
+
+    ENERGY = "energy"
+    PRECIOUS_METAL = "precious_metal"
+    BASE_METAL = "base_metal"
+    AGRICULTURAL = "agricultural"
+    PETROCHEMICAL = "petrochemical"
+    CERTIFICATE = "commodity_certificate"
+
+
+class DerivativeUnderlying(StrEnum):
+    """Asset class a derivative contract settles against."""
+
+    EQUITY = "equity"
+    INDEX = "index"
+    CURRENCY = "currency"
+    COMMODITY = "commodity"
     BOND = "bond"
 
 

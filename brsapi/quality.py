@@ -231,12 +231,10 @@ def _ohlc_queries(table: str) -> dict[str, str]:
         "rows": f"SELECT COUNT(*) AS rows FROM {table}",
         "null_close": f"SELECT COUNT(*) AS n FROM {table} WHERE price_close IS NULL",
         "non_positive_price": (
-            "SELECT COUNT(*) AS n FROM {t} WHERE {p}".format(
-                t=table,
-                p=" OR ".join(
-                    _SQL_NON_POSITIVE.format(column=c)
-                    for c in ("price_open", "price_high", "price_low", "price_close")
-                ),
+            f"SELECT COUNT(*) AS n FROM {table} WHERE "
+            + " OR ".join(
+                _SQL_NON_POSITIVE.format(column=c)
+                for c in ("price_open", "price_high", "price_low", "price_close")
             )
         ),
         "high_below_low": (

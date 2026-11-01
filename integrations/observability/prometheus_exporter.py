@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from collections import deque
 from typing import Any
@@ -20,11 +21,15 @@ _HISTOGRAM_SAMPLE_LIMIT = 1000
 
 
 class PrometheusExporter:
-    def __init__(self):
+    def __init__(self) -> None:
         self._metrics: dict[str, Any] = {}
         self._counters: dict[str, float] = {}
         self._gauges: dict[str, float] = {}
         self._histograms: dict[str, deque[float]] = {}
+        # Structured label values per series key. The legacy ``export_text``
+        # renders unquoted labels from the key string; the Prometheus-valid
+        # renderer needs the original values without parsing them back.
+        self._series_labels: dict[str, dict[str, str]] = {}
         self._enabled = True
 
     def counter(self, name: str, labels: dict[str, str] | None = None) -> float:
@@ -58,7 +63,10 @@ class PrometheusExporter:
         """Storage key only — labels are kept separately for rendering."""
         if labels:
             label_str = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
-            return f"{name}{{{label_str}}}"
+            key = f"{name}{{{label_str}}}"
+            self._series_labels[key] = {str(k): str(v) for k, v in labels.items()}
+            return key
+        self._series_labels.setdefault(name, {})
         return name
 
     def _split_key(self, key: str) -> tuple[str, str]:
@@ -86,6 +94,12 @@ class PrometheusExporter:
         lines.append(f"{metric_name}{labels} {value}")
 
     def export_text(self) -> str:
+        """Legacy renderer (unquoted labels) kept for compatibility/parity tests.
+
+        Use :meth:`export_prometheus` for anything a Prometheus server will
+        scrape: this legacy output is not valid exposition format once labels
+        are present.
+        """
         lines: list[str] = []
         for key, value in self._counters.items():
             name, labels = self._split_key(key)
@@ -117,6 +131,68 @@ class PrometheusExporter:
             lines.append(f"{name}_sum{labels} {sum(samples)}")
         return "\n".join(lines)
 
+    # ── Prometheus-valid exposition ───────────────────────────────────────
+    # ``export_text`` predates label quoting and repeats HELP/TYPE per series;
+    # a real Prometheus parser rejects both. This renderer emits one HELP/TYPE
+    # per family and Go-quoted label values, so ``/metrics`` is scrapeable.
+
+    def export_prometheus(self) -> str:
+        lines: list[str] = []
+        lines.extend(self._render_scalar_family(self._counters, "counter"))
+        lines.extend(self._render_scalar_family(self._gauges, "gauge"))
+        lines.extend(self._render_histogram_families())
+        return "\n".join(lines)
+
+    def _render_scalar_family(self, store: dict[str, float], kind: str) -> list[str]:
+        by_name: dict[str, list[tuple[str, float]]] = {}
+        for key, value in store.items():
+            name, _ = self._split_key(key)
+            by_name.setdefault(name, []).append((key, value))
+
+        lines: list[str] = []
+        for name, series in by_name.items():
+            lines.append(f"# HELP {name} {kind.capitalize()} metric")
+            lines.append(f"# TYPE {name} {kind}")
+            for key, value in series:
+                lines.append(f"{name}{self._labels_text(key)} {value}")
+        return lines
+
+    def _render_histogram_families(self) -> list[str]:
+        by_name: dict[str, list[tuple[str, deque[float]]]] = {}
+        for key, values in self._histograms.items():
+            name, _ = self._split_key(key)
+            by_name.setdefault(name, []).append((key, values))
+
+        lines: list[str] = []
+        for name, series in by_name.items():
+            lines.append(f"# HELP {name} Histogram metric")
+            lines.append(f"# TYPE {name} histogram")
+            for key, values in series:
+                samples = tuple(values)
+                counts = dict.fromkeys(_HISTOGRAM_BUCKETS, 0)
+                for value in samples:
+                    for le in _HISTOGRAM_BUCKETS:
+                        if value <= le:
+                            counts[le] += 1
+                for le, count in counts.items():
+                    lines.append(f"{name}_bucket{self._labels_text(key, ('le', str(le)))} {count}")
+                lines.append(f"{name}_bucket{self._labels_text(key, ('le', '+Inf'))} {len(samples)}")
+                lines.append(f"{name}_count{self._labels_text(key)} {len(samples)}")
+                lines.append(f"{name}_sum{self._labels_text(key)} {sum(samples)}")
+        return lines
+
+    def _labels_text(self, key: str, extra: tuple[str, str] | None = None) -> str:
+        labels = dict(self._series_labels.get(key, {}))
+        if extra is not None:
+            labels[extra[0]] = extra[1]
+        if not labels:
+            return ""
+        rendered = ",".join(
+            f"{name}={json.dumps(value, ensure_ascii=False)}"
+            for name, value in sorted(labels.items())
+        )
+        return "{" + rendered + "}"
+
     def disable(self) -> None:
         self._enabled = False
 
@@ -127,6 +203,7 @@ class PrometheusExporter:
         self._counters.clear()
         self._gauges.clear()
         self._histograms.clear()
+        self._series_labels.clear()
 
 
 class _Timer:

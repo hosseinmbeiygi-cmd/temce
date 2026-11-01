@@ -43,6 +43,8 @@ class OptionLeg:
     implied_volatility: float = 0.0
     # Equity options are quoted per 1,000-share contract (audit FIN-09: the old
     # default of 1 under-computed margin by three orders of magnitude).
+    # This multiplier applies to OPTION legs only: a STOCK leg's ``quantity``
+    # is a share count and its ``contract_size`` is ignored (ISSUE-101).
     contract_size: int = DEFAULT_OPTION_CONTRACT_SIZE
     quantity: int = 1
     underlying_group: str = "default"
@@ -116,9 +118,11 @@ class UniversalMarginEngine:
         shorts = [idx for idx in options if idx.direction == Direction.SHORT]
         longs = [idx for idx in options if idx.direction == Direction.LONG]
 
-        # Net premium
+        # Net premium — option legs only. A stock leg's ``premium`` field is not
+        # an option premium, and multiplying share quantity by the contract
+        # multiplier here inflated the reported cash flow by 1,000x.
         net_premium = 0.0
-        for leg in legs:
+        for leg in options:
             sign = leg.direction.value
             net_premium += leg.premium * leg.quantity * leg.contract_size * sign
 
@@ -128,13 +132,15 @@ class UniversalMarginEngine:
 
         # ── Strategy Detection ──
 
-        # 1. Covered Call — quantity is shares, so compare shares vs contracts*size
-        long_stock_qty = sum(idx.quantity * idx.contract_size for idx in stocks if idx.direction == Direction.LONG)
+        # 1. Covered Call — stock quantity is a SHARE count, option quantity is
+        #    a CONTRACT count. Comparing the two through the same multiplier
+        #    reported a naked short call as covered (margin 0) whenever the
+        #    stock leg carried the default contract_size (ISSUE-101).
+        long_stock_qty = sum(idx.quantity for idx in stocks if idx.direction == Direction.LONG)
         short_calls = [idx for idx in shorts if idx.leg_type == LegType.CALL]
         if long_stock_qty > 0 and short_calls:
-            total_contracts = sum(idx.quantity for idx in short_calls)
-            contract_multiplier = short_calls[0].contract_size
-            if long_stock_qty >= total_contracts * contract_multiplier:
+            short_call_shares = sum(idx.quantity * idx.contract_size for idx in short_calls)
+            if long_stock_qty >= short_call_shares:
                 return MarginResult(0.0, 0.0, net_premium, "covered_call")
 
         # 2. Protective Put (long stock + long put) -> just premium paid

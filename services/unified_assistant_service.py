@@ -839,7 +839,8 @@ def _extract_screener_filters(text: str) -> list[dict[str, Any]]:
         value = f["value"]
         try:
             value_key = float(value) if isinstance(value, (int, float)) or (isinstance(value, str) and value.replace(".", "", 1).isdigit()) else str(value)
-        except Exception:
+        except (TypeError, ValueError) as exc:
+            logger.debug("screener filter value not numeric (%r): %s", value, exc)
             value_key = str(value)
         key = f"{f['field']}:{f['operator']}:{value_key}"
         if key not in seen:

@@ -406,6 +406,12 @@ class MultiMarketSignalEngine:
                     ))
                     all_signals.extend(sigs)
                 except Exception as e:
+                    logger.warning(
+                        "signal generation failed for market %s: %s",
+                        market_name,
+                        e,
+                        exc_info=True,
+                    )
                     reports.append(SignalGenerationReport(
                         market=market_name, success=False,
                         error=str(e), error_type=type(e).__name__,

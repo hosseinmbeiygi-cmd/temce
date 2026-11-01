@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
+import { apiErrorUserMessage, isAbortError } from "@/lib/api-errors";
 import type { ChainData } from "./types";
 import { fmt } from "./helpers";
 
@@ -74,14 +75,19 @@ export default function LiveChainPanel() {
       )}
 
       {/* Explicit error banner — the panel never silently renders fake data. */}
-      {error && (
+      {error && !isAbortError(error) && (
         <div
           role="alert"
           className="rounded-xl border border-accent-rose/40 bg-accent-rose/10 px-4 py-3 text-sm text-accent-rose flex items-center justify-between gap-3"
         >
           <div>
             <p className="font-bold">خطا در دریافت داده‌ها از سرور</p>
-            <p className="text-xs opacity-80 mt-0.5" dir="ltr">{(error as Error)?.message}</p>
+            <p className="text-xs opacity-80 mt-0.5">
+              {apiErrorUserMessage(error, "دلیل خطا مشخص نیست — دوباره تلاش کنید.")}
+            </p>
+            <p className="text-[10px] opacity-50 mt-0.5" dir="ltr">
+              {(error as Error)?.message}
+            </p>
           </div>
           <button
             onClick={() => refetch()}

@@ -5,6 +5,10 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class RiskResult:
@@ -47,7 +51,8 @@ class RiskEngineV1:
                 exp = datetime.datetime.fromisoformat(expires_at)
                 if datetime.datetime.now(exp.tzinfo) > exp:
                     failed.append("expired_ttl")
-            except Exception:
+            except (ValueError, TypeError, OverflowError) as exc:
+                logger.warning("proposal expires_at could not be parsed (%r): %s", expires_at, exc)
                 warnings.append("ttl_parse_failed")
         # 9. allowlist (نمونه: اگر allowlist تعریف شده)
         allowlist = proposal.get("_allowlist")

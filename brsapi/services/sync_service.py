@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any, Literal
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.client import BrsApiClient, BrsApiResponse, get_client
@@ -411,10 +412,10 @@ class BrsApiSyncService:
 
         sync_log, raw_payload = self._ensure_repos(sess)
 
-        # 1. Dedup check — include params in dedup key so per-symbol calls are also deduped
+        # 1. Dedup check — scope the lookup to the exact params so per-symbol
+        #    calls are deduped independently instead of blocking each other.
         if dedup_seconds > 0:
-            dedup_key = f"{endpoint.path}:{params!r}" if params else endpoint.path
-            needs = await sync_log.needs_sync(dedup_key, dedup_seconds)
+            needs = await sync_log.needs_sync(endpoint.path, dedup_seconds, params=params)
             if not needs:
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logger.debug("Skipped %s (recent sync exists)", endpoint.path)
@@ -758,7 +759,12 @@ class BrsApiSyncService:
                     .limit(1)
                 )
             ).scalar_one_or_none()
-        except Exception:
+        except SQLAlchemyError as exc:
+            logger.warning(
+                "NAV existence check failed for %s; continuing with the API call: %s",
+                symbol,
+                exc,
+            )
             has_today = None
         if has_today is not None:
             return SyncReport(

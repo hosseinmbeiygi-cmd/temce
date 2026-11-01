@@ -1,3 +1,10 @@
+"""Placeholder agricultural commodity provider.
+
+No production feed is wired yet: ``base_url`` points at example.com and must be
+replaced before the IME agricultural segment can be enabled. Tracked by
+``core.markets.registry`` (``MarketType.COMMODITY`` / ``CommodityKind.AGRICULTURAL``).
+"""
+
 from __future__ import annotations
 
 from typing import Any

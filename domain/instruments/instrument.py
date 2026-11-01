@@ -33,6 +33,12 @@ class Instrument(BaseEntity):
     data_source: str = "tsetmc"
     tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Contract terms for fixed-income and derivative instruments. Optional;
+    # the current instrument schema does not persist them yet.
+    maturity_date: datetime | None = None
+    coupon_rate: float | None = None
+    underlying_symbol: str | None = None
+    contract_size: float | None = None
 
     def __init__(
         self,
@@ -60,6 +66,10 @@ class Instrument(BaseEntity):
         data_source: str = "tsetmc",
         tags: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        maturity_date: datetime | None = None,
+        coupon_rate: float | None = None,
+        underlying_symbol: str | None = None,
+        contract_size: float | None = None,
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
     ) -> None:
@@ -87,6 +97,10 @@ class Instrument(BaseEntity):
         self.data_source = data_source
         self.tags = tags or []
         self.metadata = metadata or {}
+        self.maturity_date = maturity_date
+        self.coupon_rate = coupon_rate
+        self.underlying_symbol = underlying_symbol
+        self.contract_size = contract_size
 
     def suspend(self) -> None:
         self.status = InstrumentStatus.SUSPENDED

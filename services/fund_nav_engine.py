@@ -40,7 +40,8 @@ def _price_is_stale(price_at: datetime | None, valuation_date: date) -> bool:
         return False
     try:
         day = price_at.date() if isinstance(price_at, datetime) else price_at
-    except Exception:  # noqa: BLE001
+    except (AttributeError, TypeError) as exc:
+        logger.debug("unexpected price timestamp type %r: %s", type(price_at).__name__, exc)
         return False
     return (valuation_date - day).days > LIVE_PRICE_MAX_AGE_DAYS
 

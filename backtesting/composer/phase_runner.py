@@ -237,28 +237,24 @@ class PhaseRunner:
             dd = (peak - nav) / peak if peak > 0 else 0
             max_dd = max(max_dd, dd)
 
-        # Pair trades for PnL
-        wins: list[float] = []
-        losses: list[float] = []
-        open_buys: dict[str, list[tuple[float, int]]] = {}
-        for t in trades:
-            key = getattr(t, "instrument_id", "") or "default"
-            if str(getattr(t, "side", "")) == "buy":
-                open_buys.setdefault(key, []).append((t.price, t.quantity))
-            elif str(getattr(t, "side", "")) == "sell":
-                buys = open_buys.get(key, [])
-                if buys:
-                    bp, bq = buys.pop(0)
-                    pnl = (t.price - bp) * min(bq, t.quantity)
-                    if pnl > 0:
-                        wins.append(pnl)
-                    else:
-                        losses.append(abs(pnl))
+        # Pair fills into FIFO round trips with commissions in the cost basis
+        # (same helper as AnalyticsEngine/TradeMetrics). The old local pairing
+        # ignored commissions, matched at most one lot per sell, and divided
+        # average win by average loss instead of gross sums — so a strategy
+        # with many small wins and one large loss could pass the PF gate, and
+        # a zero-PnL trade forced PF to 0.
+        from backtesting.metrics.trade_metrics import profit_factor, round_trip_pnls
 
-        win_rate = (len(wins) / (len(wins) + len(losses)) * 100) if (wins or losses) else 0
+        round_trips = round_trip_pnls(trades)
+        wins = [p for p in round_trips if p > 0]
+        losses = [p for p in round_trips if p < 0]
+
+        win_rate = (len(wins) / len(round_trips) * 100) if round_trips else 0
         avg_win = sum(wins) / len(wins) if wins else 0
-        avg_loss = sum(losses) / len(losses) if losses else 1
-        pf = avg_win / avg_loss if avg_loss > 0 else 0
+        # Reported as a positive magnitude (the composer's existing field
+        # contract); profit_factor() already takes the absolute loss sum.
+        avg_loss = abs(sum(losses) / len(losses)) if losses else 0
+        pf = profit_factor(wins, losses)
 
         downside = [r for r in returns if r < 0]
         down_vol = (sum(r ** 2 for r in downside) / len(downside)) ** 0.5 if downside else 1

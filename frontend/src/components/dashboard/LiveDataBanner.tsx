@@ -3,6 +3,7 @@
 import { CircleAlert, Clock3, WifiOff } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { apiErrorUserMessage, isAbortError } from "@/lib/api-errors";
 import { DEFAULT_FRESHNESS_MS, isDataAsOfFresh, parseIsoInstant } from "@/lib/api-envelope";
 
 interface LiveDataState {
@@ -17,6 +18,8 @@ interface LiveDataState {
   isStale?: boolean;
   /** `data_as_of` پاکت؛ اگر بدهید، دادهٔ زندهٔ کهنه هم اعلام می‌شود. */
   dataAsOf?: string | null;
+  /** Transport error, when the caller has it — drives timeout/auth copy. */
+  error?: unknown;
 }
 
 function clockLabel(iso: string): string {
@@ -48,10 +51,13 @@ export default function LiveDataBanner({ state }: { state: LiveDataState }) {
   const isFresh = state.isFresh ?? (hasData && !isStale);
 
   if (state.isError) {
+    // A cancelled request is not a market failure — show nothing for it.
+    if (state.error != null && isAbortError(state.error)) return null;
+    const detail = state.error != null ? apiErrorUserMessage(state.error, "") : "";
     return (
       <Banner tone="error">
         <WifiOff className="size-3.5 shrink-0" aria-hidden />
-        ارتباط با سرور برقرار نشد — داده‌های زنده در دسترس نیستند.
+        {detail || "ارتباط با سرور برقرار نشد — داده‌های زنده در دسترس نیستند."}
       </Banner>
     );
   }

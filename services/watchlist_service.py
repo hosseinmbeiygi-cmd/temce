@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from core.db_utils import safe_row_str
 from core.logging import get_logger
 from core.result import Result
@@ -367,7 +369,8 @@ class WatchlistService:
             )
             row = result.scalar_one_or_none()
             return row or symbol
-        except Exception:
+        except SQLAlchemyError as exc:
+            logger.debug("symbol name lookup failed for %s; returning the symbol: %s", symbol, exc)
             return symbol
 
     async def remove_symbol(self, symbol: str, *, user_id: str | None = None) -> Result[bool]:

@@ -22,6 +22,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from core.db_utils import safe_row_float
 from core.indicators import compute_data_quality_score
@@ -385,7 +386,8 @@ class CrossMarketCorrelator:
                     (prices[0] - prices[-1]) / prices[-1] * 100, 2
                 )
             return changes
-        except Exception:
+        except (SQLAlchemyError, KeyError, TypeError, ValueError, ArithmeticError) as exc:
+            logger.warning("price-change history unavailable for market %s: %s", market, exc)
             return {}
 
     @classmethod
@@ -737,7 +739,12 @@ class QuantSignalOrchestrator:
                     _s: len((_hist_map.get(_s, {}) or {}).get("closes", []) or [])
                     for _s in {_s2.symbol for _s2 in raw_signals}
                 }
-            except Exception:
+            except (SQLAlchemyError, OSError, ValueError, RuntimeError) as exc:
+                logger.warning(
+                    "history fetch failed; decision engine runs without history: %s",
+                    exc,
+                    exc_info=True,
+                )
                 _hist_lens = {}
             enriched, rejected = await self._apply_signal_decision(enriched, _hist_lens)
         logger.info("[pipeline] stage4.5 decision: %.2fs, released=%d rejected=%d", time.monotonic() - _t5, len(enriched), len(rejected))
@@ -1223,7 +1230,8 @@ class QuantSignalOrchestrator:
                     else:
                         try:
                             _n_votes = len(scores) if isinstance(scores, dict) else 0
-                        except Exception:
+                        except TypeError as exc:
+                            logger.debug("vote score is not sized (%s); using 0 votes", exc)
                             _n_votes = 0
                         _price_points = max(20, _n_votes * 10)
                     dqs = compute_data_quality_score(

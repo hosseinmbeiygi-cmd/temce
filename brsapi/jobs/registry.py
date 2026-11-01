@@ -49,7 +49,7 @@ class BrsApiSyncJob:
         description: What this job does.
     """
     name: str
-    endpoint_config: EndpointConfig
+    endpoint_config: EndpointConfig | None  # None = direct-function job (GoldDesk)
     cron: str | int                     # "*/5 * * * *" or interval seconds
     category: str | None = None
     params: dict[str, str] | None = None
@@ -645,6 +645,7 @@ class BrsApiJobRegistry:
         if job.endpoint_config is None:
             return await self._run_direct_job(job_name, force=force)
 
+        endpoint_config = job.endpoint_config
         logger.info("Running BrsApi job: %s", job_name)
 
         # Lazy client init
@@ -744,9 +745,9 @@ class BrsApiJobRegistry:
 
             # ── Standard single-endpoint sync ──
             report = await service.sync(
-                endpoint=job.endpoint_config,
-                parser=self._get_parser(job.endpoint_config),
-                model_class=self._get_model(job.endpoint_config),
+                endpoint=endpoint_config,
+                parser=self._get_parser(endpoint_config),
+                model_class=self._get_model(endpoint_config),
                 params=job.params,
                 category_override=job.category,
                 session=session,

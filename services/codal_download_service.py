@@ -34,6 +34,7 @@ from core.fix_network import fix_network
 from core.ids import new_id
 from core.logging import get_logger
 from core.paths import data_path
+from core.security.sanitizers import safe_path_component
 from core.time import utc_now_naive
 from models.codal_financial import CodalFinancialStatementModel
 from services.codal_accounting_service import _parse_filename, parse_report
@@ -175,8 +176,11 @@ class CodalDownloadService:
             if not dl_link:
                 return {"status": "skipped", "reason": "no_link"}
 
-            # Build symbol directory
-            sym_dir = os.path.join(self.download_dir, symbol)
+            # Build symbol directory. ``symbol`` comes from the external Codal
+            # feed, so it is untrusted: reduce it to one path component before
+            # it is joined to the download root (path-traversal guard).
+            safe_symbol = safe_path_component(symbol, fallback="unknown")
+            sym_dir = os.path.join(self.download_dir, safe_symbol)
             os.makedirs(sym_dir, exist_ok=True)
 
             # Determine filename
@@ -194,7 +198,7 @@ class CodalDownloadService:
             # date — a filename of symbol+date silently overwrote/skipped them.
             # Add a short hash of the link so every announcement is distinct.
             link_digest = hashlib.sha1(dl_link.encode("utf-8")).hexdigest()[:8]
-            filename = f"{symbol}_codal_{date_publish}_{link_digest}{ext}"
+            filename = f"{safe_symbol}_codal_{date_publish}_{link_digest}{ext}"
             filepath = os.path.join(sym_dir, filename)
 
             # Skip if already downloaded

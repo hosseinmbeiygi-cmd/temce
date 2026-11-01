@@ -18,7 +18,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_current_user, get_db_session
 from src.gold_desk import api as gold_api
 
 
@@ -37,6 +37,8 @@ def client() -> TestClient:
     app = FastAPI()
     app.include_router(gold_api.router)
     app.dependency_overrides[get_db_session] = lambda: None
+    # این‌جا شکل پاسخ مسیرها سنجیده می‌شود، نه احراز هویت.
+    app.dependency_overrides[get_current_user] = lambda: {"sub": "test-admin", "roles": ["admin"]}
 
     performance = SimpleNamespace(
         as_dict=lambda: {

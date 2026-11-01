@@ -211,7 +211,8 @@ def _ime_config() -> dict[str, Any]:
         from core.config.ime_engine import load_ime_config
 
         return load_ime_config()
-    except Exception:  # pragma: no cover - config failure must not break reads
+    except (ImportError, OSError, TypeError, ValueError, KeyError) as exc:  # pragma: no cover
+        logger.warning("IME config unavailable; using defaults: %s", exc)
         return {}
 
 

@@ -21,8 +21,8 @@ from services.fund_sync_service import FundSyncService
 # Re-export canonical type inference (was duplicated in funds.py endpoint)
 try:
     from apps.api.endpoints.funds import _infer_fund_type
-except Exception:
-    def _infer_fund_type(name: str | None, symbol: str | None = None) -> str:  # type: ignore[no-redef]
+except ImportError:
+    def _infer_fund_type(name: str | None, symbol: str | None = None) -> str:
         return "سهامی"
 
 

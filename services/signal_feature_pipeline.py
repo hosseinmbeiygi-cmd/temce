@@ -246,7 +246,8 @@ class SignalFeaturePipeline:
             from core.config import get_settings
 
             return int(get_settings().gold_bubble_min_observations)
-        except Exception:  # pragma: no cover - config fallback is safe
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:  # pragma: no cover
+            logger.debug("gold_bubble_min_observations config unavailable: %s", exc)
             from services.gold.features import DEFAULT_MIN_BUBBLE_OBSERVATIONS
 
             return DEFAULT_MIN_BUBBLE_OBSERVATIONS
@@ -258,7 +259,8 @@ class SignalFeaturePipeline:
             from core.config import get_settings
 
             return int(get_settings().gold_event_horizon_days)
-        except Exception:  # pragma: no cover - config fallback is safe
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:  # pragma: no cover
+            logger.debug("gold_event_horizon_days config unavailable: %s", exc)
             from services.gold.features import DEFAULT_EVENT_HORIZON_DAYS
 
             return DEFAULT_EVENT_HORIZON_DAYS
@@ -467,7 +469,8 @@ class SignalFeaturePipeline:
                 future_return = (closes[c_count] - closes[c_count - 1]) / max(closes[c_count - 1], 0.001)
             else:
                 # Legacy: caller-provided label (asserted for length only).
-                future_return = targets[i]  # type: ignore[index]
+                assert targets is not None
+                future_return = targets[i]
 
             # Binary classification: was the direction up?
             y_values.append(1.0 if future_return > 0 else 0.0)

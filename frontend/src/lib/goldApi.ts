@@ -647,8 +647,13 @@ export async function getAlertEvents(days: number): Promise<AlertEvent[]> {
   return r.data;
 }
 
-export async function seedDefaultRules(): Promise<void> {
-  await apiPost<{ success: boolean }>("/gold/alerts/seed", undefined);
+export async function seedDefaultRules(): Promise<number | null> {
+  // سرور تعداد قوانین درج‌شده را برمی‌گرداند؛ UI باید صفر بودن را صریح نشان دهد (W4-05).
+  const r = await apiPost<{ success: boolean; inserted?: number; data?: { inserted?: number } }>(
+    "/gold/alerts/seed",
+    undefined,
+  );
+  return r.inserted ?? r.data?.inserted ?? null;
 }
 
 export async function deleteAlertRule(id: number): Promise<void> {

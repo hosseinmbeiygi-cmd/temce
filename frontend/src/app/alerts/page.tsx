@@ -5,6 +5,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
 import SymbolSelector from "@/components/SymbolSelector";
 import { apiGet, apiPost, apiPut, apiDelete, extractItems } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 
 interface Alert {
   id: string;
@@ -96,7 +97,7 @@ export default function AlertsPage() {
       setThreshold("1000");
       setDescription("");
       fetchAlerts();
-    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    } catch (err) { setError(describeApiError(err, "ایجاد هشدار ناموفق بود — دوباره تلاش کنید.")); }
   }
 
   async function toggleAlert(alert: Alert) {

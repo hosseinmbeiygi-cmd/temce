@@ -339,38 +339,38 @@ async def job_gold_daily_history(force: bool = False) -> None:
 GOLD_DESK_JOBS: list[BrsApiSyncJob] = [
     BrsApiSyncJob(
         name="gold_snapshot",
-        endpoint_config=None,  # type: ignore — direct function call
+        endpoint_config=None,
         cron=300,  # هر 5 دقیقه
         description="Build gold market snapshot + persist to DB + cache in Redis",
     ),
     BrsApiSyncJob(
         name="gold_score_persist",
-        endpoint_config=None,  # type: ignore
+        endpoint_config=None,
         cron=300,
         description="Persist current decision score to history",
     ),
     BrsApiSyncJob(
         name="gold_alert_evaluate",
-        endpoint_config=None,  # type: ignore
+        endpoint_config=None,
         cron=120,  # هر 2 دقیقه
         description="Evaluate alert rules and fire events",
     ),
     BrsApiSyncJob(
         name="gold_daily_history",
-        endpoint_config=None,  # type: ignore
+        endpoint_config=None,
         cron="0 21 * * *",  # هر شب 21:00
         enabled=False,
         description="(DISABLED) Daily historical bubble backfill — placeholder, not implemented",
     ),
     BrsApiSyncJob(
         name="gold_fund_nav",
-        endpoint_config=None,  # type: ignore
+        endpoint_config=None,
         cron="5 21 * * *",  # هر شب 21:05
         description="Persist daily gold fund NAV + P/NAV bubble rows",
     ),
     BrsApiSyncJob(
         name="gold_portfolio_value",
-        endpoint_config=None,  # type: ignore
+        endpoint_config=None,
         cron="10 21 * * *",  # هر شب 21:10
         description="Persist daily portfolio value snapshot (TWR / benchmark base)",
     ),

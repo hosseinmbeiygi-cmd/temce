@@ -182,18 +182,11 @@ export default function PersonalDashboardPage() {
   });
 
   // ── Fetch indices ──
-  const { data: indices } = useQuery({
+  const { data: indices, isError: indicesError } = useQuery({
     queryKey: ["personal-indices"],
     queryFn: async () => {
-      try {
-        const res = await apiGet<{ success: boolean; data: { items: MarketIndex[] } }>("/market/indices");
-        return extractArray<MarketIndex>(res);
-      } catch {
-        return [
-          { name: "شاخص کل", code: "TEDPIX", value: 0, change: 0 },
-          { name: "شاخص هم وزن", code: "IFX", value: 0, change: 0 },
-        ] as MarketIndex[];
-      }
+      const res = await apiGet<{ success: boolean; data: { items: MarketIndex[] } }>("/market/indices");
+      return extractArray<MarketIndex>(res);
     },
     refetchInterval: 60_000,
   });
@@ -241,6 +234,11 @@ export default function PersonalDashboardPage() {
 
         {/* ── Market Indices Strip ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {indicesError && (
+            <div role="alert" aria-live="polite" className="sm:col-span-2 lg:col-span-3 rounded-xl border border-accent-rose/30 bg-accent-rose/10 px-4 py-2.5 text-xs text-accent-rose">
+              دریافت شاخص‌های بازار از سرور ناموفق بود — مقدار نمایش داده نمی‌شود.
+            </div>
+          )}
           {(indices || []).slice(0, 3).map((idx) => (
             <div key={idx.code} className="flex items-center justify-between bg-surface-800/60 rounded-xl px-4 py-3 border border-surface-700/50">
               <span className="text-sm text-surface-300">{idx.name}</span>

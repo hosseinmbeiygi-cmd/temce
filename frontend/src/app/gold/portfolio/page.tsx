@@ -28,8 +28,9 @@ interface Holding {
 interface Portfolio {
   total_cost: number;
   total_value: number;
-  total_pnl: number;
-  total_pnl_pct: number;
+  // null یعنی هیچ دارایی قیمت‌داری وجود ندارد؛ صفر یک P&L واقعی نیست (W4-04).
+  total_pnl: number | null;
+  total_pnl_pct: number | null;
   holdings: Holding[];
   snapshot_at: string | null;
   // C7: هزینهٔ فقط دارایی‌های قیمت‌دار؛ مخرج P&L کل همین است. اختیاری تا وقتی
@@ -253,17 +254,22 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
   const submitSell = async () => {
     const holding = pendingSell;
     if (!holding || selling) return;
-    // فقط idی که همین حالا در پاسخ /portfolio هست؛ id کهنه/حدسی ارسال نمی‌شود.
+    // فقط idهایی که همین حالا در پاسخ /portfolio هستند؛ id کهنه/حدسی ارسال نمی‌شود.
+    const ids = holdingIds(holding);
     const freshIds = portfolio.holdings
       .filter((row) => row.symbol === holding.symbol)
       .flatMap((row) => holdingIds(row));
-    if (holding.id === undefined || !freshIds.includes(holding.id)) {
+    if (ids.length === 0 || !ids.every((id) => freshIds.includes(id))) {
       setSellError("لیست پورتفو تغییر کرده است؛ دوباره تلاش کنید.");
       onChanged();
       return;
     }
     if (sellQuantity <= 0 || sellPrice <= 0) {
       setSellError("تعداد و قیمت باید بزرگ‌تر از صفر باشند.");
+      return;
+    }
+    if (sellQuantity > holding.quantity) {
+      setSellError(`حداکثر مقدار قابل فروش ${fmt(holding.quantity)} است.`);
       return;
     }
     setSelling(true);
@@ -275,7 +281,8 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
         quantity: sellQuantity,
         price: sellPrice,
         amount_irt: sellQuantity * sellPrice,
-        holding_id: holding.id,
+        // گروه چندردیفی: همهٔ lotها با هم؛ سرور FIFO توزیع می‌کند (W4-08).
+        holding_ids: ids,
       });
       setPendingSell(null);
       onChanged();
@@ -283,7 +290,7 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
       const status = httpStatus(error);
       setSellError(
         status === 409
-          ? "این دارایی قبلاً حذف شده است؛ معامله ثبت نشد."
+          ? "فروش ثبت نشد: موجودی کافی نیست یا دارایی حذف شده است."
           : status === 404
             ? "دارایی پیدا نشد؛ پورتفو به‌روزرسانی شد."
             : "ارتباط با سرور برقرار نشد؛ دوباره تلاش کنید.",
@@ -304,12 +311,18 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
           value={signedFmt(portfolio.total_pnl)}
           unit="ریال"
           sub={
-            // C7: مخرج P&L کل فقط دارایی‌های قیمت‌دار است؛ null یعنی «نامعلوم».
-            portfolio.priced_cost === null || portfolio.priced_cost === undefined
+            // C7: مخرج P&L کل فقط دارایی‌های قیمت‌دار است؛ null/0 یعنی «نامعلوم».
+            !portfolio.priced_cost
               ? `${signedPct(portfolio.total_pnl_pct)} · سرمایهٔ قیمت‌دار: —`
               : `${signedPct(portfolio.total_pnl_pct)} · روی هزینهٔ ${fmt(portfolio.priced_cost)} قیمت‌دار`
           }
-          tone={portfolio.total_pnl >= 0 ? "good" : "bad"}
+          tone={
+            portfolio.total_pnl === null || portfolio.total_pnl === undefined
+              ? undefined
+              : portfolio.total_pnl >= 0
+                ? "good"
+                : "bad"
+          }
         />
       </div>
 
@@ -376,7 +389,7 @@ function OverviewTab({ portfolio, onChanged }: { portfolio: Portfolio; onChanged
                       const ids = holdingIds(h);
                       return (
                         <div className="flex items-center justify-end gap-3">
-                          {ids.length === 1 && (
+                          {ids.length > 0 && (
                             <button
                               onClick={() => openSell(h)}
                               className="text-xs"

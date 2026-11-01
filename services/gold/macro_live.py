@@ -100,7 +100,8 @@ def _dxy_threshold_config() -> tuple[float, float, int]:
             float(settings.gold_dxy_percentile_high),
             int(settings.gold_dxy_min_samples),
         )
-    except Exception:  # pragma: no cover - config fallback is deliberately safe
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:  # pragma: no cover
+        logger.debug("gold DXY threshold config unavailable; using defaults: %s", exc)
         return (
             DEFAULT_DXY_PERCENTILE_LOW,
             DEFAULT_DXY_PERCENTILE_HIGH,
@@ -112,7 +113,8 @@ async def _derive_gold_trend(session: AsyncSession) -> tuple[str | None, float |
     """Derive up/down/sideways from the two most recent XAUUSD snapshots."""
     try:
         from src.gold_desk.models import GoldSnapshotModel
-    except Exception:  # pragma: no cover - optional surface
+    except ImportError as exc:  # pragma: no cover
+        logger.debug("gold snapshot model unavailable; trend not derived: %s", exc)
         return None, None
 
     statement = (

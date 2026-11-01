@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FlaskConical, Loader2, TrendingDown, TrendingUp } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { runOptionsBacktest, type BacktestResponse } from "@/lib/options-api";
+import { useStaleGuard } from "@/lib/use-stale-guard";
 import { fmt } from "../helpers";
 import { ChartSkeleton } from "./Skeleton";
 import type { StrategyInfo } from "../types";
@@ -49,15 +50,22 @@ export default function BacktestTab() {
   const [result, setResult] = useState<BacktestResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const beginRequest = useStaleGuard();
 
   useEffect(() => {
+    const isCurrent = beginRequest();
     apiGet<{ success: boolean; data: StrategyInfo[] }>("/options/strategies")
-      .then((r) => setStrategies(r.success ? r.data ?? [] : []))
-      .catch(() => setStrategies([]));
-  }, []);
+      .then((r) => {
+        if (isCurrent()) setStrategies(r.success ? r.data ?? [] : []);
+      })
+      .catch(() => {
+        if (isCurrent()) setStrategies([]);
+      });
+  }, [beginRequest]);
 
   const run = async () => {
     if (!symbol.trim()) return;
+    const isCurrent = beginRequest();
     setLoading(true);
     setError("");
     try {
@@ -67,16 +75,18 @@ export default function BacktestTab() {
         days_to_expiry: Math.max(1, Math.min(365, Number(dte) || 30)),
         limit: 1000,
       });
+      if (!isCurrent()) return;
       if (r.success && r.data) setResult(r.data);
       else {
         setResult(null);
         setError(r.error?.message ?? "بک‌تست ناموفق بود");
       }
     } catch {
+      if (!isCurrent()) return;
       setResult(null);
       setError("اتصال به سرور برقرار نشد");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 

@@ -51,9 +51,13 @@ class FakeSession:
 def _holding(*, deleted: bool = False):
     return SimpleNamespace(
         id=11,
+        quantity=5.0,
         buy_price=100.0,
+        buy_amount_irt=500.0,
+        bought_at="2026-01-01T00:00:00",
         deleted_at="2026-10-20T00:00:00" if deleted else None,
         symbol="IR_COIN_EMAMI",
+        user_id=None,
     )
 
 

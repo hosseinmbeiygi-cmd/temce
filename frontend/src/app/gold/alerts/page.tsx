@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { getAlertRules, getAlertEvents, seedDefaultRules, deleteAlertRule, updateAlertRule } from "@/lib/goldApi";
+import { describeApiError } from "@/lib/api-errors";
 import { AlertRuleForm } from "@/components/gold/AlertRuleForm";
 import { AlertEventList } from "@/components/gold/AlertEventList";
 import { ConfirmDialog } from "@/components/gold/ConfirmDialog";
@@ -12,6 +13,7 @@ export default function GoldAlertsPage() {
   const [tab, setTab] = useState<"rules" | "events">("rules");
   const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const { data: rules, isError: rulesError, isLoading: rulesLoading } = useQuery({
     queryKey: ["gold", "alerts", "rules"],
@@ -27,11 +29,20 @@ export default function GoldAlertsPage() {
 
   const onSeed = async () => {
     setError(null);
+    setNotice(null);
     try {
-      await seedDefaultRules();
+      const inserted = await seedDefaultRules();
+      // نتیجه باید صریح نمایش داده شود؛ قبلاً inserted=0 بی‌صدا بود (W4-05).
+      setNotice(
+        inserted === null
+          ? "درخواست درج قوانین پیش‌فرض ثبت شد."
+          : inserted === 0
+            ? "همهٔ قوانین پیش‌فرض از قبل وجود دارند؛ چیزی درج نشد."
+            : `${inserted} قانون پیش‌فرض درج شد.`,
+      );
       qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "درج قوانین پیش‌فرض ناموفق بود.");
+      setError(describeApiError(err, "درج قوانین پیش‌فرض ناموفق بود."));
     }
   };
 
@@ -42,7 +53,7 @@ export default function GoldAlertsPage() {
       await deleteAlertRule(pendingDelete.id);
       qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "حذف قانون ناموفق بود.");
+      setError(describeApiError(err, "حذف قانون ناموفق بود."));
     } finally {
       setPendingDelete(null);
     }
@@ -54,7 +65,7 @@ export default function GoldAlertsPage() {
       await updateAlertRule(id, { enabled });
       qc.invalidateQueries({ queryKey: ["gold", "alerts", "rules"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تغییر وضعیت قانون ناموفق بود.");
+      setError(describeApiError(err, "تغییر وضعیت قانون ناموفق بود."));
     }
   };
 
@@ -87,6 +98,14 @@ export default function GoldAlertsPage() {
       {error && (
         <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
           {error}
+        </div>
+      )}
+      {notice && (
+        <div
+          role="status"
+          className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-300"
+        >
+          {notice}
         </div>
       )}
 
