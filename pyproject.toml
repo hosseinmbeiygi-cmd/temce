@@ -91,7 +91,6 @@ exclude = [
     "repositories",
     "reports",
     "integrations",
-    "domain",
     "schemas",
     "models",
 ]
@@ -101,7 +100,7 @@ exclude = [
 module = [
     "backtesting.*", "ml.*", "scripts.*", "migrations.*",
     "brsapi.*", "repositories.*", "reports.*",
-    "integrations.*", "domain.*", "schemas.*", "models.*",
+    "integrations.*", "schemas.*", "models.*",
     "core.typing.*", "core.time.*",
     "services.smart_money.*", "services.chat.*",
 ]

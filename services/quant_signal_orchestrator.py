@@ -1,4 +1,4 @@
-﻿"""Quant Signal Orchestrator — ties the entire signal pipeline together.
+"""Quant Signal Orchestrator — ties the entire signal pipeline together.
 
 Flow:
   1. MultiMarketSignalEngine  → rule-based signals
