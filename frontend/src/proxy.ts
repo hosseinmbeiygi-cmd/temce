@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Exported so tests can assert against the exact values.
  *
  * CSP script-src uses a nonce (`{NONCE}` placeholder — replaced per-request
- * in middleware()) so only scripts rendered with the matching nonce execute;
+ * in proxy()) so only scripts rendered with the matching nonce execute;
  * Next.js automatically forwards the `x-nonce` request header to its own
  * chunks when nonce-based CSP is detected. No more 'unsafe-inline' for
  * scripts (styles still need it — Tailwind injects inline style attributes).
@@ -53,7 +53,7 @@ const DEV_CSP =
 /**
  * Routes that require a session.
  *
- * The middleware can only verify presence of the refresh cookie — the access
+ * The proxy can only verify presence of the refresh cookie — the access
  * token lives in browser memory and is never exposed to the server — so role
  * checks stay on the client (useAuth().hasRole) and the backend
  * (require_roles). The backend remains the source of truth: a stale/dead
@@ -120,10 +120,10 @@ function applySecurityHeaders(response: NextResponse, nonce?: string): void {
 }
 
 /**
- * Edge-safe middleware: security headers on every response + a route guard
- * that redirects unauthenticated visitors away from protected pages.
+ * Next 16 proxy (formerly middleware): security headers on every response +
+ * a route guard that redirects unauthenticated visitors away from protected pages.
  */
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const nonce = generateNonce();
 

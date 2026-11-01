@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import {
-  middleware,
+  proxy,
   SECURITY_HEADERS,
   AUTH_COOKIE_NAME,
   PROTECTED_ROUTES,
   config,
-} from "@/middleware";
+} from "@/proxy";
 
 /**
  * Production CSP uses a per-request nonce (`{NONCE}` template filled by
- * middleware()); dev CSP is intentionally relaxed ('unsafe-eval' for
+ * proxy()); dev CSP is intentionally relaxed ('unsafe-eval' for
  * next dev source maps + local websocket). Branch the assertions so each
  * mode is checked against its own contract.
  */
@@ -37,10 +37,10 @@ function expectSecurityHeaders(res: Response): void {
   }
 }
 
-describe("middleware", () => {
+describe("proxy", () => {
   it("returns a NextResponse with all security headers", () => {
     const req = new NextRequest("http://localhost:3000/dashboard");
-    const res = middleware(req);
+    const res = proxy(req);
 
     // NextResponse.next() is a Response subclass
     expect(res).toBeInstanceOf(Response);
@@ -49,7 +49,7 @@ describe("middleware", () => {
 
   it("never blocks a public request (pass-through)", () => {
     const req = new NextRequest("http://localhost:3000/symbol/فولاد");
-    const res = middleware(req);
+    const res = proxy(req);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Frame-Options")).toBe("SAMEORIGIN");
@@ -57,7 +57,7 @@ describe("middleware", () => {
 
   it("applies headers on API paths too", () => {
     const req = new NextRequest("http://localhost:3000/api/v1/market");
-    const res = middleware(req);
+    const res = proxy(req);
 
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("Referrer-Policy")).toBe(
@@ -95,7 +95,7 @@ describe("middleware", () => {
       "redirects unauthenticated visitors away from %s",
       (route) => {
         const req = new NextRequest(`http://localhost:3000${route}`);
-        const res = middleware(req);
+        const res = proxy(req);
 
         expect(res.status).toBe(307);
         const location = res.headers.get("location") || "";
@@ -106,7 +106,7 @@ describe("middleware", () => {
 
     it("redirects on protected sub-paths too (e.g. /admin/users)", () => {
       const req = new NextRequest("http://localhost:3000/admin/users");
-      const res = middleware(req);
+      const res = proxy(req);
 
       expect(res.status).toBe(307);
       expect(res.headers.get("location")).toContain(
@@ -118,7 +118,7 @@ describe("middleware", () => {
       const req = new NextRequest("http://localhost:3000/admin", {
         headers: { cookie: `${AUTH_COOKIE_NAME}=valid-refresh` },
       });
-      const res = middleware(req);
+      const res = proxy(req);
 
       expect(res.status).toBe(200);
       expect(res.headers.get("X-Frame-Options")).toBe("SAMEORIGIN");
@@ -126,7 +126,7 @@ describe("middleware", () => {
 
     it("preserves the original query string in the redirect target", () => {
       const req = new NextRequest("http://localhost:3000/watchlist?page=2&q=خودرو");
-      const res = middleware(req);
+      const res = proxy(req);
 
       expect(res.status).toBe(307);
       const location = res.headers.get("location") || "";
@@ -136,7 +136,7 @@ describe("middleware", () => {
 
     it("does not redirect the login page itself", () => {
       const req = new NextRequest("http://localhost:3000/auth/login?redirect=%2Fadmin");
-      const res = middleware(req);
+      const res = proxy(req);
 
       expect(res.status).toBe(200);
       expect(res.headers.get("X-Frame-Options")).toBe("SAMEORIGIN");
@@ -144,14 +144,14 @@ describe("middleware", () => {
 
     it("does not redirect public sections (dashboard, market, codal…)", () => {
       for (const path of ["/", "/market", "/codal", "/options", "/smart-money"]) {
-        const res = middleware(new NextRequest(`http://localhost:3000${path}`));
+        const res = proxy(new NextRequest(`http://localhost:3000${path}`));
         expect(res.status).toBe(200);
       }
     });
 
     it("adds security headers to the redirect response", () => {
       const req = new NextRequest("http://localhost:3000/profile");
-      const res = middleware(req);
+      const res = proxy(req);
 
       expect(res.status).toBe(307);
       expectSecurityHeaders(res);
@@ -164,8 +164,8 @@ describe("middleware", () => {
       const original = env.NODE_ENV;
       env.NODE_ENV = "production";
       try {
-        const a = middleware(new NextRequest("http://localhost:3000/"));
-        const b = middleware(new NextRequest("http://localhost:3000/"));
+        const a = proxy(new NextRequest("http://localhost:3000/"));
+        const b = proxy(new NextRequest("http://localhost:3000/"));
         const cspA = a.headers.get("Content-Security-Policy") ?? "";
         const cspB = b.headers.get("Content-Security-Policy") ?? "";
 

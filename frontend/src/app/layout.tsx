@@ -77,7 +77,7 @@ const THEME_SCRIPT = `
 
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Nonce generated per-request in middleware.ts and forwarded via the
+  // Nonce generated per-request in proxy.ts and forwarded via the
   // `x-nonce` header; the production CSP script-src nonce directive matches it
   // so only scripts carrying this nonce (like the theme bootstrap below) run.
   //
