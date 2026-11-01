@@ -158,3 +158,44 @@ json/brsapi/*_state.json
 # AI coding assistant memory / plans
 .dmcode-memory.json
 .zcode/
+
+k8s/*-secret.yaml
+
+# SQLite sidecars: `*.db` does not match these, and a WAL without its database
+# is unreplayable. `transactions.db` itself is deliberately untracked.
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+
+# Vendored Windows Redis build: go.ps1 falls back to Redis/redis-server.exe,
+# and redis-cli.exe is the client used by the runbooks. Debug symbols and the
+# source archive are not needed in git.
+Redis/*.pdb
+Redis/Redis.zip
+Redis/redis-benchmark.exe
+Redis/redis-check-aof.exe
+
+# Generated reports, caches and audit outputs (regenerated on demand)
+symbol_reports/
+reports/runs/
+audit_out/
+transactions_data/
+algoritm/all_in_one.zip
+json/brsapi/symbol_details.json
+
+# Generated code dumps and scratch test output
+/BACKTEST_ALL_CODE.txt
+/ML_ALL_CODE.txt
+/gold_complete_bundle.txt
+/GOLD_CODE_FULL.txt
+/GOLD_CODE_COMPILATION.txt
+/baseline_*.txt
+/tests/unit/full_run_out.txt
+/frontend/frontend_err.txt
+/docs/SESSION_REPORT_*.zip
+
+# Undeclared nested repositories (no .gitmodules, no CI/build reference).
+# SHAs are recorded in docs/audits/gitlinks-2026-11-01.md before untracking.
+/InkGist/
+/dsh-our-free-model/
