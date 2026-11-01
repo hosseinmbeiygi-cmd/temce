@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from apps.api.dependencies import require_roles as require_any_role
 from apps.api.dependencies import require_user_for_writes
+from core.config import settings
 from core.logging import get_logger
 from schemas.common.responses import ApiResponse
 
@@ -320,6 +321,10 @@ class Router:
             # Phase 0: a silent warning hid a broken mount before. Keep startup
             # non-fatal, but log the full traceback so a 404 storm is traceable.
             logger.exception("GoldDesk personal router not mounted")
+            # Production must fail closed: a 404 storm on /gold is worse than a
+            # failed deploy, and P1-01 showed how easily this hides.
+            if settings.environment in {"production", "staging"}:
+                raise
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # Reference market data may be read by anonymous visitors (the landing and
         # /markets pages render before login); every write still needs a token.

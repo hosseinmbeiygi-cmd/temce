@@ -1732,6 +1732,11 @@ async def api_key_auth(request: Request) -> None:
         )
 
 
+# Marker consumed by scripts/auth_policy.py (the closure name alone is not a
+# reliable signal for the router-auth gate).
+api_key_auth.__auth_guard__ = True  # type: ignore[attr-defined]
+
+
 # این مسیر روی ``anonymous_router`` است (بدون گیت JWT) چون احراز هویت‌اش
 # API-token است، نه session کاربر. بقیهٔ مسیرهای همین ماژول پشت _require_user
 # در apps/api/router.py هستند.

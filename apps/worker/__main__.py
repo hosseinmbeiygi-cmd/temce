@@ -9,12 +9,14 @@ from __future__ import annotations
 import asyncio
 
 from apps.worker.app import WorkerApp
+from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 async def main() -> None:
+    settings.validate_production()
     app = WorkerApp()
     try:
         await app.start()

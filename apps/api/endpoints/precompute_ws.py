@@ -31,6 +31,16 @@ async def ws_precompute(websocket: WebSocket) -> None:
         await websocket.close(code=1008)
         return
 
+    # Same handshake gate as /ws/market and /gold/ws: a browser cannot attach an
+    # Authorization header to an upgrade, so the client presents a single-use
+    # ticket from POST /auth/ws-ticket. AUTH_DISABLED still bypasses.
+    from apps.api.endpoints.websocket import verify_websocket_token
+
+    if not await verify_websocket_token(websocket):
+        logger.warning("Armor WS rejected: missing or invalid ticket")
+        await websocket.close(code=1008)
+        return
+
     manager = get_armor_ws_manager()
     await manager.connect(websocket)
     try:

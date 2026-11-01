@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_db_session, require_roles
 from core.logging import get_logger
 from models.decision_engine import DecisionArchitecture, DecisionResult
 from schemas.common.responses import ApiResponse
@@ -358,6 +358,7 @@ async def get_overview(
     "/decisions",
     summary="Save Decision Result",
     description="Save a new decision result (BUY / WATCHLIST / HOLD / REDUCE / REJECT / NEUTRAL) to the database.",
+    dependencies=[Depends(require_roles("analyst", "admin"))],
 )
 async def save_decision(
     body: DecisionResultCreate,
@@ -877,6 +878,7 @@ async def get_migration_status(
     "/seed",
     summary="Seed Architecture Data",
     description="Load all JSON architecture data into PostgreSQL (merges all 5 JSON files into one record)",
+    dependencies=[Depends(require_roles("admin"))],
 )
 async def seed_architecture(
     session: AsyncSession = Depends(get_db_session),

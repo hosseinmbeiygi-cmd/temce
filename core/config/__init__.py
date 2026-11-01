@@ -133,6 +133,10 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
     # Explicit, auditable auth bypass (API-008). Never inferred from ENV.
     auth_disabled: bool = Field(default=False, alias="AUTH_DISABLED")
+    # FE-06 migration. None = environment default: the legacy ?token= handshake
+    # is rejected in production/staging and accepted only in development.
+    # There is no removal date — the production default is already off.
+    ws_allow_legacy_token: bool | None = Field(default=None, alias="WS_ALLOW_LEGACY_TOKEN")
     default_currency: str = Field(default="TOMAN", alias="DEFAULT_CURRENCY")
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 30
@@ -467,6 +471,12 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
+    def ws_legacy_token_enabled(self) -> bool:
+        if self.ws_allow_legacy_token is not None:
+            return self.ws_allow_legacy_token
+        return self.environment not in {"production", "staging"}
+
+    @property
     def is_development(self) -> bool:
         return self.environment == "development"
 
@@ -486,6 +496,11 @@ class Settings(BaseSettings):
             errors.append("SQLite cannot be used in production")
         if not self.auth_cookie_secure:
             errors.append("AUTH_COOKIE_SECURE must be true in production (refresh cookie would travel over plain HTTP)")
+        if self.ws_allow_legacy_token is True:
+            errors.append(
+                "WS_ALLOW_LEGACY_TOKEN must not be enabled in production/staging; "
+                "clients must use POST /auth/ws-ticket"
+            )
         if self.otlp_endpoint is None:
             errors.append("OTLP_ENDPOINT should be configured for observability in production")
         if errors:

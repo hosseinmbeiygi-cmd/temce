@@ -59,6 +59,12 @@ async def verify_websocket_token(websocket: WebSocket) -> bool:
 
     token = websocket.query_params.get("token", "")
     if token:
+        if not settings.ws_legacy_token_enabled:
+            logger.warning(
+                "WebSocket handshake rejected: query-string access tokens are "
+                "disabled (FE-06) — use POST /auth/ws-ticket"
+            )
+            return False
         # Deprecated: accepted only until every client uses tickets. Kept out
         # of the primary path so a migration cannot silently regress.
         logger.warning(

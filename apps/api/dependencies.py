@@ -372,6 +372,9 @@ def require_roles(*roles: str):
             raise HTTPException(status_code=403, detail=f"Insufficient permissions: requires one of {list(roles)}")
         return current_user
 
+    # Marker consumed by scripts/auth_policy.py. The closure name ``_check`` is
+    # too generic to match safely.
+    _check.__auth_guard__ = True  # type: ignore[attr-defined]
     return _check
 
 

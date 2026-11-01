@@ -307,10 +307,11 @@ def api_key_auth(*required_scopes: str) -> Any:
             require_scopes(*required_scopes)(token)
         return token
 
-    # Name the closure after its factory so the router-auth audit gate
-    # (scripts/check_router_auth.py) can tell an api_key dependency apart from a
-    # plain helper — it matches dependencies by ``__name__``.
+    # Name the closure after its factory for logs, and mark it for the
+    # router-auth gate. Name matching alone would treat a wrapped or renamed
+    # closure as unauthenticated.
     dependency.__name__ = "api_key_auth"
+    dependency.__auth_guard__ = True  # type: ignore[attr-defined]
     return dependency
 
 

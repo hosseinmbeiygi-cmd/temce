@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { apiGet } from "@/lib/api";
 import { withCsrf } from "@/lib/csrf";
+import { fetchWsTicket } from "@/lib/wsTicket";
 import { getPrecomputeStore, type PrecomputeStatus, type SymbolArmorResult } from "@/stores/precomputeStore";
 import { getSoundManager } from "@/lib/sound/SoundEffectManager";
 
@@ -371,14 +372,29 @@ export function usePrecomputeStatus(options?: { autoConnect?: boolean; pollWhenH
     function scheduleReconnect() {
       reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, MAX_RECONNECT_DELAY);
       reconnectTimerRef.current = setTimeout(() => {
-        if (!disposedRef.current) connect();
+        if (!disposedRef.current) void connect();
       }, reconnectDelayRef.current);
     }
 
-    function connect() {
+    async function connect() {
       closeSocket();
+      // FE-06: the handshake carries a single-use ticket, never the access token.
+      const ticket = await fetchWsTicket();
+      // Unmount (or a newer connect) can win the race while the ticket request
+      // is in flight — never open a socket for a disposed component.
+      if (disposedRef.current) return;
+      if (!ticket) {
+        store.setWsConnected(false);
+        setWsConnected(false);
+        store.setError("WebSocket ticket unavailable — fallback to polling");
+        setError("WebSocket ticket unavailable — fallback to polling");
+        stopPolling();
+        startPolling(POLL_INTERVAL_MS);
+        scheduleReconnect();
+        return;
+      }
       try {
-        const ws = new WebSocket(WS_URL);
+        const ws = new WebSocket(`${WS_URL}?ticket=${encodeURIComponent(ticket)}`);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -427,7 +443,7 @@ export function usePrecomputeStatus(options?: { autoConnect?: boolean; pollWhenH
 
     // Initial: start polling immediately (covers before WS connects), then try WS
     startPolling(POLL_INTERVAL_MS);
-    connect();
+    void connect();
 
     return () => {
       disposedRef.current = true;
