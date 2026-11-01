@@ -13,7 +13,7 @@ class OrderBookLevel(BaseModel):
     count: int = 0
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت سطح سفارش به تومان (TMN)")
+    @computed_field(description="قیمت سطح سفارش به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def price_toman(self) -> float:
         return toman(self.price)

@@ -37,19 +37,19 @@ class PaginatedResult(BaseModel, Generic[T]):
     page: int = 1
     page_size: int = 50
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def total_pages(self) -> int:
         if self.page_size <= 0:
             return 1
         return max(1, ceil(self.total / self.page_size))
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def has_next(self) -> bool:
         return self.page < self.total_pages
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def has_prev(self) -> bool:
         return self.page > 1

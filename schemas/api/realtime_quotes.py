@@ -25,12 +25,12 @@ class RealtimeQuoteResponse(BaseModel):
     timestamp: str = ""
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت آخرین معامله به تومان (TMN)")
+    @computed_field(description="قیمت آخرین معامله به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def last_price_toman(self) -> float:
         return toman(self.last_price)
 
-    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @computed_field(description="ارزش معاملات به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def value_toman(self) -> float:
         return toman(self.value)

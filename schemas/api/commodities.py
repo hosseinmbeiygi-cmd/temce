@@ -25,7 +25,7 @@ class CommodityResponse(BaseModel):
     last_updated: str = ""
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت به تومان (TMN)")
+    @computed_field(description="قیمت به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def price_toman(self) -> float:
         return toman(self.price)

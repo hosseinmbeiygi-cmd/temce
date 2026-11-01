@@ -35,12 +35,12 @@ class BondResponse(BaseModel):
     created_at: str = ""
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت اوراق به تومان (TMN)")
+    @computed_field(description="قیمت اوراق به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def price_toman(self) -> float:
         return toman(self.price)
 
-    @computed_field(description="ارزش اسمی به تومان (TMN)")
+    @computed_field(description="ارزش اسمی به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def par_value_toman(self) -> float:
         return toman(self.par_value)

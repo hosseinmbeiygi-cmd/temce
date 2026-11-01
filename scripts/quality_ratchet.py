@@ -26,7 +26,7 @@ PROFILES: dict[str, dict] = {
     # --explicit-package-bases is required because apps/ has no __init__.py.
     "mypy": {
         "cmd": [
-            "mypy", "apps", "core", "services", "domain",
+            "mypy", "apps", "core", "services", "domain", "schemas",
             "--explicit-package-bases", "--ignore-missing-imports",
             "--no-error-summary",
         ],

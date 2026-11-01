@@ -30,17 +30,17 @@ class SymbolDetailResponse(BaseModel):
     updated_at: datetime | None = None
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت آخرین معامله به تومان (TMN)")
+    @computed_field(description="قیمت آخرین معامله به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def last_price_toman(self) -> float:
         return toman(self.last_price)
 
-    @computed_field(description="قیمت پایانی به تومان (TMN)")
+    @computed_field(description="قیمت پایانی به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def closing_price_toman(self) -> float:
         return toman(self.closing_price)
 
-    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @computed_field(description="ارزش معاملات به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def value_toman(self) -> float:
         return toman(self.value)

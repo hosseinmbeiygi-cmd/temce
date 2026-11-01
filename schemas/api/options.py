@@ -34,12 +34,12 @@ class OptionResponse(BaseModel):
     vega: float = 0.0
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="اعمال (strike) به تومان (TMN)")
+    @computed_field(description="اعمال (strike) به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def strike_price_toman(self) -> float:
         return toman(self.strike_price)
 
-    @computed_field(description="آخرین قیمت قرارداد به تومان (TMN)")
+    @computed_field(description="آخرین قیمت قرارداد به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def last_price_toman(self) -> float:
         return toman(self.last_price)

@@ -32,12 +32,12 @@ class ScreeningResult(BaseModel):
     match_score: float = 0.0
     matched_criteria: list[str] = Field(default_factory=list)
 
-    @computed_field(description="آخرین قیمت به تومان (TMN)")
+    @computed_field(description="آخرین قیمت به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def last_price_toman(self) -> float:
         return toman(self.last_price)
 
-    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @computed_field(description="ارزش معاملات به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def value_toman(self) -> float:
         return toman(self.value)

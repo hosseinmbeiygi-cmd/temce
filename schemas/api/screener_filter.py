@@ -93,17 +93,17 @@ class FilteredItem(BaseModel):
 
     details: dict[str, Any] = Field(default_factory=dict)
 
-    @computed_field(description="آخرین قیمت به تومان (TMN)")
+    @computed_field(description="آخرین قیمت به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def last_price_toman(self) -> float:
         return toman(self.last_price)
 
-    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @computed_field(description="ارزش معاملات به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def value_toman(self) -> float:
         return toman(self.value)
 
-    @computed_field(description="ارزش بازار به تومان (TMN)")
+    @computed_field(description="ارزش بازار به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def market_value_toman(self) -> float | None:
         return None if self.market_value is None else toman(self.market_value)

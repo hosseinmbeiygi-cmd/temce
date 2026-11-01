@@ -17,12 +17,12 @@ class TradeSnapshot(BaseModel):
     trade_id: str = ""
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت معامله به تومان (TMN)")
+    @computed_field(description="قیمت معامله به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def price_toman(self) -> float:
         return toman(self.price)
 
-    @computed_field(description="ارزش معامله به تومان (TMN)")
+    @computed_field(description="ارزش معامله به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def value_toman(self) -> float:
         return toman(self.value)

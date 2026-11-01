@@ -24,12 +24,12 @@ class OhlcvResponse(BaseModel):
     trade_count: int = 0
     currency: CurrencyCode = currency_field()
 
-    @computed_field(description="قیمت پایانی به تومان (TMN)")
+    @computed_field(description="قیمت پایانی به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def close_toman(self) -> float:
         return toman(self.close)
 
-    @computed_field(description="ارزش معاملات به تومان (TMN)")
+    @computed_field(description="ارزش معاملات به تومان (TMN)")  # type: ignore[prop-decorator]
     @property
     def value_toman(self) -> float:
         return toman(self.value)

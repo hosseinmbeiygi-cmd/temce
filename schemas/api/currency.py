@@ -11,7 +11,7 @@ See :mod:`core.currency` for the conversion itself.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -27,7 +27,7 @@ TOMAN = CURRENCY_TOMAN
 RIAL = CURRENCY_RIAL
 
 
-def currency_field(*, description: str | None = None):
+def currency_field(*, description: str | None = None) -> Any:
     """Return the ``currency`` field shared by price-bearing schemas.
 
     Defaults to toman: everything this API shows a human is denominated in TMN.
