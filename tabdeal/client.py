@@ -42,7 +42,7 @@ class TabdealClient:
         self.api_secret = api_secret
         self._http = httpx.AsyncClient(base_url=BASE_URL, timeout=timeout)
 
-    async def close(self):
+    async def close(self) -> None:
         await self._http.aclose()
 
     # ── Auth helpers ──────────────────────────────────────────────
