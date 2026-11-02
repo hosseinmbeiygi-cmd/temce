@@ -274,6 +274,10 @@ class RawPayloadRepository:
         schema_version: str | None = None,
         checksum_sha256: str | None = None,
     ) -> RawPayloadModel:
+        # One timestamp for both columns: two separate utc_now_naive() calls
+        # differ by microseconds and the raw-payload contract (and the test)
+        # treats receive_time as the single arrival instant.
+        received_at = receive_time or utc_now_naive()
         entry = RawPayloadModel(
             endpoint=endpoint,
             params=json.dumps(_redact_params(params)) if params else None,
@@ -282,8 +286,8 @@ class RawPayloadRepository:
             size_bytes=len(payload),
             # Always store an explicit naive-UTC timestamp: the retention job
             # compares this column against ``utc_now_naive()``.
-            fetched_at=receive_time or utc_now_naive(),
-            receive_time=receive_time or utc_now_naive(),
+            fetched_at=received_at,
+            receive_time=received_at,
             market_time=market_time,
             response_latency_ms=response_latency_ms,
             schema_version=schema_version or self.DEFAULT_SCHEMA_VERSION,

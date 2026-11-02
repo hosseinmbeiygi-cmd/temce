@@ -13,6 +13,8 @@ from models.backtest import BacktestRunModel, BacktestTradeModel
 from repositories.base_repository import InMemoryRepository
 from repositories.db_base import DbRepository
 
+BacktestRunList = list[BacktestRun]
+BacktestTradeList = list[BacktestTrade]
 
 class BacktestRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
@@ -40,13 +42,13 @@ class BacktestRepository:
             return await self._db.list(page, page_size)
         return await self._mem.list(page, page_size)
 
-    async def get_by_status(self, status: str) -> Result[list[BacktestRun]]:
+    async def get_by_status(self, status: str) -> Result[BacktestRunList]:
         if self._db:
             return await self._db.get_by_status(status)
         matches = [r for r in self._mem._store.values() if r.status == status]
         return Result.ok(matches)
 
-    async def get_by_strategy(self, strategy_name: str) -> Result[list[BacktestRun]]:
+    async def get_by_strategy(self, strategy_name: str) -> Result[BacktestRunList]:
         if self._db:
             return await self._db.get_by_strategy(strategy_name)
         matches = [r for r in self._mem._store.values() if r.strategy_name == strategy_name]
@@ -57,7 +59,7 @@ class BacktestRepository:
             return await self._db.save_trade(entity)
         return Result.ok(entity)
 
-    async def get_trades_by_run(self, run_id: str) -> Result[list[BacktestTrade]]:
+    async def get_trades_by_run(self, run_id: str) -> Result[BacktestTradeList]:
         if self._db:
             return await self._db.get_trades_by_run(run_id)
         return Result.ok([])
@@ -71,13 +73,13 @@ class BacktestRepository:
 class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
     model_class = BacktestRunModel
 
-    async def get_by_status(self, status: str) -> Result[list[BacktestRun]]:
+    async def get_by_status(self, status: str) -> Result[BacktestRunList]:
         stmt = select(BacktestRunModel).where(BacktestRunModel.status == status).order_by(desc(BacktestRunModel.created_at))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
-    async def get_by_strategy(self, strategy_name: str) -> Result[list[BacktestRun]]:
+    async def get_by_strategy(self, strategy_name: str) -> Result[BacktestRunList]:
         stmt = select(BacktestRunModel).where(BacktestRunModel.strategy_type == strategy_name).order_by(desc(BacktestRunModel.created_at))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
@@ -104,7 +106,7 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
         await self.session.flush()
         return Result.ok(self._trade_to_domain(orm))
 
-    async def get_trades_by_run(self, run_id: str) -> Result[list[BacktestTrade]]:
+    async def get_trades_by_run(self, run_id: str) -> Result[BacktestTradeList]:
         stmt = select(BacktestTradeModel).where(BacktestTradeModel.run_id == run_id).order_by(BacktestTradeModel.entry_date)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
@@ -175,7 +177,9 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
             status=orm.status or "draft",
             extra=extra,
             created_at=orm.created_at,
-            updated_at=orm.updated_at,
+            # The table has no updated_at column (TimestampMixin defines only
+            # created_at); leave it unset instead of inventing a timestamp.
+            updated_at=None,
         )
 
     def _to_orm(self, domain: BacktestRun) -> BacktestRunModel:

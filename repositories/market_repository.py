@@ -40,6 +40,8 @@ class Market(BaseEntity):
         self.description = description
 
 
+MarketList = list[Market]
+
 class MarketRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
@@ -66,13 +68,13 @@ class MarketRepository:
             return await self._db.list(page, page_size)
         return await self._mem.list(page, page_size)
 
-    async def get_by_type(self, market_type: str) -> Result[list[Market]]:
+    async def get_by_type(self, market_type: str) -> Result[MarketList]:
         if self._db:
             return await self._db.get_by_type(market_type)
         matches = [m for m in self._mem._store.values() if m.market_type == market_type]
         return Result.ok(matches)
 
-    async def get_by_exchange(self, exchange_code: str) -> Result[list[Market]]:
+    async def get_by_exchange(self, exchange_code: str) -> Result[MarketList]:
         if self._db:
             return await self._db.get_by_exchange(exchange_code)
         matches = [m for m in self._mem._store.values() if m.exchange_code == exchange_code]
@@ -87,13 +89,13 @@ class MarketRepository:
 class _MarketDbRepo(DbRepository[Market, MarketModel]):
     model_class = MarketModel
 
-    async def get_by_type(self, market_type: str) -> Result[list[Market]]:
+    async def get_by_type(self, market_type: str) -> Result[MarketList]:
         stmt = select(MarketModel).where(MarketModel.market_type == market_type)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
-    async def get_by_exchange(self, exchange_code: str) -> Result[list[Market]]:
+    async def get_by_exchange(self, exchange_code: str) -> Result[MarketList]:
         stmt = select(MarketModel).where(MarketModel.exchange_code == exchange_code)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()

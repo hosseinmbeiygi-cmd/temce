@@ -269,7 +269,7 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
     def _published_range(
         date_from: datetime | None,
         date_to: datetime | None,
-    ):
+    ) -> Any:
         """SQLAlchemy where-clause for the ``?from``/``?to`` window.
 
         Filters on the migration-0054 ``published_at_ts`` TIMESTAMP column
