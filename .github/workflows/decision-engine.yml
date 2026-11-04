@@ -178,7 +178,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: timescale/timescaledb:2.31.0-pg16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -212,6 +212,9 @@ jobs:
           DATABASE_URL_ASYNC=postgresql+asyncpg://postgres:postgres@localhost:5432/tse_quant
           LOG_LEVEL=INFO
           EOF
+
+      - name: Enable TimescaleDB extension
+        run: PGPASSWORD=postgres psql -h localhost -U postgres -d tse_quant -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 
       - name: Run Alembic migration
         run: |
@@ -295,11 +298,12 @@ jobs:
           pip install --no-deps -r requirements.lock
           pip install httpx pytest
 
-      - name: Start decision-engine server (JSON mode — no DB needed)
+      - name: Run API smoke tests
         run: |
+          set -e
+          # Start the server in this same step: GitHub kills background
+          # processes when a step ends, so a previous step's uvicorn is gone.
           uvicorn apps.decision_engine.app:app --host 127.0.0.1 --port 8002 &
-          sleep 5
-          # Wait for server to be ready
           for i in $(seq 1 10); do
             if curl -sf http://127.0.0.1:8002/health > /dev/null 2>&1; then
               echo "Server ready!"
@@ -307,10 +311,6 @@ jobs:
             fi
             sleep 2
           done
-
-      - name: Run API smoke tests
-        run: |
-          set -e
           echo "=== Health Check ==="
           curl -sf http://127.0.0.1:8002/health | python -c "import sys,json; d=json.load(sys.stdin); assert d['status']=='ok'; print('  ✅ Health OK')"
 

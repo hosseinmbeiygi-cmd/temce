@@ -15,9 +15,14 @@ to be declared and never consulted.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.logging import get_logger
+
+if TYPE_CHECKING:
+    # Type-only: importing sentry_sdk here would load the SDK even when it is
+    # disabled, which this module deliberately avoids.
+    from sentry_sdk.types import Event, Hint
 
 logger = get_logger(__name__)
 
@@ -102,11 +107,28 @@ def init_sentry(settings: Any) -> bool:
     return True
 
 
-def _scrub_breadcrumbs(event: dict, _hint: dict) -> dict:
+def capture_exception(exc: BaseException) -> None:
+    """Forward an already-handled exception to Sentry.
+
+    FastAPI exception handlers swallow the error before the SDK integration
+    sees it, so unhandled API failures must be reported explicitly. No-op
+    when Sentry was not initialized (no DSN, flag off, or missing SDK).
+    """
+    if not _initialized:
+        return
+    try:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception(exc)
+    except Exception:
+        logger.debug("Sentry capture_exception failed", exc_info=True)
+
+
+def _scrub_breadcrumbs(event: Event, _hint: Hint) -> Event | None:
     """Drop events carrying authorization headers; keep everything else."""
     request = event.get("request") or {}
-    headers = request.get("headers") or {}
+    headers = request.get("headers")
     sensitive = {"Authorization", "Cookie", "X-API-Key", "Proxy-Authorization"}
-    if any(k in headers for k in sensitive):
+    if isinstance(headers, dict) and any(k in headers for k in sensitive):
         request.pop("headers", None)
     return event

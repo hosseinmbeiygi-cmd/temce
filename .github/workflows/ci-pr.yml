@@ -133,7 +133,7 @@ jobs:
       - name: Install test dependencies
         run: >
           pip install pytest pytest-asyncio pytest-timeout
-          httpx fastapi sqlalchemy numpy pydantic asyncpg redis aiosqlite
+          httpx fastapi sqlalchemy numpy pydantic pydantic-settings asyncpg redis aiosqlite
 
       - name: Router auth audit
         run: python scripts/check_router_auth.py

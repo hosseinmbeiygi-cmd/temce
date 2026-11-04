@@ -35,6 +35,9 @@ data/
 !services/data/
 !services/data/**
 services/data/**/__pycache__/
+!backtesting/data/
+!backtesting/data/**
+backtesting/data/**/__pycache__/
 *.db
 *.sqlite
 

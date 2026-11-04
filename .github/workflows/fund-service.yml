@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: timescale/timescaledb:2.31.0-pg16
         env:
           POSTGRES_DB: fund_test
           POSTGRES_USER: fund_user
@@ -99,8 +99,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-deps -r requirements.lock
 
+      - name: Enable TimescaleDB extension
+        run: PGPASSWORD=fund_pass psql -h localhost -U fund_user -d fund_test -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+
       - name: Run alembic migrations (upgrade head)
-        run: alembic upgrade head --raiseerr
+        run: alembic upgrade head
         env:
           DATABASE_URL: postgresql://fund_user:fund_pass@localhost:5432/fund_test
           ENV: test
@@ -125,7 +128,7 @@ jobs:
     needs: [migrate]
     services:
       postgres:
-        image: postgres:16-alpine
+        image: timescale/timescaledb:2.31.0-pg16
         env:
           POSTGRES_DB: fund_test
           POSTGRES_USER: fund_user
@@ -175,8 +178,11 @@ jobs:
           pip install --no-deps -r requirements.lock
           pip install pytest pytest-asyncio pytest-cov pytest-timeout
 
+      - name: Enable TimescaleDB extension
+        run: PGPASSWORD=fund_pass psql -h localhost -U fund_user -d fund_test -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+
       - name: Run alembic migrations (setup DB for tests)
-        run: alembic upgrade head --raiseerr
+        run: alembic upgrade head
         env:
           DATABASE_URL: postgresql://fund_user:fund_pass@localhost:5432/fund_test
           ENV: test
