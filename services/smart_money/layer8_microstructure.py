@@ -12,13 +12,9 @@ norm = MinMaxClipped()
 
 class MicrostructureLayer:
     def compute(self, quote: dict[str, Any], history: list[dict[str, Any]]) -> dict[str, float]:
-        ab = quote.get("avg_buy", 0.0) or 1.0
-        as_ = quote.get("avg_sell", 0.0) or 1.0
         v = quote.get("volume", 0) or 1
         c = quote.get("price_close", 0.0)
         o = quote.get("price_open", 0.0)
-        h = quote.get("price_high", 0.0)
-        low = quote.get("price_low", 0.0)
 
         n = len(history)
         if n:

@@ -42,6 +42,13 @@ class PositionState:
     avg_price: float = 0.0
     realized_pnl: float = 0.0
     current_price: float = 0.0
+    # Open tax lots in FIFO order: (quantity, fill_price), oldest first.
+    # ``avg_price`` is always the quantity-weighted average of these lots.
+    lots: list[tuple[int, float]] = field(default_factory=list)
+    # Commission paid per lot, parallel to ``lots``. Kept separate from the
+    # price so lot prices stay the raw execution price for mark-to-market,
+    # while realized PnL can be net of entry and exit costs (like the ledger).
+    lot_commissions: list[float] = field(default_factory=list)
 
 
 @dataclass

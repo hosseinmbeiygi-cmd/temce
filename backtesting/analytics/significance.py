@@ -30,10 +30,10 @@ def bootstrap_expectancy(pnls: list[float], n_bootstrap: int = 2000, ci: float =
     for _ in range(n_bootstrap):
         sample = [random.choice(pnls) for _ in range(n)]
         w = [p for p in sample if p > 0]
-        l = [p for p in sample if p <= 0]
+        losses_s = [p for p in sample if p <= 0]
         wr_s = len(w) / len(sample) if sample else 0
         lr_s = 1 - wr_s
-        exp_s = wr_s * (sum(w) / len(w) if w else 0) - lr_s * abs(sum(l) / len(l) if l else 0)
+        exp_s = wr_s * (sum(w) / len(w) if w else 0) - lr_s * abs(sum(losses_s) / len(losses_s) if losses_s else 0)
         boot_means.append(exp_s)
 
     boot_means_sorted = sorted(boot_means)

@@ -57,7 +57,7 @@ export function useApiMonitor(baseUrl: string = "http://localhost:8000") {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional synchronous state reset on mount/filter change
+     
     checkBackend();
     const interval = setInterval(checkBackend, 30000);
     return () => clearInterval(interval);

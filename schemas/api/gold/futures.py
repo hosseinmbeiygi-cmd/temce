@@ -56,7 +56,7 @@ class FuturesHealthResponse(BaseModel):
 
     positions: list[FuturesPosition] = Field(default_factory=list)
     total_used_margin: float = 0.0
-    total_equity: float = 0.0
+    total_equity: float | None = None
     aggregate_health_ratio: float | None = None
     critical_count: int = 0
     warning_count: int = 0

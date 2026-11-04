@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utc_now_naive
+from . import indicators
+from .constants import SMA_BUBBLE_WINDOW
+from .dates import jalali_days_ago
+from .entry_rules import dca_entry_signal
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,8 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class BacktestResult:
     total_days: int
+    # Days on which the live entry rule fired (bubble < threshold). The field
+    # name predates FIN-03 and is kept for API compatibility.
     score_above_threshold_days: int
     forward_return_30d_avg: float
     forward_return_30d_positive: int
@@ -35,7 +39,8 @@ async def _daily_bubble_pct(session: AsyncSession, symbol: str, days: int) -> li
 
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        cutoff = (utc_now_naive() - timedelta(days=days + 60)).strftime("%Y-%m-%d")
+        # ستون date شمسی است؛ cutoff میلادی همیشه صفر ردیف مطابقت می‌داد (GS-03).
+        cutoff = jalali_days_ago(days + 60)
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(
@@ -50,14 +55,20 @@ async def _daily_bubble_pct(session: AsyncSession, symbol: str, days: int) -> li
         if len(closes) < 35:
             return []
         prices = np.array([p for _, p in closes], dtype=float)
-        # SMA30 برای حباب تکنیکال
-        sma30 = np.convolve(prices, np.ones(30) / 30, mode="same")
+        # حباب تکنیکال نسبت به SMA trailing (فقط گذشته). اصلاح شده در E-C2:
+        # از indicators.sma() استفاده می‌شود که فقط به دادهٔ گذشته نگاه می‌کند
+        # (np.convolve mode="same" حذف شده).
+        window = SMA_BUBBLE_WINDOW
+        sma_series = indicators.sma(prices, window)
+        bubble_series = indicators.bubble_pct(prices, window)
         # forward + bubble
         out: list[tuple[str, float, float]] = []
         for i, (d, p) in enumerate(closes):
-            if i < 30 or i + 30 >= len(closes):
+            if i < window or i + 30 >= len(closes):
                 continue
-            bubble = (p - sma30[i]) / sma30[i] * 100.0 if sma30[i] else 0.0
+            if np.isnan(sma_series[i]) or np.isnan(bubble_series[i]):
+                continue
+            bubble = float(bubble_series[i])
             fwd = (closes[i + 30][1] - p) / p * 100.0
             out.append((d, bubble, fwd))
         return out
@@ -75,6 +86,8 @@ async def run_backtest(
     """اجرای بک‌تست.
 
     ساده‌شده: bubble_threshold به‌جای امتیاز (score نیاز به همه componentها دارد).
+    Predicate مشترک با استراتژی زنده: روزهای ``bubble < bubble_threshold``
+    (``entry_rules.dca_entry_signal``) — نه ``bubble > threshold``.
     """
     rows = await _daily_bubble_pct(session, symbol, days)
     if not rows:
@@ -88,8 +101,11 @@ async def run_backtest(
             sample_warning="no data",
         )
 
-    # فیلتر درست: روزهای حباب بالا (TACTICAL bubble vs SMA30)
-    above = [(d, fwd) for d, bubble, fwd in rows if bubble > bubble_threshold]
+    # Same predicate as the live strategy (audit FIN-03): the strategy buys on
+    # days whose technical bubble is BELOW the trigger, so the study must
+    # measure the forward return of exactly those days. The old ``bubble > 8``
+    # test scored the opposite population.
+    above = [(d, fwd) for d, bubble, fwd in rows if dca_entry_signal(bubble, bubble_threshold)]
     if not above:
         return BacktestResult(
             total_days=len(rows),

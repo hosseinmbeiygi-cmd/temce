@@ -7,9 +7,10 @@ services:
     environment:
       - POSTGRES_DB=tse_quant
       - POSTGRES_USER=quant_dev
-      # Dev-only default; override with .env or your shell. The previous
-      # hardcoded value (securepassword123) had leaked via the git history.
-      - POSTGRES_PASSWORD=${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}
+      # Required — set DEV_POSTGRES_PASSWORD in .env (see .env.example).
+      # No in-file default: a dev default committed to the repo is a leaked
+      # secret the moment it is pushed (this happened twice before).
+      - POSTGRES_PASSWORD=${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -24,18 +25,25 @@ services:
   redis:
     image: redis:7.0-alpine
     container_name: tse_redis
-    # Dev-only default; override with .env or your shell (leaked in history).
-    command: redis-server --appendonly yes --requirepass ${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}
+    # Required — set DEV_REDIS_PASSWORD in .env (see .env.example).
+    command: redis-server --appendonly yes --requirepass ${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}
     ports:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
-
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
+      # The API image. The root `Dockerfile` runs `python -m ingestion.main`,
+      # a collector with no HTTP surface — that is the `ingestion` service
+      # below (audit DEP-01).
+      dockerfile: Dockerfile.api
     container_name: tse_backend
     depends_on:
       timescaledb:
@@ -43,17 +51,50 @@ services:
       redis:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
+      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
       # Scheduler inside the API: in multi-replica deployments enable queue
       # mode so jobs are pushed to Redis instead of running in every replica.
       - JOB_QUEUE_ENABLED=true
-      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}
+      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:?DEV_JOB_QUEUE_TOKEN must be set in .env}
+      # I3 — salt برای hash کردن API tokenهای GoldDesk. کد هنوز پیش‌فرض committed
+      # دارد (`src/gold_desk/api_token.py:28`) که مخفف « هیچ salt ست نشده» است؛
+      # این‌جا با `:?` اجباری می‌شود تا در مسیر container هرگز آن پیش‌فرض استفاده
+      # نشود. حذف پیش‌فرضِ سمت کد در docs/fixes/handoff_frontend_to_backend.md
+      # درخواست شده. هشداشت: ست کردن یک salt تازه، tokenهای صادرشده با
+      # پیش‌فرضِ قبلی را بازمی‌گرداند (باید بازصدور شوند).
+      - GOLD_API_TOKEN_SALT=${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set as a secret}
       # Optional error tracking — unset/empty keeps the app Sentry-free.
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     ports:
       - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
+  # Collection engine (`python -m ingestion.main`). It has no HTTP surface, so
+  # it owns the root Dockerfile and the INGESTION_*/LAKE_* configuration that
+  # IngestionConfig reads. It used to share the `backend` container, which is
+  # why the API never answered on 8000 (audit DEP-01).
+  ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tse_ingestion
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - INGESTION_DB_DSN=postgresql+asyncpg://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
+      - INGESTION_REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
+      # MinIO is NOT provisioned by this compose (see 06_DOCKER report). Default
+      # points at the (absent) `minio` service; override via .env for a real deployment.
+      - LAKE_ENDPOINT=${LAKE_ENDPOINT:-http://minio:9000}
+      - LAKE_ACCESS_KEY=${LAKE_ACCESS_KEY:-minioadmin}
+      - LAKE_SECRET_KEY=${LAKE_SECRET_KEY:-minioadmin}
     volumes:
       - ./logs:/app/logs
     restart: always
@@ -69,14 +110,22 @@ services:
       redis:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
+      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
       - JOB_QUEUE_ENABLED=true
-      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}
+      - JOB_QUEUE_TOKEN=${DEV_JOB_QUEUE_TOKEN:?DEV_JOB_QUEUE_TOKEN must be set in .env}
+      # همان دلایل backend: اگر این‌جا ست نشود، کد به پیش‌فرض committed می‌افتد و
+      # دو سرویس salt متفاوت خواهند داشت.
+      - GOLD_API_TOKEN_SALT=${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set as a secret}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import apps.worker.app; print('ok')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
     # Scale to N replicas with:  docker compose up --scale worker=N
     deploy:
@@ -93,8 +142,8 @@ services:
       redis:
         condition: service_started
     environment:
-      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}@timescaledb:5432/tse_quant
-      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}@redis:6379/0
+      - DATABASE_URL=postgresql://quant_dev:${DEV_POSTGRES_PASSWORD:?DEV_POSTGRES_PASSWORD must be set in .env}@timescaledb:5432/tse_quant
+      - REDIS_URL=redis://:${DEV_REDIS_PASSWORD:?DEV_REDIS_PASSWORD must be set in .env}@redis:6379/0
       # Live Tgju/Nobitex rates (per-venue fixture fallback on failure):
       - CURRENCY_USE_LIVE=true
       - SENTRY_DSN=${SENTRY_DSN:-}
@@ -102,12 +151,20 @@ services:
       - "8002:8002"
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/api/v1/currency/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      # Root context: Dockerfile.frontend copies ``frontend/`` itself and is
+      # the production image (audit DEP-02 — the ./frontend/Dockerfile path
+      # never existed; the dev override swaps this for Dockerfile.dev).
+      context: .
+      dockerfile: Dockerfile.frontend
     container_name: tse_frontend
     depends_on:
       - backend
@@ -123,8 +180,38 @@ services:
       # server/runtime init alone.
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: always
+
+  # ── MinIO (optional — for raw payload storage) ──────────────────────
+  # The ingestion service references MinIO (LAKE_ENDPOINT=http://minio:9000)
+  # for raw payload storage. This service is NOT started by default.
+  # To enable: docker compose --profile minio up -d minio
+  # Or set LAKE_ENDPOINT in .env to an external S3-compatible endpoint.
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: tse_minio
+  #   command: server /data --console-address ":9001"
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   environment:
+  #     - MINIO_ROOT_USER=${LAKE_ACCESS_KEY:-minioadmin}
+  #     - MINIO_ROOT_PASSWORD=${LAKE_SECRET_KEY:-minioadmin}
+  #   volumes:
+  #     - miniodata:/data
+  #   healthcheck:
+  #     test: ["CMD", "mc", "ready", "local"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: always
 
 volumes:
   pgdata:
   redisdata:
+  # miniodata:

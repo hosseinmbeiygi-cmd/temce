@@ -2,11 +2,21 @@
 
 ## Context
 Before this change, two plaintext credentials were committed to git history:
-- `decision_pass_456` (PostgreSQL password)
-- `de_redis_pass_789` (Redis password)
+- `<masked-from-history>` (PostgreSQL password)
+- `<masked-from-history>` (Redis password)
 
 The current tree is clean (gitleaks passes), but the secrets still live in
 older commits and are reachable by anyone with read access to the history.
+
+> **تصحیح ۲۰۲۶-۱۰-۲۴ (دستیار ۳ / S3):** جملهٔ بالا برای امروز این repo **درست نیست**.
+> همین دو مقدار هنوز در درخت کاری plaintextند:
+> `docker-compose.decision-engine.yml:49,73,74,76` و
+> `k8s/decision-engine-secret.yaml:19,22` (کامنت‌های آن manifest) و نسخهٔ base64‌شان
+> در خط‌های ۲۰ و ۲۳ همان فایل. ضمناً خودِ این سند تا پیش از این تاریخ، هر دو مقدار را
+> در خط‌های ۵، ۶، ۳۱، ۳۲ و ۴۵ دوباره چاپ کرده بود که **۶ occurrence ماسک شد**
+> (`<masked-from-history>`). یعنی فایل‌های track‌شدهٔ امروز هم دوباره باید scrub شوند،
+> نه فقط تاریخچه. جزئیات و مالکیت رفع: `docs/security/secret_scan_report.md §۲-الف`.
+> مقادیر را این‌جا نمی‌نویسم (قاعدهٔ ۵؛ اسکنر و `git log` مرجع دیدن مقدارند).
 
 ## ⚠️ Risk
 This is a **force-push operation** that rewrites the public commit graph.
@@ -27,22 +37,27 @@ cp -R .git .git.backup.$(date +%Y%m%d)
 ```
 
 ### 3. Create a `secrets.txt` file with the strings to scrub
-```text
-decision_pass_456
-de_redis_pass_789
+
+**خارج از repo** بسازید (مثلاً `~/secrets.txt`) تا خودِ سندِ پاک‌سازی دوباره محل چاپ
+credential نشود — دقیقاً همان اشتباهی که این فایل مرتکب شده بود. یک مقدار در هر خط،
+برداشت از `git log` یا secret manager (نه از یک سند track‌شده):
+
+```bash
+${EDITOR:-nano} "$HOME/secrets.txt"   # دو خط: رمز PostgreSQL، سپس رمز Redis
+chmod 600 "$HOME/secrets.txt"
 ```
 
 ### 4. Run BFG
 ```bash
-bfg --replace-text secrets.txt --no-blob-protection
+bfg --replace-text "$HOME/secrets.txt" --no-blob-protection
 git reflog expire --expire=now --all
 git gc --prune=now --aggressive
 ```
 
 ### 5. Verify
 ```bash
-# Should report no matches.
-git log --all -p | grep -E "decision_pass_456|de_redis_pass_789" || echo "CLEAN"
+# Should report no matches. (grep -F -f تا مقدار در فرمان یا در repo تکرار نشود)
+git log --all -p | grep -F -f "$HOME/secrets.txt" || echo "CLEAN"
 ```
 
 ### 6. Force-push

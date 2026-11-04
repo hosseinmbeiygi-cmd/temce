@@ -1,0 +1,182 @@
+[
+ {
+  "file": "src\\domain\\entities.py",
+  "line": 1,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\features\\calendar.py",
+  "line": 1,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\features\\fair_value.py",
+  "line": 1,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\features\\fair_value.py",
+  "line": 28,
+  "risk": "float-cast-money-risk",
+  "code": "lp = float(local_price)"
+ },
+ {
+  "file": "src\\features\\fair_value.py",
+  "line": 29,
+  "risk": "float-cast-money-risk",
+  "code": "fv = float(fair_value)"
+ },
+ {
+  "file": "src\\features\\fair_value.py",
+  "line": 36,
+  "risk": "float-cast-money-risk",
+  "code": "fv = float(fair_value)"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 3,
+  "risk": "lookahead-risk",
+  "code": "Projects future prices from real daily closes stored in the database using a"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 8,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 77,
+  "risk": "float-cast-money-risk",
+  "code": "clean = [float(c) for c in closes if c is not None and float(c) > 0]"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 87,
+  "risk": "float-cast-money-risk",
+  "code": "anchor = float(last_close) if last_close and float(last_close) > 0 else None"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 137,
+  "risk": "float-cast-money-risk",
+  "code": "fv = float(fair_value_gold_irr(xau_usd, usd_irr))"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 209,
+  "risk": "float-cast-money-risk",
+  "code": "return [(str(d), float(p)) for d, p in rows if d and p and float(p) > 0]"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 221,
+  "risk": "float-cast-money-risk",
+  "code": "return [(str(d), float(p)) for d, p in rows if d and p and float(p) > 0]"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 235,
+  "risk": "float-cast-money-risk",
+  "code": "if date and price and float(price) > 0:"
+ },
+ {
+  "file": "src\\forecasting\\service.py",
+  "line": 236,
+  "risk": "float-cast-money-risk",
+  "code": "by_date[str(date)] = float(price)"
+ },
+ {
+  "file": "src\\forecast_engine\\config.py",
+  "line": 3,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\forecast_engine\\exceptions.py",
+  "line": 3,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\forecast_engine\\forecasting_service.py",
+  "line": 3,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\forecast_engine\\forecasting_service.py",
+  "line": 54,
+  "risk": "money-math-no-decimal",
+  "code": "base_price_per_gram = (xau_price * usd_price) / TROY_OUNCE_GRAMS"
+ },
+ {
+  "file": "src\\forecast_engine\\forecasting_service.py",
+  "line": 97,
+  "risk": "money-math-no-decimal",
+  "code": "new_ema = (current_market_price * alpha) + (previous_ema * (1 - alpha))"
+ },
+ {
+  "file": "src\\forecast_engine\\redis_adapter.py",
+  "line": 3,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\forecast_engine\\redis_adapter.py",
+  "line": 42,
+  "risk": "float-cast-money-risk",
+  "code": "return float(val)"
+ },
+ {
+  "file": "src\\forecast_engine\\safe_forecast.py",
+  "line": 1,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\forecast_engine\\symbol_registry.py",
+  "line": 1,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\gold_desk\\alert_engine.py",
+  "line": 7,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\gold_desk\\alert_engine.py",
+  "line": 46,
+  "risk": "float-cast-money-risk",
+  "code": "return float(snap.score.total)"
+ },
+ {
+  "file": "src\\gold_desk\\api.py",
+  "line": 6,
+  "risk": "lookahead-risk",
+  "code": "from __future__ import annotations"
+ },
+ {
+  "file": "src\\gold_desk\\api.py",
+  "line": 459,
+  "risk": "perf-metric-risk",
+  "code": "مقایسه با buy-and-hold، محاسبه alpha، max drawdown، Sharpe."
+ },
+ {
+  "file": "src\\gold_desk\\api.py",
+  "line": 483,
+  "risk": "perf-metric-risk",
+  "code": "\"max_drawdown_pct\": m.max_drawdown_pct,"
+ },
+ {
+  "file": "src\\gold_desk\\api.py",
+  "line": 484,
+  "risk": "perf-metric-risk",
+  "code": "\"sharpe_ratio\": m.sharpe_ratio,"
+ }
+]

@@ -45,6 +45,17 @@ class GoldCoinPriceModel(InstrumentRefMixin, BrsApiBase):
 class GoldCoinHistoryModel(InstrumentRefMixin, BrsApiBase):
     """
     Historical gold & coin prices from ``/Market/CoinHistory.php``.
+
+    Time semantics (do not conflate — see ``brsapi/quality.py``):
+
+    * ``date`` — Jalali **trading date** from the provider (the only correct
+      axis for a time series and for freshness).
+    * ``fetched_at`` — client wall clock when the payload was received.
+    * ``created_at`` — DB insert time.
+
+    Unit contract (no ``unit`` column here): prices are **Toman**, i.e. Rial/10.
+    Consumers must convert explicitly (``phase1._toman_to_rial``); the same number
+    must never be mixed with the already-Rial ``brsapi_gold_currency_pro_daily_history``.
     """
 
     __tablename__ = "brsapi_gold_coin_history"
@@ -210,7 +221,16 @@ class GoldCurrencyProDailyHistoryModel(InstrumentRefMixin, BrsApiBase):
     Daily OHLC history from ``/Market/Gold_Currency_Pro.php?history=2&symbol=XYZ&date_start=...&date_end=...``.
 
     One row per day per symbol with open, high, low, close prices.
-    Dates are in Shamsi (Persian) format: YYYY-MM-DD.
+
+    Time semantics (do not conflate — see ``brsapi/quality.py``):
+
+    * ``date`` — Jalali **trading date** from the provider (``YYYY-MM-DD`` or
+      ``YYYY/MM/DD``; ingestion normalises on write).
+    * ``fetched_at`` — client wall clock when the payload was received.
+    * ``created_at`` — DB insert time.
+
+    Unit contract: ``unit`` defaults to ``IRR`` and the currency series are
+    already Rial (never multiply by 10). Only ``XAUUSD`` carries ``USD``.
     """
 
     __tablename__ = "brsapi_gold_currency_pro_daily_history"

@@ -26,8 +26,9 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
+from apps.api.dependencies import get_current_user
 from apps.api.endpoints.decision_engine import router as decision_engine_router
 from core.config import settings
 from core.database import close_database, get_session, init_database
@@ -141,6 +142,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     """Create and configure the Decision Engine microservice app."""
+    # Published on its own port (docker-compose.decision-engine.yml maps 8002);
+    # previously it booted with development defaults unchecked.
+    settings.validate_production()
     app = FastAPI(
         title="Decision Engine — سامانه تصمیم‌یار بورس تهران",
         description=(
@@ -158,6 +162,7 @@ def create_app() -> FastAPI:
         decision_engine_router,
         prefix="/decision-engine",
         tags=["Decision Engine"],
+        dependencies=[Depends(get_current_user)],
     )
 
     @app.get("/health", tags=["Health"])

@@ -37,6 +37,7 @@ def _engine():
 # ── DB-backed endpoint logic ─────────────────────────────────────────────
 
 
+@pytest.mark.needs_db
 class TestMappingAdminDb:
     @pytest.mark.asyncio
     async def test_list_stats_and_filters(self):

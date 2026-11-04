@@ -87,9 +87,13 @@ class _FakeRedis:
         return before - len(kept)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def no_redis(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force the file backend: never auto-connect a real Redis."""
+    """Force the file backend: never auto-connect a real Redis.
+
+    CI provides a live Redis; without this every test in the module shares its
+    persisted daily counter and the budget starts already exhausted.
+    """
     monkeypatch.setattr(BrsApiBudgetGovernor, "_connect_redis", AsyncMock(return_value=None))
 
 

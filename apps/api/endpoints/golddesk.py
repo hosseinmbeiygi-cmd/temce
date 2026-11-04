@@ -18,7 +18,6 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-
 from pydantic import BaseModel
 
 from apps.api.dependencies import get_gold_live_service

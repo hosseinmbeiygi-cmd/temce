@@ -243,9 +243,8 @@ async def test_caching_reuses_market_state():
     gate = SmartDecisionGate(session=session)
 
     # First call → DB hit.
-    override1 = await gate.evaluate(symbol="فولاد", market="stock")
+    await gate.evaluate(symbol="فولاد", market="stock")
     assert session._call_count > 0
-    previous_count = session._call_count
 
     # Second call (same market within 5 min) → cache hit → no new DB calls.
     from services.decision_gate import _cached_market_state

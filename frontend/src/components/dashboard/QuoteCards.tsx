@@ -39,16 +39,16 @@ const KIND_ACCENT: Record<QuoteItem["kind"], string> = {
 };
 
 export default function QuoteCards() {
-  const { data: QUOTES, isLive, isError, isLoading } = useQuoteCards();
+  const { data: QUOTES, isLive, hasData, isFresh, isStale, isError, isLoading } = useQuoteCards();
   return (
-    <section className="space-y-3">
+    <section data-widget="QuoteCards" className="space-y-3">
       <SectionHeader
         icon={CircleDollarSign}
         title="قیمت‌های روز"
         subtitle="طلا، سکه، ارز، تتر و دلار — تومان"
         tone="warn"
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         {QUOTES.map((q) => {
           const Icon = KIND_ICON[q.kind];

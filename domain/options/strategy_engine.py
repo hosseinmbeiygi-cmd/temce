@@ -20,14 +20,13 @@ Components
 
 from __future__ import annotations
 
-import bisect
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Iterable, Sequence
+from enum import StrEnum
+from typing import Any, cast
 
-from domain.options.payoff import OptionLeg
+from domain.options.payoff import LegAction, LegType, OptionLeg
 from domain.options.pricing import black_scholes_price
-
 
 # ── Chain lookup (§7.9 ChainLookup) ─────────────────────────────────────
 
@@ -46,6 +45,8 @@ class ChainQuote:
 
 class ChainLookup:
     """Interface the templates rely on; adapt any chain snapshot to this."""
+
+    spot: float
 
     def quotes(self) -> Sequence[ChainQuote]:
         raise NotImplementedError
@@ -112,10 +113,7 @@ class InMemoryChainLookup(ChainLookup):
         positive deltas, puts negative ones (conventional quoting).
         """
         rows = self._filtered(option_type, expiry)
-        if option_type == "put":
-            target = -abs(target_delta)
-        else:
-            target = abs(target_delta)
+        target = -abs(target_delta) if option_type == "put" else abs(target_delta)
 
         def _distance(q: ChainQuote) -> float:
             delta = q.delta if q.delta else 0.0
@@ -219,14 +217,19 @@ class StrategyTemplateLibrary:
         return self.chain.nearest_expiry(dte_target)
 
     def _leg(self, option_type: str, action: str, strike: float | None, expiry: str, quantity: float = 1.0) -> TemplateLeg:
-        premium = self.chain.premium_of(strike, option_type, expiry) if option_type != "stock" else strike or 0.0
+        if option_type == "stock":
+            premium = strike or 0.0
+        else:
+            if strike is None:
+                raise ValueError("non-stock leg requires a strike")
+            premium = self.chain.premium_of(strike, option_type, expiry)
         return TemplateLeg(option_type, action, strike, premium, quantity, expiry)
 
     def _payoff(self, legs: Iterable[TemplateLeg]) -> list[OptionLeg]:
         return [
             OptionLeg(
-                type=leg.option_type,  # type: ignore[arg-type]
-                action=leg.action,  # type: ignore[arg-type]
+                type=cast(LegType, leg.option_type),
+                action=cast(LegAction, leg.action),
                 strike=leg.strike or 0.0,
                 premium=leg.premium,
                 quantity=leg.quantity,
@@ -426,8 +429,8 @@ class GreeksAggregator:
 
         payoff_legs = [
             OptionLeg(
-                type=leg.option_type,  # type: ignore[arg-type]
-                action=leg.action,  # type: ignore[arg-type]
+                type=cast(LegType, leg.option_type),
+                action=cast(LegAction, leg.action),
                 strike=leg.strike or 0.0,
                 premium=leg.premium,
                 quantity=leg.quantity,
@@ -557,7 +560,7 @@ class AdjustmentEngine:
 # ── Lifecycle (§7.7) ──────────────────────────────────────────────────────
 
 
-class StrategyStatus(str, Enum):
+class StrategyStatus(StrEnum):
     PROPOSED = "PROPOSED"
     PENDING_APPROVAL = "PENDING_APPROVAL"
     PENDING_EXECUTION = "PENDING_EXECUTION"

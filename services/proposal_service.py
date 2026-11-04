@@ -5,9 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, select
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult
@@ -86,7 +84,13 @@ class ProposalService:
             }
             for p in proposals
         ]
-        return PaginatedResult(items=items, total=total, page=page, page_size=page_size)
+        return PaginatedResult(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=max(1, (total + page_size - 1) // page_size),
+        )
 
     async def approve_proposal(self, proposal_id: str, approver_id: str, calc_version: str = "v1") -> dict[str, Any]:
         stmt = select(ProposalModel).where(ProposalModel.id == proposal_id)

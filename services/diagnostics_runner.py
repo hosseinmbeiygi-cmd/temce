@@ -248,8 +248,9 @@ class DiagnosticsRunner:
                 ))
                 return
 
+            assert async_session_factory is not None
             async with async_session_factory() as session:
-                from sqlalchemy import text
+                from core.database import text
                 result = await session.execute(text("SELECT 1"))
                 if result.scalar() == 1:
                     self.result.add_finding(DiagnosticFinding(
@@ -257,6 +258,7 @@ class DiagnosticsRunner:
                         message="Database connectivity: OK",
                     ))
         except Exception as exc:
+            logger.debug("database connectivity check failed: %s", exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="CRITICAL", category="system", symbol="__ALL__",
                 message=f"Database connectivity failed: {exc}",
@@ -270,10 +272,9 @@ class DiagnosticsRunner:
     ) -> list[dict[str, Any]]:
         """Fetch all active symbols from the database."""
         try:
-            from sqlalchemy import select
+            from core.database import async_session_factory, select
 
-            from core.database import async_session_factory
-
+            assert async_session_factory is not None
             async with async_session_factory() as session:
                 # Try InstrumentModel first, fall back to SymbolModel
                 try:
@@ -300,14 +301,15 @@ class DiagnosticsRunner:
 
                 # Fallback: try SymbolModel (market_data.py)
                 from models.market_data import SymbolModel
-                query = select(SymbolModel.symbol, SymbolModel.name).limit(limit)
+                fallback_query = select(SymbolModel.symbol, SymbolModel.name).limit(limit)
                 if symbol_filter:
-                    query = query.where(SymbolModel.symbol.in_(symbol_filter))
-                result = await session.execute(query)
+                    fallback_query = fallback_query.where(SymbolModel.symbol.in_(symbol_filter))
+                result = await session.execute(fallback_query)
                 rows = result.fetchall()
                 return [{"symbol": r[0], "name": r[1] or "", "market_type": ""} for r in rows]
 
         except Exception as exc:
+            logger.debug("symbol fetch failed: %s", exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="CRITICAL", category="system", symbol="__ALL__",
                 message=f"Failed to fetch symbols: {exc}",
@@ -320,10 +322,9 @@ class DiagnosticsRunner:
     async def _fetch_history(self, symbol: str) -> list[dict[str, Any]]:
         """Fetch recent historical bars for a symbol."""
         try:
-            from sqlalchemy import desc, select, text
+            from core.database import async_session_factory, desc, select, text
 
-            from core.database import async_session_factory
-
+            assert async_session_factory is not None
             async with async_session_factory() as session:
                 # Try daily_history table first
                 with contextlib.suppress(Exception):
@@ -398,7 +399,8 @@ class DiagnosticsRunner:
                                 }
                                 for r in reversed(rows)
                             ]
-                    except Exception:
+                    except (TypeError, ValueError, KeyError, ZeroDivisionError) as exc:
+                        logger.debug("history row skipped during diagnostics: %s", exc)
                         continue
 
                 return []
@@ -412,10 +414,9 @@ class DiagnosticsRunner:
     async def _fetch_intraday(self, symbol: str) -> list[dict[str, Any]]:
         """Fetch recent intraday trades for a symbol."""
         try:
-            from sqlalchemy import select
+            from core.database import async_session_factory, select
 
-            from core.database import async_session_factory
-
+            assert async_session_factory is not None
             async with async_session_factory() as session:
                 try:
                     from models.market_data import IntradayTradeModel, SymbolModel
@@ -438,7 +439,8 @@ class DiagnosticsRunner:
                     result = await session.execute(query)
                     rows = result.fetchall()
                     return [{"date": str(r[0]), "price": r[1], "volume": r[2]} for r in rows]
-                except Exception:
+                except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                    logger.debug("intraday row parse skipped for %s: %s", symbol, exc)
                     return []
         except Exception as exc:
             logger.debug("Intraday fetch skipped for %s: %s", symbol, exc)
@@ -615,6 +617,7 @@ class DiagnosticsRunner:
                         ))
 
                 except Exception as exc:
+                    logger.debug("backtest smoke failed for %s/%s: %s", symbol, strat_name, exc)
                     elapsed_ms = (time.perf_counter() - t0) * 1000
                     self.result.add_finding(DiagnosticFinding(
                         level="ERROR", category="backtest", symbol=symbol,
@@ -631,6 +634,7 @@ class DiagnosticsRunner:
                 details="Ensure backtesting modules are installed and importable.",
             ))
         except Exception as exc:
+            logger.debug("backtest smoke tests failed: %s", exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="ERROR", category="system", symbol="__ALL__",
                 message=f"Backtest smoke tests failed: {exc}",
@@ -642,10 +646,9 @@ class DiagnosticsRunner:
     async def _check_ml_model(self, symbol: str) -> None:
         """Check if ML models are trained and can generate predictions."""
         try:
-            from sqlalchemy import select
+            from core.database import async_session_factory, select
 
-            from core.database import async_session_factory
-
+            assert async_session_factory is not None
             async with async_session_factory() as session:
                 # Check ml_models table
                 with contextlib.suppress(Exception):
@@ -683,20 +686,20 @@ class DiagnosticsRunner:
 
                 # Check ml_training_runs
                 with contextlib.suppress(Exception):
-                    from sqlalchemy import func
-
+                    from core.database import func
                     from models.ml import MlTrainingRunModel
                     result = await session.execute(
                         select(func.count()).select_from(MlTrainingRunModel)
                     )
-                    count = result.scalar() or 0
-                    if count > 0:
+                    runs_count = int(result.scalar() or 0)
+                    if runs_count > 0:
                         self.result.add_finding(DiagnosticFinding(
                             level="INFO", category="ml", symbol="__ALL__",
-                            message=f"ML training runs found: {count}",
+                            message=f"ML training runs found: {runs_count}",
                         ))
 
         except Exception as exc:
+            logger.debug("ML check failed for %s: %s", symbol, exc, exc_info=True)
             self.result.add_finding(DiagnosticFinding(
                 level="WARNING", category="ml", symbol=symbol,
                 message=f"ML check failed: {exc}",
@@ -707,10 +710,9 @@ class DiagnosticsRunner:
     async def _cross_checks(self) -> None:
         """Run checks that span the entire system."""
         try:
-            from sqlalchemy import text
+            from core.database import async_session_factory, text
 
-            from core.database import async_session_factory
-
+            assert async_session_factory is not None
             async with async_session_factory() as session:
                 # Check signal_accuracy table
                 try:
@@ -723,7 +725,8 @@ class DiagnosticsRunner:
                             level="INFO", category="data", symbol="__ALL__",
                             message=f"Signal accuracy records: {count}",
                         ))
-                except Exception:
+                except Exception as exc:
+                    logger.debug("signal_accuracy table check failed: %s", exc)
                     self.result.add_finding(DiagnosticFinding(
                         level="WARNING", category="data", symbol="__ALL__",
                         message="signal_accuracy table missing or empty",
@@ -757,10 +760,9 @@ class DiagnosticsRunner:
     async def _persist_results(self) -> None:
         """Store diagnostic results in the database."""
         try:
-            from sqlalchemy import text
+            from core.database import async_session_factory, text
 
-            from core.database import async_session_factory
-
+            assert async_session_factory is not None
             async with async_session_factory() as session:
                 # Create diagnostic tables if they don't exist
                 await session.execute(text("""

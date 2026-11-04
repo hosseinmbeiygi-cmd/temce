@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class Container:
     def __init__(self) -> None:
         self._instances: dict[str, Any] = {}
-        self._factories: dict[str, Callable[[], Any]] = {}
+        self._factories: dict[str, tuple[Callable[[], Any], bool]] = {}
         self._singletons: dict[str, Any] = {}
 
     def register(self, key: str, instance: Any) -> None:

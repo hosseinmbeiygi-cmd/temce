@@ -1,0 +1,26 @@
+# GoldDesk - Backend Group Paths (Final)
+
+# Migration files
+migrations/versions/0043_gold_holding_soft_delete.py
+
+# gold_desk backend service files
+src/gold_desk/models.py
+src/gold_desk/api.py
+src/gold_desk/portfolio.py
+src/gold_desk/snapshot_service.py
+src/gold_desk/indexes.py
+
+# core database
+core/database.py
+
+# test files related to gold desk
+tests/gold_desk/test_fifo_realized.py
+tests/gold_desk/test_holding_soft_delete.py
+
+# Holding soft delete test
+_tests/gold_desk/test_holding_soft_delete.py
+
+# API token file (report only, rotate by project owner)
+src/gold_desk/api_token.py
+
+# Note: Dockerfile.golddesk and scripts belong to infra group, not backend

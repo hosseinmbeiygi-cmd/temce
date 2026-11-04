@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import { apiGet, extractArray } from "@/lib/api";
 import {
@@ -16,9 +16,11 @@ import {
   Sparkles,
 } from "lucide-react";
 import PriceChart, { type Candle } from "./components/PriceChart";
+import { gramsToUsd, parseGramsInput, usdToIrr } from "@/lib/silver-converter";
 import ForecastTab from "./components/ForecastTab";
 import BacktestTab from "./components/BacktestTab";
 import MlTab from "./components/MlTab";
+import { AssistantRulesPanel } from "@/components/gold/SpecRulesCard";
 import { fa, faDateTime, faPct, fmtTr, isGoldText, isSilverText } from "./components/helpers";
 
 interface PriceItem {
@@ -47,6 +49,19 @@ interface SilverFund {
   market_value?: number;
   base_volume?: number;
   trade_value?: number;
+}
+
+interface SilverNavRow {
+  symbol?: string;
+  nav_issue?: number;
+  nav_redemption?: number;
+  date?: string;
+}
+
+interface NavSplitResp {
+  symbol?: string;
+  found?: boolean;
+  latest?: SilverNavRow | null;
 }
 
 interface FutureRow {
@@ -107,9 +122,14 @@ export default function SilverMarketPage() {
   const [grams, setGrams] = useState("1");
 
   const pricesQ = useQuery({
+    // errors are surfaced below; missing prices are never replaced with 0
     queryKey: ["silver-spot"],
     queryFn: async () => {
-      const r = await apiGet<{ success?: boolean; data?: PriceItem[] }>("/brsapi/commodities?category=precious_metal&limit=2000");
+      // فقط آخرین ردیف هر نماد (سمت سرور) — قبلاً ۱۸٬۵۳۲ ردیف کامل دانلود و در
+      // مرورگر فیلتر می‌شد (GS-24).
+      const r = await apiGet<{ success?: boolean; data?: PriceItem[] }>(
+        "/brsapi/commodities?category=precious_metal&latest_only=true",
+      );
       const list: PriceItem[] = extractArray<PriceItem>(r?.data ?? r);
       const bySymbol = latestBySymbol(list, (x) => Number(x.time_unix ?? 0));
       return [...bySymbol.values()].filter(
@@ -123,8 +143,12 @@ export default function SilverMarketPage() {
     queryKey: ["fx-usd"],
     queryFn: async () => {
       const r = await apiGet<{ success?: boolean; data?: PriceItem[] }>("/brsapi/currency");
-      const list: PriceItem[] = extractArray<PriceItem>(r?.data ?? r);
-      return list.find((x) => (x.symbol ?? "").toUpperCase().includes("USD"))?.price ?? null;
+      const list: PriceItem[] = extractArray<PriceItem>(r?.data ?? r).filter((x) => Number.isFinite(Number(x.price)));
+      return (
+        list.find((x) => (x.symbol ?? "").toUpperCase() === "USD")?.price ??
+        list.find((x) => (x.symbol ?? "").toUpperCase().includes("USD"))?.price ??
+        null
+      );
     },
     refetchInterval: 120_000,
   });
@@ -132,9 +156,25 @@ export default function SilverMarketPage() {
   const fundsQ = useQuery({
     queryKey: ["silver-funds"],
     queryFn: async () => {
-      const r = await apiGet<{ items?: SilverFund[]; data?: SilverFund[] }>("/funds?market=ime&limit=200");
-      const items: SilverFund[] = extractArray<SilverFund>((r as { items?: SilverFund[] })?.items ?? (r as { data?: SilverFund[] })?.data ?? r);
-      return items.filter((f) => {
+      // صندوق‌های نقره با market="tse" و fund_type="سهامی" برمی‌گردند، پس فیلتر
+      // market=ime آن‌ها را حذف می‌کرد و نتیجه همیشه خالی بود (GS-09). حالا بر پایهٔ
+      // نام (search) هم می‌پرسیم و نتایج را ادغام می‌کنیم.
+      const requests = [
+        "/funds?market=ime&limit=200",
+        ...["سیلور", "سیمین", "نقره"].map((q) => `/funds?search=${encodeURIComponent(q)}&limit=50`),
+      ];
+      const responses = await Promise.all(
+        requests.map((u) => apiGet<{ items?: SilverFund[]; data?: SilverFund[] }>(u)),
+      );
+      const bySymbol = new Map<string, SilverFund>();
+      for (const r of responses) {
+        const items: SilverFund[] = extractArray<SilverFund>((r as { items?: SilverFund[] })?.items ?? (r as { data?: SilverFund[] })?.data ?? r);
+        for (const f of items) {
+          const key = f.symbol ?? f.name ?? "";
+          if (key && !bySymbol.has(key)) bySymbol.set(key, f);
+        }
+      }
+      return [...bySymbol.values()].filter((f) => {
         const n = `${f.name ?? ""} ${f.symbol ?? ""}`;
         const silver = isSilverText(n) || f.fund_type === "نقره";
         const commodity = f.fund_type === "کالایی" || /کالایی|کالا/.test(n);
@@ -144,10 +184,32 @@ export default function SilverMarketPage() {
     refetchInterval: 60_000,
   });
 
+  // §۶/§۱۷: NAV صدور و ابطال باید جدا دیده شوند. `/funds` only has one `nav`,
+  // so read the public split endpoint once per symbol (admin `/manage` is not
+  // available to normal users).
+  const fundSymbols = (fundsQ.data ?? [])
+    .map((f) => f.symbol)
+    .filter((s): s is string => Boolean(s));
+
+  const navsQ = useQueries({
+    queries: fundSymbols.map((symbol) => ({
+      queryKey: ["silver-fund-nav-split", symbol],
+      queryFn: () => apiGet<NavSplitResp>(`/funds/${encodeURIComponent(symbol)}/nav-split`),
+      staleTime: 5 * 60_000,
+    })),
+  });
+
+  const navBySymbol = new Map<string, SilverNavRow>();
+  fundSymbols.forEach((symbol, i) => {
+    const latest = navsQ[i]?.data?.latest;
+    if (latest) navBySymbol.set(symbol, latest);
+  });
+
   const futQ = useQuery({
     queryKey: ["silver-futures"],
     queryFn: async () => {
-      const r = await apiGet<{ success?: boolean; data?: FutureRow[] }>("/brsapi/manage/download/ime-futures?live=true&limit=2000");
+      // Public endpoint (the `/brsapi/manage/*` variant is admin-only).
+      const r = await apiGet<{ success?: boolean; data?: FutureRow[] }>("/gold/ime/futures");
       const items: FutureRow[] = Array.isArray(r) ? (r as FutureRow[]) : extractArray<FutureRow>(r?.data ?? r);
       const silver = items.filter(
         (x) =>
@@ -176,16 +238,16 @@ export default function SilverMarketPage() {
         const prev = byDate.get(k);
         if (!prev || (x.time_unix ?? 0) > (prev.time_unix ?? 0)) byDate.set(k, x);
       }
-      const dates = [...byDate.keys()].sort();
-      const closes = dates.map((d) => byDate.get(d)?.price ?? 0).filter((p) => p > 0);
-      return dates
-        .map((d, i) => {
-          const close = byDate.get(d)?.price ?? 0;
-          if (close <= 0) return null;
-          const open = i > 0 ? closes[i - 1] : close;
-          return { time: d.replace(/\//g, "-"), open, high: Math.max(open, close), low: Math.min(open, close), close };
+      // Only the recorded close is real. Open/high/low are not invented from it;
+      // the chart intentionally renders a close-only series until real OHLC exists.
+      return [...byDate.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, row]) => {
+          const close = Number(row.price);
+          if (!Number.isFinite(close) || close <= 0) return null;
+          return { time: date.replace(/\//g, "-"), open: close, high: close, low: close, close };
         })
-        .filter(Boolean) as Candle[];
+        .filter((row): row is Candle => row !== null);
     },
     refetchInterval: 600_000,
     staleTime: 600_000,
@@ -207,7 +269,13 @@ export default function SilverMarketPage() {
   }, [pricesQ.data]);
 
   const gramFromFutures = useMemo(() => {
-    const f = (futQ.data ?? []).find((x) => (x.price_last ?? 0) > 0 && (x.contract_size ?? 0) > 0);
+    // contract_size is not always grams; only divide when the unit says so.
+    const f = (futQ.data ?? []).find(
+      (x) =>
+        (x.price_last ?? 0) > 0 &&
+        (x.contract_size ?? 0) > 0 &&
+        /گرم|gram|^g$/i.test((x.contract_size_unit ?? "").trim()),
+    );
     return f ? (f.price_last as number) / (f.contract_size as number) : null;
   }, [futQ.data]);
 
@@ -219,19 +287,20 @@ export default function SilverMarketPage() {
   const candleMin = candles.length ? Math.min(...candles.map((c) => c.low)) : null;
   const candleMax = candles.length ? Math.max(...candles.map((c) => c.high)) : null;
 
+  const gramsValue = useMemo(() => parseGramsInput(grams), [grams]);
+
   const converter = useMemo(() => {
-    const g = parseFloat(grams) || 0;
-    const toUsd = ounce?.price == null ? null : (g / 31.1035) * ounce.price;
-    const toIrr = toUsd == null || usd == null ? null : toUsd * usd;
+    const toUsd = gramsToUsd(gramsValue, ounce?.price);
+    const toIrr = usdToIrr(toUsd, usd);
     return { toUsd, toIrr };
-  }, [grams, ounce, usd]);
+  }, [gramsValue, ounce, usd]);
 
   const heroCards = [
     { label: "انس جهانی نقره (XAG/USD)", value: ounce?.price != null ? ounce.price.toFixed(2) : "—", unit: "دلار / انس", change: ounce?.change_percent ?? ounce?.price_change_pct ?? null },
     { label: "نقره گرمی (آتی IME)", value: gramFromFutures != null ? fa(Math.round(gramFromFutures)) : "—", unit: "ریال / گرم", change: null },
     { label: "دلار آمریکا", value: usd != null ? fa(Math.round(usd)) : "—", unit: "ریال", change: null },
-    { label: "صندوق‌های نقره / کالایی", value: fa(fundsQ.data?.length ?? 0), unit: "نماد", change: null },
-    { label: "قراردادهای آتی نقره", value: fa(futQ.data?.length ?? 0), unit: "قرارداد", change: null },
+    { label: "صندوق‌های نقره / کالایی", value: fundsQ.data ? fa(fundsQ.data.length) : "—", unit: "نماد", change: null },
+    { label: "قراردادهای آتی نقره", value: futQ.data ? fa(futQ.data.length) : "—", unit: "قرارداد", change: null },
   ];
 
   return (
@@ -262,6 +331,12 @@ export default function SilverMarketPage() {
           </div>
         </section>
 
+        {(pricesQ.isError || fxQ.isError || fundsQ.isError || futQ.isError || spotHistoryQ.isError || newsQ.isError) && (
+          <div className="rounded-xl border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+            بخشی از داده‌های نقره دریافت نشد؛ جای خالی با صفر یا عدد ساختگی پر نمی‌شود.
+          </div>
+        )}
+
         <nav className="flex gap-2 overflow-x-auto rounded-2xl border border-line bg-card p-2">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
@@ -281,7 +356,7 @@ export default function SilverMarketPage() {
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                 <div>
                   <h3 className="text-sm font-black text-ink">نمودار انس جهانی نقره (XAG/USD)</h3>
-                  <p className="mt-1 text-[11px] text-ink-3">کندل‌های روزانه ساخته‌شده از اسنپ‌شات‌های واقعی BrsApi</p>
+                  <p className="mt-1 text-[11px] text-ink-3">خط بسته‌شدن روزانه از آخرین قیمت ثبت‌شده — High/Low واقعی در دسترس نیست و ساخته نمی‌شود</p>
                 </div>
                 {ounce?.price != null && (
                   <div className="text-left">
@@ -296,6 +371,8 @@ export default function SilverMarketPage() {
               <div className="mt-4 rounded-xl bg-soft/60 p-2">
                 {spotHistoryQ.isLoading ? (
                   <div className="h-64 animate-pulse rounded-xl bg-soft" />
+                ) : spotHistoryQ.isError ? (
+                  <div className="grid h-44 place-items-center text-xs text-rose-300">دریافت تاریخچهٔ XAG ناموفق بود.</div>
                 ) : (
                   <PriceChart candles={candles} emptyHint="داده تاریخی روزانه XAG برای نمودار موجود نیست — ابتدا همگام‌سازی BrsApi را اجرا کنید." />
                 )}
@@ -303,8 +380,8 @@ export default function SilverMarketPage() {
 
               {candles.length >= 2 && (
                 <div className="mt-3 flex flex-wrap justify-between gap-2 text-[10px] text-ink-3">
-                  <span>کمینه: <b className="font-mono text-ink-2" dir="ltr">{candleMin?.toFixed(2)}</b></span>
-                  <span>بیشینه: <b className="font-mono text-ink-2" dir="ltr">{candleMax?.toFixed(2)}</b></span>
+                  <span>کمینه بسته‌شدن: <b className="font-mono text-ink-2" dir="ltr">{candleMin === null ? "—" : candleMin.toFixed(2)}</b></span>
+                  <span>بیشینه بسته‌شدن: <b className="font-mono text-ink-2" dir="ltr">{candleMax === null ? "—" : candleMax.toFixed(2)}</b></span>
                   <span>تغییر بازه: <b className={`font-mono ${(rangeChange ?? 0) >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(rangeChange)}</b></span>
                   <span>آخرین کندل: <b className="font-mono text-ink-2" dir="ltr">{lastCandle?.time ?? "—"}</b></span>
                 </div>
@@ -324,6 +401,8 @@ export default function SilverMarketPage() {
                     className="w-24 rounded-xl border border-line bg-soft px-3 py-2 font-mono text-sm text-ink"
                     placeholder="گرم"
                     inputMode="decimal"
+                    min="0"
+                    aria-invalid={gramsValue == null}
                     dir="ltr"
                   />
                   <span className="text-xs text-ink-3">گرم نقره ≈</span>
@@ -334,6 +413,11 @@ export default function SilverMarketPage() {
                   <span className="font-mono text-sm font-bold text-ink" dir="ltr">
                     {converter.toIrr == null ? "—" : `${fa(Math.round(converter.toIrr))} ریال`}
                   </span>
+                  {gramsValue == null && (
+                    <span role="status" className="text-[10px] text-warn">
+                      عدد معتبر بزرگ‌تر از صفر وارد کنید.
+                    </span>
+                  )}
                 </div>
                 <p className="mt-3 text-[10px] text-ink-3">
                   انس {ounce?.price != null ? ounce.price.toFixed(2) : "—"} دلار × دلار {usd != null ? fa(Math.round(usd)) : "—"} ریال (هر انس = ۳۱.۱۰۳۵ گرم)
@@ -360,13 +444,15 @@ export default function SilverMarketPage() {
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-soft px-3 py-2">
                     <span className="text-ink-3">تعداد صندوق</span>
-                    <b className="font-mono text-ink">{fa(fundsQ.data?.length ?? 0)}</b>
+                    <b className="font-mono text-ink">{fundsQ.data ? fa(fundsQ.data.length) : "—"}</b>
                   </div>
                 </div>
               </div>
             </div>
           </section>
         )}
+
+        {tab === "overview" && <AssistantRulesPanel defaultFeeKind="commodity_fund" />}
 
         {tab === "forecast" && <ForecastTab />}
         {tab === "backtest" && <BacktestTab />}
@@ -377,40 +463,64 @@ export default function SilverMarketPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-black text-ink">صندوق‌های نقره و کالایی</h3>
-                <p className="mt-1 text-[11px] text-ink-3">قیمت و NAV از TSETMC · حباب = قیمت/NAV − ۱</p>
+                <p className="mt-1 text-[11px] text-ink-3">قیمت و NAV صدور/ابطال از TSETMC · حباب طبق §۶ نسبت به NAV ابطال محاسبه می‌شود</p>
               </div>
               <Gem className="size-5 text-primary-500" />
             </div>
             {fundsQ.isLoading ? (
               <div className="h-40 animate-pulse rounded-xl bg-soft" />
+            ) : fundsQ.isError ? (
+              <p className="py-8 text-center text-xs text-rose-300">دریافت صندوق‌ها ناموفق بود؛ «صندوقی نیست» نتیجه‌گیری نمی‌شود.</p>
             ) : fundsQ.data?.length ? (
-              <div className="overflow-x-auto">
+              <>
+                {navsQ.some((q) => q.isError) && (
+                  <div role="status" className="mb-3 rounded-xl border border-amber-700/40 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-300">
+                    خواندن NAV صدور/ابطال از سرور ناموفق بود؛ در ستون‌های NAV مقدار
+                    جایگزین «NAV کل صندوق» نشان داده می‌شود و حباب ممکن است دقیق نباشد.
+                  </div>
+                )}
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-right text-ink-3">
                       <th className="p-2">نام</th>
                       <th className="p-2">نماد</th>
                       <th className="p-2">قیمت</th>
-                      <th className="p-2">NAV</th>
-                      <th className="p-2">حباب</th>
+                      <th className="p-2">NAV صدور</th>
+                      <th className="p-2">NAV ابطال</th>
+                      <th className="p-2">حباب (ابطال)</th>
+                      <th className="p-2">حباب (صدور)</th>
                       <th className="p-2">تغییر NAV</th>
                       <th className="p-2">ارزش معاملات</th>
                     </tr>
                   </thead>
                   <tbody>
                     {fundsQ.data.map((f) => {
-                      const price = f.price_last ?? 0;
-                      const nav = f.nav ?? 0;
-                      const bubble = nav > 0 ? (price / nav - 1) * 100 : 0;
-                      const navCh = f.nav_change_pct ?? f.change_percent ?? 0;
+                      const price = f.price_last ?? null;
+                      const navRow = f.symbol ? navBySymbol.get(f.symbol) : undefined;
+                      const navIssue = navRow?.nav_issue ?? f.nav ?? null;
+                      const navRedemption = navRow?.nav_redemption ?? f.nav ?? null;
+                      // §۶: مرجع حباب NAV ابطال است؛ حباب صدور جدا نشان داده می‌شود تا
+                      // قاطی نشود. نبودِ داده ⇒ «—» نه صفر.
+                      const bubbleRedemption =
+                        price !== null && navRedemption !== null && navRedemption > 0
+                          ? (price / navRedemption - 1) * 100
+                          : null;
+                      const bubbleIssue =
+                        price !== null && navIssue !== null && navIssue > 0
+                          ? (price / navIssue - 1) * 100
+                          : null;
+                      const navCh = f.nav_change_pct ?? f.change_percent ?? null;
                       return (
                         <tr key={f.symbol} className="border-t border-line">
-                          <td className="p-2 font-bold text-ink-2">{f.name}</td>
-                          <td className="p-2 font-mono">{f.symbol}</td>
+                          <td className="p-2 font-bold text-ink-2">{f.name ?? "—"}</td>
+                          <td className="p-2 font-mono">{f.symbol ?? "—"}</td>
                           <td className="p-2 font-mono">{fa(price)}</td>
-                          <td className="p-2 font-mono">{fa(nav)}</td>
-                          <td className={`p-2 font-mono font-bold ${bubble >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(bubble)}</td>
-                          <td className={`p-2 font-mono ${navCh >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(navCh)}</td>
+                          <td className="p-2 font-mono">{fa(navIssue)}</td>
+                          <td className="p-2 font-mono">{fa(navRedemption)}</td>
+                          <td className={`p-2 font-mono font-bold ${bubbleRedemption === null ? "text-ink-3" : bubbleRedemption >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(bubbleRedemption)}</td>
+                          <td className={`p-2 font-mono ${bubbleIssue === null ? "text-ink-3" : bubbleIssue >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(bubbleIssue)}</td>
+                          <td className={`p-2 font-mono ${navCh === null ? "text-ink-3" : navCh >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(navCh)}</td>
                           <td className="p-2 font-mono">{fmtTr(f.trade_value ?? f.base_volume)}</td>
                         </tr>
                       );
@@ -418,6 +528,7 @@ export default function SilverMarketPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             ) : (
               <p className="py-8 text-center text-xs text-ink-3">صندوق نقره‌ای در API موجود نیست.</p>
             )}
@@ -435,6 +546,8 @@ export default function SilverMarketPage() {
             </div>
             {futQ.isLoading ? (
               <div className="h-40 animate-pulse rounded-xl bg-soft" />
+            ) : futQ.isError ? (
+              <p className="py-8 text-center text-xs text-rose-300">دریافت قراردادهای آتی ناموفق بود؛ خالی بودن جدول نتیجه‌گیری نمی‌شود.</p>
             ) : futQ.data?.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -454,11 +567,11 @@ export default function SilverMarketPage() {
                       <tr key={f.contract_code} className="border-t border-line">
                         <td className="p-2 font-mono font-bold text-ink-2">{f.contract_code}</td>
                         <td className="p-2 text-ink-3">{f.contract_description}</td>
-                        <td className="p-2 font-mono">{fa(f.contract_size ?? 0)} {f.contract_size_unit}</td>
-                        <td className="p-2 font-mono font-bold">{fa(f.price_last ?? 0)}</td>
-                        <td className={`p-2 font-mono ${(f.price_last_change_pct ?? 0) >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(f.price_last_change_pct ?? 0)}</td>
+                        <td className="p-2 font-mono">{fa(f.contract_size)} {f.contract_size_unit ?? "—"}</td>
+                        <td className="p-2 font-mono font-bold">{fa(f.price_last)}</td>
+                        <td className={`p-2 font-mono ${f.price_last_change_pct == null ? "text-ink-3" : f.price_last_change_pct >= 0 ? "text-up" : "text-down"}`} dir="ltr">{faPct(f.price_last_change_pct)}</td>
                         <td className="p-2 font-mono">{fmtTr(f.trade_volume)}</td>
-                        <td className="p-2 font-mono">{fa(f.price_last_settlement ?? 0)}</td>
+                        <td className="p-2 font-mono">{fa(f.price_last_settlement)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -481,6 +594,8 @@ export default function SilverMarketPage() {
             </div>
             {newsQ.isLoading ? (
               <div className="h-40 animate-pulse rounded-xl bg-soft" />
+            ) : newsQ.isError ? (
+              <p className="py-8 text-center text-xs text-rose-300">دریافت اخبار ناموفق بود.</p>
             ) : newsQ.data?.length ? (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {newsQ.data.slice(0, 9).map((n, i) => (

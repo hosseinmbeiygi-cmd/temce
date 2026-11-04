@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from core.json import dumps, loads
 
@@ -43,10 +43,11 @@ class JSONSerializer(Generic[T]):
 
     def _from_raw(self, raw: Any, target_type: type[T]) -> T:
         if target_type in (dict, list):
-            return raw
-        if hasattr(target_type, "model_validate"):
-            return target_type.model_validate(raw)
-        return raw
+            return cast(T, raw)
+        model_validate = getattr(target_type, "model_validate", None)
+        if callable(model_validate):
+            return cast(T, model_validate(raw))
+        return cast(T, raw)
 
 
 class DataclassSerializer:
@@ -55,7 +56,7 @@ class DataclassSerializer:
 
         if not is_dataclass(obj):
             raise TypeError("Object must be a dataclass")
-        return dumps(asdict(obj))
+        return dumps(asdict(cast(Any, obj)))
 
     def deserialize(self, data: str, target_type: type) -> Any:
         from dataclasses import fields

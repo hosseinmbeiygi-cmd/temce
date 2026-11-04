@@ -20,9 +20,11 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.client import BrsApiClient, BrsApiResponse, get_client
@@ -69,7 +71,7 @@ from brsapi.repositories import (
     RawPayloadRepository,
     SyncLogRepository,
 )
-from core.time import now_tehran
+from core.time import now_tehran, today_jalali_tehran
 
 logger = getLogger(__name__)
 
@@ -251,6 +253,58 @@ def fund_sector_sql_condition(sector_column: Any) -> Any:
 # ──────────────────────────────────────────────
 
 
+# Machine-readable classification of why a sync produced (or did not produce)
+# rows. ``success`` alone cannot separate "provider answered with nothing" from
+# "we could not read the answer", which is exactly the confusion that reported
+# blocked sources as healthy zero-row syncs.
+SyncOutcome = Literal[
+    "success",
+    "empty",
+    "skipped",
+    "parse_error",
+    "malformed",
+    "provider_blocked",
+    "timeout",
+    "source_error",
+    "storage_error",
+    "unknown",
+]
+
+
+# Failure codes carried by ``Result.error_code`` mapped onto the sync outcome
+# taxonomy. Classification reads the code, never the message text: prose can be
+# reworded without silently downgrading every failure to ``source_error``.
+_FETCH_OUTCOME_BY_CODE: dict[str, SyncOutcome] = {
+    "malformed": "malformed",
+    "provider_blocked": "provider_blocked",
+    "quota_exhausted": "provider_blocked",
+    "budget_soft_limit": "provider_blocked",
+    "timeout": "timeout",
+    "circuit_open": "provider_blocked",
+}
+
+
+def _fetch_outcome(result: Any) -> SyncOutcome:
+    """Map a failed fetch ``Result`` onto a :data:`SyncOutcome` via its code."""
+    code = getattr(result, "error_code", None) or ""
+    return _FETCH_OUTCOME_BY_CODE.get(code, "source_error")
+
+
+def _parse_error_message(exc: Exception) -> str:
+    """Render a parser failure with its structured code, e.g. ``[unexpected_shape]``."""
+    code = getattr(exc, "code", None)
+    return f"ParseError[{code}]: {exc}" if code else f"ParseError: {exc}"
+
+
+def _naive_utc(value: datetime | None) -> datetime | None:
+    """Normalise a receive time to the naive-UTC, second-truncated DB form."""
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        value = value.astimezone(UTC).replace(tzinfo=None)
+    return value.replace(microsecond=0)
+
+
 @dataclass
 class SyncReport:
     """Outcome of a single sync operation."""
@@ -259,6 +313,9 @@ class SyncReport:
     items_count: int = 0
     duration_ms: float = 0.0
     error: str | None = None
+    # One of :data:`SyncOutcome`. ``success`` says whether anything went wrong;
+    # ``outcome`` says what actually happened (empty vs unreadable vs blocked).
+    outcome: str = "unknown"
     skipped: bool = False       # True when dedup prevented a fetch or a write
     failed_symbols: list[str] = field(default_factory=list)  # Symbols that failed during batch sync
     # Batch-only breakdown of the "nothing was written" outcomes. ``success``
@@ -276,6 +333,11 @@ class SyncReport:
 # ──────────────────────────────────────────────
 #  Sync Service
 # ──────────────────────────────────────────────
+
+
+# Delay between categories inside sync_all() to avoid rate-limit bursts. Tests
+# set this to 0 so a full pass does not sleep ~20s.
+SYNC_ALL_INTER_OP_DELAY_SECONDS: float = 2.0
 
 
 class BrsApiSyncService:
@@ -329,6 +391,7 @@ class BrsApiSyncService:
         batch_size: int = 500,
         dedup_seconds: int = 0,          # 0 = always fetch
         truncate_first: bool = False,     # True for full-refresh endpoints
+        replace_filter: dict[str, Any] | None = None,  # scope a refresh to e.g. one symbol
         session: AsyncSession | None = None,
     ) -> SyncReport:
         """
@@ -349,16 +412,17 @@ class BrsApiSyncService:
 
         sync_log, raw_payload = self._ensure_repos(sess)
 
-        # 1. Dedup check — include params in dedup key so per-symbol calls are also deduped
+        # 1. Dedup check — scope the lookup to the exact params so per-symbol
+        #    calls are deduped independently instead of blocking each other.
         if dedup_seconds > 0:
-            dedup_key = f"{endpoint.path}:{params!r}" if params else endpoint.path
-            needs = await sync_log.needs_sync(dedup_key, dedup_seconds)
+            needs = await sync_log.needs_sync(endpoint.path, dedup_seconds, params=params)
             if not needs:
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logger.debug("Skipped %s (recent sync exists)", endpoint.path)
                 return SyncReport(
                     endpoint=endpoint.path,
                     success=True,
+                    outcome="skipped",
                     skipped=True,
                     duration_ms=elapsed_ms,
                 )
@@ -367,6 +431,7 @@ class BrsApiSyncService:
         result = await client.fetch(endpoint, params=params, category_override=category_override)
         if not result.success:
             elapsed_ms = (time.monotonic() - start) * 1000
+            outcome = _fetch_outcome(result)
             await sync_log.record(
                 endpoint=endpoint.path,
                 category=category_override or endpoint.category.value,
@@ -374,11 +439,13 @@ class BrsApiSyncService:
                 error_message=result.error,
                 duration_ms=elapsed_ms,
                 params=params,
+                outcome=outcome,
             )
             await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=False,
+                outcome=outcome,
                 error=result.error,
                 duration_ms=elapsed_ms,
             )
@@ -394,10 +461,13 @@ class BrsApiSyncService:
                 items_count=0,
                 duration_ms=elapsed_ms,
                 params=params,
+                outcome="empty",
             )
+            await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=True,
+                outcome="empty",
                 items_count=0,
                 duration_ms=elapsed_ms,
             )
@@ -410,30 +480,64 @@ class BrsApiSyncService:
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000
             logger.exception("Parse error for %s", endpoint.path)
+            error_message = _parse_error_message(exc)
             await sync_log.record(
                 endpoint=endpoint.path,
                 category=category_override or endpoint.category.value,
                 status="error",
-                error_message=f"ParseError: {exc}",
+                error_message=error_message,
                 duration_ms=elapsed_ms,
                 params=params,
+                outcome="parse_error",
             )
             await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=False,
-                error=f"ParseError: {exc}",
+                outcome="parse_error",
+                error=error_message,
                 duration_ms=elapsed_ms,
             )
 
-        # Normalise to list
+        # Normalise to list. Single-record parsers (``parse_nav``,
+        # ``parse_symbol_detail``) are typed ``dict | None`` and return ``None``
+        # when the provider answered without a row to store: a valid no-op, not
+        # a shape failure (those raise ``BrsApiParseError``).
         records: list[dict[str, Any]]
-        if isinstance(parsed, dict):
+        if parsed is None:
+            records = []
+        elif isinstance(parsed, dict):
             records = [parsed] if parsed else []
         elif isinstance(parsed, list):
             records = parsed
         else:
-            records = []
+            # A parser that returns anything else did not understand the
+            # payload. Folding it into ``records = []`` would record a
+            # successful sync with ``items_count=0`` for a response we could
+            # not read at all.
+            elapsed_ms = (time.monotonic() - start) * 1000
+            error = (
+                "ParseError[unexpected_shape]: "
+                f"unexpected parser result type {type(parsed).__name__}"
+            )
+            logger.error("Parse error for %s: %s", endpoint.path, error)
+            await sync_log.record(
+                endpoint=endpoint.path,
+                category=category_override or endpoint.category.value,
+                status="error",
+                error_message=error,
+                duration_ms=elapsed_ms,
+                params=params,
+                outcome="parse_error",
+            )
+            await sess.commit()
+            return SyncReport(
+                endpoint=endpoint.path,
+                success=False,
+                outcome="parse_error",
+                error=error,
+                duration_ms=elapsed_ms,
+            )
 
         if not records:
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -444,13 +548,25 @@ class BrsApiSyncService:
                 items_count=0,
                 duration_ms=elapsed_ms,
                 params=params,
+                outcome="empty",
             )
+            await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=True,
+                outcome="empty",
                 items_count=0,
                 duration_ms=elapsed_ms,
             )
+
+        # Stamp rows with the actual receive time of this response (naive UTC,
+        # second-truncated) instead of a per-parser ``now()``: a retry or a slow
+        # parse must not shift the (symbol, fetched_at) dedup key.
+        received_at = _naive_utc(getattr(brs_resp, "received_at", None))
+        if received_at is not None:
+            for rec in records:
+                if isinstance(rec, dict) and "fetched_at" in rec:
+                    rec["fetched_at"] = received_at
 
         # 4. Store
         repo = BulkUpsertRepository(sess, model_class)
@@ -460,9 +576,26 @@ class BrsApiSyncService:
         on_conflict_update = model_class is SymbolSnapshotModel
         conflict_target = ["symbol", "fetched_at"] if on_conflict_update else None
 
+        # A scoped replace must be unambiguous: multiple keys would be applied
+        # as sequential OR-deletes (deleting too much), and an empty filter
+        # must never silently fall back to a table-wide TRUNCATE.
+        if replace_filter is not None:
+            if not truncate_first:
+                raise ValueError("replace_filter requires truncate_first=True")
+            if len(replace_filter) != 1:
+                raise ValueError(
+                    "replace_filter supports exactly one column/value pair"
+                )
+
         try:
             if truncate_first:
-                await repo.truncate()
+                if replace_filter is not None:
+                    # Scope the refresh: only rows matching the filter are
+                    # replaced. TRUNCATE would wipe unrelated symbols/sections.
+                    for column, value in replace_filter.items():
+                        await repo.delete_where(column, value)
+                else:
+                    await repo.truncate()
 
             # Batch insert
             total = 0
@@ -477,6 +610,18 @@ class BrsApiSyncService:
 
             await sess.commit()
 
+            # A committed snapshot cycle makes every aggregate built from the
+            # previous cycle stale. Invalidate right here so scheduled jobs
+            # (which call sync_all_symbols directly, not sync_all) also drop
+            # the in-process cache instead of waiting for the 300s TTL.
+            if model_class is SymbolSnapshotModel:
+                try:
+                    from core.agg_invalidation import new_agg_token, publish_agg_token
+
+                    await publish_agg_token(new_agg_token())
+                except Exception:  # noqa: BLE001 — cache invalidation must not fail a sync
+                    logger.exception("Market aggregate cache invalidation failed")
+
         except Exception as exc:
             await sess.rollback()
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -485,15 +630,18 @@ class BrsApiSyncService:
                 endpoint=endpoint.path,
                 category=category_override or endpoint.category.value,
                 status="error",
-                error_message=f"DBError: {exc}",
-                items_count=len(records),
+                # The transaction is rolled back, so nothing was persisted.
+                error_message=f"DBError after {len(records)} attempted rows (rolled back): {exc}",
+                items_count=0,
                 duration_ms=elapsed_ms,
                 params=params,
+                outcome="storage_error",
             )
             await sess.commit()
             return SyncReport(
                 endpoint=endpoint.path,
                 success=False,
+                outcome="storage_error",
                 error=f"DBError: {exc}",
                 duration_ms=elapsed_ms,
             )
@@ -506,6 +654,7 @@ class BrsApiSyncService:
                     payload=brs_resp.raw_bytes.decode("utf-8", errors="replace"),
                     status_code=brs_resp.status_code,
                     params=params,
+                    receive_time=received_at,
                 )
                 await sess.flush()
             except Exception:
@@ -519,6 +668,7 @@ class BrsApiSyncService:
             items_count=total,
             duration_ms=elapsed_ms,
             params=params,
+            outcome="success",
         )
         await sess.commit()
 
@@ -526,6 +676,7 @@ class BrsApiSyncService:
         return SyncReport(
             endpoint=endpoint.path,
             success=True,
+            outcome="success",
             items_count=total,
             duration_ms=elapsed_ms,
         )
@@ -594,10 +745,9 @@ class BrsApiSyncService:
             reports yesterday's NAV), the record is dropped instead of
             creating a duplicate row.
         """
-        import jdatetime
         from sqlalchemy import select
 
-        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        today_jalali = today_jalali_tehran()
         try:
             has_today = (
                 await session.execute(
@@ -609,7 +759,12 @@ class BrsApiSyncService:
                     .limit(1)
                 )
             ).scalar_one_or_none()
-        except Exception:
+        except SQLAlchemyError as exc:
+            logger.warning(
+                "NAV existence check failed for %s; continuing with the API call: %s",
+                symbol,
+                exc,
+            )
             has_today = None
         if has_today is not None:
             return SyncReport(
@@ -685,7 +840,6 @@ class BrsApiSyncService:
             max_symbols: Cap the number of symbols processed in this run.
                 ``None`` or a non-positive value means "no limit".
         """
-        import jdatetime
         from sqlalchemy import select
 
         if symbols is None:
@@ -732,7 +886,7 @@ class BrsApiSyncService:
         # Fast path: drop symbols that already hold today's NAV in one query.
         # sync_nav would skip them anyway, but doing it here avoids the 11s
         # sleep per skipped symbol — a second daily run then finishes in ~1s.
-        today_jalali = jdatetime.date.today().strftime("%Y-%m-%d")
+        today_jalali = today_jalali_tehran()
         try:
             done_rows = await session.execute(
                 select(NavRecordModel.symbol)
@@ -1258,9 +1412,11 @@ class BrsApiSyncService:
         result = await client.fetch(BrsApiEndpoints.GOLD_CURRENCY, params=None)
 
         if not result.success:
+            err_outcome = _fetch_outcome(result)
             err_report = SyncReport(
                 endpoint="Gold_Currency.php",
                 success=False,
+                outcome=err_outcome,
                 error=result.error,
             )
             reports.append(err_report)
@@ -1271,6 +1427,7 @@ class BrsApiSyncService:
                 status="error",
                 error_message=result.error,
                 duration_ms=int((time.monotonic() - start_all) * 1000),
+                outcome=err_outcome,
             )
             return reports
 
@@ -1290,10 +1447,12 @@ class BrsApiSyncService:
             except Exception as exc:
                 logger.exception("Parse error for Gold_Currency/%s", section_name)
                 elapsed_ms = (time.monotonic() - start) * 1000
+                parse_message = _parse_error_message(exc)
                 report = SyncReport(
                     endpoint=f"Gold_Currency/{section_name}",
                     success=False,
-                    error=f"ParseError: {exc}",
+                    outcome="parse_error",
+                    error=parse_message,
                     duration_ms=elapsed_ms,
                 )
                 reports.append(report)
@@ -1301,8 +1460,9 @@ class BrsApiSyncService:
                     endpoint=f"Gold_Currency/{section_name}",
                     category="commodity",
                     status="error",
-                    error_message=f"ParseError: {exc}",
+                    error_message=parse_message,
                     duration_ms=elapsed_ms,
+                    outcome="parse_error",
                 )
                 continue
 
@@ -1311,6 +1471,7 @@ class BrsApiSyncService:
                 report = SyncReport(
                     endpoint=f"Gold_Currency/{section_name}",
                     success=True,
+                    outcome="empty",
                     items_count=0,
                     duration_ms=elapsed_ms,
                 )
@@ -1321,19 +1482,28 @@ class BrsApiSyncService:
                     status="success",
                     items_count=0,
                     duration_ms=elapsed_ms,
+                    outcome="empty",
                 )
                 continue
 
             repo = BulkUpsertRepository(session, model_class)
+            # Use upsert instead of truncate + insert to avoid data loss
+            # if the insert fails, previous data is preserved.
+            on_conflict_update = model_class is SymbolSnapshotModel
+            conflict_target = ["symbol", "fetched_at"] if on_conflict_update else None
             try:
-                await repo.truncate()
-                total = await repo.bulk_insert(records)
+                total = await repo.bulk_insert(
+                    records,
+                    on_conflict_update=on_conflict_update,
+                    conflict_target=conflict_target,
+                )
                 await session.flush()
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logger.info("Gold_Currency/%s → %d records in %.0fms", label, total, elapsed_ms)
                 report = SyncReport(
                     endpoint=f"Gold_Currency/{section_name}",
                     success=True,
+                    outcome="success",
                     items_count=total,
                     duration_ms=elapsed_ms,
                 )
@@ -1344,7 +1514,11 @@ class BrsApiSyncService:
                     status="success",
                     items_count=total,
                     duration_ms=elapsed_ms,
+                    outcome="success",
                 )
+                # Commit per section: a later section's failure must not roll
+                # back sections already reported as successful.
+                await session.commit()
             except Exception as exc:
                 await session.rollback()
                 elapsed_ms = (time.monotonic() - start) * 1000
@@ -1352,6 +1526,7 @@ class BrsApiSyncService:
                 report = SyncReport(
                     endpoint=f"Gold_Currency/{section_name}",
                     success=False,
+                    outcome="storage_error",
                     error=f"DBError: {exc}",
                     duration_ms=elapsed_ms,
                 )
@@ -1362,6 +1537,7 @@ class BrsApiSyncService:
                     status="error",
                     error_message=f"DBError: {exc}",
                     duration_ms=elapsed_ms,
+                    outcome="storage_error",
                 )
                 # After a rollback, stop processing further sections
                 break
@@ -1407,9 +1583,11 @@ class BrsApiSyncService:
         )
 
         if not result.success:
+            err_outcome = _fetch_outcome(result)
             err_report = SyncReport(
                 endpoint="Gold_Currency_Pro.php (section)",
                 success=False,
+                outcome=err_outcome,
                 error=result.error,
             )
             reports.append(err_report)
@@ -1419,6 +1597,7 @@ class BrsApiSyncService:
                 status="error",
                 error_message=result.error,
                 duration_ms=int((time.monotonic() - start_all) * 1000),
+                outcome=err_outcome,
             )
             return reports
 
@@ -1444,35 +1623,41 @@ class BrsApiSyncService:
             except Exception as exc:
                 logger.exception("Parse error for Gold_Currency_Pro/%s", section_name)
                 elapsed_ms = (time.monotonic() - start) * 1000
-                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=False, error=f"ParseError: {exc}", duration_ms=elapsed_ms)
+                parse_message = _parse_error_message(exc)
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=False, outcome="parse_error", error=parse_message, duration_ms=elapsed_ms)
                 reports.append(report)
-                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="error", error_message=f"ParseError: {exc}", duration_ms=elapsed_ms)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="error", error_message=parse_message, duration_ms=elapsed_ms, outcome="parse_error")
                 continue
 
             if not records:
                 elapsed_ms = (time.monotonic() - start) * 1000
-                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=True, items_count=0, duration_ms=elapsed_ms)
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=True, outcome="empty", items_count=0, duration_ms=elapsed_ms)
                 reports.append(report)
-                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="success", items_count=0, duration_ms=elapsed_ms)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="success", items_count=0, duration_ms=elapsed_ms, outcome="empty")
                 continue
 
             repo = BulkUpsertRepository(session, model_class)
             try:
-                await repo.truncate()
+                # Replace only this section's rows. TRUNCATE here would delete
+                # the sections written earlier in this same loop.
+                await repo.delete_where("section", section_name)
                 total = await repo.bulk_insert(records)
                 await session.flush()
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logger.info("Gold_Currency_Pro/%s → %d records in %.0fms", label, total, elapsed_ms)
-                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=True, items_count=total, duration_ms=elapsed_ms)
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=True, outcome="success", items_count=total, duration_ms=elapsed_ms)
                 reports.append(report)
-                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="success", items_count=total, duration_ms=elapsed_ms)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="success", items_count=total, duration_ms=elapsed_ms, outcome="success")
+                # Commit per section: a later section's failure must not roll
+                # back sections already reported as successful.
+                await session.commit()
             except Exception as exc:
                 await session.rollback()
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logger.exception("DB error for Gold_Currency_Pro/%s", section_name)
-                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=False, error=f"DBError: {exc}", duration_ms=elapsed_ms)
+                report = SyncReport(endpoint=f"Gold_Currency_Pro/{section_name}", success=False, outcome="storage_error", error=f"DBError: {exc}", duration_ms=elapsed_ms)
                 reports.append(report)
-                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="error", error_message=f"DBError: {exc}", duration_ms=elapsed_ms)
+                await sync_log.record(endpoint=f"Gold_Currency_Pro/{section_name}", category="commodity", status="error", error_message=f"DBError: {exc}", duration_ms=elapsed_ms, outcome="storage_error")
                 break
 
         # Store raw payload once
@@ -1497,6 +1682,9 @@ class BrsApiSyncService:
             model_class=GoldCurrencyProHistory24hModel,
             params={"history": "1", "symbol": symbol},
             truncate_first=True,
+            # Refresh only this symbol's 24h history; a bare TRUNCATE would
+            # wipe the history of every other symbol (the job loops symbols).
+            replace_filter={"symbol": symbol},
             session=session,
         )
 
@@ -1642,6 +1830,7 @@ class BrsApiSyncService:
 
             if not result.success:
                 elapsed_ms = (time.monotonic() - start_time) * 1000
+                outcome = _fetch_outcome(result)
                 await sync_log.record(
                     endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
                     category=BrsApiEndpoints.CODAL_ANNOUNCEMENT.category.value,
@@ -1649,17 +1838,44 @@ class BrsApiSyncService:
                     error_message=result.error,
                     duration_ms=elapsed_ms,
                     params={"page": str(current_page), "backfill": str(backfill)},
+                    outcome=outcome,
                 )
                 await session.commit()
                 return SyncReport(
                     endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
                     success=False,
+                    outcome=outcome,
                     error=result.error,
                     duration_ms=elapsed_ms,
                 )
 
             brs_resp: BrsApiResponse = result.value
-            parsed = CodalParser.parse(brs_resp.data)
+            try:
+                parsed = CodalParser.parse(brs_resp.data)
+            except Exception as exc:
+                # One unreadable page must not escape the paged backfill: record
+                # it so the dashboard shows a parse_error with its code.
+                elapsed_ms = (time.monotonic() - start_time) * 1000
+                parse_message = _parse_error_message(exc)
+                logger.exception("Parse error for Codal page %s", current_page)
+                await sync_log.record(
+                    endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+                    category=BrsApiEndpoints.CODAL_ANNOUNCEMENT.category.value,
+                    status="error",
+                    error_message=parse_message,
+                    duration_ms=elapsed_ms,
+                    params={"page": str(current_page), "backfill": str(backfill)},
+                    outcome="parse_error",
+                )
+                await session.commit()
+                return SyncReport(
+                    endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
+                    success=False,
+                    outcome="parse_error",
+                    error=parse_message,
+                    duration_ms=elapsed_ms,
+                )
+
             count_page = max(int(parsed.get("count_page") or 0), 0)
 
             # First page tells us how many pages exist
@@ -1701,11 +1917,13 @@ class BrsApiSyncService:
                         items_count=len(records),
                         duration_ms=elapsed_ms,
                         params={"page": str(current_page), "backfill": str(backfill)},
+                        outcome="storage_error",
                     )
                     await session.commit()
                     return SyncReport(
                         endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
                         success=False,
+                        outcome="storage_error",
                         error=f"DBError: {exc}",
                         duration_ms=elapsed_ms,
                     )
@@ -1748,6 +1966,9 @@ class BrsApiSyncService:
                 await asyncio.sleep(sleep_time)
 
         duration_ms = (time.monotonic() - start_time) * 1000
+        # An incremental run that inserts nothing only means the DB was already
+        # current; that is "empty", not a failure.
+        outcome = "success" if total_inserted else "empty"
         await sync_log.record(
             endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
             category=BrsApiEndpoints.CODAL_ANNOUNCEMENT.category.value,
@@ -1759,12 +1980,14 @@ class BrsApiSyncService:
                 "backfill": str(backfill),
                 "start_page": str(start_page),
             },
+            outcome=outcome,
         )
         await session.commit()
 
         return SyncReport(
             endpoint=BrsApiEndpoints.CODAL_ANNOUNCEMENT.path,
             success=True,
+            outcome=outcome,
             items_count=total_inserted,
             duration_ms=duration_ms,
         )
@@ -1796,14 +2019,34 @@ class BrsApiSyncService:
         ]
         for name, op in operations:
             logger.info("Starting sync: %s", name)
-            result = await op()
+            try:
+                result = await op()
+            except Exception as exc:
+                # One failing provider must not abort the independent ones
+                # (audit DS-07); record it as a failed report and continue.
+                logger.exception("Sync operation failed: %s", name)
+                result = SyncReport(
+                    endpoint=name,
+                    success=False,
+                    error=f"{type(exc).__name__}: {exc}",
+                    outcome="source_error",
+                )
             if isinstance(result, list):
                 # Combined endpoints return multiple reports
                 reports.extend(result)
             else:
                 reports.append(result)
             # Brief delay between categories to avoid rate-limit bursts
-            await asyncio.sleep(2)
+            await asyncio.sleep(SYNC_ALL_INTER_OP_DELAY_SECONDS)
+        # Invalidate in-process market aggregates so the next widget poll
+        # refetches from the just-synced snapshot cycle instead of serving a
+        # stale cache hit (_AGG_CACHE, 300s TTL, apps/api/endpoints/market.py).
+        try:
+            from core.agg_invalidation import new_agg_token, publish_agg_token
+
+            await publish_agg_token(new_agg_token())
+        except Exception:  # noqa: BLE001 — cache invalidation must not fail a sync
+            logger.exception("Market aggregate cache invalidation failed")
         return reports
 
     async def health(self) -> dict[str, Any]:

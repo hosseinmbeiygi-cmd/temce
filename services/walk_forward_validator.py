@@ -125,7 +125,7 @@ class WalkForwardValidator:
         try:
             n = len(feature_sequence)
             if n < 100:
-                return Result.err(f"Not enough data: need at least 100 samples, got {n}")
+                return Result.fail(f"Not enough data: need at least 100 samples, got {n}")
 
             window_size = n // num_windows
             train_size = int(window_size * train_ratio)
@@ -205,7 +205,7 @@ class WalkForwardValidator:
                     continue
 
             if not windows:
-                return Result.err("No windows completed successfully")
+                return Result.fail("No windows completed successfully")
 
             # Aggregate
             result = WalkForwardResult(
@@ -225,12 +225,12 @@ class WalkForwardValidator:
                 ],
             )
 
-            result.avg_train_accuracy = np.mean([w.train_accuracy for w in windows])
-            result.avg_test_accuracy = np.mean([w.test_accuracy for w in windows])
-            result.avg_overfitting = np.mean([w.overfitting for w in windows])
+            result.avg_train_accuracy = float(np.mean([w.train_accuracy for w in windows]))
+            result.avg_test_accuracy = float(np.mean([w.test_accuracy for w in windows]))
+            result.avg_overfitting = float(np.mean([w.overfitting for w in windows]))
             result.min_test_accuracy = min(all_test_accuracies) if all_test_accuracies else 0
             result.max_test_accuracy = max(all_test_accuracies) if all_test_accuracies else 0
-            result.std_test_accuracy = np.std(all_test_accuracies, ddof=1) if len(all_test_accuracies) > 1 else 0
+            result.std_test_accuracy = float(np.std(all_test_accuracies, ddof=1)) if len(all_test_accuracies) > 1 else 0.0
 
             # Robustness score (0-1): based on how stable test accuracy is
             if result.avg_test_accuracy > 0:
@@ -243,7 +243,7 @@ class WalkForwardValidator:
             # Average test Sharpe across windows (must be positive for a usable model)
             avg_test_sharpe = np.mean([w.test_sharpe for w in windows]) if windows else 0.0
 
-            result.is_reliable = (
+            result.is_reliable = bool(
                 result.avg_test_accuracy > 0.58
                 and result.avg_overfitting < 0.10
                 and result.robustness_score > 0.5
@@ -257,11 +257,11 @@ class WalkForwardValidator:
             # We model each OOS observation as a +1 / -1 trade, with cost = 0.5%
             # (the system's default commission + slippage from the policy YAML).
             oos_trades: list[TradeOutcome] = []
-            for w in windows:
-                n_win = int(round(w.test_accuracy * w.test_size))
-                n_loss = w.test_size - n_win
+            for win in windows:
+                n_win = int(round(win.test_accuracy * win.test_size))
+                n_loss = win.test_size - n_win
                 # First half / second half by window order
-                period = 0 if w.window_index <= (result.num_windows + 1) // 2 else 1
+                period = 0 if win.window_index <= (result.num_windows + 1) // 2 else 1
                 oos_trades.extend(TradeOutcome(pnl_pct=1.0, cost_pct=0.5, period_index=period) for _ in range(n_win))
                 oos_trades.extend(TradeOutcome(pnl_pct=-1.0, cost_pct=0.5, period_index=period) for _ in range(n_loss))
             acceptance = evaluate_acceptance(oos_trades, mc_ev_samples=None)
@@ -272,7 +272,7 @@ class WalkForwardValidator:
 
         except Exception as e:
             logger.error("Walk-forward validation failed: %s", e, exc_info=True)
-            return Result.err(str(e))
+            return Result.fail(str(e))
 
     async def validate_multiple_models(
         self,
@@ -298,7 +298,7 @@ class WalkForwardValidator:
                 closes=closes,
                 num_windows=num_windows,
             )
-            if r.success:
+            if r.success and r.value is not None:
                 results.append(r.value)
 
         # Sort by test accuracy descending

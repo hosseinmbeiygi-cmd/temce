@@ -35,7 +35,7 @@ def _get_brsapi_registry():
     summary="List BrsApi scheduler jobs",
     description="List all BrsApi scheduler jobs with their enabled/disabled status, cron schedule, and description",
 )
-async def list_scheduler_jobs() -> ApiResponse[list[dict[str, Any]]]:
+async def list_scheduler_jobs() -> ApiResponse[dict[str, Any]]:
     """List all BrsApi sync jobs with their status."""
     try:
         registry = _get_brsapi_registry()
@@ -147,8 +147,7 @@ JOBS_TYPES_QUERY = """
 """
 
 
-def _row_to_dict(row: tuple) -> dict[str, Any]:
-    row[9]
+def _row_to_dict(row: Any) -> dict[str, Any]:
     return {
         "id": safe_row_str(row, idx=0),
         "job_type": safe_row_str(row, idx=1),
@@ -230,7 +229,8 @@ async def list_jobs(
     except Exception:
         logger.exception("Failed to fetch jobs")
         return ApiResponse[dict[str, Any]](
-            success=True,
+            success=False,
+            error={"message": "Failed to fetch jobs"},
             data={"items": [], "total": 0, "limit": limit, "offset": offset, "stats": {}, "job_types": []},
         )
 

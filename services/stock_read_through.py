@@ -18,12 +18,14 @@ import time
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.config import settings
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import now_tehran, utc_now_naive
+from services.adjusted_price_reader import (
+    AdjustedPriceSourceUnavailable,
+    load_daily_candles,
+)
 from services.stock_signal_engine import (
     LayerInputs,
     compute_composite_signal,
@@ -79,7 +81,8 @@ def _is_market_open() -> bool:
         import pytz
 
         now = datetime.now(pytz.timezone("Asia/Tehran")).time()
-    except Exception:
+    except ImportError as exc:
+        logger.debug("pytz unavailable (%s); using project timezone helper", exc)
         now = now_tehran().time()
     return dt.time(8, 45) <= now <= dt.time(12, 35)
 
@@ -142,7 +145,8 @@ class StockReadThroughService:
                 return {**payload, "freshness": "live"}
 
         # Stale/Miss → JIT از BrsApi (Mutex روی ISIN)
-        async with self._guarded(f"stock:{isin or symbol}:lock"):
+        guard = await self._guarded(f"stock:{isin or symbol}:lock")
+        async with guard:
             fresh = await self._fetch_and_store_tape(symbol, isin)
         if fresh is not None:
             return {**fresh, "freshness": "live"}
@@ -380,33 +384,21 @@ class StockReadThroughService:
         return snapshot
 
     async def _load_daily_candles(self, symbol: str, limit: int = 260) -> list[dict[str, Any]]:
-        rows = (
-            await self.session.execute(
-                text(
-                    """
-                    SELECT d.trade_date, d.price_first, d.price_max, d.price_min, d.price_last,
-                           d.trade_volume, d.trade_value
-                    FROM daily_history d
-                    WHERE d.symbol = :sym AND d.price_last IS NOT NULL
-                    ORDER BY d.trade_date DESC LIMIT :lim
-                    """
-                ),
-                {"sym": symbol, "lim": limit},
-            )
-        ).fetchall()
-        candles = [
-            {
-                "date": str(r[0]),
-                "open": float(r[1] or r[4]),
-                "high": float(r[2] or r[4]),
-                "low": float(r[3] or r[4]),
-                "close": float(r[4]),
-                "volume": float(r[5] or 0),
-                "value": float(r[6] or 0),
-            }
-            for r in reversed(rows)
-        ]
-        return candles
+        """Adjusted OHLCV candles for the JIT indicator fallback.
+
+        Shares ``services/adjusted_price_reader.py`` with the nightly
+        precompute so the JIT path and ``stock_indicators_snapshot`` can never
+        disagree about corporate actions (migration 0108).
+
+        DB-04: when the corrected view is missing the reader raises instead of
+        using the fetch-date axis; the tab then shows "no indicators" rather
+        than a series built from duplicated days.
+        """
+        try:
+            return await load_daily_candles(self.session, symbol, limit)
+        except AdjustedPriceSourceUnavailable as exc:
+            logger.error("indicators unavailable for %s: %s", symbol, exc)
+            return []
 
     # ── ۴. Signal کامل (کارت تصمیم‌گیری) ──
 

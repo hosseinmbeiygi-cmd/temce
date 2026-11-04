@@ -21,6 +21,25 @@ from orchestration.policies import (
 logger = get_logger("orchestration.runners")
 
 
+def _describe_error(exc: BaseException | None, *, default: str = "Unknown error") -> str:
+    """Return a useful, non-opaque message for *exc*.
+
+    ``str()`` is empty for some very common exceptions — notably
+    ``asyncio.TimeoutError``/``TimeoutError`` and a bare ``raise ValueError`` —
+    so a naive ``str(exc) or "Unknown error"`` erases the real cause and makes
+    a timeout indistinguishable from an unknown failure. Fall back to the
+    exception class name (and a dedicated timeout message) instead.
+    """
+    if exc is None:
+        return default
+    message = str(exc).strip()
+    if message:
+        return message
+    if isinstance(exc, TimeoutError):
+        return "TimeoutError: step exceeded its timeout"
+    return type(exc).__name__
+
+
 class WorkflowRunner:
     def __init__(
         self,
@@ -67,7 +86,7 @@ class WorkflowRunner:
             context.logger.info(f"Workflow {workflow.name} completed successfully")
         except Exception as exc:
             state.status = WorkflowStatus.FAILED
-            state.error = str(exc)
+            state.error = _describe_error(exc)
             state.completed_at = time.time()
             workflow.status = WorkflowStatus.FAILED
             context.logger.error(f"Workflow {workflow.name} failed with exception: {exc}")
@@ -105,6 +124,12 @@ class WorkflowRunner:
                         error=f"Timeout after {self.policy.timeout.timeout_seconds}s",
                         status=StepStatus.FAILED,
                     )
+                # A TimeoutError with raise_on_timeout=True is still retryable.
+                if not self.policy.retry.should_retry(attempt, exc):
+                    break
+                delay = self.policy.retry.delay_for(attempt)
+                if delay > 0:
+                    await asyncio.sleep(delay)
             except Exception as exc:
                 last_error = exc
                 context.logger.warning(f"Step {step.name} failed (attempt {attempt + 1}): {exc}")
@@ -117,7 +142,10 @@ class WorkflowRunner:
         return StepResult(
             step_name=step.name,
             success=False,
-            error=str(last_error) or "Unknown error",
+            error=_describe_error(
+                last_error,
+                default=f"Timeout after {self.policy.timeout.timeout_seconds}s",
+            ),
             status=StepStatus.FAILED,
         )
 
@@ -210,7 +238,7 @@ class AsyncWorkflowRunner:
                     result = StepResult(
                         step_name=step_name,
                         success=False,
-                        error=str(exc),
+                        error=_describe_error(exc),
                         status=StepStatus.FAILED,
                     )
                     results[step_name] = result
@@ -229,7 +257,7 @@ class AsyncWorkflowRunner:
             context.logger.info(f"Async workflow {workflow.name} finished with status: {state.status.value}")
         except Exception as exc:
             state.status = WorkflowStatus.FAILED
-            state.error = str(exc)
+            state.error = _describe_error(exc)
             state.completed_at = time.time()
             workflow.status = WorkflowStatus.FAILED
             context.logger.error(f"Async workflow {workflow.name} failed: {exc}")
@@ -265,7 +293,7 @@ class AsyncWorkflowRunner:
             return StepResult(
                 step_name=step.name,
                 success=False,
-                error=str(exc),
+                error=_describe_error(exc),
                 status=StepStatus.FAILED,
             )
 

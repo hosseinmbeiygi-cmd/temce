@@ -1,26 +1,35 @@
 """Alembic-style migration: extend signals + create data_freshness/data_quality_log/data_gaps."""
 revision = "0099"
 down_revision = "0066"
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
+
+
 def upgrade():
-    for col in ["market","model_version","status"]:
-        try: op.add_column("signals", sa.Column(col, sa.String(64)))
-        except Exception: pass
-    for col in ["entry","stop_loss","take_profit","confidence","actual_outcome_price","actual_return_pct"]:
-        try: op.add_column("signals", sa.Column(col, sa.Float()))
-        except Exception: pass
-    for col in ["top_reasons","backtest_stats"]:
-        try: op.add_column("signals", sa.Column(col, sa.Text()))
-        except Exception: pass
-    try: op.add_column("signals", sa.Column("eval_due_at", sa.DateTime()))
-    except Exception: pass
-    try: op.add_column("signals", sa.Column("checked_at", sa.DateTime()))
-    except Exception: pass
-    try: op.add_column("signals", sa.Column("schema_version", sa.Integer(), server_default="1"))
-    except Exception: pass
-    try: op.add_column("signals", sa.Column("was_correct", sa.Boolean()))
-    except Exception: pass
+    # IF NOT EXISTS keeps this idempotent; a failed ADD COLUMN would abort the
+    # migration transaction even when the exception is suppressed (DB-02, 2026-10-30).
+    columns = [
+        ("market", "VARCHAR(64)"),
+        ("model_version", "VARCHAR(64)"),
+        ("status", "VARCHAR(64)"),
+        ("entry", "DOUBLE PRECISION"),
+        ("stop_loss", "DOUBLE PRECISION"),
+        ("take_profit", "DOUBLE PRECISION"),
+        ("confidence", "DOUBLE PRECISION"),
+        ("actual_outcome_price", "DOUBLE PRECISION"),
+        ("actual_return_pct", "DOUBLE PRECISION"),
+        ("top_reasons", "TEXT"),
+        ("backtest_stats", "TEXT"),
+        ("eval_due_at", "TIMESTAMP WITHOUT TIME ZONE"),
+        ("checked_at", "TIMESTAMP WITHOUT TIME ZONE"),
+        ("schema_version", "INTEGER DEFAULT 1"),
+        ("was_correct", "BOOLEAN"),
+    ]
+    for col, col_type in columns:
+        op.execute(
+            f"ALTER TABLE IF EXISTS signals ADD COLUMN IF NOT EXISTS {col} {col_type}"
+        )
     op.create_table("data_freshness", sa.Column("data_type",sa.String(50),primary_key=True),
         sa.Column("last_ok",sa.DateTime()), sa.Column("ttl",sa.Integer(),server_default="300"))
     op.create_table("data_quality_log", sa.Column("id",sa.Integer(),primary_key=True),

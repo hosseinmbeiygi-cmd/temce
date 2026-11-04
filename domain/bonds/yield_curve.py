@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date as date_type
+from datetime import datetime
 from typing import Any
 
 from domain.common.base_entity import BaseEntity
@@ -16,7 +17,7 @@ class YieldCurvePoint:
 
 @dataclass
 class YieldCurve(BaseEntity):
-    date: date | None = None
+    date: date_type | None = None
     points: list[YieldCurvePoint] = field(default_factory=list)
     curve_type: str = "spot"
     currency: str = "IRR"
@@ -26,7 +27,7 @@ class YieldCurve(BaseEntity):
     def __init__(
         self,
         id: str,
-        date: date | None = None,
+        date: date_type | None = None,
         points: list[YieldCurvePoint] | None = None,
         curve_type: str = "spot",
         currency: str = "IRR",

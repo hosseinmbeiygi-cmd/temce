@@ -12,7 +12,7 @@ export function useMounted(): boolean {
 
   useEffect(() => {
     // Intentional mount-only flag; suppress strict lint rule.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setMounted(true);
   }, []);
 

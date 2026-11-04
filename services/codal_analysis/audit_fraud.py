@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 FRAUD_TRIANGLE = ["incentive_pressure", "opportunity", "rationalization"]
 
-REVENUE_FRAUD_INDICATORS = [
+REVENUE_FRAUD_INDICATORS: list[dict[str, Any]] = [
     {"code": "RF1", "description": "Revenue growth significantly exceeds industry average", "weight": 0.7},
     {"code": "RF2", "description": "Cash flow from operations consistently lower than net income", "weight": 0.8},
     {"code": "RF3", "description": "Days sales outstanding increasing while revenue is growing", "weight": 0.6},
@@ -20,7 +20,7 @@ REVENUE_FRAUD_INDICATORS = [
     {"code": "RF7", "description": "Revenue recognized on consignment or bill-and-hold arrangements", "weight": 0.7},
 ]
 
-ASSET_FRAUD_INDICATORS = [
+ASSET_FRAUD_INDICATORS: list[dict[str, Any]] = [
     {"code": "AF1", "description": "Fictitious or duplicated vendor payments", "weight": 0.8},
     {"code": "AF2", "description": "Unexplained inventory shortages", "weight": 0.6},
     {"code": "AF3", "description": "Cash transfers to unknown accounts", "weight": 0.9},
@@ -28,7 +28,7 @@ ASSET_FRAUD_INDICATORS = [
     {"code": "AF5", "description": "Unauthorized personal use of company assets", "weight": 0.5},
 ]
 
-CORRUPTION_INDICATORS = [
+CORRUPTION_INDICATORS: list[dict[str, Any]] = [
     {"code": "CR1", "description": "Unusual consulting or agent fees", "weight": 0.8},
     {"code": "CR2", "description": "Kickbacks in procurement", "weight": 0.8},
     {"code": "CR3", "description": "Conflicts of interest in related party transactions", "weight": 0.7},

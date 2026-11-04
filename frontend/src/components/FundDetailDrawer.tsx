@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
-import { analyzeFund, type Fund } from "@/lib/fund-analysis";
+import type { Fund } from "@/lib/fund-analysis";
 import {
   detectFundGroup,
   getGroupDef,
@@ -87,7 +87,17 @@ interface FundDetailDrawerProps {
 }
 
 export default function FundDetailDrawer({ fund, onClose }: FundDetailDrawerProps) {
-  const analysis = useMemo(() => analyzeFund(fund), [fund]);
+  const totalScore = fund.total_score ?? 0;
+  const analysis = {
+    scores: { total: totalScore } as import("@/lib/fund-analysis").FundScore,
+    riskLevel: "LOW" as const,
+    recommendation: "HOLD" as const,
+    summary: totalScore > 0 ? `امتیاز کلی: ${totalScore}%` : "NO_DATA",
+    strengths: [] as string[],
+    weaknesses: [] as string[],
+    issues: [] as import("@/lib/fund-analysis").FundIssue[],
+    nextSteps: [] as string[],
+  };
   const group = useMemo(() => detectFundGroup(fund.name, fund.fund_type), [fund.name, fund.fund_type]);
   const groupDef = useMemo(() => getGroupDef(group), [group]);
   const bubble = calcBubble(fund.price_last, fund.nav);
@@ -231,12 +241,12 @@ export default function FundDetailDrawer({ fund, onClose }: FundDetailDrawerProp
           {/* 6-dimension scores */}
           <div className="glass-card p-4 space-y-2.5">
             <p className="text-xs font-bold text-ink mb-2">تحلیل ۶‌بعدی</p>
-            <ScoreBar label="مالی (بازدهی و عملکرد)" value={analysis.scores.financial} />
-            <ScoreBar label="نقدشوندگی (حجم و عمق بازار)" value={analysis.scores.liquidity} />
-            <ScoreBar label="مدیریت (تجربه و ثبات)" value={analysis.scores.management} />
-            <ScoreBar label="ریسک (نوسان و افت)" value={analysis.scores.risk} />
-            <ScoreBar label="هزینه (کارمزد و صرف)" value={analysis.scores.cost} />
-            <ScoreBar label="شفافیت (گزارش‌دهی)" value={analysis.scores.transparency} />
+            <ScoreBar label="مالی (بازدهی و عملکرد)" value={analysis.scores.financial ?? 0} />
+            <ScoreBar label="نقدشوندگی (حجم و عمق بازار)" value={analysis.scores.liquidity ?? 0} />
+            <ScoreBar label="مدیریت (تجربه و ثبات)" value={analysis.scores.management ?? 0} />
+            <ScoreBar label="ریسک (نوسان و افت)" value={analysis.scores.risk ?? 0} />
+            <ScoreBar label="هزینه (کارمزد و صرف)" value={analysis.scores.cost ?? 0} />
+            <ScoreBar label="شفافیت (گزارش‌دهی)" value={analysis.scores.transparency ?? 0} />
           </div>
 
           {/* Strengths */}

@@ -1,0 +1,85 @@
+{
+  "_source": "shape of Gold_Currency_Pro.php?history=2 payload (history_daily[]) — values chosen to exercise brsapi.quality rules; NOT live data",
+  "_expected": {
+    "valid": 3,
+    "high_below_low": 1,
+    "close_outside_range": 1,
+    "open_outside_range": 1,
+    "non_positive": 1,
+    "unparsable_date": 2
+  },
+  "bars": [
+    {
+      "date": "1405-06-23",
+      "open": 100.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 105.0,
+      "_case": "valid"
+    },
+    {
+      "date": "1405/06/22",
+      "open": 100.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 105.0,
+      "_case": "valid — slash separator must be normalized"
+    },
+    {
+      "date": "۱۴۰۵/۰۶/۲۱",
+      "open": 100.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 105.0,
+      "_case": "valid — Persian digits must be normalized"
+    },
+    {
+      "date": "1405-06-20",
+      "open": 95.0,
+      "high": 90.0,
+      "low": 100.0,
+      "close": 95.0,
+      "_case": "high < low"
+    },
+    {
+      "date": "1405-06-19",
+      "open": 95.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 120.0,
+      "_case": "close above high"
+    },
+    {
+      "date": "1405-06-18",
+      "open": 80.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 100.0,
+      "_case": "open below low"
+    },
+    {
+      "date": "1405-06-17",
+      "open": 0.0,
+      "high": 0.0,
+      "low": 0.0,
+      "close": 0.0,
+      "_case": "non-positive prices"
+    },
+    {
+      "date": "",
+      "open": 100.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 105.0,
+      "_case": "missing date — must not be stamped with the ingestion day"
+    },
+    {
+      "date": "1405-13-05",
+      "open": 100.0,
+      "high": 110.0,
+      "low": 90.0,
+      "close": 105.0,
+      "_case": "impossible Jalali month"
+    }
+  ]
+}

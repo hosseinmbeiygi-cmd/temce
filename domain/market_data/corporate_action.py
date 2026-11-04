@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date as date_type
+from datetime import datetime
 from typing import Any
 
 from domain.common.base_entity import BaseEntity
@@ -24,9 +25,9 @@ class CorporateAction(BaseEntity):
     instrument_id: str
     action_type: str
     symbol: str = ""
-    date: date | None = None
-    record_date: date | None = None
-    pay_date: date | None = None
+    date: date_type | None = None
+    record_date: date_type | None = None
+    pay_date: date_type | None = None
     ratio: float = 0.0
     value: float = 0.0
     description: str = ""
@@ -40,9 +41,9 @@ class CorporateAction(BaseEntity):
         instrument_id: str,
         action_type: str,
         symbol: str = "",
-        date: date | None = None,
-        record_date: date | None = None,
-        pay_date: date | None = None,
+        date: date_type | None = None,
+        record_date: date_type | None = None,
+        pay_date: date_type | None = None,
         ratio: float = 0.0,
         value: float = 0.0,
         description: str = "",

@@ -14,6 +14,10 @@ import io
 import json
 import logging
 import sys
+from collections.abc import Iterator
+from typing import Any
+
+import pytest
 
 from core.logging import (
     SafeStreamHandler,
@@ -25,10 +29,17 @@ from core.logging import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _rebind_root_handlers_after_test() -> Iterator[None]:
+    """Rebind logging to the live stdout after capsys teardown."""
+    yield
+    setup_logging()
+
+
 class TestGetLoggerCompat:
     """get_logger must return an object with the same API as stdlib Logger."""
 
-    def test_returns_bound_logger(self):
+    def test_returns_bound_logger(self) -> None:
         logger = get_logger("test.compat")
         assert hasattr(logger, "info")
         assert hasattr(logger, "warning")
@@ -36,12 +47,12 @@ class TestGetLoggerCompat:
         assert hasattr(logger, "debug")
         assert hasattr(logger, "exception")
 
-    def test_same_name_returns_same_instance(self):
+    def test_same_name_returns_same_instance(self) -> None:
         l1 = get_logger("test.singleton")
         l2 = get_logger("test.singleton")
         assert l1 is l2
 
-    def test_different_names_return_different_instances(self):
+    def test_different_names_return_different_instances(self) -> None:
         l1 = get_logger("test.a")
         l2 = get_logger("test.b")
         assert l1 is not l2
@@ -50,7 +61,7 @@ class TestGetLoggerCompat:
 class TestJsonOutput:
     """Verify JSON log output contains expected fields."""
 
-    def test_json_message_includes_fields(self, capsys):
+    def test_json_message_includes_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
         setup_logging()
         logger = get_logger("test.json_output")
         logger.info("test_event", symbol="خودرو", count=42)
@@ -72,7 +83,7 @@ class TestJsonOutput:
         assert found["level"] == "info"
         assert "timestamp" in found
 
-    def test_exception_includes_exc_info(self, capsys):
+    def test_exception_includes_exc_info(self, capsys: pytest.CaptureFixture[str]) -> None:
         setup_logging()
         logger = get_logger("test.json_exc")
         try:
@@ -99,7 +110,7 @@ class TestJsonOutput:
 class TestContextBinding:
     """bind_context / unbind_context add fields to all subsequent logs."""
 
-    def test_bind_adds_fields(self, capsys):
+    def test_bind_adds_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
         setup_logging()
         clear_context()
         try:
@@ -123,7 +134,7 @@ class TestContextBinding:
         finally:
             clear_context()
 
-    def test_unbind_removes_fields(self, capsys):
+    def test_unbind_removes_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
         setup_logging()
         clear_context()
         try:
@@ -146,7 +157,7 @@ class TestContextBinding:
         finally:
             clear_context()
 
-    def test_clear_context_removes_all(self, capsys):
+    def test_clear_context_removes_all(self, capsys: pytest.CaptureFixture[str]) -> None:
         setup_logging()
         bind_context(request_id="x", job_name="y")
         clear_context()
@@ -170,26 +181,26 @@ class TestContextBinding:
 class TestSafeStreamHandler:
     """SafeStreamHandler must still handle encoding errors gracefully."""
 
-    def _make_handler(self, encoding: str = "cp1252"):
+    def _make_handler(self, encoding: str = "cp1252") -> tuple[SafeStreamHandler, Any]:
         stream = io.TextIOWrapper(io.BytesIO(), encoding=encoding)
         handler = SafeStreamHandler(stream)
         handler.setFormatter(logging.Formatter("%(message)s"))
         return handler, stream
 
-    def test_ascii_written_normally(self):
+    def test_ascii_written_normally(self) -> None:
         handler, stream = self._make_handler()
         record = logging.LogRecord("test", logging.INFO, "", 0, "hello world", (), None)
         handler.emit(record)
         assert b"hello world" in stream.buffer.getvalue()
 
-    def test_unencodable_replaced_gracefully(self):
+    def test_unencodable_replaced_gracefully(self) -> None:
         handler, stream = self._make_handler()
         record = logging.LogRecord("test", logging.INFO, "", 0, "سیگنال → test", (), None)
         handler.emit(record)
         out = stream.buffer.getvalue().decode("cp1252", errors="replace")
         assert "[TEXT ENCODING ERROR]" in out
 
-    def test_exception_with_unencodable_text_dropped(self):
+    def test_exception_with_unencodable_text_dropped(self) -> None:
         handler, stream = self._make_handler()
         try:
             raise ValueError("خطای فارسی")
@@ -202,7 +213,7 @@ class TestSafeStreamHandler:
         # Should be dropped silently (no output)
         assert stream.buffer.getvalue() == b""
 
-    def test_exception_with_ascii_text_written(self):
+    def test_exception_with_ascii_text_written(self) -> None:
         handler, stream = self._make_handler()
         try:
             raise ValueError("ascii error")

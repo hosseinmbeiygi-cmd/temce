@@ -18,10 +18,10 @@ workflow (services/kill_switch.py).
 from __future__ import annotations
 
 from collections.abc import Iterable
-from enum import Enum
+from enum import StrEnum
 
 
-class IMERole(str, Enum):
+class IMERole(StrEnum):
     """The four operational roles from سند §14.2."""
 
     VIEWER = "viewer"

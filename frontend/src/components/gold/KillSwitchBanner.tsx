@@ -3,13 +3,24 @@ import React from "react";
 import type { KillSwitchResp } from "@/lib/goldApi";
 
 interface Props {
-  status: KillSwitchResp;
+  status: KillSwitchResp | null;
   className?: string;
 }
 
 /** بنر وضعیت بحرانی. در NORMAL چیزی نشان نمی‌دهد.
- *  در WARNING: نوار زرد. در ACTIVE: نوار قرمز چشمک‌زن با دایرکتیو. */
+ *  در WARNING: نوار زرد. در ACTIVE: نوار قرمز چشمک‌زن با دایرکتیو.
+ *  وضعیت نامشخص (null) هرگز «NORMAL» فرض نمی‌شود. */
 export function KillSwitchBanner({ status, className = "" }: Props) {
+  if (status === null) {
+    return (
+      <div
+        className={`rounded-lg ring-1 ring-zinc-600/50 bg-zinc-900/40 backdrop-blur px-4 py-3 text-zinc-300 text-sm ${className}`}
+        role="status"
+      >
+        وضعیت kill-switch در دسترس نیست؛ تا دریافت پاسخ، «NORMAL» فرض نمی‌شود.
+      </div>
+    );
+  }
   if (status.status === "NORMAL") return null;
 
   if (status.status === "WARNING") {

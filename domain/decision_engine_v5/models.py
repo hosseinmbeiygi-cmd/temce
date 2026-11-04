@@ -6,41 +6,41 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 
-class DataQuality(str, Enum):
+class DataQuality(StrEnum):
     OK = "OK"
     DEGRADED = "DEGRADED"
 
 
-class Source(str, Enum):
+class Source(StrEnum):
     BRSAPI = "BrsApi"
     IME_FALLBACK = "IME_Fallback"
 
 
-class MaturityLevel(str, Enum):
+class MaturityLevel(StrEnum):
     ALERT = "1_Alert"  # Data Alert
     OPPORTUNITY = "2_Opportunity"  # Analytical Opportunity
     TRADE_CARD = "3_TradeCard"  # Actionable Trade Card
 
 
-class StrategyType(str, Enum):
+class StrategyType(StrEnum):
     IV_MEAN_REVERSION = "IV_MeanReversion"
     CALENDAR_ARB = "CalendarArb"
     GAMMA_SCALP = "GammaScalp"
 
 
-class TradeCardStatus(str, Enum):
+class TradeCardStatus(StrEnum):
     ISSUED = "ISSUED"
     EXPIRED = "EXPIRED"
     EXECUTED = "EXECUTED"
     REJECTED = "REJECTED"
 
 
-class RejectionReason(str, Enum):
+class RejectionReason(StrEnum):
     DATA_STALE = "REJECTED_DATA_STALE"
     DELIVERY_RISK = "REJECTED_DELIVERY_RISK"
     LOW_LIQUIDITY = "REJECTED_LOW_LIQUIDITY"

@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from schemas.api.legal import LegalDisclaimerMixin
 
 
-class GoldSignalAction(str, Enum):
+class GoldSignalAction(StrEnum):
     BUY = "BUY"
     SELL = "SELL"
     HOLD = "HOLD"
     CLOSE = "CLOSE"
 
 
-class GoldSignalTimeframe(str, Enum):
+class GoldSignalTimeframe(StrEnum):
     SCALP = "SCALP"
     INTRADAY = "INTRADAY"
     SWING = "SWING"

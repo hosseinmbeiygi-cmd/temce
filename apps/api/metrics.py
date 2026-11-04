@@ -14,6 +14,7 @@ from collections.abc import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from core.config import settings as app_settings
 from core.logging import get_logger
 from integrations.observability.prometheus_exporter import PrometheusExporter
 
@@ -40,26 +41,28 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         exporter = get_prometheus_exporter()
-        # NOTE: inside BaseHTTPMiddleware.dispatch the matched route is not yet
-        # resolved (routing happens inside call_next), so the raw URL path is
-        # the only stable label available here. Paths are bounded by the API
-        # surface so label cardinality stays manageable.
-        route_path = request.url.path
-
-        exporter.inc("http_requests_total", labels={"method": request.method, "route": route_path})
-        # Track in-flight requests so dashboards can spot queueing under load.
+        skip = request.url.path == app_settings.metrics_path
         in_flight_key = "http_request_in_flight"
-        current = exporter.gauge(in_flight_key)
-        exporter.set_gauge(in_flight_key, current + 1.0)
+        if not skip:
+            exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) + 1.0)
         start = time.monotonic()
         try:
             response = await call_next(request)
         except Exception:
-            exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
-            exporter.inc("http_request_errors_total", labels={"method": request.method, "route": route_path})
-            await _count_news_error(route_path)
+            if not skip:
+                exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
+                route = self._route_template(request)
+                exporter.inc("http_request_errors_total", labels={"method": request.method, "route": route})
+                await _count_news_error(route)
             raise
+        if skip:
+            return response
+
         exporter.set_gauge(in_flight_key, exporter.gauge(in_flight_key) - 1.0)
+        # Routing has run inside call_next: prefer the matched template (bounded
+        # cardinality) and collapse unmatched paths into one series.
+        route_path = self._route_template(request)
+        exporter.inc("http_requests_total", labels={"method": request.method, "route": route_path})
         exporter.observe(
             "http_request_duration_seconds",
             time.monotonic() - start,
@@ -72,6 +75,12 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         await _count_news_error(route_path, response.status_code)
         return response
 
+    @staticmethod
+    def _route_template(request: Request) -> str:
+        route = request.scope.get("route")
+        path = getattr(route, "path", None)
+        return str(path) if path else "<unmatched>"
+
 
 async def _count_news_error(route_path: str, status_code: int = 500) -> None:
     """Feed the news read-path canary's HTTP error-rate tripwire.
@@ -80,7 +89,7 @@ async def _count_news_error(route_path: str, status_code: int = 500) -> None:
     exists). Best-effort: the canary counters must never break serving.
     """
     try:
-        from services.news_read_canary import record_http_outcome
+        from core.news_read_canary import record_http_outcome
 
         await record_http_outcome(route_path, status_code)
     except Exception:  # noqa: BLE001 — monitoring must never break serving

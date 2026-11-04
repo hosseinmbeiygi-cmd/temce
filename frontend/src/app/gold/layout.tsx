@@ -2,19 +2,31 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { getTelegramStatus } from "@/lib/goldApi";
-import { subscribeGoldWS } from "@/lib/goldApi";
+import { useAuth } from "@/lib/auth-context";
+import { formatAge, useGoldWS } from "@/hooks/useGoldWS";
 import { ThemeProvider, ThemeToggle } from "@/components/gold/ThemeProvider";
+import { GoldDisclaimer } from "@/components/gold/GoldDisclaimer";
 import { LiveSignalBanner } from "@/components/gold/LiveSignalBanner";
 import { PWAProvider } from "@/components/gold/PWAProvider";
 import { NativeBridge } from "@/components/gold/NativeBridge";
 
+// نوار پایین موبایل هر ۱۵ تب را در grid-cols-5 می‌ریخت = ۳ سطر ≈۱۳۰px ارتفاع،
+// که خودش با `padding-bottom: 130px` در globals.css جبران می‌شد. حالا نوار پایین
+// فقط این پنج مقصد را می‌دهد و بقیه در دراور موبایل می‌مانند.
+const PRIMARY_TABS = ["/gold", "/gold/futures", "/gold/portfolio", "/gold/alerts", "/gold/health"];
+
 const TABS = [
   { href: "/gold", label: "داشبورد", exact: true, icon: "📊" },
+  { href: "/gold/terminal", label: "میز داده", exact: false, icon: "🧮" },
+  { href: "/gold/coverage", label: "پوشش بازار", exact: false, icon: "🗺️" },
   { href: "/gold/futures", label: "آتی IME", exact: false, icon: "⚡" },
+  { href: "/gold/options", label: "مشتقه و ریسک", exact: false, icon: "📉" },
+  { href: "/gold/macro", label: "کلان", exact: false, icon: "🌍" },
   { href: "/gold/etf", label: "صندوق ETF", exact: false, icon: "🏦" },
+  { href: "/gold/funds", label: "صندوق‌های طلا", exact: false, icon: "🪙" },
   { href: "/gold/physical", label: "فیزیکی", exact: false, icon: "🪙" },
   { href: "/gold/antigravity", label: "Antigravity", exact: false, icon: "🚀" },
   { href: "/gold/chat", label: "دستیار", exact: false, icon: "💬" },
@@ -23,25 +35,32 @@ const TABS = [
   { href: "/gold/alerts", label: "هشدارها", exact: false, icon: "🔔" },
   { href: "/gold/backtest", label: "بک‌تست", exact: false, icon: "🧪" },
   { href: "/gold/tokens", label: "API", exact: false, icon: "🔑" },
+  { href: "/gold/health", label: "سلامت داده", exact: false, icon: "🩺" },
   { href: "/gold/settings", label: "تنظیمات", exact: false, icon: "⚙️" },
 ];
 
 export default function GoldLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [wsActive, setWsActive] = useState(false);
+  const { isAuthenticated, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+  // F6: نشانگر باید از خودِ سوکت و از تازگی پیام بیاید. پیش از این یک
+  // `setTimeout(…, 3000)` بی‌قیدوشرط «Live» را خاموش می‌کرد.
+  const ws = useGoldWS();
 
-  React.useEffect(() => {
-    const unsub = subscribeGoldWS(
-      () => setWsActive(true),
-      () => setWsActive(false),
-    );
-    const t = setTimeout(() => setWsActive(false), 3000);
-    return () => {
-      unsub();
-      clearTimeout(t);
-    };
-  }, []);
+  // W4-07: GoldDesk هدر مستقل دارد و خارج از TopNavbar است؛ بدون این دکمه
+  // کاربر باید اول از بخش طلا بیرون می‌رفت تا خارج شود.
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.push("/auth/login");
+      setLoggingOut(false);
+    }
+  };
 
   const { data: tg } = useQuery({
     queryKey: ["gold", "telegram", "status"],
@@ -78,7 +97,7 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           {/* Tabs — desktop only */}
-          <nav className="hidden md:flex gap-1 bg-zinc-900/60 border border-zinc-800/60 rounded-lg p-1">
+          <nav className="hidden md:flex flex-nowrap gap-1 overflow-x-auto max-w-[62vw] bg-zinc-900/60 border border-zinc-800/60 rounded-lg p-1">
             {TABS.map((t) => {
               const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
               return (
@@ -100,18 +119,41 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
           {/* Status indicators */}
           <div className="flex items-center gap-2 md:gap-3 text-xs">
             <ThemeToggle />
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" title={ws.ageSeconds === null ? "هنوز پیامی از سوکت گرفته نشده" : `آخرین پیام: ${formatAge(ws.ageSeconds)}`}>
               <span
                 className={`w-2 h-2 rounded-full ${
-                  wsActive ? "bg-emerald-400 ws-dot" : "bg-zinc-600"
+                  ws.stale
+                    ? "bg-amber-400"
+                    : ws.connected
+                      ? "bg-emerald-400 ws-dot"
+                      : "bg-zinc-600"
                 }`}
               />
-              <span className="hidden sm:inline" style={{ color: "var(--gd-text-2)" }}>{wsActive ? "Live" : "Polling"}</span>
+              <span className="hidden sm:inline" style={{ color: "var(--gd-text-2)" }}>
+                {/* F6: سه حالت، نه دو — «وصل ولی کهنه» با «قطع» یکی نیست. */}
+                {ws.stale ? "کهنه" : ws.connected ? "Live" : "Polling"}
+                {ws.ageSeconds !== null && ` · آخرین: ${formatAge(ws.ageSeconds)}`}
+              </span>
             </div>
             {tg?.data?.is_operational && (
               <span className="text-emerald-500 hidden sm:inline">📨 TG</span>
             )}
+            {isAuthenticated && (
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="px-2 py-1 rounded text-[11px] border disabled:opacity-50"
+                style={{ color: "var(--gd-text-2)", borderColor: "var(--gd-border)" }}
+                aria-label="خروج"
+              >
+                {loggingOut ? "…" : "خروج"}
+              </button>
+            )}
           </div>
+        </div>
+        {/* D: سلب مسئولیت ثابت در هدر کل میز طلا */}
+        <div className="max-w-7xl mx-auto px-4 md:px-6 pb-2">
+          <GoldDisclaimer variant="banner" />
         </div>
       </header>
 
@@ -164,15 +206,20 @@ export default function GoldLayout({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8 pb-24 md:pb-8">
+      {/* gold-main carries the mobile bottom padding in globals.css: the fixed
+          nav is 130px tall (three rows of five tabs) and a Tailwind `pb-[130px]`
+          here is defeated by that file's unlayered `* { padding: 0 }` reset. */}
+      <main className="gold-main max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8 pb-24 md:pb-8 pb-[130px]">
         <LiveSignalBanner />
         {children}
       </main>
 
-      {/* Bottom Nav — موبایل */}
+      {/* Bottom Nav — موبایل: فقط مقصدهای اصلی (بقیه در دراور) */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 md:hidden backdrop-blur-xl border-t" style={{ background: "var(--gd-bg-2)", borderColor: "var(--gd-border)" }}>
         <div className="grid grid-cols-5 px-2 py-2">
-          {TABS.map((t) => {
+          {PRIMARY_TABS.map((href) => {
+            const t = TABS.find((tab) => tab.href === href);
+            if (!t) return null;
             const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
             return (
               <Link

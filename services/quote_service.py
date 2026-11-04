@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -42,14 +41,19 @@ class QuoteService:
 
         instrument = inst_result.value
 
+        if instrument is None:
+            return Result.fail(f"Instrument {symbol} not found")
+
         if not instrument.ins_code:
             return Result.fail(f"Instrument {symbol} has no ins_code")
 
         api_result = await self.tsetmc.get_closing_price_info(instrument.ins_code)
         if not api_result.success:
-            return api_result
+            return Result.fail(api_result.error or f"TSETMC fetch failed for {symbol}")
 
         data = api_result.value
+        if data is None:
+            return Result.fail(f"Empty TSETMC response for {symbol}")
 
         try:
             quote = Quote(
@@ -126,6 +130,29 @@ class QuoteService:
             if result.success:
                 count += 1
         return Result.ok(count)
+
+    async def create(self, instrument_id: str, **fields: Any) -> Result[Quote]:
+        """Build a quote from a JSON body and persist it.
+
+        Used by ``POST /quotes/{instrument_id}``: the payload keys are quote
+        fields, so unknown keys are rejected explicitly instead of blowing up
+        inside ``Quote.__init__`` with a ``TypeError``.
+        """
+        allowed = {
+            "symbol", "price_close", "price_open", "price_high", "price_low",
+            "price_last", "price_change", "price_change_pct", "volume", "value",
+            "trade_count", "price_yesterday", "price_first", "price_max",
+            "price_min", "ask_price", "ask_volume", "bid_price", "bid_volume",
+            "market_status", "time", "date", "timeframe", "data_source", "extra",
+        }
+        unknown = sorted(set(fields) - allowed)
+        if unknown:
+            return Result.fail(f"Unknown quote field(s): {', '.join(unknown)}")
+        try:
+            quote = Quote(id=new_id("quote"), instrument_id=instrument_id, **fields)
+        except (TypeError, ValueError) as exc:
+            return Result.fail(f"Invalid quote payload: {exc}")
+        return await self.quote_repo.save(quote)
 
     async def get_market_summary(self) -> Result[dict[str, Any]]:
         return await self.quote_repo.get_market_summary()

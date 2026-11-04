@@ -59,6 +59,9 @@ class _FakeEndpoint:
     path = "/Test/Endpoint.php"
     category = type("Cat", (), {"value": "tsetmc"})()
     default_params = {}
+    # ``EndpointConfig.critical`` (brsapi/config.py) — ``fetch()`` passes it to
+    # the budget governor, so the stand-in must carry it too.
+    critical = False
 
 
 def _make_client(rate_limiter: RateLimiter | None = None) -> BrsApiClient:

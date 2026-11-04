@@ -11,11 +11,9 @@ import hashlib
 import json
 import re
 from datetime import UTC, datetime
-from logging import getLogger
 from typing import Any
 
-logger = getLogger(__name__)
-
+from brsapi.parsers.errors import BrsApiParseError, ensure_payload, is_no_data
 
 # ── Audit status patterns ────────────────────────────
 # Detect audit status from Persian announcement titles.
@@ -68,6 +66,9 @@ class CodalParser:
                 "count_page": int,
                 "announcements": [ {...}, ... ],
             }
+
+        Raises ``BrsApiParseError`` when the payload cannot be read; a no-data
+        answer (``{}`` / ``{"status": "no_data"}``) returns an empty page.
         """
         result: dict[str, Any] = {
             "count_announcement": 0,
@@ -75,20 +76,53 @@ class CodalParser:
             "announcements": [],
         }
 
-        if isinstance(data, dict):
-            result["count_announcement"] = int(data.get("count_announcement", 0))
-            result["count_page"] = int(data.get("count_page", 0))
+        ensure_payload(data, "Codal")
+        if is_no_data(data):
+            return result
 
-            raw_announcements = data.get("announcement") or data.get("announcements") or data.get("data") or data.get("items", [])
-            if isinstance(raw_announcements, list):
-                result["announcements"] = [cls._parse_item(a) for a in raw_announcements if isinstance(a, dict)]
+        if isinstance(data, dict):
+            try:
+                result["count_announcement"] = int(data.get("count_announcement") or 0)
+                result["count_page"] = int(data.get("count_page") or 0)
+            except (TypeError, ValueError) as exc:
+                raise BrsApiParseError(
+                    f"Codal: page counters are not integers ({exc})",
+                    code="unexpected_shape",
+                ) from exc
+
+            key = next(
+                (
+                    k
+                    for k in ("announcement", "announcements", "data", "items")
+                    if k in data
+                ),
+                None,
+            )
+            if key is None:
+                raise BrsApiParseError(
+                    f"Codal: unrecognised envelope keys {sorted(data)[:5]}",
+                    code="unrecognised_envelope",
+                )
+            raw_announcements = data[key]
+            if not isinstance(raw_announcements, list):
+                raise BrsApiParseError(
+                    f"Codal: '{key}' must be a list, got "
+                    f"{type(raw_announcements).__name__}",
+                    code="unexpected_shape",
+                )
+            result["announcements"] = [
+                cls._parse_item(a) for a in raw_announcements if isinstance(a, dict)
+            ]
 
         elif isinstance(data, list):
             result["count_announcement"] = len(data)
             result["announcements"] = [cls._parse_item(a) for a in data if isinstance(a, dict)]
 
         else:
-            logger.warning("Codal: unexpected data type %s", type(data).__name__)
+            raise BrsApiParseError(
+                f"Codal: expected a list or object, got {type(data).__name__}",
+                code="unexpected_shape",
+            )
 
         return result
 

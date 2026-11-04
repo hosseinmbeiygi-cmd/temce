@@ -52,7 +52,6 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def synth_universe(n: int) -> list[dict]:
-    rng = random.Random(1404)
     types = ["سهامی", "کالایی", "درآمد ثابت", "اهرمی", "بخشی", "مختلط"]
     out = []
     for i in range(n):

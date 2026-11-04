@@ -335,7 +335,8 @@ class IntentClassifier:
             pred = self._model.predict(X)[0]
             proba = self._model.predict_proba(X).max()
             return pred, float(proba)
-        except Exception:
+        except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+            logger.debug("ML intent prediction unavailable; falling back to rules: %s", exc)
             return None, 0.0
 
     def _predict_regex(self, text: str) -> tuple[str | None, float]:

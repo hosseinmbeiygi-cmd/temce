@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 # ── 1. صندوق‌های ETF طلا ───────────────────────────────────────────
-ETF_ASSETS: dict[str, dict] = {
+ETF_ASSETS: dict[str, dict[str, Any]] = {
     "زرافشان": {
         "symbol": "ZARFSHANG",
         "isin": "IRO1ZARA0001",
@@ -43,7 +45,7 @@ ETF_BY_SYMBOL: dict[str, str] = {v["symbol"]: k for k, v in ETF_ASSETS.items()}
 ETF_BY_ISIN: dict[str, str] = {v["isin"]: k for k, v in ETF_ASSETS.items()}
 
 # ── 2. قراردادهای آتی ─────────────────────────────────────────────
-FUTURES_CONTRACTS: dict[str, dict] = {
+FUTURES_CONTRACTS: dict[str, dict[str, Any]] = {
     "سکه_آتی_IME": {
         "exchange": "IME",
         "contract_size": 10,
@@ -58,16 +60,18 @@ FUTURES_CONTRACTS: dict[str, dict] = {
 }
 
 # ── 3. بازار فیزیکی ──────────────────────────────────────────────
-PHYSICAL_MARKET: dict[str, dict] = {
+PHYSICAL_MARKET: dict[str, dict[str, Any]] = {
     "سکه_بهار_آزادی": {
         "weight": "8.133g",
         "weight_grams": 8.133,
         "purity": "900/1000",
-        "purity_ratio": 0.915,  # 900/1000 + اجرت ضرب per spec
+        # عیار اعلامی؛ کارمزد ضرب جداگانه در pricer/COIN_MINTING_COSTS مدل می‌شود
+        # (قبلاً ۰.۹۱۵ بود و با GoldDesk اختلاف حباب می‌ساخت — GS-12).
+        "purity_ratio": 0.900,
         "reference_source": "BrsApi.ir",
     },
-    "نیم_سکه": {"weight": "4.066g", "weight_grams": 4.066, "purity": "900/1000", "purity_ratio": 0.915},
-    "ربع_سکه": {"weight": "2.033g", "weight_grams": 2.033, "purity": "900/1000", "purity_ratio": 0.915},
+    "نیم_سکه": {"weight": "4.066g", "weight_grams": 4.066, "purity": "900/1000", "purity_ratio": 0.900},
+    "ربع_سکه": {"weight": "2.033g", "weight_grams": 2.033, "purity": "900/1000", "purity_ratio": 0.900},
     "گرم_طلای_18_عیار": {"weight": "1.0g", "weight_grams": 1.0, "purity": "750/1000", "purity_ratio": 0.750},
     "مثقال": {"weight": "4.608g", "weight_grams": 4.608, "purity": "1000/1000", "purity_ratio": 1.0},
 }
@@ -113,7 +117,7 @@ TGJU_DATA: dict[str, object] = {
 }
 
 # ── 6. Data Layer Strategy ───────────────────────────────────────
-DATA_LAYER: dict[str, dict] = {
+DATA_LAYER: dict[str, dict[str, Any]] = {
     "realtime_price": {"db": "Redis", "resolution": "1s/5s/1m", "ttl": "5-60s", "source": "BrsApi.ir, TSETMC"},
     "ohlcv": {
         "db": "TimescaleDB",

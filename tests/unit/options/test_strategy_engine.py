@@ -7,12 +7,7 @@ import math
 import pytest
 
 from domain.options.payoff import OptionLeg
-from domain.options.symbol_parser import (
-    OptionSymbolError,
-    is_option_symbol,
-    parse_option_symbol,
-    parse_or_none,
-)
+from domain.options.signals import PositionSizer, RuleEngine, SignalGenerator
 from domain.options.strategy_engine import (
     AdjustmentEngine,
     ChainQuote,
@@ -24,8 +19,12 @@ from domain.options.strategy_engine import (
     StrategyValidator,
     TemplateLeg,
 )
-from domain.options.signals import PositionSizer, RuleEngine, SignalGenerator
-
+from domain.options.symbol_parser import (
+    OptionSymbolError,
+    is_option_symbol,
+    parse_option_symbol,
+    parse_or_none,
+)
 
 # ── Symbol parser (§5.2) ─────────────────────────────────────────────────
 
@@ -214,7 +213,7 @@ class TestGreeksAggregator:
 class TestValidator:
     def test_empty_legs_rejected(self):
         errors = StrategyValidator().validate([])
-        assert not errors[0].find("بدون پایه") == -1
+        assert errors[0].find("بدون پایه") != -1
 
     def test_low_oi_flagged(self):
         chain = InMemoryChainLookup(
@@ -359,7 +358,7 @@ class TestPositionSizer:
             win_rate=0.6,
             win_loss_ratio=1.5,
         )
-        kelly = 0.6 - 0.4 / 1.5  # ≈ 0.3333 → capped at 25 %
+        _kelly = 0.6 - 0.4 / 1.5  # ≈ 0.3333 → capped at 25 %
         assert out["kelly_fraction"] == 0.25
         assert out["contracts"] == 25  # 2.5M / 100k
 

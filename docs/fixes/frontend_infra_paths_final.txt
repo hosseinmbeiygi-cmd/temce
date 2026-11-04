@@ -1,0 +1,32 @@
+# GoldDesk - Frontend-infra Group Paths (Final)
+
+# Docker and deployment
+Dockerfile.golddesk
+
+# CI/CD configuration
+.github/workflows/ci.yml
+
+# Frontend TypeScript compilation
+frontend/src/__tests__/GoldApiLayer.test.ts
+frontend/src/__tests__/GoldFrontendSurfaces.test.tsx
+frontend/src/__tests__/GoldNoData.test.tsx
+frontend/src/__tests__/GoldServiceWorker.test.ts
+frontend/src/__tests__/GoldSnapshotPolling.test.tsx
+frontend/src/__tests__/GoldSwBoundary.test.ts
+frontend/src/__tests__/GoldThemeTokens.test.tsx
+frontend/src/__tests__/GoldWebSocket.test.tsx
+
+# Frontend components
+frontend/src/components/gold/ConfirmDialog.tsx
+frontend/src/hooks/useGoldWS.ts
+frontend/src/lib/gold-decision.ts
+
+# Frontend CHANGELOG reference
+docs/fixes/frontend_infra_CHANGELOG.md
+
+# Handoff documentation
+docs/fixes/handoff_frontend_to_backend.md
+docs/fixes/handoff_frontend_to_ops_env.md
+
+# Audit findings
+docs/fixes/frontend_findings_verified.md

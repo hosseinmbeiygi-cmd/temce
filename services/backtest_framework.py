@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Any
+from typing import Any, cast
 
 from core.logging import get_logger
 
@@ -134,7 +134,7 @@ class WalkForwardEngine:
         is_results = []
         oos_results = []
 
-        for train, test in pairs:
+        for window_index, (train, test) in enumerate(pairs):
 
             try:
                 is_metrics = strategy_fn(train, **kwargs)
@@ -146,8 +146,13 @@ class WalkForwardEngine:
 
                     oos_results.append(oos_metrics)
 
-            except Exception:
-
+            except (ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+                logger.warning(
+                    "walk-forward window %d failed and was skipped: %s",
+                    window_index,
+                    exc,
+                    exc_info=True,
+                )
                 continue
 
         if not is_results or not oos_results:
@@ -324,10 +329,9 @@ class StressTestEngine:
         results = []
         for scenario in self.TSE_SCENARIOS:
             name = scenario["name"]
-            dd_shock = scenario.get("drawdown_shock", 0)
-            scenario.get("volume_reduction", 0)
-            comm_mult = scenario.get("commission_multiplier", 1)
-            liq_red = scenario.get("liquidity_reduction", 0)
+            dd_shock = float(cast(Any, scenario.get("drawdown_shock", 0)) or 0)
+            comm_mult = float(cast(Any, scenario.get("commission_multiplier", 1)) or 1)
+            liq_red = float(cast(Any, scenario.get("liquidity_reduction", 0)) or 0)
 
             stressed_eq = [equity_curve[0]]
             for r in returns:
@@ -336,7 +340,7 @@ class StressTestEngine:
 
             total_ret = (stressed_eq[-1] / stressed_eq[0] - 1) * 100
             peak = stressed_eq[0]
-            max_dd = 0
+            max_dd = 0.0
             for v in stressed_eq:
                 if v > peak:
                     peak = v

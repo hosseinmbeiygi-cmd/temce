@@ -23,29 +23,13 @@ interface AlphaStrategy {
 export default function AlphaPage() {
   const [filter, setFilter] = useState<"all" | "active" | "paper" | "disabled">("all");
 
-  const FALLBACK_ALPHAS: AlphaStrategy[] = [
-    { id: "mom-v3", name: "Momentum", version: "v3", sharpe: 2.14, returns: 34.5, volatility: 12.8, maxDrawdown: -8.2, winRate: 62, trades: 342, status: "active", description: "استراتژی مومنتوم بر اساس شتاب قیمتی ۳۰ روزه" },
-    { id: "mr-v2", name: "Mean Reversion", version: "v2", sharpe: 1.87, returns: 28.2, volatility: 15.1, maxDrawdown: -11.5, winRate: 58, trades: 891, status: "active", description: "بازگشت به میانگین بر اساس انحراف از میانگین متحرک" },
-    { id: "qi-v1", name: "Queue Imbalance", version: "v1", sharpe: 0.92, returns: 12.4, volatility: 18.6, maxDrawdown: -22.1, winRate: 51, trades: 56, status: "paper", description: "تحلیل عدم تعادل صف‌های خرید و فروش" },
-    { id: "ml-v5", name: "ML Alpha", version: "v5", sharpe: 2.43, returns: 41.8, volatility: 14.2, maxDrawdown: -9.8, winRate: 65, trades: 1204, status: "active", description: "مدل یادگیری ماشین ترکیبی با ویژگی‌های تکنیکال و بنیادی" },
-  ];
-
-  const { data: alphas, isLoading } = useQuery({
+  // Real strategies only: fabricated performance numbers used to be returned
+  // from this query's catch/empty branches and rendered as if live.
+  const { data: alphas, isLoading, isError } = useQuery({
     queryKey: ["alpha-strategies"],
     queryFn: async () => {
-      try {
-        const data = await apiGet<{ success: boolean; data: { items: AlphaStrategy[] } }>('/alpha');
-        const items = extractItems<AlphaStrategy>(data);
-        // Fall back to sample data if API returns empty
-        if (items.length === 0) {
-          console.warn("Alpha API returned empty, using fallback data");
-          return FALLBACK_ALPHAS;
-        }
-        return items;
-      } catch (err) {
-        console.error("Alpha API failed, using fallback data:", err);
-        return FALLBACK_ALPHAS;
-      }
+      const data = await apiGet<{ success: boolean; data: { items: AlphaStrategy[] } }>('/alpha');
+      return extractItems<AlphaStrategy>(data);
     },
   });
 
@@ -63,7 +47,13 @@ export default function AlphaPage() {
       <div className="grid gap-4">
         {isLoading ? (
           [1,2,3].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)
-        ) : filtered?.map((a) => (
+        ) : isError ? (
+          <div role="alert" aria-live="polite" className="glass-card p-8 text-center">
+            <span className="material-icons text-4xl text-accent-rose mb-2">wifi_off</span>
+            <p className="text-sm text-surface-400">دریافت استراتژی‌های آلفا از سرور ناموفق بود — داده‌ای برای نمایش وجود ندارد.</p>
+          </div>
+        ) : filtered && filtered.length > 0 ? (
+          filtered.map((a) => (
           <div key={a.id} className="glass-card p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -100,7 +90,10 @@ export default function AlphaPage() {
               </div>
             </div>
           </div>
-        )) || <div className="text-center py-12 text-surface-500">هیچ استراتژی یافت نشد</div>}
+          ))
+        ) : (
+          <div className="text-center py-12 text-surface-500">هیچ استراتژی یافت نشد</div>
+        )}
       </div>
     </AppLayout>
   );

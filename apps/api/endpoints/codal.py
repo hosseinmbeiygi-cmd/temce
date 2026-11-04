@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session
+from apps.api.dependencies import get_brsapi_query_service, get_codal_service, get_db_session, require_roles
 from apps.api.error_handlers import safe_error_message
+from core.currency import rial_to_toman_float
 from core.db_utils import safe_row_str
 from core.exceptions import NotFoundError
 from core.logging import get_logger
@@ -149,6 +150,7 @@ async def brsapi_search_announcements(
     where = " AND ".join(conditions) if conditions else "1=1"
     limit = 20
     offset = (page - 1) * limit
+    page_params: dict[str, Any] = {**params, "limit": limit, "offset": offset}
 
     try:
         # Count
@@ -167,9 +169,9 @@ async def brsapi_search_announcements(
                    publish_date, summary, attachment_url
             FROM codal_reports WHERE {where}
             ORDER BY publish_date DESC
-            LIMIT {limit} OFFSET {offset}
+            LIMIT :limit OFFSET :offset
         """),
-            params,
+            page_params,
         )
 
         announcements = []
@@ -362,7 +364,11 @@ async def financial_reports(
         return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": quarters})
     except Exception:
         logger.exception("Failed to load real financials for %s", code)
-        return ApiResponse[dict[str, Any]](success=True, data={"symbol": code, "quarters": []})
+        return ApiResponse[dict[str, Any]](
+            success=False,
+            error={"message": f"Failed to load financials for {code}"},
+            data={"symbol": code, "quarters": []},
+        )
 
 
 @router.get("/{code}/dividends")
@@ -456,6 +462,7 @@ async def codal_analysis(
     snap = await brsapi.get_enriched_symbol_detail(code)
     if not snap:
         snap = await brsapi.get_symbol_snapshot(code)
+    snap = snap or {}
 
     holders = await brsapi.get_shareholders(code) or []
     announcements = await brsapi.get_recent_announcements(symbol=code, limit=8) or []
@@ -546,6 +553,11 @@ async def codal_analysis(
                 "highest_allowed": snap.get("price_highest_allowed") or 0,
                 "change": change,
                 "change_pct": round(change_pct, 2),
+                # User-facing unit. The sibling keys above stay rial.
+                "last_toman": rial_to_toman_float(price_last),
+                "yesterday_toman": rial_to_toman_float(price_yesterday),
+                "close_toman": rial_to_toman_float(price_close),
+                "currency": "TMN",
             },
             "fundamental": {
                 "eps": eps,
@@ -616,6 +628,7 @@ async def codal_analysis(
     summary="Bulk import Codal disclosures",
     description="Upload one or more Excel (.xlsx) or CSV files containing Codal disclosures. "
     "Files are processed concurrently. Existing records with the same symbol+report_type+fiscal_year+period are updated.",
+    dependencies=[Depends(require_roles("admin"))],
 )
 async def bulk_import_codal(
     files: list[UploadFile] = File(..., description="Excel (.xlsx) or CSV files with Codal data"),
@@ -637,7 +650,9 @@ async def bulk_import_codal(
     all_errors: list[str] = []
 
     async def process_one(file: UploadFile) -> None:
-        symbol = (file.filename or "").rsplit(".", 1)[0] if file.filename else ""
+        # Never trust the client-supplied path: keep only the final component.
+        raw_name = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+        symbol = raw_name.rsplit(".", 1)[0] if raw_name else ""
         if not symbol:
             all_errors.append(f"{file.filename}: could not determine symbol from filename")
             return
@@ -665,7 +680,7 @@ async def bulk_import_codal(
             all_errors.append(f"{file.filename}: {result.error}")
             return
 
-        r = result.value
+        r = result.unwrap()
         per_file[file.filename or symbol] = {
             "symbol": symbol,
             "rows": r.get("total_rows", 0),

@@ -34,6 +34,7 @@ async def async_retry(
                 delay = backoff.get_delay(attempt)
                 logger.warning("Retry %d/%d failed for %s: %s. Waiting %.2fs", attempt, max_retries, context, e, delay)
                 await asyncio.sleep(delay)
+    assert last_exc is not None
     raise last_exc
 
 
@@ -60,4 +61,5 @@ def sync_retry(
                     "Sync retry %d/%d failed for %s: %s. Waiting %.2fs", attempt, max_retries, context, e, delay
                 )
                 time.sleep(delay)
+    assert last_exc is not None
     raise last_exc

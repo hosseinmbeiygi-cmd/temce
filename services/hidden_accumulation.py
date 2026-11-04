@@ -55,7 +55,7 @@ class HiddenAccumulationDetector:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Fetch current snapshots (latest row per symbol: the table stores one
         # row per symbol per 2-min sync cycle, so DISTINCT ON (symbol) picks
@@ -102,7 +102,7 @@ class HiddenAccumulationDetector:
         if self._session is None:
             return None
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Latest snapshot for the symbol (newest cycle wins — see scan_all).
         result = await self._session.execute(text("""
@@ -128,7 +128,7 @@ class HiddenAccumulationDetector:
         if self._session is None:
             return {}
 
-        from sqlalchemy import text
+        from core.database import text
 
         # NOTE: brsapi_historical_daily.date is a String(20) column storing
         # Jalali dates (e.g. "1405-05-01") — compare against a Jalali date
@@ -150,7 +150,7 @@ class HiddenAccumulationDetector:
         if self._session is None:
             return 0
 
-        from sqlalchemy import text
+        from core.database import text
 
         cutoff_30d = (jdatetime.date.today() - timedelta(days=30)).strftime("%Y-%m-%d")
         result = await self._session.execute(text("""

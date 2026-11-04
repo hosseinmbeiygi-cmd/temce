@@ -11,7 +11,7 @@ import {
   bubbleColor,
   type FundGroup,
 } from "@/lib/fund-categories";
-import { scoringEngine, type Fund } from "@/lib/fund-analysis";
+import type { Fund } from "@/lib/fund-analysis";
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ export default function FundCard({
   const group = useMemo(() => detectFundGroup(fund.name, fund.fund_type), [fund.name, fund.fund_type]);
   const subgroup = useMemo(() => detectFundSubgroup(fund.name, group), [fund.name, group]);
   const groupDef = useMemo(() => getGroupDef(group), [group]);
-  const scores = useMemo(() => scoringEngine(fund), [fund]);
+  const totalScore = fund.total_score ?? null;
   const isUp = fund.nav_change_pct >= 0;
 
   const bubble = calcBubble(fund.price_last, fund.nav);
@@ -142,7 +142,7 @@ export default function FundCard({
         {/* Header: Score + Group + Compare */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <ScoreGauge score={scores.total} size={40} />
+            <ScoreGauge score={totalScore ?? 0} size={40} />
             <div>
               <Link
                 href={`/funds/${encodeURIComponent(fund.symbol)}`}
@@ -220,7 +220,7 @@ export default function FundCard({
         {/* Bubble + Score footer */}
         <div className="flex items-center justify-between pt-2 border-t border-line">
           <BubbleBadge price={fund.price_last} nav={fund.nav} />
-          <span className="text-[8px] text-ink-3">{scoreLabel(scores.total)}</span>
+          <span className="text-[8px] text-ink-3">{totalScore !== null ? scoreLabel(totalScore) : "NO_DATA"}</span>
         </div>
 
         {/* Disclaimer */}
@@ -261,7 +261,7 @@ export default function FundCard({
       >
         {/* Score gauge */}
         <div className="shrink-0">
-          <ScoreGauge score={scores.total} size={38} />
+          <ScoreGauge score={totalScore ?? 0} size={38} />
         </div>
 
         {/* NAV mini-chart */}

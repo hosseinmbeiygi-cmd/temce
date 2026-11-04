@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import { SectionHeader, TrendArrow } from "./primitives";
 
 export default function TopStocksToday() {
-  const { data: TOP_STOCKS_TODAY, isLive, isError, isLoading } = useTopStocks();
+  const { data: TOP_STOCKS_TODAY, isLive, hasData, isFresh, isStale, isError, isLoading } = useTopStocks();
   return (
     <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
@@ -23,7 +23,7 @@ export default function TopStocksToday() {
           </Link>
         }
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="mt-3 divide-y divide-line">
         {TOP_STOCKS_TODAY.map((s, i) => (
           <Link

@@ -87,7 +87,7 @@ export default function SymbolQueueModal({ symbol, onClose }: SymbolQueueModalPr
   useEffect(() => {
     let cancelled = false;
     // Set loading state synchronously on mount/symbol change; intentional UX pattern.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setLoading(true);
     setError(null);
 

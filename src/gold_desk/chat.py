@@ -12,11 +12,16 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def build_system_prompt(snapshot: dict | None, portfolio: dict | None, patterns: dict | None) -> str:
+def build_system_prompt(
+    snapshot: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+    patterns: dict[str, Any] | None,
+) -> str:
     """ساخت system prompt با context کامل بازار + portfolio کاربر."""
     parts: list[str] = [
         "تو یک دستیار تحلیلگر بازار طلای ایران هستی به نام GoldDesk.",
@@ -75,7 +80,10 @@ def build_system_prompt(snapshot: dict | None, portfolio: dict | None, patterns:
 
 
 async def ask_gold_assistant(
-    question: str, snapshot: dict | None, portfolio: dict | None, patterns: dict | None
+    question: str,
+    snapshot: dict[str, Any] | None,
+    portfolio: dict[str, Any] | None,
+    patterns: dict[str, Any] | None,
 ) -> str:
     """ارسال سؤال به ChatEngine با system prompt غنی."""
     try:
@@ -87,7 +95,7 @@ async def ask_gold_assistant(
         # ترکیب system + user
         prompt = f"{system_prompt}\n\nسؤال کاربر: {question}\n\nپاسخ کوتاه و دقیق:"
 
-        result = await engine.process(prompt, user_id="golddesk")
+        result = await engine.process(user_id="golddesk", message=prompt)
         if isinstance(result, dict):
             return result.get("text") or result.get("response") or "خطا در پاسخ."
         return str(result) if result else "پاسخی دریافت نشد."
@@ -96,7 +104,9 @@ async def ask_gold_assistant(
         return _fallback_response(question, snapshot, portfolio)
 
 
-def _fallback_response(question: str, snapshot: dict | None, portfolio: dict | None) -> str:
+def _fallback_response(
+    question: str, snapshot: dict[str, Any] | None, portfolio: dict[str, Any] | None
+) -> str:
     """پاسخ ساده بدون LLM (fallback)."""
     q = question.lower()
     if "حباب" in q or "bubble" in q:

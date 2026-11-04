@@ -346,6 +346,9 @@ REDIS_URL=redis://localhost:6379/0
 SECRET_KEY=your-secret-key-here
 CORS_ORIGINS=["http://localhost:3000"]
 
+# GoldDesk — بدون این salt، import اپلیکیشن خطا می‌دهد (هیچ پیش‌فرضی ندارد)
+GOLD_API_TOKEN_SALT=generate-a-long-random-secret
+
 # داده برس‌آپی (برای دریافت داده واقعی)
 BRSAPI_API_KEY=your-brsapi-key
 BRSAPI_ENABLED=true
@@ -363,6 +366,10 @@ alembic upgrade head
 # یا
 make migrate
 ```
+
+> روی دیتابیس خالی، ریویژن `0004b_core_baseline` جدول‌های هسته، `brsapi_*` و
+> `dual_date_columns` را می‌سازد؛ نیازی به اسکریپت دستی نیست. DSN از `DATABASE_URL`
+> خوانده می‌شود و پس از اجرا `alembic current` باید `0119` را نشان دهد.
 
 ### ۴. اجرای سرور
 
@@ -762,8 +769,12 @@ curl -X POST http://localhost:8000/api/v1/jobs/queue/replay
 ## 🧪 تست‌ها
 
 ```bash
-# تست‌های واحد
+# تست‌های unit
 pytest tests/unit -v
+
+# تست‌های نیازمند PostgreSQL (روی استک audit)
+DATABASE_URL=postgresql+asyncpg://<user>:<password>@localhost:15432/tse_quant \
+  pytest tests/unit/api -v
 
 # تست‌های integration
 pytest tests/integration -v

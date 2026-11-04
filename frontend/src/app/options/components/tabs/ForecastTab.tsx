@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Brain, Loader2 } from "lucide-react";
 import { runOptionsPredict, type PredictResponse } from "@/lib/options-api";
+import { useStaleGuard } from "@/lib/use-stale-guard";
 import { fmt } from "../helpers";
 import { ChartSkeleton } from "./Skeleton";
 
@@ -49,8 +50,10 @@ export default function ForecastTab() {
   const [data, setData] = useState<PredictResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const beginRequest = useStaleGuard();
 
   const load = async () => {
+    const isCurrent = beginRequest();
     setLoading(true);
     setError("");
     try {
@@ -59,16 +62,18 @@ export default function ForecastTab() {
         sigma: Number(sigma) || 0.35,
         days_to_expiry: Math.max(1, Math.min(365, Number(dte) || 30)),
       });
+      if (!isCurrent()) return;
       if (r.success && r.data) setData(r.data);
       else {
         setData(null);
         setError(r.error?.message ?? "پیش‌بینی ناموفق بود");
       }
     } catch {
+      if (!isCurrent()) return;
       setData(null);
       setError("اتصال به سرور برقرار نشد");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 

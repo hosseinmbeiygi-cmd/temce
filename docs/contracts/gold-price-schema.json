@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://temce.ir/schemas/gold-price.v1.json",
+  "title": "GoldPrice — نرخ طلا acordo پاسخ API",
+  "description": "Schema for single gold price entry with required fields: value, unit, asOf, source, quality",
+  "type": "object",
+  "required": ["value", "unit", "asOf", "source", "quality"],
+  "properties": {
+    "value": {
+      "type": "number",
+      "description": "ارزش قیمت طلای inherent یا بازاری (به تومان)"
+    },
+    "unit": {
+      "type": "string",
+      "enum": ["toman", "rial", "ounce"],
+      "description": "واحد اندازه گیری: toman (کار monnaie ایران), rial (ریال سنتی), ounce (اونس جهانی)"
+    },
+    "asOf": {
+      "type": "string",
+      "format": "date-time",
+      "description": "زمان دریافت داده (ISO 8601) — مقدار non‑ISO ⇒ null"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["brsapi", "tgju", "cache"],
+      "description": "منبع داده: brsapi (بازار رسمی), tgju (بورس گرما), cache ( حافظه/cache "
+    },
+    "quality": {
+      "type": "string",
+      "enum": ["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"],
+      "description": "کیفیت داده: LIVE = دادهٔ لحظه‌ای, DELAYED = stale, SAMPLE = نمونه‌ای, EDUCATIONAL = آموزشی"
+    },
+    "symbol": {
+      "type": "string",
+      "description": "نماد طلا (مثلاً: IR_GOLD_18K, IR_COIN_EMAMI)"
+    },
+    "bubble_pct": {
+      "type": "number",
+      "description": "ضریب حباب به درصد (در صورت موجود بودن)",
+      "minimum": -50,
+      "maximum": 100
+    },
+    "implied_usd": {
+      "type": "number",
+      "description": "دلاری ضمنی Nahفته در قیمت بازار (به ریال/تومان)",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

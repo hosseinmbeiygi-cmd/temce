@@ -49,7 +49,7 @@ AUM_BAND_SMALL = "S"  # < ۵۰۰ میلیارد تومان
 AUM_BAND_MEDIUM = "M"  # ۵۰۰ میلیارد تا ۵ هزار میلیارد
 AUM_BAND_LARGE = "L"  # > ۵ هزار میلیارد تومان
 
-AUM_BAND_THRESHOLDS_BTOMAN: dict[str, tuple[float | None, float]] = {
+AUM_BAND_THRESHOLDS_BTOMAN: dict[str, tuple[float | None, float | None]] = {
     AUM_BAND_SMALL: (None, 500),
     AUM_BAND_MEDIUM: (500, 5000),
     AUM_BAND_LARGE: (5000, None),

@@ -16,12 +16,11 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass, field
+from typing import Any, cast
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.database import AsyncSession, CursorResult, Table, pg_insert, select
 from core.logging import get_logger
 from models.stock_enterprise import StockMonthlySalesModel
 
@@ -184,14 +183,14 @@ class MonthlySalesIngestionService:
                 .limit(limit)
             )
         ).fetchall()
-        return rows
+        return list(rows)
 
     def _model(self):
         from brsapi.models.codal import CodalAnnouncementModel
         return CodalAnnouncementModel
 
     def _title_filter(self):
-        from sqlalchemy import or_
+        from core.database import or_
         m = self._model()
         return or_(
             m.title.op("~")(r"گزارش\s*(فعالیت\s*)?ماهانه"),
@@ -199,7 +198,7 @@ class MonthlySalesIngestionService:
         )
 
     def _excel_link_filter(self):
-        from sqlalchemy import and_
+        from core.database import and_
         m = self._model()
         return and_(
             m.link_excel.isnot(None),
@@ -328,7 +327,7 @@ class MonthlySalesIngestionService:
 
         if mom_pct is not None or yoy_pct is not None:
             await self.session.execute(
-                StockMonthlySalesModel.__table__.update()
+                cast(Table, StockMonthlySalesModel.__table__).update()
                 .where(StockMonthlySalesModel.symbol == symbol)
                 .where(StockMonthlySalesModel.product_name == pr.product_name)
                 .where(StockMonthlySalesModel.jalali_year == y)
@@ -338,7 +337,7 @@ class MonthlySalesIngestionService:
 
     async def _mark_all_time_highs(self) -> int:
         """رکوردهای تاریخی: مبلغ فروش بالاتر از همه ماه‌های قبلی همان محصول."""
-        from sqlalchemy import text as sa_text
+        from core.database import text as sa_text
         res = await self.session.execute(
             sa_text(
                 """
@@ -360,7 +359,7 @@ class MonthlySalesIngestionService:
                 """
             )
         )
-        return res.rowcount or 0
+        return cast(CursorResult[Any], res).rowcount or 0
 
 
 __all__ = ["MonthlySalesIngestionService", "MonthlySalesSummary"]

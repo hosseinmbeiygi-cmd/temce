@@ -1,0 +1,24 @@
+rule_key,scope,value,unit,effective_from,effective_to,source_ref,confidence,verified_by,notes
+short_allowed,global,,bool,,,,D,,design default false; change only with an official announcement (SPEC_IRAN_MARKET section 1)
+price_limit,<market/segment/symbol>,,fraction,,,,D,,daily price limit; ALL historical changes; placeholder values forbidden
+base_volume_rule,<market/segment/symbol>,,formula,,,,D,,base volume and minimum base value and exceptions
+tick_size,<market/segment>,,rial,,,,D,,
+lot_size,<market/segment>,,shares,,,,D,,
+session_phases,<market/segment>,,phase_table,,,,D,,pre-open/auction/continuous/post-close; hours and DST history
+order_types,<market/segment/phase>,,enum_list,,,,D,,
+order_size_limit,<market/segment/symbol>,,shares_or_value,,,,D,,
+position_limit,<market/segment/symbol>,,shares_or_pct,,,,D,,
+commission_rate,<broker/market>,,fraction,,,,D,,broker commission buy/sell (separately)
+exchange_fee,<market>,,fraction,,,,D,,
+depository_fee,<market>,,fraction,,,,D,,depository/settlement fee
+sell_tax,<instrument_class>,,fraction,,,,D,,sell tax; per instrument class
+min_commission,<broker>,,rial,,,,D,,
+settlement_days,<instrument_class>,,business_days,,,,D,,T+n; unusual-closure exception separately
+buy_cash_timing,<market>,,enum,,,,D,,
+credit_allowed,<broker>,,bool,,,,D,,
+valuation_price,<instrument_class>,,enum,,,,D,,close/last/NAV
+auction_matching,<market/segment>,,enum,,,,D,,until confirmed the auction is observe-only
+market_status,<market/segment/date>,,enum,,,,D,,open/closed_holiday/closed_unscheduled/halted_symbol; unusual closures
+trading_week,<market>,,weekday_set,,,,D,,working days of the week from the official calendar
+option_settlement_style,<contract>,,enum,,,,D,,cash/physical/combined; only when the derivatives module is enabled
+option_margin_formula,<contract>,,formula,,,,D,,margin formula; only from the official instruction

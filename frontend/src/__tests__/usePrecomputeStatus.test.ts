@@ -4,6 +4,13 @@ import { usePrecomputeStatus, buildPrecomputeWsUrl } from "@/hooks/usePrecompute
 import { getPrecomputeStore } from "@/stores/precomputeStore";
 import { getSoundManager } from "@/lib/sound/SoundEffectManager";
 
+// FE-06: the hook now trades the session for a single-use ws ticket before it
+// opens the socket, so the ticket endpoint must never hit the network in tests.
+vi.mock("@/lib/wsTicket", () => ({
+  fetchWsTicket: vi.fn(async () => "test-ws-ticket"),
+  WS_TICKET_TTL_SECONDS: 60,
+}));
+
 // ── Fake WebSocket (jsdom has no real WebSocket) ───────────────
 class MockWebSocket {
   static instances: MockWebSocket[] = [];
@@ -36,6 +43,15 @@ class MockWebSocket {
 }
 
 // ── fetch helpers ──────────────────────────────────────────────
+// connect() now awaits the ws ticket before constructing the socket, so the
+// instance appears one microtask after mount.
+async function waitForSocket(index = 0): Promise<MockWebSocket> {
+  await waitFor(() => {
+    expect(MockWebSocket.instances.length).toBeGreaterThan(index);
+  });
+  return MockWebSocket.instances[index];
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
@@ -157,7 +173,7 @@ describe("usePrecomputeStatus", () => {
   it("opens a websocket and starts fallback polling on mount", async () => {
     renderHook(() => usePrecomputeStatus());
 
-    expect(MockWebSocket.instances).toHaveLength(1);
+    await waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
     expect(MockWebSocket.instances[0].url).toContain("/ws/precompute");
     await waitFor(() => expect(store.getSnapshot().status).not.toBeNull());
     expect(store.getSnapshot().isPolling).toBe(true);
@@ -171,7 +187,7 @@ describe("usePrecomputeStatus", () => {
 
   it("reports wsConnected after the socket opens", async () => {
     const { result } = renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
 
     act(() => ws.emitOpen());
 
@@ -182,7 +198,7 @@ describe("usePrecomputeStatus", () => {
 
   it("falls back to aggressive polling and clears wsConnected on close", async () => {
     const { result } = renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
 
     act(() => ws.emitOpen());
     await waitFor(() => expect(result.current.wsConnected).toBe(true));
@@ -196,7 +212,7 @@ describe("usePrecomputeStatus", () => {
   // ── event dispatcher (regression for the type-precedence bug) ─
   it("applies PRECOMPUTATION_COMPLETED instead of coercing it to PROGRESS", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() =>
@@ -217,7 +233,7 @@ describe("usePrecomputeStatus", () => {
   it("triggers the sound manager on PRECOMPUTATION_COMPLETED", async () => {
     const spy = vi.spyOn(getSoundManager(), "onPrecomputationCompleted").mockImplementation(() => {});
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() =>
@@ -233,7 +249,7 @@ describe("usePrecomputeStatus", () => {
   it("applies PRECOMPUTATION_GROUP_COMPLETED and pings the sound manager", async () => {
     const spy = vi.spyOn(getSoundManager(), "onGroupCompleted").mockImplementation(() => {});
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() =>
@@ -250,7 +266,7 @@ describe("usePrecomputeStatus", () => {
 
   it("accepts the {event, data} envelope", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() =>
@@ -268,7 +284,7 @@ describe("usePrecomputeStatus", () => {
 
   it("accepts a bare progress payload without an envelope", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() => ws.emitMessage({ group: "A", completed: 2, total: 10, percent: 8, current_symbol: "فملی" }));
@@ -280,7 +296,7 @@ describe("usePrecomputeStatus", () => {
   // ── funnel flow (api/ws_manager → job_state → snapshot frames) ──
   it("applies PRECOMPUTATION_STATUS_SNAPSHOT and re-hydrates the grid", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() =>
@@ -297,7 +313,7 @@ describe("usePrecomputeStatus", () => {
 
   it("resets to RUNNING on PRECOMPUTATION_STARTED, keeping hot-cache rows", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     // A finished previous run is on the store
@@ -328,7 +344,7 @@ describe("usePrecomputeStatus", () => {
 
   it("land subsequent PROGRESS events on the reset RUNNING state after STARTED", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() => ws.emitMessage({ type: "PRECOMPUTATION_STARTED", payload: { timestamp: "2026-09-13T10:00:00.000Z" } }));
@@ -348,7 +364,7 @@ describe("usePrecomputeStatus", () => {
 
   it("adds a row on SYMBOL_RESULT_UPDATED", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     act(() =>
@@ -366,7 +382,7 @@ describe("usePrecomputeStatus", () => {
 
   it("ignores malformed websocket frames", async () => {
     renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     const before = store.getSnapshot();
@@ -392,7 +408,7 @@ describe("usePrecomputeStatus", () => {
 
   it("closes the socket on unmount", async () => {
     const { unmount } = renderHook(() => usePrecomputeStatus());
-    const ws = MockWebSocket.instances[0];
+    const ws = await waitForSocket();
     act(() => ws.emitOpen());
 
     unmount();

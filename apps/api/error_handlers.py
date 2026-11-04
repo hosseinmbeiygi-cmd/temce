@@ -101,7 +101,7 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
     return JSONResponse(status_code=500, content=payload, headers={"X-Trace-Id": trace_id})
 
 
-def register_error_handlers(app):
+def register_error_handlers(app: Any) -> None:
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(NotFoundError, not_found_handler)
     app.add_exception_handler(ValidationError, validation_error_handler)

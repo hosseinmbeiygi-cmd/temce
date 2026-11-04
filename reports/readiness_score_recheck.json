@@ -1,0 +1,215 @@
+{
+ "baseline_audit": {
+  "source": "C:/Users/Iran/Downloads/FINAL_QA_AUDIT_REPORT.md",
+  "score": 48.2,
+  "verdict": "NO-GO",
+  "components": {
+   "A1": 12.2,
+   "A2": 0.0,
+   "B1": 0.94,
+   "B2": 8.54,
+   "B3": 0.83,
+   "C1": 10.94,
+   "C2": 5.68,
+   "C3": 0.0,
+   "D1": 3.2,
+   "D2": 0.0,
+   "D3": 5.88
+  }
+ },
+ "recheck": {
+  "components": [
+   {
+    "id": "A1",
+    "name": "UI static nav + live-route contract",
+    "max": 15,
+    "points": 12.2,
+    "inputs": {
+     "contract_pass": 0.8,
+     "pages_with_broken_calls": "25/147 (audited)",
+     "orphans": "26/147 (audited)",
+     "source": "carried over - audit scripts absent"
+    }
+   },
+   {
+    "id": "A2",
+    "name": "UI live rendering / blank / console",
+    "max": 15,
+    "points": 14.9,
+    "inputs": {
+     "render_ok_share": 0.9932,
+     "blank": 0,
+     "runtime_errors": 0,
+     "real_console_errors": 0,
+     "backend_unavailable_errors": 519,
+     "source": "qa/ui_crawl.mjs + qa/ui_crawl_classify.py"
+    }
+   },
+   {
+    "id": "B1",
+    "name": "Money representation",
+    "max": 8,
+    "points": 0.94,
+    "inputs": {
+     "numeric_or_decimal_share": 0.118,
+     "source": "carried over - P1 money work untouched"
+    }
+   },
+   {
+    "id": "B2",
+    "name": "Calculation correctness",
+    "max": 12,
+    "points": 8.54,
+    "inputs": {
+     "invariant_pass_rate": 0.7113,
+     "source": "carried over"
+    }
+   },
+   {
+    "id": "B3",
+    "name": "Iranian-market rules",
+    "max": 5,
+    "points": 0.83,
+    "inputs": {
+     "pass": 2,
+     "fail": 10,
+     "source": "carried over"
+    }
+   },
+   {
+    "id": "C1",
+    "name": "Backtest engine + metrics",
+    "max": 15,
+    "points": 10.94,
+    "inputs": {
+     "pass_rate": 0.7296,
+     "source": "carried over"
+    }
+   },
+   {
+    "id": "C2",
+    "name": "ML calibration + ml importability",
+    "max": 6,
+    "points": 5.88,
+    "inputs": {
+     "confidence_pass_rate": 0.9615,
+     "ml_modules_importable": 1.0,
+     "source": "importability measured (117/117); calibration carried over"
+    }
+   },
+   {
+    "id": "C3",
+    "name": "Inference on trained models",
+    "max": 4,
+    "points": 0.0,
+    "inputs": {
+     "artifact_dirs": 359,
+     "loadable": 0,
+     "ok_share": 0.0,
+     "source": "qa/c3_inference_check.py"
+    }
+   },
+   {
+    "id": "D1",
+    "name": "Idempotency / race / error semantics",
+    "max": 8,
+    "points": 1.6,
+    "inputs": {
+     "pass": 1,
+     "total": 5,
+     "executed": "qa/concurrency_proof.py: 30 parallel workers -> exactly 1 alert",
+     "source": "1 of 5 invariants executed live; 4 unexecuted score 0 by design"
+    }
+   },
+   {
+    "id": "D2",
+    "name": "Build & dependency integrity",
+    "max": 6,
+    "points": 6.0,
+    "inputs": {
+     "lock_pins": 430,
+     "lock_present": true,
+     "images_built_ok": [
+      "Dockerfile",
+      "Dockerfile.admin",
+      "Dockerfile.api",
+      "Dockerfile.currency",
+      "Dockerfile.decision-engine",
+      "Dockerfile.golddesk",
+      "Dockerfile.scheduler",
+      "Dockerfile.worker"
+     ],
+     "build_share": 1.0,
+     "container_start": [
+      "Dockerfile|EXITED_1|state=exited|exit=1",
+      "Dockerfile.api|UP|state=running|exit=0",
+      "Dockerfile.worker|EXITED_0|state=exited|exit=0",
+      "Dockerfile.scheduler|UP|state=running|exit=0",
+      "Dockerfile.admin|EXITED_3|state=exited|exit=3",
+      "Dockerfile.currency|EXITED_3|state=exited|exit=3",
+      "Dockerfile.golddesk|EXITED_0|state=exited|exit=0",
+      "Dockerfile.decision-engine|UP|state=running|exit=0"
+     ],
+     "source": "qa/build_all_images.sh + qa/boot_all_images.sh"
+    }
+   },
+   {
+    "id": "D3",
+    "name": "Code resilience",
+    "max": 6,
+    "points": 5.92,
+    "inputs": {
+     "unit_pass_rate": 0.9832,
+     "import_ok": 0.9893,
+     "tests": {
+      "batches": 31,
+      "passed": 4975,
+      "failed": 81,
+      "error": 4,
+      "skipped": 55,
+      "executed": 5060,
+      "not_executable_hung": 10,
+      "unit_pass_rate": 0.9832
+     },
+     "source": "reports/pytest_chunks.txt"
+    }
+   }
+  ],
+  "categories": {
+   "UI & Navigation Stability": 27.1,
+   "Financial Precision & Data Integrity": 10.31,
+   "Backtest & ML Engine Reliability": 16.83,
+   "Concurrency & Code Resilience": 13.52
+  },
+  "total": 67.76,
+  "delta": 19.56
+ },
+ "verdict": {
+  "result": "NO-GO",
+  "rule": "GO requires score >= 80 AND zero P0 AND zero open P1 on money/signal paths",
+  "open_p0": [],
+  "open_p1_money_paths": [
+   "F03",
+   "F28",
+   "F24",
+   "F12",
+   "F22",
+   "F26",
+   "F13",
+   "F14",
+   "F04",
+   "F05",
+   "F07",
+   "F08",
+   "F09",
+   "F10",
+   "F11",
+   "F06",
+   "F15",
+   "F16",
+   "F20",
+   "F23"
+  ],
+  "note": "Both audited P0s (F01 missing deps, F02 unpinned deps) are fixed and verified in a real container. The verdict stays NO-GO because the 20 unremediated P1 money/signal findings independently block GO."
+ }
+}

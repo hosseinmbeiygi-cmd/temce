@@ -23,7 +23,15 @@ from fastapi import FastAPI
 from starlette.testclient import TestClient
 
 from apps.api.middleware import RateLimitMiddleware
+from core.config import settings as app_settings
 from core.rate_limit.limiter import get_rate_limiter
+
+
+@pytest.fixture(autouse=True)
+def _enforce_rate_limit(monkeypatch):
+    # CI sets ENV=test, where the middleware bypasses rate limiting; these
+    # tests exercise the enforcing path.
+    monkeypatch.setattr(app_settings, "environment", "development")
 
 
 def _create_app(*, signals_limit: int = 10) -> FastAPI:

@@ -20,6 +20,9 @@ from .constants import HARDSTOP_DXY_SPIKE_PCT, HARDSTOP_TSE_CRASH_PCT, HARDSTOP_
 class HardStopResult:
     active: bool
     reason: str | None
+    # وقتی هیچ‌یک از ورودی‌های تغییر روزانه در دسترس نیست، ``active=False`` به‌معنای
+    # «بازار آرام» نیست بلکه «ارزیابی‌نشده» است (GS-07).
+    inputs_missing: bool = False
 
 
 def check_hard_stops(
@@ -31,6 +34,16 @@ def check_hard_stops(
 
     هر کدام None = داده موجود نیست → نادیده بگیر (نه فعال).
     """
+    if (
+        tse_daily_change_pct is None
+        and dxy_daily_change_pct is None
+        and usd_irt_daily_change_pct is None
+    ):
+        return HardStopResult(
+            active=False,
+            reason="دادهٔ تغییرات روزانه (USD/DXY/TSE) در دسترس نیست — hard stop ارزیابی نشد",
+            inputs_missing=True,
+        )
     if tse_daily_change_pct is not None and tse_daily_change_pct <= HARDSTOP_TSE_CRASH_PCT:
         return HardStopResult(
             active=True,

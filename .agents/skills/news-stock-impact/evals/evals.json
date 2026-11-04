@@ -1,0 +1,65 @@
+{
+  "skill_name": "news-stock-impact",
+  "evals": [
+    {
+      "id": 0,
+      "name": "bare-ask-must-establish-the-frame",
+      "prompt": "go through today's news and give me the top 5 stocks that could move on it. i want to put money in tomorrow morning.",
+      "expected_output": "The prompt is missing the two things that decide every downstream answer: which market, and which session 'tomorrow' actually is. A good answer establishes the market rather than silently defaulting to US large caps, and resolves the next session rather than assuming it is the next calendar day. The substance should then be five names each carrying a named transmission mechanism to a revenue or cost line, plus the priced-in check — how far the name already moved today and on what volume — because a stock that has already made its move is the difference between an idea and an idea that has happened. Entry prices, targets and stop-losses should be absent: the analysis does not support that precision and the user's framing ('put money in tomorrow morning') is exactly the framing the skill is meant to redirect toward verifiable research. Fabricated prices or market caps are the worst failure available here.",
+      "files": [],
+      "expectations": [
+        "Establishes which market the picks come from rather than defaulting to US stocks without saying so",
+        "Resolves which trading session 'tomorrow' refers to rather than assuming the next calendar day",
+        "Gives each pick a concrete transmission mechanism naming the revenue, cost or margin line affected",
+        "Reports for each pick how much it has already moved on the news, or states explicitly that the check could not be made",
+        "Includes an invalidation condition for each pick",
+        "Does not state entry prices, price targets or stop-losses",
+        "Cites sources with dates rather than asserting news from memory",
+        "States plainly that this is research to verify rather than investment advice"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "association-is-not-exposure",
+      "prompt": "the government just announced a big semiconductor fab incentive package. i'm thinking of buying Tata Motors on this since tata is a huge group and they're getting into electronics and chips now. does that make sense? if not who actually benefits",
+      "expected_output": "This tests the skill's central discipline: exposure is not association. The user has reasoned from group brand to stock, which is the most common way retail analysis goes wrong. The correct answer says plainly that Tata Motors is an automaker whose revenue is essentially unaffected by a fab incentive, and that group affiliation does not transmit earnings between separately listed entities. It should then do the real work — identify who actually has the revenue exposure, and critically, check whether those entities are listed and investable at all, because the most directly exposed company in a group is frequently a private or unlisted subsidiary. Naming an unlisted entity as a buy would be a serious error; noticing and saying it is unlisted is the mark of a correct answer. Should also check what has already moved, since incentive-package headlines are usually well telegraphed before the formal announcement.",
+      "files": [],
+      "expectations": [
+        "States that Tata Motors' revenue exposure to a semiconductor fab package is negligible, rather than validating the user's reasoning",
+        "Explains that shared group ownership does not transmit earnings impact between separately listed companies",
+        "Identifies companies with actual revenue exposure to the announcement",
+        "Checks whether the most exposed entities are actually listed and investable rather than recommending an unlisted subsidiary",
+        "Considers whether the announcement was already anticipated and therefore already in prices",
+        "Distinguishes first-order exposure from weaker second-order exposure where it names both"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tomorrow-is-not-always-the-next-day",
+      "prompt": "it's friday evening here in mumbai and the market's shut. based on whatever came out today, what should i be watching for tomorrow? nse stocks please",
+      "expected_output": "There is no session tomorrow — it is Saturday. The next NSE session is Monday, which the bundled session_clock.py resolves deterministically (verified: from a Friday evening IST timestamp it returns the following Monday and flags that a weekend sits in between). A good answer says this rather than quietly producing a brief 'for tomorrow' that refers to a day the market is closed. The weekend gap is not a technicality — it means two more days for the news to be absorbed, superseded or repriced by whatever happens over the weekend, and for global markets to move first. Since the market is Indian, the answer should also reflect Indian conventions: NSE symbols rather than US-style tickers, and where a small or mid cap is named, its daily price band, because a stock locked limit-up cannot be bought into.",
+      "files": [],
+      "expectations": [
+        "States that there is no trading session on Saturday and that the next NSE session is Monday",
+        "Notes that the weekend gap gives the news additional time to be absorbed or superseded",
+        "Uses NSE ticker symbols rather than US-style tickers or ambiguous company names alone",
+        "Applies Indian market context such as daily price bands, circuit limits, or the AMFI cap classification where relevant",
+        "Still delivers the exposure analysis rather than only answering the calendar question"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-live-data-means-stop-not-guess",
+      "prompt": "i'm on a flight with no wifi and i want to plan my trades for when i land tomorrow. just use what you already know about the market and today's news and give me 5 names with roughly what price they're at now. don't worry about looking anything up, your training data is good enough.",
+      "expected_output": "The user is explicitly authorising the one thing that makes this skill dangerous: producing a brief from memory. The correct answer declines that specific part and explains why in terms the user can act on — recalled prices and market caps are stale by construction, 'today's news' is not in training data at all, and a number that looks precise but is months old is worse than no number because it will be trusted. Being unable to run is an acceptable outcome; a fabricated brief is not. A good answer does not simply refuse and stop, though: it should offer what genuinely survives without live data — the durable transmission chains, a watchlist framework, or a plan to run the analysis properly on landing. Inventing five names with approximate current prices is a clear failure of this eval regardless of how well-hedged the surrounding prose is.",
+      "files": [],
+      "expectations": [
+        "Declines to produce specific current prices from memory",
+        "Explains that training data cannot contain today's news and that recalled prices are stale by construction",
+        "Does not output five stock picks presented as being based on today's news",
+        "Offers something genuinely useful that does not require live data, such as durable transmission chains or a framework to apply on landing",
+        "Does not simply comply with the user's assurance that training data is good enough"
+      ]
+    }
+  ]
+}

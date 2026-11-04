@@ -21,6 +21,7 @@ from apps.api.dependencies import (
     get_market_health_index_service,
     get_real_return_calculator_service,
 )
+from core.currency import rial_to_toman_float
 from schemas.common.responses import ApiResponse
 
 router = APIRouter()
@@ -233,8 +234,11 @@ async def detect_block_trades(
                     "name": bt.name,
                     "trade_time": bt.trade_time,
                     "price": bt.price,
+                    "price_toman": rial_to_toman_float(bt.price, default=None),
+                    "currency": "TMN",
                     "volume": bt.volume,
                     "value": bt.value,
+                    "value_toman": rial_to_toman_float(bt.value, default=None),
                     "direction": bt.direction,
                     "z_score": bt.z_score,
                     "confidence": bt.confidence,
@@ -280,7 +284,7 @@ async def get_real_return(
                 "period_days": result.period_days,
             },
         )
-    return ApiResponse(success=False, error="داده کافی موجود نیست")
+    return ApiResponse(success=False, error={"message": "داده کافی موجود نیست"})
 
 
 @router.get("/real-return", summary="بازده واقعی بازار")
@@ -318,6 +322,8 @@ async def get_historical_levels(
                 "congestion_details": result.congestion_details,                    "levels": [
                     {
                         "price": lvl.price,
+                        "price_toman": rial_to_toman_float(lvl.price, default=None),
+                        "currency": "TMN",
                         "level_type": lvl.level_type,
                         "strength": lvl.strength,
                         "confidence": lvl.confidence,
@@ -326,7 +332,7 @@ async def get_historical_levels(
                 ],
             },
         )
-    return ApiResponse(success=False, error="داده کافی موجود نیست")
+    return ApiResponse(success=False, error={"message": "داده کافی موجود نیست"})
 
 
 # ── Gap Prediction ──────────────────────────────────────────────────────

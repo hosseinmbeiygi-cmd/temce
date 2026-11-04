@@ -168,6 +168,8 @@ class TrainingService:
         if not data_result.success:
             return Result.fail(f"Data fetch failed: {data_result.error}")
         df = data_result.value
+        if df is None:
+            return Result.fail(f"Data fetch returned no data for {symbol}")
         if df.empty or len(df) < 30:
             return Result.fail(f"Not enough data for {symbol}: got {len(df)} rows (need ≥ 30)")
 

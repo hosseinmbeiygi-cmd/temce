@@ -5,24 +5,26 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
-from contracts.exceptions import PrecomputeJobCollisionError, PrecomputeNotRunningError, StaleResultError, SymbolNotFoundError  # noqa: F401 — available for worker callbacks
-from contracts.schemas import JobStatus, PrecomputeStatusResponse, SymbolComputationResult, SymbolGroup
-from core.config import INFRA, RAW_PRICE_CACHE_TTL_SECONDS
-from core.redis_client import get_redis
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from api.websocket.ws_manager import (
     broadcast_completed,
-    broadcast_group_completed,
-    broadcast_progress,
-    broadcast_symbol_updated,
     get_connection_count,
     register,
     unregister,
 )  # noqa: F401 — register/unregister used in WS endpoint; broadcast_* used by worker callbacks
+from core.redis_client import get_redis
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+
+from contracts.exceptions import (  # noqa: F401 — available for worker callbacks
+    PrecomputeJobCollisionError,
+    PrecomputeNotRunningError,
+    StaleResultError,
+    SymbolNotFoundError,
+)
+from contracts.schemas import JobStatus, PrecomputeStatusResponse, SymbolComputationResult, SymbolGroup
+from core.config import RAW_PRICE_CACHE_TTL_SECONDS
 
 router = APIRouter(prefix="/api", tags=["precompute"])
 
@@ -34,11 +36,11 @@ _job_state: dict[str, Any] = {}
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _now_dt() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +181,7 @@ def _update_status(group: SymbolGroup, symbol: str | None, total_symbols_hint: i
     state["progress_percent"] = round((state["completed_symbols"] / total) * 100, 2)
 
     # naive ETA
-    elapsed = (datetime.now(timezone.utc) - state["started_at"]).total_seconds()
+    elapsed = (datetime.now(UTC) - state["started_at"]).total_seconds()
     if state["completed_symbols"] > 0 and state["total_symbols"]:
         per_symbol = elapsed / state["completed_symbols"]
         remaining = (state["total_symbols"] - state["completed_symbols"]) * per_symbol
@@ -317,7 +319,7 @@ async def symbol_summary(symbol: str) -> dict[str, Any]:
 
     is_stale = False
     if expires_at and calculated_at:
-        is_stale = datetime.now(timezone.utc) > expires_at
+        is_stale = datetime.now(UTC) > expires_at
 
     result = SymbolComputationResult(
         symbol=payload.get("symbol", symbol),

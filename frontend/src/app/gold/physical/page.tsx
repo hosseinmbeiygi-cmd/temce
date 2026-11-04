@@ -3,14 +3,15 @@
 /** صفحه بازار فیزیکی — حباب سکه + آربیتراژ ETF ↔ فیزیکی */
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getArbitrage,
   getGoldLivePrices,
   postCoinBubble,
-  type ArbitrageResp,
-  type CoinBubbleResp,
 } from "@/lib/goldApi";
+
+type ArbitrageResp = NonNullable<Awaited<ReturnType<typeof getArbitrage>>>;
+type CoinBubbleResp = Awaited<ReturnType<typeof postCoinBubble>>;
 
 const fmt = (n: number | null | undefined, digits = 0): string => {
   if (n === null || n === undefined) return "—";
@@ -32,7 +33,7 @@ const bubbleTone = (signal: string) => {
   return { text: "text-amber-300", bg: "bg-amber-500/10", ring: "ring-amber-500/40", label: "خنثی" };
 };
 
-const arbTone = (action: string) => {
+const arbTone = (action?: string | null) => {
   if (action === "BUY_ETF_SELL_PHYSICAL")
     return { text: "text-emerald-300", bg: "bg-emerald-500/10", ring: "ring-emerald-500/40" };
   if (action === "BUY_PHYSICAL_SELL_ETF")
@@ -42,7 +43,7 @@ const arbTone = (action: string) => {
 
 export default function GoldPhysicalPage() {
   // Live
-  const { data: live } = useQuery({
+  const { data: live, isError: liveError } = useQuery({
     queryKey: ["gold", "live"],
     queryFn: () => getGoldLivePrices(),
     refetchInterval: 5000,
@@ -58,19 +59,21 @@ export default function GoldPhysicalPage() {
       }),
   });
 
-  // اگر live موجود، محاسبه خودکار
-  useState(() => {
-    if (live?.coin_bahar_irr && live?.gold_oz_usd && live?.usd_irr) {
-      bubbleMut.mutate({
-        coin: live.coin_bahar_irr,
-        oz: live.gold_oz_usd,
-        usd: live.usd_irr,
-      });
-    }
-  });
+  // Auto-calc once per new live triple (a useState initializer never re-ran).
+  const lastAutoKey = useRef<string | null>(null);
+  useEffect(() => {
+    const coin = live?.coin_bahar_irr;
+    const oz = live?.gold_oz_usd;
+    const usd = live?.usd_irr;
+    if (!coin || !oz || !usd || coin <= 0 || oz <= 0 || usd <= 0) return;
+    const key = `${coin}|${oz}|${usd}`;
+    if (lastAutoKey.current === key) return;
+    lastAutoKey.current = key;
+    bubbleMut.mutate({ coin, oz, usd });
+  }, [live?.coin_bahar_irr, live?.gold_oz_usd, live?.usd_irr, bubbleMut]);
 
   // Arbitrage
-  const { data: arb } = useQuery({
+  const { data: arb, isError: arbError } = useQuery({
     queryKey: ["gold", "arbitrage"],
     queryFn: getArbitrage,
     refetchInterval: 10_000,
@@ -80,13 +83,23 @@ export default function GoldPhysicalPage() {
   const [manualCoin, setManualCoin] = useState<number | undefined>(undefined);
   const [manualOz, setManualOz] = useState<number | undefined>(undefined);
   const [manualUsd, setManualUsd] = useState<number | undefined>(undefined);
+  const [inputError, setInputError] = useState<string | null>(null);
+
+  const resolvedCoin = manualCoin ?? live?.coin_bahar_irr;
+  const resolvedOz = manualOz ?? live?.gold_oz_usd;
+  const resolvedUsd = manualUsd ?? live?.usd_irr;
+  const canCalc =
+    resolvedCoin != null && resolvedCoin > 0 &&
+    resolvedOz != null && resolvedOz > 0 &&
+    resolvedUsd != null && resolvedUsd > 0;
 
   const handleManualCalc = () => {
-    bubbleMut.mutate({
-      coin: manualCoin ?? live?.coin_bahar_irr ?? 0,
-      oz: manualOz ?? live?.gold_oz_usd ?? 0,
-      usd: manualUsd ?? live?.usd_irr ?? 0,
-    });
+    if (!canCalc) {
+      setInputError("هر سه ورودی (قیمت سکه، اونس، دلار) باید مقدار مثبت داشته باشند؛ مقدار ۰ ارسال نمی‌شود.");
+      return;
+    }
+    setInputError(null);
+    bubbleMut.mutate({ coin: resolvedCoin, oz: resolvedOz, usd: resolvedUsd });
   };
 
   const b: CoinBubbleResp | undefined = bubbleMut.data;
@@ -99,6 +112,12 @@ export default function GoldPhysicalPage() {
           رصد قیمت سکه، طلای آب‌شده و کشف فرصت آربیتراژ ETF ↔ فیزیکی
         </p>
       </div>
+
+      {liveError && (
+        <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          دریافت قیمت‌های زنده ناموفق بود؛ مقادیر قبلی یا خالی نمایش داده می‌شوند و عدد جایگزین ساخته نمی‌شود.
+        </div>
+      )}
 
       {/* Live prices */}
       {live && (
@@ -136,11 +155,16 @@ export default function GoldPhysicalPage() {
         </div>
         <button
           onClick={handleManualCalc}
-          disabled={bubbleMut.isPending}
+          disabled={bubbleMut.isPending || !canCalc}
+          title={!canCalc ? "تا زمانی که هر سه ورودی مثبت نباشند، محاسبه انجام نمی‌شود" : undefined}
           className="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 ring-1 ring-amber-500/40 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
         >
           {bubbleMut.isPending ? "..." : "محاسبه حباب"}
         </button>
+        {inputError && <div className="mt-2 text-xs text-rose-300">{inputError}</div>}
+        {bubbleMut.isError && (
+          <div className="mt-2 text-xs text-rose-300">محاسبه حباب ناموفق بود؛ داده‌ای نمایش داده نمی‌شود.</div>
+        )}
         {b && (
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
             <BubbleResult b={b} />
@@ -151,8 +175,19 @@ export default function GoldPhysicalPage() {
       {/* Arbitrage */}
       <div className="rounded-xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-5">
         <h2 className="text-base font-semibold text-zinc-200 mb-4">⚡ اسکنر آربیتراژ</h2>
-        {arb ? (
+        {arb && arb.available !== false ? (
           <ArbitrageCard a={arb} />
+        ) : arb ? (
+          <div
+            className="text-zinc-500 text-sm text-center py-4"
+            data-testid="arbitrage-unavailable"
+          >
+            داده آربیتراژ در دسترس نیست{arb.reason ? `: ${arb.reason}` : ""}
+          </div>
+        ) : arbError ? (
+          <div className="text-sm text-center py-4 text-rose-300">
+            دریافت داده آربیتراژ ناموفق بود؛ اسپردی نمایش داده نمی‌شود.
+          </div>
         ) : (
           <div className="text-zinc-500 text-sm text-center py-4">
             در حال بررسی بازار...
@@ -229,13 +264,13 @@ function ArbitrageCard({ a }: { a: ArbitrageResp }) {
     <div className={`rounded-lg ring-1 ${t.ring} ${t.bg} p-4`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="text-sm font-semibold text-zinc-100">{a.pair}</div>
+          <div className="text-sm font-semibold text-zinc-100">{a.pair ?? "—"}</div>
           <div className="text-[10px] text-zinc-500 mt-0.5">Spread Analysis</div>
         </div>
         <span
           className={`text-[10px] px-2 py-1 rounded ring-1 ${t.ring} ${t.text} font-semibold`}
         >
-          {a.action.replace(/_/g, " ")}
+          {(a.action ?? "").replace(/_/g, " ") || "—"}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3 mb-3">
@@ -253,7 +288,7 @@ function ArbitrageCard({ a }: { a: ArbitrageResp }) {
         </div>
       </div>
       <div className="text-xs text-zinc-300 leading-relaxed border-t border-zinc-800/40 pt-2">
-        {a.strategy}
+        {a.strategy ?? "—"}
       </div>
     </div>
   );

@@ -1,20 +1,45 @@
-"""P2-2 E2E with the REAL database: symbol -> real candle length -> decision."""
+"""P2-2 E2E with the REAL database: symbol -> real candle length -> decision.
+
+Gate 9 reads the portfolio risk from the paper-trading ledger (audit D-03) and
+fails CLOSED when that ledger is unreadable, so the portfolio state is pinned
+here — this test's subject is real history becoming a decision, and the ledger
+read has its own coverage in ``test_portfolio_risk_gate.py``.
+"""
 import asyncio
 import math
+import os
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, patch
 
 import asyncpg
+import pytest
 
+from services.portfolio_risk import PortfolioRiskState
 from services.quant_signal_orchestrator import EnrichedSignal, QuantSignalOrchestrator
+
+# Needs the developer's real dataset, so it belongs to the needs_db job and
+# only runs when the DSN is supplied explicitly.
+pytestmark = pytest.mark.needs_db
+
+
+def _real_dsn() -> str:
+    dsn = os.environ.get("REAL_DB_URL", "")
+    if not dsn:
+        pytest.skip("REAL_DB_URL is not set (this test needs the real history dataset)")
+    return dsn.replace("postgresql+asyncpg://", "postgresql://")
+
+
+@contextmanager
+def _approved_empty_portfolio():
+    with patch(
+        "services.portfolio_risk.load_portfolio_risk",
+        AsyncMock(return_value=PortfolioRiskState(approved=True)),
+    ):
+        yield
 
 
 async def fetch_real_history(symbol, limit=120):
-    c = await asyncpg.connect(
-        user="hossein",
-        password="Im_GCZjNmnzhL4FModjociYjzme",
-        host="localhost",
-        port=5432,
-        database="my_first_db",
-    )
+    c = await asyncpg.connect(_real_dsn())
     rows = await c.fetch(
         "SELECT price_close, date FROM brsapi_historical_daily "
         "WHERE symbol = $1 ORDER BY date DESC LIMIT $2",
@@ -27,13 +52,7 @@ async def fetch_real_history(symbol, limit=120):
 
 
 async def pick_symbol():
-    c = await asyncpg.connect(
-        user="hossein",
-        password="Im_GCZjNmnzhL4FModjociYjzme",
-        host="localhost",
-        port=5432,
-        database="my_first_db",
-    )
+    c = await asyncpg.connect(_real_dsn())
     row = await c.fetchrow(
         "SELECT symbol, COUNT(*) AS n FROM brsapi_historical_daily "
         "GROUP BY symbol HAVING COUNT(*) >= 60 ORDER BY n DESC LIMIT 1"
@@ -65,9 +84,10 @@ def test_e2e_real_db_history_to_decision():
         source="e2e-real", created_at="now",
     )
     orch = QuantSignalOrchestrator(session=None)
-    released, rejected = asyncio.run(
-        orch._apply_signal_decision([sig], {symbol: len(closes)})
-    )
+    with _approved_empty_portfolio():
+        released, rejected = asyncio.run(
+            orch._apply_signal_decision([sig], {symbol: len(closes)})
+        )
     assert len(released) + len(rejected) == 1
     assert len(released) > 0, "real-history signal must release"
     d = released[0].to_dict()

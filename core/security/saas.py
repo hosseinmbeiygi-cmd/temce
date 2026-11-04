@@ -59,11 +59,16 @@ TIERS: dict[str, Tier] = {
 }
 
 # JWT roles → tier mapping (resolve_tier picks the highest tier present).
+# "free" is reserved for monetized SaaS surfaces (gold desk scoped keys).
+# Platform roles must land on a tier whose burst covers a real app boot:
+# the dashboard fires ~20 API calls on first paint, so a platform "user"
+# mapped to free (burst=10) got 429s on half the widgets.
 _ROLE_TO_TIER: dict[str, str] = {
     "admin": "institutional",
     "institutional": "institutional",
+    "analyst": "pro",
     "pro": "pro",
-    "user": "free",
+    "user": "pro",
 }
 
 
@@ -302,6 +307,11 @@ def api_key_auth(*required_scopes: str) -> Any:
             require_scopes(*required_scopes)(token)
         return token
 
+    # Name the closure after its factory for logs, and mark it for the
+    # router-auth gate. Name matching alone would treat a wrapped or renamed
+    # closure as unauthenticated.
+    dependency.__name__ = "api_key_auth"
+    dependency.__auth_guard__ = True  # type: ignore[attr-defined]
     return dependency
 
 

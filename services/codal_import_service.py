@@ -116,8 +116,8 @@ def parse_xlsx(content: bytes) -> tuple[list[dict[str, str]], list[str]]:
         return [], []
 
     raw_rows: list[list[Any]] = []
-    for row in ws.iter_rows(values_only=True):
-        raw_rows.append(list(row))
+    for sheet_row in ws.iter_rows(values_only=True):
+        raw_rows.append(list(sheet_row))
 
     wb.close()
 
@@ -328,7 +328,7 @@ class CodalImportService:
             actual_symbol = nl.get("symbol", "") or nl.get("ticker", "") or symbol
 
         inst_result = await self.instrument_repo.get_by_symbol(actual_symbol)
-        if not inst_result.success:
+        if not inst_result.success or inst_result.value is None:
             result["errors"].append(
                 f"Symbol '{actual_symbol}' not found in instruments DB"
             )

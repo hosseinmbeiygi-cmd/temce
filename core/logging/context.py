@@ -5,7 +5,7 @@ from typing import Any
 
 
 class ContextLogger:
-    def __init__(self, logger: logging.Logger) -> None:
+    def __init__(self, logger: Any) -> None:
         self._logger = logger
         self._context: dict[str, Any] = {}
 

@@ -22,6 +22,13 @@ from jobs.definitions.enterprise_jobs import IndicatorPrecomputeJob, MonthlySale
 from jobs.definitions.feature_store_jobs import FeatureStoreBuildJob, ScreenerDailyScoresJob
 from jobs.definitions.fund_jobs import FundDiscoveryJob, FundsSyncJob
 from jobs.definitions.fund_nav_jobs import FundNavOutboxRelayJob, FundNavReconciliationJob
+from jobs.definitions.gold_macro_jobs import (
+    GoldCftcCotSyncJob,
+    GoldEconomicCalendarSyncJob,
+    GoldMacroSyncJob,
+    GoldTokenizedGoldSyncJob,
+)
+from jobs.definitions.gold_options_jobs import GoldOptionIvSnapshotJob
 from jobs.definitions.housekeeping_jobs import CacheWarmupJob, DataRetentionJob, HealthCheckJob
 from jobs.definitions.macro_jobs import GoldPriceJob, MacroDataJob, MetalsPriceJob
 from jobs.definitions.market_data_jobs import HistoricalDataJob, QuoteIngestionJob, RealtimeQuoteJob
@@ -70,6 +77,11 @@ __all__ = [
     "MonthlySalesFillJob",
     "MacroDataJob",
     "GoldPriceJob",
+    "GoldCftcCotSyncJob",
+    "GoldEconomicCalendarSyncJob",
+    "GoldMacroSyncJob",
+    "GoldOptionIvSnapshotJob",
+    "GoldTokenizedGoldSyncJob",
     "MetalsPriceJob",
     "InstrumentSyncJob",
     "AliasResolutionJob",

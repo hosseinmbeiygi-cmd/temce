@@ -26,6 +26,14 @@
   - Parts 8–9 — backtest & prediction engines: [تکمیل بخش ۸ و ۹](./options-platform-part8-9-backtest-ml-fa.md)
 - [Enterprise-plus prompt example (FA)](./enterprise-plus-prompt-example-fa.md) — maximal prompt template for fund-analysis features.
 
+## Reports (2026-10)
+- [Price-adjustment read path (FA)](./PRICE_ADJUSTMENT_READ_PATH.md) — the exact factor, the import/backfill scripts, and the executed run.
+- [Session report (EN)](./SESSION_REPORT_2026-10-06_EN.md) — corporate-action import, architecture-audit verification, full test runs, and the repairs that followed.
+- [Final report (FA)](./FINAL_REPORT_2026-10-07_FA.md) — the same session, in Persian.
+- [Architecture audit (FA)](./ARCHITECTURE_AUDIT_2026-10-06.md) — deep audit; §9 is the independent verification.
+- [News read canary shadow (2026-09-20)](./NEWS_READ_CANARY_SHADOW_REPORT_2026-09-20.md)
+- Earlier session reports: [2026-09-20](./SESSION_REPORT_2026-09-20.md) · [2026-09-19](./SESSION_REPORT_2026-09-19.md) · [2026-09-16](./SESSION_REPORT_2026-09-16.md)
+
 ## Operations
 - [.github/workflows](../.github/workflows/) — CI definitions (lint / type / test / build).
 - [Dependabot](../.github/dependabot.yml) — weekly dep updates.

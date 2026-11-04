@@ -197,7 +197,7 @@ class SmartDecisionGate:
             return _MarketState()
 
         try:
-            from sqlalchemy import text
+            from core.database import text
 
             # 3-day index change (TSE total index).
             r = await self._session.execute(
@@ -258,7 +258,7 @@ class SmartDecisionGate:
             return 0.0
 
         try:
-            from sqlalchemy import text
+            from core.database import text
 
             # Today's volume from latest snapshot.
             r_today = await self._session.execute(

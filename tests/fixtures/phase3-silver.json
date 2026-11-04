@@ -1,0 +1,20 @@
+{
+  "comment": "Phase 3 source-layer fixture — silver domestic + international (raw input).",
+  "domestic": {
+    "symbol": "XAG_IRR",
+    "value": 1050000,
+    "unit": "toman/gram",
+    "asOf": "2026-10-26T09:00:00+03:30",
+    "source": "brsapi",
+    "quality": "LIVE"
+  },
+  "international": {
+    "symbol": "XAG_USD",
+    "value": 32.5,
+    "unit": "USD/oz",
+    "asOf": "2026-10-26T08:30:00Z",
+    "source": "London_Bullion_Market",
+    "quality": "DELAYED"
+  },
+  "usd_irr": 950000
+}

@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from backtesting.engine.clock import Clock
-from backtesting.engine.event_builder import MarketEvent
+from backtesting.clock import Clock
+from backtesting.event_types import MarketEvent
 from backtesting.market.market_engine import InstrumentState, MarketEngine
 from backtesting.orders.manager import OrderManager
 from backtesting.portfolio import PortfolioManager

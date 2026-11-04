@@ -86,7 +86,7 @@ export default function IndicatorsPage() {
   // Reset params when indicator changes
   useEffect(() => {
     // Sync derived form state to the new indicator's defaults.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setParams({ ...currentDef.defaults });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicatorKey]);
@@ -127,11 +127,19 @@ export default function IndicatorsPage() {
     if (isMultiLine && values && typeof values === "object") {
       const seriesMap = values as Record<string, number[]>;
       const keys = Object.keys(seriesMap);
+      // Series have different warm-up lengths (e.g. %D needs more bars than
+      // %K, kijun more than tenkan). The API aligns `dates` to the first
+      // series; every series must be right-aligned to the newest bar, not
+      // index-aligned from zero, or points would be shifted by the warm-up
+      // gap (audit NEW-01).
+      const axisLen = dates.length;
       const data: Record<string, unknown>[] = [];
       for (let i = 0; i < dates.length; i++) {
         const row: Record<string, unknown> = { date: toDisplayDate(dates[i] || "") };
         keys.forEach((k) => {
-          row[k] = seriesMap[k]?.[i] ?? null;
+          const series = seriesMap[k];
+          const offset = axisLen - (series?.length ?? 0);
+          row[k] = series?.[i - Math.max(0, offset)] ?? null;
         });
         data.push(row);
       }

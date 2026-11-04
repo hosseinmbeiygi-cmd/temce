@@ -4,11 +4,12 @@ import contextlib
 import logging
 
 from api.routes import router as forecast_router
-from api.routers.precompute_router import router as precompute_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from services.query_service import init_db
+
+from api.routers.precompute_router import router as precompute_router
 
 logging.basicConfig(level=logging.INFO)
 

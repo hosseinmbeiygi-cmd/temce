@@ -24,11 +24,9 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from services.live_risk_monitor import RiskThresholds
 
@@ -475,12 +473,13 @@ class PortfolioRiskService:
             },
         ]
         for row in rows:
-            current, limit = row["current"], row["limit"]
+            current = cast("Any", row["current"])
+            limit = float(cast("Any", row["limit"]))
             if current is None:
                 row["status"] = "unknown"
-            elif abs(current) > limit:
+            elif abs(float(cast("Any", current))) > limit:
                 row["status"] = "exceeded"
-            elif abs(current) > limit * 0.66:
+            elif abs(float(cast("Any", current))) > limit * 0.66:
                 row["status"] = "warning"
             else:
                 row["status"] = "ok"

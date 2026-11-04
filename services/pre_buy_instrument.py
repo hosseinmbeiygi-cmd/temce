@@ -25,10 +25,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from brsapi.models.ime import ImeCertificateModel, ImeFundModel, ImeFutureModel, ImeOptionModel
+from core.database import AsyncSession, Select, func, or_, select
 from core.logging import get_logger
 from core.question_bank.registry import GAP_REASONS, MODULES
 from core.question_bank.schema import INSTRUMENT_LABELS, INSTRUMENT_TYPES, InstrumentType

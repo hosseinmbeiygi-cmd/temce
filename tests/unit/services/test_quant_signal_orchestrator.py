@@ -288,7 +288,9 @@ class TestOrchestratorReport:
         assert d["signals"] == []
         assert d["summary"]["total_signals"] == 0
         assert d["reports"] == []
-        assert d["accuracy"] is None
+        # ``accuracy`` is serialized as ``{}`` (never None) so cron consumers
+        # can call ``.get("overall")`` on it — see OrchestratorReport.to_dict.
+        assert d["accuracy"] == {}
         assert d["cross_market"] == []
 
     def test_report_with_signals_to_dict(self):
@@ -355,7 +357,23 @@ class TestOrchestratorReport:
 
 
 class TestCrossMarketCorrelator:
-    """Test the CrossMarketCorrelator.analyze() static method."""
+    """Test the CrossMarketCorrelator.analyze() static method.
+
+    These cases exercise the signal-count fallback, which runs only when
+    ``_fetch_all_market_prices`` yields nothing. That fetch is gated on
+    ``core.database.async_session_factory`` being ``None``; once *another*
+    test module in the same session boots the app that global becomes a real
+    factory, the correlator reaches the live DB, and the expected fallback
+    output disappears. The autouse fixture below pins the data source, so the
+    result no longer depends on which files ran first.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_db_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Force the correlator's price source to report "DB unavailable"."""
+        import core.database as _db
+
+        monkeypatch.setattr(_db, "async_session_factory", None, raising=False)
 
     @staticmethod
     def _e(**kw: Any) -> EnrichedSignal:
@@ -1140,7 +1158,7 @@ class TestOrchestratorReportEdgeCases:
         assert all(not r["success"] for r in d["reports"])
         assert d["signals"] == []
         assert d["summary"]["total_signals"] == 0
-        assert d["accuracy"] is None
+        assert d["accuracy"] == {}
 
     def test_report_with_all_market_types(self):
         """Verify OrchestratorReport handles all 7 markets correctly."""

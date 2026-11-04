@@ -123,9 +123,7 @@ def diag_ok(s):
     if not (r is not None and RSI_LOW <= r <= RSI_HIGH):
         return False
     liq = num(s.get("avg_val30"))
-    if not (liq is not None and liq > MIN_LIQUIDITY_RIAL):
-        return False
-    return True
+    return liq is not None and liq > MIN_LIQUIDITY_RIAL
 
 
 def norm(vals, x):

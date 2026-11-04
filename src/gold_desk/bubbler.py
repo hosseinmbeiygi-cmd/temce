@@ -16,8 +16,10 @@ from .constants import (
     GOLD_PURITY_18K,
     GOLD_PURITY_24K,
     GOLD_PURITY_COIN,
+    MESGHAL_GRAMS,
     TROY_OUNCE_GRAMS,
 )
+from .pricer import purity_ratio
 
 
 @dataclass(frozen=True)
@@ -26,25 +28,34 @@ class BubbleResult:
     market: float
     fair: float
     bubble_abs: float
-    bubble_pct: float
-    implied_usd: float
+    # None = ورودی نامعتبر، نه «حباب صفر». صفر سکویی در scorer امتیاز کامل می‌گرفت
+    # و دیتای خراب را سبز می‌کرد؛ None در scorer «کامپوننت گمشده» است (E-M16/C2).
+    bubble_pct: float | None
+    implied_usd: float | None
 
 
 def _purity_for_symbol(symbol: str) -> float:
-    """عیار به صورت کسری (۰.۷۵۰۹، ۰.۹۰۰۹، ۰.۹۹۹۹)."""
+    """عیار به صورت کسر نسبت به ۲۴ عیار (۰.۷۵۰۰۸، ۰.۹۰۰۰۹، ۱.۰).
+
+    از ``pricer.purity_ratio`` استفاده می‌کند تا تعریف عیار در pricer و bubbler
+    یکی باشد (E-M17).
+    """
     if "GOLD_18K" in symbol or "MELTED" in symbol:
-        return GOLD_PURITY_18K / 1000.0
+        return purity_ratio(GOLD_PURITY_18K)
     if "GOLD_24K" in symbol or "GOLD_1G" in symbol:
-        return GOLD_PURITY_24K / 1000.0
+        return purity_ratio(GOLD_PURITY_24K)
     if symbol in COIN_WEIGHTS:
-        return GOLD_PURITY_COIN / 1000.0
+        return purity_ratio(GOLD_PURITY_COIN)
     raise ValueError(symbol)
 
 
 def _pure_gold_weight(symbol: str) -> float:
-    """وزن طلای خالص (گرم) — برای سکه وزن×عیار، برای طلای وزنی 1×عیار."""
+    """وزن طلای خالص (گرم) یک واحد نقل‌شده — برای سکه وزن×عیار، برای طلای وزنی
+    ۱ گرم×عیار و برای طلای آب‌شده یک مثقال×عیار (بازار مثقالی قیمت می‌زند)."""
     if symbol in COIN_WEIGHTS:
         return COIN_WEIGHTS[symbol] * (_purity_for_symbol(symbol))
+    if "MELTED" in symbol:
+        return MESGHAL_GRAMS * _purity_for_symbol(symbol)
     # طلای وزنی: هر گرم با عیار مربوطه
     return 1.0 * _purity_for_symbol(symbol)
 
@@ -52,16 +63,18 @@ def _pure_gold_weight(symbol: str) -> float:
 def calc_bubble(symbol: str, market: float, fair: float, xau_usd: float) -> BubbleResult:
     """market = قیمت بازار (تومان). fair = ارزش ذاتی (تومان)."""
     bubble_abs = market - fair
-    bubble_pct = (bubble_abs / fair * 100.0) if fair > 0 else 0.0
+    # fair<=0 درصد حباب را تعریف‌ناپذیر می‌کند (تقسیم بر صفر)؛ صفر برگرداندن
+    # یعنی ادعای «حباب صفر» برای دادهٔ خراب.
+    bubble_pct: float | None = (bubble_abs / fair * 100.0) if fair > 0 else None
 
-    if xau_usd <= 0:
-        implied_usd = 0.0
-    else:
+    # implied USD = دلار ضمنی نهفته در قیمت بازار
+    # market / pure_w = قیمت هر گرم طلای ۲۴ عیار به تومان
+    # × 31.1035 / xau_usd = نرخ دلار ضمنی
+    implied_usd: float | None = None
+    if xau_usd > 0:
         pure_w = _pure_gold_weight(symbol)
-        # implied USD = دلار ضمنی نهفته در قیمت بازار
-        # market / pure_w = قیمت هر گرم طلای ۲۴ عیار به تومان
-        # × 31.1035 / xau_usd = نرخ دلار ضمنی
-        implied_usd = (market * TROY_OUNCE_GRAMS) / (pure_w * xau_usd) if pure_w > 0 else 0.0
+        if pure_w > 0:
+            implied_usd = (market * TROY_OUNCE_GRAMS) / (pure_w * xau_usd)
 
     return BubbleResult(
         symbol=symbol,

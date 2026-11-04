@@ -195,6 +195,14 @@ class TestBlockA:
         block = engine._compute_block_a(_enriched(free_float_pct=0))
         assert block["float_shares"] == 0
 
+    def test_float_shares_clamped_when_free_float_out_of_range(self, engine: FeatureEngine):
+        """free_float_pct > 100 (fraction mis-read as percent) must clamp to 100%."""
+        block = engine._compute_block_a(_enriched(free_float_pct=250.0))
+        assert block["float_shares"] == 50_000_000_000
+
+        negative = engine._compute_block_a(_enriched(free_float_pct=-10.0))
+        assert negative["float_shares"] == 0
+
     def test_data_completeness_non_null_count(self, engine: FeatureEngine):
         """تعداد فیلدهای غیرتهی / کل فیلدها."""
         enriched = _enriched()
@@ -231,22 +239,42 @@ class TestBlockB:
     """Block B: EPS_ttm, EPS_dollar_growth, net_profit, loss_to_capital."""
 
     def test_eps_ttm_computed(self, engine: FeatureEngine):
-        """eps=500 → eps_ttm=2000 (×4)."""
-        block = engine._compute_block_b(_enriched(eps=500))
-        assert block["eps_ttm"] == 2000
+        """eps=500 (announced annual EPS) → eps_ttm=500, no ×4 annualisation.
 
-    def test_eps_dollar_growth_with_positive_last_year(self, engine: FeatureEngine):
+        BrsApi stores ``pe_ratio == price_last / eps``, so ``eps`` is already the
+        annual P/E basis; multiplying by 4 overstated earnings fourfold.
+        """
         block = engine._compute_block_b(_enriched(eps=500))
-        # eps_ttm=2000, eps_dollar_ttm=2000/28500≈0.07
-        # eps_last_year=1500, eps_dollar_last_year=1500/24500≈0.061
-        # growth = 0.07/0.061 - 1 ≈ 0.148
-        assert block["eps_dollar_growth"] > 0
+        assert block["eps_ttm"] == 500
+
+    def test_eps_ttm_reconciles_with_market_cap_and_pe(self, engine: FeatureEngine):
+        """When pe_ratio == price/eps (BrsApi invariant), EPS × shares ≈ MV / PE."""
+        enriched = _enriched(
+            eps=500, pe_ratio=6.5, last_price=3250,  # 3250 / 6.5 == 500
+            market_value=3250 * 50_000_000_000,
+        )
+        block = engine._compute_block_b(enriched)
+        implied_profit = block["eps_ttm"] * enriched["shares_count"]
+        assert implied_profit == pytest.approx(enriched["market_value"] / 6.5, rel=1e-9)
+
+    def test_negative_eps_is_preserved(self, engine: FeatureEngine):
+        """Loss-making symbols (negative announced EPS) must not be flattened to 0."""
+        block = engine._compute_block_b(_enriched(eps=-154))
+        assert block["eps_ttm"] == -154
+
+    def test_eps_dollar_growth_zero_without_history(self, engine: FeatureEngine):
+        """No historical EPS feed → last-year EPS declared absent, growth neutral."""
+        block = engine._compute_block_b(_enriched(eps=500))
+        assert block["eps_last_year"] == 0
+        assert block["eps_dollar_ttm"] == round(500 / 28500, 2)
+        assert block["eps_dollar_growth"] == 0.0
 
     def test_eps_zero_returns_zero_growth(self, engine: FeatureEngine):
         block = engine._compute_block_b(_enriched(eps=0))
         assert block["eps_ttm"] == 0
         assert block["eps_dollar_growth"] == 0.0
         assert block["eps_nominal_growth"] == 0.0
+        assert block["eps_real_growth"] == 0.0
 
     def test_net_profit_from_market_value_and_pe(self, engine: FeatureEngine):
         """market_value=200T, pe=6.5 → net_profit≈30.8T."""
@@ -262,11 +290,15 @@ class TestBlockB:
         assert block["accumulated_loss"] == 0.0
         assert block["loss_to_capital_ratio"] == 0.0
 
-    def test_real_growth_adjusted_for_inflation(self, engine: FeatureEngine):
-        """رشد واقعی = (1+اسمی)/(1+تورم) - 1."""
+    def test_growth_neutral_when_prior_year_absent(self, engine: FeatureEngine):
+        """Absent prior-year EPS must stay neutral, not be deflated into a loss.
+
+        Applying the inflation deflator to a missing growth of 0 would report
+        (1 + 0) / 1.35 - 1 = -25.9% real growth for every symbol.
+        """
         block = engine._compute_block_b(_enriched(eps=500))
-        assert "eps_real_growth" in block
-        assert block["eps_real_growth"] != block.get("eps_nominal_growth")  # inflation-adjusted
+        assert block["eps_nominal_growth"] == 0.0
+        assert block["eps_real_growth"] == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -293,10 +325,19 @@ class TestBlockC:
         assert block_c["pe_relative"] == 0.0
 
     def test_earnings_yield_computed(self, engine: FeatureEngine):
-        """eps_ttm=2000, last_price=25000 → earnings_yield=(2000*4/25000)*100=32%."""
+        """eps_ttm=500 (annual), last_price=25000 → earnings_yield=2.0%.
+
+        EPS_TTM is already annual; multiplying by 4 again produced 8% (4×).
+        """
         block_b = engine._compute_block_b(_enriched(eps=500))
         block_c = engine._compute_block_c(_enriched(last_price=25000), block_b)
-        assert block_c["earnings_yield"] == pytest.approx(32.0, rel=0.5)
+        assert block_c["earnings_yield"] == pytest.approx(2.0, rel=1e-9)
+
+    def test_earnings_yield_negative_for_losses(self, engine: FeatureEngine):
+        """Loss-making symbol keeps a negative yield instead of reverting to 0."""
+        block_b = engine._compute_block_b(_enriched(eps=-154))
+        block_c = engine._compute_block_c(_enriched(last_price=523), block_b)
+        assert block_c["earnings_yield"] == pytest.approx(-29.45, rel=1e-2)
 
     def test_macro_variables_present(self, engine: FeatureEngine):
         block_c = engine._compute_block_c(_enriched(), {})
@@ -368,10 +409,23 @@ class TestBlockD:
         assert block["trend_20d"] in ("bullish", "neutral", "bearish")
 
     def test_float_turnover_pct(self, engine: FeatureEngine):
-        """free_float_pct=20%, last_price=25000, trade_value=125B
-        float_turnover = 100 * 125B / (20% * 25000) = ..."""
+        """100 × TradeValue / (FloatShares × LastPrice), on the real float.
+
+        shares=50B, free_float=20% → 10B float; price=25,000; value=125B
+        → 100 × 125e9 / (10e9 × 25,000) = 0.05 %.
+        """
         block = engine._compute_block_d(_enriched(), _historical_daily())
-        assert isinstance(block["float_turnover_pct"], float)
+        assert block["float_turnover_pct"] == pytest.approx(0.05, rel=1e-9)
+
+    def test_float_turnover_pct_scales_with_free_float(self, engine: FeatureEngine):
+        """Halving the free float doubles turnover — denominator is float, not total shares."""
+        full = engine._compute_block_d(_enriched(free_float_pct=20.0), _historical_daily())
+        half = engine._compute_block_d(_enriched(free_float_pct=10.0), _historical_daily())
+        assert half["float_turnover_pct"] == pytest.approx(2 * full["float_turnover_pct"], rel=1e-9)
+
+    def test_float_turnover_pct_zero_without_float_shares(self, engine: FeatureEngine):
+        block = engine._compute_block_d(_enriched(free_float_pct=0), _historical_daily())
+        assert block["float_turnover_pct"] == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -391,9 +445,24 @@ class TestBlockE:
         assert block["net_inst_volume"] == 1_500_000
 
     def test_net_inst_ratio(self, engine: FeatureEngine):
-        """net=1.5M, free_float_pct=20% → ratio=1.5M/20=75000."""
+        """net_inst_volume / float_shares × 100 (percent of free float).
+
+        net=1.5M, shares=50B, free_float=20% → 10B float → 0.015 %, rounded to 2dp.
+        """
         block = engine._compute_block_e(_enriched())
-        assert block["net_inst_ratio"] > 0
+        assert block["net_inst_ratio"] == round(1_500_000 / 10_000_000_000 * 100, 2)
+        assert block["net_inst_ratio"] == 0.01
+
+    def test_net_inst_ratio_negative_on_net_selling(self, engine: FeatureEngine):
+        block = engine._compute_block_e(
+            _enriched(buy_legal_volume=500_000, sell_legal_volume=2_000_000),
+        )
+        assert block["net_inst_ratio"] == round(-1_500_000 / 10_000_000_000 * 100, 2)
+        assert block["net_inst_ratio"] < 0
+
+    def test_net_inst_ratio_zero_without_shares(self, engine: FeatureEngine):
+        block = engine._compute_block_e(_enriched(shares_count=0))
+        assert block["net_inst_ratio"] == 0.0
 
     def test_retail_to_inst_ratio(self, engine: FeatureEngine):
         """retail_buy=3M, inst_buy=2M → ratio=1.5."""
@@ -501,6 +570,13 @@ class TestBlockG:
             mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
             block = engine._compute_block_g()
             assert block["end_of_month"] == 0.0
+
+    def test_market_index_3m_absent_without_index_series(self, engine: FeatureEngine):
+        """No 3-month index feed → 0.0, never a weekday-conditional constant."""
+        with patch("services.feature_engine.date") as mock_date:
+            mock_date.today.return_value = date(2026, 10, 31)  # Saturday
+            mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
+            assert engine._compute_block_g()["market_index_3m"] == 0.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -640,6 +716,17 @@ class TestScoringHelpers:
             "pe_relative": 2.5, "earnings_yield": 10.0, "bank_interest_rate": 22.5,
         })
         assert score < 40  # 50 - 20 - 10
+
+    def test_score_valuation_missing_pe_gets_no_cheap_bonus(self):
+        """pe_relative == 0 (no P/E) must not be treated as cheap."""
+        missing = FeatureEngine._score_valuation({
+            "pe_relative": 0.0, "earnings_yield": 30.0, "bank_interest_rate": 22.5,
+        })
+        present = FeatureEngine._score_valuation({
+            "pe_relative": 1.0, "earnings_yield": 30.0, "bank_interest_rate": 22.5,
+        })
+        assert missing == 70  # 50 + 20 (yield), no +10 cheapness bonus
+        assert present == 80  # 50 + 10 (0 < pe_rel < 1.2) + 20
 
     def test_score_technical_queue_override(self):
         """queue_days_streak >= 2 → RSI/MACD نادیده گرفته شود."""

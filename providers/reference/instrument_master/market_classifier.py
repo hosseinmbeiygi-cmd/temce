@@ -8,7 +8,27 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 
-MARKET_KEYWORDS = {
+# New venues come first: their labels ("بورس کالا", "بورس ارز") contain the
+# generic "بورس" token, so they must win before the BOURS entry is reached.
+MARKET_KEYWORDS: dict[MarketType, list[str]] = {
+    MarketType.SUKUK: ["صکوک", "sukuk", "اوراق بدهی", "fixed income", "اخزا"],
+    MarketType.FX: ["بورس ارز", "irfx", "currency market", "fx market"],
+    MarketType.COMMODITY: ["بورس کالا", "ime", "commodity exchange"],
+    MarketType.BOURS: ["بورس", "bourse", "bours"],
+    MarketType.FARABOURS: ["فرابورس", "farabourse", "farabours"],
+    MarketType.PAYEH: ["پایه", "payeh"],
+    MarketType.OPTION: ["اختیار", "option", "opt"],
+    MarketType.FUTURES: ["آتی", "futures"],
+    MarketType.ETF: ["etf", "صندوق"],
+}
+
+# Symbol/name evidence is kept separate and deliberately narrow for the new
+# markets so an equity whose name merely contains a commodity word is not
+# reclassified as an IME contract.
+NAME_KEYWORDS: dict[MarketType, list[str]] = {
+    MarketType.SUKUK: ["صکوک", "اخزا"],
+    MarketType.FX: [],
+    MarketType.COMMODITY: ["گندم", "ذرت", "کنجاله", "زعفران", "پسته", "زیره", "سکه"],
     MarketType.BOURS: ["بورس", "bourse", "bours"],
     MarketType.FARABOURS: ["فرابورس", "farabourse", "farabours"],
     MarketType.PAYEH: ["پایه", "payeh"],
@@ -40,7 +60,8 @@ class MarketClassifier:
         for market_type, keywords in MARKET_KEYWORDS.items():
             if any(kw.lower() in market_str for kw in keywords):
                 return market_type
-            if any(kw.upper() in symbol or kw.upper() in name for kw in keywords):
+            name_keywords = NAME_KEYWORDS.get(market_type, [])
+            if any(kw.upper() in symbol or kw.upper() in name for kw in name_keywords):
                 return market_type
         return MarketType.BOURS
 

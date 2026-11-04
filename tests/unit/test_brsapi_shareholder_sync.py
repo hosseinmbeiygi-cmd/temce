@@ -8,9 +8,12 @@ latest-status sync path (daily 13:30 job + manual full-market backfill).
 
 from unittest.mock import AsyncMock
 
+import pytest
+
 from brsapi.services.sync_service import BrsApiSyncService, SyncReport
 from core.time import utc_now_naive
 
+pytestmark = pytest.mark.needs_db
 
 async def test_sync_shareholders_stamps_fetch_date():
     svc = BrsApiSyncService(client=None, session=None)

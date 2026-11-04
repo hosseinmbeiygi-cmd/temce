@@ -18,6 +18,9 @@ class ModelTrainingJob:
     """
 
     async def execute(self, payload: dict[str, Any]) -> Result[dict[str, Any]]:
+        from core.seed import set_global_seed
+
+        set_global_seed(int(payload.get("seed", 42)))
         logger.info("Model training job started")
 
         # ── Extract what was trained (so we know what to evict) ──────────

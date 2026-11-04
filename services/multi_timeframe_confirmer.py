@@ -218,9 +218,7 @@ class MultiTimeframeConfirmer:
     ) -> tuple[str, float]:
         """Determine trend direction from price history for a given timeframe."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return "hold", 0.0

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date as date_type
+from datetime import datetime
 from typing import Any
 
 from domain.common.base_entity import BaseEntity
@@ -12,7 +13,7 @@ class MacroSeries(BaseEntity):
     name: str
     value: float = 0.0
     unit: str = ""
-    date: date | None = None
+    date: date_type | None = None
     frequency: str = "daily"
     source: str = ""
     category: str = ""
@@ -25,7 +26,7 @@ class MacroSeries(BaseEntity):
         name: str,
         value: float = 0.0,
         unit: str = "",
-        date: date | None = None,
+        date: date_type | None = None,
         frequency: str = "daily",
         source: str = "",
         category: str = "",

@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from domain.options.pricing import black_scholes_call
 from domain.trading import iran_costs as _costs
@@ -138,12 +139,10 @@ class OptionsBacktestService:
         self._target_pct = take_profit_pct
 
     async def fetch_history(
-        self, symbol: str, limit: int = 500, session_factory: object = None
+        self, symbol: str, limit: int = 500, session_factory: Any = None
     ) -> list[HistoryBar]:
         """Load daily closes from ``brsapi_historical_daily`` (newest last)."""
-        from sqlalchemy import text
-
-        from core.database import async_session_factory
+        from core.database import async_session_factory, text
 
         factory = session_factory or async_session_factory
         if factory is None:

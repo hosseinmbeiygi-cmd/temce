@@ -148,7 +148,8 @@ class RealtimeService:
             if send_fn:
                 try:
                     await send_fn(msg)
-                except Exception:
+                except Exception as exc:  # boundary: any send failure must unregister
+                    logger.debug("broadcast send failed for %s: %s; unregistering", conn_id, exc)
                     await self.unregister_client(conn_id)
 
     async def _send_to(self, connection_id: str, data: dict[str, Any]) -> None:
@@ -156,7 +157,8 @@ class RealtimeService:
         if send_fn:
             try:
                 await send_fn(json.dumps(data, default=str))
-            except Exception:
+            except Exception as exc:  # boundary: any send failure must unregister
+                logger.debug("direct send failed for %s: %s; unregistering", connection_id, exc)
                 await self.unregister_client(connection_id)
 
     async def _poll_loop(self) -> None:
@@ -233,7 +235,12 @@ class RealtimeService:
                                 if send_fn:
                                     try:
                                         await send_fn(msg)
-                                    except Exception:
+                                    except Exception as exc:  # boundary: any send failure must unregister
+                                        logger.debug(
+                                            "redis fan-out send failed for %s: %s; unregistering",
+                                            conn_id,
+                                            exc,
+                                        )
                                         await self.unregister_client(conn_id)
                 except Exception as e:
                     logger.debug("Failed to process Redis message: %s", e)

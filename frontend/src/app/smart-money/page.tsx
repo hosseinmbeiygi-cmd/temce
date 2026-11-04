@@ -1,17 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet } from "@/lib/api";
-
-// ------ Dynamic Chart Imports ---------------------------------------------------------------
-const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
-  ssr: false,
-  loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl" style={{ height: 280 }} />,
-});
 
 // ------ Phase & Score Display Helpers ---------------------------------------
 interface SmartMoneyResult {
@@ -81,52 +74,6 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-// ------ Mock Data Generator ------------------------------------------------------------------------
-function generateMockResult(symbol: string): SmartMoneyResult {
-  // Deterministic mock based on symbol length to keep results stable per symbol
-  const seed = symbol.length * 7 + symbol.charCodeAt(0) || 42;
-  const r = (n: number) => ((seed * n * 9301 + 49297) % 233280) / 233280;
-  return {
-    smart_money_score: 0.25 + r(1) * 0.6,
-    phase: ["early_accumulation", "active_absorption", "float_lock", "breakout_ready", "confirmed_smart_money", "neutral"][Math.floor(r(2) * 6)],
-    scores: {
-      accumulation: 0.2 + r(3) * 0.7,
-      absorption: 0.2 + r(4) * 0.7,
-      float_lock: 0.2 + r(5) * 0.7,
-      breakout_readiness: 0.2 + r(6) * 0.7,
-      buyer_power: 0.2 + r(7) * 0.7,
-      microstructure: 0.2 + r(8) * 0.7,
-    },
-    penalties: {
-      distribution_risk: r(9) * 0.5,
-      fake_breakout_risk: r(10) * 0.5,
-      dead_compression: r(11) * 0.5,
-    },
-    features: {},
-    breakout_features: {},
-  };
-}
-
-function generateMockHistory(symbol: string, days: number = 30) {
-  const seed = symbol.length * 13 + symbol.charCodeAt(0) || 42;
-  const r = (n: number) => ((seed * n * 9301 + 49297) % 233280) / 233280;
-  const data: { date: string; time: string; value: number }[] = [];
-  let base = 0.3 + r(0) * 0.3;
-  const now = new Date();
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    if (d.getDay() === 5 || d.getDay() === 6) continue;
-    base = Math.max(0.05, Math.min(0.95, base + (r(i) - 0.48) * 0.04));
-    data.push({
-      date: d.toLocaleDateString("fa-IR", { month: "short", day: "numeric" }),
-      time: d.toLocaleDateString("fa-IR", { month: "short", day: "numeric" }),
-      value: Math.round(base * 100),
-    });
-  }
-  return data;
-}
-
 // ------ Main Component ------------------------------------------------------------------------------------------
 export default function SmartMoneyPage() {
   const [symbol, setSymbol] = useState("فولاد");
@@ -134,7 +81,6 @@ export default function SmartMoneyPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SmartMoneyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isMock, setIsMock] = useState(false);
 
   async function analyze(sym: string) {
     const trimmed = sym.trim();
@@ -143,15 +89,18 @@ export default function SmartMoneyPage() {
     setLoading(true);
     setError(null);
     setResult(null);
-    setIsMock(false);
     try {
-      const res = await apiGet<{ success: boolean; data: SmartMoneyResult }>(`/smart-money/${trimmed}`);
-      setResult(res?.data || null);
+      const res = await apiGet<{ success: boolean; data: SmartMoneyResult | null }>(
+        `/smart-money/${encodeURIComponent(trimmed)}`
+      );
+      if (!res?.data) {
+        setError(`تحلیلی برای نماد «${trimmed}» در دسترس نیست — ابتدا داده‌های بازار را همگام‌سازی کنید.`);
+        return;
+      }
+      setResult(res.data);
     } catch {
-      // Fallback to mock data when API is unavailable
-      const mock = generateMockResult(trimmed);
-      setResult(mock);
-      setIsMock(true);
+      // Never substitute sample data: an outage must be visible, not plausible.
+      setError("دریافت تحلیل پول هوشمند ناموفق بود — ارتباط با سرور برقرار نشد. دوباره تلاش کنید.");
     } finally {
       setLoading(false);
     }
@@ -159,8 +108,6 @@ export default function SmartMoneyPage() {
 
   const phaseMeta = result ? PHASE_META[result.phase] || PHASE_META.neutral : null;
   const smcPct = result ? Math.round(result.smart_money_score * 100) : 0;
-
-  const historyData = result ? generateMockHistory(symbol, 30) : [];
 
   const popularSymbols = ["فولاد", "شپنا", "وبملت", "خودرو", "فملی", "کگل", "پترول", "مس"];
 
@@ -212,31 +159,21 @@ export default function SmartMoneyPage() {
 
       {/* ------ Error State --------------------------------------------------------------------------- */}
       {error && !loading && (
-        <div className="glass-card p-8 text-center">
+        <div role="alert" aria-live="polite" className="glass-card p-8 text-center">
           <span className="material-icons text-4xl text-accent-rose mb-2">error_outline</span>
           <p className="text-surface-400 text-sm">{error}</p>
+          <button
+            onClick={() => analyze(symbol)}
+            className="mt-4 text-xs px-3 py-1 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-400 transition-colors"
+          >
+            تلاش مجدد
+          </button>
         </div>
       )}
 
       {/* ------ Results --------------------------------------------------------------------------------------- */}
       {result && !loading && (
         <>
-          {/* ------ Mock Data Warning ------------------------------------------------------ */}
-          {isMock && (
-            <div className="flex items-center gap-2.5 px-4 py-2.5 mb-4 rounded-xl bg-accent-amber/10 border border-accent-amber/20 text-sm">
-              <span className="material-icons text-accent-amber" style={{ fontSize: 20 }}>info</span>
-              <span className="text-surface-300">
-                داده‌های API در دسترس نیست — تحلیل با <strong>داده شبیه‌سازی‌شده</strong> نمایش داده می‌شود.
-              </span>
-              <button
-                onClick={() => analyze(symbol)}
-                className="mr-auto text-xs px-3 py-1 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-400 transition-colors"
-              >
-                تلاش مجدد
-              </button>
-            </div>
-          )}
-
           {/* ------ Top Row: SMC Score + Phase + Layer Scores ------ */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             {/* SMC Score Gauge */}
@@ -320,21 +257,14 @@ export default function SmartMoneyPage() {
               </div>
             </Card>
 
-            {/* SMC History Trend */}
+            {/* SMC History Trend — no history endpoint exists, so no chart. */}
             <Card title="روند SMC">
-              <AreaChartCard
-                title=""
-                data={historyData}
-                height={260}
-                yAxisFormatter={(v) => `${v}%`}
-                tooltipFormatter={(v) => `${v}%`}
-                strokeColor="#06b6d4"
-                gradientId="smcGradient"
-                crosshair
-                animate
-                showAverage
-                primaryLabel="امتیاز SMC"
-              />
+              <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 px-6 text-center">
+                <span className="material-icons text-3xl text-surface-600">show_chart</span>
+                <p className="text-xs text-surface-500">
+                  سری تاریخی امتیاز SMC از سرور در دسترس نیست؛ به‌جای نمایش نمودار ساختگی، این بخش خالی می‌ماند.
+                </p>
+              </div>
             </Card>
           </div>
 

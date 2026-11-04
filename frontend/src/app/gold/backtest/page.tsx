@@ -2,14 +2,19 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getStrategyBacktest, getBacktest } from "@/lib/goldApi";
+import { getStrategyBacktest, getBacktest, isServiceUnavailable } from "@/lib/goldApi";
 
 export default function GoldBacktestPage() {
   const [days, setDays] = useState(90);
   const [bubbleTrigger, setBubbleTrigger] = useState(5);
   const [capital, setCapital] = useState(100_000_000);
 
-  const { data: strategy, isLoading } = useQuery({
+  const {
+    data: strategy,
+    isLoading,
+    isError: backtestFailed,
+    error: backtestError,
+  } = useQuery({
     queryKey: ["gold", "backtest-strategy", days, bubbleTrigger, capital],
     queryFn: () => getStrategyBacktest({ days, bubble_trigger: bubbleTrigger, initial_capital: capital }),
   });
@@ -18,6 +23,27 @@ export default function GoldBacktestPage() {
     queryKey: ["gold", "backtest-signal", days],
     queryFn: () => getBacktest(days, 8),
   });
+
+  // F7: پنج فیلد oos_* ممکن است حاضر و null باشند (پاسخ جدید) یا اصلاً نباشند
+  // (پاسخ قدیمی). «حاضر بودن کلید» با `!== undefined` تشخیص داده می‌شود تا null
+  // به‌عنوان «نامشخص» رندر شود، نه صفر.
+  const OOS_FIELDS = [
+    "oos_start",
+    "oos_total_return_pct",
+    "oos_buy_hold_return_pct",
+    "oos_alpha_pct",
+    "oos_max_drawdown_pct",
+  ] as const;
+  const hasOos = strategy ? OOS_FIELDS.some((key) => strategy[key] !== undefined) : false;
+
+  const pctText = (value: number | null | undefined): string =>
+    value === null || value === undefined || !Number.isFinite(value)
+      ? "نامشخص"
+      : `${value > 0 ? "+" : ""}${value.toFixed(1)}٪`;
+  const drawdownText = (value: number | null | undefined): string =>
+    value === null || value === undefined || !Number.isFinite(value)
+      ? "نامشخص"
+      : `-${Math.abs(value).toFixed(1)}٪`;
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -59,13 +85,54 @@ export default function GoldBacktestPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {backtestFailed ? (
+        /* F7: پیش از این صفحه در حالت خطا `: null` می‌داد — یعنی هیچ‌چیز. کاربر
+           فکر می‌کرد بک‌تست نتیجه ندارد، درحالی‌که سرور خطا داده بود. */
+        <div
+          role="alert"
+          className="rounded-lg border p-4 text-sm"
+          style={{ background: "var(--gd-bg-2)", borderColor: "var(--gd-danger)", color: "var(--gd-danger)" }}
+        >
+          <div className="font-bold mb-1">محاسبهٔ استراتژی بک‌تست انجام نشد</div>
+          <div style={{ color: "var(--gd-text-2)" }}>
+            {isServiceUnavailable(backtestError)
+              ? "سرویس دادهٔ طلا موقتاً در دسترس نیست (۵۰۳)؛ چند لحظه دیگر دوباره تلاش کنید."
+              : "پاسخ سرویس ناموفق بود. تا رفع خطا، هیچ عددی در این صفحه نمایش داده نمی‌شود."}
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="text-zinc-500 text-center py-12">در حال محاسبه...</div>
       ) : strategy ? (
         <>
+          {/* F7: هشدار پاسخ بک‌تست باید برجسته و دائمی بماند — این عدد با
+              warningِ «داده کم است» همان ارزش را ندارد. قبلاً یک خط text-xs بود
+              که کاربر می‌توانست ندیده بگیرد، و خطای query کلاً پنهان می‌شد. */}
           {strategy.warning && (
-            <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-xs text-amber-300">
-              ⚠️ {strategy.warning}
+            <div
+              className="rounded-lg border p-4 text-sm leading-6"
+              style={{
+                background: "var(--gd-bg-2)",
+                borderColor: "var(--gd-warn)",
+                color: "var(--gd-warn)",
+              }}
+              role="alert"
+            >
+              <div className="font-bold mb-1">⚠️ هشدار نتیجهٔ بک‌تست</div>
+              <div>{strategy.warning}</div>
+              <div className="mt-2 text-xs" style={{ color: "var(--gd-text-2)" }}>
+                تا این هشدار برطرف نشده، اعداد پایین این کارت قابل اتکا نیستند.
+              </div>
+            </div>
+          )}
+
+          {!hasOos && (
+            <div
+              className="rounded-lg px-3 py-2 text-[11px] leading-5"
+              style={{ background: "var(--gd-bg-2)", color: "var(--gd-text-2)", border: "1px solid var(--gd-border)" }}
+            >
+              بک‌تست روی دورهٔ گذشته است و نتیجهٔ آینده را تضمین نمی‌کند؛ ابزار تحلیلی
+              است، نه توصیهٔ مالی. متریک جداگانهٔ out-of-sample در این پاسخ نیست؛
+              فقط اعداد کل دوره نمایش داده می‌شوند.
             </div>
           )}
 
@@ -130,6 +197,65 @@ export default function GoldBacktestPage() {
               </div>
             </div>
           </div>
+
+          {hasOos && (
+            <div className="rounded-lg border border-zinc-700 bg-zinc-900 overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-700 text-sm font-semibold text-zinc-300">
+                مقایسهٔ کل دوره با بازهٔ آزمایش بیرون‌نمونه (OOS)
+                {strategy.oos_start ? (
+                  <span className="text-[11px] font-normal text-zinc-500 mr-2">
+                    شروع: {strategy.oos_start}
+                  </span>
+                ) : null}
+              </div>
+              <table className="w-full text-sm" aria-label="بازهٔ آزمایش بیرون‌نمونه (OOS)">
+                <thead>
+                  <tr className="text-xs text-zinc-500 border-b border-zinc-800">
+                    <th className="text-right p-3">متریک</th>
+                    <th className="text-left p-3">کل دوره</th>
+                    <th className="text-left p-3">OOS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    {
+                      label: "بازده DCA",
+                      full: pctText(strategy.total_return_pct),
+                      oos: pctText(strategy.oos_total_return_pct),
+                    },
+                    {
+                      label: "Buy & Hold",
+                      full: pctText(strategy.buy_hold_return_pct),
+                      oos: pctText(strategy.oos_buy_hold_return_pct),
+                    },
+                    {
+                      label: "آلفا (DCA − BH)",
+                      full: pctText(strategy.alpha_pct),
+                      oos: pctText(strategy.oos_alpha_pct),
+                    },
+                    {
+                      label: "Max Drawdown",
+                      full: drawdownText(strategy.max_drawdown_pct),
+                      oos: drawdownText(strategy.oos_max_drawdown_pct),
+                    },
+                  ].map((row) => (
+                    <tr key={row.label} className="border-b border-zinc-800/50">
+                      <td className="p-3 text-zinc-300">{row.label}</td>
+                      <td className="p-3 text-left font-mono text-zinc-200">{row.full}</td>
+                      <td className="p-3 text-left font-mono text-zinc-200">{row.oos}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td className="p-3 text-zinc-300">شروع بازهٔ OOS</td>
+                    <td className="p-3 text-left font-mono text-zinc-500">—</td>
+                    <td className="p-3 text-left font-mono text-zinc-200">
+                      {strategy.oos_start ?? "نامشخص"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {strategy.trades.length > 0 && (
             <div className="rounded-lg border border-zinc-700 bg-zinc-900 overflow-hidden">

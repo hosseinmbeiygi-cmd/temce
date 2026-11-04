@@ -34,3 +34,14 @@ repos:
       - id: detect-private-key
       - id: mixed-line-ending
         args: [--fix=lf]
+
+  # Local: full-tree scan (gitleaks above only inspects the staged diff, which
+  # is why keys already committed stayed invisible to it).
+  - repo: local
+    hooks:
+      - id: hardcoded-secrets
+        name: hardcoded secrets (source tree)
+        entry: python scripts/check_secrets.py
+        language: system
+        pass_filenames: false
+        always_run: true

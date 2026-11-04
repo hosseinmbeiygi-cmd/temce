@@ -7,6 +7,10 @@ Verifies that:
   - RedisClient with a custom URL still manages its own private connection.
   - RedisClient keeps its graceful no-op fallbacks when Redis is unavailable.
   - Housekeeping jobs (CacheWarmupJob / HealthCheckJob) use the shared cache.
+  - integrations.cache is deprecated (import + construction warnings) and is
+    no longer the implementation — core.cache is.
+  - CacheManager (L1+L2 tiered cache) borrows the shared connection and never
+    closes it.
 """
 
 from __future__ import annotations
@@ -16,12 +20,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from core.config import settings
+
 # ── Minimal fake redis client (surface used by CacheService/RedisClient) ──
 
 
 class FakeRedis:
     def __init__(self) -> None:
         self._data: dict[str, str] = {}
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
 
     async def set(self, key: str, value: str, nx: bool = False, px: int | None = None) -> bool | None:
         if nx and key in self._data:
@@ -300,3 +310,82 @@ async def test_health_check_job_reports_unreachable_when_ping_fails():
         result = await job.run(ctx)
     assert result.success is True
     assert result.data["checks"]["redis"] == "unreachable"
+
+
+# ── Deprecated legacy package (integrations.cache) ────────────────────
+
+
+def test_legacy_cache_classes_warn_on_construction():
+    from integrations.cache import KeyBuilder, MemoryCache, RedisClient, TTLManager
+
+    for factory in (KeyBuilder, MemoryCache, RedisClient, TTLManager):
+        with pytest.warns(DeprecationWarning):
+            factory()
+
+
+def test_legacy_memory_cache_still_works():
+    """Deprecated, but existing callers must keep working unchanged."""
+    from integrations.cache import MemoryCache
+
+    with pytest.warns(DeprecationWarning):
+        cache = MemoryCache(default_ttl=60)
+    cache.set("k", 1)
+    assert cache.get("k") == 1
+
+
+# ── CacheManager shares the single Redis connection ──────────────────
+
+
+@pytest.mark.asyncio
+async def test_cache_manager_uses_the_shared_connection():
+    """Default URL → L2 must borrow the app-wide client (no second socket)."""
+    from core.cache_manager import CacheManager
+
+    fake = FakeRedis()
+    stub = StubCache(fake)
+    cm = CacheManager(redis_url=settings.redis_url, namespace="cmtest")
+
+    with patch("core.cache.get_cache", return_value=stub):
+        assert await cm._ensure_redis() is True
+        assert cm._redis is fake
+        assert cm._owns_redis is False
+        await cm.set("k", {"v": 1}, ttl=30)
+
+    assert json.loads(await fake.get("cmtest:k")) == {"v": 1}
+    assert stub.initialize_calls == 0  # already connected — no re-init
+
+
+@pytest.mark.asyncio
+async def test_cache_manager_close_never_closes_the_shared_client():
+    from core.cache_manager import CacheManager
+
+    fake = FakeRedis()
+    stub = StubCache(fake)
+    cm = CacheManager(redis_url=settings.redis_url, namespace="cmtest")
+
+    with patch("core.cache.get_cache", return_value=stub):
+        await cm._ensure_redis()
+        await cm.close()
+
+    assert cm._redis is None
+    assert fake.closed is False, "the app-wide connection must stay open"
+
+
+@pytest.mark.asyncio
+async def test_cache_manager_custom_url_keeps_private_connection():
+    """Audit/test scripts pointing at another server still get their own client."""
+    from core.cache_manager import CacheManager
+
+    own = AsyncMock()
+    own.ping = AsyncMock(return_value=True)
+    cm = CacheManager(redis_url="redis://custom:6379/5", namespace="cmtest")
+
+    with patch("core.cache.get_cache", return_value=StubCache(FakeRedis())), patch(
+        "redis.asyncio.from_url", return_value=own
+    ) as mock_from_url:
+        assert await cm._ensure_redis() is True
+
+    mock_from_url.assert_called_once_with("redis://custom:6379/5", decode_responses=False)
+    assert cm._owns_redis is True
+    await cm.close()
+    own.close.assert_awaited_once()

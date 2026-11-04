@@ -1,4 +1,4 @@
-﻿"""Quant Signal Orchestrator — ties the entire signal pipeline together.
+"""Quant Signal Orchestrator — ties the entire signal pipeline together.
 
 Flow:
   1. MultiMarketSignalEngine  → rule-based signals
@@ -21,8 +21,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
-
+from core.database import SQLAlchemyError, text
 from core.db_utils import safe_row_float
 from core.indicators import compute_data_quality_score
 from core.logging import get_logger
@@ -154,7 +153,9 @@ class OrchestratorReport:
             "signals": [s.to_dict() for s in self.signals],
             "summary": self.summary,
             "reports": self.generation_reports,
-            "accuracy": self.accuracy_snapshot,
+            # مصرف‌کننده‌ها (کران/داشبورد) روی این کلید `.get("overall")` می‌زنند،
+            # پس هرگز `None` سریال نمی‌شود؛ نبودِ عکس لحظه‌ای یعنی «داده‌ای نیست».
+            "accuracy": self.accuracy_snapshot or {},
             "cross_market": self.cross_market_signals,
             "retrain": self.retrain_reports,
             "generated_at": self.generated_at,
@@ -383,7 +384,8 @@ class CrossMarketCorrelator:
                     (prices[0] - prices[-1]) / prices[-1] * 100, 2
                 )
             return changes
-        except Exception:
+        except (SQLAlchemyError, KeyError, TypeError, ValueError, ArithmeticError) as exc:
+            logger.warning("price-change history unavailable for market %s: %s", market, exc)
             return {}
 
     @classmethod
@@ -735,7 +737,12 @@ class QuantSignalOrchestrator:
                     _s: len((_hist_map.get(_s, {}) or {}).get("closes", []) or [])
                     for _s in {_s2.symbol for _s2 in raw_signals}
                 }
-            except Exception:
+            except (SQLAlchemyError, OSError, ValueError, RuntimeError) as exc:
+                logger.warning(
+                    "history fetch failed; decision engine runs without history: %s",
+                    exc,
+                    exc_info=True,
+                )
                 _hist_lens = {}
             enriched, rejected = await self._apply_signal_decision(enriched, _hist_lens)
         logger.info("[pipeline] stage4.5 decision: %.2fs, released=%d rejected=%d", time.monotonic() - _t5, len(enriched), len(rejected))
@@ -1170,6 +1177,20 @@ class QuantSignalOrchestrator:
             released: list[EnrichedSignal] = []
             rejected: list[EnrichedSignal] = []
 
+            # Gate 9 context (audit D-03): read the portfolio risk state from
+            # the paper-trading ledger ONCE per run. ``load_portfolio_risk``
+            # returns an unapproved state when the ledger cannot be read, so
+            # Gate 9 blocks instead of approving on missing data.
+            from services.portfolio_risk import load_portfolio_risk
+
+            risk_state = await load_portfolio_risk(self._session)
+            if not risk_state.approved:
+                logger.warning(
+                    "Portfolio risk state unavailable (%s) — every candidate "
+                    "will be blocked by Gate 9 (fail-closed)",
+                    risk_state.reason,
+                )
+
             for sig in signals:
                 try:
                     # Parse string fields to numeric values
@@ -1207,7 +1228,8 @@ class QuantSignalOrchestrator:
                     else:
                         try:
                             _n_votes = len(scores) if isinstance(scores, dict) else 0
-                        except Exception:
+                        except TypeError as exc:
+                            logger.debug("vote score is not sized (%s); using 0 votes", exc)
                             _n_votes = 0
                         _price_points = max(20, _n_votes * 10)
                     dqs = compute_data_quality_score(
@@ -1221,17 +1243,11 @@ class QuantSignalOrchestrator:
                     liq_score = min(1.0, 0.3 + abs_change * 3)
                     fill_prob = min(1.0, 0.4 + abs_change * 2.5)
 
-                    # Gate 9 fix: no hardcoded block. Portfolio validator module
-                    # is not called here, so default to allowed with a warning
-                    # (fail-open) instead of forcing released=[].
-                    logger.warning(
-                        "Portfolio validator not invoked for %s — defaulting "
-                        "portfolio_risk_approved=True (fail-open)",
-                        sig.symbol,
-                    )
-                    portfolio_approved = True
-                    open_risk = 0.0
-                    correlated_exp = 0.0
+                    # Gate 9 (audit D-03): the portfolio figures come from the
+                    # paper-trading ledger via services.portfolio_risk — never
+                    # fabricated. An unreadable ledger yields approved=False,
+                    # which SignalDecisionEngine._gate_portfolio blocks.
+                    portfolio_approved, open_risk, correlated_exp = risk_state.for_market(sig.market)
 
                     candidate = SignalCandidate(
                         signal_id=sig.symbol + "_" + sig.market + "_" + sig.timeframe,

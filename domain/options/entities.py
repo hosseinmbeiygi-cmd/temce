@@ -6,6 +6,12 @@ from typing import Any
 
 from domain.common.base_entity import BaseEntity
 
+# One TSE/IFB equity option contract covers 1,000 shares. This is the single
+# source of truth for the default (audit FIN-09): the margin engine used to
+# default to 1, silently under-computing margin by 1000x for callers that did
+# not pass a size.
+DEFAULT_OPTION_CONTRACT_SIZE: int = 1000
+
 
 @dataclass
 class Option(BaseEntity):
@@ -16,7 +22,7 @@ class Option(BaseEntity):
     option_type: str = ""
     strike_price: float = 0.0
     expiration_date: date | None = None
-    contract_size: int = 1000
+    contract_size: int = DEFAULT_OPTION_CONTRACT_SIZE
     currency: str = "IRR"
     style: str = "european"
     is_active: bool = True
@@ -32,7 +38,7 @@ class Option(BaseEntity):
         option_type: str = "",
         strike_price: float = 0.0,
         expiration_date: date | None = None,
-        contract_size: int = 1000,
+        contract_size: int = DEFAULT_OPTION_CONTRACT_SIZE,
         currency: str = "IRR",
         style: str = "european",
         is_active: bool = True,

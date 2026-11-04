@@ -1,5 +1,22 @@
 """Gold module schemas — Iranian gold market (ETFs, futures, physical, signals)."""
 
+from schemas.api.gold.analytics import (
+    AedParityRequest,
+    AssayAdjustmentRequest,
+    Black76Request,
+    CoinBubblesRequest,
+    EnrichChainRequest,
+    FuturesTermRequest,
+    ImeArbitrageRequest,
+    ImpliedVolatilityRequest,
+    MacroPostureRequest,
+    MesghalPriceRequest,
+    OptionsChainRequest,
+    RiskPosition,
+    RiskScenarioInput,
+    RiskShockSet,
+    RiskStressRequest,
+)
 from schemas.api.gold.coin_bubble import (
     CoinBubbleRequest,
     CoinBubbleResponse,
@@ -28,7 +45,11 @@ from schemas.api.gold.signals import (
 )
 
 __all__ = [
+    "AedParityRequest",
+    "AssayAdjustmentRequest",
+    "Black76Request",
     "CoinBubbleRequest",
+    "CoinBubblesRequest",
     "CoinBubbleResponse",
     "ETFNavPremiumResponse",
     "ETFNavPremiumRow",
@@ -38,10 +59,21 @@ __all__ = [
     "FuturesMarginRequest",
     "FuturesMarginResponse",
     "FuturesPosition",
+    "FuturesTermRequest",
     "GoldLivePrices",
     "GoldLivePricesRequest",
     "GoldKillSwitchStatus",
     "GoldSignal",
     "GoldSignalAction",
     "GoldSignalTimeframe",
+    "ImeArbitrageRequest",
+    "ImpliedVolatilityRequest",
+    "MacroPostureRequest",
+    "MesghalPriceRequest",
+    "OptionsChainRequest",
+    "EnrichChainRequest",
+    "RiskPosition",
+    "RiskScenarioInput",
+    "RiskShockSet",
+    "RiskStressRequest",
 ]

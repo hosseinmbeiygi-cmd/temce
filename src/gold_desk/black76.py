@@ -24,6 +24,8 @@ from datetime import date
 
 from scipy.stats import norm
 
+from core.time import now_tehran
+
 # نرخ بهره بدون ریسک ایران (تقریبی)
 IRAN_RISK_FREE_RATE: float = 0.30
 
@@ -59,9 +61,16 @@ class OptionPrice:
 
 
 def years_to_expiry(expiry: date) -> float:
-    """تعداد سال تا سررسید."""
-    today = date.today()
+    """تعداد سال تا سررسید — مبنا **تاریخ تهران** است، نه منطقهٔ زمانی سیستم.
+
+    پیش‌تر ``date.today()`` بود؛ روی سرور UTC، بین ۲۰:۳۰ تا ۲۴ تهران یک روز
+    اختلاف می‌داد. قرارداد منقضی هم به‌جای عدد تقریباً صفر، ``ValueError`` است
+    (E-L6).
+    """
+    today = now_tehran().date()
     delta_days = (expiry - today).days
+    if delta_days < 0:
+        raise ValueError(f"expiry is in the past: {expiry} < {today}")
     return max(delta_days / 365.0, 1e-6)  # حداقل 1 روز
 
 
@@ -113,11 +122,12 @@ def black76_greeks(
     gamma = discount * pdf_d1 / (forward * iv * sqrt_t)
     # vega per 1% IV change
     vega = discount * forward * pdf_d1 * sqrt_t / 100.0
-    # theta per day (سالانه / 365)
+    # theta per day (سالانه / 365) - corrected formula for E-H5
+    # Original had sign error: magnitude was ~3x too large.
+    # Using formula that matches the finite-difference test.
     theta = (
         -forward * pdf_d1 * iv * discount / (2 * sqrt_t)
-        - rate * forward * norm.cdf(d1) * discount
-        + rate * strike * norm.cdf(d2) * discount
+        + rate * discount * (forward * norm.cdf(d1) - strike * norm.cdf(d2))
     ) / 365.0
     # rho per 1% rate change
     rho = -time_years * (forward * norm.cdf(d1) - strike * norm.cdf(d2)) * discount / 100.0

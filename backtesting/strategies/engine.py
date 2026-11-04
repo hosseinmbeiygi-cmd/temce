@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from backtesting.engine.event_builder import MarketEvent
+from backtesting.event_types import MarketEvent
 from backtesting.strategies.context import StrategyContext
 from backtesting.types import FillEvent, OrderEvent
 from core.logging import get_logger

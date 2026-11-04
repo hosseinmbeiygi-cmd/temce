@@ -54,8 +54,8 @@ def test_long_only_options_no_margin() -> None:
 
 
 def test_covered_call_detected_and_zero_margin() -> None:
-    """Long stock + short call of matching size requires no margin."""
-    long_stock = _leg(LegType.STOCK, Direction.LONG, quantity=1, contract_size=1000)
+    """1,000 shares (one contract's worth) + 1 short call → no margin."""
+    long_stock = _leg(LegType.STOCK, Direction.LONG, quantity=1000, contract_size=1000)
     short_call = _leg(LegType.CALL, Direction.SHORT, strike=110.0, premium=2.0, quantity=1, contract_size=1000)
     result = MarginEngine().calculate_margin([long_stock, short_call])
     assert result.strategy_type == "covered_call"
@@ -64,7 +64,7 @@ def test_covered_call_detected_and_zero_margin() -> None:
 
 def test_protective_put_detected() -> None:
     """Long stock + long put requires no margin, just the put premium."""
-    long_stock = _leg(LegType.STOCK, Direction.LONG, quantity=1, contract_size=1000)
+    long_stock = _leg(LegType.STOCK, Direction.LONG, quantity=1000, contract_size=1000)
     long_put = _leg(LegType.PUT, Direction.LONG, strike=90.0, premium=4.0, quantity=1, contract_size=1000)
     result = MarginEngine().calculate_margin([long_stock, long_put])
     assert result.strategy_type == "protective_put"

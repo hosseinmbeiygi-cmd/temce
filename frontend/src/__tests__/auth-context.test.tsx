@@ -157,6 +157,36 @@ describe("AuthProvider", () => {
       expect(localStorage.length).toBe(0);
     });
 
+    it("surfaces the server error when the API returns HTTP 200 with success:false", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: false,
+          data: null,
+          error: { message: "Invalid username or password" },
+        }),
+      }) as unknown as typeof fetch;
+
+      const { AuthProvider, useAuth } = await loadAuth();
+      const { result } = renderHook(() => useAuth(), { wrapper: wrapperFor(AuthProvider) });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      let loginError: unknown;
+      await act(async () => {
+        try {
+          await result.current.login("ali", "wrong");
+        } catch (e) {
+          loginError = e;
+        }
+      });
+
+      expect(loginError).toBeInstanceOf(Error);
+      expect((loginError as Error).message).toContain("Invalid username or password");
+      expect((loginError as Error).message).not.toContain("missing access token");
+      expect(result.current.isAuthenticated).toBe(false);
+    });
+
     it("throws when login fails and keeps user logged out", async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: false,

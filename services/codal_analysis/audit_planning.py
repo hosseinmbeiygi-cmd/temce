@@ -52,7 +52,7 @@ class AuditStrategy:
 class AuditPlanner:
     """ISA 300: Planning an Audit of Financial Statements"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def create_strategy(
@@ -124,7 +124,7 @@ class AuditPlanner:
         locations: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         locations = locations or []
-        scope = {
+        scope: dict[str, Any] = {
             "total_locations": len(locations),
             "significant_locations": 0,
             "coverage_pct": 0,

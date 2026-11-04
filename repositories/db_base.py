@@ -46,11 +46,11 @@ class DbRepository(Generic[TDomain, TModel]):
         return Result.ok(True)
 
     async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[TDomain]]:
-        count_stmt = select(sa_func.count()).select_from(self.model_class)  # type: ignore
+        count_stmt = select(sa_func.count()).select_from(self.model_class)
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar() or 0
 
-        stmt = select(self.model_class).offset((page - 1) * page_size).limit(page_size)  # type: ignore
+        stmt = select(self.model_class).offset((page - 1) * page_size).limit(page_size)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok(

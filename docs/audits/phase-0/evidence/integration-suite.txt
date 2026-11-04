@@ -1,0 +1,341 @@
+target db: phase0_it_20261026 | redis db: 13
+2026-10-26 15:11:36 [debug    ] Registered 15 strategies
+.2026-10-26 15:11:38 [debug    ] Registered 15 strategies
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 499, needs 501)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 498, needs 500)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 497, needs 499)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 498, needs 500)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 498, needs 500)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 497, needs 498)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 497, needs 499)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 491, needs 497)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 495, needs 498)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 496, needs 498)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 496, needs 497)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 494, needs 496)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 495, needs 497)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 495, needs 497)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 494, needs 496)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 491, needs 492)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 494, needs 496)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 493, needs 494)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 492, needs 495)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 493, needs 495)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 493, needs 494)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 492, needs 494)
+2026-10-26 15:11:38 [warning  ] Insufficient position for sell: XAUUSD (has 492, needs 495)
+..2026-10-26 15:11:40 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:11:40 [debug    ] Request: GET /health [trace=cec40e2d174649ddb240c9e2fe21f3cf]
+2026-10-26 15:11:40 [info     ] GET /health -> 404 (0.000s) [trace=cec40e2d174649ddb240c9e2fe21f3cf]
+2026-10-26 15:11:40 [debug    ] Response: 404 [trace=cec40e2d174649ddb240c9e2fe21f3cf]
+2026-10-26 15:11:40 [debug    ] Request: GET /api/v1/health [trace=6b3525bcc99542e1aa5f365022914581]
+2026-10-26 15:11:40 [info     ] GET /api/v1/health -> 200 (0.015s) [trace=6b3525bcc99542e1aa5f365022914581]
+2026-10-26 15:11:40 [debug    ] Response: 200 [trace=6b3525bcc99542e1aa5f365022914581]
+.2026-10-26 15:11:40 [info     ] Database connected: localhost:5432/my_first_db
+2026-10-26 15:11:40 [debug    ] Request: GET /api/v1/health [trace=813026fb235b4b95903d0c48290ef5d9]
+2026-10-26 15:11:40 [info     ] GET /api/v1/health -> 200 (0.000s) [trace=813026fb235b4b95903d0c48290ef5d9]
+2026-10-26 15:11:40 [debug    ] Response: 200 [trace=813026fb235b4b95903d0c48290ef5d9]
+.2026-10-26 15:11:40 [warning  ] Failed to load historical data for فولاد: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $2: '1402-10-11' ('str' object has no attribute 'toordinal')
+[SQL: 
+        SELECT d.trade_date, d.trade_date_shamsi,
+               d.price_first_adj, d.price_max_adj, d.price_min_adj, d.price_last_adj,
+               d.trade_volume, d.trade_value
+        FROM vw_daily_history_adjusted d
+        WHERE d.symbol = $1
+          AND d.price_last IS NOT NULL
+          AND d.trade_date_shamsi IS NOT NULL
+          AND d.trade_date >= $2 AND d.trade_date <= $3
+        ORDER BY d.trade_date ASC
+        ]
+[parameters: ('فولاد', '1402-10-11', '1403-10-11')]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+F.................2026-10-26 15:11:50 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+.2026-10-26 15:11:50 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+F.........2026-10-26 15:11:50 [debug    ] Request: GET /api/v1/screener [trace=196015f1937f4c7b96e31bac19038969]
+2026-10-26 15:11:50 [info     ] GET /api/v1/screener -> 401 (0.015s) [trace=196015f1937f4c7b96e31bac19038969]
+2026-10-26 15:11:50 [debug    ] Response: 401 [trace=196015f1937f4c7b96e31bac19038969]
+F...2026-10-26 15:11:57 [warning  ] ML model dir C:\Users\Iran\Desktop\temce\data\models holds no model folders — reading artifacts from C:\Users\Iran\Desktop\temce\ml_artifacts (set ML_MODEL_DIR to silence this)
+F  [PASS] Test 2: Disagree -> dir=sell ml_w=0.59 votes=buy:0.35
+.  [PASS] Test 3: Override -> dir=sell conf=0.85
+.  [PASS] Test 4: Low conf -> dir=buy strat=weighted
+.  [PASS] Test 5A: Unanimous agree -> dir=buy
+  [PASS] Test 5B: Unanimous disagree -> dir=hold
+.  [PASS] Test 6: No ML -> dir=buy sources=1
+.  [PASS] Test 7: History -> dir=sell sources=3
+.  [PASS] Test 8: apply_vote -> dir=buy score=100 conf=1.00
+.  [PASS] Test 9A: Low conf unanimous -> dir=hold conf=1.00 strat=unanimous
+  [PASS] Test 9B: Extreme override -> dir=buy
+  [PASS] Test 9C: No ML -> dir=hold
+.  [INFO] Strategy Comparison:
+    weighted        dir=sell   score=69 conf=0.39 ml_w=0.56
+    unanimous       dir=hold   score=50 conf=0.20 ml_w=0.56
+    ml_override     dir=sell   score=70 conf=0.80 ml_w=1.00
+  [PASS] Test 10: All strategies ran
+.F
+  [COMPARISON] n=30:
+    Rule-only:  53.3% (16/30)
+    Voted:      90.0% (27/30)
+    Improvement: +36.7%
+    Fixed by voting:  <generator object test_comparison_rule_only_vs_voted.<locals>.<genexpr> at 0x000002F05A96DB10>
+    Broken by voting: <generator object test_comparison_rule_only_vs_voted.<locals>.<genexpr> at 0x000002F05A96DA40>
+    Rule saved the day: 5
+F
+================================== FAILURES ===================================
+___________________________ test_backtest_run_flow ____________________________
+
+    @pytest.mark.asyncio
+    async def test_backtest_run_flow():
+        service = BacktestService()
+    
+        result = await service.run_backtest(
+            name="Integration Test",
+            symbols=["فولاد"],
+            strategy_type="moving_average_cross",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 12, 31),
+        )
+>       assert result.success
+E       AssertionError: assert False
+E        +  where False = Result(value=None, error='No historical data found for فولاد in the specified date range', success=False).success
+
+tests\integration\test_backtest_flow.py:21: AssertionError
+___________________________ test_ml_inference_flow ____________________________
+
+    @pytest.mark.asyncio
+    async def test_ml_inference_flow():
+        from services.inference_service import InferenceService
+    
+        service = InferenceService()
+        result = await service.predict(
+            model_id="test_model",
+            features={},
+        )
+>       assert result.success
+E       AssertionError: assert False
+E        +  where False = Result(value=None, error='No trained model available for test_model. Please train a model first via /ml/train endpoint.', success=False).success
+
+tests\integration\test_ml_training_flow.py:28: AssertionError
+___________ test_screener_endpoint_uses_shared_market_watch_helper ____________
+
+client = <httpx.AsyncClient object at 0x000002F059256350>
+
+    @pytest.mark.asyncio
+    async def test_screener_endpoint_uses_shared_market_watch_helper(client: AsyncClient) -> None:
+        """GET /api/v1/screener should use ``fetch_market_watch`` from the shared helper."""
+        instruments = [
+            {"symbol": "TEST", "name": "Test Co", "market": "BOURS", "industry": "TEST"},
+        ]
+        market_watch = [
+            {
+                "symbol": "TEST",
+                "name": "Test Co",
+                "last_price": 1234,
+                "close": 1230,
+                "change": 0.5,
+                "volume": 10_000,
+                "value": 12_340_000,
+                "market": "BOURS",
+                "sector": "TEST",
+            },
+        ]
+    
+        mock_fetch = AsyncMock(return_value=(instruments, market_watch))
+        mock_session = AsyncMock()
+    
+        mock_screener_instance = MagicMock()
+        mock_screener_instance.screen = AsyncMock(return_value=([], {"total": 0, "page": 1, "page_size": 10, "total_pages": 0}))
+        mock_screener_cls = MagicMock(return_value=mock_screener_instance)
+    
+        with (
+            patch("services.market_watch_helper.fetch_market_watch", mock_fetch),
+            patch("core.database.get_session", _fake_get_session(mock_session)),
+            patch("services.screener_service.ScreenerService", mock_screener_cls),
+            patch("apps.api.endpoints.screener._cache_get", return_value=None),
+            patch("apps.api.endpoints.screener._cache_set") as _,
+        ):
+            resp = await client.get("/api/v1/screener", params={"limit": 10})
+    
+>       assert resp.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\integration\test_screener_endpoint.py:71: AssertionError
+________________________ test_voting_rule_and_ml_agree ________________________
+
+    @pytest.mark.asyncio
+    async def test_voting_rule_and_ml_agree():
+        """Rule and ML agree -> strong signal with high confidence."""
+        system = SignalVotingSystem()
+        result = await system.vote(
+            make_signal(direction="buy", score=70, confidence=0.6),
+            make_ml_prediction(direction="buy", confidence=0.8),
+        )
+        assert result.final_direction == "buy"
+        assert result.final_confidence > 0.6
+        # When all sources agree, weighted returns "unanimous" label
+>       assert result.strategy in ("weighted", "unanimous")
+E       AssertionError: assert 'ml_weighted' in ('weighted', 'unanimous')
+E        +  where 'ml_weighted' = VoteResult(final_direction='buy', final_score=100, final_confidence=1.0, direction_votes={'buy': 1.3279999999999998, '...'confidence': 0.8, 'models_used': ['xgboost', 'random_forest']}], ml_weight=0.5599999999999999, strategy='ml_weighted').strategy
+
+tests\integration\test_signal_voting.py:101: AssertionError
+__________________________ test_full_voting_pipeline __________________________
+
+    @pytest.mark.asyncio
+    async def test_full_voting_pipeline():
+        """Full pipeline: generate, vote, apply."""
+        system = SignalVotingSystem()
+        rule_signal = make_signal(
+            symbol="شپنا",
+            direction="buy",
+            score=72,
+            confidence=0.58,
+            strength=0.6,
+            source="smart_money_technical",
+        )
+        ml_pred = make_ml_prediction(
+            direction="buy",
+            confidence=0.82,
+            ml_score=0.78,
+            models_used=["xgboost", "lstm", "random_forest"],
+        )
+        vote = await system.vote(
+            rule_signal,
+            ml_pred,
+            symbol_history={"accuracy_pct": 62.0, "best_direction": "buy", "total": 45},
+        )
+        final = system.apply_vote_to_signal(rule_signal, vote)
+        assert final.direction == "buy"
+        # When all sources agree, weighted strategy labels it as unanimous
+>       assert final.source in ("voting_weighted", "voting_unanimous")
+E       AssertionError: assert 'voting_ml_weighted' in ('voting_weighted', 'voting_unanimous')
+E        +  where 'voting_ml_weighted' = MarketSignal(symbol='شپنا', direction='buy', timeframe='daily', entry_zone='5,000 تا 5,100 ريال', stop_loss='4,750 ريا...pct=2.5, score=100, strength=1.0, confidence=1.0, source='voting_ml_weighted', created_at='2026-10-26T11:41:57.281097').source
+
+tests\integration\test_signal_voting.py:338: AssertionError
+_____________________ test_comparison_rule_only_vs_voted ______________________
+
+    @pytest.mark.asyncio
+    async def test_comparison_rule_only_vs_voted():
+        """COMPARISON: Measure accuracy improvement from voting.
+    
+        Creates 30 scenarios where rule is ~53% accurate and ML is ~73% accurate,
+        then measures how much voting improves over rule alone.
+        """
+        system = SignalVotingSystem()
+    
+        scenarios = [
+            # Case 1: Both right (8)
+            ("up", "buy", "buy", 0.8),
+            ("up", "buy", "buy", 0.7),
+            ("up", "buy", "buy", 0.75),
+            ("up", "buy", "buy", 0.85),
+            ("up", "buy", "buy", 0.65),
+            ("up", "buy", "buy", 0.9),
+            ("up", "buy", "buy", 0.7),
+            ("up", "buy", "buy", 0.8),
+            # Case 2: Both wrong (1)
+            ("down", "buy", "buy", 0.6),
+            # Case 3: Rule right, ML wrong (3)
+            ("up", "buy", "sell", 0.6),
+            ("up", "buy", "hold", 0.5),
+            ("up", "buy", "sell", 0.55),
+            # Case 4: Rule wrong, ML right -> voting helps! (6)
+            ("up", "hold", "buy", 0.85),
+            ("up", "sell", "buy", 0.8),
+            ("down", "buy", "sell", 0.75),
+            ("down", "hold", "sell", 0.8),
+            ("up", "sell", "buy", 0.9),
+            ("down", "buy", "sell", 0.85),
+            # Case 5: Close calls (5)
+            ("up", "buy", "hold", 0.55),
+            ("up", "hold", "buy", 0.6),
+            ("down", "hold", "sell", 0.6),
+            ("down", "buy", "sell", 0.65),
+            ("down", "buy", "sell", 0.7),
+            # Case 6: Highly uncertain (3)
+            ("up", "hold", "hold", 0.4),
+            ("up", "buy", "hold", 0.3),
+            ("down", "sell", "hold", 0.35),
+            # Case 7: Mixed (4)
+            ("up", "buy", "buy", 0.7),
+            ("down", "sell", "sell", 0.75),
+            ("up", "hold", "buy", 0.65),
+            ("down", "buy", "sell", 0.7),
+        ]
+    
+        rule_correct = 0
+        voted_correct = 0
+        total_scenarios = len(scenarios)
+        details: list[dict[str, Any]] = []
+    
+        for actual, rule_dir, ml_dir, ml_conf in scenarios:
+            actual_signal = "buy" if actual == "up" else "sell"
+    
+            rule_is_correct = rule_dir == actual_signal
+            if rule_is_correct:
+                rule_correct += 1
+    
+            rule_signal = make_signal(
+                direction=rule_dir,
+                score=60 if rule_is_correct else 40,
+                confidence=0.6 if rule_is_correct else 0.4,
+                strength=0.5 if rule_is_correct else 0.3,
+            )
+            ml_pred = make_ml_prediction(direction=ml_dir, confidence=ml_conf, ml_score=ml_conf * 0.9)
+    
+            vote_result = await system.vote(rule_signal, ml_pred, strategy="weighted")
+            voted_is_correct = vote_result.final_direction == actual_signal
+            if voted_is_correct:
+                voted_correct += 1
+    
+            details.append(
+                {
+                    "actual": actual_signal,
+                    "rule": rule_dir,
+                    "ml": ml_dir,
+                    "rule_correct": rule_is_correct,
+                    "voted_correct": voted_is_correct,
+                }
+            )
+    
+        rule_accuracy = (rule_correct / total_scenarios) * 100
+        voted_accuracy = (voted_correct / total_scenarios) * 100
+        improvement = voted_accuracy - rule_accuracy
+    
+        fixed = (1 for d in details if not d["rule_correct"] and d["voted_correct"])
+        broken = (1 for d in details if d["rule_correct"] and not d["voted_correct"])
+        rule_saved = sum(1 for d in details if d["rule_correct"] and d["rule"] != d["ml"] and d["voted_correct"])
+    
+        print(f"\n  [COMPARISON] n={total_scenarios}:")
+        print(f"    Rule-only:  {rule_accuracy:.1f}% ({rule_correct}/{total_scenarios})")
+        print(f"    Voted:      {voted_accuracy:.1f}% ({voted_correct}/{total_scenarios})")
+        print(f"    Improvement: {improvement:+.1f}%")
+        print(f"    Fixed by voting:  {fixed}")
+        print(f"    Broken by voting: {broken}")
+        print(f"    Rule saved the day: {rule_saved}")
+    
+        assert (
+            voted_accuracy >= rule_accuracy
+        ), f"Voting ({voted_accuracy:.1f}%) should not be worse than rule ({rule_accuracy:.1f}%)"
+>       assert fixed > broken, f"Voting should fix more errors ({fixed}) than it breaks ({broken})"
+               ^^^^^^^^^^^^^^
+E       TypeError: '>' not supported between instances of 'generator' and 'generator'
+
+tests\integration\test_signal_voting.py:456: TypeError
+============================== warnings summary ===============================
+venv\Lib\site-packages\opentelemetry\util\_importlib_metadata.py:32
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\opentelemetry\util\_importlib_metadata.py:32: DeprecationWarning: SelectableGroups dict interface is deprecated. Use select.
+    return EntryPoints(ep for group_eps in eps.values() for ep in group_eps)
+
+venv\Lib\site-packages\pydantic\_internal\_generate_schema.py:319
+  C:\Users\Iran\Desktop\temce\venv\Lib\site-packages\pydantic\_internal\_generate_schema.py:319: PydanticDeprecatedSince20: `json_encoders` is deprecated. See https://docs.pydantic.dev/2.12/concepts/serialization/#custom-serializers for alternatives. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/integration/test_backtest_flow.py::test_backtest_run_flow - Asse...
+FAILED tests/integration/test_ml_training_flow.py::test_ml_inference_flow - A...
+FAILED tests/integration/test_screener_endpoint.py::test_screener_endpoint_uses_shared_market_watch_helper
+FAILED tests/integration/test_signal_voting.py::test_voting_rule_and_ml_agree
+FAILED tests/integration/test_signal_voting.py::test_full_voting_pipeline - A...
+FAILED tests/integration/test_signal_voting.py::test_comparison_rule_only_vs_voted
+6 failed, 44 passed, 2 warnings in 49.83s

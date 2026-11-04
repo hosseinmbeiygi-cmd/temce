@@ -41,7 +41,7 @@ async def main(symbol_arg: str | None) -> None:
 
         total = 0
         for r in rows:
-            sid = int(r["id"] if "id" in r.keys() else r["symbol_id"])
+            sid = int(r["id"] if "id" in r else r["symbol_id"])
 
             actions = await conn.fetch(
                 "SELECT ex_date, action_type, ratio, dps FROM corporate_action_events WHERE symbol_id=$1 ORDER BY ex_date",
@@ -50,15 +50,21 @@ async def main(symbol_arg: str | None) -> None:
             if not actions:
                 continue
 
+            # vw_daily_history_adjusted.trade_date is the TRUE Gregorian trade
+            # date (migration 0109). daily_history.trade_date is the fetch date,
+            # which silently mis-dated every factor.
             trade_dates = [
                 rec["trade_date"]
                 for rec in await conn.fetch(
-                    "SELECT trade_date FROM daily_history WHERE symbol_id=$1", sid
+                    "SELECT trade_date FROM vw_daily_history_adjusted "
+                    "WHERE symbol_id=$1 AND trade_date IS NOT NULL",
+                    sid,
                 )
             ]
             ex_dates = [a["ex_date"] for a in actions]
             close_rows = await conn.fetch(
-                "SELECT trade_date, price_close FROM daily_history WHERE symbol_id=$1 AND trade_date = ANY($2::date[])",
+                "SELECT trade_date, price_close FROM vw_daily_history_adjusted "
+                "WHERE symbol_id=$1 AND trade_date = ANY($2::date[])",
                 sid,
                 ex_dates,
             )

@@ -224,8 +224,8 @@ class ExecutionEngine:
                  slippage_model: SlippageModel | None = None, latency_model: LatencyModel | None = None,
                  participation_rate: float = 0.1):
         from domain.trading import iran_costs as _iran
-        self.comm_buy = commission_buy if commission_buy is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT)
-        self.comm_sell = commission_sell if commission_sell is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT + _iran.SELL_TAX_PCT)
+        self.comm_buy = commission_buy if commission_buy is not None else _iran.buy_rate()
+        self.comm_sell = commission_sell if commission_sell is not None else _iran.sell_rate()
         self.slippage_model = slippage_model or SlippageModel()
         self.latency_model = latency_model or LatencyModel()
         self.participation_rate = participation_rate
@@ -240,7 +240,7 @@ class ExecutionEngine:
         self.all_orders.append(order)
 
     def match(self, event: MarketEvent, state: MarketState, rules: TSERulesEngine) -> list[Fill]:
-        fills = []
+        fills: list[Fill] = []
         if not rules.can_trade(state):
             return fills
 
@@ -606,6 +606,7 @@ class EventBacktestEngine:
                 bid_queue=bar.get("bid_queue", 0), ask_queue=bar.get("ask_queue", 0),
                 limit_up=bar.get("limit_up", bar.get("close", 0) * 1.05),
                 limit_down=bar.get("limit_down", bar.get("close", 0) * 0.95),
+                is_halted=bar.get("is_halted", False),
                 yesterday_close=bar.get("yesterday_close", bar.get("close", 0)),
             )
 

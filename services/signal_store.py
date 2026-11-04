@@ -1,15 +1,19 @@
 """Signal Store: DB-backed (atomic, concurrency-safe per 5.10), append-only logically, JSON export w/ monthly rotation."""
 from __future__ import annotations
-import json, os, uuid
-from datetime import datetime, timezone
-from sqlalchemy import select
+
+import json
+import os
+import uuid
+from datetime import UTC, datetime
+
 from config.timeframes import eval_due_at
+from core.database import select
 
 SCHEMA_VERSION = 1
 
 def build_signal(symbol, market, timeframe, direction, entry, stop_loss, take_profit,
                  confidence, top_reasons, backtest_stats, model_version, created_at=None, trading_calendar=None):
-    created_at = created_at or datetime.now(timezone.utc)
+    created_at = created_at or datetime.now(UTC)
     return {"signal_id": str(uuid.uuid4()), "symbol": symbol, "market": market,
         "timeframe": timeframe, "direction": direction, "entry": float(entry),
         "stop_loss": float(stop_loss), "take_profit": float(take_profit),
@@ -31,29 +35,35 @@ def save_signal(session, sig: dict):
         generated_at=sig.get("created_at"), eval_due_at=sig.get("eval_due_at"),
         schema_version=sig.get("schema_version",1), model_version=sig.get("model_version"),
         status="pending")
-    session.add(row); session.commit()  # DB transaction = atomic, no JSON corruption (5.10)
+    session.add(row)
+    session.commit()  # DB transaction = atomic, no JSON corruption (5.10)
     return row
 
 def update_evaluation(session, signal_id: str, **fields):
     from models.signal import SignalModel
     row = session.get(SignalModel, signal_id)
-    if not row: return None
+    if not row:
+        return None
     for k,v in fields.items():
-        if hasattr(row,k): setattr(row,k,v)
-    if isinstance(fields.get("top_reasons"),list): row.top_reasons=json.dumps(fields["top_reasons"],ensure_ascii=False)
-    if isinstance(fields.get("backtest_stats"),dict): row.backtest_stats=json.dumps(fields["backtest_stats"],ensure_ascii=False)
-    session.commit(); return row
+        if hasattr(row,k):
+            setattr(row,k,v)
+    if isinstance(fields.get("top_reasons"),list):
+        row.top_reasons=json.dumps(fields["top_reasons"],ensure_ascii=False)
+    if isinstance(fields.get("backtest_stats"),dict):
+        row.backtest_stats=json.dumps(fields["backtest_stats"],ensure_ascii=False)
+    session.commit()
+    return row
 
 def pending_due(session, now=None):
     from models.signal import SignalModel
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     return list(session.scalars(select(SignalModel).where(SignalModel.status=="pending", SignalModel.eval_due_at<=now)))
 
 def export_json(session, out_dir="data/signals", month: str | None = None):
     """Monthly-rotated JSON dump (3.1)."""
     from models.signal import SignalModel
     os.makedirs(out_dir, exist_ok=True)
-    month = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    month = month or datetime.now(UTC).strftime("%Y-%m")
     rows = session.scalars(select(SignalModel)).all()
     data = [{"signal_id":r.id,"symbol":r.symbol,"market":r.market,"timeframe":r.timeframe,
         "direction":r.direction,"entry":r.entry,"stop_loss":r.stop_loss,"take_profit":r.take_profit,
@@ -65,6 +75,7 @@ def export_json(session, out_dir="data/signals", month: str | None = None):
     # schema_version backward-compat read: default missing keys
     path = os.path.join(out_dir, f"signals-{month}.json")
     tmp = path + ".tmp"
-    with open(tmp,"w",encoding="utf-8") as f: json.dump(data,f,ensure_ascii=False,default=str)
+    with open(tmp,"w",encoding="utf-8") as f:
+        json.dump(data,f,ensure_ascii=False,default=str)
     os.replace(tmp,path)  # atomic rename
     return path, len(data)

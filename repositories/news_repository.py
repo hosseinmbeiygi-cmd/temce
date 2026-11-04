@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import json
-from datetime import UTC, datetime
+from datetime import datetime
+from typing import Any
 
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +11,8 @@ from sqlalchemy.orm import aliased
 
 from core.dbcompat import naive_utc
 from core.logging import get_logger
+from core.news_read_canary import ReadPathDecision, compare_page
 from core.result import PaginatedResult, Result
-from services.news_read_canary import ReadPathDecision, compare_page
 
 logger = get_logger(__name__)
 from domain.news.news_item import NewsItem
@@ -24,21 +25,21 @@ from repositories.news_items_read_repo import NewsItemsReadRepo
 class NewsRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[NewsItem] | None = None if session else InMemoryRepository[NewsItem]()
+        self._mem: InMemoryRepository[NewsItem] = InMemoryRepository(NewsItem)
         self._db: _NewsDbRepo | None = None if not session else _NewsDbRepo(session)
         # Canary READ path (NEWS_READ_MODE off/shadow/canary/full + legacy
         # boolean NEWS_READ_FROM_ITEMS forcing full): serves list/search/
         # get_by_symbol from the new ``news_items`` schema (migration 0054)
-        # per services.news_read_canary, with shadow comparison in non-full
+        # per core.news_read_canary, with shadow comparison in non-full
         # modes. Writes ALWAYS stay on the legacy repo + dual-write, so any
         # mode flip is data-safe both ways.
-        self._items_read: "NewsItemsReadRepo | None" = None
+        self._items_read: NewsItemsReadRepo | None = None
 
-    async def _route(self, discriminator: str) -> "tuple[ReadPathDecision, Any, Any]":
+    async def _route(self, discriminator: str) -> tuple[ReadPathDecision, Any, Any]:
         """Resolve the canary decision and return (decision, legacy_repo,
         items_repo) for one read request. Legacy/mem repo may be None only
         when neither exists (degenerate test setups)."""
-        from services.news_read_canary import decide, resolve_mode
+        from core.news_read_canary import decide, resolve_mode
 
         mode = await resolve_mode()
         decision = decide(mode, discriminator)
@@ -88,19 +89,26 @@ class NewsRepository:
         page_size: int = 100,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        category: str | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
         decision, legacy, items = await self._route(f"list:{page}:{page_size}")
         served = None
         probed = None
         if decision.serve_items and items is not None:
-            served = await items.list(page, page_size, date_from=date_from, date_to=date_to)
-        elif legacy is not None:
-            served = await (self._db or self._mem).list(page, page_size, date_from=date_from, date_to=date_to)
+            served = await items.list(
+                page, page_size, date_from=date_from, date_to=date_to, category=category
+            )
+        elif self._db is not None:
+            served = await self._db.list(
+                page, page_size, date_from=date_from, date_to=date_to, category=category
+            )
+        elif self._mem is not None:
+            # In-memory store has no SQL filters — page it directly and let
+            # callers apply any date/category predicates themselves.
+            served = await self._mem.list(page, page_size)
         if decision.shadow and items is not None and self._db is not None:
-            try:
-                probed = await self._items_read_probe(page, page_size, date_from, date_to)
-            except Exception:  # noqa: BLE001 — probe failure must not break serving
-                pass
+            with contextlib.suppress(Exception):  # noqa: BLE001 — probe failure must not break serving
+                probed = await self._items_read_probe(items, page, page_size, date_from, date_to, category)
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
@@ -118,7 +126,7 @@ class NewsRepository:
         served = None
         probed = None
         if decision.serve_items and items is not None:
-            served = await self._items_read.search(query, page, page_size, date_from=date_from, date_to=date_to)
+            served = await items.search(query, page, page_size, date_from=date_from, date_to=date_to)
         elif self._db is not None:
             served = await self._db.search(query, page, page_size, date_from=date_from, date_to=date_to)
         elif self._mem is not None:
@@ -136,10 +144,8 @@ class NewsRepository:
                 )
             )
         if decision.shadow and items is not None and self._db is not None:
-            try:
-                probed = await self._items_read.search(query, page, page_size, date_from=date_from, date_to=date_to)
-            except Exception:  # noqa: BLE001
-                pass
+            with contextlib.suppress(Exception):  # noqa: BLE001
+                probed = await items.search(query, page, page_size, date_from=date_from, date_to=date_to)
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
@@ -172,7 +178,7 @@ class NewsRepository:
         served = None
         probed = None
         if decision.serve_items and items is not None:
-            served = await self._items_read.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
+            served = await items.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         elif self._db is not None:
             served = await self._db.get_by_symbol(symbol, page, page_size, date_from=date_from, date_to=date_to)
         elif self._mem is not None:
@@ -191,31 +197,39 @@ class NewsRepository:
                 )
             )
         if decision.shadow and items is not None and self._db is not None:
-            try:
-                probed = await self._items_read.get_by_symbol(
+            with contextlib.suppress(Exception):  # noqa: BLE001
+                probed = await items.get_by_symbol(
                     symbol, page, page_size, date_from=date_from, date_to=date_to
                 )
-            except Exception:  # noqa: BLE001
-                pass
         await self._record_parity(decision, served, probed)
         if served is not None:
             return served
         return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
-    async def _items_read_probe(self, page, page_size, date_from, date_to):
+    async def _items_read_probe(
+        self,
+        items_repo: NewsItemsReadRepo,
+        page: int,
+        page_size: int,
+        date_from: datetime | None,
+        date_to: datetime | None,
+        category: str | None = None,
+    ) -> Result[PaginatedResult[NewsItem]]:
         """Shadow probe of list() on the items repo (kept separate so the
         legacy-served list() path stays symmetric with search/symbol)."""
-        return await self._items_read.list(page, page_size, date_from=date_from, date_to=date_to)
+        return await items_repo.list(
+            page, page_size, date_from=date_from, date_to=date_to, category=category
+        )
 
     async def _record_parity(
         self,
-        decision: "ReadPathDecision",
+        decision: ReadPathDecision,
         served: Result[PaginatedResult[NewsItem]] | None,
         probed: Result[PaginatedResult[NewsItem]] | None,
     ) -> None:
         """Fire-and-forget parity accounting — never raises, never blocks
         the response on anything but the tiny counter write."""
-        from services.news_read_canary import record
+        from core.news_read_canary import record
 
         try:
             if not decision.shadow:
@@ -255,7 +269,7 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
     def _published_range(
         date_from: datetime | None,
         date_to: datetime | None,
-    ):
+    ) -> Any:
         """SQLAlchemy where-clause for the ``?from``/``?to`` window.
 
         Filters on the migration-0054 ``published_at_ts`` TIMESTAMP column
@@ -294,9 +308,15 @@ class _NewsDbRepo(DbRepository[NewsItem, NewsArticleModel]):
         page_size: int = 100,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        category: str | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
         # Filter: only articles with a source (exclude legacy NULL-source ISNA articles)
         source_filter = NewsArticleModel.source.isnot(None) & (NewsArticleModel.source != "")
+        # Category is filtered in SQL (not on the fetched page) so ``total``
+        # and pagination reflect the filtered set — a page-level filter kept
+        # the unfiltered table count and returned the wrong page for page>1.
+        if category is not None:
+            source_filter = source_filter & (NewsArticleModel.category == category)
 
         # Inner: DISTINCT ON (title) — one row per title, newest first.
         # Ordering key = TIMESTAMP (published_at_ts), NOT the VARCHAR

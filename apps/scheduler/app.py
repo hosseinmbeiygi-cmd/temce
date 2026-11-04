@@ -86,7 +86,15 @@ class SchedulerApp:
         # costs zero quota when the morning run already captured today's NAV
         # and otherwise acts as a same-day retry.
         self.add_job("SyncNavAllJob", trigger="cron", hour="9,18", minute=0, max_instances=1, replace_existing=True)
-        self.add_job("NewsIngestionJob", trigger="interval", minutes=10)
+        # Audit SCH-06: without max_instances a slow feed lets the next 10-minute
+        # tick overlap the still-running ingest (APScheduler default is 3).
+        self.add_job(
+            "NewsIngestionJob",
+            trigger="interval",
+            minutes=10,
+            max_instances=1,
+            replace_existing=True,
+        )
 
         # ── News sentiment NLP: امتیازدهی اخبار عمومی + اختصاصی نماد ──
         # بلافاصله بعد از هر ingestion اخبار اجرا می‌شود (idempotent — فقط ردیف‌های بدون امتیاز).
@@ -246,6 +254,66 @@ class SchedulerApp:
             "BrsApiReadyCheckJob",
             trigger="interval",
             hours=1,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: FRED real yield (DFII10) + broad USD (DTWEXBGS) ──
+        # FRED publishes once daily (~16:15 ET); a few Tehran-time probes
+        # catch the new print. The job self-skips when FRED_API_KEY is unset,
+        # so a keyless deployment never fails the scheduler.
+        self.add_job(
+            "GoldMacroSyncJob",
+            trigger="cron",
+            hour="6,12,18,22",
+            minute=30,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: CFTC Commitment of Traders (gold futures) ──────────
+        # CFTC releases the COT report Friday 15:30 ET. The same probe
+        # cadence picks it up within hours; the sync upserts by report date
+        # so repeated runs never duplicate rows.
+        self.add_job(
+            "GoldCftcCotSyncJob",
+            trigger="cron",
+            hour="6,12,18,22",
+            minute=45,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: economic calendar (CPI / NFP / FOMC) ─────────────
+        self.add_job(
+            "GoldEconomicCalendarSyncJob",
+            trigger="cron",
+            hour="5,17",
+            minute=0,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold macro: tokenized gold (PAXG / XAUT) premium vs spot ───
+        # Reads the BrsApi crypto feed already synced into the DB plus the
+        # stored gold spot — no extra market-data subscription.
+        self.add_job(
+            "GoldTokenizedGoldSyncJob",
+            trigger="cron",
+            hour="6,12,18,22",
+            minute=50,
+            max_instances=1,
+            replace_existing=True,
+        )
+
+        # ── Gold options: daily per-contract IV snapshot (STEP 5-FIX-2) ──
+        # One observation per (symbol, as_of, strike) per day feeds
+        # iv_rank/iv_percentile; the unique key makes reruns idempotent.
+        self.add_job(
+            "GoldOptionIvSnapshotJob",
+            trigger="cron",
+            hour=18,
+            minute=20,
             max_instances=1,
             replace_existing=True,
         )

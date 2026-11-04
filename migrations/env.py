@@ -7,6 +7,7 @@ from pathlib import Path
 
 from alembic import context
 from sqlalchemy import create_engine, pool
+from sqlalchemy import text as sa_text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 # Add project root to sys.path so imports like 'from core.config import settings' work
@@ -36,6 +37,18 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection):
+    # Alembic's default version_num is VARCHAR(32); several revision ids in this
+    # chain are longer (e.g. 0030_symbol_snapshot_dashboard_index = 35 chars).
+    # Ensure/widen the version column before Alembic writes to it (DB-02, 2026-10-30).
+    connection.execute(
+        sa_text(
+            "CREATE TABLE IF NOT EXISTS alembic_version ("
+            "version_num VARCHAR(255) NOT NULL PRIMARY KEY)"
+        )
+    )
+    connection.execute(
+        sa_text("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(255)")
+    )
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
@@ -45,6 +58,10 @@ async def run_async_migrations() -> None:
     connectable = create_async_engine(settings.database_url_async, poolclass=pool.NullPool)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
+        # SQLAlchemy 2.0 rolls back an implicit transaction on close; Alembic's
+        # begin_transaction() is a no-op when one is already open, so commit here
+        # or the whole upgrade is discarded (DB-02, 2026-10-30).
+        await connection.commit()
     await connectable.dispose()
 
 
@@ -53,6 +70,7 @@ def run_migrations_online() -> None:
         connectable = create_engine(settings.database_url, poolclass=pool.NullPool)
         with connectable.connect() as connection:
             do_run_migrations(connection)
+            connection.commit()
     else:
         asyncio.run(run_async_migrations())
 

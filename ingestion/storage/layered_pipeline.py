@@ -178,13 +178,15 @@ async def pipeline_store(rows: list[dict[str, Any]], fetched_at: str | None = No
             hot_stored += 1
             warm_batch.append(r)
         else:
-            # If redis unavailable, store_hot returns False but we still want warm
+            # store_hot returns False for a dedup hit and for an unavailable
+            # Redis; only the latter still needs the warm write.
             with contextlib.suppress(Exception):
                 from core.cache import get_cache
 
                 if not get_cache().is_connected:
                     warm_batch.append(r)
-                    hot_stored += 1  # count as hot-missed but warm will get it
+                else:
+                    deduped += 1
 
     warm_stored = await store_warm(warm_batch)
     logger.info("Pipeline: total=%d hot=%d warm=%d deduped=%d", total, hot_stored, warm_stored, deduped)

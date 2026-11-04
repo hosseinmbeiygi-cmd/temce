@@ -62,9 +62,9 @@ def atr_wilder(rows, n=14):
         return None
     trs = []
     for i in range(1, len(rows)):
-        h, l = float(rows[i]['high']), float(rows[i]['low'])
+        h, lo = float(rows[i]['high']), float(rows[i]['low'])
         pc = float(rows[i - 1]['close'])
-        trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+        trs.append(max(h - lo, abs(h - pc), abs(lo - pc)))
     atr = sum(trs[:n]) / n
     for tr in trs[n:]:
         atr = (atr * (n - 1) + tr) / n
@@ -135,7 +135,6 @@ def backtest(rows, commission=0.005):
         exit_ = closes[-1] * (1 - commission)
         trades.append(exit_ / entry - 1)
     n_days = len(closes) - 50
-    total = (closes[-1] / closes[50] - 1) * 100
     wins = [x for x in trades if x > 0]
     losses = [x for x in trades if x <= 0]
     pf = (sum(wins) / abs(sum(losses))) if losses and sum(losses) != 0 else (None if not wins else UNK)
@@ -305,7 +304,7 @@ def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
         best = None
         feats = random.sample(range(d), min(d, 6))
         for j in feats:
-            vals = sorted(set(row[j] for row in Xtr))
+            vals = sorted({row[j] for row in Xtr})
             for v in vals:
                 lm = [r for row, r in zip(Xtr, resid, strict=False) if row[j] <= v]
                 rm = [r for row, r in zip(Xtr, resid, strict=False) if row[j] > v]
@@ -336,8 +335,6 @@ def gb_stump(Xtr, ytr, Xva, yva, Xte, rounds=30, lr=0.1):
 def auc_score(probs, yte):
     pairs = sorted(zip(probs, yte, strict=False))
     # rank-based AUC
-    ranks = {}
-    i = 0
     uniq = {}
     for p, t in pairs:
         uniq.setdefault(p, []).append(t)

@@ -1,24 +1,24 @@
-# -*- coding: utf-8 -*-
 """
 نسخه اصلاح‌شده و پایدار استخراج هوشمند ریزمعاملات بورس
 """
 
-import os
-import re
-import time
 import json
 import logging
-import threading
+import os
+import re
 import sqlite3
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import time
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # ============================ تنظیمات ============================
-API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"
+# کلید فقط از محیط خوانده می‌شود (هرگز در کد هاردکد نمی‌شود).
+API_KEY = (os.environ.get("BRSAPI_API_KEY") or os.environ.get("BRSAPI_KEY") or "").strip()
+if not API_KEY:
+    raise SystemExit(
+        "BRSAPI_KEY تنظیم نشده است. کلید را در .env (یا متغیر محیطی) قرار دهید."
+    )
 
 DAILY_LIMIT = 10000
 MIN_DELAY_BETWEEN_REQUESTS = 4.0   # حداقل فاصله زمانی بین دو درخواست (تضمین عدم 429)
@@ -56,7 +56,7 @@ class StrictRateLimiter:
         default = {"current_day": today, "requests_today": 0}
         if os.path.exists(STATE_FILE):
             try:
-                with open(STATE_FILE, "r", encoding="utf-8") as f:
+                with open(STATE_FILE, encoding="utf-8") as f:
                     data = json.load(f)
                 if data.get("current_day") == today:
                     return data
@@ -181,7 +181,7 @@ def get_active_trade_dates(symbol: str, limiter: StrictRateLimiter, session: req
     cache_path = os.path.join(DATES_CACHE_DIR, f"{symbol}_active_days.json")
     if os.path.exists(cache_path):
         try:
-            with open(cache_path, "r", encoding="utf-8") as f:
+            with open(cache_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
@@ -218,7 +218,7 @@ def get_active_trade_dates(symbol: str, limiter: StrictRateLimiter, session: req
                 if d_formatted:
                     active_dates.add(d_formatted)
 
-        final_dates = sorted(list(active_dates))
+        final_dates = sorted(active_dates)
         with open(cache_path, "w", encoding="utf-8") as f:
             json.dump(final_dates, f, ensure_ascii=False, indent=2)
 
@@ -270,7 +270,7 @@ def test_single_symbol(test_symbol="فولاد"):
 if __name__ == "__main__":
     # مرحله اول: اجرای تست برای اطمینان ۱۰۰٪
     test_passed = test_single_symbol("فولاد")
-    
+
     if test_passed:
         # در صورت تأیید، می‌توانید فراخوانی کل نمادها را در ادامه قرار دهید:
         print("برای اجرای کامل، کلاس SmartTradeCollector را با لیست نمادها فراخوانی کنید.")

@@ -58,7 +58,7 @@ def main() -> None:
     if args.csv:
         import csv
 
-        csv_fh = open(args.csv, "w", encoding="utf-8", newline="")
+        csv_fh = open(args.csv, "w", encoding="utf-8", newline="")  # noqa: SIM115 — closed in `finally`
         csv_writer = csv.DictWriter(csv_fh, fieldnames=["symbol", "trade_date", "time", "price", "volume", "canceled"])
         csv_writer.writeheader()
         print(f"writing csv: {args.csv}", file=sys.stderr)

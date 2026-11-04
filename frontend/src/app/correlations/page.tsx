@@ -54,47 +54,6 @@ function getDirectionIcon(dir: string) {
   return Minus;
 }
 
-const MOCK_CATEGORIES: CorrelationCategory[] = [
-  {
-    name: "فلزات اساسی",
-    pairs: [
-      { pair: "مس / فولاد", symbolA: "CU", symbolB: "SB", correlation: 0.82, strength: "strong", direction: "positive", trend: "increasing", description: "همبستگی قوی به دلیل وابستگی هر دو به بخش ساخت‌وساز و صنعت" },
-      { pair: "روی / سرب", symbolA: "ZN", symbolB: "PB", correlation: 0.74, strength: "strong", direction: "positive", trend: "stable", description: "همبستگی تاریخی به دلیل استخراج هم‌محصول" },
-      { pair: "آلومینیوم / مس", symbolA: "AL", symbolB: "CU", correlation: 0.65, strength: "moderate", direction: "positive", trend: "decreasing", description: "جانشینی مس با آلومینیوم در برخی صنایع باعث کاهش همبستگی شده" },
-    ],
-  },
-  {
-    name: "محصولات کشاورزی",
-    pairs: [
-      { pair: "زعفران / زیره", symbolA: "ZRS1", symbolB: "ZIR", correlation: 0.36, strength: "weak", direction: "positive", trend: "stable", description: "همبستگی ضعیف به دلیل عوامل اقلیمی متفاوت" },
-      { pair: "گندم / جو", symbolA: "GND", symbolB: "JO", correlation: 0.78, strength: "strong", direction: "positive", trend: "increasing", description: "کشت مشترک و وابستگی به شرایط آب‌وهوایی یکسان" },
-      { pair: "پسته / بادام", symbolA: "PST", symbolB: "BAD", correlation: 0.52, strength: "moderate", direction: "positive", trend: "stable", description: "بازارهای صادراتی مشترک" },
-    ],
-  },
-  {
-    name: "پتروشیمی",
-    pairs: [
-      { pair: "پلی‌اتیلن / پروپیلن", symbolA: "PCC", symbolB: "PP", correlation: 0.88, strength: "strong", direction: "positive", trend: "increasing", description: "وابستگی هر دو به قیمت نفت خام" },
-      { pair: "قیر / نفت خام", symbolA: "QIR", symbolB: "CRU", correlation: 0.91, strength: "strong", direction: "positive", trend: "stable", description: "بالاترین همبستگی به دلیل خوراک مستقیم" },
-      { pair: "یوتیلیتی / متانول", symbolA: "UTL", symbolB: "MTL", correlation: 0.43, strength: "weak", direction: "positive", trend: "decreasing", description: "جداسازی تدریجی بازارها" },
-    ],
-  },
-  {
-    name: "شاخص‌های اقتصادی",
-    pairs: [
-      { pair: "نرخ ارز / طلا", symbolA: "USD-IRR", symbolB: "GLD", correlation: 0.85, strength: "strong", direction: "positive", trend: "increasing", description: "همبستگی سنتی بازار ایران" },
-      { pair: "شاخص بورس / نقدینگی", symbolA: "TEDPIX", symbolB: "LIQ", correlation: 0.67, strength: "moderate", direction: "positive", trend: "stable", description: "نقدینگی موتور اصلی بازار سهام" },
-      { pair: "سکه / دلار", symbolA: "SKK", symbolB: "USD", correlation: 0.93, strength: "strong", direction: "positive", trend: "stable", description: "قوی‌ترین همبستگی در بازار ایران" },
-    ],
-  },
-  {
-    name: "بین‌المللی",
-    pairs: [
-      { pair: "طلا (داخلی) / طلا (جهانی)", symbolA: "GLD-IR", symbolB: "XAU", correlation: 0.72, strength: "strong", direction: "positive", trend: "decreasing", description: "تحت تأثیر نرخ ارز و عوارض واردات" },
-      { pair: "نفت برنت / پتروشیمی", symbolA: "BRENT", symbolB: "PCC", correlation: 0.69, strength: "moderate", direction: "positive", trend: "stable", description: "با تأخیر زمانی ۲-۳ هفته" },
-    ],
-  },
-];
 
 function CorrelationBar({ value }: { value: number }) {
   const abs = Math.abs(value);
@@ -122,20 +81,17 @@ export default function CorrelationsPage() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"strength" | "name">("strength");
 
-  const { data: categories, isLoading } = useQuery({
+  const { data: categories, isLoading, isError } = useQuery({
     queryKey: ["correlations"],
     queryFn: async () => {
-      try {
-        // Real computed correlations (backend /analysis/correlations);
-        // static demo list is only a last-resort fallback.
-        const r = await apiGet<{ success?: boolean; data?: { categories?: CorrelationCategory[] } | CorrelationCategory[] }>(
-          "/analysis/correlations"
-        );
-        const payload = r?.data;
-        const list = Array.isArray(payload) ? payload : payload?.categories;
-        if (list?.length) return list as CorrelationCategory[];
-      } catch {}
-      return MOCK_CATEGORIES;
+      // Real computed correlations (backend /analysis/correlations) only —
+      // a static sample list used to mask outages here.
+      const r = await apiGet<{ success?: boolean; data?: { categories?: CorrelationCategory[] } | CorrelationCategory[] }>(
+        "/analysis/correlations"
+      );
+      const payload = r?.data;
+      const list = Array.isArray(payload) ? payload : payload?.categories;
+      return (list ?? []) as CorrelationCategory[];
     },
     staleTime: 300000,
   });
@@ -186,6 +142,11 @@ export default function CorrelationsPage() {
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-40 w-full" />
           ))}
+        </div>
+      ) : isError ? (
+        <div role="alert" aria-live="polite" className="glass-card p-8 text-center">
+          <span className="material-icons text-4xl text-accent-rose mb-2">wifi_off</span>
+          <p className="text-sm text-surface-400">دریافت همبستگی‌ها از سرور ناموفق بود — داده‌ای برای نمایش وجود ندارد.</p>
         </div>
       ) : !displayCategories?.length ? (
         <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-surface-600">

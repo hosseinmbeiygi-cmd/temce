@@ -63,7 +63,8 @@ class ChartGenerator:
                 font_path = self._fm.findfont(name, fallback_to_default=False)
                 if font_path:
                     return self._fm.FontProperties(fname=font_path)
-            except Exception:
+            except (OSError, ValueError, RuntimeError) as exc:
+                logger.debug("persian font candidate %s unusable: %s", name, exc)
                 continue
 
         # Fallback: try common system paths
@@ -92,7 +93,8 @@ class ChartGenerator:
             if os.path.exists(path):
                 try:
                     return self._fm.FontProperties(fname=path)
-                except Exception:
+                except (OSError, ValueError, RuntimeError) as exc:
+                    logger.debug("persian font path %s unusable: %s", path, exc)
                     continue
 
         return None

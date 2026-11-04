@@ -12,6 +12,7 @@ All DB/BrsApi access is mocked; no real database is touched.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -25,6 +26,11 @@ from apps.api.endpoints.market import (
     market_ownership_history,
     market_value_history,
 )
+
+# ``created_at`` is the source timestamp the envelope publishes for daily
+# history (the market date is Jalali, not an instant).
+_CREATED_1 = datetime(2026, 9, 21, 8, 10, 0)
+_CREATED_2 = datetime(2026, 9, 22, 8, 20, 0)
 
 
 @pytest.fixture(autouse=True)
@@ -172,8 +178,8 @@ class TestValueHistory:
         dates_result.scalars.return_value.all.return_value = ["20260921", "20260922"]
         rows_result = MagicMock()
         rows_result.all.return_value = [
-            SimpleNamespace(date="20260921", total_value=8.4e12),
-            SimpleNamespace(date="20260922", total_value=9.1e12),
+            SimpleNamespace(date="20260921", total_value=8.4e12, created_at=_CREATED_1),
+            SimpleNamespace(date="20260922", total_value=9.1e12, created_at=_CREATED_2),
         ]
         brsapi = _brsapi_with_session([dates_result, rows_result])
         resp = asyncio.run(market_value_history(days=5, brsapi=brsapi))
@@ -182,6 +188,8 @@ class TestValueHistory:
         assert resp.data[0]["value_b"] == 8400.0
         assert resp.data[0]["day"] == "دوشنبه"  # 2026-09-21 Monday
         assert resp.data[1]["day"] == "سه‌شنبه"
+        # Envelope timestamp: newest row write time, not the build time.
+        assert resp.data_as_of == _CREATED_2.isoformat()
 
     def test_empty_db_returns_empty(self) -> None:
         dates_result = MagicMock()
@@ -198,7 +206,14 @@ class TestOwnershipHistory:
         dates_result.scalars.return_value.all.return_value = ["20260921"]
         rows_result = MagicMock()
         rows_result.all.return_value = [
-            SimpleNamespace(date="20260921", real_buy=3e9, real_sell=1e9, legal_buy=2e9, legal_sell=6e9),
+            SimpleNamespace(
+                date="20260921",
+                real_buy=3e9,
+                real_sell=1e9,
+                legal_buy=2e9,
+                legal_sell=6e9,
+                created_at=_CREATED_1,
+            ),
         ]
         brsapi = _brsapi_with_session([dates_result, rows_result])
         resp = asyncio.run(market_ownership_history(days=5, brsapi=brsapi))
@@ -207,6 +222,7 @@ class TestOwnershipHistory:
         assert row["real_b"] == 2.0
         assert row["legal_b"] == -4.0
         assert row["day"] == "دوشنبه"
+        assert resp.data_as_of == _CREATED_1.isoformat()
 
     def test_empty_db_returns_empty(self) -> None:
         dates_result = MagicMock()

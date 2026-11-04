@@ -1,9 +1,26 @@
-"""P2-2 E2E (mocked DB): symbol -> history lengths -> decision -> disclaimer, no NaN/inf."""
+"""P2-2 E2E (mocked DB): symbol -> history lengths -> decision -> disclaimer, no NaN/inf.
+
+Gate 9 reads the portfolio risk from the paper-trading ledger (audit D-03) and
+fails CLOSED when that ledger is unreadable. This test pins an approved, empty
+portfolio so the decision pipeline — not the ledger — is what is under test;
+the ledger read itself is covered by ``test_portfolio_risk_gate.py``.
+"""
 import asyncio
 import math
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
+from services.portfolio_risk import PortfolioRiskState
 from services.quant_signal_orchestrator import EnrichedSignal, QuantSignalOrchestrator
+
+
+@contextmanager
+def _approved_empty_portfolio():
+    with patch(
+        "services.portfolio_risk.load_portfolio_risk",
+        AsyncMock(return_value=PortfolioRiskState(approved=True)),
+    ):
+        yield
 
 
 def _sig():
@@ -21,9 +38,10 @@ def _sig():
 
 def test_e2e_decision_with_real_history_lengths():
     orch = QuantSignalOrchestrator(session=None)
-    released, rejected = asyncio.run(
-        orch._apply_signal_decision([_sig()], history_lengths={"E2E": 60})
-    )
+    with _approved_empty_portfolio():
+        released, rejected = asyncio.run(
+            orch._apply_signal_decision([_sig()], history_lengths={"E2E": 60})
+        )
     assert len(released) > 0, "valid sample data must release at least one signal"
     assert len(released) + len(rejected) == 1
     for s in released + rejected:

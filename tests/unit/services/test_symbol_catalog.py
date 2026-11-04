@@ -338,3 +338,62 @@ async def test_symbols_sectors_endpoint(client: httpx.AsyncClient) -> None:
     assert sectors == EXPECTED_SECTORS, f"expected exactly {EXPECTED_SECTORS}, got {sectors}"
     total = sum(row["count"] for row in data)
     assert total == len(symbol_catalog.all_symbols())
+
+
+# ── Enriched source: scripts/selected_symbols.json ─────────────
+# Regression: ``_load_selected_symbols`` resolved to ``domain/scripts/``
+# (nonexistent) instead of the repo-root ``scripts/``, so every enriched
+# entry was dropped from ``all_symbols()`` with no error and no log.
+# ``parents[3]`` here == repo root (tests/unit/services/<this file>).
+
+
+def _selected_symbols_path():
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[3] / "scripts" / "selected_symbols.json"
+
+
+def test_enriched_selected_symbols_are_merged_into_the_catalog() -> None:
+    import json
+
+    path = _selected_symbols_path()
+    assert path.exists(), f"enriched source file missing: {path}"
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    assert entries, "the enriched file must not be empty"
+
+    catalog = {entry["symbol"] for entry in symbol_catalog.all_symbols()}
+    missing = [entry["symbol"] for entry in entries if entry["symbol"] not in catalog]
+    assert not missing, f"enriched symbols missing from the static catalog: {missing}"
+
+
+def test_load_selected_symbols_returns_the_file_rows() -> None:
+    from domain.instruments.symbol_catalog import _load_selected_symbols
+
+    rows = _load_selected_symbols()
+    assert rows, "the enriched loader must return the file's rows, not []"
+    assert all(row["symbol"].strip() for row in rows)
+
+
+def test_enriched_fund_rows_are_not_published_as_stocks() -> None:
+    import json
+
+    entries = json.loads(_selected_symbols_path().read_text(encoding="utf-8"))
+    funds = [e for e in entries if "صندوق" in (e.get("sector") or "")]
+    assert funds, "expected at least one fund row in the enriched file"
+
+    by_symbol = {entry["symbol"]: entry for entry in symbol_catalog.all_symbols()}
+    for row in funds:
+        entry = by_symbol[row["symbol"]]
+        assert entry["sector"] == "صندوق", (
+            f"{row['symbol']} must keep a fund sector, got {entry['sector']!r}"
+        )
+
+
+def test_canonical_market_sector_maps_fund_labels() -> None:
+    from domain.instruments.symbol_catalog import _canonical_market_sector
+
+    assert _canonical_market_sector("صندوق سرمایه گذاری قابل معامله") == "صندوق"
+    assert _canonical_market_sector("صندوق سرمایه‌گذاری قابل معامله") == "صندوق"
+    assert _canonical_market_sector("محصولات شیمیایی") == "محصولات شیمیایی"
+    assert _canonical_market_sector("") == ""
+    assert _canonical_market_sector(None) == ""

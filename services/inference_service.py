@@ -178,10 +178,9 @@ class InferenceService:
         """Real prediction: load model + build features + infer + return result."""
         # 1. Fetch recent data
         df_result = await self._fetch_latest_quotes(symbol)
-        if not df_result.success or df_result.value.empty:
-            return Result.fail(f"No data for {symbol}")
-
         df = df_result.value
+        if not df_result.success or df is None or df.empty:
+            return Result.fail(f"No data for {symbol}")
         if len(df) < 30:
             return Result.fail(f"Not enough data for {symbol}: {len(df)} rows")
 
@@ -211,7 +210,8 @@ class InferenceService:
                     if loaded:
                         model, feature_names, from_path = loaded
                         break
-                except Exception:
+                except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+                    logger.debug("DB model artifact %s unusable: %s", cid, exc)
                     continue
 
         # b) artifact file via ArtifactManager (model.pkl + metadata.json)
@@ -223,7 +223,8 @@ class InferenceService:
                     feature_names = meta.feature_names or feature_names
                     from_path = True
                     break
-                except Exception:
+                except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+                    logger.debug("artifact file %s unusable: %s", cid, exc)
                     continue
 
         if model is None:
@@ -275,15 +276,17 @@ class InferenceService:
         """Load a model pipeline registered in ml_model_versions (DB).
 
         Returns (model, feature_names, from_path) or None when not found.
-        Handles both ``model_pipeline.pkl`` (new format) and ``model.pkl``.
+        Handles both ``model_pipeline.pkl`` (new format) and ``model.pkl``, and
+        both container formats the artifacts use — bare pickle and the
+        zlib-wrapped joblib dump the training toolchain writes (audit F-01).
         """
         import json as json_lib
-        import pickle
         from pathlib import Path
 
-        try:
-            from sqlalchemy import select
+        from ml.artifacts import load_artifact_file
 
+        try:
+            from core.database import select
             from models.ml import MlModelVersionModel
 
             session = getattr(self.model_repo, "_session", None)
@@ -309,8 +312,7 @@ class InferenceService:
                 return None
 
             def _read_pickle() -> Any:
-                with open(pipeline_file, "rb") as f:
-                    return pickle.load(f)
+                return load_artifact_file(pipeline_file)
 
             loaded = await asyncio.to_thread(_read_pickle)
 
@@ -376,8 +378,7 @@ class InferenceService:
             if self.model_repo is not None:
                 session = getattr(self.model_repo, "_session", None)
                 if session is not None:
-                    from sqlalchemy import select
-
+                    from core.database import select
                     from models.ml import MlModelModel, MlModelVersionModel
 
                     models = (await session.execute(select(MlModelModel))).scalars().all()
@@ -425,7 +426,7 @@ class InferenceService:
 
         ts = get_training_service()
         runs_result = await ts.list_runs()
-        if runs_result.success:
+        if runs_result.success and runs_result.value is not None:
             for run in runs_result.value:
                 if run.get("status") == "completed" and run.get("metrics"):
                     # Support both 'symbol' (real) and 'symbols' (demo) keys

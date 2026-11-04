@@ -9,41 +9,64 @@ import contextlib
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, WebSocket
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import (
+    current_user_id,
+    get_current_user,
+    get_db_session,
+    owned_scope,
+)
 from core.time import utc_now_naive
 
-from . import dca_planner, snapshot_service
+from . import dca_planner, phase1, phase2, snapshot_service
 from .alert_engine import seed_default_rules
 from .backtest import run_backtest
 from .backtest_real import run_real_backtest
 from .backtest_runner import run_strategy_backtest
 from .black76 import price_option, protective_collar
 from .chat import ask_gold_assistant
+from .constants import PORTFOLIO_PERFORMANCE_WINDOW_DAYS
 from .crypto import fetch_crypto_prices, fetch_fx_rates
+from .freshness import build_freshness_report
 from .hotpath import build_hotpath_response, get_hot_snapshot
 from .live_signals import detect_and_broadcast
 from .macro_news import compute_macro_multiplier, fetch_macro_events, scrape_cbi_news
 from .metrics import render_prometheus
 from .models import AlertEventModel, AlertRuleModel, GoldScoreHistoryModel, GoldSnapshotModel
 from .pattern_detector import detect_patterns
+from .phase1_schemas import WhatIfRequest
 from .portfolio import (
+    DCAPlanStatus,
+    HoldingDeletedError,
+    HoldingNotFoundError,
+    HoldingPnL,
+    PortfolioReturns,
+    build_portfolio_returns,
+    build_tax_summary,
+    build_trades_csv,
     get_current_prices,
     get_holdings_grouped,
     get_plan_status,
+    load_holdings_and_trades,  # noqa: F401 — برای monkeypatch در تست قرارداد API
     record_trade,
+)
+from .portfolio_history import (
+    build_performance_report,
+    capture_portfolio_value,
+    load_value_history,
 )
 from .schemas import (
     AlertRuleCreate,
     AlertRuleUpdate,
     DCARequest,
     DCAResponse,
+    DCATranche,
     HealthResponse,
     ScoreHistoryPoint,
     WatchlistResponse,
@@ -53,7 +76,36 @@ from .ws_hub import ws_endpoint
 
 logger = logging.getLogger(__name__)
 
+
+async def _require_admin_user(request: Request) -> dict[str, Any]:
+    """Admin gate for API-token administration (audit SEC-02).
+
+    The mount-level dependency only proves "a real user". Minting tokens that
+    carry the ``admin`` scope, and listing/revoking other people's, therefore
+    needs an explicit role check.
+    """
+    from apps.api.dependencies import get_current_user
+    from core.enums.rbac import has_role
+
+    user = await get_current_user(authorization=request.headers.get("authorization", ""))
+    if not has_role(user.get("roles", []), "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions: requires admin")
+    return user
+
+
 router = APIRouter(prefix="/gold", tags=["GoldDesk"])
+
+# Anonymous-by-policy routes, kept on their own router so the personal surface
+# can be mounted behind a real authenticated user (see ``apps/api/router.py``).
+# Three routes and why each one is exempt:
+#   * ``/gold/health``          — container/K8s liveness probe; a probe holds no JWT.
+#   * ``/gold/assistant-rules`` — the spec card the *pre-login* ``/markets/gold``
+#                                and ``/markets/silver`` pages render.
+#   * ``/gold/ws``              — a socket, so it verifies its own token inside
+#                                the handler instead of via the router dependency.
+# Everything else on ``router`` (portfolio, alerts, tokens, chats, trades, …) is
+# personal data and must resolve an authenticated user.
+anonymous_router = APIRouter(prefix="/gold", tags=["GoldDesk"])
 
 # ── Antigravity sub-router ────────────────────────────────────────
 try:
@@ -70,27 +122,188 @@ except Exception as _e:
 
 
 @router.get("/snapshot", response_model=None, summary="Live gold market snapshot")
-async def get_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
     """snapshot کامل با score و self-check."""
     try:
         snap = await snapshot_service.build_snapshot(session)
         return {"success": True, "data": snap.model_dump(mode="json")}
-    except Exception as exc:
+    except Exception:
         logger.exception("snapshot failed")
-        return {"success": False, "data": None, "error": {"message": str(exc)}}
+        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
+
+
+# ── 1b. Phase 1 Data Terminal (parity surface, preview-only) ─────
+
+
+@router.get(
+    "/terminal",
+    response_model=None,
+    summary="Phase 1 gold data terminal (ticker + physical + funds + certificates)",
+)
+async def get_gold_terminal(session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
+    """جدول‌های فاز ۱: تیکر ثابت، طلا و سکه، صندوق‌ها و گواهی سپرده.
+
+    همهٔ مبالغ ریال هستند. مقدار ناموجود ``null`` برمی‌گردد (هرگز صفر کاذب)
+    و دلیل آن در ``data_gaps`` همان ردیف می‌آید. این مسیر هیچ سفارشی ثبت
+    نمی‌کند؛ ``capabilities.orders`` همیشه ``false`` است.
+    """
+    try:
+        data = await phase1.build_terminal(session)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold terminal failed")
+        raise HTTPException(503, {"success": False, "error": "terminal_unavailable"})
+
+
+@router.post(
+    "/what-if",
+    response_model=None,
+    summary="Preview intrinsic/bubble implied by manual XAU/USD and USD/IRR",
+)
+async def post_gold_what_if(
+    body: WhatIfRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """ماشین‌حساب سناریو — فقط پیش‌نمایش.
+
+    ورودی‌ها: XAU/USD و دلار آزاد به ریال. خروجی ارزش ذاتی، حباب و USD ضمنی
+    را زیر همان دو نرخ بازمحاسبه می‌کند و با برچسب ``SAMPLE`` برمی‌گرداند.
+    هیچ ردیفی نوشته یا بازنویسی نمی‌شود و دادهٔ LIVE دست‌نخورده می‌ماند.
+    """
+    try:
+        data = await phase1.build_what_if(session, body.xau_usd, body.usd_irt_rial)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold what-if failed")
+        raise HTTPException(503, {"success": False, "error": "terminal_unavailable"})
+
+
+# ── 1c. Phase 2 market coverage (read-only, no trading surface) ──
+
+
+@router.get(
+    "/tehran-board",
+    response_model=None,
+    summary="Tehran shop/banking board — price, spread vs official, bubble, implied USD",
+)
+async def get_tehran_board(session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
+    """تابلو خرده‌فروشی/بنکداری تهران.
+
+    قیمت، تغییر، ارزش ذاتی، حباب، USD ضمنی و اختلاف با قیمت رسمی جدول فاز ۱.
+    منبع قیمت تهران متصل نیست؛ ردیف‌ها با ``tehran_price=null`` و
+    ``quality="NO_DATA"`` برمی‌گردند و دلیل در ``data_gaps`` می‌آید — ستون‌ها
+    حذف نمی‌شوند. هیچ سفارش/پرداختی در این مسیر وجود ندارد.
+    """
+    try:
+        data = await phase2.load_tehran_board(session)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold tehran board failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
+
+
+@router.get(
+    "/platforms",
+    response_model=None,
+    summary="Online gold platforms — price comparison only (no buy/payment)",
+)
+async def get_gold_platforms(session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
+    """مقایسهٔ قیمت بسترهای آنلاین طلا — فقط اطلاعات قیمت.
+
+    بدون منبع قیمتِ مستند، ``rows`` خالی و ``source_status="not_connected"``
+    است. هیچ دکمهٔ خرید، سبد، checkout یا پرداختی وجود ندارد؛
+    ``capabilities`` همهٔ این قابلیت‌ها را ``false`` اعلام می‌کند.
+    """
+    try:
+        data = await phase2.load_platforms(session)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold platforms failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
+
+
+@router.get(
+    "/returns-matrix",
+    response_model=None,
+    summary="Returns matrix (1m/3m/6m/9m/1y) in Rial or USD",
+)
+async def get_returns_matrix(
+    base_currency: Literal["IRR", "USD"] = Query("IRR"),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """ماتریس بازدهی دارایی‌ها با سوییچ ریال/دلار.
+
+    بازده سادهٔ نقطه‌به‌نقطه؛ بازه‌ای که دادهٔ کافی ندارد ``incomplete`` یا
+    ``no_data`` با دلیل فارسی برچسب می‌گیرد. همبستگی فقط روی بازده‌های روز
+    مشترک و بدون نگاه به آینده محاسبه می‌شود.
+    """
+    try:
+        data = await phase2.build_returns_matrix(session, base_currency=base_currency)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold returns matrix failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
+
+
+@router.get(
+    "/fund-map",
+    response_model=None,
+    summary="Gold fund market map + market-value summary",
+)
+async def get_fund_map(
+    size_metric: Literal["trade_value", "market_value"] = Query("trade_value"),
+    top_n: int = Query(10, ge=1, le=50),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """نقشهٔ بازار صندوق‌های طلا + خلاصهٔ ارزش بازار.
+
+    اندازه با ارزش معاملات (پیش‌فرض) یا ارزش بازار؛ رنگ در فرانت‌اند از
+    ``color_scale_pct`` (±۴٪) استفاده می‌کند. اندازهٔ نامعتبر/صفر حذف می‌شود و
+    سهم‌ها هرگز ``Infinity``/``NaN`` نیستند. کلیک روی هر خانه به
+    ``href`` یعنی ردیف همان صندوق در جدول فاز ۱ می‌رود.
+    """
+    try:
+        data = await phase2.build_fund_map(session, size_metric=size_metric, top_n=top_n)
+        return {"success": True, "data": data.model_dump(mode="json")}
+    except Exception:
+        logger.exception("gold fund map failed")
+        raise HTTPException(503, {"success": False, "error": "market_coverage_unavailable"})
 
 
 # ── 2. Score فقط ────────────────────────────────────────────────
 
 
 @router.get("/score", summary="Current decision score only")
-async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
     try:
         snap = await snapshot_service.build_snapshot(session)
         return {"success": True, "data": snap.score.model_dump(mode="json")}
-    except Exception as exc:
+    except Exception:
         logger.exception("score failed")
-        return {"success": False, "error": {"message": str(exc)}}
+        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
+
+
+# ── 2b. قواعد دستیار طلا و نقره (منبع واحد: ``acceptance.yaml``) ──
+
+
+@anonymous_router.get(
+    "/assistant-rules",
+    response_model=None,
+    summary="Gold/silver assistant rules — fees, value filter, market hours",
+)
+async def get_gold_assistant_rules() -> dict[str, Any]:
+    """قواعد بخش‌های ۲۰، ۲۶، ۲۷.۱ و ۲۷.۳ سند، از ``acceptance.yaml``.
+
+    صفحه‌های طلا و نقره همین را می‌خوانند تا هیچ نرخ یا آستانه‌ای در فرانت‌اند
+    هاردکد نشود و گیت سمت سرور هم همان اعداد را داشته باشد.
+    """
+    try:
+        from core.config.acceptance_loader import get_assistant_rules
+
+        return {"success": True, "data": get_assistant_rules()}
+    except Exception:  # noqa: BLE001 — شکل پاسخ، مطابق بقیهٔ این ماژول
+        logger.exception("assistant rules failed")
+        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
 
 
 # ── 3. History ────────────────────────────────────────────────────
@@ -100,7 +313,7 @@ async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict:
 async def get_score_history(
     days: int = Query(7, ge=1, le=90),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     cutoff = utc_now_naive() - timedelta(days=days)
     stmt = (
         select(GoldScoreHistoryModel)
@@ -126,7 +339,7 @@ async def get_snapshot_history(
     symbol: str = Query("IR_COIN_EMAMI"),
     days: int = Query(7, ge=1, le=90),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     cutoff = utc_now_naive() - timedelta(days=days)
     stmt = (
         select(GoldSnapshotModel)
@@ -152,23 +365,33 @@ async def get_snapshot_history(
 
 @router.post("/dca/plan", response_model=DCAResponse, summary="Calculate DCA plan")
 async def post_dca_plan(req: DCARequest) -> DCAResponse:
-    plan = dca_planner.plan_dca(
-        total_capital_irt=req.total_capital_irt,
-        risk_profile=req.risk_profile,
-        current_score=req.current_score,
-        preferred_vehicle=req.preferred_vehicle,
-    )
+    # ``current_score=None`` یعنی «امتیاز نامعلوم»؛ نباید به پلنر برسد چون مقایسهٔ
+    # ``None`` داخل ``plan_dca`` TypeError می‌داد. در این حالت پیش‌فرض خودِ پلنر
+    # (امتیاز خنثی) اعمال می‌شود.
+    if req.current_score is None:
+        plan = dca_planner.plan_dca(
+            total_capital_irt=req.total_capital_irt,
+            risk_profile=req.risk_profile,
+            preferred_vehicle=req.preferred_vehicle,
+        )
+    else:
+        plan = dca_planner.plan_dca(
+            total_capital_irt=req.total_capital_irt,
+            risk_profile=req.risk_profile,
+            current_score=req.current_score,
+            preferred_vehicle=req.preferred_vehicle,
+        )
     return DCAResponse(
         total_capital_irt=plan.total_capital_irt,
         ladder=[
-            {
-                "tranche": t.tranche,
-                "pct": t.pct,
-                "amount_irt": t.amount_irt,
-                "trigger": t.trigger,
-                "vehicle": t.vehicle,
-                "estimated_fee_irt": t.estimated_fee_irt,
-            }
+            DCATranche(
+                tranche=t.tranche,
+                pct=t.pct,
+                amount_irt=t.amount_irt,
+                trigger=t.trigger,
+                vehicle=t.vehicle,
+                estimated_fee_irt=t.estimated_fee_irt,
+            )
             for t in plan.ladder
         ],
         recommended_vehicle=plan.recommended_vehicle,
@@ -183,8 +406,14 @@ async def post_dca_plan(req: DCARequest) -> DCAResponse:
 
 
 @router.get("/alerts/rules", summary="List alert rules")
-async def list_alert_rules(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def list_alert_rules(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    scope = owned_scope(current_user)
     stmt = select(AlertRuleModel).order_by(AlertRuleModel.id)
+    if scope is not None:
+        stmt = stmt.where(AlertRuleModel.user_id == scope)
     rows = (await session.execute(stmt)).scalars().all()
     return {
         "success": True,
@@ -208,8 +437,12 @@ async def list_alert_rules(session: AsyncSession = Depends(get_db_session)) -> d
 
 
 @router.post("/alerts/rules", summary="Create alert rule")
-async def create_alert_rule(rule: AlertRuleCreate, session: AsyncSession = Depends(get_db_session)) -> dict:
-    new_rule = AlertRuleModel(**rule.model_dump())
+async def create_alert_rule(
+    rule: AlertRuleCreate,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    new_rule = AlertRuleModel(**rule.model_dump(), user_id=current_user_id(current_user))
     session.add(new_rule)
     await session.commit()
     await session.refresh(new_rule)
@@ -221,9 +454,11 @@ async def update_alert_rule(
     rule_id: int,
     update: AlertRuleUpdate,
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
-    rule = (await session.execute(select(AlertRuleModel).where(AlertRuleModel.id == rule_id))).scalars().first()
-    if not rule:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    scope = owned_scope(current_user)
+    rule = await session.get(AlertRuleModel, rule_id)
+    if not rule or (scope is not None and getattr(rule, "user_id", None) != scope):
         raise HTTPException(status_code=404, detail="rule not found")
     for k, v in update.model_dump(exclude_unset=True).items():
         setattr(rule, k, v)
@@ -232,9 +467,14 @@ async def update_alert_rule(
 
 
 @router.delete("/alerts/rules/{rule_id}", summary="Delete alert rule")
-async def delete_alert_rule(rule_id: int, session: AsyncSession = Depends(get_db_session)) -> dict:
-    rule = (await session.execute(select(AlertRuleModel).where(AlertRuleModel.id == rule_id))).scalars().first()
-    if not rule:
+async def delete_alert_rule(
+    rule_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    scope = owned_scope(current_user)
+    rule = await session.get(AlertRuleModel, rule_id)
+    if not rule or (scope is not None and getattr(rule, "user_id", None) != scope):
         raise HTTPException(status_code=404, detail="rule not found")
     await session.delete(rule)
     await session.commit()
@@ -246,9 +486,13 @@ async def list_alert_events(
     days: int = Query(7, ge=1, le=90),
     unread_only: bool = Query(False),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     cutoff = utc_now_naive() - timedelta(days=days)
+    scope = owned_scope(current_user)
     stmt = select(AlertEventModel).where(AlertEventModel.sent_at >= cutoff)
+    if scope is not None:
+        stmt = stmt.where(AlertEventModel.user_id == scope)
     if unread_only:
         stmt = stmt.where(AlertEventModel.read_at.is_(None))
     stmt = stmt.order_by(desc(AlertEventModel.sent_at)).limit(200)
@@ -274,9 +518,14 @@ async def list_alert_events(
 
 
 @router.post("/alerts/{event_id}/ack", summary="Mark alert as read")
-async def ack_alert(event_id: int, session: AsyncSession = Depends(get_db_session)) -> dict:
-    ev = (await session.execute(select(AlertEventModel).where(AlertEventModel.id == event_id))).scalars().first()
-    if not ev:
+async def ack_alert(
+    event_id: int,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    scope = owned_scope(current_user)
+    ev = await session.get(AlertEventModel, event_id)
+    if not ev or (scope is not None and getattr(ev, "user_id", None) != scope):
         raise HTTPException(status_code=404, detail="event not found")
     ev.read_at = utc_now_naive()
     await session.commit()
@@ -284,8 +533,11 @@ async def ack_alert(event_id: int, session: AsyncSession = Depends(get_db_sessio
 
 
 @router.post("/alerts/seed", summary="Seed default alert rules (idempotent)")
-async def post_seed_rules(session: AsyncSession = Depends(get_db_session)) -> dict:
-    n = await seed_default_rules(session)
+async def post_seed_rules(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    n = await seed_default_rules(session, user_id=current_user_id(current_user))
     return {"success": True, "data": {"inserted": n}}
 
 
@@ -293,13 +545,18 @@ async def post_seed_rules(session: AsyncSession = Depends(get_db_session)) -> di
 
 
 @router.get("/watchlist", response_model=WatchlistResponse, summary="Get watchlist")
-async def get_watchlist() -> WatchlistResponse:
+async def get_watchlist(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> WatchlistResponse:
     from core.cache import get_cache
 
     from .constants import REDIS_KEY_WATCHLIST
 
+    uid = current_user_id(current_user)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
     cache = get_cache()
-    raw = await cache.get(REDIS_KEY_WATCHLIST)
+    raw = await cache.get(f"{REDIS_KEY_WATCHLIST}:{uid}")
     if raw:
         with contextlib.suppress(Exception):
             data = json.loads(raw) if isinstance(raw, str) else raw
@@ -311,16 +568,22 @@ async def get_watchlist() -> WatchlistResponse:
 
 
 @router.put("/watchlist", response_model=WatchlistResponse, summary="Replace watchlist")
-async def put_watchlist(payload: WatchlistResponse) -> WatchlistResponse:
+async def put_watchlist(
+    payload: WatchlistResponse,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> WatchlistResponse:
     from core.cache import get_cache
 
     from .constants import REDIS_KEY_WATCHLIST
 
+    uid = current_user_id(current_user)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication required")
     cache = get_cache()
     now = utc_now_naive()
     payload.updated_at = now
     await cache.set_persistent(
-        REDIS_KEY_WATCHLIST,
+        f"{REDIS_KEY_WATCHLIST}:{uid}",
         json.dumps({"symbols": payload.symbols, "updated_at": now.isoformat()}),
     )
     return payload
@@ -330,10 +593,20 @@ async def put_watchlist(payload: WatchlistResponse) -> WatchlistResponse:
 
 
 @router.post("/telegram/test", summary="Send test Telegram message")
-async def test_telegram(chat_id: str | None = None) -> dict:
+async def test_telegram(request: Request, chat_id: str | None = None) -> dict[str, Any]:
     cfg = TelegramConfig.from_env()
     if not cfg.is_configured():
         return {"success": False, "error": {"message": "Telegram not configured"}}
+    # chat_id از query می‌آید (سازگار با گذشته) وگرنه از بدنهٔ JSON خوانده می‌شود.
+    # فقط خطای تجزیهٔ JSON گرفته می‌شود؛ بقیهٔ خطاها باید بالا بروند.
+    import json
+
+    if not chat_id:
+        try:
+            body = await request.json()
+            chat_id = body.get("chat_id") if body else None
+        except json.JSONDecodeError:
+            chat_id = None
     ok = await send_message(
         "✅ Temce GoldDesk test message",
         chat_id=chat_id,
@@ -343,7 +616,7 @@ async def test_telegram(chat_id: str | None = None) -> dict:
 
 
 @router.get("/telegram/status", summary="Telegram configuration status")
-async def telegram_status() -> dict:
+async def telegram_status() -> dict[str, Any]:
     cfg = TelegramConfig.from_env()
     return {
         "success": True,
@@ -359,20 +632,30 @@ async def telegram_status() -> dict:
 # ── 8. Health + Backtest ──────────────────────────────────────────
 
 
-@router.get("/health", response_model=HealthResponse, summary="GoldDesk health")
-async def health(session: AsyncSession = Depends(get_db_session)):
+@anonymous_router.get("/health", response_model=HealthResponse, summary="GoldDesk health")
+async def health(session: AsyncSession = Depends(get_db_session)) -> HealthResponse | Response:
     """
     Health check برای Docker/K8s.
     - 200 OK: سرویس سالم
-    - 503: مشکل (DB یا Redis)
+    - 503: مشکل (DB یا Redis یا BRSApi)
     """
-    from fastapi import Response
+    import contextlib
 
     from core.cache import get_cache
 
     redis_ok = False
     with contextlib.suppress(Exception):
         redis_ok = await get_cache().ping()
+
+    # Use freshness report to determine BRS API status
+    brsapi_ok_real = False
+    try:
+        from .freshness import build_freshness_report
+        freshness = await build_freshness_report(session)
+        # BRS API is OK if overall status is ok and there are ok sources
+        brsapi_ok_real = freshness["overall"] == "ok" and freshness["counts"]["ok"] > 0
+    except Exception:
+        logger.warning("Failed to build freshness report for health check")
 
     db_ok = True
     try:
@@ -402,23 +685,56 @@ async def health(session: AsyncSession = Depends(get_db_session)):
         await session.execute(select(func.count(AlertEventModel.id)).where(AlertEventModel.read_at.is_(None)))
     ).scalar() or 0
 
-    if not db_ok:
-        return Response(
+    if not db_ok or not redis_ok:
+        # Keep the per-dependency flags in the 503 body: a probe/client must be
+        # able to say WHICH dependency died, not just "unhealthy".
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
             status_code=503,
-            content='{"status":"unhealthy","reason":"db"}',
-            media_type="application/json",
+            content={
+                "status": "unhealthy",
+                "reason": "redis_or_db",
+                "brsapi_ok": brsapi_ok_real,
+                "redis_ok": redis_ok,
+                "db_ok": db_ok,
+                "last_snapshot_at": last_snap,
+                "scheduler_jobs": _scheduled_job_count(),
+                "telegram_configured": TelegramConfig.from_env().is_configured(),
+                "active_alert_rules": int(active_rules),
+                "unread_alerts": int(unread),
+            },
         )
 
     return HealthResponse(
-        brsapi_ok=db_ok,
+        brsapi_ok=brsapi_ok_real,
         redis_ok=redis_ok,
         db_ok=db_ok,
         last_snapshot_at=last_snap,
-        scheduler_jobs=4,
+        scheduler_jobs=_scheduled_job_count(),
         telegram_configured=TelegramConfig.from_env().is_configured(),
         active_alert_rules=int(active_rules),
         unread_alerts=int(unread),
     )
+
+
+def _scheduled_job_count() -> int:
+    """تعداد jobهای واقعی GoldDesk (fallback وقتی رجیستری قابل import نیست)."""
+    try:
+        from brsapi.jobs.gold_desk_jobs import GOLD_DESK_JOBS
+
+        return len(GOLD_DESK_JOBS)
+    except Exception:  # noqa: BLE001
+        logger.debug("gold job registry unavailable", exc_info=True)
+        return 4
+
+
+@router.get("/freshness", summary="Data-freshness report for every GoldDesk source")
+async def get_freshness(session: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
+    """صفحهٔ سلامت داده: آخرین به‌روزرسانی، سن و وضعیت هر منبع در یک پاسخ."""
+    report = await build_freshness_report(session)
+    report["scheduler_jobs"] = _scheduled_job_count()
+    return {"success": True, "data": report}
 
 
 @router.get("/backtest", summary="Run backtest on coin_emami")
@@ -427,7 +743,7 @@ async def backtest(
     bubble_threshold: float = Query(8.0, ge=0),
     symbol: str = Query("IR_COIN_EMAMI"),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     r = await run_backtest(session, symbol=symbol, days=days, bubble_threshold=bubble_threshold)
     return {
         "success": True,
@@ -453,7 +769,7 @@ async def strategy_backtest(
     bubble_trigger: float = Query(5.0, ge=0),
     initial_capital: float = Query(100_000_000, ge=1_000_000),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     """اجرای backtest استراتژی DCA روی داده‌های تاریخی.
 
     مقایسه با buy-and-hold، محاسبه alpha، max drawdown، Sharpe.
@@ -482,6 +798,12 @@ async def strategy_backtest(
             "n_successful": m.n_successful,
             "max_drawdown_pct": m.max_drawdown_pct,
             "sharpe_ratio": m.sharpe_ratio,
+            # دورهٔ out-of-sample: null یعنی برش OOS ممکن نبود (دادهٔ کافی نیست).
+            "oos_start": m.oos_start.isoformat() if m.oos_start else None,
+            "oos_total_return_pct": m.oos_total_return_pct,
+            "oos_buy_hold_return_pct": m.oos_buy_hold_return_pct,
+            "oos_alpha_pct": m.oos_alpha_pct,
+            "oos_max_drawdown_pct": m.oos_max_drawdown_pct,
             "trades": [
                 {
                     "date": t.date.isoformat(),
@@ -506,7 +828,7 @@ async def real_backtest(
     symbol: str = Query("IR_COIN_EMAMI"),
     initial_capital: float = Query(100_000_000, ge=1_000_000),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     """اجرای ۳ استراتژی روی داده‌های واقعی BrsApi: RSI, MA, Bubble."""
     run = await run_real_backtest(session, symbol=symbol, days=days, initial_capital=initial_capital)
     return {
@@ -545,7 +867,7 @@ async def price_gold_option(
     expiry: str,  # YYYY-MM-DD
     iv: float = Query(0.25, ge=0.01, le=2.0),
     rate: float = Query(0.30, ge=0, le=1.0),
-) -> dict:
+) -> dict[str, Any]:
     """قیمت‌گذاری Call و Put با Black-76.
 
     forward: قیمت آتی صندوق (NAV یا spot)
@@ -592,7 +914,7 @@ async def protective_collar_endpoint(
     expiry: str,
     iv: float = Query(0.25, ge=0.01, le=2.0),
     rate: float = Query(0.30, ge=0, le=1.0),
-) -> dict:
+) -> dict[str, Any]:
     """استراتژی Protective Collar.
 
     نگهداری spot + خرید put در K1 + فروش call در K2.
@@ -623,36 +945,61 @@ async def protective_collar_endpoint(
 # ── 11. WebSocket Live Stream ─────────────────────────────────
 
 
-@router.websocket("/ws")
+@anonymous_router.websocket("/ws")
 async def gold_websocket(websocket: WebSocket) -> None:
-    """WebSocket — پخش زنده snapshot هر ۵ ثانیه."""
+    """WebSocket — پخش زنده snapshot هر ۵ ثانیه.
+
+    Authenticated the same way as ``/ws/market`` (audit API-003): a browser
+    cannot attach an ``Authorization`` header to a WebSocket handshake, so the
+    access token is read from the ``token`` query parameter. The route lives on
+    ``anonymous_router`` because the HTTP auth dependency would reject the
+    handshake before this check ever ran.
+    """
+    from apps.api.endpoints.websocket import verify_websocket_token
+
+    if not await verify_websocket_token(websocket):
+        logger.warning("GoldDesk WebSocket rejected: missing or invalid token")
+        await websocket.close(code=1008)  # policy violation, before accept
+        return
+
     await ws_endpoint(websocket)
 
 
 # ── 12. API Tokens (برای استفاده خارجی) ────────────────────
+
+# همان Literalهای ``gold_desk.api_token.Scope``؛ اینجا تکرار شده‌اند تا import
+# ماژول token (که بدون salt خطا می‌دهد) به import این router گره نخورد.
+Scope = Literal["read", "write", "admin", "metrics"]
+_SCOPE_VALUES: tuple[Scope, ...] = ("read", "write", "admin", "metrics")
+
+
+def _parse_scopes(raw: str) -> list[Scope]:
+    """``scopes`` جداشده با کاما را به Literalهای معتبر تبدیل می‌کند."""
+    requested = [s.strip() for s in raw.split(",") if s.strip()]
+    invalid = [s for s in requested if s not in _SCOPE_VALUES]
+    if invalid:
+        raise HTTPException(400, f"invalid scopes: {invalid}")
+    parsed: list[Scope] = [s for s in requested if s in _SCOPE_VALUES]
+    return parsed or ["read"]
 
 
 @router.post("/tokens", summary="Generate a new API token")
 async def create_token(
     name: str = Query(..., min_length=1, max_length=64),
     scopes: str = Query("read", description="Comma-separated: read,write,admin"),
-) -> dict:
+    _admin: dict[str, Any] = Depends(_require_admin_user),
+) -> dict[str, Any]:
     """ساخت token جدید. plain token فقط یک‌بار نمایش داده می‌شود.
 
     scopes: read (GET) | write (POST/PUT/DELETE) | admin (همه)
     """
     from .api_token import generate_token, save_token
 
-    scope_list = [s.strip() for s in scopes.split(",") if s.strip()]
-    valid = {"read", "write", "admin"}
-    invalid = [s for s in scope_list if s not in valid]
-    if invalid:
-        raise HTTPException(400, f"invalid scopes: {invalid}")
-    if not scope_list:
-        scope_list = ["read"]
+    scope_list = _parse_scopes(scopes)
 
     plain, info = generate_token(name, scope_list)
-    await save_token(plain, info)
+    if not await save_token(plain, info):
+        raise HTTPException(503, "token store is unavailable; token was not created")
     return {
         "success": True,
         "data": {
@@ -666,7 +1013,7 @@ async def create_token(
 
 
 @router.get("/tokens", summary="List API tokens")
-async def list_api_tokens() -> dict:
+async def list_api_tokens(_admin: dict[str, Any] = Depends(_require_admin_user)) -> dict[str, Any]:
     """لیست tokenهای فعال (بدون plain token)."""
     from .api_token import list_tokens
 
@@ -688,7 +1035,7 @@ async def list_api_tokens() -> dict:
 
 
 @router.delete("/tokens/{token_id}", summary="Revoke a token")
-async def delete_token(token_id: str) -> dict:
+async def delete_token(token_id: str, _admin: dict[str, Any] = Depends(_require_admin_user)) -> dict[str, Any]:
     from .api_token import revoke_token
 
     ok = await revoke_token(token_id)
@@ -734,12 +1081,140 @@ class TradeCreate(BaseModel):
     note: str | None = None
 
 
+def _single_holding_id(h: HoldingPnL) -> int | None:
+    """id یک گروه holding فقط وقتی یک ردیف دارد؛ گروه چندردیفی ``holding_ids`` دارد."""
+    ids = tuple(h.holding_ids or ())
+    return ids[0] if len(ids) == 1 else None
+
+
+def _returns_payload(returns: PortfolioReturns) -> dict[str, Any]:
+    """سریال‌سازی بازده پورتفوی (اسمی / واقعی / دلاری)."""
+    return {
+        "nominal_pnl_irt": returns.nominal_pnl_irt,
+        "nominal_pnl_pct": returns.nominal_pnl_pct,
+        "nominal_xirr": returns.nominal_xirr,
+        "real_xirr": returns.real_xirr,
+        "usd_xirr": returns.usd_xirr,
+        "cpi_basis": returns.cpi_basis,
+        "usd_basis": returns.usd_basis,
+        "unavailable": returns.unavailable,
+    }
+
+
+@router.get("/portfolio/history", summary="Persisted portfolio value history")
+async def get_portfolio_history(
+    days: int = Query(90, ge=2, le=730),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """سری ارزش روزانهٔ پرتفوی (جدول ``gold_portfolio_values``)."""
+    rows = await load_value_history(session, days=days, user_id=owned_scope(current_user))
+    return {
+        "success": True,
+        "data": {
+            "days": days,
+            "points": len(rows),
+            "items": [
+                {
+                    "as_of": r.as_of.isoformat(),
+                    "total_value_irt": r.total_value_irt,
+                    "total_cost_irt": r.total_cost_irt,
+                    "net_flow_irt": r.net_flow_irt,
+                    "unpriced_holdings": r.unpriced_holdings,
+                }
+                for r in rows
+            ],
+        },
+    }
+
+
+@router.get(
+    "/portfolio/performance",
+    summary="TWR + risk metrics + benchmark vs gold / USD / TEDPIX",
+)
+async def get_portfolio_performance(
+    days: int = Query(PORTFOLIO_PERFORMANCE_WINDOW_DAYS, ge=2, le=730),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """بازده وزنی‌زمان (TWR) + نوسان/شارپ/افت + مقایسه با طلا، دلار و شاخص کل."""
+    snap = await get_hot_snapshot()
+    report = await build_performance_report(
+        session, days=days, snapshot=snap, user_id=owned_scope(current_user)
+    )
+    return {"success": True, "data": report.as_dict()}
+
+
+@router.post("/portfolio/snapshot", summary="Persist today's portfolio value")
+async def post_portfolio_snapshot(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """ثبت فوری ارزش پرتفوی برای امروز (idempotent) — پر کردن تاریخچه بدون انتظار برای scheduler."""
+    snap = await get_hot_snapshot()
+    row = await capture_portfolio_value(
+        session, snapshot=snap, user_id=current_user_id(current_user)
+    )
+    return {
+        "success": True,
+        "data": {
+            "as_of": row.as_of.isoformat(),
+            "total_value_irt": row.total_value_irt,
+            "total_cost_irt": row.total_cost_irt,
+            "net_flow_irt": row.net_flow_irt,
+            "unpriced_holdings": row.unpriced_holdings,
+        },
+    }
+
+
+@router.get("/portfolio/returns", summary="Portfolio returns (nominal / real / USD)")
+async def get_portfolio_returns(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """بازده پورتفوی: اسمی (XIRR) + واقعی (تعدیل تورم) + دلاری."""
+    snap = await get_hot_snapshot()
+    returns = await build_portfolio_returns(
+        session, snapshot=snap, user_id=owned_scope(current_user)
+    )
+    return {"success": True, "data": {"returns": _returns_payload(returns)}}
+
+
+@router.get("/portfolio/tax", summary="Portfolio FIFO cost basis and realized P&L")
+async def get_portfolio_tax(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """بهای تمام‌شده و سود/زیان تحقق‌یافتهٔ معاملات با روش FIFO."""
+    summary = await build_tax_summary(session, user_id=owned_scope(current_user))
+    return {"success": True, "data": summary}
+
+
+@router.get("/portfolio/export.csv", summary="Export recorded trades as CSV")
+async def export_portfolio_trades_csv(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    """خروجی CSV معاملات ثبت‌شده (برای گزارش و مالیات)."""
+    csv_text = await build_trades_csv(session, user_id=owned_scope(current_user))
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="gold_trades.csv"'},
+    )
+
+
 @router.get("/portfolio", summary="Get portfolio summary with P&L")
-async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict:
+async def get_portfolio(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """خلاصه portfolio با P&L بر اساس قیمت‌های فعلی از snapshot."""
     snap = await get_hot_snapshot()
     prices = get_current_prices(snap)
-    summary = await get_holdings_grouped(session, prices)
+    scope = owned_scope(current_user)
+    summary = await get_holdings_grouped(session, prices, user_id=scope)
+    returns = await build_portfolio_returns(session, snapshot=snap, user_id=scope)
     return {
         "success": True,
         "data": {
@@ -747,8 +1222,13 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
             "total_value": summary.total_value,
             "total_pnl": summary.total_pnl,
             "total_pnl_pct": summary.total_pnl_pct,
+            "unpriced_holdings": getattr(summary, "unpriced_holdings", 0),
+            # مخرج total_pnl_pct فقط هزینهٔ دارایی‌های قیمت‌دار است (C7).
+            "priced_cost": getattr(summary, "priced_cost", None),
             "holdings": [
                 {
+                    "id": _single_holding_id(h),
+                    "holding_ids": list(getattr(h, "holding_ids", ())),
                     "symbol": h.symbol,
                     "display_name": h.display_name,
                     "quantity": h.quantity,
@@ -762,6 +1242,7 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
                 }
                 for h in summary.holdings
             ],
+            "returns": _returns_payload(returns),
             "snapshot_at": snap.get("snapshot_at") if snap else None,
         },
     }
@@ -771,10 +1252,11 @@ async def get_portfolio(session: AsyncSession = Depends(get_db_session)) -> dict
 async def add_holding(
     h: HoldingCreate,
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     from .models import GoldHoldingModel
 
-    new_h = GoldHoldingModel(**h.model_dump())
+    new_h = GoldHoldingModel(**h.model_dump(), user_id=current_user_id(current_user))
     session.add(new_h)
     await session.commit()
     await session.refresh(new_h)
@@ -784,14 +1266,35 @@ async def add_holding(
 @router.delete("/portfolio/holdings/{holding_id}", summary="Remove a holding")
 async def delete_holding(
     holding_id: int,
+    force: bool = Query(False, description="حذف سخت فقط با ?force=true"),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """حذف دارایی.
+
+    پیش‌فرض: حذف نرم (soft-delete) — ستون ``deleted_at`` تنظیم می‌شود و ردیف
+    دارایی و معامله‌های وابسته آن (از طریق FK با ``ondelete="SET NULL"``) سالم
+    می‌مانند، بنابراین گزارش مالیاتی (/portfolio/tax) آسیب نمی‌بیند.
+    با ``?force=true`` حذف سخت (hard-delete) انجام می‌شود.
+    """
     from .models import GoldHoldingModel
 
+    scope = owned_scope(current_user)
     h = await session.get(GoldHoldingModel, holding_id)
     if not h:
         raise HTTPException(404, "holding not found")
-    await session.delete(h)
+    if scope is not None and getattr(h, "user_id", None) != scope:
+        raise HTTPException(404, "holding not found")
+    if h.deleted_at is not None and not force:
+        # دارایی soft-delete‌شده دیگر قابل حذف/تغییر نیست مگر با force صریح.
+        raise HTTPException(
+            409,
+            "holding is soft-deleted; pass ?force=true to hard-delete it",
+        )
+    if force:
+        await session.delete(h)  # سخت: holding_id معامله‌ها ⇒ SET NULL
+    else:
+        h.deleted_at = utc_now_naive()  # نرم: ردیف و معامله‌ها باقی می‌مانند
     await session.commit()
     return {"success": True}
 
@@ -800,7 +1303,8 @@ async def delete_holding(
 async def create_dca_plan(
     p: DCAPlanCreate,
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """ساخت پلن DCA با محاسبه ladder از dca_planner."""
     from .dca_planner import plan_dca
     from .models import GoldDCAPlanModel
@@ -825,6 +1329,7 @@ async def create_dca_plan(
         ]
     )
     new_plan = GoldDCAPlanModel(
+        user_id=current_user_id(current_user),
         name=p.name,
         total_capital_irt=p.total_capital_irt,
         risk_profile=p.risk_profile,
@@ -854,10 +1359,15 @@ async def create_dca_plan(
 async def list_dca_plans(
     current_score: int = Query(60, ge=0, le=100),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     from .models import GoldDCAPlanModel
 
-    rows = (await session.execute(select(GoldDCAPlanModel).order_by(GoldDCAPlanModel.id))).scalars().all()
+    stmt = select(GoldDCAPlanModel).order_by(GoldDCAPlanModel.id)
+    scope = owned_scope(current_user)
+    if scope is not None:
+        stmt = stmt.where(GoldDCAPlanModel.user_id == scope)
+    rows = (await session.execute(stmt)).scalars().all()
     return {
         "success": True,
         "data": [
@@ -871,7 +1381,7 @@ async def list_dca_plans(
     }
 
 
-def _plan_status_dict(s) -> dict:
+def _plan_status_dict(s: DCAPlanStatus) -> dict[str, Any]:
     return {
         "total_capital": s.total_capital,
         "executed": s.executed,
@@ -890,11 +1400,15 @@ async def execute_dca_tranche(
     plan_id: int,
     tranche: int = Query(..., ge=1, le=10),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """افزایش executed_tranches (manual confirmation)."""
     from .models import GoldDCAPlanModel
 
+    scope = owned_scope(current_user)
     plan = await session.get(GoldDCAPlanModel, plan_id)
+    if plan is not None and scope is not None and getattr(plan, "user_id", None) != scope:
+        plan = None
     if not plan:
         raise HTTPException(404, "plan not found")
     if tranche > plan.executed_tranches + 1:
@@ -909,10 +1423,14 @@ async def execute_dca_tranche(
 async def delete_dca_plan(
     plan_id: int,
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     from .models import GoldDCAPlanModel
 
+    scope = owned_scope(current_user)
     plan = await session.get(GoldDCAPlanModel, plan_id)
+    if plan is not None and scope is not None and getattr(plan, "user_id", None) != scope:
+        plan = None
     if not plan:
         raise HTTPException(404, "plan not found")
     await session.delete(plan)
@@ -924,19 +1442,27 @@ async def delete_dca_plan(
 async def post_trade(
     t: TradeCreate,
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
-    trade = await record_trade(
-        session,
-        symbol=t.symbol,
-        action=t.action,
-        quantity=t.quantity,
-        price=t.price,
-        amount_irt=t.amount_irt,
-        fee_pct=t.fee_pct,
-        holding_id=t.holding_id,
-        plan_id=t.plan_id,
-        note=t.note,
-    )
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    try:
+        trade = await record_trade(
+            session,
+            symbol=t.symbol,
+            action=t.action,
+            quantity=t.quantity,
+            price=t.price,
+            amount_irt=t.amount_irt,
+            fee_pct=t.fee_pct,
+            holding_id=t.holding_id,
+            plan_id=t.plan_id,
+            note=t.note,
+            user_id=current_user_id(current_user),
+            allow_any_owner=owned_scope(current_user) is None,
+        )
+    except HoldingDeletedError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except HoldingNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
     return {
         "success": True,
         "data": {
@@ -951,14 +1477,15 @@ async def post_trade(
 async def list_trades(
     limit: int = Query(50, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     from .models import GoldTradeModel
 
-    rows = (
-        (await session.execute(select(GoldTradeModel).order_by(desc(GoldTradeModel.traded_at)).limit(limit)))
-        .scalars()
-        .all()
-    )
+    stmt = select(GoldTradeModel).order_by(desc(GoldTradeModel.traded_at)).limit(limit)
+    scope = owned_scope(current_user)
+    if scope is not None:
+        stmt = stmt.where(GoldTradeModel.user_id == scope)
+    rows = (await session.execute(stmt)).scalars().all()
     return {
         "success": True,
         "data": [
@@ -986,7 +1513,7 @@ async def list_trades(
 
 
 @router.get("/signals/recent", summary="Recent live signals")
-async def get_recent_signals(limit: int = Query(20, ge=1, le=100)) -> dict:
+async def get_recent_signals(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
     """signalهای اخیر (cooldown: 10 دقیقه)."""
     try:
         from core.cache import get_cache
@@ -995,7 +1522,7 @@ async def get_recent_signals(limit: int = Query(20, ge=1, le=100)) -> dict:
 
         cache = get_cache()
         raw = await cache.get(REDIS_KEY_RECENT_SIGNALS) or []
-        items: list[dict] = json.loads(raw) if isinstance(raw, str) else raw
+        items: list[dict[str, Any]] = json.loads(raw) if isinstance(raw, str) else raw
         items.sort(key=lambda x: x.get("ts", 0), reverse=True)
         return {
             "success": True,
@@ -1009,7 +1536,7 @@ async def get_recent_signals(limit: int = Query(20, ge=1, le=100)) -> dict:
 
 
 @router.post("/signals/detect", summary="Manually trigger signal detection")
-async def post_detect_signals() -> dict:
+async def post_detect_signals() -> dict[str, Any]:
     """تشخیص دستی سیگنال از snapshot فعلی (برای تست)."""
     snap = await get_hot_snapshot()
     if not snap:
@@ -1029,13 +1556,16 @@ class ChatRequest(BaseModel):
 async def post_chat(
     req: ChatRequest,
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
     """پرسش از دستیار هوشمند. snapshot + portfolio + patterns به context اضافه می‌شود."""
     snap = await get_hot_snapshot()
     portfolio_data = None
     with contextlib.suppress(Exception):
         prices = get_current_prices(snap)
-        portfolio = await get_holdings_grouped(session, prices)
+        portfolio = await get_holdings_grouped(
+            session, prices, user_id=owned_scope(current_user)
+        )
         portfolio_data = {
             "total_value": portfolio.total_value,
             "total_cost": portfolio.total_cost,
@@ -1068,7 +1598,7 @@ async def post_chat(
 
 
 @router.get("/hot", summary="Lightweight hot path for fast polling")
-async def get_hot() -> dict:
+async def get_hot() -> dict[str, Any]:
     """snapshot کم‌حجم برای polling هر ۱۰ ثانیه.
 
     شامل: refs + score + signal + coin_emami + ۳ صندوق برتر.
@@ -1086,7 +1616,7 @@ async def get_patterns(
     days: int = Query(90, ge=30, le=365),
     symbol: str = Query("IR_COIN_EMAMI"),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     """تشخیص خودکار الگوهای bubble در داده‌های تاریخی.
 
     الگوهای قابل‌تشخیص: mean_reversion, trend_continuation,
@@ -1118,7 +1648,7 @@ async def get_patterns(
 
 
 @router.get("/docs/endpoints", summary="List all GoldDesk endpoints")
-async def list_endpoints() -> dict:
+async def list_endpoints() -> dict[str, Any]:
     """لیست همه endpointهای GoldDesk با نوع و توضیح — برای ابزارهای خارجی."""
     return {
         "success": True,
@@ -1127,6 +1657,42 @@ async def list_endpoints() -> dict:
             "auth": "Bearer token in Authorization header (for write endpoints)",
             "endpoints": [
                 {"method": "GET", "path": "/snapshot", "scope": "read", "desc": "Live snapshot"},
+                {
+                    "method": "GET",
+                    "path": "/terminal",
+                    "scope": "read",
+                    "desc": "Phase 1 data terminal",
+                },
+                {
+                    "method": "POST",
+                    "path": "/what-if",
+                    "scope": "read",
+                    "desc": "Preview intrinsic/bubble under manual inputs",
+                },
+                {
+                    "method": "GET",
+                    "path": "/tehran-board",
+                    "scope": "read",
+                    "desc": "Phase 2 Tehran shop/banking board",
+                },
+                {
+                    "method": "GET",
+                    "path": "/platforms",
+                    "scope": "read",
+                    "desc": "Phase 2 platform price comparison (no trading)",
+                },
+                {
+                    "method": "GET",
+                    "path": "/returns-matrix?base_currency=IRR",
+                    "scope": "read",
+                    "desc": "Phase 2 returns matrix (Rial or USD)",
+                },
+                {
+                    "method": "GET",
+                    "path": "/fund-map?size_metric=trade_value",
+                    "scope": "read",
+                    "desc": "Phase 2 gold fund market map",
+                },
                 {"method": "GET", "path": "/score", "scope": "read", "desc": "Just score"},
                 {"method": "GET", "path": "/history/score?days=7", "scope": "read", "desc": "Score time-series"},
                 {
@@ -1153,6 +1719,7 @@ async def list_endpoints() -> dict:
                 {"method": "GET", "path": "/health", "scope": "read", "desc": "Health status"},
                 {"method": "POST", "path": "/tokens", "scope": "admin", "desc": "Create API token"},
                 {"method": "GET", "path": "/tokens", "scope": "admin", "desc": "List tokens"},
+                {"method": "GET", "path": "/metrics", "scope": "metrics", "desc": "Prometheus scrape"},
                 {"method": "WS", "path": "/ws", "scope": "read", "desc": "Live WebSocket"},
             ],
         },
@@ -1162,7 +1729,46 @@ async def list_endpoints() -> dict:
 # ── 19. Prometheus Metrics ───────────────────────────────────
 
 
-@router.get("/metrics", summary="Prometheus metrics", include_in_schema=False)
+async def api_key_auth(request: Request) -> None:
+    """دروازهٔ /metrics: فقط Bearer API-token دارای scope «metrics».
+
+    JWT session اینجا کاربردی ندارد؛ مسیر برای scraper است. فقط scope
+    ``metrics`` پذیرفته می‌شود (``admin`` جای آن را نمی‌گیرد).
+    """
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            401,
+            "bearer API token with scope 'metrics' required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from .api_token import has_scope, verify_token
+
+    info = await verify_token(token)
+    if info is None or not has_scope(info, "metrics"):
+        raise HTTPException(
+            401,
+            "API token is invalid or lacks the 'metrics' scope",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+# Marker consumed by scripts/auth_policy.py (the closure name alone is not a
+# reliable signal for the router-auth gate).
+api_key_auth.__auth_guard__ = True  # type: ignore[attr-defined]
+
+
+# این مسیر روی ``anonymous_router`` است (بدون گیت JWT) چون احراز هویت‌اش
+# API-token است، نه session کاربر. بقیهٔ مسیرهای همین ماژول پشت _require_user
+# در apps/api/router.py هستند.
+@anonymous_router.get(
+    "/metrics",
+    summary="Prometheus metrics",
+    include_in_schema=False,
+    dependencies=[Depends(api_key_auth)],
+)
 async def metrics() -> Response:
     """Prometheus text format برای scrape."""
     return Response(
@@ -1175,7 +1781,7 @@ async def metrics() -> Response:
 
 
 @router.get("/macro", summary="Macro events affecting gold market")
-async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict:
+async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict[str, Any]:
     """رویدادهای کلان اقتصادی (CPI، نرخ بهره، M2، تقاضا) + تأثیر بر طلا.
 
     بدون رویدادِ واقعی، ضریب و تفسیر ``null`` است و نبودِ داده اعلام می‌شود. «خنثی» یک
@@ -1191,6 +1797,7 @@ async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict:
                 "dataAvailable": False,
                 "missingBecause": "هیچ رویداد کلانی از منبع واقعی ثبت نشده است؛ scrape CBI/مرکز آمار هنوز داده‌ای ننوشته است.",
                 "count": 0,
+                "affects_score": False,
                 "macro_multiplier": None,
                 "interpretation": None,
                 "events": [],
@@ -1231,7 +1838,7 @@ async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict:
 
 
 @router.post("/macro/scrape", summary="Scrape CBI for news")
-async def post_scrape_cbi() -> dict:
+async def post_scrape_cbi() -> dict[str, Any]:
     """scrape دستی CBI (برای تست یا refresh فوری)."""
     events = await scrape_cbi_news()
     return {"success": True, "data": {"count": len(events), "events": [e.to_dict() for e in events]}}
@@ -1241,7 +1848,7 @@ async def post_scrape_cbi() -> dict:
 
 
 @router.get("/crypto", summary="Cryptocurrency prices")
-async def get_crypto(force_refresh: bool = Query(False)) -> dict:
+async def get_crypto(force_refresh: bool = Query(False)) -> dict[str, Any]:
     """قیمت ارزهای دیجیتال از CoinGecko + نرخ تبدیل USD/IRT."""
     with contextlib.suppress(Exception):
         from core.cache import get_cache
@@ -1289,7 +1896,7 @@ async def get_crypto(force_refresh: bool = Query(False)) -> dict:
 
 
 @router.get("/fx", summary="Multi-currency FX rates (USD base)")
-async def get_fx() -> dict:
+async def get_fx() -> dict[str, Any]:
     """نرخ FX از open.er-api.com (EUR, GBP, JPY, ...)."""
     rates = await fetch_fx_rates("USD")
     return {"success": True, "data": {"base": "USD", "rates": rates, "count": len(rates)}}
@@ -1305,7 +1912,7 @@ async def get_forecast(
     symbol: str = Query("IR_COIN_EMAMI", description="نماد: IR_COIN_EMAMI | IR_GOLD_18K | XAUUSD | ..."),
     days: int = Query(60, ge=20, le=365, description="lookback برای آموزش مدل"),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     """پیش‌بینی قیمت ۷ و ۳۰ روز آینده با ۳ مدل (LR + EMA + Drift) + باند اطمینان 95%."""
     result = await forecast_symbol(session, symbol=symbol, days=days)
     return {
@@ -1342,7 +1949,7 @@ async def get_forecast_all(
     days: int = Query(60, ge=20, le=365),
     symbols: str = Query("IR_COIN_EMAMI,IR_GOLD_18K,XAUUSD", description="comma separated"),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     syms = [s.strip() for s in symbols.split(",") if s.strip()]
     results = await forecast_all(session, symbols=syms, days=days)
     return {

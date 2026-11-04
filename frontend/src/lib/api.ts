@@ -1,3 +1,7 @@
+import { assertSuccessEnvelope } from './api-envelope';
+import { withCsrf } from './csrf';
+import { ApiError, ApiTimeoutError, ApiUnauthorizedError } from './api-errors';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 const REQUEST_TIMEOUT_MS = 60_000;
 const LONG_TIMEOUT_MS = 600_000; // 10 minutes for heavy sync operations
@@ -18,7 +22,19 @@ interface InMemoryAuth {
 
 let _memoryAuth: InMemoryAuth = { access_token: null, user: null };
 
-function getStoredAccessToken(): string | null {
+// Single-flight guard for the 401 path. Many parallel requests fail together
+// when a token expires; without this every one of them fired its own logout
+// request and its own redirect to /auth/login (a redirect storm).
+let _sessionTerminationStarted = false;
+
+/**
+ * Access token from storage, or null when nobody is signed in.
+ *
+ * Exported for the WebSocket clients: a browser cannot attach an
+ * ``Authorization`` header to a handshake, so they pass the token as a query
+ * parameter instead.
+ */
+export function getStoredAccessToken(): string | null {
   return _memoryAuth.access_token;
 }
 
@@ -36,40 +52,44 @@ function clearStoredAuth() {
 
 function writeStoredAuth(data: { access_token: string }) {
   _memoryAuth.access_token = data.access_token;
+  // A fresh token means the session is healthy again; a later 401 must be
+  // able to terminate it.
+  _sessionTerminationStarted = false;
 }
 
 // Session restore after a page reload: the access token is gone from memory
 // but the refresh cookie survives — exchange it for a fresh access token.
 export async function hydrateSession(): Promise<InMemoryAuth> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // The refresh token is read server-side from the httpOnly cookie.
-      body: JSON.stringify({}),
-      credentials: "include",
-    });
-    if (!res.ok) {
-      clearStoredAuth();
-      return _memoryAuth;
-    }
-    const json = await res.json();
-    const data = json.data ?? json;
-    if (data?.access_token) {
-      _memoryAuth.access_token = data.access_token;
-      if (data.user) _memoryAuth.user = data.user as Record<string, unknown>;
-    } else {
-      clearStoredAuth();
-    }
-  } catch {
-    clearStoredAuth();
-  }
+  await restoreSession();
   return _memoryAuth;
+}
+
+/**
+ * Exchange the refresh cookie for an access token — at most once per document.
+ *
+ * Runs exactly once per page load, no matter who asks first: the auth provider
+ * on mount, or an API call that fires before it. That ordering matters for two
+ * reasons — the backend revokes the refresh token on every rotation, so two
+ * parallel refreshes would log the user out on a plain reload; and a request
+ * sent with no token 401s and can clear a perfectly good session.
+ */
+function restoreSession(): Promise<string | null> {
+  if (!_sessionRestore) {
+    _sessionRestore = _silentRefresh().then((token) => {
+      if (!token) clearStoredAuth();
+      return token;
+    });
+  }
+  return _sessionRestore;
 }
 
 // ── Silent Token Refresh ────────────────────────────────────────
 
 let _refreshPromise: Promise<string | null> | null = null;
+// Per-document session restore (see restoreSession). Request paths await it
+// instead of firing a request with no token — those 401s are what used to
+// clear a healthy session.
+let _sessionRestore: Promise<string | null> | null = null;
 
 async function _silentRefresh(): Promise<string | null> {
   // Deduplicate concurrent refresh attempts
@@ -80,7 +100,7 @@ async function _silentRefresh(): Promise<string | null> {
       // The refresh token lives in an httpOnly cookie — the server reads it.
       const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         body: JSON.stringify({}),
         credentials: "include",
       });
@@ -110,6 +130,11 @@ async function _silentRefresh(): Promise<string | null> {
 // ── 401 Handler ─────────────────────────────────────────────────
 
 function _handle401() {
+  // Concurrent 401s: only the first caller terminates the session. The rest
+  // see the flag and return without a second logout call or redirect.
+  if (_sessionTerminationStarted) return;
+  _sessionTerminationStarted = true;
+
   const accessToken = getStoredAccessToken();
   clearAuth();
 
@@ -122,7 +147,7 @@ function _handle401() {
     void Promise.resolve(
       fetch(`${API_BASE_URL}/auth/logout`, {
         method: "POST",
-        headers,
+        headers: withCsrf(headers, "POST"),
         credentials: "include",
       }),
     ).catch(() => undefined);
@@ -133,7 +158,9 @@ function _handle401() {
   if (typeof window !== "undefined") {
     const currentPath = window.location.pathname;
     if (!currentPath.startsWith("/auth/")) {
-      window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`;
+      // `reason` lets the login page explain why the user landed there.
+      window.location.href =
+        `/auth/login?redirect=${encodeURIComponent(currentPath)}&reason=session_expired`;
     }
   }
 }
@@ -165,6 +192,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   try {
     const response = await fetch(url, {
       ...options,
+      headers: withCsrf(options.headers, options.method),
       signal: combined,
       credentials: "include",
     });
@@ -175,7 +203,10 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
     // mask it as a timeout.
     if (externalSignal?.aborted) throw e;
     if (e instanceof DOMException && e.name === "AbortError") {
-      throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+      // The internal timeout controller is the only remaining abort source.
+      // A dedicated type keeps it out of the generic failure path (React Query
+      // must not retry it, and the UI shows a timeout-specific message).
+      throw new ApiTimeoutError(url, timeoutMs);
     }
     throw e;
   } finally {
@@ -194,16 +225,29 @@ async function apiRequest<T>(
   token?: string | null,
 ): Promise<T> {
   const headers: HeadersInit = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string> | undefined) };
-  const authToken = token ?? getStoredAccessToken();
+  let authToken = token ?? getStoredAccessToken();
+  // Auth endpoints never need a token; everything else may be reached on a
+  // fresh document where the session is still being restored from the cookie.
+  const sessionOptional = endpoint.includes("/auth/");
+  let restoreAttempted = false;
+  if (!authToken && !sessionOptional && typeof window !== "undefined") {
+    // Restore before sending: a request sent with no token 401s, triggers its
+    // own refresh, and races the one the auth provider is already starting.
+    restoreAttempted = true;
+    await restoreSession();
+    authToken = token ?? getStoredAccessToken();
+  }
   if (authToken) (headers as Record<string, string>).Authorization = `Bearer ${authToken}`;
 
   const timeoutMs = init.timeoutMs ?? REQUEST_TIMEOUT_MS;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- timeoutMs is consumed, rest is fetch init
+   
   const { timeoutMs: _t, ...fetchInit } = init as RequestInit & { timeoutMs?: number };
 
   let response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, { ...fetchInit, headers }, timeoutMs);
 
-  if (response.status === 401 && !endpoint.includes('/auth/')) {
+  // If the restore just failed there is no session to refresh — retrying the
+  // refresh would only burn a second rotation on a dead cookie.
+  if (response.status === 401 && !endpoint.includes('/auth/') && !(restoreAttempted && !authToken)) {
     const newToken = await _silentRefresh();
     if (newToken) {
       (headers as Record<string, string>).Authorization = `Bearer ${newToken}`;
@@ -214,9 +258,17 @@ async function apiRequest<T>(
   if (response.status === 401) { _handle401(); }
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+    const message = `HTTP ${response.status}: ${errorText || response.statusText}`;
+    if (response.status === 401) throw new ApiUnauthorizedError(message);
+    throw new ApiError(message, { status: response.status });
   }
-  return response.json() as Promise<T>;
+  const payload = (await response.json()) as T;
+  // HTTP 200 با `success:false` یعنی منبع داده خطا داده است؛ اگر پاکت را
+  // همان‌طور برگردانیم، `extractArray` آن را به `[]` تبدیل می‌کند و صفحه
+  // «خالی» را از «خطا» تشخیص نمی‌دهد. پرتاب خطا این حالت را به React Query
+  // می‌رساند تا بنر خطا نمایش داده شود (بخش ۰۵).
+  assertSuccessEnvelope(payload, endpoint);
+  return payload;
 }
 
 export async function apiGet<T>(endpoint: string, token?: string | null, signal?: AbortSignal): Promise<T> {
@@ -280,6 +332,7 @@ export function storeAuth(data: { user: Record<string, unknown>; access_token: s
   _memoryAuth.user = data.user ?? _memoryAuth.user;
   setAccessToken(data.access_token);
   setAuthUser(data.user ?? _memoryAuth.user);
+  _sessionTerminationStarted = false;
 }
 
 // ------ Array Extraction (اصلاح‌شده) ------------------------------------------------------------------------------------------------------

@@ -124,6 +124,13 @@ class RawQuoteValidator:
             if isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0:
                 return f"{name} is negative"
 
+        # DP-011: zero is a sentinel ("no trade today"), not a price. Letting it
+        # through poisons returns, NAVs and any downstream percentage change.
+        for name in _NON_NEGATIVE_FIELDS:
+            value = row.get(name)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0:
+                return f"{name} is zero (sentinel, not a real price)"
+
         if row.get("fetched_at") is None:
             return "missing fetched_at"
 

@@ -31,9 +31,9 @@ import threading
 import time
 
 import pytest
+import redis
 
 import precompute.workers.celery_tasks as ct
-import redis
 from precompute.config import load_config
 
 pytestmark = [pytest.mark.integration]

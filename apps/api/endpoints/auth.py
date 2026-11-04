@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -49,24 +50,66 @@ _AUTH_LIMITS: dict[str, tuple[float, int]] = {
     "mfa_setup": (3 / 300.0, 3),       # 3 setups per 5min per IP
     "mfa_confirm": (5 / 300.0, 5),     # 5 attempts per 5min per IP
     "mfa_disable": (5 / 300.0, 5),     # 5 attempts per 5min per IP
+    # Each ticket is a 60s WebSocket handshake credential; a client needs one
+    # per (re)connect, not one per message. 30/min covers reconnect storms
+    # without turning this into a ticket-minting service.
+    "ws_ticket": (30 / 60.0, 30),
+    # SEC-06: refresh and logout were unlimited, so a stolen refresh cookie
+    # could be replayed in a tight loop and a scripted logout could churn the
+    # revocation store. One refresh per few seconds is plenty for a browser.
+    "refresh": (30 / 60.0, 30),
+    "logout": (10 / 60.0, 10),
 }
 
 _limiter = get_rate_limiter()
 
 
+def _peer_ip(request: Request) -> str | None:
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None) if client else None
+    return host or None
+
+
+def _is_trusted_proxy(peer: str | None) -> bool:
+    """Is the *direct* peer one of the configured proxies (audit SEC-06)?"""
+    if not peer:
+        return False
+    import ipaddress
+
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    for entry in getattr(settings, "trusted_proxies", []) or []:
+        try:
+            if "/" in entry:
+                if peer_ip in ipaddress.ip_network(entry, strict=False):
+                    return True
+            elif peer_ip == ipaddress.ip_address(entry):
+                return True
+        except ValueError:
+            logger.warning("Ignoring invalid TRUSTED_PROXIES entry %r", entry)
+    return False
+
+
 def _get_client_ip(request: Request) -> str:
+    """Rate-limit identity: X-Forwarded-For only from a trusted proxy.
+
+    Trusting the header unconditionally (the old behaviour) let any client
+    pick its own bucket by sending ``X-Forwarded-For: <random>``, defeating
+    the login/OTP limits entirely (audit SEC-06). Without a configured
+    ``TRUSTED_PROXIES`` the socket peer address is authoritative.
+    """
+    peer = _peer_ip(request)
     with contextlib.suppress(Exception):
         headers = getattr(request, "headers", None)
-        if headers is not None:
-            # Starlette Headers or plain dict
-            xff = headers.get("x-forwarded-for") if hasattr(headers, "get") else None
-            if xff:
-                first = xff.split(",")[0].strip()
-                if first:
-                    return first
-    client = getattr(request, "client", None)
-    if client and getattr(client, "host", None):
-        return client.host
+        xff: str | None = headers.get("x-forwarded-for") if headers is not None else None
+        if xff and _is_trusted_proxy(peer):
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
+    if peer:
+        return peer
     return "unknown"
 
 
@@ -133,7 +176,7 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
         value=refresh_token,
         httponly=True,
         secure=settings.auth_cookie_secure,
-        samesite=settings.auth_cookie_samesite,
+        samesite=cast(Literal["lax", "strict", "none"], settings.auth_cookie_samesite),
         domain=settings.auth_cookie_domain or None,
         max_age=settings.refresh_token_expire_days * 24 * 3600,
         path="/",
@@ -148,7 +191,7 @@ def _clear_refresh_cookie(response: Response) -> None:
         domain=settings.auth_cookie_domain or None,
         httponly=True,
         secure=settings.auth_cookie_secure,
-        samesite=settings.auth_cookie_samesite,
+        samesite=cast(Literal["lax", "strict", "none"], settings.auth_cookie_samesite),
     )
 
 
@@ -162,7 +205,7 @@ def _refresh_token_from_cookie(request: Request) -> str:
     return request.cookies.get(settings.auth_cookie_name, "")
 
 
-def _build_user_response(data: dict) -> UserResponse:
+def _build_user_response(data: dict[str, Any]) -> UserResponse:
     return UserResponse(
         id=data["id"],
         username=data["username"],
@@ -183,11 +226,14 @@ async def register(
     response: Response,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(register_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
-    result = await svc.register(req.username, req.email, req.password, req.full_name, req.phone)
+    result = await svc.register(
+        req.username, req.email, req.password.get_secret_value(), req.full_name, req.phone
+    )
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
+    assert result.value is not None
     _set_refresh_cookie(response, result.value["refresh_token"])
     return ApiResponse(
         success=True,
@@ -204,12 +250,13 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(login_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
-    result = await svc.login(req.username, req.password)
+    result = await svc.login(req.username, req.password.get_secret_value())
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     data = result.value
+    assert data is not None
     # MFA-protected account → return mfa_required + short-lived mfa_token
     if data.get("mfa_required"):
         return ApiResponse(
@@ -236,13 +283,14 @@ async def mfa_login(
     response: Response,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(mfa_login_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Complete a two-factor login: verify the TOTP code and issue tokens."""
     svc = UserService(session)
     result = await svc.login_with_mfa(req.mfa_token, req.code)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
     data = result.value
+    assert data is not None
     _set_refresh_cookie(response, data["refresh_token"])
     return ApiResponse(
         success=True,
@@ -258,7 +306,8 @@ async def refresh(
     request: Request,
     response: Response,
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
+    _rate_limit_auth(request, "refresh")
     svc = UserService(session)
     token = _refresh_token_from_cookie(request)
     if not token:
@@ -269,6 +318,7 @@ async def refresh(
     result = await svc.refresh_token(token)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
+    assert result.value is not None
     _set_refresh_cookie(response, result.value["refresh_token"])
     # Rotate the access token and return the user profile so the frontend can
     # restore the full session from the httpOnly refresh cookie. The refresh
@@ -281,22 +331,23 @@ async def refresh(
 
 @router.get("/me")
 async def get_me(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
     result = await svc.get_profile(current_user["sub"])
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
+    assert result.value is not None
     return ApiResponse(success=True, data=_build_user_response(result.value))
 
 
 @router.put("/profile")
 async def update_profile(
     req: UpdateProfileRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
     result = await svc.update_profile(current_user["sub"], req.full_name, req.phone, req.email)
     if not result.success:
@@ -307,9 +358,9 @@ async def update_profile(
 @router.get("/login-history")
 async def login_history(
     limit: int = Query(20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Return recent login history for the current user.
 
     Requires a login_history table. Falls back to returning last_login from the user record.
@@ -327,7 +378,7 @@ async def forgot_password(
     request: Request,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(register_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
     result = await svc.request_password_reset(req.account)
     if not result.success:
@@ -340,7 +391,7 @@ async def reset_password(
     req: ResetPasswordRequest,
     session: AsyncSession = Depends(get_session),
     _: None = Depends(register_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
     result = await svc.reset_password(req.account, req.code, req.new_password)
     if not result.success:
@@ -352,16 +403,37 @@ async def reset_password(
 async def change_password(
     req: ChangePasswordRequest,
     request: Request,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     authorization: str = Header(""),
     session: AsyncSession = Depends(get_session),
     _: None = Depends(change_password_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
+    # SEC-07: a password change is only meaningful if every older session can
+    # be revoked. Refuse while the revocation store is down instead of leaving
+    # the old access tokens valid for the rest of their lifetime.
+    from core.cache import get_cache
+
+    if not get_cache().is_connected:
+        raise HTTPException(
+            status_code=503,
+            detail="Session store unavailable — try again shortly",
+        )
+
     svc = UserService(session)
     result = await svc.change_password(current_user["sub"], req.current_password, req.new_password)
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
-    # Revoke the current access token so the old session cannot be reused after password change.
+    # End every session of this user: the jti blacklist only covers the token
+    # presented here, while other devices hold their own tokens (SEC-07).
+    from core.security.tokens import revoke_user_access_tokens
+
+    if not await revoke_user_access_tokens(current_user.get("sub")):
+        logger.error(
+            "Password changed for %s but user-wide revocation failed — old "
+            "sessions stay valid until their tokens expire (SEC-07)",
+            current_user.get("sub"),
+        )
+    # Also revoke the exact token used for this request (defence in depth).
     token = ""
     parts = authorization.split()
     if len(parts) == 2 and parts[0].lower() == "bearer":
@@ -376,19 +448,57 @@ async def change_password(
     return ApiResponse(success=True, message="Password changed successfully. Please login again.")
 
 
+@router.post("/ws-ticket", summary="Single-use ticket for a WebSocket handshake")
+async def create_websocket_ticket(
+    request: Request,
+    response: Response,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ApiResponse[dict[str, Any]]:
+    """Trade the access token for a single-use WebSocket ticket (audit FE-06).
+
+    Browsers cannot attach an ``Authorization`` header to a WebSocket
+    handshake, and embedding the long-lived access token in the socket URL
+    leaks it into proxy/access logs and browser history. The client asks for a
+    ticket over authenticated HTTP and presents only the ticket.
+
+    The ticket is stored in Redis (SHA-256 of the value, never the value
+    itself) for ``WS_TICKET_TTL_SECONDS`` and redeemed exactly once via
+    ``GETDEL``. Deliberate trade-off: when Redis is unavailable no ticket can
+    be minted (503) and the socket cannot be authenticated — an unverifiable
+    handshake is rejected rather than accepted.
+    """
+    _rate_limit_auth(request, "ws_ticket")
+
+    from core.security.tokens import WS_TICKET_TTL_SECONDS, create_ws_ticket
+
+    subject = str(user.get("sub") or user.get("id") or "")
+    ticket = await create_ws_ticket(subject)
+    if ticket is None:
+        raise HTTPException(
+            status_code=503, detail="WebSocket ticket store unavailable"
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={"ticket": ticket, "expires_in": WS_TICKET_TTL_SECONDS},
+    )
+
+
 @router.post("/logout")
 async def logout(
     request: Request,
     response: Response,
     authorization: str = Header(""),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Log out the current user.
 
     Revokes the access token (jti blacklist in Redis), clears the refresh
     cookie, and clears the server-side refresh token so it can no longer be
     used to mint new tokens.
     """
+    _rate_limit_auth(request, "logout")
+
     from sqlalchemy import select
 
     from models.user import UserModel
@@ -446,25 +556,30 @@ async def logout(
 
 @router.get("/mfa/status")
 async def mfa_status(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Return whether MFA is enabled for the current user."""
     svc = UserService(session)
     result = await svc.mfa_status(current_user["sub"])
     if not result.success:
         return ApiResponse(success=False, error={"message": result.error})
-    status = MFAStatusResponse(**result.value)
+    payload = result.value or {}
+    status = MFAStatusResponse.for_status(
+        enabled=bool(payload.get("enabled")),
+        method=payload.get("method"),
+        telegram_chat_id=payload.get("telegram_chat_id"),
+    )
     return ApiResponse(success=True, data=status.model_dump())
 
 
 @router.post("/mfa/setup")
 async def mfa_setup(
     req: MFASetupRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     _: None = Depends(mfa_setup_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Start MFA enrollment for the current user.
 
     - ``method=totp`` (default): returns ``{secret, uri}`` once — the client
@@ -485,10 +600,10 @@ async def mfa_setup(
 @router.post("/mfa/confirm")
 async def mfa_confirm(
     req: MFAVerifyRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     _: None = Depends(mfa_confirm_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Enable MFA once the user proves possession of the secret via a code."""
     svc = UserService(session)
     result = await svc.confirm_mfa(current_user["sub"], req.code)
@@ -500,10 +615,10 @@ async def mfa_confirm(
 @router.post("/mfa/disable")
 async def mfa_disable(
     req: MFADisableRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict[str, Any] = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
     _: None = Depends(mfa_disable_rate_limit),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     """Disable MFA.
 
     - TOTP: requires password + a valid authenticator code.
@@ -525,9 +640,9 @@ async def mfa_disable(
 async def list_users(
     page: int = 1,
     page_size: int = 50,
-    _: dict = Depends(require_roles("admin")),
+    _: dict[str, Any] = Depends(require_roles("admin")),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     svc = UserService(session)
     result = await svc.list_users(page=page, page_size=page_size)
     if not result.success:
@@ -539,9 +654,9 @@ async def list_users(
 async def update_user_role(
     user_id: str,
     role: str = Query(..., description="New role: admin, analyst, user, viewer"),
-    current_user: dict = Depends(require_roles("admin")),
+    current_user: dict[str, Any] = Depends(require_roles("admin")),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     # Prevent admin from changing their own role
     if current_user["sub"] == user_id:
         return ApiResponse(success=False, error={"message": "Cannot change your own role"})
@@ -555,9 +670,9 @@ async def update_user_role(
 @router.put("/users/{user_id}/toggle-status")
 async def toggle_user_status(
     user_id: str,
-    current_user: dict = Depends(require_roles("admin")),
+    current_user: dict[str, Any] = Depends(require_roles("admin")),
     session: AsyncSession = Depends(get_session),
-) -> ApiResponse:
+) -> ApiResponse[Any]:
     # Prevent admin from disabling their own account
     if current_user["sub"] == user_id:
         return ApiResponse(success=False, error={"message": "Cannot disable your own account"})

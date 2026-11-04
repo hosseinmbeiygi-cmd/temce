@@ -14,7 +14,10 @@ from httpx import AsyncClient
 # ============================================================================
 
 
+pytestmark = pytest.mark.needs_db
+
 @pytest.mark.asyncio
+
 async def test_health_check(client: AsyncClient):
     """GET /api/v1/health should return ok status (wrapped in ApiResponse)."""
     resp = await client.get("/api/v1/health")
@@ -32,6 +35,7 @@ async def test_health_check(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.needs_db
 async def test_dashboard_returns_metrics(admin_client: AsyncClient):
     """GET /api/v1/dashboard should return dashboard metrics (requires admin)."""
     resp = await admin_client.get("/api/v1/dashboard")
@@ -187,13 +191,17 @@ async def test_market_bourse(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_market_energy_commodity(client: AsyncClient):
-    """GET /api/v1/market/energy-commodity should return Energy & Commodity data."""
+    """GET /api/v1/market/energy-commodity should return Energy & Commodity data.
+
+    The payload uses the standard response envelope, so the market sections
+    live under ``data`` — not at the top level next to ``success``.
+    """
     resp = await client.get("/api/v1/market/energy-commodity")
     assert resp.status_code == 200
     body = resp.json()
     assert body["success"] is True
-    assert "sub_markets" in body
-    assert "summary" in body
+    assert "sub_markets" in body["data"]
+    assert "summary" in body["data"]
 
 
 # ============================================================================
@@ -203,8 +211,13 @@ async def test_market_energy_commodity(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_industries_list(client: AsyncClient):
-    """GET /api/v1/industries should return industries with counts."""
-    resp = await client.get("/api/v1/industries")
+    """GET /api/v1/market-info/industries should return industries with counts.
+
+    The market-info router is deliberately mounted under ``/market-info`` so
+    its ``/industries`` and ``/funds`` routes cannot collide with the dedicated
+    funds router mounted at ``/funds`` (see ``apps/api/router.py``).
+    """
+    resp = await client.get("/api/v1/market-info/industries")
     assert resp.status_code == 200
     body = resp.json()
     assert body["success"] is True
@@ -268,16 +281,19 @@ async def test_market_most_active(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_fundamental_ratios(client: AsyncClient):
-    """GET /api/v1/fundamental/ratios/{symbol} should work."""
-    resp = await client.get("/api/v1/fundamental/ratios/test")
+async def test_fundamental_ratios(user_client: AsyncClient):
+    """GET /api/v1/fundamental/ratios/{symbol} should work.
+
+    The /fundamental mount requires an authenticated user (router.py).
+    """
+    resp = await user_client.get("/api/v1/fundamental/ratios/test")
     assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_fundamental_score(client: AsyncClient):
+async def test_fundamental_score(user_client: AsyncClient):
     """GET /api/v1/fundamental/score/{symbol} should work."""
-    resp = await client.get("/api/v1/fundamental/score/test")
+    resp = await user_client.get("/api/v1/fundamental/score/test")
     assert resp.status_code == 200
 
 

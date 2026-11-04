@@ -6,7 +6,6 @@ instead of fabricated financials.
 
 from __future__ import annotations
 
-import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -91,11 +90,14 @@ class FundamentalService:
             return None, None
         try:
             snap = await self._brsapi.get_symbol_snapshot(symbol)
-        except Exception:
+        except (OSError, TimeoutError, ValueError, KeyError, RuntimeError) as exc:
+            logger.warning("Fundamental snapshot unavailable for %s: %s", symbol, exc)
             snap = None
         detail = None
-        with contextlib.suppress(Exception):
+        try:
             detail = await self._brsapi.get_enriched_symbol_detail(symbol)
+        except (OSError, TimeoutError, ValueError, KeyError, RuntimeError) as exc:
+            logger.warning("Enriched symbol detail unavailable for %s: %s", symbol, exc)
         return snap, detail
 
     async def get_ratios(self, symbol: str) -> Result[dict[str, Any]]:

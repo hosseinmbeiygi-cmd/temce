@@ -2,7 +2,7 @@
 
 ## چرا؟
 
-فایل `.env.production` (شامل `SECRET_KEY` واقعی و credentials دیتابیس) از **initial commit در تاریخچه git** وجود داشته — یعنی هر secret ای در آن لو رفته فرض می‌شود حتی بعد از untrack شدن فایل (کامیت `51e9bebc`). همچنین رمزهای dev هاردکد (`securepassword123`، `redissecure456`، `dev-shared-queue-token`) در `docker-compose.yml` در تاریخچه مانده‌اند.
+فایل `.env.production` (شامل `SECRET_KEY` واقعی و credentials دیتابیس) از **initial commit در تاریخچه git** وجود داشته — یعنی هر secret ای در آن لو رفته فرض می‌شود حتی بعد از untrack شدن فایل (کامیت `51e9bebc`). همچنین رمزهای dev هاردکد (`<masked-from-history>`، `<masked-from-history>`، `<masked-from-history>`) در `docker-compose.yml` در تاریخچه مانده‌اند.
 
 ## چه چیزی rotate شد
 
@@ -10,9 +10,9 @@
 |--------|-----|-----|------|
 | `SECRET_KEY` | placeholder `change-me-in-production` (۵۴ کاراکتر) | ۶۴ کاراکتر hex تصادفی (`secrets.token_hex(32)`) | `.env` محلی (untracked) |
 | رمز Postgres محلی (`DB_PASSWORD`/`PG_PASSWORD`/`DATABASE_URL`) | `1343` (۴ کاراکتر!) | ۲۷ کاراکتر urlsafe تصادفی | `.env` + **خود Postgres** (`ALTER USER`) |
-| رمز Postgres کانتینر dev | `securepassword123` هاردکد | `${DEV_POSTGRES_PASSWORD:-qT7vR2mXe9LpZ4kD}` | `docker-compose.yml` |
-| رمز Redis کانتینر dev | `redissecure456` هاردکد | `${DEV_REDIS_PASSWORD:-rD8wN5sYh2JqX6vB}` | `docker-compose.yml` |
-| `JOB_QUEUE_TOKEN` dev | `dev-shared-queue-token` هاردکد | `${DEV_JOB_QUEUE_TOKEN:-jK3nQ8vTz5WmR7xC}` | `docker-compose.yml` |
+| رمز Postgres کانتینر dev | `<masked-from-history>` هاردکد | `${DEV_POSTGRES_PASSWORD:-<masked-from-history>}` | `docker-compose.yml` |
+| رمز Redis کانتینر dev | `<masked-from-history>` هاردکد | `${DEV_REDIS_PASSWORD:-<masked-from-history>}` | `docker-compose.yml` |
+| `JOB_QUEUE_TOKEN` dev | `<masked-from-history>` هاردکد | `${DEV_JOB_QUEUE_TOKEN:-<masked-from-history>}` | `docker-compose.yml` |
 
 ## راستی‌آزمایی انجام‌شده
 

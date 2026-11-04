@@ -277,7 +277,7 @@ async def test_summary_mode_window_filters_old_messages(capsys) -> None:
     """--summary --window today excludes messages dead-lettered before today."""
     redis = FakeRedis()
     now = __import__("time").time()
-    today_payload = {**_dead_payload("TodayJob", error="TimeoutError: x"), "dead_lettered_at": now - 3600}
+    today_payload = {**_dead_payload("TodayJob", error="TimeoutError: x"), "dead_lettered_at": now}
     old_payload = {**_dead_payload("OldJob", error="DBError: x"), "dead_lettered_at": now - 10 * 24 * 3600}
     await redis.lpush("job:dead", json.dumps(old_payload, ensure_ascii=False))
     await redis.lpush("job:dead", json.dumps(today_payload, ensure_ascii=False))

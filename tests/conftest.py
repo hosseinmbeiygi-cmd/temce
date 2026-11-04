@@ -38,17 +38,46 @@ _reconfigure_stream(sys.stdout)
 _reconfigure_stream(sys.stderr)
 
 
+# ── Collection exclusion: legacy standalone scripts ─────────────
+# ``tests/legacy`` holds one-off scripts, not pytest tests, and they run at
+# *import* time: live HTTP scans against a running API (``_tmp_api_test*.py``,
+# ``test_codal_api.py``) and two modules that do
+# ``sys.stdout = io.TextIOWrapper(sys.stdout.buffer, ...)``
+# (``test_excel_parser.py`` / ``test_excel_parser2.py``).  That reassignment
+# wraps the console's buffer, so when the original wrapper is collected the
+# stream is closed out from under pytest and the whole run dies with
+# ``ValueError: I/O operation on closed file`` during collection — before a
+# single test executes.  CI always targets explicit paths; ignore the tree so
+# a bare ``pytest`` also collects cleanly.
+collect_ignore = ["legacy"]
+
+
 # ── PostgreSQL availability check ───────────────────────────────
 # Used by ``pytest_collection_modifyitems`` to skip ``needs_db`` tests
 # when there is no reachable PostgreSQL instance.
 
 
 def _db_url() -> str:
-    """Return the DATABASE_URL to probe, falling back to localhost."""
-    return os.environ.get(
-        "DATABASE_URL",
-        "postgresql+asyncpg://market:market@localhost:5432/market_test",
-    )
+    """Return the DATABASE_URL to probe.
+
+    The app's own configured URL is the right thing to probe: a ``needs_db``
+    test exercises the endpoints that read through ``settings``. The old
+    hardcoded ``market_test`` fallback made every ``needs_db`` test skip on a
+    machine whose real database lives under a different name, even though it
+    was reachable.
+    """
+    override = os.environ.get("DATABASE_URL")
+    if override:
+        return override
+    try:
+        from core.config import settings
+
+        return settings.database_url_async
+    except Exception:
+        return "postgresql+asyncpg://market:market@localhost:5432/market_test"
+
+# Test SALT for api_token when GOLD_API_TOKEN_SALT not set
+os.environ.setdefault("GOLD_API_TOKEN_SALT", "test-salt-for-pytest")
 
 
 def _is_postgres_reachable() -> bool:

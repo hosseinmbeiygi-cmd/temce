@@ -46,7 +46,7 @@ class ManipulationDetector:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT symbol, name, price_last, price_close, price_first,
@@ -80,7 +80,7 @@ class ManipulationDetector:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT symbol, name, price_last, price_close, price_first,

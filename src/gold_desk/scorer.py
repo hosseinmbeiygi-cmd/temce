@@ -2,6 +2,8 @@
 
 هر component حداکثر weight خود. جمع = 100.
 Decision: GREEN >= 80, YELLOW >= 55, RED < 55.
+اگر پوشش داده کمتر از ``MIN_SCORE_COVERAGE_WEIGHT`` باشد → NO_DATA و تصمیم از
+عدد ساخته نمی‌شود (E-C5)؛ خودِ عدد برای نمودار باقی می‌ماند.
 
 اگر hard_stop فعال باشد → RED مطلق (score حفظ می‌شود ولی decision قرمز).
 """
@@ -9,13 +11,17 @@ Decision: GREEN >= 80, YELLOW >= 55, RED < 55.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from .constants import (
+    BUBBLE_ANOMALY_FLOOR_PCT,
     BUBBLE_GREEN_MAX,
     BUBBLE_ORANGE_MAX,
     BUBBLE_YELLOW_MAX,
     FUND_FLOW_GREEN_MIN,
+    FUND_FLOW_MINOR_DROP_MAX,
     FUND_FLOW_YELLOW_MIN,
+    MIN_SCORE_COVERAGE_WEIGHT,
     NAV_GREEN_MAX,
     NAV_RED_MAX,
     NAV_YELLOW_MAX,
@@ -30,11 +36,18 @@ from .constants import (
     SCORE_WEIGHTS,
     SCORE_YELLOW_MIN,
     TSETMC_BPR_GREEN,
+    TSETMC_BPR_GREEN_PTS,
     TSETMC_BPR_ORANGE,
+    TSETMC_BPR_ORANGE_PTS,
     TSETMC_BPR_YELLOW,
+    TSETMC_BPR_YELLOW_PTS,
     TSETMC_INFLOW_GREEN,
+    TSETMC_INFLOW_GREEN_PTS,
     TSETMC_INFLOW_YELLOW,
+    TSETMC_INFLOW_YELLOW_PTS,
 )
+
+Decision = Literal["GREEN", "YELLOW", "RED", "NO_DATA"]
 
 
 @dataclass(frozen=True)
@@ -47,10 +60,16 @@ class ScoreComponent:
 @dataclass(frozen=True)
 class ScoreResult:
     total: int
-    decision: str  # GREEN | YELLOW | RED
+    decision: Decision  # GREEN | YELLOW | RED | NO_DATA
     components: dict[str, ScoreComponent]
     hard_stop_active: bool
     hard_stop_reason: str | None
+    # مجموع خام امتیازها پیش از نرمال‌سازی؛ ``total`` روی وزنِ *موجود* مقیاس می‌شود
+    # تا جزءهای بی‌داده (nav/technical/fund_flow در محیط فعلی) امتیاز را بی‌صدا
+    # صفر نکنند (GS-02).
+    raw_total: int = 0
+    available_weight: int = 100
+    data_coverage_pct: float = 100.0
 
 
 def _clip(x: int, lo: int, hi: int) -> int:
@@ -62,12 +81,18 @@ def score_bubble(bubble_pct: float | None) -> ScoreComponent:
     max_v = SCORE_WEIGHTS["bubble"]
     if bubble_pct is None:
         return ScoreComponent(0, max_v, "داده حباب موجود نیست")
-    if bubble_pct < BUBBLE_GREEN_MAX:
+    if bubble_pct < BUBBLE_ANOMALY_FLOOR_PCT:
+        # A deeply negative bubble is a data/price anomaly, not a bargain:
+        # the old rule gave it full marks (audit FIN-12).
+        return ScoreComponent(
+            0, max_v, f"حباب {bubble_pct:.1f}٪ غیرعادی (زیر {BUBBLE_ANOMALY_FLOOR_PCT:.0f}٪) — داده مشکوک"
+        )
+    if bubble_pct <= BUBBLE_GREEN_MAX:
         return ScoreComponent(max_v, max_v, f"حباب {bubble_pct:.1f}٪ < {BUBBLE_GREEN_MAX}٪ — عالی")
-    if bubble_pct < BUBBLE_YELLOW_MAX:
+    if bubble_pct <= BUBBLE_YELLOW_MAX:
         v = _clip(int(max_v * 0.75), 0, max_v)
         return ScoreComponent(v, max_v, f"حباب {bubble_pct:.1f}٪ — سبز کم‌رنگ")
-    if bubble_pct < BUBBLE_ORANGE_MAX:
+    if bubble_pct <= BUBBLE_ORANGE_MAX:
         v = _clip(int(max_v * 0.4), 0, max_v)
         return ScoreComponent(v, max_v, f"حباب {bubble_pct:.1f}٪ — نارنجی (احتیاط)")
     return ScoreComponent(0, max_v, f"حباب {bubble_pct:.1f}٪ > {BUBBLE_ORANGE_MAX}٪ — قرمز")
@@ -95,22 +120,21 @@ def score_tsetmc(bpr: float | None, net_inflow: float | None) -> ScoreComponent:
     if bpr is None:
         return ScoreComponent(0, max_v, "BPR موجود نیست")
 
-    # توزیع ثابت: 11 امتیاز BPR + 7 امتیاز inflow = 18 (max)
-    bpr_pts = 0
+    # توزیع امتیاز در constants نام‌دار شد؛ جمعشان برابر وزن کامپوننت است (E-L2).
     if bpr >= TSETMC_BPR_GREEN:
-        bpr_pts = 11
+        bpr_pts = TSETMC_BPR_GREEN_PTS
     elif bpr >= TSETMC_BPR_YELLOW:
-        bpr_pts = 8
+        bpr_pts = TSETMC_BPR_YELLOW_PTS
     elif bpr >= TSETMC_BPR_ORANGE:
-        bpr_pts = 4
+        bpr_pts = TSETMC_BPR_ORANGE_PTS
     else:
         bpr_pts = 0
 
     inflow_pts = 0
-    if net_inflow is not None and net_inflow > TSETMC_INFLOW_GREEN:
-        inflow_pts = 7
-    elif net_inflow is not None and net_inflow > TSETMC_INFLOW_YELLOW:
-        inflow_pts = 4
+    if net_inflow is not None and net_inflow >= TSETMC_INFLOW_GREEN:
+        inflow_pts = TSETMC_INFLOW_GREEN_PTS
+    elif net_inflow is not None and net_inflow >= TSETMC_INFLOW_YELLOW:
+        inflow_pts = TSETMC_INFLOW_YELLOW_PTS
 
     total = _clip(bpr_pts + inflow_pts, 0, max_v)
     reason = f"BPR={bpr:.2f}، Inflow={net_inflow or 0:,.0f}"
@@ -140,11 +164,11 @@ def score_parity(aed_gap_pct: float | None) -> ScoreComponent:
     if aed_gap_pct is None:
         return ScoreComponent(0, max_v, "AED gap موجود نیست")
     gap = abs(aed_gap_pct)
-    if gap < PARITY_GREEN_MAX:
+    if gap <= PARITY_GREEN_MAX:
         return ScoreComponent(max_v, max_v, f"|gap|={gap:.2f}٪ — متعادل")
-    if gap < PARITY_YELLOW_MAX:
-        return ScoreComponent(int(max_v * 0.7), max_v, f"|gap|={gap:.2f}٪ — کمی偏离")
-    if gap < PARITY_RED_MAX:
+    if gap <= PARITY_YELLOW_MAX:
+        return ScoreComponent(int(max_v * 0.7), max_v, f"|gap|={gap:.2f}٪ — کمی انحراف")
+    if gap <= PARITY_RED_MAX:
         return ScoreComponent(int(max_v * 0.3), max_v, f"|gap|={gap:.2f}٪ — انحراف")
     return ScoreComponent(0, max_v, f"|gap|={gap:.2f}٪ — آربیتراژ شدید")
 
@@ -158,7 +182,7 @@ def score_fund_flow(nav_7d_pct: float | None) -> ScoreComponent:
         return ScoreComponent(max_v, max_v, f"NAV 7d: +{nav_7d_pct:.2f}٪ — صعودی")
     if nav_7d_pct >= FUND_FLOW_YELLOW_MIN:
         return ScoreComponent(int(max_v * 0.6), max_v, f"NAV 7d: {nav_7d_pct:.2f}٪ — خنثی")
-    if nav_7d_pct >= -1.0:
+    if nav_7d_pct >= FUND_FLOW_MINOR_DROP_MAX:
         return ScoreComponent(int(max_v * 0.3), max_v, f"NAV 7d: {nav_7d_pct:.2f}٪ — کاهش جزئی")
     return ScoreComponent(0, max_v, f"NAV 7d: {nav_7d_pct:.2f}٪ — نزولی")
 
@@ -187,10 +211,30 @@ def compute_score(
         "parity": score_parity(aed_gap_pct),
         "fund_flow": score_fund_flow(nav_7d_pct),
     }
-    total = sum(c.value for c in comps.values())
+    raw_total = sum(c.value for c in comps.values())
 
+    # وزن جزء‌هایی که دادهٔ ورودی دارند. تصمیم روی همین وزن مقیاس می‌شود تا
+    # نبود یک منبع، سقف امتیاز را زیر آستانهٔ تصمیم نکشاند (GS-02).
+    available = {
+        "bubble": bubble_pct is not None,
+        "nav": nav_bubble_pct is not None,
+        "tsetmc": bpr is not None,
+        "technical": xau_rsi is not None,
+        "parity": aed_gap_pct is not None,
+        "fund_flow": nav_7d_pct is not None,
+    }
+    available_weight = sum(SCORE_WEIGHTS[k] for k, ok in available.items() if ok)
+    total = round(raw_total * 100 / available_weight) if available_weight else 0
+    data_coverage_pct = float(available_weight)
+
+    # ترتیب اهمیت: hard stop (ایمنی) > کفایت داده > باند امتیاز. hard stop فعال
+    # یعنی یک رویداد بحرانی واقعی مشاهده شده است، پس حتی با پوشش ناقص RED
+    # اعلام می‌شود، نه NO_DATA.
+    decision: Decision
     if hard_stop_active:
         decision = "RED"
+    elif available_weight < MIN_SCORE_COVERAGE_WEIGHT:
+        decision = "NO_DATA"
     elif total >= SCORE_GREEN_MIN:
         decision = "GREEN"
     elif total >= SCORE_YELLOW_MIN:
@@ -204,4 +248,7 @@ def compute_score(
         components=comps,
         hard_stop_active=hard_stop_active,
         hard_stop_reason=hard_stop_reason,
+        raw_total=raw_total,
+        available_weight=available_weight,
+        data_coverage_pct=data_coverage_pct,
     )

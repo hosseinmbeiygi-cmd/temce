@@ -56,7 +56,7 @@ class SpreadEstimator:
             if any(v <= 0 for v in highs + lows):
                 raise ValueError("non-positive high/low")
             # beta: sum of squared log(H/L) over 2 days
-            beta = sum(math.log(h / l) ** 2 for h, l in zip(highs, lows, strict=False))
+            beta = sum(math.log(h / lo) ** 2 for h, lo in zip(highs, lows, strict=False))
             # gamma: log( max(highs)/min(lows) )^2
             high_max = max(highs)
             low_min = min(lows)

@@ -618,7 +618,8 @@ class ChatEngine:
                     )
                     if result:
                         data_dict[sym] = result.get("data", {})
-                except Exception:
+                except Exception as exc:  # boundary: assistant service failure degrades one symbol
+                    logger.warning("comparison data unavailable for %s: %s", sym, exc)
                     data_dict[sym] = {"symbol": sym, "smc_score": 0}
 
         # Run comparison engine (async)

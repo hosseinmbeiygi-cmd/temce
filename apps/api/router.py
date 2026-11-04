@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from apps.api.dependencies import require_user_for_writes
 from apps.api.dependencies import require_roles as require_any_role
+from apps.api.dependencies import require_user_for_writes
+from core.config import settings
+from core.logging import get_logger
 from schemas.common.responses import ApiResponse
+
+logger = get_logger(__name__)
 
 # Reference market data: anonymous visitors may read it, but never mutate it.
 # Distinct from the role-gated lists below, and from the old _optional_auth,
@@ -175,6 +179,26 @@ class Router:
                 },
             )
 
+        # ── API-05 decision: seven routers stay unmounted (2026-10-29) ──
+        # Their modules exist in ``apps/api/endpoints`` but are deliberately not
+        # mounted; a guard test (``tests/unit/api/test_api05_mount_decisions.py``)
+        # fails if one is mounted without updating this record.
+        #   * symbol_alerts, proposals, sentiment — the backing subsystem is only
+        #     reachable through these routers (dead code). ``/alerts`` already
+        #     serves the hardened, owner-scoped equivalent of symbol_alerts.
+        #     Removal needs the owner's approval (files are never deleted here).
+        #   * monitoring — no Prometheus scrape is configured, and mounting
+        #     ``/metrics`` / ``/data-quality`` unauthenticated would expose
+        #     internal counters and DB diagnostics for no consumer.
+        #   * scanner — POST /scan runs a full-market scan; the service is
+        #     already exercised by the mounted backtests surface, and no UI
+        #     calls these routes, so mounting only adds a costly surface.
+        #   * ime — read-only duplicates of the mounted ``/gold/ime`` futures
+        #     surface (plus routes with no consumer).
+        #   * comprehensive_analysis — overlaps the mounted ``/analysis/overview``.
+        # Revisit condition: a real consumer (scraper, UI tab) plus auth/role
+        # scoping for the route in question.
+
         # ── Lazy imports: all endpoint routers ─────────────────────────
         # These are imported here (not at module level) so that importing
         # the Router class (~300ms) doesn't trigger loading all 45 endpoint
@@ -207,6 +231,9 @@ class Router:
         from apps.api.endpoints.funds_nav import router as funds_nav_router
         from apps.api.endpoints.funds_regulator import router as funds_regulator_router
         from apps.api.endpoints.funds_v2 import router as funds_v2_router
+        from apps.api.endpoints.gold import router as gold_core_router
+        from apps.api.endpoints.gold_analytics import router as gold_analytics_router
+        from apps.api.endpoints.golddesk import router as golddesk_router
         from apps.api.endpoints.health import router as health_router
         from apps.api.endpoints.indicators import router as indicators_router
         from apps.api.endpoints.ingestion import router as ingestion_router
@@ -250,13 +277,54 @@ class Router:
         from apps.api.endpoints.tests_runner import router as tests_router
         from apps.api.endpoints.trades import router as trades_router
         from apps.api.endpoints.watchlist import router as watchlist_router
-        from apps.api.endpoints.golddesk import router as golddesk_router
         from apps.api.endpoints.websocket import router as websocket_router
 
         # Health and auth routers are intentionally unprotected
         router.include_router(health_router, prefix="/health", tags=["Health"])
         # GoldDesk SaaS surface — scoped API tokens (منشور بخش ۴), no JWT session.
         router.include_router(golddesk_router, prefix="/golddesk", tags=["GoldDesk SaaS"])
+        # Pure gold calculators (physical, Black-76, options, futures, macro).
+        # They read no account data, so they stay public like market quotes.
+        router.include_router(
+            gold_analytics_router,
+            prefix="/gold/analytics",
+            tags=["Gold Analytics"],
+        )
+        # Gold calculators and the IME futures surface the GoldDesk frontend
+        # calls (``/gold/live-prices``, ``/gold/etf-nav-premium``,
+        # ``/gold/futures/*``, ``/gold/kill-switch``). The futures positions are
+        # somebody's own money, so the whole mount requires a real user.
+        router.include_router(
+            gold_core_router,
+            prefix="/gold",
+            tags=["Gold"],
+            dependencies=_require_user,
+        )
+        # GoldDesk personal surface (طلا/سکه/صندوق/پرتفوی). It carries its own
+        # ``/gold`` prefix, so it is mounted as ``/api/v1/gold/...`` — the paths
+        # the GoldDesk frontend (``lib/goldApi.ts``) already calls. Without this
+        # include the whole personal surface was unreachable over HTTP.
+        try:
+            from src.gold_desk.api import anonymous_router as gold_desk_public_router
+            from src.gold_desk.api import router as gold_desk_personal_router
+
+            # Liveness probe + the spec card the pre-login /markets pages read.
+            router.include_router(gold_desk_public_router, tags=["GoldDesk"])
+            # The personal surface (portfolio, alerts, tokens, chat, trades, …)
+            # is somebody's own money and position data: it requires a real user
+            # like every other personal mount. The frontend already sends the
+            # access token on every goldApi call, so nothing else changes.
+            router.include_router(
+                gold_desk_personal_router, tags=["GoldDesk"], dependencies=_require_user
+            )
+        except Exception:  # noqa: BLE001 — optional surface; never block startup
+            # Phase 0: a silent warning hid a broken mount before. Keep startup
+            # non-fatal, but log the full traceback so a 404 storm is traceable.
+            logger.exception("GoldDesk personal router not mounted")
+            # Production must fail closed: a 404 storm on /gold is worse than a
+            # failed deploy, and P1-01 showed how easily this hides.
+            if settings.environment in {"production", "staging"}:
+                raise
         router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
         # Reference market data may be read by anonymous visitors (the landing and
         # /markets pages render before login); every write still needs a token.

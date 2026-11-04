@@ -75,8 +75,8 @@ class TsetmcTradeParser(Parser):
             events.append(
                 ParsedEvent(
                     source="tsetmc_trades",
-                    event_type="trade_tick",
-                    data=self._extract_trade(rec),
+                    event_type="daily_ohlcv",
+                    data=self._extract_daily_ohlcv(rec),
                     raw_object_key="",
                     fetch_time=now,
                     parsed_at=now,
@@ -85,7 +85,7 @@ class TsetmcTradeParser(Parser):
         return events
 
     @staticmethod
-    def _extract_trade(rec: dict[str, Any]) -> dict[str, Any]:
+    def _extract_daily_ohlcv(rec: dict[str, Any]) -> dict[str, Any]:
         return {
             "instrument_id": rec.get("insCode"),
             "trade_date": rec.get("dEven"),

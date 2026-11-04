@@ -44,9 +44,9 @@ class IngestionService:
             return IngestionResult(source="brsapi", success=False, records=0, error="ingestion disabled")
         try:
             # Thin wrapper — actual sync is job-driven; here we just validate readiness
-            from brsapi.readiness import check_brsapi_readiness
+            from brsapi.readiness import probe_key
 
-            ready = await check_brsapi_readiness()
+            ready = await probe_key()
             if not ready.get("ready", False):
                 return IngestionResult(source="brsapi", success=False, records=0, error=str(ready))
             return IngestionResult(source="brsapi", success=True, records=len(symbols or []), meta=ready)

@@ -36,6 +36,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
                 endpoint        VARCHAR(100) NOT NULL,
                 category        VARCHAR(30)  NOT NULL,
                 status          VARCHAR(20)  NOT NULL DEFAULT 'success',
+                outcome         VARCHAR(30)  NOT NULL DEFAULT 'unknown',
                 items_count     INTEGER      NOT NULL DEFAULT 0,
                 error_message   TEXT,
                 duration_ms     FLOAT        NOT NULL DEFAULT 0.0,

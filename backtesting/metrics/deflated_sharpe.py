@@ -109,10 +109,18 @@ def deflated_sharpe_ratio(
     # Expected maximum Sharpe under null hypothesis (no skill)
     # Bailey & Lopez de Prado (2014) formula
 
-    # Expected max of n_trials independent standard normals
-    e_max = math.sqrt(2 * math.log(n_trials)) - \
-            (math.log(math.pi) + math.log(math.log(n_trials))) / \
-            (2 * math.sqrt(2 * math.log(n_trials)))
+    # Expected max of n_trials independent standard normals.
+    #
+    # Degenerate case (n_trials == 1): there is no multiple-testing selection
+    # bias, so E[max] is the mean of a single standard normal, i.e. exactly 0.
+    # Short-circuit it, because the closed form below divides by
+    # log(n_trials) -> log(1) == 0 -> ValueError("math domain error").
+    if n_trials == 1:
+        e_max = 0.0
+    else:
+        e_max = math.sqrt(2 * math.log(n_trials)) - \
+                (math.log(math.pi) + math.log(math.log(n_trials))) / \
+                (2 * math.sqrt(2 * math.log(n_trials)))
 
     # Adjust for non-normal returns using skewness and kurtosis
     # Harvey & Liu (2015) adjustment

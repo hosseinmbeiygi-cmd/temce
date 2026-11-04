@@ -12,7 +12,7 @@ from brsapi.services.query_service import BrsApiQueryService
 from core.database import get_session
 
 
-async def test():
+async def _run():
     async for session in get_session():
         svc = BrsApiQueryService(session=session)
 
@@ -80,4 +80,5 @@ async def test():
         break
 
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(_run())

@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 load_dotenv()
 
 
-async def test():
+async def _run():
     db_url = settings.database_url
     if db_url.startswith("postgresql://"):
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -92,4 +92,5 @@ async def test():
     await engine.dispose()
 
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(_run())

@@ -136,7 +136,7 @@ class MarketHealthIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Only today's rows, latest snapshot per symbol — the table keeps one
         # row per symbol per 2-minute sync cycle; without the cutoff+dedupe
@@ -191,7 +191,7 @@ class MarketHealthIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get average change by symbol group (approximate sectors)
         # Latest snapshot per symbol, today only (see _calc_real_legal_flow).
@@ -242,7 +242,7 @@ class MarketHealthIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Latest snapshot per symbol, today only (see _calc_real_legal_flow).
         result = await self._session.execute(text("""
@@ -292,7 +292,7 @@ class MarketHealthIndex:
 
         # Simplified: use price consistency as proxy.
         # Latest snapshot per symbol, today only (see _calc_real_legal_flow).
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT

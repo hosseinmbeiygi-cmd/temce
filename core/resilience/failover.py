@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Coroutine
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 from core.logging import get_logger
 
@@ -9,7 +9,7 @@ T = TypeVar("T")
 logger = get_logger(__name__)
 
 
-class FailoverStrategy:
+class FailoverStrategy(Generic[T]):
     def __init__(self) -> None:
         self._providers: list[tuple[str, Callable[[], Coroutine[Any, Any, T]]]] = []
         self._current_index = 0

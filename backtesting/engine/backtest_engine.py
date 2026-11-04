@@ -14,6 +14,7 @@ from backtesting.engine.slippage import SlippageModel
 from backtesting.strategies.base import BaseStrategy
 from backtesting.types import BacktestResult, EquityPoint
 from core.logging import get_logger
+from domain.common.enum_types import OrderSide
 
 logger = get_logger(__name__)
 
@@ -48,13 +49,45 @@ class BacktestEngine:
         equity_curve: list[EquityPoint] = []
         all_fills: list[Any] = []
 
+        pending_orders: list[Any] = []
+
         for bar in data:
+            # 1) Orders queued on the PREVIOUS bar execute at THIS bar's open.
+            #    A signal generated from bar t's data must never trade at bar
+            #    t's own price (BT-009 look-ahead bias).
+            if pending_orders:
+                next_open = bar.get("open")
+                if next_open is None:
+                    next_open = bar.get("close")
+                if next_open is not None:
+                    bar_ts = bar.get("timestamp")
+                    for order in pending_orders:
+                        order.price = next_open
+                        # Fills belong to the bar they trade on, not the bar
+                        # that raised the signal.
+                        if bar_ts is not None:
+                            order.timestamp = bar_ts
+                        # Positions never go short (PositionState clamps at
+                        # zero), so selling more than is held would credit
+                        # cash for shares that were never bought.
+                        if order.side == OrderSide.SELL:
+                            held = self.position_manager.get_position(order.instrument_id)
+                            held_qty = held.quantity if held else 0
+                            if held_qty <= 0:
+                                continue
+                            order.quantity = min(order.quantity, held_qty)
+                        fill = self.execution.execute(order, self.cash_manager)
+                        if fill:
+                            self.accounting.apply_fill(fill)
+                            all_fills.append(fill)
+                pending_orders = []
+
+            # 2) Signals from this bar are queued for the next bar. Orders
+            #    raised on the final bar therefore never fill.
             orders = strategy.on_bar(bar) if hasattr(strategy, "on_bar") else []
-            for order in orders:
-                fill = self.execution.execute(order, self.cash_manager)
-                if fill:
-                    self.accounting.apply_fill(fill)
-                    all_fills.append(fill)
+            pending_orders.extend(orders)
+
+            # 3) Mark to market and record equity for this bar.
             if "prices" in bar:
                 self.accounting.mark_to_market(bar["prices"])
             equity_curve.append(

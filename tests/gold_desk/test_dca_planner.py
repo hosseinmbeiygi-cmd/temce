@@ -19,10 +19,23 @@ def test_plan_basic():
     assert plan.ladder[0].pct == 0.30
     assert plan.ladder[1].pct == 0.40
     assert plan.ladder[2].pct == 0.30
-    # مبلغ‌ها
-    assert plan.ladder[0].amount_irt == 30_000_000
-    assert plan.ladder[1].amount_irt == 40_000_000
-    assert plan.ladder[2].amount_irt == 30_000_000
+    # مبلغ‌ها به نسبت ۳۰/۴۰/۳۰ از مبلغ خالص (پس از کارمزد) — E-M15
+    assert plan.ladder[0].amount_irt == pytest.approx(plan.net_investable_irt * 0.30)
+    assert plan.ladder[1].amount_irt == pytest.approx(plan.net_investable_irt * 0.40)
+    assert plan.ladder[2].amount_irt == pytest.approx(plan.net_investable_irt * 0.30)
+
+
+def test_ladder_is_internally_consistent():
+    """E-M15: مجموع پله‌ها = net_investable، و پله+کارمزد = سرمایه."""
+    for vehicle in ("etf", "cert", "melted", "coin", "jewelry"):
+        plan = plan_dca(100_000_000, "balanced", 70, preferred_vehicle=vehicle)
+        assert sum(t.amount_irt for t in plan.ladder) == pytest.approx(plan.net_investable_irt)
+        assert plan.net_investable_irt + plan.total_fee_irt == pytest.approx(100_000_000)
+        assert sum(t.estimated_fee_irt for t in plan.ladder) == pytest.approx(plan.total_fee_irt)
+        # نه پله‌ای بیش از سرمایه می‌خواهد و نه پولی گم می‌شود
+        assert sum(t.amount_irt + t.estimated_fee_irt for t in plan.ladder) == pytest.approx(
+            100_000_000
+        )
 
 
 def test_plan_conservative():
@@ -60,17 +73,17 @@ def test_plan_vehicle_recommendation_low_score():
 def test_plan_fee_calculation():
     """محاسبه fee دقیق برای ETF (0.15%)."""
     plan = plan_dca(100_000_000, "balanced", 80, preferred_vehicle="etf")
-    # 100M × 0.15% = 150k
-    assert abs(plan.total_fee_irt - 150_000) < 100
-    assert abs(plan.net_investable_irt - (100_000_000 - 150_000)) < 100
+    # کارمزد روی مبلغ خالص گرفته می‌شود: fee = C × r/(1+r) برای C=100M، r=0.15%
+    assert abs(plan.total_fee_irt - 149_775) < 100
+    assert abs(plan.net_investable_irt - (100_000_000 - plan.total_fee_irt)) < 1e-6
 
 
 def test_plan_fee_jewelry():
     """طلای زینتی کارمزد بالا (~18%)."""
     plan = plan_dca(100_000_000, "balanced", 70, preferred_vehicle="jewelry")
-    # 100M × 18% = 18M
-    assert plan.total_fee_irt > 17_000_000
-    assert plan.total_fee_irt < 19_000_000
+    # E-M15: کارمزد روی مبلغ خالص است ⇒ 100M × 0.18/1.18 ≈ 15.25M (نه ۱۸M)
+    assert plan.total_fee_irt > 15_000_000
+    assert plan.total_fee_irt < 15_500_000
 
 
 def test_plan_invalid_capital():

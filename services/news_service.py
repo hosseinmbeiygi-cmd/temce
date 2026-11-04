@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
@@ -21,14 +20,20 @@ class NewsService:
         self.repo = repo
 
     @staticmethod
-    def _window_kwargs(date_from: datetime | None, date_to: datetime | None) -> dict[str, Any]:
-        """Forward only the bounds actually provided, so calls without a
-        window keep the exact pre-existing repo call signature."""
+    def _window_kwargs(
+        date_from: datetime | None,
+        date_to: datetime | None,
+        category: str | None = None,
+    ) -> dict[str, Any]:
+        """Forward only the filters actually provided, so calls without a
+        window/category keep the exact pre-existing repo call signature."""
         kwargs: dict[str, Any] = {}
         if date_from is not None:
             kwargs["date_from"] = date_from
         if date_to is not None:
             kwargs["date_to"] = date_to
+        if category is not None:
+            kwargs["category"] = category
         return kwargs
 
     async def list_all(
@@ -37,8 +42,11 @@ class NewsService:
         page_size: int = 50,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
+        category: str | None = None,
     ) -> Result[PaginatedResult[NewsItem]]:
-        result = await self.repo.list(page, page_size, **self._window_kwargs(date_from, date_to))
+        result = await self.repo.list(
+            page, page_size, **self._window_kwargs(date_from, date_to, category)
+        )
         if result.success and result.value and result.value.items:
             result.value.items.sort(
                 key=lambda x: x.publish_date or x.created_at or "",

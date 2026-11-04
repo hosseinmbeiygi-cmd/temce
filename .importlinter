@@ -27,7 +27,6 @@ forbidden_modules =
 # zero direct `import logging` under services/ (achieved 2026-09-09).
 ignore_imports =
     core.logging -> logging
-    core.config -> logging
     core.config.ime_engine -> logging
     core.fix_network -> logging
     core.logging -> core.config
@@ -35,9 +34,12 @@ ignore_imports =
 
 [importlinter:contract:phase0-ml-purity]
 name = ml must not import HTTP layer or endpoints
-type = independence
-modules =
+# The API legitimately imports ml.register_all_models at boot, so the real rule
+# is one-way (ml must never reach into the HTTP layer), not independence.
+type = forbidden
+source_modules =
     ml
+forbidden_modules =
     apps.api.endpoints
 
 [importlinter:contract:phase0-no-cross-domain-repos]
@@ -56,8 +58,8 @@ source_modules =
     services
 forbidden_modules =
     sqlalchemy
-# Phase 0 is measurement-only: the whole contract is ignorable until Phase 1
-# drives the 65 raw-sqlalchemy imports in services/ to zero (see ADR-0001).
-# (One wildcard pair ignores every matching import chain.)
-ignore_imports =
-    services.* -> sqlalchemy
+# The old wildcard only matched direct edges, so every legitimate
+# services -> repository -> sqlalchemy chain was reported and the contract had
+# to be neutered. allow_indirect_imports makes the contract say what its name
+# says: direct sqlalchemy use in services is forbidden; repositories are fine.
+allow_indirect_imports = true

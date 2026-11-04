@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, select
 from core.logging import get_logger
 from models.codal_financial import CodalFinancialStatementModel
 from services.codal_accounting_service import (

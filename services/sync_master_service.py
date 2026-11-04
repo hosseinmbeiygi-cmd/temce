@@ -22,17 +22,16 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from brsapi.client import BrsApiClient, get_client
 from brsapi.models import (
     SymbolSnapshotModel,
 )
 from brsapi.services.sync_service import BrsApiSyncService
+from core.database import AsyncSession, select
 from core.fix_network import fix_network
 from core.logging import get_logger
 
@@ -185,7 +184,7 @@ class MasterSyncService:
         phase = PhaseReport(phase_name="Phase 1 — Bulk Market Data", success=True)
         svc = await self._get_sync_svc()
 
-        bulk_ops = [
+        bulk_ops: list[tuple[str, Callable[[], Awaitable[Any]]]] = [
             ("AllSymbols", lambda: svc.sync_all_symbols(session)),
             ("Index (TSE)", lambda: svc.sync_index(session, "1")),
             ("Index (Farabourse)", lambda: svc.sync_index(session, "2")),

@@ -47,7 +47,6 @@ from services.gold import (
     GoldLiveService,
     calculate_coin_bubble,
     evaluate_kill_switch,
-    scan_gold_arbitrage,
 )
 
 logger = get_logger(__name__)
@@ -65,9 +64,9 @@ router = APIRouter()
 async def get_live_prices(
     refresh: bool = Query(False, description="اجبار به بازخوانی از BrsApi"),
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldLivePrices]:
     data = await service.get_live_prices(force_refresh=refresh)
-    return ApiResponse[GoldLivePrices](success=True, data=data)
+    return ApiResponse[GoldLivePrices](success=True, data=GoldLivePrices(**data))
 
 
 @router.post(
@@ -78,9 +77,9 @@ async def get_live_prices(
 async def post_live_prices(
     body: GoldLivePricesRequest = Body(default_factory=GoldLivePricesRequest),
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldLivePrices]:
     data = await service.get_live_prices(force_refresh=body.refresh)
-    return ApiResponse[GoldLivePrices](success=True, data=data)
+    return ApiResponse[GoldLivePrices](success=True, data=GoldLivePrices(**data))
 
 
 # ── 2. Coin Bubble ─────────────────────────────────────────────
@@ -91,7 +90,7 @@ async def post_live_prices(
     summary="محاسبه حباب/تخفیف سکه بهار آزادی",
     response_model=ApiResponse[CoinBubbleResponse],
 )
-async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any]]:
+async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[CoinBubbleResponse]:
     try:
         result = calculate_coin_bubble(
             coin_price_irr=body.coin_price_irr,
@@ -126,7 +125,7 @@ async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any
 )
 async def get_etf_nav_premium(
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[ETFNavPremiumResponse]:
     """NAV ذاتی از انس و دلار محاسبه می‌شود؛ پرمیوم فقط وقتی اعلام می‌شود که قیمت
     معاملاتی واقعی آن صندوق در دسترس باشد (وگرنه NO_DATA برمی‌گردد، نه عدد نمونه)."""
     from core.time import utc_now_iso
@@ -152,7 +151,8 @@ async def get_etf_nav_premium(
             premium_pct=None,
             signal="NO_DATA",
             reason="قیمت معاملاتی این صندوق به دادهٔ بازار متصل نیست؛ پرمیوم اندازه‌گیری نمی‌شود.",
-            liquidity="high" if symbol in ("ZARFSHANG", "LOTUS") else "medium",
+            # Liquidity is not measured yet; do not invent high/medium tiers.
+            liquidity="UNKNOWN",
             management_fee=info["management_fee"],
         )
         items.append(row)
@@ -189,17 +189,18 @@ async def get_arbitrage(
             error={"message": "داده‌های بازار برای محاسبه آربیتراژ کافی نیست"},
         )
 
-    # صندوق طلا در بورس ≈ قیمت گرم طلا + 0.5% کارمزد مدیریت
-    etf_per_gram = gold_18k * 1.005
-    # طلای فیزیکی (آب‌شده) ≈ قیمت ۱۸ عیار - 2% تخفیف عیار
-    physical_per_gram = gold_18k * 0.98
-
-    result = scan_gold_arbitrage(
-        etf_price_per_gram=etf_per_gram,
-        physical_gold_price_per_gram=physical_per_gram,
-        pair_label="ETF طلا (میانگین) ↔ طلای آب‌شده بازار",
+    # Both legs must be observed prices. Only the 18k gram price is wired today;
+    # an ETF traded price and a physical (melted) price are not, so the spread
+    # would be a constructed constant. Report "unavailable" instead.
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "available": False,
+            "reason": "قیمت معاملاتی ETF و طلای آب‌شده به داده بازار متصل نیست؛ اسپرد ساخته نمی‌شود.",
+            "missing_symbols": ["ETF_GOLD", "GOLD_MELTED"],
+            "gold_18k_irr": gold_18k,
+        },
     )
-    return ApiResponse[dict[str, Any]](success=True, data=result.__dict__)
 
 
 # ── 5. Futures Margin Calculator ──────────────────────────────
@@ -210,7 +211,7 @@ async def get_arbitrage(
     summary="محاسبه مارجین، لیکوئیدیشن و Health Ratio (آتی سکه IME)",
     response_model=ApiResponse[FuturesMarginResponse],
 )
-async def post_margin_calculator(body: FuturesMarginRequest) -> ApiResponse[dict[str, Any]]:
+async def post_margin_calculator(body: FuturesMarginRequest) -> ApiResponse[FuturesMarginResponse]:
     try:
         calc = FuturesRiskCalculator(leverage=body.leverage)
         result = calc.calculate(
@@ -313,7 +314,7 @@ async def close_futures_position(
 )
 async def get_futures_health(
     service: GoldFuturesPositionService = Depends(get_gold_position_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[FuturesHealthResponse]:
     rows = await service.list_open_positions()
     positions: list[FuturesPosition] = []
     total_used = 0.0
@@ -349,7 +350,7 @@ async def get_futures_health(
         data=FuturesHealthResponse(
             positions=positions,
             total_used_margin=round(total_used, 2),
-            total_equity=0.0,  # TODO: زمانی که account snapshot اضافه شد
+            total_equity=None,  # Account equity is not wired yet; 0 would be a fake value.
             aggregate_health_ratio=None,
             critical_count=crit,
             warning_count=warn,
@@ -367,7 +368,7 @@ async def get_futures_health(
 )
 async def get_kill_switch(
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldKillSwitchStatus]:
     # TODO: oz_history / usd_history از TimescaleDB (در phase بعدی)
     live = await service.get_live_prices()
     eval_result = evaluate_kill_switch(
@@ -401,9 +402,13 @@ async def get_ime_futures(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         rows = await brsapi.get_ime_futures()
-    except Exception as exc:
+    except Exception:
         logger.exception("IME futures fetch failed")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
+        )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
 
 
@@ -416,7 +421,11 @@ async def get_ime_physical_trades(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         rows = await brsapi.get_ime_physical_trades()
-    except Exception as exc:
+    except Exception:
         logger.exception("IME physical trades fetch failed")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
+        )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)

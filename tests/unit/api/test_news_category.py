@@ -18,7 +18,6 @@ stubbed ``NewsService`` — no DB, no HTTP server.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest

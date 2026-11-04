@@ -87,3 +87,49 @@ def test_plot_equity_curve_svg_fallback(tmp_path):
     path = engine.plot_equity_curve(metrics, output=str(out))
     # matplotlib may or may not be installed; either a png or svg fallback
     assert path.endswith((".png", ".svg"))
+
+
+def test_lookahead_validation_detects_future_access():
+    """Strategy that uses future prices should be caught by validation."""
+    # Create data with alternating pattern so signal varies
+    n = 100
+    close = pd.Series(100.0 + np.arange(n) * 0.5 + np.tile([0, 1], n // 2 + 1)[:n])
+    df = pd.DataFrame({
+        "price_close": close,
+        "price_open": close.shift(1).fillna(close.iloc[0]),
+        "price_high": close + 0.5,
+        "price_low": close - 0.5,
+        "trade_volume": np.ones(n) * 1000,
+    })
+    engine = VectorizedBacktestEngine(df)
+
+    # Malicious strategy: signal = 1 if tomorrow's close > today's close
+    def lookahead_strategy(data: pd.DataFrame) -> pd.Series:
+        future_close = data["price_close"].shift(-1)
+        return (future_close > data["price_close"]).astype(float)
+
+    with pytest.raises(ValueError, match="Lookahead bias detected"):
+        engine.run_strategy(lookahead_strategy, validate_no_lookahead=True)
+
+
+def test_lookahead_validation_passes_legitimate_strategy():
+    """Built-in MA cross strategy should pass validation."""
+    df = _make_data(100)
+    engine = VectorizedBacktestEngine(df)
+    # Should not raise
+    metrics = engine.run_strategy(ma_cross_strategy, validate_no_lookahead=True)
+    assert "sharpe_ratio" in metrics
+
+
+def test_lookahead_validation_can_be_disabled():
+    """User can disable validation for testing."""
+    df = _make_data(100)
+    engine = VectorizedBacktestEngine(df)
+
+    def lookahead_strategy(data: pd.DataFrame) -> pd.Series:
+        future_close = data["price_close"].shift(-1)
+        return (future_close > data["price_close"]).astype(float)
+
+    # Should not raise when disabled
+    metrics = engine.run_strategy(lookahead_strategy, validate_no_lookahead=False)
+    assert "sharpe_ratio" in metrics

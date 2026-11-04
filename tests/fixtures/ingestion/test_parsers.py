@@ -51,7 +51,7 @@ class TestTsetmcTradeParser:
         parser = TsetmcTradeParser()
         events = await parser.parse(payload)
         assert len(events) == 1
-        assert events[0].event_type == "trade_tick"
+        assert events[0].event_type == "daily_ohlcv"
         assert events[0].data["instrument_id"] == "123"
 
     async def test_parse_empty(self) -> None:

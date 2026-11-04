@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import builtins
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
@@ -99,29 +99,33 @@ class SignalService:
         if not result.success:
             return Result.ok(PaginatedResult(items=[], total=0, page=page, page_size=page_size, total_pages=1))
 
-        items = [vars(s) for s in result.value.items]
+        page_result = result.unwrap()
+        items: builtins.list[dict[str, Any]] = [vars(sig) for sig in page_result.items]
         items.sort(key=lambda x: x.get("created_at") or "", reverse=True)
         return Result.ok(
             PaginatedResult(
                 items=items,
-                total=result.value.total,
-                page=result.value.page,
-                page_size=result.value.page_size,
-                total_pages=result.value.total_pages,
+                total=page_result.total,
+                page=page_result.page,
+                page_size=page_result.page_size,
+                total_pages=page_result.total_pages,
             )
         )
 
     async def list_signals(self, page: int = 1, page_size: int = 50) -> Result[PaginatedResult[dict[str, Any]]]:
         return await self.list(page=page, page_size=page_size)
 
-    async def get_by_symbol(self, symbol: str) -> Result[list[Signal]]:
+    async def get_by_symbol(self, symbol: str) -> Result[builtins.list[Signal]]:
         result = await self.signal_repo.get_by_instrument(symbol, 1, 100)
         if result.success and result.value:
             return Result.ok(result.value.items)
         return Result.ok([])
 
     async def get(self, signal_id: str) -> Result[Signal | None]:
-        return await self.signal_repo.get(signal_id)
+        res = await self.signal_repo.get(signal_id)
+        if not res.success:
+            return Result.fail(res.error or f"signal {signal_id} not found")
+        return Result.ok(res.value)
 
     async def get_signal(self, signal_id: str) -> Result[dict[str, Any] | None]:
         result = await self.signal_repo.get(signal_id)
@@ -129,7 +133,9 @@ class SignalService:
             return Result.ok(vars(result.value))
         return Result.ok(None)
 
-    async def bulk_generate(self, symbols: list[str], strategy: str = "technical") -> Result[list[Signal]]:
+    async def bulk_generate(
+        self, symbols: builtins.list[str], strategy: str = "technical"
+    ) -> Result[builtins.list[Any]]:
         from services.multi_market_signal_engine import MultiMarketSignalEngine
 
         try:

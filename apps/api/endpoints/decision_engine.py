@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session
+from apps.api.dependencies import get_db_session, require_roles
 from core.logging import get_logger
 from models.decision_engine import DecisionArchitecture, DecisionResult
 from schemas.common.responses import ApiResponse
@@ -199,6 +199,11 @@ async def _get_data_from_db(session: AsyncSession) -> dict | None:
             return row.data
     except Exception:
         logger.warning("DB query failed, falling back to JSON")
+        # The failed statement aborts the transaction; without this the
+        # request's session commit (and any later query) fails with
+        # "current transaction is aborted", turning the JSON fallback into a 500.
+        with contextlib.suppress(Exception):
+            await session.rollback()
     return None
 
 
@@ -213,9 +218,13 @@ async def _get_architecture(session: AsyncSession) -> dict | None:
     if arch is None:
         arch = _load_json("architecture.json")
         if arch is not None:
-            # Auto-seed: load JSON into DB for next time
-            with contextlib.suppress(Exception):
+            # Auto-seed: load JSON into DB for next time.
+            try:
                 await _auto_seed(session)
+            except Exception:
+                logger.debug("Auto-seed skipped")
+                with contextlib.suppress(Exception):
+                    await session.rollback()
 
     if arch is not None:
         _cache_set("architecture:active", arch)
@@ -338,7 +347,7 @@ async def get_overview(
     database = await _get_data("database", "database.json", session)
     api_data = await _get_data("api", "api.json", session)
 
-    overview = {
+    overview: dict[str, Any] = {
         "system": arch.get("system") if arch else {},
         "layers": arch.get("layers") if arch else [],
         "features": features,
@@ -358,6 +367,7 @@ async def get_overview(
     "/decisions",
     summary="Save Decision Result",
     description="Save a new decision result (BUY / WATCHLIST / HOLD / REDUCE / REJECT / NEUTRAL) to the database.",
+    dependencies=[Depends(require_roles("analyst", "admin"))],
 )
 async def save_decision(
     body: DecisionResultCreate,
@@ -877,6 +887,7 @@ async def get_migration_status(
     "/seed",
     summary="Seed Architecture Data",
     description="Load all JSON architecture data into PostgreSQL (merges all 5 JSON files into one record)",
+    dependencies=[Depends(require_roles("admin"))],
 )
 async def seed_architecture(
     session: AsyncSession = Depends(get_db_session),
