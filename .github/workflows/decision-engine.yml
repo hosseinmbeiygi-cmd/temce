@@ -303,7 +303,9 @@ jobs:
           set -e
           # Start the server in this same step: GitHub kills background
           # processes when a step ends, so a previous step's uvicorn is gone.
-          uvicorn apps.decision_engine.app:app --host 127.0.0.1 --port 8002 &
+          # AUTH_DISABLED is test-only: the router-level get_current_user
+          # dependency would otherwise 401 every read-only endpoint.
+          AUTH_DISABLED=true uvicorn apps.decision_engine.app:app --host 127.0.0.1 --port 8002 &
           for i in $(seq 1 10); do
             if curl -sf http://127.0.0.1:8002/health > /dev/null 2>&1; then
               echo "Server ready!"

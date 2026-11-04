@@ -158,11 +158,20 @@ def upgrade() -> None:
         op.execute(
             f'ALTER TABLE IF EXISTS {table} ADD COLUMN IF NOT EXISTS instrument_id VARCHAR(50)'
         )
+        # CREATE INDEX IF NOT EXISTS still fails when the table itself is
+        # absent (brsapi_crypto_daily_history is not created by the 0004b
+        # baseline), so check to_regclass first.
         op.execute(
-            f"CREATE INDEX IF NOT EXISTS ix_{table}_ins_id ON {table} (ins_id)"
-        )
-        op.execute(
-            f"CREATE INDEX IF NOT EXISTS ix_{table}_instrument_id ON {table} (instrument_id)"
+            f"""
+            DO $$
+            BEGIN
+                IF to_regclass('{table}') IS NOT NULL THEN
+                    CREATE INDEX IF NOT EXISTS ix_{table}_ins_id ON {table} (ins_id);
+                    CREATE INDEX IF NOT EXISTS ix_{table}_instrument_id ON {table} (instrument_id);
+                END IF;
+            END
+            $$;
+            """
         )
 
     for column, sql_type in ORDERBOOK_COLUMNS:
