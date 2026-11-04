@@ -76,8 +76,10 @@ def test_metrics_rejects_tokens_with_another_scope(client: TestClient, token: st
 
 def test_metrics_route_sits_on_the_token_gated_router() -> None:
     """مسیر از گیت JWT خارج است، ولی توکن‌محور: دقیقاً روی anonymous_router."""
-    anonymous_paths = {route.path for route in gold_api.anonymous_router.routes}
-    personal_paths = {route.path for route in gold_api.router.routes}
+    from tests.gold_desk._route_utils import iter_routes
+
+    anonymous_paths = {path for path, _route in iter_routes(gold_api.anonymous_router.routes)}
+    personal_paths = {path for path, _route in iter_routes(gold_api.router.routes)}
 
     assert "/gold/metrics" in anonymous_paths
     assert "/gold/metrics" not in personal_paths

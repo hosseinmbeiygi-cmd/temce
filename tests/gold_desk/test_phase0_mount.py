@@ -52,8 +52,9 @@ _REQUIRED_GOLD_PATHS = {
 
 def test_frontend_critical_gold_routes_are_mounted():
     from apps.api.router import Router
+    from tests.gold_desk._route_utils import iter_routes
 
-    mounted = {getattr(route, "path", "") for route in Router().setup().routes}
+    mounted = {path for path, _route in iter_routes(Router().setup().routes)}
 
     missing = sorted(_REQUIRED_GOLD_PATHS - mounted)
     assert not missing, f"GoldDesk routes missing from the assembled router: {missing}"
@@ -61,11 +62,11 @@ def test_frontend_critical_gold_routes_are_mounted():
 
 def test_personal_router_is_not_mounted_twice_under_the_same_path_and_method():
     from apps.api.router import Router
+    from tests.gold_desk._route_utils import iter_routes
 
     seen: set[tuple[str, frozenset[str]]] = set()
     duplicates: list[str] = []
-    for route in Router().setup().routes:
-        path = getattr(route, "path", "")
+    for path, route in iter_routes(Router().setup().routes):
         if not path.startswith("/gold/"):
             continue
         methods = frozenset(getattr(route, "methods", None) or ())

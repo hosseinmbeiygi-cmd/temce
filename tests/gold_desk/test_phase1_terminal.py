@@ -481,8 +481,9 @@ def test_terminal_and_what_if_routes_are_mounted() -> None:
 
 def test_phase1_routes_survive_the_assembled_router() -> None:
     from apps.api.router import Router
+    from tests.gold_desk._route_utils import iter_routes
 
-    mounted = {getattr(route, "path", "") for route in Router().setup().routes}
+    mounted = {path for path, _route in iter_routes(Router().setup().routes)}
 
     assert {"/gold/terminal", "/gold/what-if"} <= mounted
 
