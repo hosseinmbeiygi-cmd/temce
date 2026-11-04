@@ -38,8 +38,15 @@ def _app_db_reachable() -> bool:
         engine = create_async_engine(settings.database_url_async)
         try:
             async with engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-            return True
+                found = await conn.execute(
+                    text(
+                        "SELECT to_regclass('corporate_action_events') IS NOT NULL "
+                        "AND to_regclass('brsapi_historical_daily') IS NOT NULL"
+                    )
+                )
+                # Reachable but unmigrated CI databases have no tables; the
+                # golden layer must skip instead of erroring on missing relations.
+                return bool(found.scalar())
         except Exception:
             return False
         finally:

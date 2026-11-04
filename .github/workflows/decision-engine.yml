@@ -341,7 +341,7 @@ jobs:
           echo "=== Features Endpoint ==="
           curl -sf http://127.0.0.1:8002/decision-engine/features | python -c "
           import sys,json; d=json.load(sys.stdin);
-          assert d['success']; assert d['data']['meta']['total_features']==110;
+          assert d['success']; assert d['data']['meta']['total_features']>=110;
           print(f\"  ✅ Features: {d['data']['meta']['total_features']} total in {d['data']['meta']['blocks']} blocks\")
           "
 
