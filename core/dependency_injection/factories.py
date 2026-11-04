@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, Generic, TypeVar, cast
 
 from core.logging import get_logger
 
@@ -9,23 +9,23 @@ T = TypeVar("T")
 logger = get_logger(__name__)
 
 
-class Factory:
+class Factory(Generic[T]):
     def __init__(self, fn: Callable[..., T]) -> None:
-        self._fn = fn
+        self._fn: Callable[..., T] = fn
 
     def __call__(self, *args: Any, **kwargs: Any) -> T:
         return self._fn(*args, **kwargs)
 
 
-class AsyncFactory:
-    def __init__(self, fn: Callable[..., T]) -> None:
-        self._fn = fn
+class AsyncFactory(Generic[T]):
+    def __init__(self, fn: Callable[..., Awaitable[T]]) -> None:
+        self._fn: Callable[..., Awaitable[T]] = fn
 
     async def __call__(self, *args: Any, **kwargs: Any) -> T:
         return await self._fn(*args, **kwargs)
 
 
-class LazyFactory:
+class LazyFactory(Generic[T]):
     def __init__(self, fn: Callable[[], T]) -> None:
         self._fn = fn
         self._instance: T | None = None
@@ -35,7 +35,7 @@ class LazyFactory:
         if not self._resolved:
             self._instance = self._fn()
             self._resolved = True
-        return self._instance
+        return cast(T, self._instance)
 
 
 class FactoryRegistry:

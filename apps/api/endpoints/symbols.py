@@ -157,7 +157,7 @@ async def import_symbols(
         if not result.success:
             return ApiResponse[dict[str, Any]](success=False, error={"message": result.error or "Import failed"})
 
-        summary = result.value
+        summary = result.unwrap()
         return ApiResponse[dict[str, Any]](
             success=True,
             data={

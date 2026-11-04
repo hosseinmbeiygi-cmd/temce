@@ -164,13 +164,15 @@ async def screener110_monitor(session: AsyncSession = Depends(get_db_session)) -
             "SELECT COUNT(*) as total_profiles, COUNT(eps_current) FILTER (WHERE eps_current IS NOT NULL AND eps_current > 0) as with_eps, COUNT(net_operating_profit) FILTER (WHERE net_operating_profit IS NOT NULL AND net_operating_profit > 0) as with_profit, COUNT(gross_margin) FILTER (WHERE gross_margin IS NOT NULL AND gross_margin > 0) as with_margin, COUNT(accumulated_loss) FILTER (WHERE accumulated_loss IS NOT NULL AND accumulated_loss > 0) as with_loss, COUNT(registered_capital) FILTER (WHERE registered_capital IS NOT NULL AND registered_capital > 0) as with_capital, COALESCE(AVG(eps_current),0) as avg_eps, COALESCE(AVG(gross_margin),0) as avg_gross_margin FROM screener_profiles"
         )
         r1 = await session.execute(p_sql)
-        ps = dict(r1.fetchone()._mapping)
+        p_row = r1.fetchone()
+        ps = dict(p_row._mapping) if p_row is not None else {}
         # --- 2. Signal stats ---
         s_sql = text(
             "SELECT COUNT(*) as total_signals, COUNT(*) FILTER (WHERE decision = :b) as buy_count, COUNT(*) FILTER (WHERE decision = :nb) as dont_buy_count, COUNT(*) FILTER (WHERE decision = :rk) as risk_reject_count, COUNT(*) FILTER (WHERE decision = :sr) as score_reject_count, COALESCE(AVG(final_score),0) as avg_final_score, COALESCE(MAX(final_score),0) as max_final_score, COUNT(*) FILTER (WHERE outcome_correct = TRUE) as correct_outcomes, COUNT(*) FILTER (WHERE outcome_correct IS NOT NULL) as tracked_outcomes FROM screener_signals"
         )
         r2 = await session.execute(s_sql, {"b": "خرید", "nb": "نخرید", "rk": "رد_ریسک", "sr": "رد_نمره"})
-        ss = dict(r2.fetchone()._mapping)
+        s_row = r2.fetchone()
+        ss = dict(s_row._mapping) if s_row is not None else {}
         # --- 3. Score distribution ---
         d_sql = text(
             "SELECT CASE WHEN final_score >= 80 THEN '80-100' WHEN final_score >= 60 THEN '60-80' WHEN final_score >= 40 THEN '40-60' WHEN final_score >= 20 THEN '20-40' WHEN final_score >= 0 THEN '0-20' ELSE 'no_score' END as bucket, COUNT(*) as cnt FROM screener_signals GROUP BY bucket ORDER BY bucket DESC"

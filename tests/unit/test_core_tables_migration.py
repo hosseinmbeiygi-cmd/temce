@@ -22,6 +22,8 @@ import importlib.util
 import re
 from pathlib import Path
 
+import pytest
+
 import models  # noqa: F401 — registers every ORM table on Base.metadata
 from models.base import Base
 
@@ -36,6 +38,9 @@ _CONSTRAINT_RE = re.compile(
     re.IGNORECASE,
 )
 
+
+
+pytestmark = pytest.mark.needs_db
 
 def _tables_created_by_migrations() -> set[str]:
     """Names of tables any migration creates (op.create_table or raw DDL)."""

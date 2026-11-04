@@ -94,14 +94,18 @@ def _parse_pytest_output(stdout: str) -> list[TestResultItem]:
     # Strategy 1: Look for specific test file prefix
     for line in stdout.split("\n"):
         if line.startswith("tests/comprehensive/test_all.py::"):
-            results.append(_parse_single_line(line))
+            parsed = _parse_single_line(line)
+            if parsed is not None:
+                results.append(parsed)
 
     # Strategy 2: Fallback to general pattern matching
     if not results:
         for line in stdout.split("\n"):
             line = line.strip()
             if "::" in line and any(s in line for s in ("PASSED", "FAILED", "ERROR")):
-                results.append(_parse_single_line(line))
+                parsed = _parse_single_line(line)
+                if parsed is not None:
+                    results.append(parsed)
 
     return [r for r in results if r is not None]
 

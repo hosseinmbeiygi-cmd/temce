@@ -12,16 +12,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 import numpy as np
 
 from .constants import SMA_BUBBLE_WINDOW
 
+FloatArray = np.ndarray[Any, Any]
 
-def _as_array(values) -> np.ndarray:
+
+def _as_array(values: Iterable[float] | FloatArray) -> FloatArray:
     return np.asarray(values, dtype=float)
 
 
-def sma(values, window: int = SMA_BUBBLE_WINDOW) -> np.ndarray:
+def sma(values: Iterable[float] | FloatArray, window: int = SMA_BUBBLE_WINDOW) -> FloatArray:
     """میانگین متحرک سادهٔ trailing.
 
     عناصر ``i < window - 1`` برابر ``nan`` هستند. اگر طول سری کمتر از پنجره
@@ -38,7 +43,7 @@ def sma(values, window: int = SMA_BUBBLE_WINDOW) -> np.ndarray:
     return out
 
 
-def ema(values, period: int) -> np.ndarray:
+def ema(values: Iterable[float] | FloatArray, period: int) -> FloatArray:
     """میانگین متحرک نمایی trailing با ``alpha = 2/(period+1)``.
 
     بذر (seed) میانگین سادهٔ ``period`` مقدار اول است تا مقدار هر ایندکس فقط به
@@ -57,7 +62,7 @@ def ema(values, period: int) -> np.ndarray:
     return out
 
 
-def rsi(values, period: int = 14) -> np.ndarray:
+def rsi(values: Iterable[float] | FloatArray, period: int = 14) -> FloatArray:
     """RSI ویلدر به‌صورت سری (نه فقط آخرین نقطه).
 
     عناصر ``i < period`` برابر ``nan`` هستند (برای RSI در ``i`` به ``period``
@@ -92,7 +97,7 @@ def _rsi_value(avg_gain: float, avg_loss: float) -> float:
     return 100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
 
 
-def bubble_pct(values, window: int = SMA_BUBBLE_WINDOW) -> np.ndarray:
+def bubble_pct(values: Iterable[float] | FloatArray, window: int = SMA_BUBBLE_WINDOW) -> FloatArray:
     """حباب تکنیکال: درصد فاصلهٔ قیمت از SMA trailing.
 
     ``nan`` وقتی پنجره کامل نیست یا میانگین صفر است؛ مصرف‌کننده باید ردیف‌های

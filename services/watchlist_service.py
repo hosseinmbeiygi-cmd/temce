@@ -9,8 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy.exc import SQLAlchemyError
-
+from core.database import SQLAlchemyError
 from core.db_utils import safe_row_str
 from core.logging import get_logger
 from core.result import Result
@@ -42,7 +41,7 @@ class WatchlistService:
         ``UNIQUE (symbol)`` (audit SEC-04). Alembic 0117 is the canonical
         migration; this runtime guard keeps ad-hoc/self-healed databases usable.
         """
-        from sqlalchemy import text
+        from core.database import text
 
         bind = getattr(self._session, "get_bind", lambda: None)()
         dialect = getattr(getattr(bind, "dialect", None), "name", "")
@@ -82,7 +81,7 @@ class WatchlistService:
 
     async def _ensure_defaults(self, user_id: str) -> None:
         """Seed default popular symbols if this user's watchlist is empty."""
-        from sqlalchemy import text
+        from core.database import text
 
         count_result = await self._session.execute(
             text("SELECT COUNT(*) FROM watchlist WHERE user_id = :u"), {"u": user_id}
@@ -110,7 +109,7 @@ class WatchlistService:
 
         Returns keyed by symbol with all fields the frontend needs.
         """
-        from sqlalchemy import text
+        from core.database import text
 
         if not self._session:
             return {}
@@ -213,7 +212,7 @@ class WatchlistService:
 
     async def list_items(self, *, user_id: str | None = None) -> Result[list[dict[str, Any]]]:
         """List the caller's symbols. ``user_id=None`` matches nothing (fail-closed)."""
-        from sqlalchemy import text
+        from core.database import text
 
         try:
             result = await self._session.execute(
@@ -264,7 +263,7 @@ class WatchlistService:
     async def add_symbol(
         self, symbol: str, name: str = "", note: str = "", *, user_id: str | None = None
     ) -> Result[dict[str, Any]]:
-        from sqlalchemy import text
+        from core.database import text
 
         await self._ensure_table()
         if not user_id:
@@ -311,8 +310,7 @@ class WatchlistService:
         queries also match Persian symbols via transliteration — e.g.
         ``folad`` finds ``فولاد``.
         """
-        from sqlalchemy import text
-
+        from core.database import text
         from services.symbol_catalog import finglish_symbol_candidates
 
         if not self._session or not query or len(query.strip()) < 1:
@@ -359,7 +357,7 @@ class WatchlistService:
 
     async def _resolve_symbol_name(self, symbol: str) -> str:
         """Quick single-symbol name lookup from snapshots."""
-        from sqlalchemy import text
+        from core.database import text
 
         if not self._session:
             return symbol
@@ -374,7 +372,7 @@ class WatchlistService:
             return symbol
 
     async def remove_symbol(self, symbol: str, *, user_id: str | None = None) -> Result[bool]:
-        from sqlalchemy import text
+        from core.database import text
 
         await self._ensure_table()
         if not user_id:

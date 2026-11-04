@@ -207,6 +207,7 @@ class TestAmbiguousProbeIsDeterministic:
 # ── DB-backed: resolve + read path ───────────────────────────────────────
 
 
+@pytest.mark.needs_db
 class TestMapperOnDb:
     @pytest.mark.asyncio
     async def test_resolve_real_corpus(self):

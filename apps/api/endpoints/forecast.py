@@ -47,4 +47,4 @@ async def get_forecast(
     except Exception:
         logger.exception("Forecast failed for %s", symbol)
         return ApiResponse(success=False, error={"message": "پیش‌بینی در دسترس نیست؛ خطای داخلی سرویس."})
-    return ApiResponse(success=True, data=result)
+    return ApiResponse(success=True, data=ForecastResponse(**result))

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..constants import (
     NAV_PREMIUM_BUY_BELOW,
@@ -118,7 +119,7 @@ class FuturesRiskCalculator:
         position_type: str,
         equity: float,
         position_value: float,
-    ) -> dict:
+    ) -> dict[str, Any]:
         liq_price = self.calculate_liquidation_price(entry_price, position_type)
 
         if position_type.upper() == "LONG":

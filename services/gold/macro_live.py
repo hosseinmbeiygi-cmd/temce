@@ -12,11 +12,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, desc, select
 from core.logging import get_logger
 from models.gold_macro import GoldMacroIndicatorModel
 from providers.macro_sources.tokenized_gold import PREMIUM_INDICATOR_SUFFIX
@@ -82,7 +80,7 @@ async def _get_indicator_history(
         if raw is None:
             continue
         try:
-            number = float(raw)
+            number = float(cast(Any, raw))
         except (TypeError, ValueError):
             continue
         values.append(number)
@@ -131,6 +129,8 @@ async def _derive_gold_trend(session: AsyncSession) -> tuple[str | None, float |
             latest.snapshot_at.timestamp() if latest and latest.snapshot_at else None
         )
     latest, previous = rows[0], rows[1]
+    if latest.xau_usd is None or previous.xau_usd is None:
+        return None, latest.snapshot_at.timestamp() if latest.snapshot_at else None
     latest_price = float(latest.xau_usd)
     previous_price = float(previous.xau_usd)
     if previous_price <= 0:

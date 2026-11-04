@@ -8,8 +8,10 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.needs_db
 
 @pytest.mark.asyncio
+
 async def test_health_check(client):
     resp = await client.get("/api/v1/health")
     assert resp.status_code == 200

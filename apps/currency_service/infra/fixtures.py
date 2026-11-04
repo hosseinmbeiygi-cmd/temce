@@ -10,11 +10,12 @@ import json
 import os
 import random
 from datetime import UTC, datetime
+from typing import Any
 
 from apps.currency_service.domain.entities import RatePair, RateSnapshot
 
 # Stable baseline — values match the spec's worked example.
-DEFAULT_RATES: dict[str, dict[str, int | float | str]] = {
+DEFAULT_RATES: dict[str, Any] = {
     "free": {
         "buy": 614_500,
         "sell": 615_000,

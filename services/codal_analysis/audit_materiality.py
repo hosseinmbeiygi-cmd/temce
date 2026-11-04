@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypedDict
 
 from core.logging import get_logger
 from services.codal_analysis.analysis_engine import FinancialSnapshot
 
 logger = get_logger(__name__)
 
-MATERIALITY_BENCHMARKS = {
+class _BenchmarkConfig(TypedDict):
+    rate_low: float
+    rate_high: float
+    description: str
+
+
+MATERIALITY_BENCHMARKS: dict[str, _BenchmarkConfig] = {
     "revenue": {"rate_low": 0.005, "rate_high": 0.01, "description": "Revenue (0.5%-1%)"},
     "total_assets": {"rate_low": 0.01, "rate_high": 0.02, "description": "Total Assets (1%-2%)"},
     "net_profit": {"rate_low": 0.05, "rate_high": 0.10, "description": "Net Profit (5%-10%)"},
@@ -41,7 +47,7 @@ class AuditMateriality:
 class MaterialityCalculator:
     """ISA 320: Materiality in Planning and Performing an Audit"""
 
-    def __init__(self, performance_pct: float = 0.75, trivial_pct: float = 0.05):
+    def __init__(self, performance_pct: float = 0.75, trivial_pct: float = 0.05) -> None:
         self.performance_pct = performance_pct
         self.trivial_pct = trivial_pct
 

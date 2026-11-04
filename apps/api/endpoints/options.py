@@ -168,6 +168,7 @@ async def calculate_greeks(
     missing = _missing_inputs(S, K, T, r, sigma)
     if missing:
         return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
+    assert r is not None and sigma is not None
     from domain.options.higher_order_greeks import charm, vanna
     from domain.options.pricing import black_scholes_price
     result = black_scholes_price(S, K, T, float(r), float(sigma), option_type)
@@ -198,6 +199,7 @@ async def pricing(
     missing = _missing_inputs(S, K, T, r, sigma)
     if missing:
         return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
+    assert r is not None and sigma is not None
     from domain.options.pricing import black_scholes_call, black_scholes_put
     call_price = black_scholes_call(S, K, T, float(r), float(sigma))
     put_price = black_scholes_put(S, K, T, float(r), float(sigma))
@@ -304,7 +306,12 @@ async def check_parity(
     strike: float, time_to_expiry: float = 0.25
 ) -> ApiResponse[dict[str, Any]]:
     detector = get_arbitrage_detector()
-    result = detector.check_put_call_parity(call_price, put_price, stock_price, strike, time_to_expiry)
+    try:
+        result = detector.check_put_call_parity(
+            call_price, put_price, stock_price, strike, time_to_expiry
+        )
+    except ValueError as exc:
+        return ApiResponse(success=False, data=None, error={"message": str(exc)})
     return ApiResponse(success=True, data=result)
 
 

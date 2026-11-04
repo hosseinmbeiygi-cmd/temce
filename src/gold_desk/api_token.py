@@ -25,7 +25,7 @@ import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from core.time import utc_now_naive
 
@@ -199,7 +199,7 @@ async def list_tokens() -> list[TokenInfo]:
 # ── Serialization helpers ─────────────────────────────────────
 
 
-def info_to_dict(info: TokenInfo) -> dict:
+def info_to_dict(info: TokenInfo) -> dict[str, Any]:
     return {
         "token_id": info.token_id,
         "name": info.name,
@@ -210,7 +210,7 @@ def info_to_dict(info: TokenInfo) -> dict:
     }
 
 
-def dict_to_info(d: dict) -> TokenInfo:
+def dict_to_info(d: dict[str, Any]) -> TokenInfo:
     return TokenInfo(
         token_id=d.get("token_id", ""),
         name=d.get("name", ""),

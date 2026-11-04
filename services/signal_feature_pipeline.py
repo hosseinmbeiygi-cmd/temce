@@ -438,6 +438,8 @@ class SignalFeaturePipeline:
                         "features must be built from prefixes of the `closes` array "
                         "(use SignalFeaturePipeline.extract)"
                     )
+                if last_price is None:
+                    raise ValueError(f"feature[{idx}] has no last_price metadata")
                 expected = float(closes[c_count - 1])
                 if abs(expected - float(last_price)) > 1e-6:
                     raise ValueError(

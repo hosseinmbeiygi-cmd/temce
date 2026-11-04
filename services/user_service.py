@@ -5,10 +5,8 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.config import settings as app_settings
+from core.database import AsyncSession, func, select
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -90,7 +88,7 @@ class UserService:
             # count=0 and both become admin. Serialize the bootstrap decision
             # for the rest of this transaction (PostgreSQL advisory lock; a
             # non-PostgreSQL test double simply skips it).
-            from sqlalchemy import text as _sql_text
+            from core.database import text as _sql_text
 
             try:
                 await self.session.execute(
@@ -1022,7 +1020,7 @@ class UserService:
 
             # If there's a dedicated login_history table, query it
             try:
-                from sqlalchemy import text
+                from core.database import text
 
                 # Check if table exists
                 check = await self.session.execute(

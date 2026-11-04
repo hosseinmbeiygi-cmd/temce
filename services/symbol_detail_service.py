@@ -68,12 +68,12 @@ async def get_symbol_full_info(symbol: str) -> dict[str, Any]:
             params={"l18": symbol}
         )
 
-        if not result.success or result.data is None:
+        if not result.success or result.value is None or result.value.data is None:
             return {"error": f"نماد {symbol} یافت نشد"}
 
         # Parse the data
         try:
-            detail = TsetmcParser.parse_symbol_detail(result.data)
+            detail = TsetmcParser.parse_symbol_detail(result.value.data)
         except BrsApiParseError as exc:
             logger.warning("Unreadable symbol detail for %s: %s", symbol, exc)
             return {"error": f"خطا در پردازش داده ({exc.code})"}

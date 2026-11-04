@@ -41,7 +41,7 @@ class ChainAmendmentTracker:
     Each announcement can have a parent (the one it corrects) and children (corrections of this one).
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._nodes: dict[str, AnnouncementNode] = {}
         self._symbol_index: dict[str, list[str]] = {}
 
@@ -131,7 +131,7 @@ class ChainAmendmentTracker:
 
     def detect_conflicts(self, symbol: str) -> list[dict[str, Any]]:
         """Detect conflicting amendment chains (e.g., two chains for same period)."""
-        chains: dict[str, dict[str, list[str]]] = {}
+        chains: dict[str, dict[str, Any]] = {}
         for node in self._nodes.values():
             if node.symbol != symbol:
                 continue

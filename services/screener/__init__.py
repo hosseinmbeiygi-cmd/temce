@@ -20,7 +20,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from core.database import AsyncSession
 
 
 class ScreenerType(str, Enum):  # noqa: UP042

@@ -409,9 +409,7 @@ class MLSignalConnector:
         """
         from contextlib import aclosing
 
-        from sqlalchemy import text
-
-        from core.database import get_session
+        from core.database import get_session, text
 
         row = None
         try:

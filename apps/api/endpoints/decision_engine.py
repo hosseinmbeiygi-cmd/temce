@@ -338,7 +338,7 @@ async def get_overview(
     database = await _get_data("database", "database.json", session)
     api_data = await _get_data("api", "api.json", session)
 
-    overview = {
+    overview: dict[str, Any] = {
         "system": arch.get("system") if arch else {},
         "layers": arch.get("layers") if arch else [],
         "features": features,

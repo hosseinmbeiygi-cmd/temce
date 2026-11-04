@@ -128,7 +128,7 @@ async def get_bourse(service: MarketService = Depends(get_market_service)) -> Ap
             data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),
             error={"message": result.error or "داده در دسترس نیست"},
         )
-    items = result.value
+    items = result.value or []
     items.sort(key=lambda x: x.symbol or "")
     return ApiResponse[PaginatedResult[Any]](
         success=True,
@@ -493,7 +493,7 @@ async def market_flow_history(
             await brsapi.session.execute(select(func.max(HistoricalRealLegalModel.date)))
         ).scalar_one_or_none()
         if not latest_date:
-            return ApiResponse[dict[str, Any] | list[dict[str, Any]]](success=True, data=[])  # type: ignore[arg-type]
+            return ApiResponse[list[dict[str, Any]]](success=True, data=[])
 
         stmt = (
             select(HistoricalRealLegalModel)
@@ -792,7 +792,7 @@ async def market_asset_allocation(
         total = sum(buckets.values())
         if total <= 0:
             return ApiResponse[list[dict[str, Any]]](success=True, data=[], data_as_of=as_of, cache_hit=False)
-        rows = [
+        rows: list[dict[str, Any]] = [
             {
                 "label": label,
                 "value_b": round(net / 1e12, 0),  # هزار میلیارد تومان
@@ -837,7 +837,7 @@ async def market_cashflow_by_sector(
                 continue
             sector = (s.get("sector") or "").strip() or "سایر"
             sectors[sector] = sectors.get(sector, 0.0) + (brv - srv) * price
-        rows = [
+        rows: list[dict[str, Any]] = [
             {"name": name, "value_b": round(net / 1e9, 1)}
             for name, net in sectors.items()
         ]

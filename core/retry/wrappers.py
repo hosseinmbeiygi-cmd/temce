@@ -38,6 +38,7 @@ def retryable(policy: RetryPolicy | None = None) -> Callable[[F], F]:
                                 delay,
                             )
                             await asyncio.sleep(delay)
+                assert last_exc is not None
                 raise last_exc
 
             return async_wrapper  # type: ignore[return-value]
@@ -63,7 +64,8 @@ def retryable(policy: RetryPolicy | None = None) -> Callable[[F], F]:
                             delay,
                         )
                         time.sleep(delay)
-            raise last_exc
+                assert last_exc is not None
+                raise last_exc
 
         return sync_wrapper  # type: ignore[return-value]
 

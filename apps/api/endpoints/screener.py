@@ -110,7 +110,7 @@ async def screener(
     market: str | None = Query(None, description="Market filter (e.g. BOURS, FARA)"),
     page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: int | None = Query(None, ge=1, le=200, description="Page size"),
-    request: Request = None,
+    request: Request = None,  # type: ignore[assignment]
     session: AsyncSession = Depends(get_replica_session),
 ) -> ApiResponse[dict[str, Any]]:
     """Run the 5-phase Smart Money screener over real market data."""
@@ -196,7 +196,7 @@ async def screener(
 )
 async def screener_filter(
     body: ScreenerFilterRequest,
-    request: Request = None,
+    request: Request = None,  # type: ignore[assignment]
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiResponse[ScreenerFilterResponse]:
     """Run the screener pipeline and apply user-defined filters on real data."""

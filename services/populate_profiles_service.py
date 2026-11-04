@@ -12,9 +12,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from models.screener import ScreenerProfile
 
@@ -126,7 +124,7 @@ class PopulateProfilesService:
         Returns:
             "created" | "updated"
         """
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from core.database import pg_insert
 
         # ═══════════════════════════════════════════════════════
         # 1. BrsApi symbol_snapshots (latest snapshot)

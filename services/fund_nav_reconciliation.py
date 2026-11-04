@@ -19,9 +19,7 @@ import json
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import now_tehran
 from services.fund_nav_engine import DEFAULT_NAV_TYPE, NAV_TYPES, FundNavEngine

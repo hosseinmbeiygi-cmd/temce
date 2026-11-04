@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,8 @@ from core.time import utc_now_naive
 from .signal_engine import fetch_closes
 
 logger = logging.getLogger(__name__)
+
+FloatArray = np.ndarray[Any, Any]
 
 
 @dataclass(frozen=True)
@@ -51,7 +54,7 @@ class ForecastResult:
     model_weights: dict[str, float]
 
 
-def _linear_regression(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
+def _linear_regression(x: FloatArray, y: FloatArray) -> tuple[float, float, float]:
     """برگرداندن slope, intercept, R2 برای y ~ x."""
     n = len(x)
     if n < 3:

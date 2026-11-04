@@ -21,9 +21,8 @@ from datetime import date
 from typing import Any
 
 import jdatetime
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import utc_now_naive
 
@@ -280,14 +279,13 @@ class FundApiAdapter:
         خروجی: لیست مدل داخلی:
           {fund_id, symbol, name, isin, ins_id, market, sector, fund_type_hint}
         """
-        from sqlalchemy import select
-
         from brsapi.config import BrsApiEndpoints
         from brsapi.models.tsetmc import SymbolSnapshotModel
         from brsapi.services.sync_service import (
             _normalize_persian,
             fund_sector_sql_condition,
         )
+        from core.database import select
 
         universe: dict[str, dict[str, Any]] = {}
         session = None

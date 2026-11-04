@@ -83,6 +83,9 @@ REPORT31_TABLES = {
 # ── parsers ──────────────────────────────────────────────────────────────
 
 
+
+pytestmark = pytest.mark.needs_db
+
 def _revisions() -> dict[str, dict]:
     revs: dict[str, dict] = {}
     for path in sorted(VERSIONS.glob("*.py")):

@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from domain.news.news_item import NewsItem
@@ -187,7 +186,7 @@ class NewsIngestionService:
         Returns:
             Dict with stats: fetched, duplicates, filtered, saved, articles list.
         """
-        stats = {
+        stats: dict[str, Any] = {
             "started_at": datetime.now(UTC).isoformat(),
             "fetched": 0,
             "duplicates_removed": 0,

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from sqlalchemy import select
+from core.database import select
 
 RETRAIN_MODE = os.getenv("RETRAIN_MODE","manual")  # manual|automatic (central, no redeploy)
 SHADOW_MODE = os.getenv("SHADOW_MODE","false").lower()=="true"

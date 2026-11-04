@@ -35,6 +35,18 @@ class FakeSession:
     async def get(self, _model, _pk):
         return self.holding
 
+    async def execute(self, _stmt):
+        holding = self.holding
+
+        class _Result:
+            def scalar_one_or_none(self):
+                return holding
+
+        return _Result()
+
+    async def flush(self, _objects: object = None) -> None:
+        return None
+
     def add(self, obj) -> None:
         self.added.append(obj)
 

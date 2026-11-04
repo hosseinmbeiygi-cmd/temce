@@ -109,6 +109,9 @@ MOCK_SYMBOL_SNAPSHOT = {
 # ═══════════════════════════════════════════════════════════════
 
 
+
+pytestmark = pytest.mark.needs_db
+
 class MockBrsApiResponse:
     """Simulates a BrsApiResponse from BrsApiClient.fetch()."""
 

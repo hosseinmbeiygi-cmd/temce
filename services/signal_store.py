@@ -6,9 +6,8 @@ import os
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
-
 from config.timeframes import eval_due_at
+from core.database import select
 
 SCHEMA_VERSION = 1
 

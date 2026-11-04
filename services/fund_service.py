@@ -127,6 +127,8 @@ class FundService:
         if not existing.success:
             return Result.fail(existing.error or f"Fund {fund_id} not found")
         fund = existing.value
+        if fund is None:
+            return Result.fail(f"Fund {fund_id} not found")
         for key, value in kwargs.items():
             if hasattr(fund, key):
                 setattr(fund, key, value)
@@ -226,6 +228,8 @@ class FundService:
 
         if existing.success:
             fund = existing.value
+            if fund is None:
+                return {"symbol": symbol, "error": "صندوق یافت نشد"}
             # Update fields
             fund.nav = nav
             fund.total_units = shares_count

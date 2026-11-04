@@ -46,6 +46,8 @@ class ChainQuote:
 class ChainLookup:
     """Interface the templates rely on; adapt any chain snapshot to this."""
 
+    spot: float
+
     def quotes(self) -> Sequence[ChainQuote]:
         raise NotImplementedError
 
@@ -215,7 +217,12 @@ class StrategyTemplateLibrary:
         return self.chain.nearest_expiry(dte_target)
 
     def _leg(self, option_type: str, action: str, strike: float | None, expiry: str, quantity: float = 1.0) -> TemplateLeg:
-        premium = self.chain.premium_of(strike, option_type, expiry) if option_type != "stock" else strike or 0.0
+        if option_type == "stock":
+            premium = strike or 0.0
+        else:
+            if strike is None:
+                raise ValueError("non-stock leg requires a strike")
+            premium = self.chain.premium_of(strike, option_type, expiry)
         return TemplateLeg(option_type, action, strike, premium, quantity, expiry)
 
     def _payoff(self, legs: Iterable[TemplateLeg]) -> list[OptionLeg]:

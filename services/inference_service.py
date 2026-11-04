@@ -178,10 +178,9 @@ class InferenceService:
         """Real prediction: load model + build features + infer + return result."""
         # 1. Fetch recent data
         df_result = await self._fetch_latest_quotes(symbol)
-        if not df_result.success or df_result.value.empty:
-            return Result.fail(f"No data for {symbol}")
-
         df = df_result.value
+        if not df_result.success or df is None or df.empty:
+            return Result.fail(f"No data for {symbol}")
         if len(df) < 30:
             return Result.fail(f"Not enough data for {symbol}: {len(df)} rows")
 
@@ -287,8 +286,7 @@ class InferenceService:
         from ml.artifacts import load_artifact_file
 
         try:
-            from sqlalchemy import select
-
+            from core.database import select
             from models.ml import MlModelVersionModel
 
             session = getattr(self.model_repo, "_session", None)
@@ -380,8 +378,7 @@ class InferenceService:
             if self.model_repo is not None:
                 session = getattr(self.model_repo, "_session", None)
                 if session is not None:
-                    from sqlalchemy import select
-
+                    from core.database import select
                     from models.ml import MlModelModel, MlModelVersionModel
 
                     models = (await session.execute(select(MlModelModel))).scalars().all()
@@ -429,7 +426,7 @@ class InferenceService:
 
         ts = get_training_service()
         runs_result = await ts.list_runs()
-        if runs_result.success:
+        if runs_result.success and runs_result.value is not None:
             for run in runs_result.value:
                 if run.get("status") == "completed" and run.get("metrics"):
                     # Support both 'symbol' (real) and 'symbols' (demo) keys

@@ -225,9 +225,9 @@ class GeneticOptimizer:
             tasks = [self._evaluate(cls, ind, data, capital, simulator) for ind in population]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            gen_results = []
+            gen_results: list[dict[str, Any]] = []
             for r in results:
-                if isinstance(r, Exception) or r is None:
+                if isinstance(r, BaseException) or r is None:
                     continue
                 metrics, params = r
                 score = compute_score(metrics)
@@ -353,7 +353,9 @@ class WalkForwardValidator:
         for train_data, test_data in pairs:
             # In-Sample (training)
             try:
-                clean_params = {k: int(v) if isinstance(v, float) and v == int(v) else v for k, v in params.items()}
+                clean_params: dict[str, Any] = {
+                    k: int(v) if isinstance(v, float) and v == int(v) else v for k, v in params.items()
+                }
                 strategy = cls(**clean_params)
                 is_result = simulator.run(strategy, initial_capital=capital, data=train_data)
                 if is_result.success:
@@ -512,7 +514,7 @@ class CascadeEngine:
                              for name, params in batch]
                     results = await asyncio.gather(*tasks, return_exceptions=True)
                     for r in results:
-                        if isinstance(r, Exception) or r is None:
+                        if isinstance(r, BaseException) or r is None:
                             continue
                         metrics, strategy_name, params = r
                         passed, _ = apply_quality_filter(metrics, filters)
@@ -629,7 +631,7 @@ class CascadeEngine:
             cls = registry.get(strategy_name)
             if cls is None:
                 return None
-            clean_params = {}
+            clean_params: dict[str, Any] = {}
             for k, v in params.items():
                 if isinstance(v, float) and v == int(v):
                     clean_params[k] = int(v)

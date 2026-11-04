@@ -16,9 +16,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from models.screener import ScreenerSignal, ScreenerSnapshot
 
@@ -535,7 +533,7 @@ class BulkWriter:
         """Upsert snapshot rows (ON CONFLICT DO NOTHING)."""
         if not rows:
             return
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from core.database import pg_insert
 
         for i in range(0, len(rows), CHUNK_SIZE):
             chunk = rows[i:i + CHUNK_SIZE]
@@ -587,7 +585,7 @@ class BulkWriter:
                 "decision": r["decision"],
             })
 
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from core.database import pg_insert
 
         for i in range(0, len(rows), CHUNK_SIZE):
             chunk = rows[i:i + CHUNK_SIZE]
@@ -724,7 +722,7 @@ class Screener110Service:
 
     async def run_symbol(self, symbol: str) -> dict[str, Any] | None:
         """Run model for a single symbol (useful for API / debug)."""
-        from sqlalchemy import text
+        from core.database import text
 
         # Symbol data
         q = text("""

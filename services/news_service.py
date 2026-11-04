@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result

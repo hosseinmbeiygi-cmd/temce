@@ -13,6 +13,7 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass
+from typing import Any
 
 from .constants import (
     LIVE_AED_SPIKE_PCT,
@@ -33,7 +34,7 @@ REDIS_KEY_RECENT_SIGNALS = "golddesk:signals:recent"
 SIGNAL_COOLDOWN_SEC = LIVE_SIGNAL_COOLDOWN_SEC
 
 
-def _unwrap_prev_snapshot(payload, now: float | None = None) -> dict | None:
+def _unwrap_prev_snapshot(payload: Any, now: float | None = None) -> dict[str, Any] | None:
     """snapshot قبلی را از پیلود Redis بیرون می‌کشد و پیلود **کهنه** را رد می‌کند.
 
     پیلود جدید شکل ``{"ts": <epoch>, "snapshot": {...}}`` دارد تا بتوان سن آن را
@@ -70,7 +71,7 @@ class Signal:
     change_pct: float | None = None
     ts: float = 0.0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "ts": self.ts or time.time()}
 
 
@@ -84,7 +85,7 @@ def detect_spike(prev: float, curr: float, threshold: float = 1.0) -> str | None
     return None
 
 
-def detect_signals(prev_snap: dict | None, curr_snap: dict) -> list[Signal]:
+def detect_signals(prev_snap: dict[str, Any] | None, curr_snap: dict[str, Any]) -> list[Signal]:
     """مقایسه snapshot قبل و فعلی، ساخت لیست signal."""
     signals: list[Signal] = []
     now = time.time()
@@ -185,7 +186,7 @@ def detect_signals(prev_snap: dict | None, curr_snap: dict) -> list[Signal]:
     return signals
 
 
-async def detect_and_broadcast(curr_snap: dict) -> list[Signal]:
+async def detect_and_broadcast(curr_snap: dict[str, Any]) -> list[Signal]:
     """مقایسه با snapshot قبلی، broadcast signals، ذخیره prev."""
     try:
         from core.cache import get_cache
@@ -207,7 +208,7 @@ async def detect_and_broadcast(curr_snap: dict) -> list[Signal]:
 
         # Cooldown: signal تکراری در ۱۰ دقیقه skip
         recent_raw = await cache.get(REDIS_KEY_RECENT_SIGNALS) or []
-        recent: list[dict] = json.loads(recent_raw) if isinstance(recent_raw, str) else recent_raw
+        recent: list[dict[str, Any]] = json.loads(recent_raw) if isinstance(recent_raw, str) else recent_raw
         now = time.time()
         recent = [s for s in recent if now - s.get("ts", 0) < SIGNAL_COOLDOWN_SEC]
 

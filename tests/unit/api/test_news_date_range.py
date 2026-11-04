@@ -315,6 +315,7 @@ class TestPublishedRangeClauses:
         _ = func  # imported for readability symmetry
 
 
+@pytest.mark.needs_db
 class TestDbRepoDateFilter:
     """End-to-end against real Postgres (skipped offline), marked rows only."""
 

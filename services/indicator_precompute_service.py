@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from typing import cast
 
-from sqlalchemy import select, text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, pg_insert, select, text
 from core.logging import get_logger
 from core.time import utc_now_naive
 from models.stock_enterprise import StockIndicatorsSnapshotModel
@@ -144,7 +142,7 @@ class IndicatorPrecomputeService:
         if len(candles) < 30:  # حداقل داده برای اندیکاتورهای معنادار
             return 0
 
-        snapshot = compute_indicator_snapshot(candles)
+        snapshot = compute_indicator_snapshot(cast("list[dict[str, float]]", candles))
         if not snapshot.get("ok"):
             return 0
 

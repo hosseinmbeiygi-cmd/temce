@@ -198,9 +198,7 @@ class RiskAdjustedFilter:
     ) -> RiskMetrics | None:
         """Compute risk metrics from historical price data."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return None
@@ -305,9 +303,7 @@ class RiskAdjustedFilter:
             return 0.0
 
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return 0.0

@@ -68,4 +68,4 @@ def install_openapi_security(app: FastAPI) -> None:
             components.setdefault("securitySchemes", {})["bearerAuth"] = _BEARER_SCHEME
         return schema
 
-    app.openapi = custom_openapi
+    app.openapi = custom_openapi  # type: ignore[method-assign]

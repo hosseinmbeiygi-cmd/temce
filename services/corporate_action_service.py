@@ -40,9 +40,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -151,7 +149,7 @@ async def recompute_factors(session: AsyncSession, symbol_id: int) -> int:
     # (migration 0109). ``daily_history.trade_date`` is the *fetch* date, so
     # using it here compared real ex-dates against fetch dates and compounded
     # every factor against the wrong day.
-    close_rows = await session.execute(
+    close_result = await session.execute(
         text(
             """
             SELECT trade_date, price_close
@@ -160,7 +158,8 @@ async def recompute_factors(session: AsyncSession, symbol_id: int) -> int:
             """
         ),
         {"sid": symbol_id, "dates": ex_dates},
-    ).all()
+    )
+    close_rows = close_result.all()
     closes = {r[0]: float(r[1]) for r in close_rows if r[1] is not None}
 
     all_dates = (

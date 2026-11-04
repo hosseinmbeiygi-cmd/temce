@@ -55,9 +55,10 @@ def compute_layer2(
     if market_returns and len(market_returns) == len(rets):
         out["beta"] = beta_to_market(rets, market_returns)
         m_sd = safe_std(market_returns)
-        f_sd = out["std_dev"]
-        if m_sd and f_sd and m_sd > 0:
-            out["info_ratio"] = (safe_mean(rets) - safe_mean(market_returns)) / m_sd if m_sd > 0 else None
+        f_mean = safe_mean(rets)
+        m_mean = safe_mean(market_returns)
+        if m_sd and m_sd > 0 and f_mean is not None and m_mean is not None:
+            out["info_ratio"] = (f_mean - m_mean) / m_sd
 
         up_f, up_m, dn_f, dn_m = [], [], [], []
         for f, m in zip(rets, market_returns, strict=False):
@@ -68,8 +69,14 @@ def compute_layer2(
                 dn_f.append(f)
                 dn_m.append(m)
         if up_m:
-            out["upside_capture"] = safe_mean(up_f) / safe_mean(up_m) if safe_mean(up_m) else None
+            up_f_mean = safe_mean(up_f)
+            up_m_mean = safe_mean(up_m)
+            if up_f_mean is not None and up_m_mean:
+                out["upside_capture"] = up_f_mean / up_m_mean
         if dn_m:
-            out["downside_capture"] = safe_mean(dn_f) / safe_mean(dn_m) if safe_mean(dn_m) else None
+            dn_f_mean = safe_mean(dn_f)
+            dn_m_mean = safe_mean(dn_m)
+            if dn_f_mean is not None and dn_m_mean:
+                out["downside_capture"] = dn_f_mean / dn_m_mean
 
     return out

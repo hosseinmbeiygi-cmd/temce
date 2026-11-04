@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date as date_type
+from datetime import datetime
 from typing import Any
 
 from scipy.interpolate import CubicSpline
@@ -12,7 +13,7 @@ from domain.common.base_entity import BaseEntity
 @dataclass
 class VolatilitySurface(BaseEntity):
     underlying_id: str
-    date: date | None = None
+    date: date_type | None = None
     surface_data: dict[str, dict[str, float]] = field(default_factory=dict)
     model: str = "svi"
     extra: dict[str, Any] = field(default_factory=dict)
@@ -21,7 +22,7 @@ class VolatilitySurface(BaseEntity):
         self,
         id: str,
         underlying_id: str,
-        date: date | None = None,
+        date: date_type | None = None,
         surface_data: dict[str, dict[str, float]] | None = None,
         model: str = "svi",
         extra: dict[str, Any] | None = None,

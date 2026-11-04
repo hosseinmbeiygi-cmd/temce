@@ -139,7 +139,7 @@ async def get_anomalies(
                 symbols_with_data += 1
 
                 closes = [float(row[0]) for row in rows]
-                volumes = [int(row[1] or 0) for row in rows]
+                volumes = [float(row[1] or 0) for row in rows]
                 dates = [safe_row_str(row, idx=2) for row in rows]
 
                 anomalies = _detect_anomalies(

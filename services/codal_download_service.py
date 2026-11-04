@@ -26,9 +26,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.database import AsyncSession, text
 from core.db_utils import safe_row_str
 from core.fix_network import fix_network
 from core.ids import new_id

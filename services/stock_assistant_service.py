@@ -138,9 +138,9 @@ class TechnicalIndicators:
     def vwap(highs: list[float], lows: list[float], closes: list[float], volumes: list[float]) -> list[float]:
         if not closes:
             return []
-        vwap_values = []
-        cumulative_volume = 0
-        cumulative_tp_volume = 0
+        vwap_values: list[float] = []
+        cumulative_volume = 0.0
+        cumulative_tp_volume = 0.0
         for i in range(len(closes)):
             typical_price = (highs[i] + lows[i] + closes[i]) / 3
             cumulative_volume += volumes[i]
@@ -149,7 +149,7 @@ class TechnicalIndicators:
         return vwap_values
 
     @staticmethod
-    def ichimoku(highs: list[float], lows: list[float], closes: list[float]) -> dict[str, list[float]]:
+    def ichimoku(highs: list[float], lows: list[float], closes: list[float]) -> dict[str, list[float | None]]:
         def period_high(data: list[float], period: int, end: int) -> float:
             start = max(0, end - period + 1)
             return max(data[start:end + 1])
@@ -158,26 +158,29 @@ class TechnicalIndicators:
             start = max(0, end - period + 1)
             return min(data[start:end + 1])
 
-        tenkan = []
-        kijun = []
+        tenkan: list[float] = []
+        kijun: list[float] = []
         for i in range(len(closes)):
             tenkan.append((period_high(highs, 9, i) + period_low(lows, 9, i)) / 2)
             kijun.append((period_high(highs, 26, i) + period_low(lows, 26, i)) / 2)
 
         senkou_a = [(tenkan[i] + kijun[i]) / 2 for i in range(len(closes))]
-        senkou_b = []
+        senkou_b: list[float] = []
         for i in range(len(closes)):
             senkou_b.append((period_high(highs, 52, i) + period_low(lows, 52, i)) / 2)
 
-        chikou = closes[26:] + [None] * 26 if len(closes) >= 26 else [None] * len(closes)
+        chikou: list[float | None] = list(closes[26:]) + [None] * 26 if len(closes) >= 26 else [None] * len(closes)
 
-        return {
-            "tenkan": tenkan,
-            "kijun": kijun,
-            "senkou_a": senkou_a,
-            "senkou_b": senkou_b,
+        # ``chikou`` is the only series padded with ``None``; the dict value type
+        # is widened to ``float | None`` for all five series.
+        result: dict[str, list[float | None]] = {
+            "tenkan": list(tenkan),
+            "kijun": list(kijun),
+            "senkou_a": list(senkou_a),
+            "senkou_b": list(senkou_b),
             "chikou": chikou[:len(closes)],
         }
+        return result
 
     @staticmethod
     def fibonacci_retracement(high: float, low: float) -> dict[str, float]:
@@ -201,8 +204,8 @@ class TechnicalIndicators:
 
         mfi_values = []
         for i in range(period, len(closes)):
-            positive_flow = 0
-            negative_flow = 0
+            positive_flow: float = 0.0
+            negative_flow: float = 0.0
             for j in range(i - period + 1, i + 1):
                 if typical_prices[j] > typical_prices[j - 1]:
                     positive_flow += raw_money_flow[j]
@@ -843,8 +846,8 @@ class MultiTimeframeAnalysis:
     def resample_to_monthly(daily_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not daily_data:
             return []
-        monthly = []
-        month_data = []
+        monthly: list[dict[str, Any]] = []
+        month_data: list[dict[str, Any]] = []
         current_month = ""
         for day in daily_data:
             date = day.get("date", "")
@@ -928,11 +931,11 @@ class VolumeProfile:
             return {"poc": min_price, "value_area_high": max_price, "value_area_low": min_price, "levels": []}
 
         step = (max_price - min_price) / num_levels
-        levels = []
+        levels: list[dict[str, Any]] = []
         for i in range(num_levels):
             level_low = min_price + i * step
             level_high = level_low + step
-            level_volume = 0
+            level_volume = 0.0
             for j in range(len(closes)):
                 if level_low <= closes[j] < level_high:
                     level_volume += volumes[j]
@@ -948,7 +951,7 @@ class VolumeProfile:
         total_volume = sum(level["volume"] for level in levels)
         target_volume = total_volume * 0.7
         sorted_levels = sorted(levels, key=lambda x: x["volume"], reverse=True)
-        cumulative = 0
+        cumulative: float = 0.0
         value_area_levels = []
         for level in sorted_levels:
             cumulative += level["volume"]

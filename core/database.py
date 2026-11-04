@@ -5,8 +5,58 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# ── Sanctioned SQL surface for the service layer ────────────────────────────
+# import-linter contract: services may not import sqlalchemy directly; the
+# allowed doors are ``repositories`` and this module. ``X as X`` marks each
+# name as a deliberate re-export for both mypy and ruff.
+from sqlalchemy import (
+    DateTime as DateTime,
+)
+from sqlalchemy import (
+    Integer as Integer,
+)
+from sqlalchemy import (
+    Select as Select,
+)
+from sqlalchemy import (
+    String as String,
+)
+from sqlalchemy import (
+    Table as Table,
+)
+from sqlalchemy import (
+    Text as Text,
+)
+from sqlalchemy import (
+    and_ as and_,
+)
+from sqlalchemy import (
+    bindparam as bindparam,
+)
+from sqlalchemy import (
+    desc as desc,
+)
+from sqlalchemy import (
+    func as func,
+)
+from sqlalchemy import (
+    or_ as or_,
+)
+from sqlalchemy import (
+    select as select,
+)
+from sqlalchemy import (
+    text as text,
+)
+from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: F401 — re-export
+from sqlalchemy.engine import CursorResult as CursorResult
+from sqlalchemy.exc import SQLAlchemyError as SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncEngine as AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncSession as AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker as async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine as create_async_engine
+from sqlalchemy.orm import Mapped as Mapped
+from sqlalchemy.orm import mapped_column as mapped_column
 
 from core.config import settings
 from core.logging import get_logger
@@ -246,6 +296,7 @@ async def close_database() -> None:
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     if async_session_factory is None:
         await init_database()
+    assert async_session_factory is not None
     async with async_session_factory() as session:
         try:
             yield session

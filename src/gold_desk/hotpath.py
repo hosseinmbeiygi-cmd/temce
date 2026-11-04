@@ -13,6 +13,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from .constants import (
     BUBBLE_ANOMALY_FLOOR_PCT,
@@ -66,7 +67,7 @@ def compute_quick_signal(bubble_pct: float | None) -> QuickSignal:
     return QuickSignal("sell", 0.9, bubble_pct, f"حباب {bubble_pct:.1f}٪ — اشباع خرید")
 
 
-async def get_hot_snapshot() -> dict | None:
+async def get_hot_snapshot() -> dict[str, Any] | None:
     """snapshot سریع از Redis cache.
 
     Returns None اگه cache خالیه.
@@ -78,13 +79,14 @@ async def get_hot_snapshot() -> dict | None:
         raw = await cache.get(REDIS_KEY_SNAPSHOT)
         if not raw:
             return None
-        return json.loads(raw) if isinstance(raw, str) else raw
+        parsed: dict[str, Any] = json.loads(raw) if isinstance(raw, str) else raw
+        return parsed
     except Exception as exc:
         logger.debug("hot snapshot fetch failed: %s", exc)
         return None
 
 
-def build_hotpath_response(snap: dict | None) -> dict:
+def build_hotpath_response(snap: dict[str, Any] | None) -> dict[str, Any]:
     """ساخت response کم‌حجم برای polling سریع.
 
     فقط: refs + score + سیگنال coin_emami + ۳ صندوق برتر.

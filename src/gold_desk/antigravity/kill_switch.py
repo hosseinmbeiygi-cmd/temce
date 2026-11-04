@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 # ── منابع خبری ────────────────────────────────────────────────────
 NEWS_SOURCES: list[str] = [
@@ -133,7 +133,7 @@ def evaluate_kill_switch(
 
 
 # ── سازگاری با hard_stops موجود ──────────────────────────────────
-def map_to_hard_stop(kill_status: KillSwitchStatus) -> dict:
+def map_to_hard_stop(kill_status: KillSwitchStatus) -> dict[str, Any]:
     """نگاشت به فرمت hard_stops فعلی برای scorer."""
     return {
         "active": kill_status.status == "ACTIVE",

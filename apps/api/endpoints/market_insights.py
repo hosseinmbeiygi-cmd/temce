@@ -284,7 +284,7 @@ async def get_real_return(
                 "period_days": result.period_days,
             },
         )
-    return ApiResponse(success=False, error="داده کافی موجود نیست")
+    return ApiResponse(success=False, error={"message": "داده کافی موجود نیست"})
 
 
 @router.get("/real-return", summary="بازده واقعی بازار")
@@ -332,7 +332,7 @@ async def get_historical_levels(
                 ],
             },
         )
-    return ApiResponse(success=False, error="داده کافی موجود نیست")
+    return ApiResponse(success=False, error={"message": "داده کافی موجود نیست"})
 
 
 # ── Gap Prediction ──────────────────────────────────────────────────────

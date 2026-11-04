@@ -61,7 +61,7 @@ class LiveRiskMonitorService:
 
             async for session in get_session():
                 repo = PortfolioRepository(session)
-                from sqlalchemy import select
+                from core.database import select
 
                 if portfolio_id:
                     stmt = select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
@@ -200,7 +200,7 @@ class LiveRiskMonitorService:
     async def _send_alerts(self, triggered: list[RiskCheckResult]) -> None:
         """Send notifications for all triggered risk rules via Telegram."""
         try:
-            from integrations.notifications import NotificationTemplates, TelegramSender
+            from integrations.notifications import TelegramSender
             sender = TelegramSender()
 
             for result in triggered:
@@ -208,27 +208,29 @@ class LiveRiskMonitorService:
                 d = result.details
 
                 if rule == "stop_loss":
-                    msg = NotificationTemplates.stop_loss_alert(
-                        symbol=d.get("symbol", "?"),
-                        current_price=d.get("current_price", 0),
-                        stop_price=d.get("avg_cost", 0) * (1 - self._thresholds.stop_loss_pct / 100),
-                        loss_pct=d.get("loss_pct", 0),
+                    stop_price = float(d.get("avg_cost", 0) or 0) * (
+                        1 - self._thresholds.stop_loss_pct / 100
+                    )
+                    msg = (
+                        f"⚠️ حد ضرر {d.get('symbol', '?')}: قیمت فعلی "
+                        f"{d.get('current_price', 0)} زیر {stop_price:.0f} "
+                        f"(زیان {d.get('loss_pct', 0)}%)"
                     )
                 elif rule == "drawdown":
-                    msg = NotificationTemplates.drawdown_warning(
-                        current_drawdown=d.get("drawdown_pct", 0),
-                        max_drawdown=self._thresholds.max_drawdown_pct,
+                    msg = (
+                        f"⚠️ افت سرمایه: {d.get('drawdown_pct', 0)}% "
+                        f"(حد {self._thresholds.max_drawdown_pct}%)"
                     )
                 elif rule == "concentration":
-                    msg = NotificationTemplates.position_concentration_warning(
-                        symbol=d.get("symbol", "?"),
-                        weight_pct=d.get("weight_pct", 0),
-                        max_pct=self._thresholds.max_position_concentration_pct,
+                    msg = (
+                        f"⚠️ تمرکز موقعیت {d.get('symbol', '?')}: "
+                        f"{d.get('weight_pct', 0)}% "
+                        f"(حد {self._thresholds.max_position_concentration_pct}%)"
                     )
                 elif rule == "daily_loss":
-                    msg = NotificationTemplates.daily_loss_warning(
-                        daily_pnl=d.get("total_unrealized_pnl", 0),
-                        loss_limit=self._thresholds.daily_loss_limit_pct,
+                    msg = (
+                        f"⚠️ زیان روزانه: {d.get('total_unrealized_pnl', 0)} "
+                        f"(حد {self._thresholds.daily_loss_limit_pct}%)"
                     )
                 else:
                     msg = f"Risk alert: {rule} — {d}"

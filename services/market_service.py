@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.database import AsyncSession
 from core.logging import get_logger
 from core.result import Result
 from domain.market_data.quote import Quote
@@ -473,7 +473,7 @@ class MarketService:
             macd_line, signal_line, histogram = MarketService._macd(closes, fast, slow, signal_p)
             # Validate that fast < slow for valid MACD calculation
             if fast >= slow:
-                return Result.fail("MACD parameter error: fast must be less than slow")
+                raise ValueError("MACD parameter error: fast must be less than slow")
             return {"macd": macd_line, "signal": signal_line, "histogram": histogram}
         if indicator == "bollinger":
             stddev = float(params.get("stddev", 2))
@@ -542,7 +542,7 @@ class MarketService:
             losses.append(-delta if delta < 0 else 0)
         avg_gain = sum(gains[:period]) / period
         avg_loss = sum(losses[:period]) / period
-        rsi_vals = [100 - (100 / (1 + avg_gain / avg_loss))] if avg_loss != 0 else [100]
+        rsi_vals: list[float] = [100 - (100 / (1 + avg_gain / avg_loss))] if avg_loss != 0 else [100.0]
         for i in range(period, len(gains)):
             avg_gain = (avg_gain * (period - 1) + gains[i]) / period
             avg_loss = (avg_loss * (period - 1) + losses[i]) / period
@@ -584,7 +584,7 @@ class MarketService:
         # Rolling variance: Var(X) = E[X²] − E[X]²
         arr_sq = arr * arr
         mean_sq = np.convolve(arr_sq, kernel, mode="valid")
-        variance = mean_sq - middle * middle
+        variance: Any = mean_sq - middle * middle
         # Clip tiny negative values from floating-point error
         np.maximum(variance, 0.0, out=variance)
         stdev_arr = np.sqrt(variance)
@@ -814,9 +814,8 @@ class MarketService:
         if not symbols:
             return Result.ok({})
         try:
-            from sqlalchemy import text as sa_text
-
             from core.database import get_session
+            from core.database import text as sa_text
 
             result_map: dict[str, list[float]] = {}
             # Window function: transfer exactly `limit` rows per symbol instead
@@ -824,7 +823,7 @@ class MarketService:
             # discard all but the first 30 in Python).
             async for session in get_session():
                 placeholders = ", ".join([f":sym{i}" for i in range(len(symbols))])
-                params = {f"sym{i}": sym for i, sym in enumerate(symbols)}
+                params: dict[str, Any] = {f"sym{i}": sym for i, sym in enumerate(symbols)}
                 params["lim"] = limit
                 sql = sa_text(f"""
                     SELECT symbol, price_close
@@ -870,11 +869,12 @@ class MarketService:
         quotes_result = await self.quote_repo.get_latest_snapshot(limit)
 
         if not quotes_result.success:
-            return quotes_result
+            return Result.fail(quotes_result.error or "quotes unavailable")
+        quotes = quotes_result.unwrap()
 
         # Batch-resolve market types in ONE query instead of one query per
         # quote (~600 round-trips per request on the market-watch page).
-        symbols = [q.symbol for q in quotes_result.value if q.symbol]
+        symbols = [q.symbol for q in quotes if q.symbol]
         market_by_symbol: dict[str, str] = {}
         batch_result = await self.instrument_repo.get_market_types_by_symbols(symbols)
         if batch_result.success and batch_result.value:
@@ -882,7 +882,7 @@ class MarketService:
 
         enriched_quotes: list[dict[str, Any]] = []
 
-        for quote in quotes_result.value:
+        for quote in quotes:
             market = market_by_symbol.get(quote.symbol or "", "Unknown")
 
             quote_dict = vars(quote).copy()

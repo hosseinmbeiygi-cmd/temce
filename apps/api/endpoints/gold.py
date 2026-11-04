@@ -64,9 +64,9 @@ router = APIRouter()
 async def get_live_prices(
     refresh: bool = Query(False, description="اجبار به بازخوانی از BrsApi"),
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldLivePrices]:
     data = await service.get_live_prices(force_refresh=refresh)
-    return ApiResponse[GoldLivePrices](success=True, data=data)
+    return ApiResponse[GoldLivePrices](success=True, data=GoldLivePrices(**data))
 
 
 @router.post(
@@ -77,9 +77,9 @@ async def get_live_prices(
 async def post_live_prices(
     body: GoldLivePricesRequest = Body(default_factory=GoldLivePricesRequest),
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldLivePrices]:
     data = await service.get_live_prices(force_refresh=body.refresh)
-    return ApiResponse[GoldLivePrices](success=True, data=data)
+    return ApiResponse[GoldLivePrices](success=True, data=GoldLivePrices(**data))
 
 
 # ── 2. Coin Bubble ─────────────────────────────────────────────
@@ -90,7 +90,7 @@ async def post_live_prices(
     summary="محاسبه حباب/تخفیف سکه بهار آزادی",
     response_model=ApiResponse[CoinBubbleResponse],
 )
-async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any]]:
+async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[CoinBubbleResponse]:
     try:
         result = calculate_coin_bubble(
             coin_price_irr=body.coin_price_irr,
@@ -125,7 +125,7 @@ async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any
 )
 async def get_etf_nav_premium(
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[ETFNavPremiumResponse]:
     """NAV ذاتی از انس و دلار محاسبه می‌شود؛ پرمیوم فقط وقتی اعلام می‌شود که قیمت
     معاملاتی واقعی آن صندوق در دسترس باشد (وگرنه NO_DATA برمی‌گردد، نه عدد نمونه)."""
     from core.time import utc_now_iso
@@ -211,7 +211,7 @@ async def get_arbitrage(
     summary="محاسبه مارجین، لیکوئیدیشن و Health Ratio (آتی سکه IME)",
     response_model=ApiResponse[FuturesMarginResponse],
 )
-async def post_margin_calculator(body: FuturesMarginRequest) -> ApiResponse[dict[str, Any]]:
+async def post_margin_calculator(body: FuturesMarginRequest) -> ApiResponse[FuturesMarginResponse]:
     try:
         calc = FuturesRiskCalculator(leverage=body.leverage)
         result = calc.calculate(
@@ -314,7 +314,7 @@ async def close_futures_position(
 )
 async def get_futures_health(
     service: GoldFuturesPositionService = Depends(get_gold_position_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[FuturesHealthResponse]:
     rows = await service.list_open_positions()
     positions: list[FuturesPosition] = []
     total_used = 0.0
@@ -368,7 +368,7 @@ async def get_futures_health(
 )
 async def get_kill_switch(
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldKillSwitchStatus]:
     # TODO: oz_history / usd_history از TimescaleDB (در phase بعدی)
     live = await service.get_live_prices()
     eval_result = evaluate_kill_switch(
@@ -402,9 +402,13 @@ async def get_ime_futures(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         rows = await brsapi.get_ime_futures()
-    except Exception as exc:
+    except Exception:
         logger.exception("IME futures fetch failed")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
+        )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
 
 
@@ -417,7 +421,11 @@ async def get_ime_physical_trades(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         rows = await brsapi.get_ime_physical_trades()
-    except Exception as exc:
+    except Exception:
         logger.exception("IME physical trades fetch failed")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
+        )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)

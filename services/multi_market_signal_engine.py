@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import contextlib
 import re
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 from typing import Any
-
-from sqlalchemy import func, select
 
 from brsapi.models.commodity import (
     CommodityPriceModel,
@@ -24,6 +23,7 @@ from brsapi.models.commodity import (
 from brsapi.models.crypto import CryptoDailyHistoryModel, CryptoPriceModel
 from brsapi.models.ime import ImeFutureModel
 from brsapi.models.tsetmc import HistoricalDailyModel, OptionSnapshotModel, SymbolSnapshotModel
+from core.database import func, select
 from core.logging import get_logger
 from core.time import utc_now_naive
 from models.codal import CodalAuditSummaryModel
@@ -64,6 +64,10 @@ class MarketSignal:
     confidence: float = 0.0              # اطمینان (0-1)
     source: str = ""                     # منبع تولید سیگنال
     created_at: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Plain-dict view of the signal (all fields), used by the API layer."""
+        return asdict(self)
 
     def to_standard(self) -> dict[str, Any]:
         """Return the 7-field standard signal schema required by the platform spec.
@@ -554,12 +558,12 @@ class MultiMarketSignalEngine:
                         CodalAuditSummaryModel.current_ratio,
                         CodalAuditSummaryModel.forensic_risk,
                     ).where(CodalAuditSummaryModel.symbol.in_(syms))
-                    for row in (await session.execute(codal_stmt)).fetchall():
-                        codal_data[row[0]] = {
-                            "health": row[1] or 0, "roe": row[2],
-                            "gross_margin": row[3], "net_margin": row[4],
-                            "revenue_growth": row[5], "debt_to_equity": row[6],
-                            "current_ratio": row[7], "forensic_risk": row[8],
+                    for codal_row in (await session.execute(codal_stmt)).fetchall():
+                        codal_data[codal_row[0]] = {
+                            "health": codal_row[1] or 0, "roe": codal_row[2],
+                            "gross_margin": codal_row[3], "net_margin": codal_row[4],
+                            "revenue_growth": codal_row[5], "debt_to_equity": codal_row[6],
+                            "current_ratio": codal_row[7], "forensic_risk": codal_row[8],
                         }
                 except Exception as e:
                     logger.debug("Codal fundamentals unavailable, continuing without them: %s", e)
@@ -834,7 +838,7 @@ class MultiMarketSignalEngine:
                     )
                     .where(Gold24hModel.price_now > 0)
                 )
-                gold24 = (await session.execute(gold24_stmt)).fetchall()
+                gold24: Sequence[Any] = (await session.execute(gold24_stmt)).fetchall()
                 if not gold24:
                     # Fallback: generate 24h-style signals from gold coin prices
                     gold24 = [(row[0], row[1], row[2], row[4], None, None) for row in coins if row[2] and row[2] > 0]
@@ -1323,7 +1327,7 @@ class MultiMarketSignalEngine:
                     for c in calls + puts:
                         s = c[2] or 0
                         oi_by_strike[s] = oi_by_strike.get(s, 0) + (c[5] or 0)
-                    max_pain = max(oi_by_strike, key=oi_by_strike.get) if oi_by_strike else und_price
+                    max_pain = max(oi_by_strike, key=lambda strike: oi_by_strike[strike]) if oi_by_strike else und_price
 
                     # Signal logic
                     reasons = []

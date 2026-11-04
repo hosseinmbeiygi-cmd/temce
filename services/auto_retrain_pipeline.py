@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import text
-
+from core.database import text
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -126,9 +125,7 @@ class AutoRetrainPipeline:
 
         # 3. Fetch training data
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return Result.fail("No database available for retrain")

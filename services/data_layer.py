@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import time
 
-from sqlalchemy import DateTime, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
-
+from core.database import DateTime, Integer, Mapped, String, Text, mapped_column
 from core.logging import get_logger
 from models.base import Base, TimestampMixin
 

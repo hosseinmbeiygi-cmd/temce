@@ -18,6 +18,7 @@ import logging
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -101,7 +102,9 @@ def _to_gregorian(raw: object) -> date | None:
     try:
         import jdatetime
 
-        return jdatetime.date(year, month, day).togregorian()
+        # jdatetime بدون stub است؛ مقدار برگشتی در نوع ``date`` تعریف می‌شود.
+        converted: date = jdatetime.date(year, month, day).togregorian()
+        return converted
     except Exception:  # noqa: BLE001 — تاریخ نامعتبر بهتر از کرش است
         return None
 
@@ -180,7 +183,7 @@ def daily_net_flow_irt(holdings: Iterable[object], trades: Iterable[object], as_
 async def capture_portfolio_value(
     session: AsyncSession,
     *,
-    snapshot: dict | None = None,
+    snapshot: dict[str, Any] | None = None,
     prices: Mapping[str, float] | None = None,
     asof: date | None = None,
     user_id: str | None = None,
@@ -328,10 +331,10 @@ class PortfolioPerformance:
     concentration_pct: float | None
     max_drift_pct: float | None
     drift_by_class: dict[str, float] = field(default_factory=dict)
-    benchmarks: dict[str, dict] = field(default_factory=dict)
+    benchmarks: dict[str, dict[str, Any]] = field(default_factory=dict)
     unavailable: dict[str, str] = field(default_factory=dict)
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "window_days": self.window_days,
             "start": self.start.isoformat() if self.start else None,
@@ -369,7 +372,7 @@ async def build_performance_report(
     session: AsyncSession,
     *,
     days: int = PORTFOLIO_PERFORMANCE_WINDOW_DAYS,
-    snapshot: dict | None = None,
+    snapshot: dict[str, Any] | None = None,
     prices: Mapping[str, float] | None = None,
     include_benchmarks: bool = True,
     user_id: str | None = None,
@@ -427,11 +430,11 @@ async def build_performance_report(
         unavailable["max_drift_pct"] = "وزن کلاس‌ها محاسبه نشد (holding قیمت‌دار نیست)"
 
     # بنچمارک‌ها روی همان پنجره
-    benchmarks: dict[str, dict] = {}
+    benchmarks: dict[str, dict[str, Any]] = {}
     for key, cfg in (PORTFOLIO_BENCHMARKS.items() if include_benchmarks else ()):
         series = await load_benchmark_series(session, key, start=start, end=end)
         bench_return = benchmark_return_pct(series, start=start, end=end)
-        entry: dict = {
+        entry: dict[str, Any] = {
             "label": cfg.get("label", key),
             "points": len(series),
             "return_pct": bench_return,

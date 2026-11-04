@@ -6,12 +6,15 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+FloatArray = np.ndarray[Any, Any]
 
 
 def _newest_window_ascending(desc_closes: list[float], days: int) -> list[float]:
@@ -118,7 +121,9 @@ def calc_sma(closes: list[float], period: int = 20) -> float | None:
     return float(np.mean(closes[-period:]))
 
 
-def calc_bollinger(closes: list[float], period: int = 20, k: float = 2.0) -> dict | None:
+def calc_bollinger(
+    closes: list[float], period: int = 20, k: float = 2.0
+) -> dict[str, Any] | None:
     """Bollinger Bands: middle=SMA, upper/lower = SMA ± k*std."""
     if len(closes) < period:
         return None
@@ -128,13 +133,15 @@ def calc_bollinger(closes: list[float], period: int = 20, k: float = 2.0) -> dic
     return {"middle": sma, "upper": sma + k * std, "lower": sma - k * std, "width_pct": (2 * k * std / sma * 100) if sma else 0}
 
 
-def calc_macd(closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9) -> dict | None:
+def calc_macd(
+    closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9
+) -> dict[str, Any] | None:
     """MACD line = EMA12 - EMA26, signal = EMA9(MACD)."""
     if len(closes) < slow + signal:
         return None
     arr = np.array(closes, dtype=float)
 
-    def _ema(a: np.ndarray, p: int) -> np.ndarray:
+    def _ema(a: FloatArray, p: int) -> FloatArray:
         alpha = 2.0 / (p + 1)
         out = np.empty_like(a, dtype=float)
         out[0] = a[0]
@@ -165,7 +172,7 @@ def calc_ema_bubble(closes: list[float], period: int = 20) -> float | None:
     return float((closes[-1] - ema) / ema * 100.0)
 
 
-async def get_xau_indicators(session: AsyncSession, days: int = 40) -> dict:
+async def get_xau_indicators(session: AsyncSession, days: int = 40) -> dict[str, Any]:
     """همه اندیکاتورهای XAUUSD به‌صورت یکجا."""
     closes = await fetch_closes(session, "XAUUSD", days)
     if not closes:

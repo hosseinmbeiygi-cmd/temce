@@ -544,7 +544,7 @@ async def news_read_path_status() -> ApiResponse[dict[str, Any]]:
     parity window (served / compared / parity % / items share) and the
     halt state. Public read — no sensitive data.
     """
-    from services.news_read_canary import halt_status
+    from core.news_read_canary import halt_status
 
     return ApiResponse[dict[str, Any]](success=True, data=await halt_status())
 
@@ -560,7 +560,7 @@ async def news_read_path_set_mode(
     deploy; moving to a non-``off`` mode clears any auto-halt. Response
     includes the actor for the operations trail.
     """
-    from services.news_read_canary import MODES, set_runtime_mode
+    from core.news_read_canary import MODES, set_runtime_mode
 
     normalized = mode.strip().lower()
     if normalized not in MODES:
@@ -570,7 +570,7 @@ async def news_read_path_set_mode(
             error={"message": f"mode must be one of {', '.join(MODES)}"},
         )
     await set_runtime_mode(normalized)
-    from services.news_read_canary import halt_status
+    from core.news_read_canary import halt_status
 
     status = await halt_status()
     return ApiResponse[dict[str, Any]](

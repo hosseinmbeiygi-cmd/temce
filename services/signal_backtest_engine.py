@@ -290,7 +290,7 @@ class SignalBacktestEngine:
         silently selects the wrong window.
         """
         try:
-            from sqlalchemy import text
+            from core.database import text
 
             table_map = {
                 "stock": "brsapi_historical_daily",
@@ -379,8 +379,8 @@ class SignalBacktestEngine:
         if len(returns) > 1:
             mean_r = np.mean(returns)
             std_r = np.std(returns, ddof=1)
-            period_sharpe = mean_r / max(std_r, 0.001)
-            result.sharpe = period_sharpe * (252 ** 0.5)
+            period_sharpe = float(mean_r) / max(float(std_r), 0.001)
+            result.sharpe = float(period_sharpe * (252 ** 0.5))
         else:
             result.sharpe = 0.0
 

@@ -21,8 +21,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections import deque
-from typing import Any
+from typing import Any, cast
 
+from core.database import CursorResult
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -41,7 +42,7 @@ def _serialize_outcome(outcome: Any) -> str | None:
     import dataclasses
     import json
 
-    if not dataclasses.is_dataclass(outcome):
+    if not dataclasses.is_dataclass(outcome) or isinstance(outcome, type):
         return None
     with contextlib.suppress(TypeError, ValueError):
         return json.dumps(dataclasses.asdict(outcome), ensure_ascii=False, default=str)
@@ -247,9 +248,7 @@ class AccuracyOutcomeQueue:
         """Persist a batch of outcomes inside a single transaction."""
         from datetime import UTC, datetime
 
-        from sqlalchemy import text
-
-        from core.database import async_session_factory
+        from core.database import async_session_factory, text
         from core.ids import new_id
 
         if async_session_factory is None:
@@ -316,7 +315,7 @@ class AccuracyOutcomeQueue:
                         "outcome_set_at": now,
                     },
                 )
-                written += result.rowcount or 0
+                written += cast(CursorResult[Any], result).rowcount or 0
             await session.commit()
         return written
 

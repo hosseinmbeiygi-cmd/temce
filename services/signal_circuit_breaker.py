@@ -26,12 +26,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
 # Imported at module level so tests can patch the symbol; the cost of
 # always importing core.cache is negligible (it only builds a singleton).
 from core.cache import get_cache  # noqa: E402
+from core.database import AsyncEngine, create_async_engine, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -315,7 +313,10 @@ async def invalidate_cache() -> None:
     # a SCAN-and-delete loop with the common key prefix. SCAN is safe
     # on a live Redis; KEYS would be O(N) blocking.
     try:
-        async for key in cache.client.scan_iter(match=f"{CACHE_KEY_PREFIX}:*", count=100):
-            await cache.client.delete(key)
+        client = cache.client
+        if client is None:
+            return
+        async for key in client.scan_iter(match=f"{CACHE_KEY_PREFIX}:*", count=100):
+            await client.delete(key)
     except Exception:
         logger.debug("circuit-breaker cache invalidation failed", exc_info=True)

@@ -22,7 +22,7 @@ async def list_indicators(
             success=False,
             data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),
         )
-    items = [{"key": k} for k in result.value]
+    items = [{"key": k} for k in (result.value or [])]
     return ApiResponse[PaginatedResult[dict[str, Any]]](
         success=True,
         data=PaginatedResult(items=items, total=len(items), page=1, page_size=len(items), total_pages=1),

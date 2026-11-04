@@ -21,9 +21,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, select
 from core.logging import get_logger
 from models.gold_macro import (
     GoldCotPositionModel,

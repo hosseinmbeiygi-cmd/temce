@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -170,7 +171,7 @@ def _last_at(src: FreshnessSource, last: object) -> tuple[str | None, str | None
     return (last.isoformat() if hasattr(last, "isoformat") else str(last)), None
 
 
-async def _probe(session: AsyncSession, src: FreshnessSource) -> dict:
+async def _probe(session: AsyncSession, src: FreshnessSource) -> dict[str, Any]:
     """آخرین مقدار + تعداد ردیف یک منبع (جدول/ستون ناموجود → missing)."""
     try:
         async with session.begin_nested():
@@ -229,10 +230,10 @@ async def _probe(session: AsyncSession, src: FreshnessSource) -> dict:
 
 async def build_freshness_report(
     session: AsyncSession, *, sources: list[FreshnessSource] | None = None
-) -> dict:
+) -> dict[str, Any]:
     """وضعیت تازگی همهٔ منابع + خلاصهٔ کلی ``ok``/``stale``/``empty``/``missing``."""
     now = datetime.now(UTC)
-    items: list[dict] = []
+    items: list[dict[str, Any]] = []
     for src in sources if sources is not None else FRESHNESS_SOURCES:
         row = await _probe(session, src)
         if row["status"] == "missing":

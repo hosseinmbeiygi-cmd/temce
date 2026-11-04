@@ -82,6 +82,12 @@ ignore_missing_imports = true
 disallow_untyped_defs = false
 warn_unused_ignores = false
 follow_imports = "silent"
+# ``apps`` has no ``__init__.py`` (it is a namespace package at runtime), so
+# mypy otherwise resolves ``apps/api/x.py`` both as ``api.x`` and
+# ``apps.api.x`` and aborts with "Source file found twice". Explicit package
+# bases pins every module to its path relative to the repo root.
+explicit_package_bases = true
+mypy_path = "."
 exclude = [
     "code_dump",
     "backtesting",
@@ -117,7 +123,23 @@ module = [
     "core.calibration_bootstrap",
     "core.db_utils",
 ]
-strict = true
+# NOTE: ``strict = true`` must not be used inside a ``[[tool.mypy.overrides]]``
+# block: mypy 2.1 applies it to the *global* options instead of only the
+# matched modules, which silently made every file in the repo (including
+# ~8k test annotations) strict. The flags below are exactly what ``strict``
+# expands to, scoped to the modules listed above.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_subclassing_any = true
+disallow_any_generics = true
+no_implicit_optional = true
+warn_return_any = true
+warn_unused_ignores = true
+strict_equality = true
+extra_checks = true
+check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

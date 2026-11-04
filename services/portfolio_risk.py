@@ -28,9 +28,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -145,7 +143,7 @@ async def _read(session: AsyncSession) -> PortfolioRiskState:
         if equity_row and equity_row[0] is not None
         else DEFAULT_INITIAL_CAPITAL
     )
-    open_risk_pct, exposure = compute_open_risk(rows, equity, DEFAULT_STOP_PCT)
+    open_risk_pct, exposure = compute_open_risk([dict(r) for r in rows], equity, DEFAULT_STOP_PCT)
     logger.debug(
         "Portfolio risk: equity=%.0f open_risk=%.2f%% markets=%d",
         equity,

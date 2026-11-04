@@ -14,9 +14,10 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, time
+from typing import Any
 
 import jdatetime
 import numpy as np
@@ -80,11 +81,16 @@ class PatternReport:
     recommendation: str  # یکی از مقادیر RECOMMENDATIONS
 
 
-_TRIGGER = Callable[[np.ndarray, int], bool]
+FloatArray = np.ndarray[Any, Any]
+
+_TRIGGER = Callable[[FloatArray, int], bool]
 
 
 def _historical_hit_rate(
-    prices, trigger: _TRIGGER, direction: str, horizon: int = FORWARD_HORIZON_DAYS
+    prices: Iterable[float] | FloatArray,
+    trigger: _TRIGGER,
+    direction: str,
+    horizon: int = FORWARD_HORIZON_DAYS,
 ) -> tuple[float, int]:
     """نرخ موفقیت تاریخی یک trigger روی **همین** سری.
 
@@ -105,7 +111,7 @@ def _historical_hit_rate(
     return hits / trials * 100.0, trials
 
 
-def _trend_trigger(arr: np.ndarray, i: int) -> bool:
+def _trend_trigger(arr: FloatArray, i: int) -> bool:
     """آیا در روز ``i`` شرط «روند صعودی پایدار» برقرار است؟"""
     if i + 1 < TREND_CONFIRM_WINDOW:
         return False
@@ -114,11 +120,11 @@ def _trend_trigger(arr: np.ndarray, i: int) -> bool:
     return int((returns > 0).sum()) >= TREND_MIN_POSITIVE_DAYS
 
 
-def _spike_trigger(arr: np.ndarray, i: int) -> bool:
+def _spike_trigger(arr: FloatArray, i: int) -> bool:
     """آیا در روز ``i`` جهش > آستانه در ۳ روز رخ داده است؟"""
     if i < 2 or arr[i - 2] <= 0:
         return False
-    return (arr[i] - arr[i - 2]) / arr[i - 2] * 100.0 > SPIKE_3D_THRESHOLD_PCT
+    return bool((arr[i] - arr[i - 2]) / arr[i - 2] * 100.0 > SPIKE_3D_THRESHOLD_PCT)
 
 
 def _parse_jalali(value: str) -> datetime | None:
@@ -247,7 +253,7 @@ def _detect_vol_regime(prices: list[float]) -> DetectedPattern | None:
     return None
 
 
-def pd_rolling_mean(arr: np.ndarray, window: int) -> np.ndarray:
+def pd_rolling_mean(arr: FloatArray, window: int) -> FloatArray:
     """rolling mean ساده و **trailing** (بدون backfill).
 
     پیش‌تر عناصر ``window-1`` اول با میانگین پنجرهٔ آینده پر می‌شدند و bubble

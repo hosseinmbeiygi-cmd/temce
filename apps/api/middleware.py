@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import html
 import json
+import re
+import secrets
 import time
 import uuid
 from collections.abc import Callable
 from contextlib import suppress
+from typing import Any
+from urllib.parse import parse_qsl, urlencode
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -208,29 +213,76 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if not app_settings.enable_csrf:
             return await call_next(request)
 
-        if request.method in self._UNSAFE_METHODS:
-            if request.url.path.startswith(("/docs", "/openapi.json", "/api/v1/health")):
-                return await call_next(request)
-
+        exempt = request.url.path.startswith(("/docs", "/openapi.json", "/api/v1/health"))
+        if request.method in self._UNSAFE_METHODS and not exempt:
             origin = request.headers.get("origin") or request.headers.get("referer")
-            if origin:
-                if not self._origin_allowed(origin):
+            sec_fetch_site = request.headers.get("sec-fetch-site", "").lower()
+            if not origin and sec_fetch_site == "cross-site":
+                logger.warning(
+                    "CSRF blocked (Sec-Fetch-Site): %s %s", request.method, request.url.path
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "success": False,
+                        "error": "Cross-site request blocked",
+                        "code": "CSRF_BLOCKED",
+                    },
+                )
+            if origin and not self._origin_allowed(origin):
+                logger.warning(
+                    "CSRF blocked: %s %s from origin %s",
+                    request.method,
+                    request.url.path,
+                    origin,
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "success": False,
+                        "error": "Cross-site request blocked",
+                        "code": "CSRF_BLOCKED",
+                    },
+                )
+
+            # Double-submit token for cookie-authenticated browsers: the JWT
+            # cookie is an ambient credential, so state-changing requests must
+            # echo the CSRF cookie in a header. Bearer-only clients carry no
+            # ambient credential and stay exempt.
+            if request.cookies.get(app_settings.auth_cookie_name):
+                expected = request.cookies.get(app_settings.csrf_cookie_name)
+                provided = request.headers.get(app_settings.csrf_header_name)
+                if not expected or provided != expected:
                     logger.warning(
-                        "CSRF blocked: %s %s from origin %s",
+                        "CSRF token missing or mismatched: %s %s",
                         request.method,
                         request.url.path,
-                        origin,
                     )
                     return JSONResponse(
                         status_code=403,
                         content={
                             "success": False,
-                            "error": "Cross-site request blocked",
+                            "error": "CSRF token missing or invalid",
                             "code": "CSRF_BLOCKED",
                         },
                     )
 
-        return await call_next(request)
+        response = await call_next(request)
+
+        # Session login: issue the double-submit token alongside the auth cookie.
+        if (
+            request.method in self._UNSAFE_METHODS
+            and not exempt
+            and not request.cookies.get(app_settings.csrf_cookie_name)
+            and app_settings.auth_cookie_name in response.headers.get("set-cookie", "")
+        ):
+            response.set_cookie(
+                app_settings.csrf_cookie_name,
+                secrets.token_urlsafe(32),
+                httponly=False,
+                samesite="lax",
+            )
+        return response
 
     def _origin_allowed(self, origin: str) -> bool:
         """Match an Origin/Referer against the configured CORS origins.
@@ -277,17 +329,42 @@ class InputSanitizationMiddleware(BaseHTTPMiddleware):
 
     _JSON_CONTENT = ("application/json", "text/json")
 
+    @staticmethod
+    def _sanitize_pairs(raw: bytes) -> bytes:
+        pairs = parse_qsl(raw.decode("utf-8", "replace"), keep_blank_values=True)
+        cleaned = [(_clean_text(k), _sanitize_field(k, v, 0)) for k, v in pairs]
+        return urlencode(cleaned).encode("utf-8")
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if not app_settings.enable_input_sanitization:
             return await call_next(request)
 
+        # Query strings are user-controlled on every method.
+        query = request.scope.get("query_string", b"")
+        if query:
+            request.scope["query_string"] = self._sanitize_pairs(query)
+
         content_type = (request.headers.get("content-type") or "").lower()
-        if not content_type.startswith(self._JSON_CONTENT):
+        is_form = content_type.startswith("application/x-www-form-urlencoded")
+        if not is_form and not content_type.startswith(self._JSON_CONTENT):
             return await call_next(request)
 
         try:
             raw = await request.body()
             if not raw:
+                return await call_next(request)
+            if is_form:
+                body = self._sanitize_pairs(raw)
+                request._body = body
+                headers = [
+                    (k, v)
+                    for k, v in request.scope.get("headers", [])
+                    if k.lower() != b"content-length"
+                ]
+                headers.append((b"content-length", str(len(body)).encode()))
+                request.scope["headers"] = headers
+                with suppress(Exception):
+                    request._headers = None  # type: ignore[assignment]
                 return await call_next(request)
             payload = json.loads(raw)
         except Exception:
@@ -319,7 +396,7 @@ class InputSanitizationMiddleware(BaseHTTPMiddleware):
             if hasattr(request, "headers"):
                 # Starlette caches headers; force rebuild on next access
                 with suppress(Exception):
-                    request._headers = None  # type: ignore[attr-defined]
+                    request._headers = None  # type: ignore[assignment]
         except Exception:
             logger.debug("Failed to update content-length after sanitization", exc_info=True)
 
@@ -346,7 +423,14 @@ def _sanitize_value(value, depth: int = 0):
             return _clean_text(value)[:_MAX_STRING_LEN]
         return value
     if isinstance(value, dict):
-        return {k: _sanitize_field(k, v, depth + 1) for k, v in value.items()}
+        cleaned_map: dict[Any, Any] = {}
+        for k, v in value.items():
+            if isinstance(k, str):
+                safe_key = _clean_text(k)
+                cleaned_map[safe_key or k] = _sanitize_field(k, v, depth + 1)
+            else:
+                cleaned_map[k] = _sanitize_field(str(k), v, depth + 1)
+        return cleaned_map
     if isinstance(value, list):
         return [_sanitize_value(v, depth + 1) for v in value]
     if isinstance(value, str):
@@ -359,12 +443,42 @@ def _sanitize_value(value, depth: int = 0):
     return value  # null
 
 
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+_BIDI_RE = re.compile("[\u202a-\u202e\u2066-\u2069\ufeff]")
+_ENTITY_MARKUP_RE = re.compile(r"&(?:amp;)*(?:lt|#0*60|#x0*3c);", re.IGNORECASE)
+_PATH_FIELD_NAMES = frozenset({"filename", "file_path", "path"})
+
+
+def _decode_entity_markup(value: str) -> str:
+    """Decode entity-encoded markup (``&lt;script&gt;`` and double-encoded).
+
+    Only runs when an encoded angle bracket is present, so ordinary text like
+    ``"Tom &amp; Jerry"`` is left byte-for-byte intact.
+    """
+    if not _ENTITY_MARKUP_RE.search(value):
+        return value
+    decoded = value
+    for _ in range(3):
+        nxt = html.unescape(decoded)
+        if nxt == decoded:
+            break
+        decoded = nxt
+    return decoded
+
+
 def _clean_text(value: str) -> str:
-    """Strip markup + control characters (CR/LF/NUL) from a text string."""
-    return strip_html(value).replace("\x00", "").replace("\r", "").replace("\n", " ").strip()
+    """Strip markup, entity-encoded markup, bidi controls and C0/C1 controls.
+
+    CR/LF become a space (meaningful whitespace); ZWNJ / RLM / Persian digits
+    are legitimate and preserved.
+    """
+    cleaned = strip_html(_decode_entity_markup(value))
+    cleaned = _BIDI_RE.sub("", cleaned)
+    cleaned = cleaned.replace("\r", "").replace("\n", " ")
+    return _CONTROL_RE.sub("", cleaned).strip()
 
 
-def _sanitize_field(key: str, value, depth: int):
+def _sanitize_field(key: str, value: Any, depth: int) -> Any:
     """Sanitize one dict field, honoring the raw (opaque) field allow-list."""
     if isinstance(value, (dict, list)):
         return _sanitize_value(value, depth)
@@ -374,7 +488,11 @@ def _sanitize_field(key: str, value, depth: int):
             return value[:_MAX_STRING_LEN].replace("\x00", "")
         if len(value) > _MAX_STRING_LEN:
             value = value[:_MAX_STRING_LEN]
-        return _clean_text(value)
+        cleaned = _clean_text(value)
+        if key.lower() in _PATH_FIELD_NAMES:
+            # Path-like fields must never carry separators or a traversal head.
+            cleaned = cleaned.replace("/", "").replace("\\", "").lstrip(".")
+        return cleaned
     if value is None:
         return None
     if isinstance(value, (bool, int, float)):

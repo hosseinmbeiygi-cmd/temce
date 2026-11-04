@@ -14,9 +14,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, desc, select
 from core.logging import get_logger
 from models.gold_feed_health import GoldFeedHealthAttemptModel
 from providers.gold_spot import build_default_gold_spot_providers

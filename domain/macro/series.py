@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date as date_type
+from datetime import datetime
 from typing import Any
 
 from domain.common.base_entity import BaseEntity
@@ -11,7 +12,7 @@ from domain.common.base_entity import BaseEntity
 class MacroSeriesPoint(BaseEntity):
     series_id: str
     value: float = 0.0
-    date: date | None = None
+    date: date_type | None = None
     revision: int = 0
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -20,7 +21,7 @@ class MacroSeriesPoint(BaseEntity):
         id: str,
         series_id: str,
         value: float = 0.0,
-        date: date | None = None,
+        date: date_type | None = None,
         revision: int = 0,
         extra: dict[str, Any] | None = None,
         created_at: datetime | None = None,

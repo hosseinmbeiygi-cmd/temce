@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.logging import get_logger
 
@@ -83,9 +84,9 @@ class DataValidationPipeline:
                 combined.is_valid = False
         return combined
 
-    def reconcile(self, data: dict[str, float]) -> dict[str, float]:
+    def reconcile(self, data: dict[str, float]) -> dict[str, Any]:
         result = self.validate(data)
-        reconciled = dict(data)
+        reconciled: dict[str, Any] = dict(data)
 
         total_assets = reconciled.get("total_assets") or reconciled.get("TOTAL_ASSETS") or 0
         total_liabilities = reconciled.get("total_liabilities") or reconciled.get("TOTAL_LIABILITIES") or 0

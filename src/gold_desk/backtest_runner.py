@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Any
 
 import jdatetime
 import numpy as np
@@ -30,6 +31,8 @@ from .dates import jalali_days_ago
 from .entry_rules import dca_entry_signal
 
 logger = logging.getLogger(__name__)
+
+FloatArray = np.ndarray[Any, Any]
 
 # ── آستانه‌های استراتژی (واحد: درصد تغییر قیمت) ──────────────────────
 # پلهٔ دوم فقط با اصلاح این بازه نسبت به قیمت خرید قبلی اجرا می‌شود.
@@ -93,7 +96,9 @@ def _parse_stored_date(value: object) -> date | None:
     if len(parts) != 3:
         return None
     try:
-        return jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2])).togregorian()
+        # jdatetime بدون stub است؛ مقدار برگشتی در نوع ``date`` تعریف می‌شود.
+        converted: date = jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2])).togregorian()
+        return converted
     except (TypeError, ValueError):
         logger.warning("unparsable history date %r", value)
         return None
@@ -229,7 +234,7 @@ def _daily_nav(
     closes: list[tuple[date, float]],
     trades: list[BacktestTrade],
     initial_capital: float,
-) -> np.ndarray:
+) -> FloatArray:
     """NAV روزانهٔ استراتژی = نقد باقی‌مانده + ارزش روزِ واحدهای نگه‌داشته."""
     pending = sorted(trades, key=lambda t: t.date)
     nav: list[float] = []
@@ -245,7 +250,7 @@ def _daily_nav(
     return np.asarray(nav, dtype=float)
 
 
-def _max_drawdown_pct(nav: np.ndarray) -> float:
+def _max_drawdown_pct(nav: FloatArray) -> float:
     if nav.size == 0:
         return 0.0
     peak = np.maximum.accumulate(nav)
@@ -258,7 +263,7 @@ def _max_drawdown_pct(nav: np.ndarray) -> float:
 
 
 def _annualized_sharpe(
-    nav: np.ndarray, risk_free_annual: float = IRAN_RISK_FREE_RATE
+    nav: FloatArray, risk_free_annual: float = IRAN_RISK_FREE_RATE
 ) -> float:
     """شارپ روی بازده‌های روزانهٔ NAV استراتژی، با نرخ بدون ریسک داخلی.
 

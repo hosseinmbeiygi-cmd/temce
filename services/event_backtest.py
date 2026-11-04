@@ -240,7 +240,7 @@ class ExecutionEngine:
         self.all_orders.append(order)
 
     def match(self, event: MarketEvent, state: MarketState, rules: TSERulesEngine) -> list[Fill]:
-        fills = []
+        fills: list[Fill] = []
         if not rules.can_trade(state):
             return fills
 

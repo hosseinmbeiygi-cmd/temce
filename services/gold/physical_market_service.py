@@ -11,9 +11,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from brsapi.models.commodity import (
     CommodityPriceModel,
     CurrencyPriceModel,
@@ -22,6 +19,7 @@ from brsapi.models.commodity import (
 from brsapi.models.ime import ImeCertificateModel
 from core.cache import get_cache
 from core.config.ime_engine import load_ime_config
+from core.database import AsyncSession, desc, select
 from core.logging import get_logger
 from services.gold.physical_market import (
     aed_hawala_spread,

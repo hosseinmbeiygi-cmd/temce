@@ -16,8 +16,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import select
-
+from core.database import select
 from core.logging import get_logger
 from models.gold_macro import (
     GoldEconomicCalendarEventModel,

@@ -17,11 +17,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from sqlalchemy import desc, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from brsapi.models.ime import ImeFutureModel, ImeOptionModel
 from core.cache import get_cache
+from core.database import AsyncSession, desc, or_, select
 from core.logging import get_logger
 from models.gold_options import GoldOptionIvHistoryModel
 from services.gold.options_chain import (

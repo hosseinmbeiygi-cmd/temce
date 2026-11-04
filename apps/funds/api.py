@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.time import utc_now_naive
@@ -25,16 +27,20 @@ from .auth import (
 )
 from .constants import TYPE_CODES
 from .schemas import (
+    AdapterHealthItem,
     AlertCreate,
     AlertItem,
     AlertListResponse,
     BacktestReportResponse,
+    BubbleLiveItem,
     BubbleLiveResponse,
     CompareResponse,
     FundListItem,
     FundListResponse,
     FundProfileResponse,
+    FundRecommendation,
     HealthSourcesResponse,
+    ReasonVectorItem,
     ScreenerRequest,
     ScreenerResponse,
 )
@@ -53,7 +59,7 @@ _screener_deps = [Depends(require_permission("screener")), Depends(rate_limit_de
 _backtest_deps = [Depends(require_permission("backtest:report")), Depends(rate_limit_dependency)]
 
 
-def _to_list_item(full: dict) -> FundListItem:
+def _to_list_item(full: dict[str, Any]) -> FundListItem:
     score = full.get("score", {})
     return FundListItem(
         symbol=full["symbol"],
@@ -129,20 +135,20 @@ async def fund_profile(
         market_maker=full.get("market_maker"),
         inception_date=full.get("inception_date"),
         is_etf=full.get("is_etf", True),
-        recommendation={
-            "symbol": full["symbol"],
-            "score_total": score.get("score_total"),
-            "score_return": score.get("score_return"),
-            "score_risk": score.get("score_risk"),
-            "score_cost": score.get("score_cost"),
-            "score_liquidity": score.get("score_liquidity"),
-            "signal": score.get("signal"),
-            "signal_label_fa": score.get("signal_label_fa"),
-            "reasons": score.get("reasons", []),
-            "scoring_version": score.get("scoring_version"),
-            "computed_at": metrics.get("computed_at"),
-            "is_cold_start_blocked": score.get("is_cold_start_blocked", False),
-        },
+        recommendation=FundRecommendation(
+            symbol=full["symbol"],
+            score_total=score.get("score_total"),
+            score_return=score.get("score_return"),
+            score_risk=score.get("score_risk"),
+            score_cost=score.get("score_cost"),
+            score_liquidity=score.get("score_liquidity"),
+            signal=score.get("signal"),
+            signal_label_fa=score.get("signal_label_fa"),
+            reasons=[ReasonVectorItem(**r) for r in score.get("reasons", [])],
+            scoring_version=score.get("scoring_version"),
+            computed_at=metrics.get("computed_at"),
+            is_cold_start_blocked=score.get("is_cold_start_blocked", False),
+        ),
     )
 
 
@@ -171,14 +177,14 @@ async def bubble_live(
     service: FundService = Depends(_dep_service),
 ):
     items = service.bubble_snapshot()
-    return BubbleLiveResponse(items=items, ts=utc_now_naive())
+    return BubbleLiveResponse(items=[BubbleLiveItem(**i) for i in items], ts=utc_now_naive())
 
 
 @router.get("/health/sources", response_model=HealthSourcesResponse, dependencies=_public_deps)
 async def health_sources(
     service: FundService = Depends(_dep_service),
 ):
-    return HealthSourcesResponse(sources=service.adapter_health())
+    return HealthSourcesResponse(sources=[AdapterHealthItem(**s) for s in service.adapter_health()])
 
 
 @router.get("/backtest/report", response_model=BacktestReportResponse, dependencies=_backtest_deps)
@@ -209,4 +215,6 @@ async def create_alert(
         event_type=req.event_type,
         payload_json=None,
         created_at=utc_now_naive(),
+        delivered_at=None,
+        is_read=False,
     )

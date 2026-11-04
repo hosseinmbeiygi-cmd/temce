@@ -101,9 +101,7 @@ class ProbabilityCalibrator:
     async def ensure_table() -> None:
         """Create the calibration_models table if it doesn't exist."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return
@@ -200,9 +198,7 @@ class ProbabilityCalibrator:
         and computes actual win rates per bucket.
         """
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return CalibrationBuckets()
@@ -365,9 +361,7 @@ class ProbabilityCalibrator:
     ) -> CalibratedProbability:
         """Try calibration at one level of the hierarchy."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return CalibratedProbability(
@@ -580,9 +574,7 @@ class ProbabilityCalibrator:
     ) -> list[dict[str, Any]]:
         """Get calibration quality report for all keys (or a specific market)."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return []
@@ -634,9 +626,7 @@ class ProbabilityCalibrator:
         Useful for the reliability diagram / dashboard.
         """
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return []

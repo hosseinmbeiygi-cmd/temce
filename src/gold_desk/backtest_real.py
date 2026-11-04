@@ -231,17 +231,16 @@ def _compute_metrics(
 
     # Sharpe (ساده)
     rets = [r for _, _, r in strategy_trades]
+    sharpe: float = 0.0
     if len(rets) > 1:
         mean_r = np.mean(rets)
         std_r = np.std(rets)
-        sharpe = mean_r / std_r if std_r > 0 else 0
-    else:
-        sharpe = 0
+        sharpe = float(mean_r / std_r) if std_r > 0 else 0.0
 
     # max drawdown
     cum = 1.0
     peak = 1.0
-    max_dd = 0
+    max_dd: float = 0.0
     for _, _, r in strategy_trades:
         cum *= 1 + r / 100
         peak = max(peak, cum)
@@ -249,7 +248,7 @@ def _compute_metrics(
         max_dd = max(max_dd, dd)
 
     # avg hold days
-    avg_days = np.mean([e - s for s, e, _ in strategy_trades])
+    avg_days = float(np.mean([e - s for s, e, _ in strategy_trades]))
 
     return StrategyResult(
         name="",

@@ -9,7 +9,7 @@ positions or portfolios, so no route changes trading state.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -469,7 +469,7 @@ async def get_macro_posture_live(
     result = await get_gold_macro_live(session)
     return ApiResponse[MacroLiveResponse](
         success=True,
-        data={
+        data=MacroLiveResponse(**cast("dict[str, Any]", {
             "available": result.available,
             "missing": result.missing,
             "posture": result.posture,
@@ -479,7 +479,7 @@ async def get_macro_posture_live(
             "trend_staleness_seconds": result.trend_staleness_seconds,
             "high_vol_window": result.high_vol_window,
             "error": result.error,
-        },
+        })),
     )
 
 

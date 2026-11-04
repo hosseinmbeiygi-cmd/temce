@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.stats import norm
@@ -137,13 +138,16 @@ def monte_carlo_american_lsm(
     # Insert initial S at time 0
     paths = np.vstack([np.full((1, paths.shape[1]), S), paths])  # shape (n_steps+1, n_paths)
 
-    intrinsic = (lambda s: np.maximum(s - K, 0.0)) if option_type == "call" else lambda s: np.maximum(K - s, 0.0)
+    def payoff_fn(s: Any) -> Any:
+        if option_type == "call":
+            return np.maximum(s - K, 0.0)
+        return np.maximum(K - s, 0.0)
 
-    cashflow = intrinsic(paths[-1])
+    cashflow = payoff_fn(paths[-1])
     exercise_time = np.full(paths.shape[1], n_steps, dtype=int)
     # Backward induction
     for t in range(n_steps - 1, 0, -1):
-        intrinsic_now = intrinsic(paths[t])
+        intrinsic_now = payoff_fn(paths[t])
         itm = intrinsic_now > 0
         if not itm.any():
             cashflow = discount_step * cashflow

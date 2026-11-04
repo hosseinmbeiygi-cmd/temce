@@ -150,6 +150,7 @@ async def brsapi_search_announcements(
     where = " AND ".join(conditions) if conditions else "1=1"
     limit = 20
     offset = (page - 1) * limit
+    page_params: dict[str, Any] = {**params, "limit": limit, "offset": offset}
 
     try:
         # Count
@@ -168,9 +169,9 @@ async def brsapi_search_announcements(
                    publish_date, summary, attachment_url
             FROM codal_reports WHERE {where}
             ORDER BY publish_date DESC
-            LIMIT {limit} OFFSET {offset}
+            LIMIT :limit OFFSET :offset
         """),
-            params,
+            page_params,
         )
 
         announcements = []
@@ -461,6 +462,7 @@ async def codal_analysis(
     snap = await brsapi.get_enriched_symbol_detail(code)
     if not snap:
         snap = await brsapi.get_symbol_snapshot(code)
+    snap = snap or {}
 
     holders = await brsapi.get_shareholders(code) or []
     announcements = await brsapi.get_recent_announcements(symbol=code, limit=8) or []
@@ -648,7 +650,9 @@ async def bulk_import_codal(
     all_errors: list[str] = []
 
     async def process_one(file: UploadFile) -> None:
-        symbol = (file.filename or "").rsplit(".", 1)[0] if file.filename else ""
+        # Never trust the client-supplied path: keep only the final component.
+        raw_name = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+        symbol = raw_name.rsplit(".", 1)[0] if raw_name else ""
         if not symbol:
             all_errors.append(f"{file.filename}: could not determine symbol from filename")
             return
@@ -676,7 +680,7 @@ async def bulk_import_codal(
             all_errors.append(f"{file.filename}: {result.error}")
             return
 
-        r = result.value
+        r = result.unwrap()
         per_file[file.filename or symbol] = {
             "symbol": symbol,
             "rows": r.get("total_rows", 0),

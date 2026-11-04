@@ -30,6 +30,7 @@ from sqlalchemy import text
 from core.config import settings
 from services import adjusted_price_reader as reader
 
+pytestmark = pytest.mark.needs_db
 
 def _python_convert(jalali: str) -> str | None:
     """Reference conversion through jdatetime (the project's library)."""

@@ -191,6 +191,7 @@ class TestJobWrapper:
 # ── DB-backed: report over the real registry ─────────────────────────────
 
 
+@pytest.mark.needs_db
 class TestHealthReportDb:
     @pytest.mark.asyncio
     async def test_report_detects_stale_and_never_fetched(self):

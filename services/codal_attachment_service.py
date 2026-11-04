@@ -19,11 +19,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from brsapi.models.codal import CodalAttachmentModel
+from core.database import AsyncEngine, AsyncSession, SQLAlchemyError, async_sessionmaker, text
 from core.exceptions import NotFoundError
 from core.logging import get_logger
 from core.paths import data_path, safe_resolve

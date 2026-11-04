@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -136,7 +137,8 @@ async def _latest_nav_with_date(
     if row is None:
         return None, None
     date_value = row[2] if len(row) > 2 else None
-    return _pick_nav((row[0], row[1])), (str(date_value) if date_value else None)
+    nav_redemption = row[1] if len(row) > 1 else None
+    return _pick_nav((row[0], nav_redemption)), (str(date_value) if date_value else None)
 
 
 async def _latest_nav(session: AsyncSession, symbol: str) -> float | None:
@@ -213,7 +215,7 @@ def _jalali_days_old(value: Any) -> int | None:
     except (TypeError, ValueError):
         logger.warning("unparsable jalali date %r", value)
         return None
-    return (now_tehran().date() - jalali.togregorian()).days
+    return int((now_tehran().date() - jalali.togregorian()).days)
 
 
 async def _fund_market_data(session: AsyncSession, symbol: str) -> dict[str, Any] | None:
@@ -287,7 +289,7 @@ async def get_fund_status(
             svc = BrsApiQueryService(session=session)
             # سعی 1: get_fund_prices اگر وجود دارد
             if hasattr(svc, "get_fund_prices"):
-                rows = await svc.get_fund_prices()  # type: ignore
+                rows = await svc.get_fund_prices()
                 for row in rows or []:
                     if row.get("symbol") == symbol and row.get("price"):
                         market_price = float(row["price"])
@@ -351,7 +353,13 @@ async def get_fund_status(
     )
 
 
-async def _latest_rows_by_symbol(session, model, columns, symbols, extra_where=None):
+async def _latest_rows_by_symbol(
+    session: AsyncSession,
+    model: Any,
+    columns: Sequence[Any],
+    symbols: Sequence[str],
+    extra_where: Any = None,
+) -> list[Any]:
     """آخرین ردیف هر نماد را با **یک** کوئری برمی‌گرداند (batch).
 
     الگو: ``GROUP BY symbol`` روی `max(date)` در یک subquery و join به جدول اصلی.
@@ -377,7 +385,7 @@ async def _latest_rows_by_symbol(session, model, columns, symbols, extra_where=N
         and_(model.symbol == latest.c.symbol, date_key == latest.c.max_date),
     )
     result = await session.execute(stmt)
-    return result.all()
+    return list(result.all())
 
 
 async def _latest_nav_batch(
@@ -406,7 +414,9 @@ async def _latest_nav_batch(
     return out
 
 
-async def _nav_7d_ago_batch(session: AsyncSession, symbols: list[str]) -> dict[str, float]:
+async def _nav_7d_ago_batch(
+    session: AsyncSession, symbols: list[str]
+) -> dict[str, float | None]:
     from brsapi.models import NavRecordModel
 
     rows = await _latest_rows_by_symbol(
@@ -472,7 +482,7 @@ async def _live_fund_prices(session: AsyncSession) -> dict[str, float]:
 
         svc = BrsApiQueryService(session=session)
         if hasattr(svc, "get_fund_prices"):
-            for row in await svc.get_fund_prices() or []:  # type: ignore[misc]
+            for row in await svc.get_fund_prices() or []:
                 price = row.get("price")
                 if row.get("symbol") and price and float(price) > 0:
                     prices[str(row["symbol"])] = float(price)

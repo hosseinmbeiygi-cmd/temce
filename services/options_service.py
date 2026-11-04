@@ -987,11 +987,11 @@ class OptionsStrategyEngine:
         pcr = total_put_vol / total_call_vol if total_call_vol > 0 else 1.0
 
         # Max Pain (strike with most open interest)
-        all_oi = {}
+        all_oi: dict[float, float] = {}
         for o in options_chain:
-            s = o.get("strike", 0)
-            all_oi[s] = all_oi.get(s, 0) + o.get("open_interest", 0)
-        max_pain = max(all_oi, key=all_oi.get) if all_oi else stock_price
+            strike = float(o.get("strike", 0) or 0)
+            all_oi[strike] = all_oi.get(strike, 0.0) + float(o.get("open_interest", 0) or 0)
+        max_pain = max(all_oi, key=lambda k: all_oi[k]) if all_oi else stock_price
 
         # Support/Resistance from options
         call_oi_strikes = sorted(

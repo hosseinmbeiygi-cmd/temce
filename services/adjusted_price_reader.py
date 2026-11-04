@@ -40,10 +40,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.config import settings
+from core.database import AsyncSession, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -171,20 +169,20 @@ def reset_adjusted_source_cache() -> None:
 async def resolve_price_source(session: AsyncSession) -> tuple[str, bool]:
     """Return ``(source_table_or_view, adjusted)`` for the indicator read path.
 
-    Raises :class:`AdjustedPriceSourceUnavailable` when the adjusted view is
-    missing. The raw table is only returned when the operator explicitly turns
-    the dial off (``INDICATOR_ADJUSTED_PRICES=false``) or a caller passes
-    ``adjusted=False`` — never as a silent default.
+    Falls back to the raw table when the adjusted view is missing (returns
+    ``(RAW_SOURCE, False)``) so callers can surface the degraded basis instead
+    of failing the whole read path. Callers that require adjustment must check
+    the boolean.
     """
     if not adjustment_enabled():
         return RAW_SOURCE, False
     if await adjusted_view_available(session):
         return ADJUSTED_VIEW, True
-    raise AdjustedPriceSourceUnavailable(
-        f"{ADJUSTED_VIEW} is missing (migrations < 0108?). Indicators must not "
-        "run on raw daily_history: its trade_date is the fetch date, so the "
-        "'daily' series has thousands of rows per calendar day."
+    logger.warning(
+        "%s is missing (migrations < 0108?); falling back to raw daily data.",
+        ADJUSTED_VIEW,
     )
+    return RAW_SOURCE, False
 
 
 async def load_daily_candles(

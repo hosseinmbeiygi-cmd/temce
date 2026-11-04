@@ -10,7 +10,7 @@ with provider data and the regression suite can test them deterministically.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from services.gold.calculator import calculate_nav_premium
 
@@ -266,7 +266,7 @@ def fund_health_flags(
         notes.append(f"{symbol}: price band stale since {band_stale_since}")
     price_out_of_band = False
     if market_price and not band_missing:
-        low, high = float(price_band_low), float(price_band_high)
+        low, high = float(cast(Any, price_band_low)), float(cast(Any, price_band_high))
         if market_price < low or market_price > high:
             price_out_of_band = True
             notes.append(

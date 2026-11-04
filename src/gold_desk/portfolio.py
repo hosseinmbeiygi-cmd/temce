@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from operator import attrgetter
 from types import SimpleNamespace
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,7 +108,9 @@ async def get_active_holding(
     return holding
 
 
-def _add_prices(target: dict[str, float], assets) -> None:
+def _add_prices(
+    target: dict[str, float], assets: dict[str, Any] | Sequence[Any] | None
+) -> None:
     """افزودن قیمت‌های مثبت یک بلوک snapshot (dict یا list از asset)."""
     items = assets.values() if isinstance(assets, dict) else (assets or [])
     for a in items:
@@ -120,7 +123,7 @@ def _add_prices(target: dict[str, float], assets) -> None:
         target[a.get("symbol") or ""] = float(price)
 
 
-def get_current_prices(snap: dict | None) -> dict[str, float]:
+def get_current_prices(snap: dict[str, Any] | None) -> dict[str, float]:
     """استخراج قیمت فعلی از snapshot (طلا، سکه و صندوق‌ها).
 
     صندوق‌های طلا نیز قیمت بازار دارند و holdingهای صندوقی بدون این بلوک
@@ -271,7 +274,7 @@ def compute_returns(
 # ── FIFO cost basis + tax reporting ────────────────────────────
 
 
-def fifo_realized(trades: Iterable[object]) -> dict:
+def fifo_realized(trades: Iterable[object]) -> dict[str, Any]:
     """بهای تمام‌شده و سود/زیان تحقق‌یافته با روش FIFO از مجموع معاملات.
 
     هر فروش، لات‌های تمام‌شدهٔ قدیمی‌ترین خریدِ خود نماد را مصرف می‌کند (FIFO
@@ -349,7 +352,7 @@ def trades_to_csv(trades: Iterable[object]) -> str:
     return buf.getvalue()
 
 
-async def build_tax_summary(session: AsyncSession, *, user_id: str | None = None) -> dict:
+async def build_tax_summary(session: AsyncSession, *, user_id: str | None = None) -> dict[str, Any]:
     """خلاصهٔ مالیاتی FIFO بر اساس معاملات ثبت‌شده (محدود به مالک)."""
     holdings, trades = await load_holdings_and_trades(session, user_id=user_id)
     return fifo_realized(trades)
@@ -364,7 +367,7 @@ async def build_trades_csv(session: AsyncSession, *, user_id: str | None = None)
 # ── DB-backed orchestration ────────────────────────────────────
 
 
-def _live_prices_from_snapshot(snap: dict | None) -> dict[str, float]:
+def _live_prices_from_snapshot(snap: dict[str, Any] | None) -> dict[str, float]:
     return get_current_prices(snap)
 
 
@@ -372,7 +375,7 @@ async def load_holdings_and_trades(
     session: AsyncSession,
     *,
     user_id: str | None = None,
-) -> tuple[list, list]:
+) -> tuple[list[GoldHoldingModel], list[GoldTradeModel]]:
     """خواندن holdings (حذف‌نشده) و معاملات برای ساخت جریان‌های نقدی.
 
     دارایی‌های soft-delete شده (deleted_at null نیست) از نمای پورتفوی خارج می‌شوند،
@@ -445,7 +448,7 @@ async def get_holdings_grouped(
         stmt = stmt.where(GoldHoldingModel.user_id == user_id)
     rows = (await session.execute(stmt)).scalars().all()
 
-    by_symbol: dict[str, list] = {}
+    by_symbol: dict[str, list[GoldHoldingModel]] = {}
     for h in rows:
         by_symbol.setdefault(h.symbol, []).append(h)
 
@@ -483,7 +486,9 @@ async def get_holdings_grouped(
                 pnl_irt=pnl_irt,
                 pnl_pct=pnl_pct,
                 n_purchases=len(items),
-                holding_ids=tuple(getattr(h, "id", None) for h in items if getattr(h, "id", None) is not None),
+                holding_ids=tuple(
+                    int(hid) for h in items if (hid := getattr(h, "id", None)) is not None
+                ),
             )
         )
         total_cost += total_cost_sym
@@ -509,7 +514,7 @@ async def get_holdings_grouped(
 async def build_portfolio_returns(
     session: AsyncSession,
     *,
-    snapshot: dict | None = None,
+    snapshot: dict[str, Any] | None = None,
     asof: date | None = None,
     fx: Mapping[date, float] | None = None,
     cpi: Mapping[date, float] | None = None,
@@ -626,8 +631,16 @@ async def record_trade(
     منبع هزینهٔ این реализه: W4-01/W4-08/W4-09.
     """
     fee_irt = amount_irt * (fee_pct / 100.0)
+    if holding_id is not None:
+        # Both directions reference an explicit lot: it must exist and not be
+        # soft-deleted (the HTTP layer maps these to 404/409).
+        await get_active_holding(
+            session,
+            holding_id,
+            user_id=None if allow_any_owner else user_id,
+        )
     if action == "buy":
-        return _record_buy(
+        trade = await _record_buy(
             session,
             symbol=symbol,
             quantity=quantity,
@@ -637,22 +650,25 @@ async def record_trade(
             note=note,
             user_id=user_id,
         )
-
-    trade = await _record_sell(
-        session,
-        symbol=symbol,
-        quantity=quantity,
-        price=price,
-        amount_irt=amount_irt,
-        fee_irt=fee_irt,
-        holding_id=holding_id,
-        note=note,
-        user_id=user_id,
-        allow_any_owner=allow_any_owner,
-    )
-    if plan_id is not None:
-        trade.plan_id = plan_id
-        await session.flush([trade])
+    else:
+        trade = await _record_sell(
+            session,
+            symbol=symbol,
+            quantity=quantity,
+            price=price,
+            amount_irt=amount_irt,
+            fee_irt=fee_irt,
+            holding_id=holding_id,
+            note=note,
+            user_id=user_id,
+            allow_any_owner=allow_any_owner,
+        )
+        if plan_id is not None:
+            trade.plan_id = plan_id
+            await session.flush([trade])
+    # Persist the trade (and lot consumption) atomically; callers used to get
+    # a flushed-but-uncommitted row that vanished when the request ended.
+    await session.commit()
     await session.refresh(trade)
     return trade
 
@@ -774,7 +790,7 @@ async def _consume_lots(
     quantity: float,
     holding_id: int,
     user_id: str | None,
-) -> dict:
+) -> dict[str, Any]:
     """مصرف لات‌های یک holding مشخص با FIFO تا quantity."""
     holding = await session.get(GoldHoldingModel, holding_id)
     if holding is None:
@@ -832,7 +848,7 @@ async def _consume_lots_by_symbol(
     symbol: str,
     quantity: float,
     user_id: str | None,
-) -> dict:
+) -> dict[str, Any]:
     """مصرف FIFO از تمام لات‌های غیرحذف‌نشدهٔ یک نماد."""
     stmt = (
         select(GoldHoldingModel)

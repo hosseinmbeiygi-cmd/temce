@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result

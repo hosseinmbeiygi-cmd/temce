@@ -16,9 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import now_tehran
 from services.fund_read_through import StaleResult
@@ -298,7 +296,7 @@ class FundNavEngine:
         payload.has_report = report is not None
 
         prices = await self._load_live_prices(
-            [h.get("instrument_symbol") for h in holdings if h.get("instrument_symbol")]
+            [str(h["instrument_symbol"]) for h in holdings if h.get("instrument_symbol")]
         )
 
         # پوشش = وزن ارزشی دارایی‌هایی که قیمت‌گذاری مستقل (LIVE) دارند.

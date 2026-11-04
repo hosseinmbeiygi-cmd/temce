@@ -17,6 +17,24 @@ from services.gold.physical_arbitrage import calculate_coin_bubbles
 
 logger = get_logger(__name__)
 
+
+# ── Live-price provider (one DB session per call) ──────────────────────
+
+async def _live_prices() -> dict[str, Any] | None:
+    """Fetch live prices through a real DB session (BrsApiQueryService needs one)."""
+    try:
+        from brsapi.services.query_service import BrsApiQueryService
+        from core.database import async_session_factory
+        from services.gold.live_service import GoldLiveService
+
+        if async_session_factory is None:
+            return None
+        async with async_session_factory() as session:
+            return await GoldLiveService(BrsApiQueryService(session)).get_live_prices()
+    except Exception as exc:
+        logger.warning("live price provider failed: %s", exc, exc_info=True)
+        return None
+
 # ── Shape helpers ──────────────────────────────────────────────────────
 
 def _missing_fields(values: dict[str, Any]) -> list[str]:
@@ -56,12 +74,9 @@ def _coin_bubble_from_price(
 async def _fetch_ounce_usd() -> float | None:
     """Resilient ounce USD provider. Returns None on failure."""
     try:
-        from brsapi.services.query_service import BrsApiQueryService
-        from services.gold.live_service import GoldLiveService
-
-        brsapi = BrsApiQueryService()
-        live = GoldLiveService(brsapi)
-        prices = await live.get_live_prices()
+        prices = await _live_prices()
+        if prices is None:
+            return None
         ounce = prices.get("gold_oz_usd")
         if ounce is None or ounce <= 0:
             return None
@@ -74,12 +89,9 @@ async def _fetch_ounce_usd() -> float | None:
 async def _fetch_usd_irr() -> float | None:
     """Resilient USD/IRR provider."""
     try:
-        from brsapi.services.query_service import BrsApiQueryService
-        from services.gold.live_service import GoldLiveService
-
-        brsapi = BrsApiQueryService()
-        live = GoldLiveService(brsapi)
-        prices = await live.get_live_prices()
+        prices = await _live_prices()
+        if prices is None:
+            return None
         usd = prices.get("usd_irr")
         if usd is None or usd <= 0:
             return None
@@ -92,17 +104,14 @@ async def _fetch_usd_irr() -> float | None:
 async def _fetch_melted_irr() -> float | None:
     """Melted gold price per mesghal (ثم) in IRR."""
     try:
-        from brsapi.services.query_service import BrsApiQueryService
-        from services.gold.live_service import GoldLiveService
-
-        brsapi = BrsApiQueryService()
-        live = GoldLiveService(brsapi)
-        prices = await live.get_live_prices()
+        prices = await _live_prices()
+        if prices is None:
+            return None
         # BrsApi does not directly provide melted price; compute from 18k gram price.
         gold_18k = prices.get("gold_18k_irr")
         if gold_18k is None or gold_18k <= 0:
             return None
-        return gold_18k * MESGHAL_GRAMS
+        return float(gold_18k * MESGHAL_GRAMS)
     except Exception as exc:
         logger.warning("melted gold provider failed: %s", exc, exc_info=True)
         return None
@@ -111,12 +120,9 @@ async def _fetch_melted_irr() -> float | None:
 async def _fetch_coin_prices() -> dict[str, float | None]:
     """Per-coin market prices in IRR. Returns dict of coin -> price or None."""
     try:
-        from brsapi.services.query_service import BrsApiQueryService
-        from services.gold.live_service import GoldLiveService
-
-        brsapi = BrsApiQueryService()
-        live = GoldLiveService(brsapi)
-        prices = await live.get_live_prices()
+        prices = await _live_prices()
+        if prices is None:
+            return {"emami": None, "half": None, "quarter": None, "gerami": None}
         coin_bahar = prices.get("coin_bahar_irr")
         return {
             "emami": coin_bahar,  # coin_bahar_irr is the emami/full coin price
@@ -134,16 +140,13 @@ async def _fetch_aed_implied_usd(usd_irr: float | None) -> float | None:
     if usd_irr is None:
         return None
     try:
-        from brsapi.services.query_service import BrsApiQueryService
-        from services.gold.live_service import GoldLiveService
-
-        brsapi = BrsApiQueryService()
-        live = GoldLiveService(brsapi)
-        all_prices = await live.get_live_prices()
+        all_prices = await _live_prices()
+        if all_prices is None:
+            return None
         aed_irr = all_prices.get("aed_irr")
         if aed_irr is None or aed_irr <= 0:
             return None
-        return aed_irr / usd_irr
+        return float(aed_irr / usd_irr)
     except Exception as exc:
         logger.warning("AED implied USD provider failed: %s", exc, exc_info=True)
         return None

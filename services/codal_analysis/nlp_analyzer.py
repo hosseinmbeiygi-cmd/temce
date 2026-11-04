@@ -75,7 +75,7 @@ def analyze_management_report(text: str) -> TextAnalysisResult:
     risk_found = [kw for kw in RISK_PHRASES if kw in text]
 
     total_sentiment_words = optimism_count + pessimism_count
-    sentiment_score = 0
+    sentiment_score = 0.0
     if total_sentiment_words > 0:
         sentiment_score = (optimism_count - pessimism_count) / total_sentiment_words
 

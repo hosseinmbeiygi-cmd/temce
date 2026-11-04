@@ -111,7 +111,7 @@ class NewsReadPathHalterJob(BaseJob):
     """
 
     async def execute(self, context: JobContext) -> JobResult:
-        from services.news_read_canary import evaluate_auto_halt
+        from core.news_read_canary import evaluate_auto_halt
 
         result = await evaluate_auto_halt()
         return JobResult.success_result(job_name=self.name, data=result)

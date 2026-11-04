@@ -24,6 +24,7 @@ import logging
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, time, timedelta
+from typing import Any
 
 import httpx
 import jdatetime
@@ -58,7 +59,7 @@ class MacroEvent:
     explanation: str
     published_at: datetime
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["published_at"] = self.published_at.isoformat()
         d["dedupe_key"] = self.dedupe_key()

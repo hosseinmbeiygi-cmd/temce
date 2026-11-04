@@ -33,7 +33,7 @@ router = APIRouter()
 # dashboard/filter combination reuses the same cached build instead of
 # triggering a fresh 60s synchronous pipeline run per request.
 _CACHE_TTL_SECONDS = 90.0
-_cache: dict[str, Any] | None = None
+_cache: tuple[str, dict[str, Any]] | None = None
 _cache_at: float = 0.0
 
 # Tracks keys with a background rebuild already in flight so requests during
@@ -128,7 +128,7 @@ def _cache_key(use_ml: bool, use_confidence: bool) -> str:
 
 async def _get_cached_report(
     key: str, factory: Any,
-) -> tuple[dict[str, Any] | None, str | None]:
+) -> tuple[dict[str, Any] | None, asyncio.Task[None] | None]:
     """Return (cached_report, rebuild_task).
 
     If the cache is fresh, returns it. If stale, kicks off a background
@@ -330,8 +330,8 @@ async def trigger_retrain(
             reports = [result.value.to_dict()] if result.success and result.value else []
         else:
             # Retrain all markets
-            result = await pipeline.retrain_all_markets(force=force)
-            reports = [r.to_dict() for r in (result.value if result.success else [])]
+            all_result = await pipeline.retrain_all_markets(force=force)
+            reports = [r.to_dict() for r in (all_result.value or [])] if all_result.success else []
 
         return ApiResponse(
             success=True,

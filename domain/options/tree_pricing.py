@@ -77,7 +77,7 @@ def _crr_params(r: float, sigma: float, q: float, dt: float) -> tuple[float, flo
     return u, d, p
 
 
-def _trinomial_params(r: float, sigma: float, q: float, dt: float) -> tuple[float, float, float, float, float, float]:
+def _trinomial_params(r: float, sigma: float, q: float, dt: float) -> tuple[float, float, float, float]:
     """Trinomial tree parameters (Boyle, 1986).
 
     Returns (dx, pu, pm, pd) with grid spacing dx = sigma*sqrt(3*dt).

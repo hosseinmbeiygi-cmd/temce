@@ -15,7 +15,10 @@ from httpx import AsyncClient
 # ============================================================================
 
 
+pytestmark = pytest.mark.needs_db
+
 @pytest.mark.asyncio
+
 async def test_instruments_combined_market_industry(client: AsyncClient):
     """Filter by both market and industry simultaneously."""
     resp = await client.get("/api/v1/instruments", params={"market": "بورس", "industry": "بانک"})

@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 # ── متالورژی (تروا ounce = 31.1034768 گرم) ─────────────────────────
 TROY_OUNCE_GRAMS: float = 31.1034768
 GOLD_PURITY_24K: float = 999.9
@@ -56,7 +58,18 @@ assert all(0 <= c <= _MINTING_COST_MAX_TOMAN for c in COIN_MINTING_COSTS.values(
 )
 
 # ── کارمزد و مالیات ابزارها (٪) ──────────────────────────────────
-VEHICLE_FEES: dict[str, dict[str, float]] = {
+
+
+class VehicleFees(TypedDict):
+    """کارمزد/مالیات یک ابزار — درصدها float و برچسب فارسی str است."""
+
+    buy_pct: float
+    sell_pct: float
+    vat_pct: float
+    label_fa: str
+
+
+VEHICLE_FEES: dict[str, VehicleFees] = {
     "etf": {"buy_pct": 0.15, "sell_pct": 0.15, "vat_pct": 0.0, "label_fa": "صندوق ETF طلا"},
     "cert": {"buy_pct": 0.24, "sell_pct": 0.24, "vat_pct": 0.0, "label_fa": "گواهی شمش"},
     "melted": {"buy_pct": 0.30, "sell_pct": 0.50, "vat_pct": 0.0, "label_fa": "طلای آب‌شده"},

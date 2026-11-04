@@ -52,7 +52,7 @@ class RealReturnCalculator:
         if self._session is None:
             return None
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get current and historical price
         result = await self._session.execute(text("""
@@ -119,7 +119,7 @@ class RealReturnCalculator:
         if self._session is None:
             return 0.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT value
@@ -141,7 +141,7 @@ class RealReturnCalculator:
         if self._session is None:
             return 0.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get current USD/IRR rate
         result = await self._session.execute(text("""
@@ -182,7 +182,7 @@ class RealReturnCalculator:
         if self._session is None:
             return {}
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get top 30 stocks by value
         result = await self._session.execute(text("""

@@ -62,7 +62,7 @@ class SafeTradingAgent:
             scores.append(score)
         return scores.index(max(scores))
 
-    def update_weights(self, state: list[float], action: int, reward: float, cost: float):
+    def update_weights(self, state: list[float], action: int, reward: float, cost: float) -> None:
         cvar = self.calculate_cvar([cost])
         safety_violation = max(0, cvar - self.risk_limit)
         self.lagrangian_lambda += 0.01 * safety_violation
@@ -114,7 +114,7 @@ class MarketRegimeDetector:
         self.regime_history: list[int] = []
         self.is_fitted = False
 
-    def fit(self, features: list[list[float]]):
+    def fit(self, features: list[list[float]]) -> None:
         if len(features) < 10:
             return
         self.is_fitted = True
@@ -200,7 +200,7 @@ class AlphaChromosome:
         }
         self.fitness = 0.0
 
-    def mutate(self, rate: float = 0.15):
+    def mutate(self, rate: float = 0.15) -> None:
         for k in self.genes:
             if random.random() < rate:
                 delta = random.gauss(0, 0.1) * abs(self.genes[k])
@@ -262,13 +262,13 @@ class CoEvolutionOptimizer:
         self.best_omega: OmegaChromosome | None = None
         self.generation_log: list[dict[str, Any]] = []
 
-    def evaluate_fitness(self, alpha: AlphaChromosome, omega: OmegaChromosome, data: list[dict]) -> float:
+    def evaluate_fitness(self, alpha: AlphaChromosome, omega: OmegaChromosome, data: list[dict[str, Any]]) -> float:
         if not data or len(data) < 30:
             return 0.0
 
         capital = 1_000_000_000
         position = 0.0
-        cash = capital
+        cash = float(capital)
         equity_curve = [capital]
         trades = 0
         wins = 0
@@ -367,7 +367,7 @@ class CoEvolutionOptimizer:
 
         return max(fitness, -10)
 
-    def _compute_rsi(self, data: list[dict], idx: int, period: int) -> float:
+    def _compute_rsi(self, data: list[dict[str, Any]], idx: int, period: int) -> float:
         start = max(0, idx - period)
         prices = [data[i].get("close", 0) for i in range(start, idx + 1)]
         prices = [p for p in prices if p > 0]
@@ -386,7 +386,7 @@ class CoEvolutionOptimizer:
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
 
-    def run_generation(self, data: list[dict]) -> dict[str, Any]:
+    def run_generation(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         # Evaluate all pairs
         for alpha in self.alpha_pop:
             scores = []
@@ -422,11 +422,11 @@ class CoEvolutionOptimizer:
             new_alpha.extend([c1, c2])
 
         while len(new_omega) < self.pop_size:
-            p1, p2 = random.sample(self.omega_pop[:self.pop_size // 2], 2)
-            c1, c2 = p1.crossover(p2)
-            c1.mutate()
-            c2.mutate()
-            new_omega.extend([c1, c2])
+            o1, o2 = random.sample(self.omega_pop[:self.pop_size // 2], 2)
+            oc1, oc2 = o1.crossover(o2)
+            oc1.mutate()
+            oc2.mutate()
+            new_omega.extend([oc1, oc2])
 
         self.alpha_pop = new_alpha[:self.pop_size]
         self.omega_pop = new_omega[:self.pop_size]
@@ -442,7 +442,7 @@ class CoEvolutionOptimizer:
         self.generation_log.append(gen_info)
         return gen_info
 
-    def run(self, data: list[dict]) -> dict[str, Any]:
+    def run(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         for _gen in range(self.generations):
             self.run_generation(data)
         return {
@@ -459,13 +459,13 @@ class CoEvolutionOptimizer:
 class AdaptiveTradingSystem:
     """Integrated system combining Safe RL, HMM regime detection, and Co-evolution."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.regime_detector = MarketRegimeDetector()
         self.safe_agent = SafeTradingAgent()
         self.co_evolver = CoEvolutionOptimizer(pop_size=30, generations=8)
         self.is_initialized = False
 
-    async def initialize(self, data: list[dict]):
+    async def initialize(self, data: list[dict[str, Any]]) -> None:
         features = []
         for bar in data[-500:]:
             features.append([
@@ -567,7 +567,7 @@ class CQLAgent:
     def train_step(self, states: list[list[float]], actions: list[int],
                    rewards: list[float], next_states: list[list[float]],
                    next_actions: list[int], dones: list[bool]) -> dict[str, float]:
-        losses = {"total": 0, "td": 0, "cql": 0, "cvar": 0}
+        losses: dict[str, float] = {"total": 0.0, "td": 0.0, "cql": 0.0, "cvar": 0.0}
 
         for s, a, r, ns, na, d in zip(states, actions, rewards, next_states, next_actions, dones, strict=False):
             target_q = r + (0 if d else self.gamma * self._target_q(ns, na))
@@ -749,7 +749,7 @@ class HSMMRegimeDetector:
 
         scores = []
         for k in range(self.num_states):
-            score = 0
+            score = 0.0
             for f, val in enumerate(features):
                 if f < len(self.state_means[k]):
                     mean = self.state_means[k][f]

@@ -18,10 +18,8 @@ import time
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.config import settings
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import now_tehran, utc_now_naive
 from services.adjusted_price_reader import (
@@ -147,7 +145,8 @@ class StockReadThroughService:
                 return {**payload, "freshness": "live"}
 
         # Stale/Miss → JIT از BrsApi (Mutex روی ISIN)
-        async with self._guarded(f"stock:{isin or symbol}:lock"):
+        guard = await self._guarded(f"stock:{isin or symbol}:lock")
+        async with guard:
             fresh = await self._fetch_and_store_tape(symbol, isin)
         if fresh is not None:
             return {**fresh, "freshness": "live"}

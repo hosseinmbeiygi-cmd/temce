@@ -1099,7 +1099,7 @@ def create_app() -> FastAPI:
     async def metrics():
         """Prometheus text exposition of in-process metrics."""
         return PlainTextResponse(
-            get_prometheus_exporter().export_text(),
+            get_prometheus_exporter().export_prometheus(),
             media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 

@@ -46,7 +46,7 @@ class FakeQueueDetector:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Fetch current snapshots with queue data
         result = await self._session.execute(text("""
@@ -75,7 +75,7 @@ class FakeQueueDetector:
         if self._session is None:
             return None
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT symbol, name, price_last, price_close, price_first,

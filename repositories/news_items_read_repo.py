@@ -27,7 +27,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, desc, exists, func, or_, select
+from sqlalchemy import Select, bindparam, desc, exists, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -68,13 +68,40 @@ class NewsItemsReadRepo:
         cache = get_cache()
         if cache.is_connected and cache.client is not None:
             try:
-                from services.news_read_canary import _MODE_KEY
+                from core.news_read_canary import _MODE_KEY
 
                 if await cache.client.get(_MODE_KEY):
                     return True
             except Exception:  # noqa: BLE001 — fail-open to legacy
                 return False
         return False
+
+    async def _mapped_tag_values(self, symbol: str, variants: set[str]) -> set[str]:
+        """Persisted ``calendar.tag_value``s whose target symbol/fund matches.
+
+        Read-only companion of the tag mapper, kept in the repository so the
+        read path never imports the service layer.
+        """
+        if not variants:
+            return set()
+        rows = (
+            await self.session.execute(
+                text(
+                    """
+                    SELECT m.tag_value FROM news_tag_symbol_map m
+                    WHERE (m.resolved_type = 'symbol'
+                           AND m.resolved_id IN (
+                               SELECT CAST(id AS TEXT) FROM symbols
+                               WHERE symbol IN :vs))
+                       OR (m.resolved_type = 'fund'
+                           AND m.resolved_id IN (
+                               SELECT id FROM funds WHERE symbol IN :vs))
+                    """
+                ).bindparams(bindparam("vs", expanding=True)),
+                {"vs": sorted(variants)},
+            )
+        ).scalars().all()
+        return {str(v) for v in rows if v}
 
     @staticmethod
     def _naive_utc(dt: datetime) -> datetime:
@@ -228,13 +255,10 @@ class NewsItemsReadRepo:
         """
         variants: set[str] = set()
         try:
-            from services.news_tag_symbol_mapper import (
-                NewsTagSymbolMapper,
-                _spelling_variants,
-            )
+            from core.news_tags import spelling_variants
 
-            variants |= _spelling_variants(symbol)
-            variants |= await NewsTagSymbolMapper(self.session).tag_values_for_symbol(symbol)
+            variants |= spelling_variants(symbol)
+            variants |= await self._mapped_tag_values(symbol, variants)
         except Exception:  # noqa: BLE001 — read path must never hard-fail on mapping
             logger.debug("tag_variant lookup failed; using spelling variants only", exc_info=True)
             variants = {symbol}

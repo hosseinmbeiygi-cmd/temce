@@ -22,7 +22,7 @@ class TsetmcClient:
 
     # ── Internal helpers ──────────────────────────────
 
-    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Result[dict[str, Any] | list[Any]]:
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Result[Any]:
         url = f"{self.BASE_URL}{path}"
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -45,11 +45,17 @@ class TsetmcClient:
     async def get_instrument_list(self) -> Result[list[dict[str, Any]]]:
         """لیست تمام نمادهای بورس"""
         result = await self._get("/Instrument/GetInstrumentList")
-        if result.is_ok:
-            data = result.value
-            instruments = data if isinstance(data, list) else data.get("instrument", data.get("instruments", []))
-            return Result.ok(instruments)
-        return result  # type: ignore[return-value]
+        if not result.success:
+            return Result.fail(result.error or "TSETMC instrument list request failed")
+        data = result.value
+        if isinstance(data, list):
+            instruments: list[dict[str, Any]] = data
+        elif isinstance(data, dict):
+            nested = data.get("instrument", data.get("instruments", []))
+            instruments = nested if isinstance(nested, list) else []
+        else:
+            instruments = []
+        return Result.ok(instruments)
 
     async def get_instrument_info(self, ins_code: str) -> Result[dict[str, Any]]:
         """اطلاعات پایه یک نماد"""

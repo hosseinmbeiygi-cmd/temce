@@ -71,7 +71,7 @@ class SignalPerformanceTracker:
         if self._session is None:
             return
 
-        from sqlalchemy import text
+        from core.database import text
 
         await self._session.execute(text("""
             CREATE TABLE IF NOT EXISTS signal_performance (
@@ -119,7 +119,7 @@ class SignalPerformanceTracker:
         if self._session is None:
             return
 
-        from sqlalchemy import text
+        from core.database import text
 
         today = date.today()
         await self._session.execute(text("""
@@ -134,7 +134,7 @@ class SignalPerformanceTracker:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         today = date.today()
 
@@ -181,7 +181,7 @@ class SignalPerformanceTracker:
 
     async def _check_signal_performance(self, row: dict[str, Any], days: int) -> PerformanceResult | None:
         """Check actual performance of a signal after N days."""
-        from sqlalchemy import text
+        from core.database import text
 
         symbol = row["symbol"]
         entry_price = float(row["entry_price"])
@@ -249,7 +249,7 @@ class SignalPerformanceTracker:
 
     async def _update_accuracy_summary(self) -> None:
         """Update the tracker-private ``signal_weight_accuracy`` table with latest stats."""
-        from sqlalchemy import text
+        from core.database import text
 
         # Update 3-day accuracy per source
         await self._session.execute(text("""
@@ -304,7 +304,7 @@ class SignalPerformanceTracker:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT source, total_signals, correct_signals, avg_return, weight

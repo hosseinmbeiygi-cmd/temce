@@ -21,7 +21,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from core.logging import get_logger
 from services.ime_signal_factory import (
@@ -199,7 +199,7 @@ class AdapterResult:
             "symbol": self.symbol,
             "maturity": self.maturity.name,
             "reject_code": self.reject_code.value if self.reject_code else None,
-            "trade_card": self.trade_card.to_dict() if self.trade_card else None,
+            "trade_card": cast(Any, self.trade_card).to_dict() if self.trade_card else None,
             "rejection_reason": self.rejection_reason,
             "is_releasable": self.is_releasable,
         }

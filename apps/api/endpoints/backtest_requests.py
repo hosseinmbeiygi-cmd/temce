@@ -29,9 +29,15 @@ class RunOnAllSymbolsRequest(_BaseBody):
     start_date: str | None = None
     end_date: str | None = None
     initial_capital: float = 1_000_000_000
+    # Optional explicit symbol list; when omitted the endpoint scans every
+    # symbol that has historical data in the database.
+    symbols: list[str] | None = None
+    # Survivorship-bias guard: keep delisted/suspended instruments by default.
+    include_delisted: bool = True
 
 
 class SaveCompareRequest(_BaseBody):
+    notes: str = ""
     symbol: str = ""
     total_strategies: int = 0
     successful: int = 0
@@ -55,6 +61,8 @@ class CompareStrategiesRequest(_BaseBody):
 
 
 class ScanIndicatorsRequest(_BaseBody):
+    batch_size: int = 10
+    max_concurrent: int = 10
     symbols: list[str] | None = None
     indicator_ids: list[str] | None = None
     filters: dict[str, Any] | None = None

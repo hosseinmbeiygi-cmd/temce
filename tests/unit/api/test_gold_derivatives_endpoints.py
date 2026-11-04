@@ -24,6 +24,7 @@ def client(app, auth_headers) -> TestClient:
     return test_client
 
 
+@pytest.mark.needs_db
 def test_options_chain_get_uses_service(monkeypatch, client: TestClient) -> None:
     captured: dict = {}
 
@@ -59,6 +60,7 @@ def test_options_chain_get_uses_service(monkeypatch, client: TestClient) -> None
     assert captured["liquidity_thresholds"] == {"min_volume": 10}
 
 
+@pytest.mark.needs_db
 def test_options_chain_requires_jwt(app, monkeypatch, auth_headers) -> None:
     """STEP 7D-1: IV rank/percentile, skew and term structure are derived
     analytics, so the chain read is no longer anonymous."""

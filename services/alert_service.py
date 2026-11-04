@@ -4,9 +4,7 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, or_, select
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -61,7 +59,7 @@ class AlertService:
     ) -> Result[dict[str, Any]]:
         """List alerts; ``user_id=None`` means "no filter" and is admin-only."""
         try:
-            from sqlalchemy import func as sa_func
+            from core.database import func as sa_func
 
             offset = (page - 1) * page_size
             count_stmt = select(sa_func.count(AlertModel.id))
@@ -155,7 +153,7 @@ class AlertService:
         self, alert_id: str, page: int = 1, page_size: int = 50, *, user_id: str | None = None
     ) -> Result[dict[str, Any]]:
         try:
-            from sqlalchemy import func as sa_func
+            from core.database import func as sa_func
 
             # Ownership is checked against the alert itself before any history
             # row is returned (audit SEC-05). ``user_id=None`` is admin-only.
@@ -255,7 +253,7 @@ class AlertService:
             if not match_clauses:
                 return []
             result = await self.session.execute(
-                select(AlertModel).where(or_(*match_clauses), AlertModel.enabled)
+                select(AlertModel).where(or_(*match_clauses), AlertModel.enabled.is_(True))
             )
             alerts = result.scalars().all()
             now = datetime.now(UTC).replace(tzinfo=None)
@@ -347,7 +345,7 @@ class AlertService:
         of this signal about hit_target/hit_stop/expired_neutral."""
         try:
             result = await self.session.execute(
-                select(AlertModel).where(AlertModel.signal_id == signal_id, AlertModel.enabled)
+                select(AlertModel).where(AlertModel.signal_id == signal_id, AlertModel.enabled.is_(True))
             )
             alerts = result.scalars().all()
             now = datetime.now(UTC).replace(tzinfo=None)

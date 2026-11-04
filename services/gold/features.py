@@ -140,7 +140,10 @@ def _history(
 
 def _latest(series: list[DatedValue], as_of: datetime) -> float | None:
     usable = _history(series, as_of)
-    return float(usable[-1].value) if usable else None
+    if not usable:
+        return None
+    latest = usable[-1].value
+    return float(latest) if latest is not None else None
 
 
 def _parse_known_at(raw: Any) -> datetime | None:
@@ -293,7 +296,7 @@ def compute_gold_features(
     if len(bubble_history) < min_bubble_observations:
         values["gold_bubble_zscore"] = None
     else:
-        sample = [float(item.value) for item in bubble_history]
+        sample = [float(item.value) for item in bubble_history if item.value is not None]
         values["gold_bubble_zscore"] = rolling_zscore_percentile(
             sample, sample[-1]
         )["z_score"]

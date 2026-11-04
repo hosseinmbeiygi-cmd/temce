@@ -11,8 +11,8 @@ from sqlalchemy.orm import aliased
 
 from core.dbcompat import naive_utc
 from core.logging import get_logger
+from core.news_read_canary import ReadPathDecision, compare_page
 from core.result import PaginatedResult, Result
-from services.news_read_canary import ReadPathDecision, compare_page
 
 logger = get_logger(__name__)
 from domain.news.news_item import NewsItem
@@ -30,7 +30,7 @@ class NewsRepository:
         # Canary READ path (NEWS_READ_MODE off/shadow/canary/full + legacy
         # boolean NEWS_READ_FROM_ITEMS forcing full): serves list/search/
         # get_by_symbol from the new ``news_items`` schema (migration 0054)
-        # per services.news_read_canary, with shadow comparison in non-full
+        # per core.news_read_canary, with shadow comparison in non-full
         # modes. Writes ALWAYS stay on the legacy repo + dual-write, so any
         # mode flip is data-safe both ways.
         self._items_read: NewsItemsReadRepo | None = None
@@ -39,7 +39,7 @@ class NewsRepository:
         """Resolve the canary decision and return (decision, legacy_repo,
         items_repo) for one read request. Legacy/mem repo may be None only
         when neither exists (degenerate test setups)."""
-        from services.news_read_canary import decide, resolve_mode
+        from core.news_read_canary import decide, resolve_mode
 
         mode = await resolve_mode()
         decision = decide(mode, discriminator)
@@ -229,7 +229,7 @@ class NewsRepository:
     ) -> None:
         """Fire-and-forget parity accounting — never raises, never blocks
         the response on anything but the tiny counter write."""
-        from services.news_read_canary import record
+        from core.news_read_canary import record
 
         try:
             if not decision.shadow:

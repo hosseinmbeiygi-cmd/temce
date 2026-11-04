@@ -569,20 +569,23 @@ class SignalDecisionEngine:
 
         # ── Apply SmartDecisionGate override ───────────────────────────────
         use_override = override is not None
+        ignore_ml = override.ignore_ml if override is not None else False
+        ml_boost = override.ml_boost_multiplier if override is not None else 1.0
+        override_reason = override.reason if override is not None else ""
 
-        if use_override and override.ignore_ml:
+        if ignore_ml:
             # Stagnant market: force rule-only — mean reversion takes over
             return GateResult(
                 gate_name="model",
                 verdict=GateVerdict.PASS,
                 score=1.0,
                 reason=(
-                    f"SmartOverride: {override.reason} "
+                    f"SmartOverride: {override_reason} "
                     "ML نادیده گرفته شد — سیگنال Mean-Reversion جایگزین شد"
                 ),
                 details={
                     "signal_type": "rule_override",
-                    "override_reason": override.reason,
+                    "override_reason": override_reason,
                     "smart_override": True,
                 },
             )
@@ -620,8 +623,8 @@ class SignalDecisionEngine:
 
         # Volume surge boost (from SmartDecisionGate)
         ml_score = candidate.ml_score
-        if use_override and override.ml_boost_multiplier > 1.0:
-            ml_score = min(1.0, ml_score * override.ml_boost_multiplier)
+        if ml_boost > 1.0:
+            ml_score = min(1.0, ml_score * ml_boost)
 
         return GateResult(
             gate_name="model",
@@ -629,13 +632,13 @@ class SignalDecisionEngine:
             score=ml_score,
             reason=(
                 f"{candidate.active_models} مدل فعال — پیش‌بینی در دسترس"
-                + (f" (ضریب ML: {override.ml_boost_multiplier:.1f}×)" if use_override and override.ml_boost_multiplier > 1.0 else "")
+                + (f" (ضریب ML: {ml_boost:.1f}×)" if ml_boost > 1.0 else "")
             ),
             details={
                 "active_models": candidate.active_models,
                 "agreeing": candidate.agreeing_models,
                 "models": candidate.models_used,
-                "ml_boost": override.ml_boost_multiplier if use_override and override.ml_boost_multiplier > 1.0 else 1.0,
+                "ml_boost": ml_boost if ml_boost > 1.0 else 1.0,
                 "smart_override": use_override,
             },
         )
@@ -1065,9 +1068,7 @@ class SignalDecisionEngine:
                 return regime
 
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is not None:
                 async with async_session_factory() as session:

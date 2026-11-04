@@ -46,7 +46,7 @@ _subscriptions: dict[str, dict[str, Any]] = {}
 def _subscribe(sub: SubscriptionCreate) -> SubscriptionResponse:
     sid = uuid.uuid4().hex[:12]
     now = datetime.now(UTC).isoformat()
-    entry = {
+    entry: dict[str, Any] = {
         "id": sid,
         "name": sub.name or f"اشتراک {sid[:4]}",
         "channel": sub.channel,

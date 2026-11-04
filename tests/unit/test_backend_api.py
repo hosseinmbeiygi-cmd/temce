@@ -14,7 +14,10 @@ from httpx import AsyncClient
 # ============================================================================
 
 
+pytestmark = pytest.mark.needs_db
+
 @pytest.mark.asyncio
+
 async def test_health_check(client: AsyncClient):
     """GET /api/v1/health should return ok status (wrapped in ApiResponse)."""
     resp = await client.get("/api/v1/health")

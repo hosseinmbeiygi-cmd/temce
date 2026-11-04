@@ -27,12 +27,9 @@ and the read repo so every consumer shares one canonical form.
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
-from sqlalchemy import bindparam, text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, bindparam, text
 from core.dbcompat import as_bigint_id, as_text_id
 from core.logging import get_logger
 
@@ -41,51 +38,10 @@ logger = get_logger(__name__)
 # Confidence per match type — manual beats derived matches.
 _CONFIDENCE = {"manual": 1.00, "exact": 0.95, "arabic_fallback": 0.80}
 
-# Arabic → Persian character folding (applied to both tag and target).
-_CHAR_MAP = {
-    "ي": "ی",  # Arabic yeh
-    "ك": "ک",  # Arabic kaf
-    "ة": "ه",  # teh marbuta
-    "ۀ": "ه",
-    "أ": "ا",
-    "إ": "ا",
-    "آ": "ا",  # alef variants (ticker context: safe fold)
-    "ؤ": "و",
-    "ئ": "ی",
-    "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
-    "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
-    "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
-    "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
-}
-_CHAR_RE = re.compile("[" + "".join(_CHAR_MAP) + "]")
-
-# Zero-width joiners fold to a space (نیم‌فاصله ≡ فاصله for matching:
-# ``سرمايه‌گذاري`` must equal ``سرمایه گذاری``); the rest are pure noise.
-_ZWNJ_RE = re.compile("[\u200c\u200d]")
-_STRIP_RE = re.compile("[\u200f\u200e\u202a-\u202e\ufeff\u00a0]")
-
-
-def normalize_persian(value: str | None) -> str:
-    """Canonical Persian form of a ticker: fold Arabic chars, strip
-    zero-width joiners, collapse whitespace, casefold (for latin digits)."""
-    if not value:
-        return ""
-    v = _STRIP_RE.sub(" ", value)
-    v = _ZWNJ_RE.sub(" ", v)
-    v = _CHAR_RE.sub(lambda m: _CHAR_MAP[m.group(0)], v)
-    v = " ".join(v.split())
-    return v.casefold()
-
-
-def _spelling_variants(value: str | None) -> set[str]:
-    """Spelling variants of a ticker: raw, Persian-normalized, and the
-    Arabic back-spelled form (ی→ي، ک→ك)."""
-    if not value:
-        return set()
-    norm = normalize_persian(value)
-    arabic = norm.translate(str.maketrans("یک", "يك"))
-    return {v for v in (value.strip(), norm, arabic) if v}
-
+# Normalization lives in core so repositories can reuse it without
+# importing the service layer.
+from core.news_tags import normalize_persian as normalize_persian
+from core.news_tags import spelling_variants as _spelling_variants
 
 # Deterministic single-candidate probes. ``ORDER BY id`` makes the pick stable
 # when two rows share a symbol — ``LIMIT 1`` alone left the choice to the query
@@ -162,7 +118,7 @@ class NewsTagSymbolMapper:
 
     # ── table probes ──────────────────────────────────────────────────
 
-    async def _probe_tables(self, candidate: str) -> tuple[str, int, str] | None:
+    async def _probe_tables(self, candidate: str) -> tuple[str, str, str] | None:
         """Look up a candidate spelling in funds then symbols.
 
         Returns ``(resolved_type, resolved_id, resolved_symbol)`` or None.
@@ -185,7 +141,7 @@ class NewsTagSymbolMapper:
                     candidate,
                     rows[0][0],
                 )
-            return ("fund", str(rows[0][0]), rows[0][1])  # funds.id is VARCHAR
+            return ("fund", str(rows[0][0]), str(rows[0][1]))  # funds.id is VARCHAR
         rows = (
             await self.session.execute(
                 text(_probe_sql("symbols")),
@@ -200,7 +156,7 @@ class NewsTagSymbolMapper:
                     candidate,
                     rows[0][0],
                 )
-            return ("symbol", str(rows[0][0]), rows[0][1])
+            return ("symbol", str(rows[0][0]), str(rows[0][1]))
         return None
 
     # ── persistence ───────────────────────────────────────────────────
@@ -296,7 +252,7 @@ class NewsTagSymbolMapper:
         every persisted mapping whose target is this symbol (covers
         manual aliases like ``وبم`` → ``وبانك``). Read-only — never writes.
         """
-        from sqlalchemy import bindparam
+        from core.database import bindparam
 
         out = _spelling_variants(symbol)
         if not out:
@@ -381,7 +337,7 @@ class NewsTagSymbolMapper:
             )
         ).scalars().all()
 
-        counts = {"mapped": 0, "manual_kept": 0, "unmapped": 0}
+        counts: dict[str, Any] = {"mapped": 0, "manual_kept": 0, "unmapped": 0}
         unmapped_tags: list[str] = []
         for tag in rows:
             mapping = await self.resolve(tag, persist=True)

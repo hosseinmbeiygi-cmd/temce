@@ -22,11 +22,10 @@ passes its session; writes join that transaction (no separate connections).
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +54,7 @@ class NewsDualWriter:
     def __init__(self, session: AsyncSession | None = None, enabled: bool = True) -> None:
         self._session = session
         self.enabled = enabled
+        self._reissue_legacy_save: Callable[[dict[str, Any]], Any] | None = None
 
     async def mirror(
         self,

@@ -212,13 +212,13 @@ def parse_report(filepath: str) -> dict[str, Any]:
         # Detect if first column contains financial statement items
         items: list[dict[str, Any]] = []
         summary: dict[str, float] = {}
-        for row in data_rows:
-            if not row or not row[0]:
+        for data_row in data_rows:
+            if not data_row or not data_row[0]:
                 continue
-            label = row[0]
+            label = data_row[0]
             values: dict[str, float] = {}
-            for col_idx in range(1, len(row)):
-                val = _normalize_number(row[col_idx])
+            for col_idx in range(1, len(data_row)):
+                val = _normalize_number(data_row[col_idx])
                 col_name = headers[col_idx] if col_idx < len(headers) else f"col_{col_idx}"
                 values[col_name] = val
                 # Update summary with the last numeric column

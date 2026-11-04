@@ -44,9 +44,12 @@ class MacroService:
 
     async def _get_live_indicator(self, indicator: str) -> dict[str, Any] | None:
         """Fetch real-time indicator value from BrsApi database."""
+        brsapi = self._brsapi
+        if brsapi is None:
+            return None
         try:
             if indicator == "dollar":
-                currencies = await self._brsapi.get_currency_prices()
+                currencies = await brsapi.get_currency_prices()
                 for c in currencies:
                     if c.get("symbol", "").lower() in ("usd", "usdrial", "دلار"):
                         return {
@@ -58,7 +61,7 @@ class MacroService:
                             "source": "BrsApi (لحظه‌ای)",
                         }
                 # Try 24h data
-                currencies_24h = await self._brsapi.get_currency_24h()
+                currencies_24h = await brsapi.get_currency_24h()
                 for c in currencies_24h:
                     if c.get("symbol", "").lower() in ("usd", "usdrial", "دلار"):
                         return {
@@ -71,7 +74,7 @@ class MacroService:
                         }
 
             elif indicator == "eur":
-                currencies = await self._brsapi.get_currency_prices()
+                currencies = await brsapi.get_currency_prices()
                 for c in currencies:
                     if c.get("symbol", "").lower() in ("eur", "eurrial", "یورو"):
                         return {
@@ -82,7 +85,7 @@ class MacroService:
                             "change": c.get("close_change", 0),
                             "source": "BrsApi (لحظه‌ای)",
                         }
-                currencies_24h = await self._brsapi.get_currency_24h()
+                currencies_24h = await brsapi.get_currency_24h()
                 for c in currencies_24h:
                     if c.get("symbol", "").lower() in ("eur", "eurrial", "یورو"):
                         return {
@@ -95,7 +98,7 @@ class MacroService:
                         }
 
             elif indicator == "gold_ounce":
-                gold = await self._brsapi.get_gold_24h()
+                gold = await brsapi.get_gold_24h()
                 for g in gold:
                     if g.get("symbol", "").lower() in ("اونس", "gold_ounce", "xauusd"):
                         return {
@@ -106,7 +109,7 @@ class MacroService:
                             "change": g.get("close_change", 0),
                             "source": "BrsApi (۲۴ ساعته)",
                         }
-                gold_coins = await self._brsapi.get_gold_coin_prices()
+                gold_coins = await brsapi.get_gold_coin_prices()
                 for g in gold_coins:
                     if "18" in str(g.get("symbol", "")):
                         return {
@@ -119,7 +122,7 @@ class MacroService:
                         }
 
             elif indicator == "oil_price":
-                commodities = await self._brsapi.get_commodity_prices(category="oil")
+                commodities = await brsapi.get_commodity_prices(category="oil")
                 for c in commodities:
                     if "برنت" in str(c.get("symbol", "")) or "brent" in str(c.get("symbol", "")).lower():
                         return {
@@ -131,7 +134,7 @@ class MacroService:
                             "source": "BrsApi (کامودیتی)",
                         }
                 # Try any oil-related commodity
-                commodities = await self._brsapi.get_commodity_prices()
+                commodities = await brsapi.get_commodity_prices()
                 for c in commodities:
                     sym = str(c.get("symbol", "")).lower()
                     cat = str(c.get("category", "")).lower()

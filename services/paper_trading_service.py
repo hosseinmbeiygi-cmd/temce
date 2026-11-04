@@ -22,9 +22,7 @@ import contextlib
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import desc, select, text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, desc, select, text
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import PaginatedResult, Result
@@ -261,7 +259,7 @@ class PaperTradingService:
 
         Called by a daily maintenance job. Returns the number of closed trades.
         """
-        from sqlalchemy import select
+        from core.database import select
 
         stmt = select(PaperTradeModel).where(PaperTradeModel.status == "open")
         rows = (await self.session.execute(stmt)).scalars().all()
@@ -288,8 +286,8 @@ class PaperTradingService:
 
     async def get_dashboard(self, user_id: str | None = None) -> dict[str, Any]:
         """Aggregate P&L stats for the paper account (owner-scoped, see list_trades)."""
-        from sqlalchemy import func
-        from sqlalchemy import or_ as sa_or
+        from core.database import func
+        from core.database import or_ as sa_or
 
         owner_filter = sa_or(PaperTradeModel.user_id.is_(None), PaperTradeModel.user_id == user_id) \
             if user_id else PaperTradeModel.user_id.is_(None)
@@ -364,8 +362,8 @@ class PaperTradingService:
         Scope: the caller's own trades + legacy NULL-owner rows. Pass
         ``user_id=None`` only for anonymous/public views (legacy rows only).
         """
-        from sqlalchemy import func
-        from sqlalchemy import or_ as sa_or
+        from core.database import func
+        from core.database import or_ as sa_or
 
         stmt = select(PaperTradeModel)
         count_stmt = select(func.count()).select_from(PaperTradeModel)
@@ -405,7 +403,7 @@ class PaperTradingService:
         direction: str | None = None,
     ) -> Result[PaginatedResult[dict[str, Any]]]:
         """List the signal journal (daily signal snapshots)."""
-        from sqlalchemy import func
+        from core.database import func
 
         stmt = select(PaperSignalSnapshotModel)
         count_stmt = select(func.count()).select_from(PaperSignalSnapshotModel)

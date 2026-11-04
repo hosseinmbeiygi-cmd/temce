@@ -21,9 +21,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
-
+from core.database import SQLAlchemyError, text
 from core.db_utils import safe_row_float
 from core.indicators import compute_data_quality_score
 from core.logging import get_logger

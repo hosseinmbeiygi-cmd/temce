@@ -26,7 +26,7 @@ import time
 from typing import Any
 
 import jdatetime
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -367,9 +367,9 @@ async def _load_merged_funds(session: AsyncSession) -> dict[str, dict[str, Any]]
 
     # 1) TSE funds table — richest NAV data; wins on collision
     try:
-        result = await session.execute(select(FundModel).order_by(FundModel.symbol))
-        for row in result.scalars().all():
-            merged[row.symbol] = _fund_model_to_dict(row)
+        fund_result = await session.execute(select(FundModel).order_by(FundModel.symbol))
+        for fund_row in fund_result.scalars().all():
+            merged[fund_row.symbol] = _fund_model_to_dict(fund_row)
     except Exception as e:
         logger.warning("Funds table unavailable: %s", e)
 
@@ -377,15 +377,15 @@ async def _load_merged_funds(session: AsyncSession) -> dict[str, dict[str, Any]]
     #    ETF snapshots so commodity funds keep their ``ime`` market label even
     #    though they also appear in the TSETMC symbol snapshots.
     try:
-        subq = (
+        ime_subq = (
             select(ImeFundModel.symbol, func.max(ImeFundModel.id).label("max_id"))
             .group_by(ImeFundModel.symbol)
             .subquery()
         )
-        stmt = select(ImeFundModel).join(subq, ImeFundModel.id == subq.c.max_id)
-        result = await session.execute(stmt)
-        for row in result.scalars().all():
-            merged.setdefault(row.symbol, _ime_fund_to_dict(row))
+        ime_stmt = select(ImeFundModel).join(ime_subq, ImeFundModel.id == ime_subq.c.max_id)
+        ime_result = await session.execute(ime_stmt)
+        for ime_row in ime_result.scalars().all():
+            merged.setdefault(ime_row.symbol, _ime_fund_to_dict(ime_row))
     except Exception as e:
         logger.warning("IME funds table unavailable: %s", e)
 
@@ -401,18 +401,20 @@ async def _load_merged_funds(session: AsyncSession) -> dict[str, dict[str, Any]]
             nav_syms = (await session.execute(select(NavRecordModel.symbol).distinct())).scalars().all()
             etf_list = list(dict.fromkeys([*etf_list, *[s for s in nav_syms if s]]))
         fund_sector = "صندوق سرمایه‌گذاری قابل معامله"
-        subq = (
+        snap_subq = (
             select(SymbolSnapshotModel.symbol, func.max(SymbolSnapshotModel.fetched_at).label("latest"))
             .where((SymbolSnapshotModel.sector == fund_sector) | (SymbolSnapshotModel.symbol.in_(etf_list)))
             .group_by(SymbolSnapshotModel.symbol)
             .subquery()
         )
-        stmt = select(SymbolSnapshotModel).join(
-            subq, (SymbolSnapshotModel.symbol == subq.c.symbol) & (SymbolSnapshotModel.fetched_at == subq.c.latest)
+        snap_stmt = select(SymbolSnapshotModel).join(
+            snap_subq,
+            (SymbolSnapshotModel.symbol == snap_subq.c.symbol)
+            & (SymbolSnapshotModel.fetched_at == snap_subq.c.latest),
         )
-        result = await session.execute(stmt)
-        for row in result.scalars().all():
-            merged.setdefault(row.symbol, _snapshot_to_dict(row))
+        snap_result = await session.execute(snap_stmt)
+        for snap_row in snap_result.scalars().all():
+            merged.setdefault(snap_row.symbol, _snapshot_to_dict(snap_row))
     except Exception as e:
         logger.warning("ETF snapshots unavailable: %s", e)
 
@@ -940,13 +942,13 @@ async def _build_fund_overview(session: AsyncSession) -> dict[str, Any]:
             for key, days in _RETURN_PERIODS.items():
                 boundary = _shamsi_days_ago(days)
                 start = await _price_at_or_after(session, syms, boundary)
-                vals: list[float] = []
+                period_vals: list[float] = []
                 for s in syms:
                     cur = latest.get(s)
                     st = start.get(s)
                     if cur and st and st > 0:
-                        vals.append((cur / st - 1) * 100)
-                row[key] = _robust_return(vals)
+                        period_vals.append((cur / st - 1) * 100)
+                row[key] = _robust_return(period_vals)
             if any(v is not None for v in row.values() if isinstance(v, (int, float))):
                 returns.append(row)
         returns.sort(key=lambda r: -(r.get("y1") or 0))
@@ -1199,7 +1201,7 @@ async def get_funds_intraday(
                     )
                 )
             rows = (await session.execute(stmt)).scalars().all()
-            ticks = [
+            ticks: list[dict[str, Any]] = [
                 {
                     "time": r.time,
                     "price": float(r.price) if r.price is not None else None,
@@ -1210,8 +1212,8 @@ async def get_funds_intraday(
                 }
                 for r in rows
             ]
-            prices = [t["price"] for t in ticks if t["price"]]
-            vols = [t["volume"] for t in ticks]
+            prices: list[float] = [t["price"] for t in ticks if t["price"]]
+            vols: list[float] = [t["volume"] for t in ticks]
             summary = None
             if prices:
                 summary = {
@@ -1550,8 +1552,14 @@ async def get_fund_nav_split(
         )
         row = result.scalars().first()
     except Exception as exc:
-        logger.debug("NAV split unavailable for %s: %s", symbol, exc)
-        row = None
+        logger.warning("NAV split unavailable for %s: %s", symbol, exc)
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "NAV_READ_FAILED",
+                "message": "NAV records are temporarily unavailable; retry shortly.",
+            },
+        ) from exc
     if row is None:
         return {"symbol": symbol, "found": False, "latest": None}
     return {

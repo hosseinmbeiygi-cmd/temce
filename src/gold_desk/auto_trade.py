@@ -19,7 +19,7 @@ import logging
 import os
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,7 +46,7 @@ class AutoTradeConfig:
     min_score_to_sell: int  # حداقل score برای فروش
     cooldown_hours: int  # فاصله بین معاملات
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -62,7 +62,7 @@ class TradeSignal:
     dry_run: bool
     ts: datetime
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["ts"] = self.ts.isoformat()
         return d
@@ -127,7 +127,7 @@ async def save_config(config: AutoTradeConfig) -> None:
 
 async def generate_signal(
     session: AsyncSession,
-    snapshot: dict,
+    snapshot: dict[str, Any],
     config: AutoTradeConfig | None = None,
 ) -> TradeSignal | None:
     """تولید سیگنال بر اساس snapshot + portfolio."""
@@ -172,7 +172,7 @@ async def generate_signal(
 async def execute_signal(
     session: AsyncSession,
     signal: TradeSignal,
-) -> dict:
+) -> dict[str, Any]:
     """اجرای سیگنال (dry-run یا live).
 
     dry-run هیچ معامله‌ای ثبت نمی‌کند — پیش‌تر یک ردیف ``gold_trades`` با

@@ -21,10 +21,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.config import settings
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import now_tehran, utc_now_naive
 from services.fund_api_adapter import (

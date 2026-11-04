@@ -11,6 +11,7 @@ Decision: GREEN >= 80, YELLOW >= 55, RED < 55.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from .constants import (
     BUBBLE_ANOMALY_FLOOR_PCT,
@@ -46,6 +47,8 @@ from .constants import (
     TSETMC_INFLOW_YELLOW_PTS,
 )
 
+Decision = Literal["GREEN", "YELLOW", "RED", "NO_DATA"]
+
 
 @dataclass(frozen=True)
 class ScoreComponent:
@@ -57,7 +60,7 @@ class ScoreComponent:
 @dataclass(frozen=True)
 class ScoreResult:
     total: int
-    decision: str  # GREEN | YELLOW | RED
+    decision: Decision  # GREEN | YELLOW | RED | NO_DATA
     components: dict[str, ScoreComponent]
     hard_stop_active: bool
     hard_stop_reason: str | None
@@ -227,6 +230,7 @@ def compute_score(
     # ترتیب اهمیت: hard stop (ایمنی) > کفایت داده > باند امتیاز. hard stop فعال
     # یعنی یک رویداد بحرانی واقعی مشاهده شده است، پس حتی با پوشش ناقص RED
     # اعلام می‌شود، نه NO_DATA.
+    decision: Decision
     if hard_stop_active:
         decision = "RED"
     elif available_weight < MIN_SCORE_COVERAGE_WEIGHT:

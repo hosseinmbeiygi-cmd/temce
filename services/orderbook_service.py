@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.logging import get_logger
 from core.result import Result
 
@@ -136,7 +135,7 @@ class OrderBookService:
         if not self._session:
             return Result.ok([])
 
-        from sqlalchemy import text
+        from core.database import text
 
         try:
             q = text("""

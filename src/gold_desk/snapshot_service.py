@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +39,11 @@ from .secondary_source import fetch_prices as fetch_tgju_prices
 from .secondary_source import is_available as tgju_available
 
 logger = logging.getLogger(__name__)
+
+PriceSource = Literal["brsapi", "tgju", "cache"]
+PriceQuality = Literal["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"]
+AssetType = Literal["gold", "coin", "fx", "fund"]
+Decision = Literal["GREEN", "YELLOW", "RED", "NO_DATA"]
 
 _REFERENCE_SYMBOLS = ("XAUUSD", "USD", "AED")
 
@@ -125,7 +130,7 @@ def _merge_rows(book: PriceBook, rows: Iterable[dict[str, Any]]) -> None:
             book.as_of_by_symbol[symbol] = stamp
 
 
-def _quality_for(source: str, as_of: datetime | None, now: datetime) -> str:
+def _quality_for(source: PriceSource | str, as_of: datetime | None, now: datetime) -> PriceQuality:
     """LIVE فقط با منبع brsapi و timestamp اثبات‌شدهٔ درون TTL.
 
     - TGJU: به‌دلیل تأخیر ذاتی و نبود timestamp منبع، همیشه DELAYED.
@@ -230,7 +235,7 @@ def _reference_as_of(book: PriceBook) -> datetime | None:
 
 async def _read_references(
     brsapi_prices: dict[str, float] | None = None,
-) -> tuple[dict[str, float], str, datetime | None, PriceBook]:
+) -> tuple[dict[str, float], PriceSource, datetime | None, PriceBook]:
     """xau_usd, usd_irt, aed_irt از **یک منبع کامل** + همان book برای assetها.
 
     Returns (prices, source, as_of, book). قرارداد فاز ۰: ``source="mixed"``
@@ -341,11 +346,11 @@ def _soft_check(value: float | None, valid_range: tuple[float, float], name: str
 def _build_asset_block(
     *,
     symbol: str,
-    asset_type: str,
+    asset_type: AssetType,
     market: float,
     xau: float,
     usd: float,
-    source: str,
+    source: PriceSource,
     book: PriceBook,
     ref_as_of: datetime | None,
     now: datetime,

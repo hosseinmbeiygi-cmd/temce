@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from core.time import utc_now_naive
 
@@ -288,7 +288,7 @@ class FundService:
             fund.get("aum_btoman"),
             self.catalog.list_all(),
         )
-        peer_funds = [self.catalog.get(s) for s in peers.peers if self.catalog.get(s)]
+        peer_funds = [pf for s in (peers.peers if peers else []) if (pf := self.catalog.get(s)) is not None]
 
         peer_bubbles = []
         peer_series: list[list[float]] = []
@@ -502,8 +502,8 @@ class FundService:
                     if actual is None:
                         ok = False
                         break
-                    actual_f = float(actual)
-                    value_f = float(value)
+                    actual_f = float(cast(Any, actual))
+                    value_f = float(cast(Any, value))
                     if op == "eq":
                         ok = actual_f == value_f
                     elif op == "gt":
@@ -556,10 +556,10 @@ class FundService:
         # محاسبه میانه هم‌گروه
         by_type: dict[str, list[float]] = {}
         for item in out:
-            type_code = self.catalog.get(item["symbol"])["type_code"]
+            type_code = (self.catalog.get(item["symbol"]) or {}).get("type_code", "")
             by_type.setdefault(type_code, []).append(float(item["bubble_pct"]))
         for item in out:
-            type_code = self.catalog.get(item["symbol"])["type_code"]
+            type_code = (self.catalog.get(item["symbol"]) or {}).get("type_code", "")
             bubbles = sorted(by_type.get(type_code, []))
             if bubbles:
                 n = len(bubbles)

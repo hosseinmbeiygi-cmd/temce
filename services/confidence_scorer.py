@@ -211,9 +211,7 @@ class ConfidenceScorer:
         if cached is not None:
             return cached
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             # Use bootstrap prior as base (market-adapted default)
             bootstrap_prior = get_accuracy_prior(market)
@@ -253,9 +251,7 @@ class ConfidenceScorer:
         if cached is not None:
             return cached
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             bootstrap_prior = get_accuracy_prior(market)
 
@@ -333,9 +329,7 @@ class ConfidenceScorer:
             self._market_condition_cache[market] = global_entry[0]
             return global_entry[0]
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return 0.5

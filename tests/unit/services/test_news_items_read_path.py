@@ -70,6 +70,7 @@ class TestFlagDefaults:
 # ── DB-backed routing + behavior ─────────────────────────────────────────
 
 
+@pytest.mark.needs_db
 class TestItemsReadPath:
     @pytest.fixture()
     def db_env(self):

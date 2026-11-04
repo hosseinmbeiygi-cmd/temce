@@ -92,6 +92,10 @@ class MonitoringService:
                 return entry
 
             instrument = inst_result.value
+            if instrument is None:
+                entry["step"] = "resolve_instrument"
+                entry["error"] = f"Instrument {symbol} not found"
+                return entry
             entry["instrument_id"] = instrument.id
 
             # ── 2. Validate ins_code ───────────────────────────────────────

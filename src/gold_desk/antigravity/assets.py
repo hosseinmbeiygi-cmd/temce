@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 # ── 1. صندوق‌های ETF طلا ───────────────────────────────────────────
-ETF_ASSETS: dict[str, dict] = {
+ETF_ASSETS: dict[str, dict[str, Any]] = {
     "زرافشان": {
         "symbol": "ZARFSHANG",
         "isin": "IRO1ZARA0001",
@@ -43,7 +45,7 @@ ETF_BY_SYMBOL: dict[str, str] = {v["symbol"]: k for k, v in ETF_ASSETS.items()}
 ETF_BY_ISIN: dict[str, str] = {v["isin"]: k for k, v in ETF_ASSETS.items()}
 
 # ── 2. قراردادهای آتی ─────────────────────────────────────────────
-FUTURES_CONTRACTS: dict[str, dict] = {
+FUTURES_CONTRACTS: dict[str, dict[str, Any]] = {
     "سکه_آتی_IME": {
         "exchange": "IME",
         "contract_size": 10,
@@ -58,7 +60,7 @@ FUTURES_CONTRACTS: dict[str, dict] = {
 }
 
 # ── 3. بازار فیزیکی ──────────────────────────────────────────────
-PHYSICAL_MARKET: dict[str, dict] = {
+PHYSICAL_MARKET: dict[str, dict[str, Any]] = {
     "سکه_بهار_آزادی": {
         "weight": "8.133g",
         "weight_grams": 8.133,
@@ -115,7 +117,7 @@ TGJU_DATA: dict[str, object] = {
 }
 
 # ── 6. Data Layer Strategy ───────────────────────────────────────
-DATA_LAYER: dict[str, dict] = {
+DATA_LAYER: dict[str, dict[str, Any]] = {
     "realtime_price": {"db": "Redis", "resolution": "1s/5s/1m", "ttl": "5-60s", "source": "BrsApi.ir, TSETMC"},
     "ohlcv": {
         "db": "TimescaleDB",

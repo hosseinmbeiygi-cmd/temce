@@ -30,11 +30,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol
 
-from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from brsapi.models.commodity import GoldCoinPriceModel
 from brsapi.models.ime import ImeCertificateModel
+from core.database import AsyncSession, desc, select
 from core.logging import get_logger
 from models.gold_macro import (
     GoldCotPositionModel,

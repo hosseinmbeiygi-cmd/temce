@@ -42,7 +42,7 @@ async def run_backtest(
 ) -> ApiResponse[dict[str, Any]]:
     # Multi-symbol: run all symbols and return combined results
     if len(body.symbols) > 1:
-        result = await service.run_multi_symbol(
+        multi_result = await service.run_multi_symbol(
             name=body.name,
             symbols=body.symbols,
             strategy_type=body.strategy_type,
@@ -60,9 +60,9 @@ async def run_backtest(
             benchmark_symbol=body.benchmark_symbol,
         )
         return ApiResponse[dict[str, Any]](
-            success=result.success,
-            data=result.value,
-            error={"message": result.error} if not result.success and result.error else None,
+            success=multi_result.success,
+            data=multi_result.value,
+            error={"message": multi_result.error} if not multi_result.success and multi_result.error else None,
         )
 
     # Single symbol
@@ -85,7 +85,7 @@ async def run_backtest(
     )
     return ApiResponse[dict[str, Any]](
         success=result.success,
-        data=result.value.model_dump() if hasattr(result.value, "model_dump") else result.value,
+        data=result.value.model_dump() if result.value is not None else None,
         error={"message": result.error} if not result.success and result.error else None,
     )
 
@@ -170,7 +170,7 @@ async def run_backtest_on_all_symbols(
     try:
         # Fetch ALL symbols including delisted/suspended for survivorship-bias-free backtesting
         # Only filter by status when user explicitly requests it (include_delisted=false)
-        include_delisted = body.get("include_delisted", True)  # Default: True for unbiased testing
+        include_delisted = body.include_delisted  # Default: True for unbiased testing
         status_filter = "" if include_delisted else "AND (i.status IS NULL OR i.status = 'active')"
 
         db_result = await session.execute(
@@ -221,8 +221,8 @@ async def run_backtest_on_all_symbols(
         hist_symbols = []
 
     # Merge all sources: use body.symbols if provided, otherwise merge all DB sources
-    if "symbols" in body and body["symbols"]:
-        symbols = body["symbols"]
+    if body.symbols:
+        symbols = body.symbols
     else:
         # Symbols that have historical data (prioritize these)
         symbols_with_history = list(dict.fromkeys(quote_symbols + hist_symbols))  # deduped, ordered
@@ -259,9 +259,8 @@ async def run_backtest_on_all_symbols(
                 end_date=end,
                 capital=capital,
             )
-            if result.success:
-                run_data = result.value
-                run_dict = run_data.model_dump() if hasattr(run_data, "model_dump") else vars(run_data)
+            if result.success and result.value is not None:
+                run_dict = result.value.model_dump()
                 run_id = run_dict.get("id", "")
                 full_result = await service.get_result(run_id)
                 metrics = {}
@@ -330,7 +329,7 @@ async def save_compare_result(
         start_date=body.start_date,
         end_date=body.end_date,
         capital=body.capital,
-        notes=body.get("notes", ""),
+        notes=body.notes,
         executed_at=utc_now_naive(),
     )
     session.add(orm)
@@ -472,9 +471,8 @@ async def compare_strategies(
                 end_date=end,
                 capital=capital,
             )
-            if result.success:
-                run_data = result.value
-                run_dict = run_data.model_dump() if hasattr(run_data, "model_dump") else vars(run_data)
+            if result.success and result.value is not None:
+                run_dict = result.value.model_dump()
                 run_id = run_dict.get("id", "")
                 full_result = await service.get_result(run_id)
                 metrics = {}
@@ -800,8 +798,8 @@ async def scan_indicators(
     start_date = body.start_date
     end_date = body.end_date
     capital = body.capital
-    batch_size = body.get("batch_size", 10)
-    max_concurrent = body.get("max_concurrent", 10)
+    batch_size = body.batch_size
+    max_concurrent = body.max_concurrent
 
     asyncio.create_task(
         scanner.scan_all(
@@ -987,7 +985,7 @@ async def monte_carlo(
             success=False, error={"message": f"No historical data found for {body.symbol}"}
         )
 
-    clean_params = {}
+    clean_params: dict[str, Any] = {}
     for k, v in body.strategy_params.items():
         if isinstance(v, float) and v == int(v):
             clean_params[k] = int(v)
@@ -998,6 +996,8 @@ async def monte_carlo(
     result = service.simulator.run(strategy, initial_capital=body.capital, data=data)
     if not result.success:
         return ApiResponse[dict[str, Any]](success=False, error={"message": result.error})
+    if result.value is None:
+        return ApiResponse[dict[str, Any]](success=False, error={"message": "Simulation returned no result"})
 
     trades = [{"pnl": getattr(t, "pnl", 0), "side": str(getattr(t, "side", ""))} for t in result.value.trades]
 
@@ -1063,7 +1063,7 @@ async def portfolio_run(
         return ApiResponse[dict[str, Any]](success=False, error={"message": "No data found for any symbol"})
 
     # Build simulator
-    broker_kwargs = {}
+    broker_kwargs: dict[str, Any] = {}
     if body.commission_pct is not None:
         broker_kwargs["commission_pct"] = body.commission_pct
     if body.slippage_bps is not None:
@@ -1083,19 +1083,18 @@ async def portfolio_run(
     )
 
     # Create strategy (use first symbol as reference for instrument_id)
-    clean_params = {}
+    clean_params: dict[str, Any] = {
+        "instrument_id": body.symbols[0],
+        "sizing_method": body.sizing_method,
+        "sizing_value": body.sizing_value,
+    }
     for k, v in body.strategy_params.items():
         if isinstance(v, float) and v == int(v):
             clean_params[k] = int(v)
         else:
             clean_params[k] = v
 
-    strategy = cls(
-        instrument_id=body.symbols[0],
-        sizing_method=body.sizing_method,
-        sizing_value=body.sizing_value,
-        **clean_params,
-    )
+    strategy = cls(**clean_params)
 
     result = await simulator.run(
         strategy=strategy,
@@ -1106,6 +1105,8 @@ async def portfolio_run(
 
     if not result.success:
         return ApiResponse[dict[str, Any]](success=False, error={"message": result.error})
+    if result.value is None:
+        return ApiResponse[dict[str, Any]](success=False, error={"message": "Simulation returned no result"})
 
     bt_result = result.value
     equity_curve = [

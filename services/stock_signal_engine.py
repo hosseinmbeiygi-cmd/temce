@@ -203,10 +203,10 @@ def estimate_fund_score(
 
 def fibonacci_targets(
     swing_low: float, swing_high: float, entry: float
-) -> list[float]:
+) -> list[float | None]:
     """سه تارگت با فیبوناچی اکستنشن از سوینگ اخیر (بدون آینده‌نگری)."""
     if swing_high <= swing_low or entry <= 0:
-        return [None, None, None]  # type: ignore[return-value]
+        return [None, None, None]
     rng = swing_high - swing_low
     t1 = entry + rng * 0.618  # اکستنشن محافظه‌کارانه
     t2 = entry + rng * 1.000

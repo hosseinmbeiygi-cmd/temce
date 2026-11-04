@@ -20,12 +20,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import desc, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from brsapi.models.codal import CodalAnnouncementModel
 from brsapi.models.ime import ImeFutureModel
 from brsapi.models.tsetmc import NavRecordModel, SymbolDetailModel
+from core.database import AsyncSession, desc, func, select
 from core.logging import get_logger
 from core.question_bank.bank import evidence_by_key
 from core.question_bank.schema import EvidenceValue

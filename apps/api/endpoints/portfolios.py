@@ -25,9 +25,14 @@ async def list_portfolios(
     service: PortfolioService = Depends(get_portfolio_service),
 ) -> ApiResponse[PortfolioListResponse]:
     result = await service.list_portfolios(owner_id=owned_scope(current_user))
+    data = (
+        PortfolioListResponse(items=[PortfolioResponse.model_validate(i) for i in result.value])
+        if result.success and result.value is not None
+        else None
+    )
     return ApiResponse[PortfolioListResponse](
         success=result.success,
-        data=result.value if result.success else None,
+        data=data,
         error={"message": result.error} if not result.success and result.error else None,
     )
 
@@ -44,9 +49,10 @@ async def create_portfolio(
         initial_capital=body.initial_capital,
         currency=body.currency,
     )
+    data = PortfolioResponse.model_validate(result.value) if result.success and result.value else None
     return ApiResponse[PortfolioResponse](
         success=result.success,
-        data=result.value if result.success else None,
+        data=data,
         error={"message": result.error} if not result.success and result.error else None,
     )
 

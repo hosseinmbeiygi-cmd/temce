@@ -6,7 +6,7 @@ prefix: /gold/antigravity
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -44,7 +44,7 @@ class AntigravitySignalRequest(BaseModel):
 
 
 @router.post("/signal", summary="Generate Antigravity structured signal")
-async def post_signal(req: AntigravitySignalRequest) -> dict:
+async def post_signal(req: AntigravitySignalRequest) -> dict[str, Any]:
     """تولید سیگنال ساختاریافته طبق Output Schema استاندارد."""
     sig = generate_antigravity_signal(
         etf_name=req.etf_name,
@@ -65,7 +65,7 @@ async def post_signal(req: AntigravitySignalRequest) -> dict:
 
 
 @router.get("/assets", summary="List all Antigravity assets registry")
-async def list_assets() -> dict:
+async def list_assets() -> dict[str, Any]:
     return {
         "success": True,
         "data": {
@@ -80,7 +80,7 @@ async def quick_signal(
     etf_name: str = Query("زرافشان"),
     leverage: int = Query(1, ge=1, le=20),
     session: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> dict[str, Any]:
     """سیگنال سریع با داده‌های live snapshot فعلی."""
     from ..snapshot_service import _read_brsapi_prices
 
@@ -138,7 +138,7 @@ async def check_kill_switch(
     usd_change_2h_pct: float | None = None,
     margin_increased: bool = False,
     market_frozen: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     ks = evaluate_kill_switch(
         ounce_change_2h_pct=ounce_change_2h_pct,
         usd_change_2h_pct=usd_change_2h_pct,
@@ -162,7 +162,7 @@ async def arbitrage_scan(
     etf_price_per_gram: float = Query(..., gt=0),
     physical_gold_price_per_gram: float = Query(..., gt=0),
     transaction_cost_pct: float = Query(0.003, ge=0, le=0.1),
-) -> dict:
+) -> dict[str, Any]:
     res = scan_gold_arbitrage(etf_price_per_gram, physical_gold_price_per_gram, transaction_cost_pct)
     return {"success": True, "data": res.__dict__}
 
@@ -173,7 +173,7 @@ async def dollar_return(
     current_value_irr: float = Query(..., gt=0),
     entry_usd_rate: float = Query(..., gt=0),
     current_usd_rate: float = Query(..., gt=0),
-) -> dict:
+) -> dict[str, Any]:
     res = calculate_dollar_adjusted_return(entry_value_irr, current_value_irr, entry_usd_rate, current_usd_rate)
     return {"success": True, "data": res.__dict__}
 
@@ -183,6 +183,6 @@ async def coin_bubble(
     coin_price_irr: float = Query(..., gt=0),
     gold_oz_usd: float = Query(..., gt=0),
     usd_rate: float = Query(..., gt=0),
-) -> dict:
+) -> dict[str, Any]:
     res = calculate_coin_bubble(coin_price_irr, gold_oz_usd, usd_rate)
     return {"success": True, "data": res.__dict__}

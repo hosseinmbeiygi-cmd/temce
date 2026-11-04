@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func as sa_func
 from sqlalchemy import select, text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_brsapi_query_service, get_db_session, require_roles
@@ -314,7 +315,10 @@ async def get_historical_daily(
             GoldCurrencyProDailyHistoryModel,
         )
 
-        for hist_model in (GoldCoinHistoryModel, GoldCurrencyProDailyHistoryModel):
+        # The two history models live in the (untyped) ``brsapi`` package; typing
+        # the tuple explicitly keeps ``hist_model.<column>`` usable below.
+        hist_models: tuple[type[Any], ...] = (GoldCoinHistoryModel, GoldCurrencyProDailyHistoryModel)
+        for hist_model in hist_models:
             g_conditions = [hist_model.symbol == symbol]
             if date_start:
                 g_conditions.append(hist_model.date >= date_start)
@@ -387,29 +391,29 @@ async def get_historical_daily(
         q_result = await session.execute(q_stmt)
         q_rows = q_result.scalars().all()
 
-        items = []
-        for row in q_rows:
-            pc = row.price_close or 0
-            pl = row.price_last or pc
-            py = row.price_yesterday or 0
+        quote_items: list[dict[str, Any]] = []
+        for qrow in q_rows:
+            pc = qrow.price_close or 0
+            pl = qrow.price_last or pc
+            py = qrow.price_yesterday or 0
             change = pl - py
             change_pct = (change / py * 100) if py else 0
-            items.append(
+            quote_items.append(
                 {
-                    "id": row.id,
-                    "symbol": row.symbol,
-                    "date": row.date,
-                    "time": row.time,
-                    "trade_count": row.trade_count,
-                    "trade_volume": row.volume,
-                    "trade_value": row.value,
-                    "price_min": row.price_low or row.price_min or 0,
-                    "price_max": row.price_high or row.price_max or 0,
+                    "id": qrow.id,
+                    "symbol": qrow.symbol,
+                    "date": qrow.date,
+                    "time": qrow.time,
+                    "trade_count": qrow.trade_count,
+                    "trade_volume": qrow.volume,
+                    "trade_value": qrow.value,
+                    "price_min": qrow.price_low or qrow.price_min or 0,
+                    "price_max": qrow.price_high or qrow.price_max or 0,
                     "price_yesterday": py,
-                    "price_first": row.price_first or row.price_open or 0,
+                    "price_first": qrow.price_first or qrow.price_open or 0,
                     "price_last": pl,
-                    "price_last_change": row.price_change or round(change, 0),
-                    "price_last_change_pct": row.price_change_pct or round(change_pct, 2),
+                    "price_last_change": qrow.price_change or round(change, 0),
+                    "price_last_change_pct": qrow.price_change_pct or round(change_pct, 2),
                     "price_close": pc,
                     "price_close_change": round(pc - py, 0),
                     "price_close_change_pct": round(((pc - py) / py * 100), 2) if py else 0,
@@ -423,7 +427,7 @@ async def get_historical_daily(
         return ApiResponse[PaginatedResult[dict[str, Any]]](
             success=True,
             data=PaginatedResult[dict[str, Any]](
-                items=items,
+                items=quote_items,
                 total=q_total,
                 page=page,
                 page_size=page_size,
@@ -504,12 +508,12 @@ async def get_codal_announcements(
             from sqlalchemy import text as _t
 
             try:
-                name_result = await session.execute(
+                name_result: CursorResult[Any] = await session.execute(  # type: ignore[assignment]
                     _s(column("id"), column("symbol").label("instr_symbol"))
                     .select_from(_t("instruments"))
                     .where(column("id").in_(instr_ids))
                 )
-                for nr in name_result:
+                for nr in name_result.all():
                     instrument_names[str(nr.id)] = str(nr.instr_symbol)
             except Exception:
                 logger.debug("instrument_names lookup failed for %d instrument_ids", len(instr_ids))
@@ -597,7 +601,7 @@ async def get_codal_announcements_lazy(
             BrsApiEndpoints.CODAL_ANNOUNCEMENT,
             params={"l18": symbol, "page": str(page)},
         )
-        if not result.success:
+        if not result.success or result.value is None:
             return ApiResponse[dict[str, Any]](success=False, error={"message": result.error or "API fetch failed"})
 
         # 2. Parse announcements
@@ -634,8 +638,11 @@ async def get_codal_announcements_lazy(
                 from sqlalchemy import column as _c
                 from sqlalchemy import text as _t
 
-                fb = await session.execute(_s(_c("id")).select_from(_t("instruments")).where(_c("symbol") == symbol))
-                fb_row = fb.scalar_one_or_none()
+                # ``column()``/``text()`` statements are untyped by nature, so the
+                # statement and its cursor are ``Any`` on purpose here.
+                fb_stmt: Any = _s(_c("id")).select_from(_t("instruments")).where(_c("symbol") == symbol)
+                fb_result: CursorResult[Any] = await session.execute(fb_stmt)  # type: ignore[assignment]
+                fb_row = fb_result.scalar_one_or_none()
                 if fb_row:
                     instrument_id = str(fb_row)
 
@@ -1319,7 +1326,7 @@ async def download_section(
             params["l18"] = symbol
 
         result = await client.fetch(cfg["endpoint"], params=params or None, category_override=cfg.get("category"))
-        if not result.success:
+        if not result.success or result.value is None:
             raise HTTPException(status_code=502, detail=f"API fetch failed: {result.error}")
 
         try:
@@ -1373,8 +1380,8 @@ async def download_section(
     elif hasattr(model, "fetched_at"):
         stmt = stmt.order_by(model.fetched_at.desc())
     stmt = stmt.limit(limit)
-    result = await session.execute(stmt)
-    rows = result.scalars().all()
+    db_result = await session.execute(stmt)
+    rows = db_result.scalars().all()
 
     data = []
     for row in rows:
@@ -2530,6 +2537,8 @@ async def test_brsapi_connection() -> ApiResponse[dict[str, Any]]:
             )
 
         resp = result.value
+        if resp is None:
+            raise HTTPException(status_code=502, detail="Empty response from BrsApi")
         count = _count_payload(resp.data)
         return ApiResponse[dict[str, Any]](
             success=True,
@@ -3308,7 +3317,7 @@ async def get_codal_data(
                 "title": row[0],
                 "report_type": row[1],
                 "parsed_data": parsed,
-                "date": safe_row_str(row, idx=3, default=None),
+                "date": safe_row_str(row, idx=3, default=""),
             }
     except Exception:
         result["financial"] = None

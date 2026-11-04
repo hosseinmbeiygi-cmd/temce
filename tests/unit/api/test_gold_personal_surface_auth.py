@@ -62,6 +62,7 @@ async def test_personal_routes_reject_anonymous_callers(
     assert response.status_code == 401, f"{method} {url} -> {response.status_code} {response.text}"
 
 
+@pytest.mark.needs_db
 async def test_health_probe_stays_anonymous(client: AsyncClient) -> None:
     """The Docker HEALTHCHECK hits this with no credentials (see Dockerfile.golddesk)."""
     response = await client.get("/api/v1/gold/health")
@@ -77,6 +78,7 @@ async def test_assistant_rules_stay_anonymous(client: AsyncClient) -> None:
     assert response.status_code == 200, response.text
 
 
+@pytest.mark.needs_db
 async def test_personal_routes_pass_auth_for_a_real_user(user_client: AsyncClient) -> None:
     """Guard against "closed" being implemented as "broken for everyone"."""
     response = await user_client.get("/api/v1/gold/snapshot")
@@ -158,6 +160,7 @@ async def test_analytics_signal_routes_reject_anonymous_callers(
 
 
 @pytest.mark.parametrize(("method", "url"), ANALYTICS_PUBLIC_ROUTES)
+@pytest.mark.needs_db
 async def test_analytics_public_routes_stay_anonymous(
     client: AsyncClient, method: str, url: str
 ) -> None:

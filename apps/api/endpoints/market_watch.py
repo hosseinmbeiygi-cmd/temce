@@ -134,8 +134,8 @@ def _build_summary(snapshots: list[dict], indices: list[dict]) -> dict[str, Any]
     total_volume = sum(safe_int(s.get("trade_volume")) for s in snapshots)
 
     # Find TSE index - first match wins (latest data)
-    tse_index = {}
-    equal_weight_index = {}
+    tse_index: dict[str, Any] = {}
+    equal_weight_index: dict[str, Any] = {}
     for idx in indices:
         name = (idx.get("name") or "").strip()
         if not name:
@@ -146,7 +146,7 @@ def _build_summary(snapshots: list[dict], indices: list[dict]) -> dict[str, Any]
             equal_weight_index = idx
 
     # Money flow: (buy_real_volume - sell_real_volume) * price_last
-    net_real_flow = 0
+    net_real_flow = 0.0
     for s in snapshots:
         buy_real = safe_int(s.get("buy_real_volume"))
         sell_real = safe_int(s.get("sell_real_volume"))
@@ -157,8 +157,8 @@ def _build_summary(snapshots: list[dict], indices: list[dict]) -> dict[str, Any]
     net_real_flow_billion = net_real_flow / 1_000_000_000
 
     # Queue values (orderbook level 1) — use model fields directly
-    buy_queue_value = 0
-    sell_queue_value = 0
+    buy_queue_value = 0.0
+    sell_queue_value = 0.0
     for s in snapshots:
         bid_vol = safe_int(s.get("bid_volume_1"))
         bid_price = safe_float(s.get("bid_price_1"))
@@ -168,10 +168,10 @@ def _build_summary(snapshots: list[dict], indices: list[dict]) -> dict[str, Any]
         sell_queue_value += ask_vol * ask_price / 1_000_000_000
 
     # Fund data
-    equity_fund_value = 0
-    equity_fund_net = 0
-    fixed_income_fund_value = 0
-    fixed_income_fund_net = 0
+    equity_fund_value = 0.0
+    equity_fund_net = 0.0
+    fixed_income_fund_value = 0.0
+    fixed_income_fund_net = 0.0
 
     for s in snapshots:
         sector = (s.get("sector") or "").lower()

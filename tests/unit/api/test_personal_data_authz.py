@@ -158,6 +158,7 @@ class _RecordingPortfolioService:
         return Result.ok({"items": [], "total": 0})
 
 
+@pytest.mark.needs_db
 async def test_http_list_scopes_a_regular_user_to_their_own_id(user_client, app) -> None:
     from apps.api.dependencies import get_portfolio_service
 
@@ -170,6 +171,7 @@ async def test_http_list_scopes_a_regular_user_to_their_own_id(user_client, app)
     assert fake.scopes == ["2"]  # tests/unit/conftest.py::_MOCK_USER
 
 
+@pytest.mark.needs_db
 async def test_http_list_does_not_filter_for_an_admin(admin_client, app) -> None:
     from apps.api.dependencies import get_portfolio_service
 

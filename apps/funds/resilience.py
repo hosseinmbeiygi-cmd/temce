@@ -129,7 +129,7 @@ def retry(
     base_delay: float = 1.0,
     max_delay: float = 30.0,
     exceptions: tuple[type[BaseException], ...] = (Exception,),
-) -> Awaitable[T]:
+) -> Callable[..., Awaitable[T]]:
     """دکوراتور retry ساده برای adapter callها.
 
     استفاده:

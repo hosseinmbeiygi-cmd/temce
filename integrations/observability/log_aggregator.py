@@ -105,6 +105,7 @@ class RedisLogHandler(logging.Handler):
             "timestamp": datetime.now(UTC).isoformat(),
             "logger": record.name,
             "event": record.getMessage(),
+            "message": record.getMessage(),
             "module": record.module,
             "function": record.funcName,
             "line": record.lineno,

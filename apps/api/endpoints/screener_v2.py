@@ -192,7 +192,7 @@ async def _fetch_v2_market_data(
         async for sess in sessions:
             svc = BrsApiQueryService(session=sess)
             instruments, market_watch = await fetch_market_watch(svc, limit=limit)
-            symbols = {i.get("symbol") for i in instruments if i.get("symbol")}
+            symbols: set[str] = {str(i["symbol"]) for i in instruments if i.get("symbol")}
             history_map: dict[str, list[dict[str, Any]]] = {}
             try:
                 history_map = await fetch_history_map(svc, symbols=symbols)
@@ -233,6 +233,7 @@ class ScreenerV2Request(BaseModel):
     description="Enhanced screener with advanced analytics, pattern recognition, and multi-timeframe analysis.",
 )
 async def screener_v2(
+    request: Request,
     sort_by: str = Query("composite_score", description="Sort column"),
     sort_order: str = Query("desc", description="asc or desc"),
     limit: int = Query(50, ge=1, le=200),
@@ -240,7 +241,6 @@ async def screener_v2(
     market: str | None = Query(None, description="Market filter"),
     page: int | None = Query(None, ge=1),
     page_size: int | None = Query(None, ge=1, le=200),
-    request: Request = None,
 ) -> ApiResponse[dict[str, Any]]:
     """Run enhanced screener with advanced analytics."""
     # Rate limiting
@@ -299,8 +299,8 @@ async def screener_v2(
     description="Enhanced filter with advanced criteria and analytics.",
 )
 async def screener_v2_filter(
+    request: Request,
     body: ScreenerV2Request,
-    request: Request = None,
 ) -> ApiResponse[dict[str, Any]]:
     """Run enhanced screener with advanced filters."""
     client_ip = getattr(request, "client", None)
@@ -463,8 +463,8 @@ async def screener_v2_filter(
     description="Compare multiple symbols side by side with advanced analytics.",
 )
 async def compare_symbols(
+    request: Request,
     symbols: str = Query(..., description="Comma-separated symbol list"),
-    request: Request = None,
 ) -> ApiResponse[dict[str, Any]]:
     """Compare multiple symbols with detailed analytics."""
     client_ip = getattr(request, "client", None)
@@ -523,6 +523,12 @@ async def compare_symbols(
         logger.exception("Compare symbols failed: %s", exc)
         return ApiResponse(success=False, data={"items": []}, error={"message": safe_error_message(exc)})
 
+    return ApiResponse(
+        success=False,
+        data={"items": []},
+        error={"message": "No database session available"},
+    )
+
 
 @router.get(
     "/sectors",
@@ -530,7 +536,7 @@ async def compare_symbols(
     description="Analyze sector rotation and relative strength.",
 )
 async def sector_analysis(
-    request: Request = None,
+    request: Request,
 ) -> ApiResponse[dict[str, Any]]:
     """Get sector rotation analysis."""
     client_ip = getattr(request, "client", None)
@@ -604,3 +610,9 @@ async def sector_analysis(
     except Exception as exc:
         logger.exception("Sector analysis failed: %s", exc)
         return ApiResponse(success=False, data={"sectors": []}, error={"message": safe_error_message(exc)})
+
+    return ApiResponse(
+        success=False,
+        data={"sectors": []},
+        error={"message": "No database session available"},
+    )
