@@ -13,8 +13,21 @@ StackingEnsembleModel's out-of-fold stacking had the same bug via
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
+import pytest
 from sklearn.base import BaseEstimator, RegressorMixin
+
+# Stacking needs at least one optional boosting backend; the lock installs none.
+_HAS_BASE_BOOSTER = any(
+    importlib.util.find_spec(name) is not None
+    for name in ("xgboost", "lightgbm", "catboost")
+)
+_needs_booster = pytest.mark.skipif(
+    not _HAS_BASE_BOOSTER,
+    reason="StackingEnsembleModel needs xgboost/lightgbm/catboost",
+)
 
 
 class _RecordingModel(RegressorMixin, BaseEstimator):
@@ -141,6 +154,7 @@ class TestStackingEnsembleUsesTimeSeriesSplit:
         assert "= KFold(" not in src
         assert "from sklearn.model_selection import KFold" not in src
 
+    @_needs_booster
     def test_fit_excludes_uncovered_rows_from_meta_learner(self, monkeypatch):
         """The meta-learner must be fit only on rows that actually received an
         out-of-fold prediction. TimeSeriesSplit never holds out the leading
@@ -188,6 +202,7 @@ class TestStackingEnsembleUsesTimeSeriesSplit:
         assert preds.predictions.shape == (n,)
         assert not np.isnan(preds.predictions).any()
 
+    @_needs_booster
     def test_gap_param_embargoes_rows_before_validation(self, monkeypatch):
         """Passing ``gap`` must embargo that many rows between each fold's
         train end and validation start (plan.md M1/M3: the gapped splitter).

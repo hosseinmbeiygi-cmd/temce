@@ -35,7 +35,9 @@ def _dependency_names(dependant: Any) -> set[str]:
 
 
 def _routes(app: FastAPI):
-    for route in app.routes:
+    from _route_utils import iter_routes
+
+    for _path, route in iter_routes(app.routes):
         endpoint = getattr(route, "endpoint", None)
         if endpoint is None:
             continue

@@ -65,8 +65,13 @@ def _app_db_reachable() -> bool:
         engine = create_async_engine(settings.database_url_async)
         try:
             async with engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
-            return True
+                found = await conn.execute(
+                    text("SELECT to_regclass(:name)"), {"name": ADJUSTED_VIEW}
+                )
+                # A reachable but unmigrated database (CI) has no adjusted view;
+                # running the golden assertions there would fail on a missing
+                # relation instead of exercising this module's subject.
+                return found.scalar() is not None
         except Exception:
             return False
         finally:

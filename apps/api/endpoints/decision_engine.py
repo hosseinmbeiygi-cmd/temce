@@ -199,6 +199,11 @@ async def _get_data_from_db(session: AsyncSession) -> dict | None:
             return row.data
     except Exception:
         logger.warning("DB query failed, falling back to JSON")
+        # The failed statement aborts the transaction; without this the
+        # request's session commit (and any later query) fails with
+        # "current transaction is aborted", turning the JSON fallback into a 500.
+        with contextlib.suppress(Exception):
+            await session.rollback()
     return None
 
 
@@ -213,9 +218,13 @@ async def _get_architecture(session: AsyncSession) -> dict | None:
     if arch is None:
         arch = _load_json("architecture.json")
         if arch is not None:
-            # Auto-seed: load JSON into DB for next time
-            with contextlib.suppress(Exception):
+            # Auto-seed: load JSON into DB for next time.
+            try:
                 await _auto_seed(session)
+            except Exception:
+                logger.debug("Auto-seed skipped")
+                with contextlib.suppress(Exception):
+                    await session.rollback()
 
     if arch is not None:
         _cache_set("architecture:active", arch)

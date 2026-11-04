@@ -124,8 +124,9 @@ async def _fetch_coin_prices() -> dict[str, float | None]:
         if prices is None:
             return {"emami": None, "half": None, "quarter": None, "gerami": None}
         coin_bahar = prices.get("coin_bahar_irr")
+        emami = float(coin_bahar) if coin_bahar is not None and coin_bahar > 0 else None
         return {
-            "emami": coin_bahar,  # coin_bahar_irr is the emami/full coin price
+            "emami": emami,  # coin_bahar_irr is the emami/full coin price
             "half": None,
             "quarter": None,
             "gerami": None,

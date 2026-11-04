@@ -112,12 +112,13 @@ def test_macro_live_uses_the_same_response_style_as_sibling_routes(app) -> None:
     exception: it may answer 503 with a raw ``JSONResponse``, so it opts out with
     ``response_model=None``.
     """
+    from _route_utils import iter_routes
     from fastapi.routing import APIRoute
 
     routes = {
-        (route.path, tuple(sorted(route.methods))): route
-        for route in app.routes
-        if isinstance(route, APIRoute) and route.path.startswith(f"{BASE}/")
+        (path, tuple(sorted(route.methods))): route
+        for path, route in iter_routes(app.routes)
+        if isinstance(route, APIRoute) and path.startswith(f"{BASE}/")
     }
     live = routes[(LIVE_PATH, ("GET",))]
     posture = routes[(f"{BASE}/macro/posture", ("POST",))]
