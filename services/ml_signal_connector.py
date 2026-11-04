@@ -247,7 +247,7 @@ class MLSignalConnector:
                     trained[mn] = obj
                     break
 
-            if model_obj is not None:
+            if model_obj is not None and model_name is not None:
                 self._trained_models.setdefault(market, {})[model_name] = model_obj
                 logger.info(
                     "Lazy-loaded model %s for '%s' from ModelLoader cache",
@@ -437,7 +437,9 @@ class MLSignalConnector:
         if row and row.n and row.n >= min_samples:
             return float(row.acc)
         if row and row.n and row.n > 0:
-            return float(row.acc) * (row.n / (row.n + min_samples)) + 0.5 * (min_samples / (row.n + min_samples))
+            n = float(row.n)
+            weight = n / (n + min_samples)
+            return float(row.acc) * weight + 0.5 * (1 - weight)
         return 0.50
 
     def get_trained_models_info(self) -> dict[str, list[str]]:
@@ -547,7 +549,7 @@ class MLSignalConnector:
                         closes=closes,
                         num_windows=5,
                     )
-                    if wf_result.success:
+                    if wf_result.success and wf_result.value is not None:
                         wf_val = wf_result.value
                         walk_forward_results.append(
                             {

@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Python deps — install the fully pinned lock, never the loose ranges in
 # requirements.txt (the lock is what CI and every other image installs).
 COPY requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock
+RUN pip install --no-cache-dir --no-deps -r requirements.lock
 
 # Runtime user — the service reacts to requests/jobs and never needs root.
 RUN addgroup --system app && adduser --system --ingroup app --home /app --disabled-password app

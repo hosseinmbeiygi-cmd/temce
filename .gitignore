@@ -32,6 +32,9 @@ logs/
 
 # Data
 data/
+!services/data/
+!services/data/**
+services/data/**/__pycache__/
 *.db
 *.sqlite
 

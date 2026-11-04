@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 COPY requirements.lock ./
-RUN pip install --no-cache-dir -r requirements.lock
+RUN pip install --no-cache-dir --no-deps -r requirements.lock
 
 RUN addgroup --system app && adduser --system --ingroup app --home /app --disabled-password app
 

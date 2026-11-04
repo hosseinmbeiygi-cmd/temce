@@ -50,7 +50,7 @@ jobs:
           cache: pip
 
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.15.17
 
       - name: Run ruff check
         run: ruff check . --output-format=github
@@ -72,7 +72,7 @@ jobs:
           cache: pip
 
       - name: Install mypy + sqlalchemy
-        run: pip install mypy sqlalchemy
+        run: pip install mypy==2.1.0 "sqlalchemy>=2.0,<2.1"
 
       - name: Mypy -- signal chain (strict)
         run: >
@@ -89,7 +89,6 @@ jobs:
           core/db_utils.py
           --show-error-codes
           --ignore-missing-imports
-          --output-format=github
 
   # ── JOB 3: Unit Tests (pytest) ──────────────────────────────
   # Needs:  pytest + asyncio + timeout + httpx + fastapi +

@@ -76,6 +76,12 @@ ignore = ["E501", "B008", "B027", "ARG", "N803", "N805", "N806", "N818", "B904",
 "core/enums/**" = ["F401"]
 "code_dump/**" = ["E741", "E722", "E701", "F841", "SIM109", "SIM108", "B007", "N817", "B905", "B023", "C401", "SIM103", "SIM105", "E712"]
 
+[tool.ruff.lint.isort]
+# The repo root also contains a local Redis install directory on developer
+# machines; without this, ruff classifies ``redis`` as first-party there but
+# third-party on CI, so import ordering disagreed between the two.
+known-third-party = ["redis"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
