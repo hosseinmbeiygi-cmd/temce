@@ -283,6 +283,20 @@ jobs:
     name: API Test
     runs-on: ubuntu-latest
     needs: [lint]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: market
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -304,8 +318,9 @@ jobs:
           # Start the server in this same step: GitHub kills background
           # processes when a step ends, so a previous step's uvicorn is gone.
           # AUTH_DISABLED is test-only: the router-level get_current_user
-          # dependency would otherwise 401 every read-only endpoint.
-          AUTH_DISABLED=true uvicorn apps.decision_engine.app:app --host 127.0.0.1 --port 8002 &
+          # dependency would otherwise 401 every read-only endpoint. The DB is
+          # empty, so the endpoints exercise their JSON fallback.
+          DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/market AUTH_DISABLED=true uvicorn apps.decision_engine.app:app --host 127.0.0.1 --port 8002 &
           for i in $(seq 1 10); do
             if curl -sf http://127.0.0.1:8002/health > /dev/null 2>&1; then
               echo "Server ready!"

@@ -167,7 +167,7 @@ jobs:
       # I5 — این مرحله نبود: درخت frontend ۴۶ فایل تست vitest دارد که هیچ‌وقت
       # در CI اجرا نمی‌شدند، پس شکستن رندر/لایهٔ API فقط محلی کشف می‌شد.
       - name: Frontend unit tests (vitest)
-        run: cd frontend && npx vitest run --reporter=basic
+        run: cd frontend && npx vitest run --reporter=default
 
       # ── S3 — اسکن secret ───────────────────────────────────────────
       # `secrets-scan.yml` از قبل gitleaks را اجرا می‌کند، ولی آن اقدام

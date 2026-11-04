@@ -96,6 +96,12 @@ class TestForecastPathMatching:
 class TestForecastDispatch429:
     """End-to-end through dispatch(): bucket exhaustion returns a 429."""
 
+    @pytest.fixture(autouse=True)
+    def _enforce_rate_limit(self, monkeypatch):
+        # CI runs with environment=test, where the middleware bypasses rate
+        # limiting; these tests exercise the enforcing path.
+        monkeypatch.setattr(app_settings, "environment", "development")
+
     @pytest.mark.asyncio
     async def test_forecast_blocks_after_limit(self):
         limiter = RateLimiter()

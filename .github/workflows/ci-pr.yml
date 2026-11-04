@@ -131,7 +131,7 @@ jobs:
           cache: pip
 
       - name: Install test dependencies
-        run: >
+        run: |
           pip install --no-deps -r requirements.lock
           pip install pytest pytest-asyncio pytest-timeout scikit-learn
 

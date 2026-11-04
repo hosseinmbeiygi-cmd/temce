@@ -205,6 +205,7 @@ jobs:
       - name: Run Fund API integration tests
         run: |
           pytest tests/unit/test_funds_api.py \
+            -m needs_db \
             --cov=apps/api/endpoints/funds.py \
             --cov=services/fund_service.py \
             --cov-report=term \
