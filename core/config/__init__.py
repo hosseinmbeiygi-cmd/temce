@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     # admin. Registration is serialized (PostgreSQL advisory lock), and this
     # dial lets an operator provision the admin out-of-band instead.
     bootstrap_first_admin: bool = Field(default=True, alias="BOOTSTRAP_FIRST_ADMIN")
+    # SEC-08b: controls whether the public /auth/register endpoint accepts new
+    # users. Default True for backward-compat in development; production
+    # docker-compose sets this to false (admin creates users via management panel).
+    registration_open: bool = Field(default=True, alias="REGISTRATION_OPEN")
 
     secret_key: str = Field(default="change-me-in-production", alias="SECRET_KEY")
     # Explicit, auditable auth bypass (API-008). Never inferred from ENV.

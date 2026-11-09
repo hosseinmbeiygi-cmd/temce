@@ -20,6 +20,9 @@ x-app-prod: &app-prod
     SENTRY_DSN: ${SENTRY_DSN:-}
     SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
     GOLD_API_TOKEN_SALT: ${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set}
+    # SEC-08b: disable public self-registration in production; admin creates
+    # users from the management panel. Set REGISTRATION_OPEN=true to re-enable.
+    REGISTRATION_OPEN: "false"
 
 secrets:
   postgres_password:

@@ -227,6 +227,11 @@ async def register(
     session: AsyncSession = Depends(get_session),
     _: None = Depends(register_rate_limit),
 ) -> ApiResponse[Any]:
+    if not settings.registration_open:
+        raise HTTPException(
+            status_code=403,
+            detail="Registration is currently closed. Contact your administrator.",
+        )
     svc = UserService(session)
     result = await svc.register(
         req.username, req.email, req.password.get_secret_value(), req.full_name, req.phone
