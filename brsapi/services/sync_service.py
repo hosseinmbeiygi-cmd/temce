@@ -338,6 +338,11 @@ class SyncReport:
 # Delay between categories inside sync_all() to avoid rate-limit bursts. Tests
 # set this to 0 so a full pass does not sleep ~20s.
 SYNC_ALL_INTER_OP_DELAY_SECONDS: float = 2.0
+# WS1: maximum wall-clock seconds a single sync_all() operation may take before
+# it is cancelled. A hanging BrsApi fetch (network stall, slow provider) would
+# otherwise block all 11 operations indefinitely. 180s is generous for the
+# largest endpoints (AllSymbols, Options); tests override this to 0.1.
+SYNC_OP_TIMEOUT_SECONDS: float = 180.0
 
 
 class BrsApiSyncService:
@@ -2020,7 +2025,21 @@ class BrsApiSyncService:
         for name, op in operations:
             logger.info("Starting sync: %s", name)
             try:
-                result = await op()
+                # WS1: per-operation timeout so a single hanging fetch cannot
+                # stall all 11 operations indefinitely.
+                result = await asyncio.wait_for(op(), timeout=SYNC_OP_TIMEOUT_SECONDS)
+            except TimeoutError:
+                logger.warning(
+                    "Sync operation timed out after %.0fs: %s",
+                    SYNC_OP_TIMEOUT_SECONDS,
+                    name,
+                )
+                result = SyncReport(
+                    endpoint=name,
+                    success=False,
+                    error=f"operation timed out after {SYNC_OP_TIMEOUT_SECONDS:.0f}s",
+                    outcome="timeout",
+                )
             except Exception as exc:
                 # One failing provider must not abort the independent ones
                 # (audit DS-07); record it as a failed report and continue.

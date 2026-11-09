@@ -396,6 +396,10 @@ class BrsApiSettings(BaseSettings):
     max_retries: int = Field(default=3, ge=0)
     retry_backoff_base: float = Field(default=1.5, ge=1.0)
     retry_max_delay: float = Field(default=60.0, ge=1.0)
+    # WS1: 30s was too aggressive for a production provider that may be in a
+    # brief maintenance window; 120s gives it 2 minutes to recover before
+    # half-open probes restart.
+    circuit_recovery_timeout: float = Field(default=120.0, ge=10.0)
     connection_pool_size: int = Field(default=10, ge=1)
 
     cache_ttl_default: int = Field(default=55, ge=1)

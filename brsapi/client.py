@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -504,7 +505,10 @@ class BrsApiClient:
                     # BrsApi's nginx intermittently returns 502 Bad Gateway for a
                     # few seconds; without this the whole backfill aborts.
                     retry_after = self._parse_retry_after(resp)
-                    last_error = f"HTTP {resp.status_code} – retry after {retry_after}s"
+                    # WS1: add ±10 % jitter so concurrent retries spread out
+                    # and don't stampede the provider at the same instant.
+                    retry_after *= 1.0 + random.uniform(-0.1, 0.1)
+                    last_error = f"HTTP {resp.status_code} – retry after {retry_after:.1f}s"
                     if attempt < self._max_retries:
                         logger.warning(
                             "%s (attempt %d/%d) - retrying in %.1fs",
@@ -533,6 +537,7 @@ class BrsApiClient:
                 last_error = "timeout"
                 if attempt < self._max_retries:
                     delay = min(self._backoff_base ** (attempt + 1), self._backoff_max)
+                    delay *= 1.0 + random.uniform(-0.1, 0.1)  # WS1: jitter
                     logger.warning(
                         "Timeout (attempt %d/%d) – retrying in %.1fs",
                         attempt + 1,
@@ -622,7 +627,7 @@ class BrsApiClient:
             self._circuit_breakers[path] = CircuitBreaker(
                 name=f"brsapi:{path}",
                 failure_threshold=5,
-                recovery_timeout=30.0,
+                recovery_timeout=brsapi_settings.circuit_recovery_timeout,
             )
         return self._circuit_breakers[path]
 
