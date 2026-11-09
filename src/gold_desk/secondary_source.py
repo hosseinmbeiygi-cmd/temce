@@ -10,6 +10,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import httpx
 from bs4 import BeautifulSoup
@@ -17,6 +18,11 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 TGJU_URL = "https://www.tgju.org"
+
+# WS2: single canonical ریال/تومان factor (1 Toman = 10 Rial).
+# TGJU slugs that end in `_rl` publish Rial prices; multiply by RIAL_TO_TOMAN
+# to reach Toman. The inverse (Toman × 10 = Rial) lives in phase1._toman_to_rial.
+RIAL_TO_TOMAN: Decimal = Decimal("0.1")
 
 # Persian/Arabic → English digits
 _PERSIAN_MAP = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
@@ -53,14 +59,16 @@ class TGJUPrice:
 # TGJU gold/coin pages are quoted in Toman; the currency pages whose slug ends
 # in ``_rl`` are quoted in Rial. The old blanket "price > 2,000,000 → /10"
 # divided 18k gold and full coins by 10 as well, corrupting every gold fallback.
+_R2T = float(RIAL_TO_TOMAN)  # cached float for use in the tuple (avoids Decimal ops at runtime)
+
 TGJU_SYMBOLS: dict[str, tuple[str, float, str]] = {
     "geram18": ("IR_GOLD_18K", 1.0, "toman"),
     "coin-emami": ("IR_COIN_EMAMI", 1.0, "toman"),
     "coin-bahar": ("IR_COIN_BAHAR", 1.0, "toman"),
     "coin-half": ("IR_COIN_HALF", 1.0, "toman"),
     "coin-quarter": ("IR_COIN_QUARTER", 1.0, "toman"),
-    "price_dollar_rl": ("USD", 0.1, "rial"),
-    "price_aed": ("AED", 0.1, "rial"),
+    "price_dollar_rl": ("USD", _R2T, "rial"),  # Rial → Toman
+    "price_aed": ("AED", _R2T, "rial"),        # Rial → Toman
     "ons": ("XAUUSD", 1.0, "usd"),
 }
 

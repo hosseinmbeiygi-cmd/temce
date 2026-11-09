@@ -7,6 +7,7 @@ Hard-stop با محاسبه تغییرات روزانه USD/TSE/DXY.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime
@@ -36,9 +37,13 @@ from .schemas import (
     SnapshotResponse,
 )
 from .secondary_source import fetch_prices as fetch_tgju_prices
-from .secondary_source import is_available as tgju_available
 
 logger = logging.getLogger(__name__)
+
+# WS2: wall-clock guard on the TGJU fallback.  httpx gives each individual
+# fetch 10 s, but asyncio.gather() has no built-in timeout; a DNS stall on
+# one slug would block _read_references() indefinitely without this guard.
+TGJU_FALLBACK_TIMEOUT_SECONDS: float = 15.0
 
 PriceSource = Literal["brsapi", "tgju", "cache"]
 PriceQuality = Literal["LIVE", "DELAYED", "SAMPLE", "EDUCATIONAL"]
@@ -258,9 +263,17 @@ async def _read_references(
             book,
         )
 
-    if await tgju_available():
-        logger.info("BrsApi incomplete; using the complete TGJU fallback set")
-        tgju_prices = await fetch_tgju_prices()
+    # WS2: call fetch_prices() directly — no availability pre-check.
+    # The pre-check (tgju_available) was a redundant round-trip: it added
+    # latency when TGJU was up and saved nothing when it was down (the
+    # concurrent fetches below fail just as fast). asyncio.wait_for() is the
+    # single gate for both "provider is down" and "provider is too slow".
+    try:
+        logger.info("BrsApi incomplete; attempting TGJU fallback")
+        tgju_prices = await asyncio.wait_for(
+            fetch_tgju_prices(),
+            timeout=TGJU_FALLBACK_TIMEOUT_SECONDS,
+        )
         book = PriceBook(
             {p.symbol: float(p.price_irt) for p in tgju_prices},
             as_of_by_symbol={p.symbol: p.fetched_at for p in tgju_prices},
@@ -277,6 +290,11 @@ async def _read_references(
                 min(selected),
                 book,
             )
+    except TimeoutError:
+        logger.warning(
+            "TGJU fallback timed out after %.0fs",
+            TGJU_FALLBACK_TIMEOUT_SECONDS,
+        )
 
     raise RuntimeError("no complete price source available (BrsApi + TGJU both incomplete)")
 
