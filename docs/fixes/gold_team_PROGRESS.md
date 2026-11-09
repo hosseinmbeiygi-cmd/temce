@@ -37,9 +37,25 @@
 - آیتم ۵ (FIFO sell): نیاز به تست اثبات‌کننده‌ی باگ قبل از رفع
 - آیتم ۶ (token lifecycle): نیاز به تست اثبات‌کننده‌ی باگ قبل از رفع
 
-### اقدام بعدی
-**منتظر تأیید مالک برای فاز ۱.۵a (طراحی ownership)**
+---
+
+## فاز ۱.۵a (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — منتظر تأیید D1–D4 از مالک
+- **نوع:** طراحی-فقط (بدون تغییر کد/migration/داده)
+- **گزارش:** `docs/fixes/gold_team_PHASE1_5a.md`
+
+### یافته‌های مهم فاز ۱.۵a
+- API-layer ownership کامل است (۱۲+ endpoint از `owned_scope()` استفاده می‌کنند)
+- Schema-layer بدون NOT NULL constraint — ریسک G-1 (ردیف‌های legacy با `user_id=NULL`)
+- ریسک G-3: `allow_any_owner` ممکن است `trade.user_id=admin` را ثبت کند نه `user_id=user123`
+- ریسک G-4: composite unique در `gold_portfolio_history` با NULL user_id مشکل‌ساز
+
+### نقاط تصمیم (D1–D4)
+- **D1:** ردیف‌های legacy `user_id=NULL` به چه user_id‌ای backfill شوند؟
+- **D2:** آیا `allow_any_owner` باید `trade.user_id` را از holding بگیرد؟
+- **D3:** آیا حذف سخت holding توسط admin مجاز بماند؟
+- **D4:** آیا انتقال holding/trade بین کاربران مورد نیاز است؟
 
 ## فازهای بعدی (نیازمند تأیید)
-- فاز ۱.۵a: طراحی ownership (نه کد)
+- فاز ۱.۵b: پیاده‌سازی ownership (backfill + NOT NULL + رفع G-3) — پس از تأیید D1–D4
 - ...
