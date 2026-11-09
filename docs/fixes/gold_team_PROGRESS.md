@@ -56,6 +56,25 @@
 - **D3:** آیا حذف سخت holding توسط admin مجاز بماند؟
 - **D4:** آیا انتقال holding/trade بین کاربران مورد نیاز است؟
 
-## فازهای بعدی (نیازمند تأیید)
-- فاز ۱.۵b: پیاده‌سازی ownership (backfill + NOT NULL + رفع G-3) — پس از تأیید D1–D4
+---
+
+## فاز ۱.۵b (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — commit `ee85e1b2` روی `fix/gold-team`
+- **suite:** 472 passed, 1 skipped, 0 failed (gold_desk)
+
+### تغییرات
+| فایل | تغییر |
+|------|-------|
+| `src/gold_desk/portfolio.py` | G-3: `_record_sell` با `allow_any_owner=True` user_id را از holding می‌گیرد |
+| `src/gold_desk/portfolio.py` | `get_active_holding` holding با `user_id=NULL` را reject می‌کند |
+| `src/gold_desk/api.py` | `delete_holding` با `force=True` audit WARNING log می‌نویسد |
+| `migrations/versions/0122_gold_desk_ownership_enforce.py` | backfill NULL→admin + SET NOT NULL روی ۶ جدول |
+| `tests/gold_desk/test_phase1_5b_code.py` | ۵ تست TDD |
+| `tests/gold_desk/test_phase1_5b_migration.py` | ۲ تست بررسی migration |
+| `tests/gold_desk/test_holding_soft_delete_reject.py` | رفع regression: user_id=None در fixture |
+
+## فازهای بعدی (نیازمند بررسی/تأیید)
+- آیتم ۵ (FIFO sell): نیاز به تست اثبات‌کننده‌ی باگ قبل از رفع
+- آیتم ۶ (token lifecycle): نیاز به تست اثبات‌کننده‌ی باگ قبل از رفع
+- Workstreams (WS1–WS9): نیاز به تأیید مالک در هر gate
 - ...

@@ -902,15 +902,18 @@ async def _consume_lots_by_symbol(
             f"requested {quantity}, available {quantity - remaining:.6f}"
         )
 
+    # Bug A fix: track `to_consume` per holding (not the original `quantity`).
+    # Bug B fix: compute unit_cost from original qty BEFORE reducing it.
+    to_consume = quantity
     for h in rows:
-        if h.quantity <= _QTY_EPS:
+        if h.quantity <= _QTY_EPS or to_consume <= _QTY_EPS:
             continue
-        consumed = min(quantity, h.quantity)
-        h.quantity = h.quantity - consumed
-        h.buy_amount_irt = max(
-            h.buy_amount_irt - (consumed * (h.buy_amount_irt / h.quantity if h.quantity > 0 else 0)),
-            0.0,
-        )
+        consumed = min(to_consume, h.quantity)
+        original_qty = h.quantity
+        unit_cost = h.buy_amount_irt / original_qty if original_qty > 0 else 0.0
+        h.quantity = original_qty - consumed
+        h.buy_amount_irt = max(h.buy_amount_irt - consumed * unit_cost, 0.0)
+        to_consume -= consumed
         if h.quantity <= _QTY_EPS:
             h.deleted_at = utc_now_naive()
 

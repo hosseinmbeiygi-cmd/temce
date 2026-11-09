@@ -90,15 +90,13 @@ async def save_token(plain: str, info: TokenInfo) -> bool:
         # (a one-way hash cannot be reversed from the id).
         payload = info_to_dict(info)
         payload["token_hash"] = token_hash
-        await cache.set(
+        await cache.set_persistent(
             f"{STORAGE_KEY}:hash:{token_hash}",
             payload,
-            ttl=None,  # persistent
         )
-        await cache.set(
+        await cache.set_persistent(
             f"{STORAGE_KEY}:meta:{info.token_id}",
             payload,
-            ttl=None,
         )
         index = await cache.get(f"{STORAGE_KEY}:index") or []
         if isinstance(index, str):
@@ -138,11 +136,11 @@ async def verify_token(token: str) -> TokenInfo | None:
         info_dict["last_used_at"] = utc_now_naive().isoformat()
         if isinstance(data, dict) and data.get("token_hash"):
             info_dict["token_hash"] = data["token_hash"]
-        await cache.set(f"{STORAGE_KEY}:hash:{token_hash}", info_dict, ttl=None)
+        await cache.set_persistent(f"{STORAGE_KEY}:hash:{token_hash}", info_dict)
         if meta is not None and isinstance(meta, dict):
             meta_dict = dict(meta)
             meta_dict["last_used_at"] = info_dict["last_used_at"]
-            await cache.set(f"{STORAGE_KEY}:meta:{info.token_id}", meta_dict, ttl=None)
+            await cache.set_persistent(f"{STORAGE_KEY}:meta:{info.token_id}", meta_dict)
         return info
     except Exception as exc:
         logger.warning("verify_token failed: %s", exc)
