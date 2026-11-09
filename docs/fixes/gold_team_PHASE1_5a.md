@@ -256,7 +256,9 @@ if holding.user_id is None:
 ---
 
 **تأییدیهٔ مالک (۲۰۲۶-۱۱-۰۹):**
+- D1: ✅ ردیف‌های legacy `user_id=NULL` به **admin user** backfill شوند.
+- D2: ✅ `allow_any_owner` باید `trade.user_id` را از **holding** بگیرد، نه از token admin.
+- D3: ✅ حذف سخت holding توسط admin مجاز است — **با audit log**.
 - D4: ✅ نیازی به endpoint انتقال نیست — نقش و دسترسی کاربر توسط مدیر از صفحهٔ مدیریت تنظیم می‌شود.
-- D1، D2، D3: در انتظار پاسخ
 
 *فاز ۱.۵a کامل — هیچ تغییری در کد، migration یا داده اعمال نشده.*
