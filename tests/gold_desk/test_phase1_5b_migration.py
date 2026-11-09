@@ -75,13 +75,13 @@ def test_migration_0122_backfill_sql_valid():
     assert "__legacy_admin__" in text, (
         "Migration must use __legacy_admin__ fallback when no admin user exists"
     )
-    assert "down_revision" in text and '"0121"' in text, (
-        "Migration 0122 must chain from 0121"
+    assert "down_revision" in text and '"0121_brsapi_instrument_ref"' in text, (
+        "Migration 0122 must chain from 0121_brsapi_instrument_ref"
     )
 
 
 def test_migration_chain_is_correct():
-    """Revisions chain correctly: 0121 → 0122."""
+    """Revisions chain correctly: 0121_brsapi_instrument_ref → 0122."""
     import importlib.util
 
     path = ROOT / "migrations" / "versions" / "0122_gold_desk_ownership_enforce.py"
@@ -90,4 +90,4 @@ def test_migration_chain_is_correct():
     spec.loader.exec_module(m)
 
     assert m.revision == "0122"
-    assert m.down_revision == "0121"
+    assert m.down_revision == "0121_brsapi_instrument_ref"
