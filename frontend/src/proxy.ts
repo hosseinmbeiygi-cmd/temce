@@ -80,6 +80,13 @@ export const PUBLIC_ROUTES: readonly string[] = [
   "/commodities",
   "/economic-calendar",
   "/health",
+  // Gold public endpoints (no session needed)
+  "/gold/health",
+  "/gold/assistant-rules",
+  "/gold/analytics/summary",
+  "/gold/analytics/macro/calendar",
+  "/gold/analytics/macro/iran-events",
+  "/gold/analytics/feed-health",
 ];
 
 export const PROTECTED_ROUTES: readonly string[] = [
@@ -96,6 +103,8 @@ export const PROTECTED_ROUTES: readonly string[] = [
   "/sync-manager",
   "/data-import",
   "/personal",
+  // Gold personal routes; public gold paths are listed in PUBLIC_ROUTES above.
+  "/gold",
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -127,11 +136,7 @@ export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   const nonce = generateNonce();
 
-  // Allow public routes and static assets without auth check; protect everything else
-  const isPublic = isPublicPath(pathname) || !isProtectedPath(pathname) ? isPublicPath(pathname) : false;
-  // New logic: if not public and is protected (or not in public list) and no cookie → redirect
-  // For now, keep explicit protected list as source of truth but expand it; public check is for future allowlist migration
-  if (isProtectedPath(pathname) && !request.cookies.has(AUTH_COOKIE_NAME)) {
+  if (isProtectedPath(pathname) && !isPublicPath(pathname) && !request.cookies.has(AUTH_COOKIE_NAME)) {
     const originalSearch = request.nextUrl.search;
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/auth/login";

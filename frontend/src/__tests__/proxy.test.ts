@@ -157,6 +157,49 @@ describe("proxy", () => {
       expectSecurityHeaders(res);
     });
 
+    // ── /gold route guard (Phase 1 Item 3) ──────────────────────────────────
+
+    it("covers every protected route including /gold", () => {
+      expect(PROTECTED_ROUTES).toEqual(
+        expect.arrayContaining([
+          "/admin",
+          "/settings/security",
+          "/profile",
+          "/watchlist",
+          "/gold",
+        ]),
+      );
+    });
+
+    it("redirects unauthenticated visitors away from /gold personal routes", () => {
+      for (const path of ["/gold/portfolio", "/gold/holdings", "/gold/trades"]) {
+        const req = new NextRequest(`http://localhost:3000${path}`);
+        const res = proxy(req);
+        expect(res.status).toBe(307);
+        expect(res.headers.get("location")).toContain("/auth/login");
+      }
+    });
+
+    it("does not redirect /gold public paths (health, assistant-rules, analytics)", () => {
+      for (const path of [
+        "/gold/health",
+        "/gold/assistant-rules",
+        "/gold/analytics/summary",
+      ]) {
+        const req = new NextRequest(`http://localhost:3000${path}`);
+        const res = proxy(req);
+        expect(res.status).toBe(200);
+      }
+    });
+
+    it("lets authenticated users access /gold personal routes", () => {
+      const req = new NextRequest("http://localhost:3000/gold/portfolio", {
+        headers: { cookie: `${AUTH_COOKIE_NAME}=valid-refresh` },
+      });
+      const res = proxy(req);
+      expect(res.status).toBe(200);
+    });
+
     it("generates a fresh nonce per request (prod CSP)", () => {
       // Next.js types NODE_ENV as read-only; the runtime value is a normal
       // property, so route around the type via a scoped mock of the module env.

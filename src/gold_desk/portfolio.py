@@ -56,7 +56,7 @@ class PortfolioSummary:
     total_cost: float
     total_value: float
     total_pnl: float
-    total_pnl_pct: float
+    total_pnl_pct: float | None
     holdings: list[HoldingPnL]
     by_symbol: dict[str, HoldingPnL]
     unpriced_holdings: int = 0
@@ -471,7 +471,7 @@ async def get_holdings_grouped(
         else:
             current_val = total_qty * current
             pnl_irt = current_val - total_cost_sym
-            pnl_pct = (pnl_irt / total_cost_sym * 100) if total_cost_sym else 0
+            pnl_pct = (pnl_irt / total_cost_sym * 100) if total_cost_sym else None
             total_value += current_val
             priced_cost += total_cost_sym
         holdings.append(
@@ -496,7 +496,7 @@ async def get_holdings_grouped(
     # P&L فقط روی holdingهای قیمت‌دار محاسبه می‌شود؛ قیمت ناموجود نباید P&L را
     # صفر یا منفی جعلی کند.
     total_pnl = total_value - priced_cost
-    total_pnl_pct = (total_pnl / priced_cost * 100) if priced_cost else 0
+    total_pnl_pct = (total_pnl / priced_cost * 100) if priced_cost else None
 
     holdings.sort(key=lambda h: h.symbol)
     return PortfolioSummary(

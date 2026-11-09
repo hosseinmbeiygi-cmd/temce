@@ -242,12 +242,23 @@ class GoldWebSocketHub:
             return
         if payload.get("type") == "snapshot_ready":
             # snapshot تازه از همان مسیر Redis/hotpath خوانده می‌شود تا as_of
-            # واقعی باشد، نه زمان رویداد.
-            try:
-                snapshot_message = await self._snapshot_message()
-            except Exception as exc:  # noqa: BLE001 — subscriber نباید بمیرد
-                logger.warning("snapshot refresh failed: %s", type(exc).__name__)
-                return
+            # واقعی باشد، نه زمان رویداد.  خطاهای گذرا تا ۳ بار retry می‌شوند
+            # (backoff نمایی از ۱۰۰ms) تا subscriber نمیرد.
+            snapshot_message = None
+            _backoff = 0.1
+            for _attempt in range(3):
+                try:
+                    snapshot_message = await self._snapshot_message()
+                    break
+                except Exception as exc:  # noqa: BLE001 — subscriber نباید بمیرد
+                    if _attempt < 2:
+                        await self._sleep(_backoff)
+                        _backoff *= 2
+                    else:
+                        logger.warning(
+                            "snapshot refresh failed after 3 attempts: %s",
+                            type(exc).__name__,
+                        )
             if snapshot_message is not None:
                 await self.broadcast(snapshot_message)
             return

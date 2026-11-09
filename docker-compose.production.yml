@@ -19,6 +19,7 @@ x-app-prod: &app-prod
   environment:
     SENTRY_DSN: ${SENTRY_DSN:-}
     SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    GOLD_API_TOKEN_SALT: ${GOLD_API_TOKEN_SALT:?GOLD_API_TOKEN_SALT must be set}
 
 secrets:
   postgres_password:

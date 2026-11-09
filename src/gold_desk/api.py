@@ -21,6 +21,7 @@ from apps.api.dependencies import (
     get_current_user,
     get_db_session,
     owned_scope,
+    require_roles,
 )
 from core.time import utc_now_naive
 
@@ -77,21 +78,7 @@ from .ws_hub import ws_endpoint
 logger = logging.getLogger(__name__)
 
 
-async def _require_admin_user(request: Request) -> dict[str, Any]:
-    """Admin gate for API-token administration (audit SEC-02).
-
-    The mount-level dependency only proves "a real user". Minting tokens that
-    carry the ``admin`` scope, and listing/revoking other people's, therefore
-    needs an explicit role check.
-    """
-    from apps.api.dependencies import get_current_user
-    from core.enums.rbac import has_role
-
-    user = await get_current_user(authorization=request.headers.get("authorization", ""))
-    if not has_role(user.get("roles", []), "admin"):
-        raise HTTPException(status_code=403, detail="Insufficient permissions: requires admin")
-    return user
-
+_require_admin = [Depends(require_roles("admin"))]
 
 router = APIRouter(prefix="/gold", tags=["GoldDesk"])
 
@@ -983,11 +970,10 @@ def _parse_scopes(raw: str) -> list[Scope]:
     return parsed or ["read"]
 
 
-@router.post("/tokens", summary="Generate a new API token")
+@router.post("/tokens", summary="Generate a new API token", dependencies=_require_admin)
 async def create_token(
     name: str = Query(..., min_length=1, max_length=64),
     scopes: str = Query("read", description="Comma-separated: read,write,admin"),
-    _admin: dict[str, Any] = Depends(_require_admin_user),
 ) -> dict[str, Any]:
     """ساخت token جدید. plain token فقط یک‌بار نمایش داده می‌شود.
 
@@ -1012,8 +998,8 @@ async def create_token(
     }
 
 
-@router.get("/tokens", summary="List API tokens")
-async def list_api_tokens(_admin: dict[str, Any] = Depends(_require_admin_user)) -> dict[str, Any]:
+@router.get("/tokens", summary="List API tokens", dependencies=_require_admin)
+async def list_api_tokens() -> dict[str, Any]:
     """لیست tokenهای فعال (بدون plain token)."""
     from .api_token import list_tokens
 
@@ -1034,8 +1020,8 @@ async def list_api_tokens(_admin: dict[str, Any] = Depends(_require_admin_user))
     }
 
 
-@router.delete("/tokens/{token_id}", summary="Revoke a token")
-async def delete_token(token_id: str, _admin: dict[str, Any] = Depends(_require_admin_user)) -> dict[str, Any]:
+@router.delete("/tokens/{token_id}", summary="Revoke a token", dependencies=_require_admin)
+async def delete_token(token_id: str) -> dict[str, Any]:
     from .api_token import revoke_token
 
     ok = await revoke_token(token_id)

@@ -112,6 +112,49 @@ def _is_postgres_reachable() -> bool:
         return False
 
 
+def validate_gold_test_db_url(
+    url: str,
+    *,
+    app_url: str,
+    allowed_hosts: set[str],
+    allowed_names: set[str],
+) -> bool | str:
+    """Validate that *url* is a safe, allowlisted test database URL.
+
+    Returns True on success, or an error message string on failure.
+    Never prints the URL or credentials.
+
+    Rules (all must pass; fail closed):
+    1. url must differ from app_url (can't hit production).
+    2. The DB hostname must be in allowed_hosts.
+    3. The DB name must be in allowed_names.
+    4. The DB name must contain the substring 'test'.
+    """
+    if url == app_url:
+        return "gold test URL must differ from the application DATABASE_URL"
+
+    # Parse host and dbname from the URL without exposing credentials.
+    # Format: dialect+driver://user:pass@host:port/dbname[?params]
+    try:
+        after_at = url.rsplit("@", 1)[-1]        # host:port/dbname...
+        host_port, rest = after_at.split("/", 1)
+        host = host_port.split(":")[0]
+        dbname = rest.split("?")[0].split("#")[0]
+    except Exception:
+        return "could not parse gold test URL (expected postgresql+asyncpg://...@host/name)"
+
+    if host not in allowed_hosts:
+        return f"gold test DB host is not in GOLD_TEST_DB_ALLOWED_HOSTS"
+
+    if dbname not in allowed_names:
+        return f"gold test DB name is not in GOLD_TEST_DB_ALLOWED_NAMES"
+
+    if "test" not in dbname:
+        return f"gold test DB name must contain 'test' (found: name without it)"
+
+    return True
+
+
 _DB_AVAILABLE: bool | None = None  # lazy cache, set once per session
 
 
