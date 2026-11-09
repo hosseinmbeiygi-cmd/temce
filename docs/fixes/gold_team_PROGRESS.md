@@ -143,6 +143,28 @@
 
 ---
 
+## WS3: Macro Adapter (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — commit `afc24963` روی `fix/gold-team`
+- **suite:** 39/39 (WS1+WS2+WS3 + test_macro_news.py)
+- **secrets scan:** clean
+
+### تغییرات
+
+| فایل | تغییر |
+|------|-------|
+| `src/gold_desk/macro_news.py` | `import asyncio` اضافه شد |
+| `src/gold_desk/macro_news.py` | بلوک تکراری (import logging, logger, REDIS_KEY_MACRO, REDIS_KEY_MACRO_CACHE_DAYS) حذف شد |
+| `src/gold_desk/macro_news.py` | `SCRAPE_TIMEOUT_SECONDS: float = 20.0` اضافه شد |
+| `src/gold_desk/macro_news.py` | `refresh_macro_events_cache(scraper=scrape_cbi_news, cache=None)` اضافه شد |
+| `tests/unit/test_ws3_macro_adapter.py` | ۶ تست TDD |
+
+### ریسک‌های رفع‌شده
+- **MEDIUM**: تعریف تکراری `REDIS_KEY_MACRO` و `logger` — باگ copy-paste، تغییر یک بلوک دیگری را آپدیت نمی‌کرد
+- **MEDIUM**: بدون timeout روی scraper — stall در CBI تمام caller را بلاک می‌کرد
+- **MEDIUM**: `fetch_macro_events()` و `scrape_cbi_news()` جدا بودند — cache هرگز از طریق این ماژول پر نمی‌شد
+
+---
+
 ## فازهای بعدی (نیازمند بررسی/تأیید)
-- **WS3–WS9**: نیاز به تأیید مالک در هر gate
+- **WS4–WS9**: نیاز به تأیید مالک در هر gate
 - آیتم‌های ۱۰ و ۱۱ (gold_fund_nav staleness, BrsApi unit): نیاز به DB زنده
