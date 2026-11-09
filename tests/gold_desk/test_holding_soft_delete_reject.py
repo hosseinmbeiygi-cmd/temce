@@ -69,7 +69,7 @@ def _holding(*, deleted: bool = False):
         bought_at="2026-01-01T00:00:00",
         deleted_at="2026-10-20T00:00:00" if deleted else None,
         symbol="IR_COIN_EMAMI",
-        user_id=None,
+        user_id="test-admin",
     )
 
 

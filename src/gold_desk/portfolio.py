@@ -100,6 +100,11 @@ async def get_active_holding(
     holding = result.scalar_one_or_none()
     if holding is None:
         raise HoldingNotFoundError(f"holding {holding_id} not found")
+    if holding.user_id is None:
+        logger.error(
+            "BUG: holding %d has NULL user_id — data integrity violation", holding_id
+        )
+        raise HoldingNotFoundError(f"holding {holding_id} has no owner")
     if user_id is not None and getattr(holding, "user_id", None) != user_id:
         # Do not reveal another user's row: same 404 as a missing holding.
         raise HoldingNotFoundError(f"holding {holding_id} not found")
@@ -766,8 +771,14 @@ async def _record_sell(
     realized_cost = consumed["realized_cost_irt"]
     pnl = amount_irt - fee_irt - realized_cost
 
+    # D2: when admin sells from an explicit holding, the trade must belong to
+    # the holding's owner, not to the admin who triggered the operation.
+    effective_user_id = (
+        holding.user_id if allow_any_owner and holding_id is not None else user_id
+    )
+
     trade = GoldTradeModel(
-        user_id=user_id,
+        user_id=effective_user_id,
         symbol=symbol,
         action="sell",
         quantity=quantity,

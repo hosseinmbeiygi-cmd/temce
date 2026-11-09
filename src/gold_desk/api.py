@@ -1278,6 +1278,12 @@ async def delete_holding(
             "holding is soft-deleted; pass ?force=true to hard-delete it",
         )
     if force:
+        logger.warning(
+            "admin hard-delete: holding_id=%d owner_user_id=%r deleted_by=%r",
+            h.id,
+            getattr(h, "user_id", None),
+            current_user.get("sub"),
+        )
         await session.delete(h)  # سخت: holding_id معامله‌ها ⇒ SET NULL
     else:
         h.deleted_at = utc_now_naive()  # نرم: ردیف و معامله‌ها باقی می‌مانند
