@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -41,12 +42,10 @@ REDIS_KEY_MACRO_CACHE_DAYS = 7  # cache events for 7 days
 MACRO_CONFIDENCE_BASE: float = 0.5  # اطمینان پایه وقتی یک جهت تشخیص داده شود
 MACRO_CONFIDENCE_PER_CUE: float = 0.1  # هر شاهد اضافه (عدد یا کلمهٔ کلیدی)
 MACRO_CONFIDENCE_MAX: float = 0.9  # سقف اطمینان heuristic
-import logging
 
-logger = logging.getLogger(__name__)
-
-REDIS_KEY_MACRO = "golddesk:macro:events"
-REDIS_KEY_MACRO_CACHE_DAYS = 7  # cache events for 7 days
+# WS3: wall-clock guard on the scraper coroutine (beyond per-request httpx timeout).
+# CBI may stall mid-response or return large pages; 20 s is generous for 10 headlines.
+SCRAPE_TIMEOUT_SECONDS: float = 20.0
 
 
 @dataclass(frozen=True)
@@ -365,3 +364,53 @@ async def scrape_cbi_news() -> list[MacroEvent]:
         logger.warning("CBI scrape failed: %s", exc, exc_info=True)
     # تیترهای تکراری یک صفحه نباید چند رویداد بسازند (E-M11).
     return _dedupe(events)
+
+
+# ── Injectable scraper + cache refresh ──────────────────────────────────────
+
+
+async def refresh_macro_events_cache(
+    scraper=scrape_cbi_news,
+    cache=None,
+) -> list[MacroEvent]:
+    """اجرای scraper و نوشتن نتیجه در cache.
+
+    WS3: scraper injectable است تا بتوان در تست بدون برقراری اتصال HTTP یک
+    callable دلخواه تزریق کرد. cache=None اجازه می‌دهد زیر‌ساخت Redis را هم
+    جایگزین کرد؛ اگر None باشد از get_cache() استفاده می‌شود.
+
+    scraper در asyncio.wait_for(SCRAPE_TIMEOUT_SECONDS) اجرا می‌شود تا
+    stall کامل CBI باعث بلاک‌شدن caller نشود (WS3-Gap-2).
+    """
+    from core.cache import get_cache
+
+    events: list[MacroEvent] = []
+    try:
+        events = await asyncio.wait_for(scraper(), timeout=SCRAPE_TIMEOUT_SECONDS)
+    except TimeoutError:
+        logger.warning(
+            "macro scraper timed out after %.0fs; keeping empty event list",
+            SCRAPE_TIMEOUT_SECONDS,
+        )
+        return []
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("macro scraper raised: %s", exc, exc_info=True)
+        return []
+
+    events = _dedupe(events)
+
+    if not events:
+        return []
+
+    _cache = cache if cache is not None else get_cache()
+    try:
+        payload = json.dumps([e.to_dict() for e in events], ensure_ascii=False)
+        await _cache.set(
+            REDIS_KEY_MACRO,
+            payload,
+            ttl=REDIS_KEY_MACRO_CACHE_DAYS * 86400,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("macro cache write failed: %s", exc)
+
+    return events
