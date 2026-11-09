@@ -100,6 +100,29 @@
 
 ---
 
+---
+
+## WS1: BrsApi Resilience (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — commit `923003df` روی `fix/gold-team`
+- **suite:** 491 passed, 1 skipped, 0 failed (gold_desk + brsapi unit)
+- **secrets scan:** هیچ مورد واقعی پیدا نشد
+
+### تغییرات
+
+| فایل | تغییر |
+|------|-------|
+| `brsapi/config.py` | `circuit_recovery_timeout: float = Field(default=120.0, ge=10.0)` اضافه شد |
+| `brsapi/client.py` | `import random` + `_circuit_breaker()` از `brsapi_settings.circuit_recovery_timeout` می‌خواند (به‌جای hardcoded 30.0) + `±10%` jitter روی هر دو مسیر retry |
+| `brsapi/services/sync_service.py` | `SYNC_OP_TIMEOUT_SECONDS=180.0` + هر عملیات در `sync_all()` با `asyncio.wait_for(timeout=SYNC_OP_TIMEOUT_SECONDS)` ایزوله شد |
+| `tests/unit/test_ws1_brsapi_resilience.py` | ۵ تست TDD (همه سبز) |
+
+### ریسک‌های رفع‌شده
+- **HIGH**: `sync_all()` بدون timeout — یک fetch معلق تمام ۱۱ عملیات را مسدود می‌کرد
+- **MEDIUM**: `circuit_recovery_timeout=30s` hardcoded — خیلی کوتاه برای یک provider production
+- **MEDIUM**: jitter نداشتن retry — thundering herd هنگام retry همزمان چند درخواست
+
+---
+
 ## فازهای بعدی (نیازمند بررسی/تأیید)
-- Workstreams (WS1–WS9): نیاز به تأیید مالک در هر gate
+- **WS2–WS9**: نیاز به تأیید مالک در هر gate
 - آیتم‌های ۱۰ و ۱۱ (gold_fund_nav staleness, BrsApi unit): نیاز به DB زنده
