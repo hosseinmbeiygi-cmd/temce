@@ -32,6 +32,10 @@ IRAN_RISK_FREE_RATE: float = 0.30
 # نوسان ضمنی پیش‌فرض صندوق‌های طلا (سالانه)
 DEFAULT_IV: float = 0.25
 
+# منبع داده زنده برای options chain بورس تهران (BrsApi) هنوز تأیید نشده است.
+# این ثابت وجود گپ را مستند می‌کند (WS7 — BrsApi options chain gap).
+BRSAPI_OPTIONS_DEFERRED: bool = True
+
 
 @dataclass(frozen=True)
 class OptionGreeks:
@@ -160,6 +164,86 @@ def price_option(
     )
 
 
+def implied_volatility(
+    market_price: float,
+    forward: float,
+    strike: float,
+    time_years: float,
+    rate: float = IRAN_RISK_FREE_RATE,
+    option_type: str = "call",
+    tol: float = 1e-8,
+    max_iter: int = 200,
+) -> float:
+    """نوسان ضمنی (Implied Volatility) از قیمت بازار با Newton-Raphson.
+
+    Args:
+        market_price: قیمت مشاهده‌شده در بازار (> 0).
+        forward: قیمت آتی یا spot.
+        strike: قیمت اعمال.
+        time_years: زمان تا سررسید (سال، > 0).
+        rate: نرخ بهره بدون ریسک.
+        option_type: "call" یا "put".
+        tol: دقت همگرایی.
+        max_iter: حداکثر تکرار.
+
+    Returns:
+        σ ضمنی (سالانه) در صورت همگرایی.
+
+    Raises:
+        ValueError: برای ورودی‌های نامعتبر.
+        RuntimeError: اگر solver همگرا نشود.
+    """
+    option_type = option_type.strip().lower()
+    if option_type not in ("call", "put"):
+        raise ValueError(f"option_type must be 'call' or 'put', got {option_type!r}")
+    if market_price <= 0:
+        raise ValueError(f"market_price must be > 0: {market_price}")
+    if time_years <= 0:
+        raise ValueError(f"time_years must be > 0: {time_years}")
+    if forward <= 0 or strike <= 0:
+        raise ValueError(f"forward and strike must be > 0: F={forward}, K={strike}")
+
+    def price_at(sigma: float) -> float:
+        c, p, _, _ = black76_price(forward, strike, time_years, sigma, rate)
+        return c if option_type == "call" else p
+
+    def vega_at(sigma: float) -> float:
+        sqrt_t = math.sqrt(time_years)
+        d1 = (math.log(forward / strike) + 0.5 * sigma * sigma * time_years) / (sigma * sqrt_t)
+        return math.exp(-rate * time_years) * forward * norm.pdf(d1) * sqrt_t
+
+    # Newton-Raphson starting at a reasonable initial guess
+    sigma = 0.30
+    for _ in range(max_iter):
+        p = price_at(sigma)
+        diff = p - market_price
+        if abs(diff) < tol:
+            return sigma
+        v = vega_at(sigma)
+        if abs(v) < 1e-14:
+            break
+        sigma_new = sigma - diff / v
+        if sigma_new <= 0:
+            sigma_new = sigma / 2.0
+        sigma = sigma_new
+
+    # Bisection fallback
+    lo, hi = 1e-6, 10.0
+    for _ in range(max_iter):
+        mid = (lo + hi) / 2.0
+        if price_at(mid) < market_price:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < tol:
+            return (lo + hi) / 2.0
+
+    raise RuntimeError(
+        f"implied_volatility did not converge for price={market_price}, "
+        f"F={forward}, K={strike}, T={time_years}"
+    )
+
+
 # ── استراتژی‌های protective ──────────────────────────────────────
 
 
@@ -196,8 +280,9 @@ def protective_collar(
     """
     t = years_to_expiry(expiry)
     # فرض F ≈ spot (shorter expiry, no div)
-    put_price, _, _, _ = black76_price(spot, put_strike, t, iv, rate)
-    _, call_price, _, _ = black76_price(spot, call_strike, t, iv, rate)
+    # black76_price returns (call, put, d1, d2) — unpack accordingly
+    _, put_price, _, _ = black76_price(spot, put_strike, t, iv, rate)
+    call_price, _, _, _ = black76_price(spot, call_strike, t, iv, rate)
     return CollarResult(
         cost=put_price - call_price,
         floor=put_strike,
