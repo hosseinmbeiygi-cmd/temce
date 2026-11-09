@@ -73,8 +73,33 @@
 | `tests/gold_desk/test_phase1_5b_migration.py` | ۲ تست بررسی migration |
 | `tests/gold_desk/test_holding_soft_delete_reject.py` | رفع regression: user_id=None در fixture |
 
+## آیتم‌های ۵ و ۶ (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — commit قبلی روی `fix/gold-team`
+- آیتم ۵: FIFO sell — دو باگ در `_consume_lots_by_symbol()` رفع شد (loop counter + unit_cost formula)
+- آیتم ۶: token lifecycle — `cache.set(ttl=None)` → `cache.set_persistent()` در `save_token` و `verify_token`
+- **تست:** `tests/gold_desk/test_phase1_items5_6.py` (5 تست، همه سبز)
+
+---
+
+## Security Hardening (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — commit `c8110289` روی `fix/gold-team`
+- **suite:** 481 passed, 1 skipped, 0 failed
+
+### تغییرات
+| فایل | تغییر |
+|------|-------|
+| `core/config/__init__.py` | اضافه کردن `registration_open: bool` (REGISTRATION_OPEN، پیش‌فرض True) |
+| `apps/api/endpoints/auth.py` | چک `settings.registration_open` در ابتدای `register()` → HTTP 403 اگر بسته باشد |
+| `apps/api/app.py` | `docs_url=None if settings.is_production else "/docs"` و همین برای `openapi_url` |
+| `docker-compose.production.yml` | `REGISTRATION_OPEN=false` برای محیط production |
+| `tests/gold_desk/test_security_hardening.py` | ۴ تست TDD (red ثبت‌شده، همه ۴ سبز) |
+
+### ریسک‌های رفع‌شده
+- **CRITICAL**: `/auth/register` کاملاً عمومی بود؛ اولین کاربر ثبت‌شده admin می‌شد
+- **HIGH**: `/docs` و `/openapi.json` در production بدون محافظت
+
+---
+
 ## فازهای بعدی (نیازمند بررسی/تأیید)
-- آیتم ۵ (FIFO sell): نیاز به تست اثبات‌کننده‌ی باگ قبل از رفع
-- آیتم ۶ (token lifecycle): نیاز به تست اثبات‌کننده‌ی باگ قبل از رفع
 - Workstreams (WS1–WS9): نیاز به تأیید مالک در هر gate
-- ...
+- آیتم‌های ۱۰ و ۱۱ (gold_fund_nav staleness, BrsApi unit): نیاز به DB زنده
