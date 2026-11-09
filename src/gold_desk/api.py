@@ -1852,6 +1852,30 @@ async def post_scrape_cbi() -> dict[str, Any]:
     return {"success": True, "data": {"count": len(events), "events": [e.to_dict() for e in events]}}
 
 
+# ── 20b. Event Calendar ─────────────────────────────────────
+
+
+@router.get("/calendar", summary="Upcoming economic events affecting gold")
+async def get_event_calendar(
+    days: int = Query(30, ge=0, le=365),
+) -> dict[str, Any]:
+    """تقویم رویدادهای اقتصادی پیش‌رو مؤثر بر بازار طلا.
+
+    داده از seed دستی است. رویدادها بر اساس scheduled_at از قدیم به جدید
+    مرتب‌اند. ``is_past=true`` یعنی رویداد گذشته است.
+    این endpoint اطلاعاتی است (C6) و به scorer وصل نمی‌شود.
+    """
+    from .event_calendar import get_calendar_events
+
+    events = get_calendar_events(days_ahead=days)
+    return {
+        "success": True,
+        "count": len(events),
+        "data_source": "manual_seed",
+        "events": [ev.to_dict() for ev in events],
+    }
+
+
 # ── 21. Crypto + Multi-Currency ────────────────────────────
 
 
