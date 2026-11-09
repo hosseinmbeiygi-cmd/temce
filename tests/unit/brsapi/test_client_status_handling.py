@@ -212,7 +212,11 @@ async def test_429_honours_retry_after_then_succeeds(make_client, sleeps) -> Non
 
     assert result.success is True
     assert transport.calls["n"] == 2
-    assert sleeps == [2.0], "Retry-After: 2 must be the exact delay"
+    # WS1 added ±10 % jitter to prevent thundering-herd; check the base is correct.
+    assert len(sleeps) == 1
+    assert abs(sleeps[0] - 2.0) <= 2.0 * 0.11, (
+        f"Expected Retry-After delay ~2.0 s (±10 % jitter), got {sleeps[0]}"
+    )
 
 
 @pytest.mark.parametrize("status", [408, 500, 502, 503, 504])
@@ -266,8 +270,10 @@ async def test_timeout_retries_with_exponential_backoff(make_client, sleeps) -> 
 
     assert result.error_code == "timeout"
     assert transport.calls["n"] == 3
-    # backoff_base ** (attempt + 1) → 1.5, 2.25
-    assert sleeps == [1.5, 2.25]
+    # backoff_base ** (attempt + 1) → 1.5, 2.25; WS1 adds ±10 % jitter.
+    assert len(sleeps) == 2
+    assert abs(sleeps[0] - 1.5) <= 1.5 * 0.11, f"Expected ~1.5 s, got {sleeps[0]}"
+    assert abs(sleeps[1] - 2.25) <= 2.25 * 0.11, f"Expected ~2.25 s, got {sleeps[1]}"
 
 
 async def test_network_error_is_classified_and_retried(make_client, sleeps) -> None:
@@ -370,7 +376,8 @@ async def test_success_after_recovery_window_probes_and_closes(make_client) -> N
     breaker = client._circuit_breaker(ENDPOINT.path)
     assert breaker.state == "open"
 
-    breaker.last_failure_time -= 31.0  # recovery_timeout is 30s
+    # WS1 changed default circuit_recovery_timeout from 30 s to 120 s.
+    breaker.last_failure_time -= client_module.brsapi_settings.circuit_recovery_timeout + 1.0
 
     probed = await _fetch(client)
 

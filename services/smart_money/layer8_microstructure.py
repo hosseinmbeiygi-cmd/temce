@@ -33,7 +33,8 @@ class MicrostructureLayer:
             has_ = nz_or_one(as_h[win])
             denom = hab + has_
             imb = np.where(denom != 0.0, np.abs(hab - has_) / np.where(denom != 0.0, denom, 1.0), 0.0)
-            vpin = float(imb.sum() / imb.size)
+            # Use Python sum for sequential accumulation — matches the reference loop exactly.
+            vpin = sum(imb.tolist()) / imb.size
 
             # ── Up/down volume split over the last 5 rows ──
             qc5 = col["price_close"][-5:]

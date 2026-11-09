@@ -26,7 +26,7 @@ from __future__ import annotations
 from alembic import op
 
 revision = "0122"
-down_revision = "0121"
+down_revision = "0121_brsapi_instrument_ref"
 branch_labels = None
 depends_on = None
 

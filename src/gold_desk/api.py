@@ -80,6 +80,22 @@ logger = logging.getLogger(__name__)
 
 _require_admin = [Depends(require_roles("admin"))]
 
+
+async def _require_admin_user(request: Request) -> dict:
+    """Admin gate callable for direct invocation (e.g. in tests via monkeypatch).
+
+    Equivalent to require_roles("admin") but callable as a plain coroutine so
+    unit tests can call it directly without FastAPI's dependency injection.
+    """
+    from apps.api import dependencies as _deps
+
+    authorization = request.headers.get("authorization", "")
+    user = await _deps.get_current_user(authorization=authorization)
+    if "admin" not in (user.get("roles") or []):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 router = APIRouter(prefix="/gold", tags=["GoldDesk"])
 
 # Anonymous-by-policy routes, kept on their own router so the personal surface

@@ -163,13 +163,10 @@ async def test_incomplete_brsapi_uses_complete_tgju_and_never_mixes(monkeypatch)
         _tgju("IR_GOLD_18K", 25_900_000.0, stamp),
     ]
 
-    async def _available():
-        return True
-
     async def _fetch():
         return tgju_rows
 
-    monkeypatch.setattr(svc, "tgju_available", _available)
+    # WS2 removed the tgju_available pre-check; fetch_tgju_prices is called directly.
     monkeypatch.setattr(svc, "fetch_tgju_prices", _fetch)
 
     refs, source, as_of, book = await svc._read_references(brsapi)
@@ -189,14 +186,11 @@ async def test_partial_sources_raise_instead_of_mixed(monkeypatch):
         {"XAUUSD": _NOW, "USD": _NOW},
     )
 
-    async def _available():
-        return True
-
     async def _fetch():
         # XAUUSD missing too → neither source is complete
         return [_tgju("USD", 850_000.0, _NOW), _tgju("AED", 245_000.0, _NOW)]
 
-    monkeypatch.setattr(svc, "tgju_available", _available)
+    # WS2 removed the tgju_available pre-check; fetch_tgju_prices is called directly.
     monkeypatch.setattr(svc, "fetch_tgju_prices", _fetch)
 
     with pytest.raises(RuntimeError, match="no complete price source"):
@@ -313,14 +307,11 @@ async def test_tgju_snapshot_is_always_delayed_even_if_fetched_now(monkeypatch):
     async def _prices():
         return partial
 
-    async def _available():
-        return True
-
     async def _fetch():
         return tgju_rows
 
     monkeypatch.setattr(svc, "_read_brsapi_prices", _prices)
-    monkeypatch.setattr(svc, "tgju_available", _available)
+    # WS2 removed the tgju_available pre-check; fetch_tgju_prices is called directly.
     monkeypatch.setattr(svc, "fetch_tgju_prices", _fetch)
     _patch_externals(monkeypatch)
 
