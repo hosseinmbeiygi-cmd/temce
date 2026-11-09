@@ -123,6 +123,26 @@
 
 ---
 
+## WS2: FX Source (۲۰۲۶-۱۱-۰۹)
+- **وضعیت:** ✅ کامل — commit `8863c3ee` روی `fix/gold-team`
+- **suite:** 15/15 (secondary_source + snapshot_service + ws1)
+- **secrets scan:** clean
+
+### تغییرات
+
+| فایل | تغییر |
+|------|-------|
+| `src/gold_desk/secondary_source.py` | `RIAL_TO_TOMAN = Decimal("0.1")` ثابت نام‌دار + TGJU_SYMBOLS از `_R2T` استفاده می‌کند |
+| `src/gold_desk/snapshot_service.py` | `import is_available as tgju_available` حذف + `TGJU_FALLBACK_TIMEOUT_SECONDS=15.0` + `asyncio.wait_for` روی `fetch_tgju_prices()` |
+| `tests/unit/test_ws2_fx_source.py` | ۶ تست TDD |
+
+### ریسک‌های رفع‌شده
+- **MEDIUM**: ثابت `0.1` ناشناس در TGJU_SYMBOLS — ریسک خطای تبدیل واحد
+- **MEDIUM**: `tgju_available()` یک round-trip اضافه قبل از `fetch_prices()` — تاخیر اضافه در حالت fallback
+- **MEDIUM**: بدون timeout روی fallback TGJU — `fetch_prices()` معلق می‌توانست کل snapshot را بلاک کند
+
+---
+
 ## فازهای بعدی (نیازمند بررسی/تأیید)
-- **WS2–WS9**: نیاز به تأیید مالک در هر gate
+- **WS3–WS9**: نیاز به تأیید مالک در هر gate
 - آیتم‌های ۱۰ و ۱۱ (gold_fund_nav staleness, BrsApi unit): نیاز به DB زنده
