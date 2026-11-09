@@ -208,7 +208,7 @@ if holding.user_id is None:
 | D1 | ردیف‌های legacy `user_id=NULL` به چه user_id‌ای backfill شوند؟ | (A) admin user (B) اولین کاربر ثبت‌شده (C) user_id اختصاصی "legacy" | گزینهٔ A — admin |
 | D2 | آیا `allow_any_owner` در admin باید `trade.user_id` را از holding بگیرد؟ | (A) بله — trade با user_id صاحب holding (B) نه — trade با user_id admin ثبت شود | گزینهٔ A |
 | D3 | آیا حذف سخت holding توسط admin مجاز بماند؟ | (A) بله با audit log (B) فقط soft-delete | گزینهٔ A با audit log |
-| D4 | آیا admin می‌تواند holding/trade یک کاربر را به کاربر دیگر منتقل کند؟ | (A) بله با endpoint مخصوص (B) خیر | نیاز به تعریف product |
+| D4 | آیا admin می‌تواند holding/trade یک کاربر را به کاربر دیگر منتقل کند؟ | (A) بله با endpoint مخصوص (B) خیر | ✅ **تأیید شد: نیازی به endpoint مخصوص نیست — مدیر نقش و دسترسی کاربر را از صفحهٔ مدیریت تنظیم می‌کند** |
 
 ---
 
@@ -255,5 +255,8 @@ if holding.user_id is None:
 
 ---
 
-*فاز ۱.۵a کامل — هیچ تغییری در کد، migration یا داده اعمال نشده.*  
-*منتظر پاسخ به سؤالات D1–D4 از مالک.*
+**تأییدیهٔ مالک (۲۰۲۶-۱۱-۰۹):**
+- D4: ✅ نیازی به endpoint انتقال نیست — نقش و دسترسی کاربر توسط مدیر از صفحهٔ مدیریت تنظیم می‌شود.
+- D1، D2، D3: در انتظار پاسخ
+
+*فاز ۱.۵a کامل — هیچ تغییری در کد، migration یا داده اعمال نشده.*
