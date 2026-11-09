@@ -1876,6 +1876,30 @@ async def get_event_calendar(
     }
 
 
+# ── 20c. Fund Registry (fee matrix) ────────────────────────
+
+
+@router.get("/funds", summary="Gold ETF fee matrix and registry")
+async def get_fund_registry() -> dict[str, Any]:
+    """ماتریس کارمزد صندوق‌های طلای قابل معامله در بورس.
+
+    داده ایستا از امیدنامهٔ صندوق‌ها (fipiran.com). مقادیر تقریبی‌اند؛
+    برای عدد دقیق به سایت fipiran.com یا امیدنامهٔ هر صندوق مراجعه کنید.
+    این endpoint اطلاعاتی است (C6) و به scorer وصل نمی‌شود.
+    """
+    from .fund_registry import MICROSTRUCTURE_DEFERRED, list_funds
+
+    funds = list_funds()
+    return {
+        "success": True,
+        "count": len(funds),
+        "funds": [f.to_dict() for f in funds],
+        "microstructure_available": not MICROSTRUCTURE_DEFERRED,
+        "data_source": "fipiran_static",
+        "note": "مقادیر کارمزد تقریبی از fipiran.com؛ برای عدد دقیق به امیدنامهٔ صندوق مراجعه کنید.",
+    }
+
+
 # ── 21. Crypto + Multi-Currency ────────────────────────────
 
 
