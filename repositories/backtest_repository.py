@@ -200,5 +200,4 @@ class _BacktestDbRepo(DbRepository[BacktestRun, BacktestRunModel]):
             total_return_pct=domain.total_return_pct or None,
             metrics=metrics_json,
             created_at=domain.created_at,
-            updated_at=domain.updated_at,
         )

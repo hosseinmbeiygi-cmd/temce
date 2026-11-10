@@ -402,7 +402,11 @@ class BacktestService:
             if _db.async_session_factory is None:
                 return []
 
-            # Convert Gregorian dates to Jalali (DB stores Jalali date strings)
+            # Gregorian date strings for SQL queries that filter by trade_date (Gregorian column)
+            greg_start = start.strftime("%Y-%m-%d") if hasattr(start, "strftime") else str(start)
+            greg_end = end.strftime("%Y-%m-%d") if hasattr(end, "strftime") else str(end)
+
+            # Jalali strings kept for queries that filter by trade_date_shamsi
             jalali_start = jdatetime.date.fromgregorian(date=start).strftime("%Y-%m-%d")
             jalali_end = jdatetime.date.fromgregorian(date=end).strftime("%Y-%m-%d")
 
@@ -412,7 +416,7 @@ class BacktestService:
                     from services.adjusted_price_reader import load_daily_candles_range
 
                     bars = await load_daily_candles_range(
-                        session, symbol, jalali_start, jalali_end, adjusted=True
+                        session, symbol, greg_start, greg_end, adjusted=True
                     )
                     if bars:
                         logger.info("Loaded %d adjusted bars from adjusted_price_reader for %s", len(bars), symbol)

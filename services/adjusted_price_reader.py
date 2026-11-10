@@ -211,8 +211,8 @@ async def load_daily_candles(
 async def load_daily_candles_range(
     session: AsyncSession,
     symbol: str,
-    start: str,
-    end: str,
+    start: "str | date",
+    end: "str | date",
     *,
     adjusted: bool | None = None,
 ) -> list[dict[str, Any]]:
@@ -221,13 +221,20 @@ async def load_daily_candles_range(
     Args:
         session: Async DB session
         symbol: Symbol/ticker to load
-        start: Start date (inclusive) as 'YYYY-MM-DD'
-        end: End date (inclusive) as 'YYYY-MM-DD'
+        start: Start date (inclusive) as 'YYYY-MM-DD' string or datetime.date
+        end: End date (inclusive) as 'YYYY-MM-DD' string or datetime.date
         adjusted: Override the adjustment dial. None = use dial.
 
     Returns:
         List of candle dicts with keys: date, date_shamsi, open, high, low, close, volume, value
     """
+    from datetime import date as _date
+
+    def _to_date(v: "str | _date") -> "_date":
+        if isinstance(v, _date):
+            return v
+        return _date.fromisoformat(str(v))
+
     if adjusted is None:
         source, use_adjusted = await resolve_price_source(session)
     else:
@@ -235,7 +242,7 @@ async def load_daily_candles_range(
         source = ADJUSTED_VIEW if use_adjusted else RAW_SOURCE
 
     sql = build_range_query(source, use_adjusted)
-    rows = (await session.execute(text(sql), {"sym": symbol, "start": start, "end": end})).fetchall()
+    rows = (await session.execute(text(sql), {"sym": symbol, "start": _to_date(start), "end": _to_date(end)})).fetchall()
     return build_candles(rows)
 
 
