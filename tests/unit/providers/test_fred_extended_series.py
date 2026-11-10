@@ -36,7 +36,7 @@ def test_fred_series_meta_is_importable():
 # ─── 2. Series constants ──────────────────────────────────────────────────────
 
 def test_new_series_constants_importable():
-    """All 12 new series-id constants must be importable.
+    """All new series-id constants must be importable.
 
     RED: constants not yet defined.
     GREEN: added alongside existing FRED_TIPS_10Y_SERIES / FRED_DXY_BROAD_SERIES.
@@ -49,10 +49,13 @@ def test_new_series_constants_importable():
         FRED_FEDERAL_DEBT_SERIES,
         FRED_FEDFUNDS_SERIES,
         FRED_GDP_SERIES,
+        FRED_GOLD_AM_FIX_SERIES,
+        FRED_GOLD_PM_FIX_SERIES,
         FRED_M2_SERIES,
         FRED_NFP_SERIES,
         FRED_PCE_SERIES,
         FRED_PPI_SERIES,
+        FRED_SILVER_FIX_SERIES,
         FRED_UNEMPLOYMENT_SERIES,
     )
 
@@ -94,13 +97,14 @@ def test_new_series_constants_have_correct_values():
 # ─── 3. FRED_SERIES_META: required series present ────────────────────────────
 
 REQUIRED_SERIES = {
-    "DFII10", "DTWEXBGS",          # original two
-    "DGS10", "DGS2", "DGS30",     # Treasury yields
-    "FEDFUNDS",                     # Fed funds
-    "CPIAUCSL", "PPIACO",          # CPI / PPI
-    "PAYEMS", "UNRATE",            # Labour
-    "GDP", "PCEPI",                # GDP / PCE
-    "M2SL", "GFDEBTN",            # Money supply / Federal debt
+    "DFII10", "DTWEXBGS",                              # original two
+    "DGS10", "DGS2", "DGS30",                         # Treasury yields
+    "FEDFUNDS",                                         # Fed funds
+    "CPIAUCSL", "PPIACO",                              # CPI / PPI
+    "PAYEMS", "UNRATE",                                # Labour
+    "GDP", "PCEPI",                                    # GDP / PCE
+    "M2SL", "GFDEBTN",                                # Money supply / Federal debt
+    "GOLDAMGBD228NLBM", "GOLDPMGBD228NLBM", "SLVPRUSD",  # LBMA historical prices
 }
 
 
@@ -119,20 +123,23 @@ def test_fred_series_meta_contains_all_required_series():
 # ─── 4. FRED_SERIES_META: unit field correctness ─────────────────────────────
 
 @pytest.mark.parametrize("series_id,expected_unit", [
-    ("DFII10",   "percent"),
-    ("DTWEXBGS", "index"),
-    ("DGS10",    "percent"),
-    ("DGS2",     "percent"),
-    ("DGS30",    "percent"),
-    ("FEDFUNDS", "percent"),
-    ("UNRATE",   "percent"),
-    ("CPIAUCSL", "index"),
-    ("PPIACO",   "index"),
-    ("PCEPI",    "index"),
-    ("PAYEMS",   "thousands"),
-    ("GDP",      "billions_usd"),
-    ("M2SL",     "billions_usd"),
-    ("GFDEBTN",  "millions_usd"),
+    ("DFII10",             "percent"),
+    ("DTWEXBGS",           "index"),
+    ("DGS10",              "percent"),
+    ("DGS2",               "percent"),
+    ("DGS30",              "percent"),
+    ("FEDFUNDS",           "percent"),
+    ("UNRATE",             "percent"),
+    ("CPIAUCSL",           "index"),
+    ("PPIACO",             "index"),
+    ("PCEPI",              "index"),
+    ("PAYEMS",             "thousands"),
+    ("GDP",                "billions_usd"),
+    ("M2SL",               "billions_usd"),
+    ("GFDEBTN",            "millions_usd"),
+    ("GOLDAMGBD228NLBM",   "usd_per_oz"),
+    ("GOLDPMGBD228NLBM",   "usd_per_oz"),
+    ("SLVPRUSD",           "usd_per_oz"),
 ])
 def test_fred_series_meta_unit(series_id: str, expected_unit: str):
     """Each series in FRED_SERIES_META must carry the correct 'unit' string.

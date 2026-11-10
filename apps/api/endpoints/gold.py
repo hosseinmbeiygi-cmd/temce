@@ -22,6 +22,9 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from apps.api.dependencies import (
     get_brsapi_query_service,
+    get_domestic_fx_provider,
+    get_domestic_gold_provider,
+    get_global_gold_provider,
     get_gold_live_service,
     get_gold_position_service,
 )
@@ -390,7 +393,61 @@ async def get_kill_switch(
     )
 
 
-# ── 8. IME Futures Catalog (proxy) ────────────────────────────
+# ── 8. Live domestic gold prices (TGJU) ───────────────────────
+
+
+@router.get(
+    "/domestic-prices",
+    summary="قیمت لحظه‌ای طلا و سکه (TGJU)",
+    description="قیمت‌های 18 عیار، 24 عیار، امامی، بهار، نیم سکه و ربع سکه از call3.tgju.org",
+)
+async def get_domestic_gold_prices(
+    gold_type: str | None = Query(None, description="bahar_azadi | nim_azadi | rob_azadi | gerami | geram18 | geram24"),
+    provider=Depends(get_domestic_gold_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(gold_type=gold_type)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False, data=[], error={"message": result.error, "code": "SOURCE_UNAVAILABLE"}
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/fx-rates",
+    summary="نرخ ارز (TGJU)",
+    description="نرخ دلار و درهم در برابر تومان از call3.tgju.org",
+)
+async def get_domestic_fx_rates(
+    pair: str | None = Query(None, description="USD_IRR | AED_IRR"),
+    provider=Depends(get_domestic_fx_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(pair=pair)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False, data=[], error={"message": result.error, "code": "SOURCE_UNAVAILABLE"}
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/global-prices",
+    summary="قیمت بین‌المللی طلا و فلزات گران‌بها",
+    description="XAU/USD از goldapi.io یا OKX PAXG (رایگان)؛ XAG/USD و XPT/USD با کلید goldapi",
+)
+async def get_global_gold_prices(
+    benchmark: str | None = Query(None, description="XAU_USD | XAG_USD | XPT_USD"),
+    provider=Depends(get_global_gold_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(benchmark=benchmark)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False, data=[], error={"message": result.error, "code": "SOURCE_UNAVAILABLE"}
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+# ── 9. IME Futures Catalog (proxy) ────────────────────────────
 
 
 @router.get(

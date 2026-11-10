@@ -480,3 +480,21 @@ def get_gold_position_service(session: AsyncSession = Depends(get_db_session)) -
     from services.gold.position_service import GoldFuturesPositionService
 
     return GoldFuturesPositionService(session=session)
+
+
+def get_domestic_gold_provider() -> Any:
+    from providers.macro.gold.domestic_gold_provider import DomesticGoldProvider
+
+    return DomesticGoldProvider()
+
+
+def get_domestic_fx_provider() -> Any:
+    from providers.macro.fx.domestic_fx_provider import DomesticFXProvider
+
+    return DomesticFXProvider()
+
+
+def get_global_gold_provider() -> Any:
+    from providers.macro.gold.global_gold_provider import GlobalGoldProvider
+
+    return GlobalGoldProvider()

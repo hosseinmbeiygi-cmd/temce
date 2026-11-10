@@ -30,24 +30,34 @@ FRED_PCE_SERIES = "PCEPI"            # PCE Price Index (index)
 FRED_M2_SERIES = "M2SL"             # M2 Money Supply (billions_usd)
 FRED_FEDERAL_DEBT_SERIES = "GFDEBTN" # Federal Debt: Total (millions_usd)
 
+# ── LBMA historical gold price series (World Gold Council source via FRED) ──
+FRED_GOLD_AM_FIX_SERIES = "GOLDAMGBD228NLBM"  # London Bullion AM fix (USD/oz) since 1968
+FRED_GOLD_PM_FIX_SERIES = "GOLDPMGBD228NLBM"  # London Bullion PM fix (USD/oz) since 1968
+FRED_SILVER_FIX_SERIES  = "SLVPRUSD"          # Silver price (USD/oz)
+
 # ── Metadata for all gold-relevant FRED series ─────────────────────────────
 # Maps series_id → {label, unit, frequency}
 # Used by MacroSyncService._upsert_macro_indicator for unit selection.
 FRED_SERIES_META: dict[str, dict[str, str]] = {
-    "DFII10":   {"label": "10Y TIPS Real Yield",        "unit": "percent",      "frequency": "daily"},
-    "DTWEXBGS": {"label": "Nominal Broad USD Index",    "unit": "index",        "frequency": "weekly"},
-    "DGS10":    {"label": "10Y Treasury Yield",         "unit": "percent",      "frequency": "daily"},
-    "DGS2":     {"label": "2Y Treasury Yield",          "unit": "percent",      "frequency": "daily"},
-    "DGS30":    {"label": "30Y Treasury Yield",         "unit": "percent",      "frequency": "daily"},
-    "FEDFUNDS": {"label": "Federal Funds Rate",         "unit": "percent",      "frequency": "monthly"},
-    "CPIAUCSL": {"label": "CPI (All Urban Consumers)",  "unit": "index",        "frequency": "monthly"},
-    "PPIACO":   {"label": "PPI (All Commodities)",      "unit": "index",        "frequency": "monthly"},
-    "PAYEMS":   {"label": "Non-Farm Payrolls",          "unit": "thousands",    "frequency": "monthly"},
-    "UNRATE":   {"label": "Unemployment Rate",          "unit": "percent",      "frequency": "monthly"},
-    "GDP":      {"label": "Gross Domestic Product",     "unit": "billions_usd", "frequency": "quarterly"},
-    "PCEPI":    {"label": "PCE Price Index",            "unit": "index",        "frequency": "monthly"},
-    "M2SL":     {"label": "M2 Money Supply",            "unit": "billions_usd", "frequency": "monthly"},
-    "GFDEBTN":  {"label": "Federal Debt: Total",        "unit": "millions_usd", "frequency": "quarterly"},
+    # ── Original macro series ──────────────────────────────────────────────
+    "DFII10":            {"label": "10Y TIPS Real Yield",           "unit": "percent",      "frequency": "daily"},
+    "DTWEXBGS":          {"label": "Nominal Broad USD Index",       "unit": "index",        "frequency": "weekly"},
+    "DGS10":             {"label": "10Y Treasury Yield",            "unit": "percent",      "frequency": "daily"},
+    "DGS2":              {"label": "2Y Treasury Yield",             "unit": "percent",      "frequency": "daily"},
+    "DGS30":             {"label": "30Y Treasury Yield",            "unit": "percent",      "frequency": "daily"},
+    "FEDFUNDS":          {"label": "Federal Funds Rate",            "unit": "percent",      "frequency": "monthly"},
+    "CPIAUCSL":          {"label": "CPI (All Urban Consumers)",     "unit": "index",        "frequency": "monthly"},
+    "PPIACO":            {"label": "PPI (All Commodities)",         "unit": "index",        "frequency": "monthly"},
+    "PAYEMS":            {"label": "Non-Farm Payrolls",             "unit": "thousands",    "frequency": "monthly"},
+    "UNRATE":            {"label": "Unemployment Rate",             "unit": "percent",      "frequency": "monthly"},
+    "GDP":               {"label": "Gross Domestic Product",        "unit": "billions_usd", "frequency": "quarterly"},
+    "PCEPI":             {"label": "PCE Price Index",               "unit": "index",        "frequency": "monthly"},
+    "M2SL":              {"label": "M2 Money Supply",               "unit": "billions_usd", "frequency": "monthly"},
+    "GFDEBTN":           {"label": "Federal Debt: Total",           "unit": "millions_usd", "frequency": "quarterly"},
+    # ── LBMA price series (World Gold Council / FRED) ─────────────────────
+    "GOLDAMGBD228NLBM":  {"label": "Gold Price AM Fix (LBMA)",      "unit": "usd_per_oz",   "frequency": "daily"},
+    "GOLDPMGBD228NLBM":  {"label": "Gold Price PM Fix (LBMA)",      "unit": "usd_per_oz",   "frequency": "daily"},
+    "SLVPRUSD":          {"label": "Silver Price (LBMA)",           "unit": "usd_per_oz",   "frequency": "daily"},
 }
 
 DEFAULT_FRED_BASE_URL = "https://api.stlouisfed.org"
