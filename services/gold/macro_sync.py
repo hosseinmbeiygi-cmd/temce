@@ -36,6 +36,7 @@ from providers.macro_sources.economic_calendar import (
 )
 from providers.macro_sources.fred import (
     FRED_DXY_BROAD_SERIES,
+    FRED_SERIES_META,
     FRED_TIPS_10Y_SERIES,
     FREDClient,
 )
@@ -314,6 +315,7 @@ class MacroSyncService:
         as_of = _iso_from_raw(obs.get("observation_date"))
         if not series_id or not as_of:
             return False
+        meta = FRED_SERIES_META.get(series_id, {})
         return await self._store_macro_indicator(
             indicator=f"FRED_{series_id}",
             value=obs.get("value"),
@@ -321,8 +323,8 @@ class MacroSyncService:
             change_pct=obs.get("change"),
             as_of=as_of,
             source="FRED",
-            unit="percent" if series_id == FRED_TIPS_10Y_SERIES else "index",
-            frequency="daily",
+            unit=meta.get("unit", "index"),
+            frequency=meta.get("frequency", "daily"),
             provenance=str(obs.get("provenance") or series_id),
         )
 

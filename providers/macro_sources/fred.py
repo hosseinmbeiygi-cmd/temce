@@ -1,4 +1,4 @@
-"""FRED macro source client (10Y TIPS real yield + broad dollar index).
+"""FRED macro source client — gold-relevant macro series.
 
 API: ``https://api.stlouisfed.org/fred/series/observations``
 Requires ``FRED_API_KEY`` environment variable.
@@ -12,8 +12,43 @@ import httpx
 
 from providers.macro_sources.base import MacroSourceError, MacroSourceProvider, _env_api_key, _to_float
 
-FRED_TIPS_10Y_SERIES = "DFII10"   # 10-Year Treasury Inflation-Indexed Constant Maturity (percent)
-FRED_DXY_BROAD_SERIES = "DTWEXBGS"  # Nominal Broad U.S. Dollar Index (index)
+# ── Original two series (kept for backward-compat imports) ─────────────────
+FRED_TIPS_10Y_SERIES = "DFII10"       # 10-Year TIPS real yield (percent)
+FRED_DXY_BROAD_SERIES = "DTWEXBGS"   # Nominal Broad USD Index (index)
+
+# ── Extended series constants ───────────────────────────────────────────────
+FRED_DGS10_SERIES = "DGS10"          # 10-Year Treasury Yield (percent)
+FRED_DGS2_SERIES = "DGS2"            # 2-Year Treasury Yield (percent)
+FRED_DGS30_SERIES = "DGS30"          # 30-Year Treasury Yield (percent)
+FRED_FEDFUNDS_SERIES = "FEDFUNDS"    # Federal Funds Rate (percent)
+FRED_CPI_SERIES = "CPIAUCSL"         # CPI All Urban Consumers (index)
+FRED_PPI_SERIES = "PPIACO"           # PPI All Commodities (index)
+FRED_NFP_SERIES = "PAYEMS"           # Non-Farm Payrolls (thousands)
+FRED_UNEMPLOYMENT_SERIES = "UNRATE"  # Unemployment Rate (percent)
+FRED_GDP_SERIES = "GDP"              # Gross Domestic Product (billions_usd)
+FRED_PCE_SERIES = "PCEPI"            # PCE Price Index (index)
+FRED_M2_SERIES = "M2SL"             # M2 Money Supply (billions_usd)
+FRED_FEDERAL_DEBT_SERIES = "GFDEBTN" # Federal Debt: Total (millions_usd)
+
+# ── Metadata for all gold-relevant FRED series ─────────────────────────────
+# Maps series_id → {label, unit, frequency}
+# Used by MacroSyncService._upsert_macro_indicator for unit selection.
+FRED_SERIES_META: dict[str, dict[str, str]] = {
+    "DFII10":   {"label": "10Y TIPS Real Yield",        "unit": "percent",      "frequency": "daily"},
+    "DTWEXBGS": {"label": "Nominal Broad USD Index",    "unit": "index",        "frequency": "weekly"},
+    "DGS10":    {"label": "10Y Treasury Yield",         "unit": "percent",      "frequency": "daily"},
+    "DGS2":     {"label": "2Y Treasury Yield",          "unit": "percent",      "frequency": "daily"},
+    "DGS30":    {"label": "30Y Treasury Yield",         "unit": "percent",      "frequency": "daily"},
+    "FEDFUNDS": {"label": "Federal Funds Rate",         "unit": "percent",      "frequency": "monthly"},
+    "CPIAUCSL": {"label": "CPI (All Urban Consumers)",  "unit": "index",        "frequency": "monthly"},
+    "PPIACO":   {"label": "PPI (All Commodities)",      "unit": "index",        "frequency": "monthly"},
+    "PAYEMS":   {"label": "Non-Farm Payrolls",          "unit": "thousands",    "frequency": "monthly"},
+    "UNRATE":   {"label": "Unemployment Rate",          "unit": "percent",      "frequency": "monthly"},
+    "GDP":      {"label": "Gross Domestic Product",     "unit": "billions_usd", "frequency": "quarterly"},
+    "PCEPI":    {"label": "PCE Price Index",            "unit": "index",        "frequency": "monthly"},
+    "M2SL":     {"label": "M2 Money Supply",            "unit": "billions_usd", "frequency": "monthly"},
+    "GFDEBTN":  {"label": "Federal Debt: Total",        "unit": "millions_usd", "frequency": "quarterly"},
+}
 
 DEFAULT_FRED_BASE_URL = "https://api.stlouisfed.org"
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -62,12 +97,12 @@ class FREDClient(MacroSourceProvider):
             raise MacroSourceError("FRED API key is not configured (set FRED_API_KEY)")
 
     def fetch(self) -> list[dict[str, Any]]:
-        """Fetch the latest observation for TIPS 10Y and the broad dollar index."""
+        """Fetch the latest observation for every series in FRED_SERIES_META."""
         self._require_key()
         client, owned = self._get_client()
         observations: list[dict[str, Any]] = []
         try:
-            for series_id in (FRED_TIPS_10Y_SERIES, FRED_DXY_BROAD_SERIES):
+            for series_id in FRED_SERIES_META:
                 obs = self._fetch_series(client, series_id)
                 if obs is not None:
                     observations.append(obs)
