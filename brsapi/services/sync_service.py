@@ -36,6 +36,7 @@ from brsapi.models import (
     CommodityPriceModel,
     CryptoPriceModel,
     CurrencyPriceModel,
+    GoldCoinHistoryModel,
     GoldCoinPriceModel,
     GoldCurrencyProDailyHistoryModel,
     GoldCurrencyProHistory24hModel,
@@ -1712,6 +1713,50 @@ class BrsApiSyncService:
             parser=GoldCurrencyProParser.parse_daily_history,
             model_class=GoldCurrencyProDailyHistoryModel,
             params=params,
+            truncate_first=False,
+            session=session,
+        )
+
+    # ── Gold Coin History ────────────────────────────
+    async def sync_gold_coin_history(
+        self,
+        session: AsyncSession,
+        date_start: str | None = None,
+        date_end: str | None = None,
+    ) -> SyncReport:
+        """Sync historical gold & coin prices from /Market/CoinHistory.php."""
+        params: dict[str, str] = {}
+        if date_start:
+            params["date_start"] = date_start
+        if date_end:
+            params["date_end"] = date_end
+        return await self.sync(
+            endpoint=BrsApiEndpoints.GOLD_COIN_HISTORY,
+            parser=GoldCoinParser.parse_history,
+            model_class=GoldCoinHistoryModel,
+            params=params or None,
+            truncate_first=False,
+            session=session,
+        )
+
+    # ── Currency History ─────────────────────────────
+    async def sync_currency_history(
+        self,
+        session: AsyncSession,
+        date_start: str | None = None,
+        date_end: str | None = None,
+    ) -> SyncReport:
+        """Sync historical currency prices from /Market/CurrencyHistory.php."""
+        params: dict[str, str] = {}
+        if date_start:
+            params["date_start"] = date_start
+        if date_end:
+            params["date_end"] = date_end
+        return await self.sync(
+            endpoint=BrsApiEndpoints.CURRENCY_HISTORY,
+            parser=CurrencyParser.parse_history,
+            model_class=CurrencyPriceModel,
+            params=params or None,
             truncate_first=False,
             session=session,
         )

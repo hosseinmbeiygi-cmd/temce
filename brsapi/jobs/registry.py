@@ -254,6 +254,18 @@ BRsAPI_SYNC_JOBS: list[BrsApiSyncJob] = [
         enabled=False,
         description="(DISABLED) Old currency endpoint returns 404. Currency data synced via sync_gold_currency() startup task",
     ),
+    BrsApiSyncJob(
+        name="brsapi_gold_coin_history",
+        endpoint_config=BrsApiEndpoints.GOLD_COIN_HISTORY,
+        cron=_EVERY_DAY_AT_6PM,
+        description="Sync historical gold & coin prices (daily after market close)",
+    ),
+    BrsApiSyncJob(
+        name="brsapi_currency_history",
+        endpoint_config=BrsApiEndpoints.CURRENCY_HISTORY,
+        cron=_EVERY_DAY_AT_6PM,
+        description="Sync historical currency prices (daily after market close)",
+    ),
     # ── Codal ───────────────────────────────────
     BrsApiSyncJob(
         name="brsapi_codal",
@@ -1747,7 +1759,7 @@ class BrsApiJobRegistry:
             BrsApiEndpoints.GOLD_COIN.path: GoldCoinParser.parse,
             BrsApiEndpoints.GOLD_COIN_HISTORY.path: GoldCoinParser.parse_history,
             BrsApiEndpoints.CURRENCY.path: CurrencyParser.parse,
-            BrsApiEndpoints.CURRENCY_HISTORY.path: CurrencyParser.parse,
+            BrsApiEndpoints.CURRENCY_HISTORY.path: CurrencyParser.parse_history,
             BrsApiEndpoints.GOLD_CURRENCY_PRO.path: GoldCurrencyProParser.parse_gold,
             BrsApiEndpoints.CODAL_ANNOUNCEMENT.path: CodalParser.parse_announcements_only,
         }
