@@ -1,21 +1,20 @@
 """Gold and macro-economy news via public RSS feeds.
 
-Covers both international and Iranian domestic news sources without
-requiring any API key.  All feeds are public and free.
-
-International:
-  - Kitco Gold News  (https://www.kitco.com/rss/kitconews.xml)
-  - FXStreet Gold    (https://www.fxstreet.com/rss/news?category=metals)
+International sources (with automatic fallback to Google News RSS when primary
+URLs return 403/404 or time-out):
+  - Kitco Gold News  — primary + Google News fallback
+  - FXStreet Gold    — primary + Google News fallback
+  - Reuters Markets  — updated URL + Google News fallback
+  - Mining.com       — primary + Google News fallback
 
 Iranian domestic:
-  - SANA (بورس کالا) (https://sana.ir/fa/rss/goldcoin)
-  - IBNA (بانک مرکزی) (https://www.ibna.ir/rss)
-  - tgju.org news    (https://www.tgju.org/rss/news)
+  - SANA (بورس کالا) — https://sana.ir/fa/rss/goldcoin
+  - IBNA (بانک مرکزی) — https://www.ibna.ir/rss
+  - tgju.org news    — https://www.tgju.org/rss/news
 
-Extra (my additions — high value for gold trading signals):
-  - Reuters Commodities (https://feeds.reuters.com/reuters/commoditiesNews)
-  - Bloomberg Markets   (https://feeds.bloomberg.com/markets/news.rss)
-  - Mining.com          (https://www.mining.com/feed/)
+Each feed has a list of ``url_candidates`` tried in order; the first that
+returns a parseable XML response wins.  Google News RSS is always reachable
+and is listed last as the guaranteed fallback for blocked sources.
 """
 
 from __future__ import annotations
@@ -34,23 +33,52 @@ from providers.base.base_provider import BaseProvider
 
 logger = get_logger(__name__)
 
-DEFAULT_TIMEOUT_SECONDS: float = 10.0
+DEFAULT_TIMEOUT_SECONDS: float = 12.0
+
+# Chrome 131 on Windows — widely accepted by news sites
+_CHROME_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
+_BROWSER_HEADERS = {
+    "User-Agent": _CHROME_UA,
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+}
+
 
 # ── Feed catalogue ────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class RSSFeedConfig:
     name: str
-    url: str
-    language: str   # "en" | "fa"
-    category: str   # "international" | "domestic"
-    source: str     # human-readable source name
+    url: str                          # primary URL (also url_candidates[0])
+    url_candidates: tuple[str, ...]   # tried in order; first working wins
+    language: str                     # "en" | "fa"
+    category: str                     # "international" | "domestic"
+    source: str
+
+
+def _gnews(query: str) -> str:
+    """Build a Google News RSS URL for ``query``."""
+    import urllib.parse
+    q = urllib.parse.quote_plus(query)
+    return f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
 
 
 GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "kitco": RSSFeedConfig(
         name="kitco",
         url="https://www.kitco.com/rss/kitconews.xml",
+        url_candidates=(
+            "https://www.kitco.com/rss/kitconews.xml",
+            "https://news.kitco.com/feeds/gold.xml",
+            "https://www.kitco.com/rss/gold.xml",
+            _gnews("gold price site:kitco.com"),
+        ),
         language="en",
         category="international",
         source="Kitco News",
@@ -58,6 +86,11 @@ GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "fxstreet_gold": RSSFeedConfig(
         name="fxstreet_gold",
         url="https://www.fxstreet.com/rss/news?category=metals",
+        url_candidates=(
+            "https://www.fxstreet.com/rss/news?category=metals",
+            "https://www.fxstreet.com/rss/news",
+            _gnews("gold silver XAU site:fxstreet.com"),
+        ),
         language="en",
         category="international",
         source="FXStreet",
@@ -65,6 +98,12 @@ GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "reuters_commodities": RSSFeedConfig(
         name="reuters_commodities",
         url="https://feeds.reuters.com/reuters/commoditiesNews",
+        url_candidates=(
+            "https://feeds.reuters.com/reuters/commoditiesNews",
+            "https://www.reuters.com/rssFeed/commoditiesNews",
+            "https://www.reuters.com/rssFeed/marketsNews",
+            _gnews("gold price commodities site:reuters.com"),
+        ),
         language="en",
         category="international",
         source="Reuters",
@@ -72,6 +111,12 @@ GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "mining_com": RSSFeedConfig(
         name="mining_com",
         url="https://www.mining.com/feed/",
+        url_candidates=(
+            "https://www.mining.com/feed/",
+            "https://www.mining.com/top-stories/gold/feed/",
+            "https://www.mining.com/category/gold/feed/",
+            _gnews("gold mine production site:mining.com"),
+        ),
         language="en",
         category="international",
         source="Mining.com",
@@ -79,6 +124,10 @@ GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "sana": RSSFeedConfig(
         name="sana",
         url="https://sana.ir/fa/rss/goldcoin",
+        url_candidates=(
+            "https://sana.ir/fa/rss/goldcoin",
+            "https://www.sana.ir/fa/rss/goldcoin",
+        ),
         language="fa",
         category="domestic",
         source="سنا - بورس کالا",
@@ -86,6 +135,10 @@ GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "ibna": RSSFeedConfig(
         name="ibna",
         url="https://www.ibna.ir/rss",
+        url_candidates=(
+            "https://www.ibna.ir/rss",
+            "https://www.ibna.ir/rss/economy",
+        ),
         language="fa",
         category="domestic",
         source="ایبنا - بانک مرکزی",
@@ -93,9 +146,13 @@ GOLD_RSS_FEEDS: dict[str, RSSFeedConfig] = {
     "tgju_news": RSSFeedConfig(
         name="tgju_news",
         url="https://www.tgju.org/rss/news",
+        url_candidates=(
+            "https://www.tgju.org/rss/news",
+            "https://tgju.org/rss/news",
+        ),
         language="fa",
         category="domestic",
-        source="تgju.org",
+        source="tgju.org",
     ),
 }
 
@@ -127,7 +184,6 @@ def _parse_rss_xml(xml_text: str, feed: RSSFeedConfig) -> list[NewsItem]:
         logger.warning("Feed %s could not be parsed: malformed XML: %s", feed.url, exc)
         return []
 
-    # Support both <rss><channel><item> and Atom <feed><entry>
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     items: list[NewsItem] = []
 
@@ -136,39 +192,46 @@ def _parse_rss_xml(xml_text: str, feed: RSSFeedConfig) -> list[NewsItem]:
         title   = (item.findtext("title")   or "").strip()
         link    = (item.findtext("link")    or "").strip()
         pub     = (item.findtext("pubDate") or "").strip()
-        # description may contain child HTML elements — itertext collects all text
         desc_el = item.find("description")
         desc    = " ".join(desc_el.itertext()).strip() if desc_el is not None else ""
 
-        published_at = _parse_date(pub)
+        # Google News RSS: source element has the original outlet name
+        src_el = item.find("source")
+        source = src_el.text.strip() if src_el is not None and src_el.text else feed.source
+
+        # Strip " - Outlet Name" suffix that Google News appends to titles
+        display_title = title
+        if src_el is not None and src_el.text and title.endswith(f" - {src_el.text.strip()}"):
+            display_title = title[: -(len(src_el.text.strip()) + 3)].strip()
+
         items.append(NewsItem(
-            title      = title,
-            url        = link,
-            published_at = published_at,
-            summary    = _strip_html(desc)[:400],
-            source     = feed.source,
-            feed_name  = feed.name,
-            language   = feed.language,
-            category   = feed.category,
+            title        = display_title,
+            url          = link,
+            published_at = _parse_date(pub),
+            summary      = _strip_html(desc)[:400],
+            source       = source,
+            feed_name    = feed.name,
+            language     = feed.language,
+            category     = feed.category,
         ))
 
     # Atom
     if not items:
         for entry in root.findall("atom:entry", ns):
-            title  = (entry.findtext("atom:title",   namespaces=ns) or "").strip()
-            link_el = entry.find("atom:link",         namespaces=ns)
+            title  = (entry.findtext("atom:title",    namespaces=ns) or "").strip()
+            link_el = entry.find("atom:link",          namespaces=ns)
             link   = link_el.get("href", "") if link_el is not None else ""
-            summ   = (entry.findtext("atom:summary", namespaces=ns) or "").strip()
-            pub    = (entry.findtext("atom:published",namespaces=ns) or "").strip()
+            summ   = (entry.findtext("atom:summary",  namespaces=ns) or "").strip()
+            pub    = (entry.findtext("atom:published", namespaces=ns) or "").strip()
             items.append(NewsItem(
-                title      = title,
-                url        = link,
+                title        = title,
+                url          = link,
                 published_at = pub or datetime.now(UTC).isoformat(),
-                summary    = _strip_html(summ)[:400],
-                source     = feed.source,
-                feed_name  = feed.name,
-                language   = feed.language,
-                category   = feed.category,
+                summary      = _strip_html(summ)[:400],
+                source       = feed.source,
+                feed_name    = feed.name,
+                language     = feed.language,
+                category     = feed.category,
             ))
 
     return items
@@ -182,11 +245,10 @@ def _parse_date(pub_date: str) -> str:
         dt = parsedate_to_datetime(pub_date)
         return dt.isoformat()
     except Exception:
-        return pub_date  # keep original if unparseable
+        return pub_date
 
 
 def _strip_html(text: str) -> str:
-    """Remove simple HTML tags from RSS description snippets."""
     import re
     return re.sub(r"<[^>]+>", " ", text).strip()
 
@@ -196,7 +258,8 @@ def _strip_html(text: str) -> str:
 class RSSNewsClient:
     """Fetch one or more RSS feeds and return parsed NewsItem lists.
 
-    Inject ``client`` in tests to avoid real network calls.
+    Each feed is tried with multiple URL candidates in order; the first that
+    returns valid XML wins.  Inject ``client`` in tests.
     """
 
     def __init__(
@@ -209,27 +272,48 @@ class RSSNewsClient:
         self._timeout_seconds = timeout_seconds
 
     async def fetch_feed(self, feed: RSSFeedConfig) -> list[NewsItem]:
-        """Fetch and parse a single RSS feed."""
+        """Fetch and parse a single RSS feed, trying all URL candidates."""
         close_client = self._client is None
         http = self._client or httpx.AsyncClient(
             timeout=self._timeout_seconds,
             follow_redirects=True,
-            headers={"User-Agent": "Mozilla/5.0 (Temce GoldDesk RSS reader)"},
+            headers=_BROWSER_HEADERS,
         )
         try:
-            resp = await http.get(feed.url)
-            resp.raise_for_status()
-            xml_text = resp.text
-        except Exception as exc:
-            logger.warning("RSS fetch %s: %s", feed.name, exc)
-            return []
+            return await self._try_candidates(http, feed)
         finally:
             if close_client:
                 await http.aclose()
 
-        items = _parse_rss_xml(xml_text, feed)
-        logger.debug("Parsed %d items from RSS feed", len(items))
-        return items
+    async def _try_candidates(
+        self, http: httpx.AsyncClient, feed: RSSFeedConfig
+    ) -> list[NewsItem]:
+        candidates = feed.url_candidates or (feed.url,)
+        last_exc: str = ""
+        for url in candidates:
+            try:
+                resp = await http.get(url)
+                if resp.status_code in (403, 404, 410, 451):
+                    logger.debug("RSS %s: %d at %s, trying next", feed.name, resp.status_code, url)
+                    last_exc = f"HTTP {resp.status_code}"
+                    continue
+                resp.raise_for_status()
+                items = _parse_rss_xml(resp.text, feed)
+                if items:
+                    if url != feed.url:
+                        logger.info("RSS %s: primary blocked, using fallback %s", feed.name, url)
+                    return items
+                # 200 OK but empty XML — try next candidate
+                last_exc = "empty feed"
+            except httpx.TimeoutException:
+                last_exc = "timeout"
+                logger.debug("RSS %s: timeout at %s, trying next", feed.name, url)
+            except Exception as exc:
+                last_exc = str(exc)
+                logger.debug("RSS %s: error at %s: %s", feed.name, url, exc)
+
+        logger.warning("RSS fetch %s: all %d candidates failed (%s)", feed.name, len(candidates), last_exc)
+        return []
 
     async def fetch_feeds(
         self,
@@ -238,13 +322,7 @@ class RSSNewsClient:
         category: str | None = None,
         language: str | None = None,
     ) -> list[NewsItem]:
-        """Fetch multiple feeds concurrently and merge results.
-
-        Args:
-            feed_names: list of feed keys from GOLD_RSS_FEEDS (all if None).
-            category: filter by ``"international"`` or ``"domestic"``.
-            language: filter by ``"en"`` or ``"fa"``.
-        """
+        """Fetch multiple feeds concurrently and merge results."""
         import asyncio
 
         feeds = list(GOLD_RSS_FEEDS.values())
@@ -276,18 +354,8 @@ class RSSNewsClient:
                     empty_count += 1
 
         logger.info(
-            "RSS fetch %s: %d/%d feeds returned articles, %d empty, %d failed — %s",
-            "rss_mixed" if not feed_names else "_".join(feed_names),
-            ok_count,
-            len(feeds),
-            empty_count,
-            fail_count,
-            ", ".join(
-                f"{f.name} (parse_error: {r})"
-                if isinstance(r, Exception) else
-                f"{f.name} (empty)" if isinstance(r, list) and not r else f"{f.name}"
-                for f, r in zip(feeds, results)
-            ),
+            "RSS multi-fetch: %d/%d feeds OK, %d empty, %d failed",
+            ok_count, len(feeds), empty_count, fail_count,
         )
         return all_items
 
@@ -295,12 +363,7 @@ class RSSNewsClient:
 # ── BaseProvider wrapper ──────────────────────────────────────────────────────
 
 class GoldNewsRSSProvider(BaseProvider):
-    """Multi-feed RSS news provider for gold market news.
-
-    Args:
-        client: injectable httpx.AsyncClient for testing.
-        feed_names: subset of feed keys to fetch (all if None).
-    """
+    """Multi-feed RSS news provider for gold market news."""
 
     def __init__(
         self,
@@ -320,14 +383,6 @@ class GoldNewsRSSProvider(BaseProvider):
         limit: int = 50,
         **kwargs: Any,
     ) -> Result[Any]:
-        """Return recent gold news articles from RSS feeds.
-
-        Args:
-            category: ``"international"`` | ``"domestic"`` | None (all).
-            language: ``"en"`` | ``"fa"`` | None (all).
-            feed_names: specific feeds to include (defaults to instance setting).
-            limit: max articles to return.
-        """
         feeds = feed_names or self._feed_names
         items = await self._rss.fetch_feeds(
             feed_names=feeds,
@@ -337,7 +392,6 @@ class GoldNewsRSSProvider(BaseProvider):
         if not items:
             return Result.fail("No news articles returned from RSS feeds")
 
-        # Sort newest-first (best effort based on published_at ISO string)
         items_sorted = sorted(items, key=lambda i: i.published_at, reverse=True)
         trimmed = items_sorted[:limit]
 
@@ -357,9 +411,7 @@ class GoldNewsRSSProvider(BaseProvider):
         return Result.ok(data)
 
     async def health(self) -> dict[str, Any]:
-        items = await self._rss.fetch_feeds(
-            feed_names=["kitco"],  # lightest check
-        )
+        items = await self._rss.fetch_feeds(feed_names=["ibna"])
         if items:
-            return {"healthy": True, "message": f"kitco: {len(items)} articles"}
-        return {"healthy": False, "message": "Kitco RSS feed unavailable"}
+            return {"healthy": True, "message": f"ibna: {len(items)} articles"}
+        return {"healthy": False, "message": "RSS feeds unavailable"}

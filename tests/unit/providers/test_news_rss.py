@@ -285,7 +285,8 @@ async def test_provider_fetch_returns_fail_when_all_feeds_empty():
 async def test_provider_health_check():
     from providers.macro_sources.news_rss import GOLD_RSS_FEEDS, GoldNewsRSSProvider
 
-    feed_map = {GOLD_RSS_FEEDS["kitco"].url: _RSS_KITCO}
+    # health() checks ibna (domestic feed, most reliable)
+    feed_map = {GOLD_RSS_FEEDS["ibna"].url: _RSS_SANA}
     provider = GoldNewsRSSProvider(client=_mock_client_map(feed_map))
     h = await provider.health()
     assert h["healthy"] is True

@@ -576,15 +576,13 @@ async def get_fmp_calendar(
 
 @router.get(
     "/news/gold-sentiment",
-    summary="اخبار و احساسات بازار طلا (Alpha Vantage)",
+    summary="شاخص‌های کلان اقتصاد آمریکا (Alpha Vantage — رایگان)",
 )
 async def get_gold_news_sentiment(
-    limit: int = Query(50, ge=1, le=200, description="تعداد اخبار"),
-    sort: str = Query("LATEST", description="LATEST | EARLIEST | RELEVANCE"),
-    time_from: str | None = Query(None, description="از تاریخ YYYYMMDDTHHMM"),
+    limit: int = Query(3, ge=1, le=12, description="تعداد نقاط داده برای هر شاخص"),
     provider=Depends(get_alpha_vantage_provider),
 ) -> ApiResponse[list[dict[str, Any]]]:
-    result = await provider.fetch(limit=limit, sort=sort, time_from=time_from)
+    result = await provider.fetch(limit_per_series=limit)
     if not result.success:
         return ApiResponse[list[dict[str, Any]]](
             success=False,

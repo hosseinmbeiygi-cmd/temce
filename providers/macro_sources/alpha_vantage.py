@@ -1,10 +1,14 @@
-"""Alpha Vantage News & Sentiment API provider.
+"""Alpha Vantage macro-economic indicator provider.
 
-API: ``https://www.alphavantage.co/query?function=NEWS_SENTIMENT``
-Requires ``ALPHA_VANTAGE_API_KEY`` environment variable.
-Free tier: 25 requests/day.
+Free-tier endpoints used (no API key rate limit beyond 25 req/day):
+  TREASURY_YIELD      — 10-year US Treasury yield (inverse-correlated with gold)
+  FEDERAL_FUNDS_RATE  — Fed funds rate (monetary policy signal)
+  CPI                 — Consumer Price Index monthly (inflation proxy)
+  INFLATION           — Annual inflation rate
+  UNEMPLOYMENT        — Unemployment rate
+  NONFARM_PAYROLL     — Non-farm payroll monthly
 
-Covers gold-related news sentiment for use in the trading signal pipeline.
+NOTE: NEWS_SENTIMENT is a Premium endpoint and is NOT used here.
 """
 
 from __future__ import annotations
@@ -26,9 +30,15 @@ logger = get_logger(__name__)
 AV_BASE_URL = "https://www.alphavantage.co/query"
 DEFAULT_TIMEOUT_SECONDS: float = 15.0
 
-# Topics relevant to gold trading
-GOLD_TOPICS = "gold,economy_macro,finance,forex"
-GOLD_TICKERS = "COMMODITY:GOLD"
+# Free macro indicator definitions: (function, interval, label_en, label_fa)
+MACRO_INDICATORS: list[tuple[str, str, str, str]] = [
+    ("TREASURY_YIELD",     "monthly",  "US 10Y Treasury Yield",    "بازده اوراق خزانه ۱۰ ساله"),
+    ("FEDERAL_FUNDS_RATE", "monthly",  "Federal Funds Rate",       "نرخ بهره فدرال"),
+    ("CPI",                "monthly",  "CPI (Inflation)",          "شاخص قیمت مصرف‌کننده"),
+    ("INFLATION",          "annual",   "Annual Inflation Rate",    "نرخ تورم سالانه"),
+    ("UNEMPLOYMENT",       "monthly",  "Unemployment Rate",        "نرخ بیکاری"),
+    ("NONFARM_PAYROLL",    "monthly",  "Non-Farm Payroll",         "اشتغال غیرکشاورزی"),
+]
 
 
 def _get_av_key() -> str:
@@ -36,22 +46,20 @@ def _get_av_key() -> str:
 
 
 @dataclass(frozen=True)
-class AVNewsItem:
-    """One news article with sentiment scores from Alpha Vantage."""
+class AVMacroPoint:
+    """One data point from a macro time series."""
 
-    title: str
-    url: str
-    published_at: str      # ISO-8601 datetime string
-    summary: str
-    source: str
-    overall_sentiment_score: float
-    overall_sentiment_label: str   # "Bullish" | "Somewhat-Bullish" | "Neutral" | "Bearish" | ...
-    relevance_score: float         # 0.0–1.0 relevance to the requested ticker/topic
+    indicator: str       # e.g. "TREASURY_YIELD"
+    label_en: str
+    label_fa: str
+    date: str            # YYYY-MM-DD
+    value: float | None
+    unit: str            # e.g. "percent"
     fetched_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-class AlphaVantageNewsClient:
-    """Fetch news sentiment from Alpha Vantage.
+class AlphaVantageMacroClient:
+    """Fetch free macro-economic indicators from Alpha Vantage.
 
     Inject ``client`` in tests to avoid real network calls.
     """
@@ -69,145 +77,154 @@ class AlphaVantageNewsClient:
         self._client = client
         self._timeout_seconds = timeout_seconds
 
-    async def fetch_gold_news(
+    async def _fetch_series(
         self,
-        *,
-        limit: int = 50,
-        time_from: str | None = None,
-        sort: str = "LATEST",
-    ) -> list[AVNewsItem]:
-        """Fetch gold-related news articles with sentiment scores.
+        http: httpx.AsyncClient,
+        function: str,
+        interval: str,
+        label_en: str,
+        label_fa: str,
+        limit: int = 3,
+    ) -> list[AVMacroPoint]:
+        """Fetch the latest ``limit`` data points for one indicator."""
+        params: dict[str, Any] = {
+            "function": function,
+            "interval": interval,
+            "apikey":   self._api_key,
+        }
+        try:
+            resp = await http.get(self._base_url, params=params, timeout=self._timeout_seconds)
+            resp.raise_for_status()
+            payload = resp.json()
+        except httpx.HTTPStatusError as exc:
+            logger.warning("AlphaVantage %s HTTP %d", function, exc.response.status_code)
+            return []
+        except Exception as exc:
+            logger.warning("AlphaVantage %s fetch error: %s", function, exc)
+            return []
+
+        if "Information" in payload or "Note" in payload:
+            msg = payload.get("Information") or payload.get("Note", "")
+            logger.warning("AlphaVantage %s: %s", function, msg)
+            raise MacroSourceError(f"AlphaVantage quota/key issue: {msg}")
+
+        # All free indicators share the same envelope: {"name":..., "unit":..., "data":[...]}
+        data_rows: list[dict[str, Any]] = payload.get("data") or []
+        unit = payload.get("unit", "")
+        points: list[AVMacroPoint] = []
+        for row in data_rows[:limit]:
+            raw_val = row.get("value")
+            try:
+                value = float(raw_val) if raw_val not in (None, ".", "") else None
+            except (ValueError, TypeError):
+                value = None
+            points.append(AVMacroPoint(
+                indicator = function,
+                label_en  = label_en,
+                label_fa  = label_fa,
+                date      = str(row.get("date", "")),
+                value     = value,
+                unit      = unit,
+            ))
+        return points
+
+    async def fetch_macro_indicators(self, limit_per_series: int = 3) -> list[AVMacroPoint]:
+        """Fetch the latest data points for all free macro indicators.
 
         Args:
-            limit: maximum articles to return (max 1000 per AV docs).
-            time_from: ``YYYYMMDDTHHMM`` start datetime (AV format).
-            sort: ``"LATEST"`` | ``"EARLIEST"`` | ``"RELEVANCE"``.
+            limit_per_series: how many recent data points per indicator (default 3).
+        Returns:
+            flat list of AVMacroPoint, all indicators, newest first within each.
+        Raises:
+            MacroSourceError: if the API key is missing or quota exceeded.
         """
         if not self._api_key:
             raise MacroSourceError("ALPHA_VANTAGE_API_KEY is not configured")
 
-        params: dict[str, Any] = {
-            "function": "NEWS_SENTIMENT",
-            "tickers":  GOLD_TICKERS,
-            "topics":   GOLD_TOPICS,
-            "limit":    min(int(limit), 1000),
-            "sort":     sort,
-            "apikey":   self._api_key,
-        }
-        if time_from:
-            params["time_from"] = time_from
+        import asyncio
 
         close_client = self._client is None
-        http = self._client or httpx.AsyncClient(
-            timeout=self._timeout_seconds,
-            follow_redirects=True,
-        )
+        http = self._client or httpx.AsyncClient(follow_redirects=True)
         try:
-            resp = await http.get(self._base_url, params=params)
-            resp.raise_for_status()
-            payload = resp.json()
-        except httpx.HTTPStatusError as exc:
-            raise MacroSourceError(f"AlphaVantage HTTP {exc.response.status_code}") from exc
-        except Exception as exc:
-            logger.warning("AlphaVantage fetch failed: %s", exc)
-            return []
+            tasks = [
+                self._fetch_series(http, fn, interval, label_en, label_fa, limit_per_series)
+                for fn, interval, label_en, label_fa in MACRO_INDICATORS
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             if close_client:
                 await http.aclose()
 
-        # AV returns {"Information": "..."} when rate-limited / invalid key
-        if "Information" in payload:
-            raise MacroSourceError(f"AlphaVantage: {payload['Information']}")
-        if "Note" in payload:
-            raise MacroSourceError(f"AlphaVantage: {payload['Note']}")
-
-        raw_feed: list[dict[str, Any]] = payload.get("feed") or []
-        items: list[AVNewsItem] = []
-        for art in raw_feed:
-            overall = art.get("overall_sentiment_score", 0.0)
-            label   = art.get("overall_sentiment_label", "")
-
-            # Pick the gold ticker's relevance score when available
-            relevance = 0.0
-            for ts in art.get("ticker_sentiment", []):
-                if ts.get("ticker") == GOLD_TICKERS:
-                    relevance = float(ts.get("relevance_score", 0.0))
-                    break
-            if relevance == 0.0:
-                for tp in art.get("topics", []):
-                    if "gold" in (tp.get("topic") or "").lower():
-                        relevance = max(relevance, float(tp.get("relevance_score", 0.0)))
-
-            items.append(AVNewsItem(
-                title                   = art.get("title", ""),
-                url                     = art.get("url", ""),
-                published_at            = art.get("time_published", ""),
-                summary                 = art.get("summary", ""),
-                source                  = art.get("source", ""),
-                overall_sentiment_score = float(overall),
-                overall_sentiment_label = label,
-                relevance_score         = relevance,
-            ))
-        return items
+        all_points: list[AVMacroPoint] = []
+        for result in results:
+            if isinstance(result, MacroSourceError):
+                raise result
+            if isinstance(result, list):
+                all_points.extend(result)
+        return all_points
 
 
-class AlphaVantageNewsProvider(BaseProvider):
-    """News sentiment provider using Alpha Vantage.
+# ── Backward-compat shim: AlphaVantageNewsClient ─────────────────────────────
+# The old NEWS_SENTIMENT endpoint is Premium and was removed. This stub
+# preserves the class name so existing imports don't break.
 
-    Args:
-        client: injectable httpx.AsyncClient for testing.
-    """
+class AlphaVantageNewsClient(AlphaVantageMacroClient):
+    """Deprecated: NEWS_SENTIMENT is Premium. Use AlphaVantageMacroClient."""
+
+    async def fetch_gold_news(self, **_kwargs: Any) -> list[Any]:  # type: ignore[override]
+        logger.warning(
+            "AlphaVantageNewsClient.fetch_gold_news() called — "
+            "NEWS_SENTIMENT is a Premium endpoint; "
+            "use AlphaVantageMacroClient.fetch_macro_indicators() instead."
+        )
+        return []
+
+
+# ── BaseProvider wrapper ──────────────────────────────────────────────────────
+
+class AlphaVantageMacroProvider(BaseProvider):
+    """Free macro-economic indicators provider using Alpha Vantage."""
 
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
-        super().__init__(name="alpha_vantage_news")
-        self._av = AlphaVantageNewsClient(client=client)
+        super().__init__(name="alpha_vantage_macro")
+        self._av = AlphaVantageMacroClient(client=client)
 
     async def fetch(
         self,
-        limit: int = 50,
-        time_from: str | None = None,
-        sort: str = "LATEST",
+        limit_per_series: int = 3,
         **kwargs: Any,
     ) -> Result[Any]:
-        """Return gold-related news articles with sentiment scores.
-
-        Args:
-            limit: max number of articles.
-            time_from: ``YYYYMMDDTHHMM`` start datetime.
-            sort: ``"LATEST"`` | ``"EARLIEST"`` | ``"RELEVANCE"``.
-        """
         try:
-            items = await self._av.fetch_gold_news(
-                limit=limit,
-                time_from=time_from,
-                sort=sort,
-            )
+            points = await self._av.fetch_macro_indicators(limit_per_series=limit_per_series)
         except MacroSourceError as exc:
             return Result.fail(str(exc))
 
-        if not items:
-            return Result.fail("AlphaVantage returned no news items")
+        if not points:
+            return Result.fail("AlphaVantage returned no macro data")
 
         data = [
             {
-                "title":           i.title,
-                "url":             i.url,
-                "published_at":    i.published_at,
-                "summary":         i.summary,
-                "source":          i.source,
-                "sentiment_score": i.overall_sentiment_score,
-                "sentiment_label": i.overall_sentiment_label,
-                "relevance_score": i.relevance_score,
+                "indicator":   p.indicator,
+                "label_en":    p.label_en,
+                "label_fa":    p.label_fa,
+                "date":        p.date,
+                "value":       p.value,
+                "unit":        p.unit,
+                "fetched_at":  p.fetched_at.isoformat(),
             }
-            for i in items
+            for p in points
         ]
         return Result.ok(data)
 
     async def health(self) -> dict[str, Any]:
         try:
-            items = await self._av.fetch_gold_news(limit=5)
-            if items:
-                return {"healthy": True, "message": f"{len(items)} articles fetched"}
+            points = await self._av.fetch_macro_indicators(limit_per_series=1)
+            if points:
+                return {"healthy": True, "message": f"{len(points)} indicators fetched"}
         except MacroSourceError as exc:
             return {"healthy": False, "message": str(exc)}
         return {"healthy": False, "message": "AlphaVantage unavailable"}
+
+
+# Backward-compat alias — old code imported AlphaVantageNewsProvider
+AlphaVantageNewsProvider = AlphaVantageMacroProvider
