@@ -1,13 +1,11 @@
-"""GoldAPI.io client — international XAU/USD price.
+"""International XAU/USD price — goldapi.io (key) + Binance PAXG (free).
 
-GoldAPI.io provides real-time international gold prices in USD.
-API key is read from the ``GOLDAPI_KEY`` env var.
+Sources (priority order):
+  1. goldapi.io  — if ``GOLDAPI_KEY`` env var is set (paid, spot price).
+  2. Binance PAXG/USDT — free, no key, real-time (1 PAXG = 1 troy oz gold).
 
-Endpoint: GET https://www.goldapi.io/api/XAU/USD
-Header:   x-access-token: <key>
-
-This module is intentionally thin — no DB, no cache, no side effects.
-Integration into the snapshot service overlay is in snapshot_service.py.
+Both sources are thin async functions: no DB, no cache, no side effects.
+Integration into the snapshot service is in snapshot_service.py.
 """
 
 from __future__ import annotations
@@ -22,6 +20,11 @@ logger = logging.getLogger(__name__)
 GOLDAPI_BASE = "https://www.goldapi.io/api"
 GOLDAPI_TIMEOUT_SECONDS: float = 8.0
 
+BINANCE_PAXG_URL = "https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT"
+BINANCE_TIMEOUT_SECONDS: float = 6.0
+
+
+# ─── goldapi.io (key-based) ───────────────────────────────────────────────────
 
 async def fetch_xau_usd(
     key: str,
@@ -73,3 +76,60 @@ async def get_goldapi_xau_usd() -> float | None:
     if not key:
         return None
     return await fetch_xau_usd(key)
+
+
+# ─── Binance PAXG/USDT (free, no key) ────────────────────────────────────────
+
+async def fetch_paxg_binance(
+    client: httpx.AsyncClient | None = None,
+) -> float | None:
+    """قیمت XAU/USD از Binance PAXG/USDT — رایگان، بدون کلید API.
+
+    PAX Gold (PAXG) هر توکن برابر ۱ انس تروی طلای فیزیکی است.
+    قیمت PAXG/USDT در Binance عملاً معادل قیمت اسپات XAU/USD است.
+
+    Returns:
+        float قیمت در دلار، یا None در صورت هر نوع خطا.
+    """
+    close_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(timeout=BINANCE_TIMEOUT_SECONDS)
+    try:
+        resp = await client.get(BINANCE_PAXG_URL)
+        resp.raise_for_status()
+        data = resp.json()
+        price = data.get("price")
+        if price is None or float(price) <= 0:
+            logger.warning("Binance PAXG returned invalid price: %r", price)
+            return None
+        return float(price)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Binance PAXG fetch failed: %s", exc)
+        return None
+    finally:
+        if close_client:
+            await client.aclose()
+
+
+# ─── combined: best available international price ────────────────────────────
+
+async def get_international_xau_usd() -> float | None:
+    """بهترین قیمت موجود XAU/USD از منابع بین‌المللی.
+
+    اولویت:
+      1. goldapi.io اگر GOLDAPI_KEY تنظیم باشد (قیمت اسپات دقیق‌تر).
+      2. Binance PAXG/USDT (رایگان، real-time، بدون کلید).
+
+    Returns None فقط اگر هر دو منبع شکست بخورند.
+    """
+    # 1. goldapi.io
+    key = get_goldapi_key()
+    if key:
+        price = await fetch_xau_usd(key)
+        if price:
+            return price
+        logger.warning("goldapi.io failed; falling back to Binance PAXG")
+
+    # 2. Binance PAXG
+    return await fetch_paxg_binance()
+

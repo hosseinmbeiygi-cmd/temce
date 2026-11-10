@@ -36,7 +36,7 @@ from .schemas import (
     ScoreComponents,
     SnapshotResponse,
 )
-from .goldapi_client import get_goldapi_xau_usd
+from .goldapi_client import get_international_xau_usd
 from .secondary_source import fetch_prices as fetch_tgju_prices
 
 logger = logging.getLogger(__name__)
@@ -167,13 +167,13 @@ async def _overlay_goldapi_xau_usd(book: PriceBook) -> None:
     در صورت خطا یا نبودِ کلید، مقدار قبلی book دست‌نخورده می‌ماند.
     """
     try:
-        xau = await get_goldapi_xau_usd()
+        xau = await get_international_xau_usd()
         if xau and xau > 0:
             book["XAUUSD"] = xau
             book.as_of_by_symbol["XAUUSD"] = datetime.now(UTC).replace(tzinfo=None)
-            logger.info("goldapi.io XAUUSD=%.2f", xau)
+            logger.info("international XAUUSD=%.2f", xau)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("goldapi.io overlay failed: %s", exc)
+        logger.warning("international XAU overlay failed: %s", exc)
 
 
 async def _read_brsapi_prices() -> PriceBook:

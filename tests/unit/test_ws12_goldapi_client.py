@@ -1,8 +1,8 @@
-"""WS12: GoldAPI.io client — unit tests (TDD).
+"""WS12: International XAU/USD client — goldapi.io + Binance PAXG (TDD).
 
 RED (before implementation):
   1. goldapi_client module does not exist.
-  2. fetch_xau_usd not importable.
+  2. fetch_xau_usd / fetch_paxg_binance / get_international_xau_usd not importable.
 
 GREEN (after implementation):
   1. fetch_xau_usd(key, mock_client) returns float on valid 200 response.
@@ -33,9 +33,15 @@ def test_import_goldapi_client():
     """goldapi_client must be importable from src.gold_desk.
 
     RED: module does not exist.
-    GREEN: module created with fetch_xau_usd and get_goldapi_key.
+    GREEN: module created with all public functions.
     """
-    from src.gold_desk.goldapi_client import fetch_xau_usd, get_goldapi_key, get_goldapi_xau_usd  # noqa: F401
+    from src.gold_desk.goldapi_client import (  # noqa: F401
+        fetch_paxg_binance,
+        fetch_xau_usd,
+        get_goldapi_key,
+        get_goldapi_xau_usd,
+        get_international_xau_usd,
+    )
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -203,3 +209,121 @@ async def test_get_goldapi_xau_usd_returns_none_when_key_absent():
     with patch.dict(os.environ, env, clear=True):
         result = await get_goldapi_xau_usd()
     assert result is None
+
+
+# ─── 6. fetch_paxg_binance ────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_fetch_paxg_binance_returns_float_on_success():
+    """fetch_paxg_binance returns float from Binance PAXG/USDT.
+
+    RED: not tested.
+    GREEN: parses 'price' from Binance ticker response.
+    """
+    from src.gold_desk.goldapi_client import fetch_paxg_binance
+
+    resp = MagicMock()
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {"symbol": "PAXGUSDT", "price": "2683.50000000"}
+    client = MagicMock()
+    client.get = AsyncMock(return_value=resp)
+    client.aclose = AsyncMock()
+
+    result = await fetch_paxg_binance(client=client)
+    assert result == pytest.approx(2683.5)
+
+
+@pytest.mark.asyncio
+async def test_fetch_paxg_binance_returns_none_on_error():
+    """fetch_paxg_binance returns None on network error.
+
+    RED: not tested.
+    GREEN: exception caught, returns None.
+    """
+    from src.gold_desk.goldapi_client import fetch_paxg_binance
+
+    client = MagicMock()
+    client.get = AsyncMock(side_effect=Exception("timeout"))
+    client.aclose = AsyncMock()
+
+    result = await fetch_paxg_binance(client=client)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_paxg_binance_returns_none_on_zero_price():
+    """fetch_paxg_binance returns None when price is '0'.
+
+    RED: not tested.
+    GREEN: float('0') <= 0 → returns None.
+    """
+    from src.gold_desk.goldapi_client import fetch_paxg_binance
+
+    resp = MagicMock()
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {"symbol": "PAXGUSDT", "price": "0.00000000"}
+    client = MagicMock()
+    client.get = AsyncMock(return_value=resp)
+    client.aclose = AsyncMock()
+
+    result = await fetch_paxg_binance(client=client)
+    assert result is None
+
+
+# ─── 7. get_international_xau_usd (priority logic) ───────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_international_uses_goldapi_when_key_set():
+    """get_international_xau_usd prefers goldapi.io when GOLDAPI_KEY is set.
+
+    RED: function missing.
+    GREEN: goldapi.io called first; Binance not called if goldapi succeeds.
+    """
+    from src.gold_desk import goldapi_client
+
+    env = {**os.environ, "GOLDAPI_KEY": "test-key"}
+    with patch.dict(os.environ, env):
+        with patch.object(goldapi_client, "fetch_xau_usd", new=AsyncMock(return_value=2700.0)) as mock_gold, \
+             patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2690.0)) as mock_paxg:
+            result = await goldapi_client.get_international_xau_usd()
+
+    assert result == pytest.approx(2700.0)
+    mock_gold.assert_awaited_once()
+    mock_paxg.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_international_falls_back_to_paxg_when_goldapi_fails():
+    """get_international_xau_usd falls back to PAXG when goldapi.io returns None.
+
+    RED: not tested.
+    GREEN: goldapi returns None → Binance PAXG called.
+    """
+    from src.gold_desk import goldapi_client
+
+    env = {**os.environ, "GOLDAPI_KEY": "test-key"}
+    with patch.dict(os.environ, env):
+        with patch.object(goldapi_client, "fetch_xau_usd", new=AsyncMock(return_value=None)), \
+             patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2680.0)) as mock_paxg:
+            result = await goldapi_client.get_international_xau_usd()
+
+    assert result == pytest.approx(2680.0)
+    mock_paxg.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_international_uses_paxg_when_no_key():
+    """get_international_xau_usd uses PAXG directly when no GOLDAPI_KEY.
+
+    RED: not tested.
+    GREEN: key is None → skip goldapi, call Binance PAXG.
+    """
+    from src.gold_desk import goldapi_client
+
+    env = {k: v for k, v in os.environ.items() if k != "GOLDAPI_KEY"}
+    with patch.dict(os.environ, env, clear=True):
+        with patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2675.0)) as mock_paxg:
+            result = await goldapi_client.get_international_xau_usd()
+
+    assert result == pytest.approx(2675.0)
+    mock_paxg.assert_awaited_once()
