@@ -522,3 +522,9 @@ def get_alpha_vantage_provider() -> Any:
     from providers.macro_sources.alpha_vantage import AlphaVantageNewsProvider
 
     return AlphaVantageNewsProvider()
+
+
+def get_gold_news_rss_provider() -> Any:
+    from providers.macro_sources.news_rss import GoldNewsRSSProvider
+
+    return GoldNewsRSSProvider()

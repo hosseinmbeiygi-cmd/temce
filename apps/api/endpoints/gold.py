@@ -30,6 +30,7 @@ from apps.api.dependencies import (
     get_forex_factory_provider,
     get_global_gold_provider,
     get_gold_live_service,
+    get_gold_news_rss_provider,
     get_gold_position_service,
 )
 from core.logging import get_logger
@@ -564,6 +565,62 @@ async def get_gold_news_sentiment(
     provider=Depends(get_alpha_vantage_provider),
 ) -> ApiResponse[list[dict[str, Any]]]:
     result = await provider.fetch(limit=limit, sort=sort, time_from=time_from)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/rss",
+    summary="اخبار RSS طلا — بین‌المللی و داخلی",
+)
+async def get_gold_news_rss(
+    category: str | None = Query(None, description="international | domestic"),
+    language: str | None = Query(None, description="en | fa"),
+    limit: int = Query(50, ge=1, le=200, description="تعداد اخبار"),
+    provider=Depends(get_gold_news_rss_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category=category, language=language, limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/rss/domestic",
+    summary="اخبار داخلی طلا و ارز (سنا، ایبنا، tgju)",
+)
+async def get_gold_news_rss_domestic(
+    limit: int = Query(30, ge=1, le=100, description="تعداد اخبار"),
+    provider=Depends(get_gold_news_rss_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category="domestic", limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/rss/international",
+    summary="اخبار بین‌المللی طلا (Kitco، FXStreet، Reuters)",
+)
+async def get_gold_news_rss_international(
+    limit: int = Query(30, ge=1, le=100, description="تعداد اخبار"),
+    provider=Depends(get_gold_news_rss_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category="international", limit=limit)
     if not result.success:
         return ApiResponse[list[dict[str, Any]]](
             success=False,
