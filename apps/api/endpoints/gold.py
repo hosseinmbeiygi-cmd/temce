@@ -27,6 +27,7 @@ from apps.api.dependencies import (
     get_domestic_gold_provider,
     get_finnhub_provider,
     get_fmp_provider,
+    get_finnhub_earnings_provider,
     get_forex_factory_provider,
     get_global_gold_provider,
     get_gold_live_service,
@@ -515,16 +516,35 @@ async def get_forex_factory_calendar(
 
 
 @router.get(
-    "/calendar/finnhub",
-    summary="تقویم اقتصادی Finnhub",
+    "/news/finnhub",
+    summary="اخبار بازار Finnhub (رایگان — GET /news)",
 )
-async def get_finnhub_calendar(
-    from_date: str | None = Query(None, description="تاریخ شروع YYYY-MM-DD"),
-    to_date: str | None = Query(None, description="تاریخ پایان YYYY-MM-DD"),
-    country: str | None = Query(None, description="کد کشور (مثلاً US)"),
+async def get_finnhub_news(
+    category: str = Query("general", description="general | forex | crypto | merger"),
+    limit: int = Query(50, ge=1, le=200, description="تعداد مقالات"),
     provider=Depends(get_finnhub_provider),
 ) -> ApiResponse[list[dict[str, Any]]]:
-    result = await provider.fetch(from_date=from_date, to_date=to_date, country=country)
+    result = await provider.fetch(category=category, limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/calendar/earnings",
+    summary="تقویم درآمد شرکت‌ها Finnhub (رایگان — 1 ماه)",
+)
+async def get_finnhub_earnings(
+    from_date: str | None = Query(None, description="تاریخ شروع YYYY-MM-DD"),
+    to_date: str | None = Query(None, description="تاریخ پایان YYYY-MM-DD"),
+    symbol: str | None = Query(None, description="نماد سهام (مثلاً AAPL)"),
+    provider=Depends(get_finnhub_earnings_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(from_date=from_date, to_date=to_date, symbol=symbol)
     if not result.success:
         return ApiResponse[list[dict[str, Any]]](
             success=False,

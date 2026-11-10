@@ -507,9 +507,15 @@ def get_forex_factory_provider() -> Any:
 
 
 def get_finnhub_provider() -> Any:
-    from providers.macro_sources.finnhub import FinnhubProvider
+    from providers.macro_sources.finnhub import FinnhubNewsProvider
 
-    return FinnhubProvider()
+    return FinnhubNewsProvider()
+
+
+def get_finnhub_earnings_provider() -> Any:
+    from providers.macro_sources.finnhub import FinnhubEarningsProvider
+
+    return FinnhubEarningsProvider()
 
 
 def get_fmp_provider() -> Any:
