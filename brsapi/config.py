@@ -425,11 +425,13 @@ class BrsApiSettings(BaseSettings):
 
     # Global rate limits (must not be exceeded)
     # AIO (All In One) package: 500 requests per 5 minutes
-    # IMPORTANT: the free/basic plan blocks the key above ~5,000 requests/day.
-    # The default 4,000/day keeps a safety margin below that real-world cap so
-    # the rate limiter never lets the plan get itself blocked. Set
-    # BRSAPI_GLOBAL_DAILY_LIMIT in .env to your exact plan quota.
-    global_daily_limit: int = Field(default=4000, ge=1, description="Max requests per day across all endpoints (hard cap — the rate limiter blocks until midnight Tehran when reached)")
+    # IMPORTANT: set BRSAPI_GLOBAL_DAILY_LIMIT in .env to the EXACT plan quota.
+    # The confirmed paid-plan cap is 10,000 requests/day; the default here matches
+    # that cap so the budget governor is a hard enforcement layer, not just a
+    # conservative safety margin. Never raise this above the plan's actual limit —
+    # the governor blocks all live calls for budget_block_cooldown_seconds after
+    # any HTTP 302 heavy-file redirect (the server's over-quota signal).
+    global_daily_limit: int = Field(default=10000, ge=1, description="Max requests per day across all endpoints (hard cap — the rate limiter blocks until midnight Tehran when reached)")
     global_5min_limit: int = Field(default=1000, ge=1, description="Max requests per 5-minute window across all endpoints (upgraded plan limit)")
     # When True and the daily budget is exhausted, ``acquire()`` rejects the
     # request immediately instead of sleeping until midnight. Prevents a
