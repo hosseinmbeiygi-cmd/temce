@@ -36,6 +36,7 @@ from .schemas import (
     ScoreComponents,
     SnapshotResponse,
 )
+from .goldapi_client import get_goldapi_xau_usd
 from .secondary_source import fetch_prices as fetch_tgju_prices
 
 logger = logging.getLogger(__name__)
@@ -159,11 +160,28 @@ def _display(symbol: str) -> str:
     return DISPLAY_LABELS.get(symbol, symbol)
 
 
+async def _overlay_goldapi_xau_usd(book: PriceBook) -> None:
+    """اگر GOLDAPI_KEY تنظیم باشد، XAUUSD را از goldapi.io override می‌کند.
+
+    داده‌های بین‌المللی (قیمت انس طلا در دلار) از goldapi.io می‌آید.
+    در صورت خطا یا نبودِ کلید، مقدار قبلی book دست‌نخورده می‌ماند.
+    """
+    try:
+        xau = await get_goldapi_xau_usd()
+        if xau and xau > 0:
+            book["XAUUSD"] = xau
+            book.as_of_by_symbol["XAUUSD"] = datetime.now(UTC).replace(tzinfo=None)
+            logger.info("goldapi.io XAUUSD=%.2f", xau)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("goldapi.io overlay failed: %s", exc)
+
+
 async def _read_brsapi_prices() -> PriceBook:
     """خواندن قیمت‌ها از BrsApi QueryService. یک بار فراخوانی — کش در snapshot.
 
     خروجی ``PriceBook`` است: قیمت + زمان fetched_at هر نماد. برای هر نماد فقط
     جدیدترین ردیف انتخاب می‌شود (خدمت همهٔ fetchها را برمی‌گرداند).
+    XAUUSD با goldapi.io override می‌شود اگر GOLDAPI_KEY تنظیم شده باشد.
     """
     book = PriceBook()
     try:
@@ -214,6 +232,7 @@ async def _read_brsapi_prices() -> PriceBook:
                     )
     except Exception as exc:
         logger.error("BrsApi unavailable: %s", exc)
+    await _overlay_goldapi_xau_usd(book)
     return book
 
 
