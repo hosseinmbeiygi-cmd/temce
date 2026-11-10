@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 GOLDAPI_BASE = "https://www.goldapi.io/api"
 GOLDAPI_TIMEOUT_SECONDS: float = 8.0
 
-BINANCE_PAXG_URL = "https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT"
-BINANCE_TIMEOUT_SECONDS: float = 6.0
+OKX_PAXG_URL = "https://www.okx.com/api/v5/market/ticker?instId=PAXG-USDT"
+OKX_TIMEOUT_SECONDS: float = 6.0
 
 
 # ─── goldapi.io (key-based) ───────────────────────────────────────────────────
@@ -83,28 +83,32 @@ async def get_goldapi_xau_usd() -> float | None:
 async def fetch_paxg_binance(
     client: httpx.AsyncClient | None = None,
 ) -> float | None:
-    """قیمت XAU/USD از Binance PAXG/USDT — رایگان، بدون کلید API.
+    """قیمت XAU/USD از OKX PAXG/USDT — رایگان، بدون کلید API.
 
     PAX Gold (PAXG) هر توکن برابر ۱ انس تروی طلای فیزیکی است.
-    قیمت PAXG/USDT در Binance عملاً معادل قیمت اسپات XAU/USD است.
+    از OKX استفاده می‌شود — Binance از ایران block است (HTTP 451).
 
     Returns:
         float قیمت در دلار، یا None در صورت هر نوع خطا.
     """
     close_client = client is None
     if client is None:
-        client = httpx.AsyncClient(timeout=BINANCE_TIMEOUT_SECONDS)
+        client = httpx.AsyncClient(timeout=OKX_TIMEOUT_SECONDS)
     try:
-        resp = await client.get(BINANCE_PAXG_URL)
+        resp = await client.get(OKX_PAXG_URL)
         resp.raise_for_status()
         data = resp.json()
-        price = data.get("price")
+        items = data.get("data") or []
+        if not items:
+            logger.warning("OKX PAXG returned empty data")
+            return None
+        price = items[0].get("last")
         if price is None or float(price) <= 0:
-            logger.warning("Binance PAXG returned invalid price: %r", price)
+            logger.warning("OKX PAXG returned invalid price: %r", price)
             return None
         return float(price)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Binance PAXG fetch failed: %s", exc)
+        logger.warning("OKX PAXG fetch failed: %s", exc)
         return None
     finally:
         if close_client:

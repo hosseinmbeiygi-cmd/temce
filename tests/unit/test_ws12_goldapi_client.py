@@ -215,16 +215,17 @@ async def test_get_goldapi_xau_usd_returns_none_when_key_absent():
 
 @pytest.mark.asyncio
 async def test_fetch_paxg_binance_returns_float_on_success():
-    """fetch_paxg_binance returns float from Binance PAXG/USDT.
+    """fetch_paxg_binance returns float from OKX PAXG/USDT.
 
     RED: not tested.
-    GREEN: parses 'price' from Binance ticker response.
+    GREEN: parses 'last' from OKX ticker response (data[0].last).
+    Note: uses OKX (not Binance) — Binance returns HTTP 451 from Iran.
     """
     from src.gold_desk.goldapi_client import fetch_paxg_binance
 
     resp = MagicMock()
     resp.raise_for_status.return_value = None
-    resp.json.return_value = {"symbol": "PAXGUSDT", "price": "2683.50000000"}
+    resp.json.return_value = {"data": [{"instId": "PAXG-USDT", "last": "2683.5"}]}
     client = MagicMock()
     client.get = AsyncMock(return_value=resp)
     client.aclose = AsyncMock()
@@ -252,7 +253,7 @@ async def test_fetch_paxg_binance_returns_none_on_error():
 
 @pytest.mark.asyncio
 async def test_fetch_paxg_binance_returns_none_on_zero_price():
-    """fetch_paxg_binance returns None when price is '0'.
+    """fetch_paxg_binance returns None when last price is '0'.
 
     RED: not tested.
     GREEN: float('0') <= 0 → returns None.
@@ -261,7 +262,27 @@ async def test_fetch_paxg_binance_returns_none_on_zero_price():
 
     resp = MagicMock()
     resp.raise_for_status.return_value = None
-    resp.json.return_value = {"symbol": "PAXGUSDT", "price": "0.00000000"}
+    resp.json.return_value = {"data": [{"instId": "PAXG-USDT", "last": "0"}]}
+    client = MagicMock()
+    client.get = AsyncMock(return_value=resp)
+    client.aclose = AsyncMock()
+
+    result = await fetch_paxg_binance(client=client)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_paxg_binance_returns_none_on_empty_data():
+    """fetch_paxg_binance returns None when OKX data array is empty.
+
+    RED: not tested.
+    GREEN: guard `if not items` returns None.
+    """
+    from src.gold_desk.goldapi_client import fetch_paxg_binance
+
+    resp = MagicMock()
+    resp.raise_for_status.return_value = None
+    resp.json.return_value = {"data": []}
     client = MagicMock()
     client.get = AsyncMock(return_value=resp)
     client.aclose = AsyncMock()

@@ -59,6 +59,10 @@ class _FakeQueryService:
         return {"symbol": symbol, "price_last": price_last, "price_close": price_close}
 
 
+async def _noop_overlay(book: object) -> None:
+    """Suppress live international price overlay in BrsAPI-isolation tests."""
+
+
 def _patch_provider(monkeypatch) -> _FakeQueryService:
     service = _FakeQueryService()
     monkeypatch.setattr(database, "async_session_factory", lambda: _FakeSession(), raising=False)
@@ -67,6 +71,8 @@ def _patch_provider(monkeypatch) -> _FakeQueryService:
         lambda *, session=None: service,
         raising=False,
     )
+    # Prevent the international XAUUSD overlay from overwriting the mock price.
+    monkeypatch.setattr(snapshot_service, "_overlay_goldapi_xau_usd", _noop_overlay)
     return service
 
 
