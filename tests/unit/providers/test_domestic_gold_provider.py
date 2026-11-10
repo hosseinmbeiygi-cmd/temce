@@ -15,27 +15,33 @@ from providers.macro_sources.tgju import TGJU_PRICE_MAP, TGJUQuote
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _mock_tgju(slugs_and_prices: dict[str, float]):
-    """Return a mock httpx client that makes TGJUClient return specific prices."""
+    """Return a mock httpx client that makes TGJUClient return specific prices.
+
+    Pass prices in RIALS (the unit TGJU now returns for all gold/coin slugs).
+    TGJUClient multiplies by 0.1 to produce Tomans.
+    """
     market = {
         slug: {"p": str(price)}
         for slug, price in slugs_and_prices.items()
     }
     resp = MagicMock()
     resp.raise_for_status.return_value = None
-    resp.json.return_value = {"market": market}
+    resp.json.return_value = {"current": market}  # 2026-11: key renamed market→current
     client = MagicMock()
     client.get = AsyncMock(return_value=resp)
     client.aclose = AsyncMock()
     return client
 
 
+# Prices in RIALS (all slugs as of 2026-11); TGJUClient applies factor 0.1 → Tomans
+# coin-emami→sekee, coin-bahar→sekeb, coin-half→nim, coin-quarter→rob (2026-11)
 _SAMPLE_PRICES = {
-    "geram18":    17_500_000.0,
-    "geram24":    19_000_000.0,
-    "coin-emami": 75_000_000.0,
-    "coin-bahar": 72_000_000.0,
-    "coin-half":  38_000_000.0,
-    "coin-quarter": 20_000_000.0,
+    "geram18":  175_000_000.0,   # → 17,500,000 Toman
+    "geram24":  190_000_000.0,   # → 19,000,000 Toman
+    "sekee":    750_000_000.0,   # → 75,000,000 Toman (Emami full coin)
+    "sekeb":    720_000_000.0,   # → 72,000,000 Toman (Bahar Azadi full coin)
+    "nim":      380_000_000.0,   # → 38,000,000 Toman (half coin)
+    "rob":      200_000_000.0,   # → 20,000,000 Toman (quarter coin)
 }
 
 
@@ -153,11 +159,11 @@ async def test_fetch_returns_fail_when_tgju_unavailable():
 async def test_health_returns_healthy_when_prices_available():
     from providers.macro.gold.domestic_gold_provider import DomesticGoldProvider
 
-    client = _mock_tgju({"geram18": 17_500_000.0})
+    client = _mock_tgju({"geram18": 175_000_000.0})  # Rials → 17,500,000 Toman
     result = await DomesticGoldProvider(client=client).health()
 
     assert result["healthy"] is True
-    assert "17500000" in result["message"] or "geram18" in result["message"]
+    assert "geram18" in result["message"]
 
 
 @pytest.mark.asyncio

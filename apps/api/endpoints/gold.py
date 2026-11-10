@@ -21,9 +21,13 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from apps.api.dependencies import (
+    get_alpha_vantage_provider,
     get_brsapi_query_service,
     get_domestic_fx_provider,
     get_domestic_gold_provider,
+    get_finnhub_provider,
+    get_fmp_provider,
+    get_forex_factory_provider,
     get_global_gold_provider,
     get_gold_live_service,
     get_gold_position_service,
@@ -486,3 +490,84 @@ async def get_ime_physical_trades(
             error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
         )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+
+
+# ── Economic Calendar ─────────────────────────────────────────────────────────
+
+@router.get(
+    "/calendar/forex-factory",
+    summary="تقویم اقتصادی Forex Factory",
+)
+async def get_forex_factory_calendar(
+    country: str | None = Query(None, description="کد کشور (مثلاً US یا EUR)"),
+    min_impact: str = Query("High", description="حداقل اهمیت: High | Medium | Low"),
+    provider=Depends(get_forex_factory_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(country=country, min_impact=min_impact)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/calendar/finnhub",
+    summary="تقویم اقتصادی Finnhub",
+)
+async def get_finnhub_calendar(
+    from_date: str | None = Query(None, description="تاریخ شروع YYYY-MM-DD"),
+    to_date: str | None = Query(None, description="تاریخ پایان YYYY-MM-DD"),
+    country: str | None = Query(None, description="کد کشور (مثلاً US)"),
+    provider=Depends(get_finnhub_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(from_date=from_date, to_date=to_date, country=country)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/calendar/fmp",
+    summary="تقویم اقتصادی Financial Modeling Prep",
+)
+async def get_fmp_calendar(
+    from_date: str | None = Query(None, description="تاریخ شروع YYYY-MM-DD"),
+    to_date: str | None = Query(None, description="تاریخ پایان YYYY-MM-DD"),
+    country: str | None = Query(None, description="کد کشور (مثلاً US)"),
+    provider=Depends(get_fmp_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(from_date=from_date, to_date=to_date, country=country)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/gold-sentiment",
+    summary="اخبار و احساسات بازار طلا (Alpha Vantage)",
+)
+async def get_gold_news_sentiment(
+    limit: int = Query(50, ge=1, le=200, description="تعداد اخبار"),
+    sort: str = Query("LATEST", description="LATEST | EARLIEST | RELEVANCE"),
+    time_from: str | None = Query(None, description="از تاریخ YYYYMMDDTHHMM"),
+    provider=Depends(get_alpha_vantage_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(limit=limit, sort=sort, time_from=time_from)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)

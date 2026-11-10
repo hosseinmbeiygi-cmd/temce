@@ -4,13 +4,19 @@ Endpoint: ``https://call3.tgju.org/ajax.json``
 No API key required; accessible from Iranian IP without VPN.
 
 Provides:
-  - 18K and 24K gold gram prices (IRR)
-  - Coin prices: Emami, Bahar Azadi, half, quarter (IRR)
+  - 18K and 24K gold gram prices
+  - Coin prices: Emami (sekee), Bahar Azadi (sekeb), half (nim), quarter (rob)
   - USD/IRR and AED/IRR exchange rates
   - International gold oz price (USD) as a cross-check
 
-Units: TGJU publishes gold/coin prices in TOMANS. Currency slugs that end
-in ``_rl`` are in RIALS (multiply by 0.1 → Tomans).
+Units (as of 2026-11): ALL prices in the ``current`` section are in RIALS.
+Multiply every value by 0.1 to get Tomans.
+
+API change log:
+  2026-11: response key changed ``market`` → ``current``;
+           coin slugs renamed coin-emami→sekee, coin-bahar→sekeb,
+           coin-half→nim, coin-quarter→rob;
+           gold gram prices changed from Tomans to Rials.
 """
 
 from __future__ import annotations
@@ -60,17 +66,18 @@ class TGJUQuote:
     fetched_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-# Maps tgju market key → (canonical symbol, unit, rial_to_toman factor)
-# factor=1.0 for prices already in Toman; factor=0.1 for Rial slugs (*_rl).
+# Maps tgju ``current`` key → (canonical symbol, unit, rial_to_toman factor)
+# As of 2026-11 ALL prices in the current section are in Rials → factor=0.1.
+# ``ons`` (international gold oz) is in USD → factor=1.0.
 TGJU_PRICE_MAP: dict[str, tuple[str, str, float]] = {
-    "geram18":          ("IR_GOLD_18K_GRAM",  "toman", 1.0),
-    "geram24":          ("IR_GOLD_24K_GRAM",  "toman", 1.0),
-    "coin-emami":       ("IR_COIN_EMAMI",      "toman", 1.0),
-    "coin-bahar":       ("IR_COIN_BAHAR",      "toman", 1.0),
-    "coin-half":        ("IR_COIN_HALF",       "toman", 1.0),
-    "coin-quarter":     ("IR_COIN_QUARTER",    "toman", 1.0),
-    "price_dollar_rl":  ("USD",               "toman", _RIAL_TO_TOMAN),  # Rial → Toman
-    "price_aed":        ("AED",               "toman", _RIAL_TO_TOMAN),  # Rial → Toman
+    "geram18":          ("IR_GOLD_18K_GRAM",  "toman", _RIAL_TO_TOMAN),
+    "geram24":          ("IR_GOLD_24K_GRAM",  "toman", _RIAL_TO_TOMAN),
+    "sekee":            ("IR_COIN_EMAMI",      "toman", _RIAL_TO_TOMAN),  # renamed from coin-emami
+    "sekeb":            ("IR_COIN_BAHAR",      "toman", _RIAL_TO_TOMAN),  # renamed from coin-bahar
+    "nim":              ("IR_COIN_HALF",       "toman", _RIAL_TO_TOMAN),  # renamed from coin-half
+    "rob":              ("IR_COIN_QUARTER",    "toman", _RIAL_TO_TOMAN),  # renamed from coin-quarter
+    "price_dollar_rl":  ("USD",               "toman", _RIAL_TO_TOMAN),
+    "price_aed":        ("AED",               "toman", _RIAL_TO_TOMAN),
     "ons":              ("XAUUSD",            "usd",   1.0),
 }
 
@@ -120,7 +127,8 @@ class TGJUClient:
             if close_client:
                 await client.aclose()
 
-        market: dict[str, Any] = payload.get("market") or {}
+        # 2026-11: TGJU renamed the top-level key from "market" to "current"
+        market: dict[str, Any] = payload.get("current") or payload.get("market") or {}
         quotes: list[TGJUQuote] = []
         for slug in targets:
             if slug not in TGJU_PRICE_MAP:

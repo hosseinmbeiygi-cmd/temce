@@ -498,3 +498,27 @@ def get_global_gold_provider() -> Any:
     from providers.macro.gold.global_gold_provider import GlobalGoldProvider
 
     return GlobalGoldProvider()
+
+
+def get_forex_factory_provider() -> Any:
+    from providers.macro_sources.forex_factory import ForexFactoryProvider
+
+    return ForexFactoryProvider()
+
+
+def get_finnhub_provider() -> Any:
+    from providers.macro_sources.finnhub import FinnhubProvider
+
+    return FinnhubProvider()
+
+
+def get_fmp_provider() -> Any:
+    from providers.macro_sources.fmp import FMPProvider
+
+    return FMPProvider()
+
+
+def get_alpha_vantage_provider() -> Any:
+    from providers.macro_sources.alpha_vantage import AlphaVantageNewsProvider
+
+    return AlphaVantageNewsProvider()

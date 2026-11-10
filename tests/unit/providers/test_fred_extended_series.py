@@ -104,7 +104,8 @@ REQUIRED_SERIES = {
     "PAYEMS", "UNRATE",                                # Labour
     "GDP", "PCEPI",                                    # GDP / PCE
     "M2SL", "GFDEBTN",                                # Money supply / Federal debt
-    "GOLDAMGBD228NLBM", "GOLDPMGBD228NLBM", "SLVPRUSD",  # LBMA historical prices
+    # LBMA series (GOLDAMGBD228NLBM, GOLDPMGBD228NLBM, SLVPRUSD) confirmed retired
+    # from FRED (HTTP 400). Gold spot price now via GlobalGoldProvider.
 }
 
 
@@ -123,23 +124,21 @@ def test_fred_series_meta_contains_all_required_series():
 # ─── 4. FRED_SERIES_META: unit field correctness ─────────────────────────────
 
 @pytest.mark.parametrize("series_id,expected_unit", [
-    ("DFII10",             "percent"),
-    ("DTWEXBGS",           "index"),
-    ("DGS10",              "percent"),
-    ("DGS2",               "percent"),
-    ("DGS30",              "percent"),
-    ("FEDFUNDS",           "percent"),
-    ("UNRATE",             "percent"),
-    ("CPIAUCSL",           "index"),
-    ("PPIACO",             "index"),
-    ("PCEPI",              "index"),
-    ("PAYEMS",             "thousands"),
-    ("GDP",                "billions_usd"),
-    ("M2SL",               "billions_usd"),
-    ("GFDEBTN",            "millions_usd"),
-    ("GOLDAMGBD228NLBM",   "usd_per_oz"),
-    ("GOLDPMGBD228NLBM",   "usd_per_oz"),
-    ("SLVPRUSD",           "usd_per_oz"),
+    ("DFII10",    "percent"),
+    ("DTWEXBGS",  "index"),
+    ("DGS10",     "percent"),
+    ("DGS2",      "percent"),
+    ("DGS30",     "percent"),
+    ("FEDFUNDS",  "percent"),
+    ("UNRATE",    "percent"),
+    ("CPIAUCSL",  "index"),
+    ("PPIACO",    "index"),
+    ("PCEPI",     "index"),
+    ("PAYEMS",    "thousands"),
+    ("GDP",       "billions_usd"),
+    ("M2SL",      "billions_usd"),
+    ("GFDEBTN",   "millions_usd"),
+    # LBMA entries removed — series retired from FRED (HTTP 400)
 ])
 def test_fred_series_meta_unit(series_id: str, expected_unit: str):
     """Each series in FRED_SERIES_META must carry the correct 'unit' string.

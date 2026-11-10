@@ -30,10 +30,11 @@ FRED_PCE_SERIES = "PCEPI"            # PCE Price Index (index)
 FRED_M2_SERIES = "M2SL"             # M2 Money Supply (billions_usd)
 FRED_FEDERAL_DEBT_SERIES = "GFDEBTN" # Federal Debt: Total (millions_usd)
 
-# ── LBMA historical gold price series (World Gold Council source via FRED) ──
-FRED_GOLD_AM_FIX_SERIES = "GOLDAMGBD228NLBM"  # London Bullion AM fix (USD/oz) since 1968
-FRED_GOLD_PM_FIX_SERIES = "GOLDPMGBD228NLBM"  # London Bullion PM fix (USD/oz) since 1968
-FRED_SILVER_FIX_SERIES  = "SLVPRUSD"          # Silver price (USD/oz)
+# LBMA constants kept for backward-compat but NOT in FRED_SERIES_META —
+# FRED retired these series (returns 400). Use GlobalGoldProvider instead.
+FRED_GOLD_AM_FIX_SERIES = "GOLDAMGBD228NLBM"
+FRED_GOLD_PM_FIX_SERIES = "GOLDPMGBD228NLBM"
+FRED_SILVER_FIX_SERIES  = "SLVPRUSD"
 
 # ── Metadata for all gold-relevant FRED series ─────────────────────────────
 # Maps series_id → {label, unit, frequency}
@@ -54,11 +55,10 @@ FRED_SERIES_META: dict[str, dict[str, str]] = {
     "PCEPI":             {"label": "PCE Price Index",               "unit": "index",        "frequency": "monthly"},
     "M2SL":              {"label": "M2 Money Supply",               "unit": "billions_usd", "frequency": "monthly"},
     "GFDEBTN":           {"label": "Federal Debt: Total",           "unit": "millions_usd", "frequency": "quarterly"},
-    # ── LBMA price series (World Gold Council / FRED) ─────────────────────
-    "GOLDAMGBD228NLBM":  {"label": "Gold Price AM Fix (LBMA)",      "unit": "usd_per_oz",   "frequency": "daily"},
-    "GOLDPMGBD228NLBM":  {"label": "Gold Price PM Fix (LBMA)",      "unit": "usd_per_oz",   "frequency": "daily"},
-    "SLVPRUSD":          {"label": "Silver Price (LBMA)",           "unit": "usd_per_oz",   "frequency": "daily"},
 }
+# Note: LBMA gold/silver series (GOLDAMGBD228NLBM, GOLDPMGBD228NLBM, SLVPRUSD)
+# were confirmed retired from FRED (HTTP 400). Gold/silver spot price is
+# obtained via GlobalGoldProvider (goldapi.io / OKX PAXG / Yahoo Finance).
 
 DEFAULT_FRED_BASE_URL = "https://api.stlouisfed.org"
 DEFAULT_TIMEOUT_SECONDS = 10.0

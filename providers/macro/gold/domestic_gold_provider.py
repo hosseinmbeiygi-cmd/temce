@@ -22,10 +22,10 @@ IRANIAN_GOLD_TYPES = ["bahar_azadi", "nim_azadi", "rob_azadi", "gerami", "gold_c
 _GOLD_SLUGS = [
     "geram18",
     "geram24",
-    "coin-emami",
-    "coin-bahar",
-    "coin-half",
-    "coin-quarter",
+    "sekee",    # Emami full coin (renamed from coin-emami 2026-11)
+    "sekeb",    # Bahar Azadi full coin (renamed from coin-bahar 2026-11)
+    "nim",      # half coin (renamed from coin-half 2026-11)
+    "rob",      # quarter coin (renamed from coin-quarter 2026-11)
 ]
 
 
@@ -45,11 +45,11 @@ class DomesticGoldProvider(BaseProvider):
         if gold_type:
             # Map friendly gold_type strings to tgju slugs when possible
             type_map = {
-                "bahar_azadi": "coin-bahar",
-                "nim_azadi": "coin-half",
-                "rob_azadi": "coin-quarter",
-                "gerami": "coin-emami",
-                "gold_coin": "coin-emami",
+                "bahar_azadi": "sekeb",
+                "nim_azadi": "nim",
+                "rob_azadi": "rob",
+                "gerami": "sekee",
+                "gold_coin": "sekee",
                 "geram18": "geram18",
                 "geram24": "geram24",
             }
@@ -78,5 +78,5 @@ class DomesticGoldProvider(BaseProvider):
     async def health(self) -> dict[str, Any]:
         quotes = await self._tgju.fetch(["geram18"])
         if quotes and quotes[0].price > 0:
-            return {"healthy": True, "message": f"geram18={quotes[0].price:.0f}"}
+            return {"healthy": True, "message": f"geram18={quotes[0].price:,.0f} Toman"}
         return {"healthy": False, "message": "TGJU gold price unavailable"}
