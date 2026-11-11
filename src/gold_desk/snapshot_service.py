@@ -27,6 +27,7 @@ from .constants import (
     VALID_USD_RANGE,
     VALID_XAU_RANGE,
 )
+from .goldapi_client import get_international_xau_usd
 from .pricer import round_to_rial
 from .schemas import (
     AssetBlock,
@@ -36,7 +37,6 @@ from .schemas import (
     ScoreComponents,
     SnapshotResponse,
 )
-from .goldapi_client import get_international_xau_usd
 from .secondary_source import fetch_prices as fetch_tgju_prices
 
 logger = logging.getLogger(__name__)

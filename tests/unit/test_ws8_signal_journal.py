@@ -28,8 +28,6 @@ import asyncio
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -255,9 +253,9 @@ def test_append_journal_uses_injectable_cache():
     """
     from src.gold_desk.scorer import compute_score
     from src.gold_desk.signal_journal import (
+        REDIS_KEY_JOURNAL,
         SignalJournalEntry,
         append_journal,
-        REDIS_KEY_JOURNAL,
     )
 
     cache = _MemCache()
@@ -281,10 +279,10 @@ def test_append_journal_respects_max_entries():
     """
     from src.gold_desk.scorer import compute_score
     from src.gold_desk.signal_journal import (
+        JOURNAL_MAX_ENTRIES,
         SignalJournalEntry,
         append_journal,
         list_journal,
-        JOURNAL_MAX_ENTRIES,
     )
 
     cache = _MemCache()

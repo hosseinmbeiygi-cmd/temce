@@ -54,7 +54,7 @@ class TestLRUCache:
 
 
 class FakeRedis:
-    """Minimal in-memory stand-in for redis.asyncio (get/setex/delete/ping)."""
+    """Minimal in-memory stand-in for redis.asyncio (get/set/setex/delete/ping)."""
 
     def __init__(self) -> None:
         self.store: dict[str, bytes] = {}
@@ -65,6 +65,11 @@ class FakeRedis:
 
     async def get(self, key: str) -> bytes | None:
         return self.store.get(key)
+
+    async def set(self, key: str, value: bytes, *, ex: int | None = None) -> None:
+        self.store[key] = value
+        if ex is not None:
+            self.ttls[key] = ex
 
     async def setex(self, key: str, ttl: int, value: bytes) -> None:
         self.store[key] = value

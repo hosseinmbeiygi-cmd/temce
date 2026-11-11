@@ -43,8 +43,8 @@ def _has_auth_guard(route) -> bool:
 
 def test_gold_token_endpoints_use_auth_guard():
     """POST/GET/DELETE /gold/tokens must each have a dependency with __auth_guard__."""
-    from tests.gold_desk._route_utils import iter_routes
     from apps.api.router import Router
+    from tests.gold_desk._route_utils import iter_routes
 
     token_routes = {
         ("POST", "/gold/tokens"),

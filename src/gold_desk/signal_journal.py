@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from core.time import utc_now_naive
+
 from .scorer import ScoreResult
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class SignalJournalEntry:
         return asdict(self)
 
     @classmethod
-    def from_score_result(cls, result: ScoreResult) -> "SignalJournalEntry":
+    def from_score_result(cls, result: ScoreResult) -> SignalJournalEntry:
         """ScoreResult → SignalJournalEntry با UUID جدید."""
         return cls(
             entry_id=str(uuid.uuid4()),
@@ -68,7 +69,7 @@ class SignalJournalEntry:
             components_summary={k: c.value for k, c in result.components.items()},
         )
 
-    def as_revoked(self, reason: str) -> "SignalJournalEntry":
+    def as_revoked(self, reason: str) -> SignalJournalEntry:
         """برمی‌گرداند نمونهٔ جدید با ``revoked=True``؛ نمونهٔ اصلی تغییر نمی‌کند."""
         return SignalJournalEntry(
             entry_id=self.entry_id,

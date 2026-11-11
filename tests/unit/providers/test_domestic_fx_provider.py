@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _mock_tgju(slugs_and_prices: dict[str, float]):

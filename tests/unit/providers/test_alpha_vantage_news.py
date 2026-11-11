@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-
 # ── Sample payload (AV free macro envelope) ──────────────────────────────────
 
 _SAMPLE_TREASURY = {
@@ -68,25 +67,27 @@ def _multi_mock_client(*payloads) -> MagicMock:
 def test_importable():
     from providers.macro_sources.alpha_vantage import (  # noqa: F401
         AV_BASE_URL,
+        MACRO_INDICATORS,
         AlphaVantageMacroClient,
         AlphaVantageMacroProvider,
-        AlphaVantageNewsClient,       # backward-compat alias
-        AlphaVantageNewsProvider,     # backward-compat alias
+        AlphaVantageNewsClient,  # backward-compat alias
+        AlphaVantageNewsProvider,  # backward-compat alias
         AVMacroPoint,
-        MACRO_INDICATORS,
     )
 
 
 def test_news_client_is_alias_for_macro_client():
     from providers.macro_sources.alpha_vantage import (
-        AlphaVantageNewsClient, AlphaVantageMacroClient,
+        AlphaVantageMacroClient,
+        AlphaVantageNewsClient,
     )
     assert issubclass(AlphaVantageNewsClient, AlphaVantageMacroClient)
 
 
 def test_news_provider_is_alias_for_macro_provider():
     from providers.macro_sources.alpha_vantage import (
-        AlphaVantageNewsProvider, AlphaVantageMacroProvider,
+        AlphaVantageMacroProvider,
+        AlphaVantageNewsProvider,
     )
     assert AlphaVantageNewsProvider is AlphaVantageMacroProvider
 
@@ -98,7 +99,7 @@ async def test_fetch_series_returns_points():
     from providers.macro_sources.alpha_vantage import AlphaVantageMacroClient
 
     http_mock = _mock_client(_SAMPLE_TREASURY)
-    client = AlphaVantageMacroClient(api_key="test-key", client=http_mock)
+    AlphaVantageMacroClient(api_key="test-key", client=http_mock)
     # _fetch_series needs an open http client — call it via fetch_macro_indicators
     # indirectly via the internal method requires an open client; test via public API instead.
     # This test focuses on field population through the full flow.
@@ -117,7 +118,7 @@ async def test_fetch_macro_indicators_requires_key():
 
 @pytest.mark.asyncio
 async def test_fetch_macro_indicators_rate_limit_raises():
-    from providers.macro_sources.alpha_vantage import AlphaVantageMacroClient, MACRO_INDICATORS
+    from providers.macro_sources.alpha_vantage import MACRO_INDICATORS, AlphaVantageMacroClient
     from providers.macro_sources.base import MacroSourceError
 
     n = len(MACRO_INDICATORS)
@@ -130,7 +131,9 @@ async def test_fetch_macro_indicators_rate_limit_raises():
 @pytest.mark.asyncio
 async def test_fetch_macro_indicators_returns_avmacropoints():
     from providers.macro_sources.alpha_vantage import (
-        AlphaVantageMacroClient, AVMacroPoint, MACRO_INDICATORS,
+        MACRO_INDICATORS,
+        AlphaVantageMacroClient,
+        AVMacroPoint,
     )
 
     n = len(MACRO_INDICATORS)
@@ -145,7 +148,7 @@ async def test_fetch_macro_indicators_returns_avmacropoints():
 
 @pytest.mark.asyncio
 async def test_fetch_macro_indicators_field_values():
-    from providers.macro_sources.alpha_vantage import AlphaVantageMacroClient, MACRO_INDICATORS
+    from providers.macro_sources.alpha_vantage import MACRO_INDICATORS, AlphaVantageMacroClient
 
     n = len(MACRO_INDICATORS)
     http_mock = _multi_mock_client(*[_SAMPLE_TREASURY] * n)
@@ -161,7 +164,7 @@ async def test_fetch_macro_indicators_field_values():
 
 @pytest.mark.asyncio
 async def test_fetch_macro_bad_value_becomes_none():
-    from providers.macro_sources.alpha_vantage import AlphaVantageMacroClient, MACRO_INDICATORS
+    from providers.macro_sources.alpha_vantage import MACRO_INDICATORS, AlphaVantageMacroClient
 
     bad_payload = {
         "name": "...", "interval": "monthly", "unit": "percent",
@@ -179,9 +182,8 @@ async def test_fetch_macro_bad_value_becomes_none():
 
 @pytest.mark.asyncio
 async def test_provider_fetch_returns_result_ok():
-    from providers.macro_sources.alpha_vantage import AlphaVantageMacroProvider, MACRO_INDICATORS
-
     import providers.macro_sources.alpha_vantage as module
+    from providers.macro_sources.alpha_vantage import MACRO_INDICATORS, AlphaVantageMacroProvider
     orig = module._get_av_key
     module._get_av_key = lambda: "test-key"
     try:
@@ -204,9 +206,8 @@ async def test_provider_fetch_returns_result_ok():
 
 @pytest.mark.asyncio
 async def test_provider_returns_fail_on_missing_key():
-    from providers.macro_sources.alpha_vantage import AlphaVantageMacroProvider
-
     import providers.macro_sources.alpha_vantage as module
+    from providers.macro_sources.alpha_vantage import AlphaVantageMacroProvider
     orig = module._get_av_key
     module._get_av_key = lambda: ""
     try:

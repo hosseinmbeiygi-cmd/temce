@@ -12,9 +12,9 @@ GREEN (after fixes):
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -49,9 +49,8 @@ def test_scheduled_event_has_required_fields():
     RED: class does not exist.
     GREEN: frozen dataclass with all five fields.
     """
-    from src.gold_desk.event_calendar import ScheduledEvent
-
     from core.time import utc_now_naive
+    from src.gold_desk.event_calendar import ScheduledEvent
 
     ev = ScheduledEvent(
         event_name="تصمیم نرخ بهره بانک مرکزی",
@@ -72,9 +71,8 @@ def test_scheduled_event_to_dict_includes_is_past():
     RED: method does not exist.
     GREEN: is_past=True for past events, False for future.
     """
-    from src.gold_desk.event_calendar import ScheduledEvent
-
     from core.time import utc_now_naive
+    from src.gold_desk.event_calendar import ScheduledEvent
 
     past_ev = ScheduledEvent(
         event_name="past",
@@ -138,9 +136,8 @@ def test_get_calendar_events_excludes_far_future():
     RED: function does not exist.
     GREEN: only past/today events returned.
     """
-    from src.gold_desk.event_calendar import ScheduledEvent, get_calendar_events
-
     from core.time import utc_now_naive
+    from src.gold_desk.event_calendar import ScheduledEvent, get_calendar_events
 
     future_only_provider = [
         ScheduledEvent(
@@ -172,7 +169,7 @@ def test_get_calendar_events_sorted_chronologically():
 
     events = get_calendar_events(days_ahead=365)
     if len(events) >= 2:
-        for a, b in zip(events, events[1:]):
+        for a, b in zip(events, events[1:], strict=False):
             assert a.scheduled_at <= b.scheduled_at, (
                 f"Events out of order: {a.event_name!r} ({a.scheduled_at}) "
                 f"should come before {b.event_name!r} ({b.scheduled_at})"
@@ -188,9 +185,8 @@ async def test_refresh_calendar_cache_uses_injectable_provider():
     RED: function does not exist.
     GREEN: provider is called; result returned; cache.set called once.
     """
-    from src.gold_desk.event_calendar import ScheduledEvent, refresh_calendar_cache
-
     from core.time import utc_now_naive
+    from src.gold_desk.event_calendar import ScheduledEvent, refresh_calendar_cache
 
     captured_cache_calls: list = []
 

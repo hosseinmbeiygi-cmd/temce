@@ -7,12 +7,9 @@ GREEN: provider reads Excel/CSV and normalises Goldhub columns.
 from __future__ import annotations
 
 import csv
-import io
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-
 
 # ── 1. Import ─────────────────────────────────────────────────────────────────
 

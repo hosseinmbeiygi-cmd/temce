@@ -144,13 +144,13 @@ def validate_gold_test_db_url(
         return "could not parse gold test URL (expected postgresql+asyncpg://...@host/name)"
 
     if host not in allowed_hosts:
-        return f"gold test DB host is not in GOLD_TEST_DB_ALLOWED_HOSTS"
+        return "gold test DB host is not in GOLD_TEST_DB_ALLOWED_HOSTS"
 
     if dbname not in allowed_names:
-        return f"gold test DB name is not in GOLD_TEST_DB_ALLOWED_NAMES"
+        return "gold test DB name is not in GOLD_TEST_DB_ALLOWED_NAMES"
 
     if "test" not in dbname:
-        return f"gold test DB name must contain 'test' (found: name without it)"
+        return "gold test DB name must contain 'test' (found: name without it)"
 
     return True
 

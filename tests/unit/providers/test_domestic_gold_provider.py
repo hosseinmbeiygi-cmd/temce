@@ -10,8 +10,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from providers.macro_sources.tgju import TGJU_PRICE_MAP, TGJUQuote
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _mock_tgju(slugs_and_prices: dict[str, float]):

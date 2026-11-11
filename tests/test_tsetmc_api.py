@@ -28,7 +28,7 @@ ENDPOINTS = [
 ]
 
 
-async def _test_endpoint(name: str, url: str) -> bool:  # noqa: pytest - helper, not a test
+async def _test_endpoint(name: str, url: str) -> bool:  # helper, not a pytest test
     """Test a single endpoint and print the result."""
     try:
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:

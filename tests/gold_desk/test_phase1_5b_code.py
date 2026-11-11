@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,7 +17,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.gold_desk.portfolio import HoldingNotFoundError, get_active_holding
-
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 

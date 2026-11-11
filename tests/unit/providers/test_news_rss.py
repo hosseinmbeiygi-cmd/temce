@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-
 # ── sample RSS XML ────────────────────────────────────────────────────────────
 
 _RSS_KITCO = """<?xml version="1.0" encoding="UTF-8"?>

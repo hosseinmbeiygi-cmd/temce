@@ -35,9 +35,9 @@ async def _hang(*a, **kw):
     await asyncio.sleep(9999)
 
 
-def _make_all_hanging_service() -> "BrsApiSyncService":
+def _make_all_hanging_service() -> BrsApiSyncService:
     """Return a BrsApiSyncService where every sync_xxx method hangs forever."""
-    from brsapi.services.sync_service import BrsApiSyncService, SyncReport
+    from brsapi.services.sync_service import BrsApiSyncService
 
     service = BrsApiSyncService()
 
@@ -190,6 +190,7 @@ async def test_retry_delays_have_jitter():
     GREEN: delay includes a random factor (±jitter) so successive attempts vary.
     """
     import httpx
+
     import brsapi.client as client_mod
 
     recorded_sleeps: list[float] = []
@@ -247,7 +248,7 @@ async def test_retry_delays_have_jitter():
     # Without jitter they are always EXACTLY equal (deterministic formula).
     all_equal = all(
         abs(a - b) < 1e-9
-        for a, b in zip(run_a_sleeps, run_b_sleeps)
+        for a, b in zip(run_a_sleeps, run_b_sleeps, strict=False)
     )
     assert not all_equal, (
         f"Retry delays are identical between two calls (run_a={run_a_sleeps}, "

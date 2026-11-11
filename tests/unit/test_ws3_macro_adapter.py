@@ -26,7 +26,7 @@ import asyncio
 import inspect
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -123,7 +123,7 @@ async def test_refresh_macro_events_cache_calls_scraper_and_writes_cache():
     from datetime import datetime
 
     import src.gold_desk.macro_news as macro_mod
-    from src.gold_desk.macro_news import MacroEvent, REDIS_KEY_MACRO
+    from src.gold_desk.macro_news import REDIS_KEY_MACRO, MacroEvent
 
     scraper_called = {"n": 0}
     cache_written: dict[str, str] = {}

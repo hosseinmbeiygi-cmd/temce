@@ -23,7 +23,6 @@ mathematical layer is implemented.  BRSAPI_OPTIONS_DEFERRED documents the gap.
 """
 from __future__ import annotations
 
-import math
 import sys
 from datetime import date, timedelta
 from pathlib import Path

@@ -13,7 +13,7 @@ import httpx
 from core.logging import get_logger
 from core.result import Result
 from providers.base.base_provider import BaseProvider
-from providers.macro_sources.tgju import TGJU_PRICE_MAP, TGJUClient
+from providers.macro_sources.tgju import TGJUClient
 
 logger = get_logger(__name__)
 

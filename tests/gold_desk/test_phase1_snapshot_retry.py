@@ -8,7 +8,6 @@ GREEN: hub retries up to 2 more times (3 total), succeeds on 3rd if available.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import sys
 from pathlib import Path

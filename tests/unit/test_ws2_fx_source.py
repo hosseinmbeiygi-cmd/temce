@@ -22,7 +22,7 @@ import asyncio
 import sys
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -48,7 +48,7 @@ def test_rial_to_toman_is_named_constant():
     assert isinstance(secondary_source.RIAL_TO_TOMAN, Decimal), (
         f"RIAL_TO_TOMAN must be Decimal, got {type(secondary_source.RIAL_TO_TOMAN).__name__}."
     )
-    assert secondary_source.RIAL_TO_TOMAN == Decimal("0.1"), (
+    assert Decimal("0.1") == secondary_source.RIAL_TO_TOMAN, (
         f"RIAL_TO_TOMAN must equal Decimal('0.1'), got {secondary_source.RIAL_TO_TOMAN!r}."
     )
 
@@ -62,7 +62,7 @@ def test_rial_symbol_tuples_use_rial_to_toman_constant():
     RED: TGJU_SYMBOLS is built with the literal 0.1 float.
     GREEN: each 'rial' slug's factor == float(RIAL_TO_TOMAN).
     """
-    from src.gold_desk.secondary_source import TGJU_SYMBOLS, RIAL_TO_TOMAN  # type: ignore[attr-defined]
+    from src.gold_desk.secondary_source import RIAL_TO_TOMAN, TGJU_SYMBOLS  # type: ignore[attr-defined]
 
     expected_factor = float(RIAL_TO_TOMAN)
     rial_slugs = [slug for slug, (_, _, unit) in TGJU_SYMBOLS.items() if unit == "rial"]

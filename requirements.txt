@@ -50,5 +50,7 @@ tse-utils>=1.1
 # mypy>=1.8
 # pre-commit>=3.6
 
+feedparser>=6.0
+
 # Excel support (Codal import)
 openpyxl>=3.1

@@ -342,7 +342,7 @@ class RSSNewsClient:
         ok_count = 0
         empty_count = 0
         fail_count = 0
-        for feed, result in zip(feeds, results):
+        for feed, result in zip(feeds, results, strict=False):
             if isinstance(result, Exception):
                 logger.warning("RSS fetch %s: unexpected exception: %s", feed.name, result)
                 fail_count += 1

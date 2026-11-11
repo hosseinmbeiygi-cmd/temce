@@ -17,7 +17,6 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -50,7 +49,7 @@ async def test_fifo_consume_by_symbol_does_not_over_consume_later_holdings():
     RED: second holding also loses 3 units (loop uses `quantity`, not `remaining`).
     GREEN: H2.quantity stays at 5.
     """
-    from src.gold_desk.portfolio import _consume_lots_by_symbol, _QTY_EPS
+    from src.gold_desk.portfolio import _QTY_EPS, _consume_lots_by_symbol
 
     h1 = _holding(1, qty=5.0, cost=10.0)
     h2 = _holding(2, qty=5.0, cost=10.0)
@@ -61,7 +60,7 @@ async def test_fifo_consume_by_symbol_does_not_over_consume_later_holdings():
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock(return_value=mock_result)
 
-    result = await _consume_lots_by_symbol(
+    await _consume_lots_by_symbol(
         mock_session, symbol="GOLD_GRAM_18K", quantity=3.0, user_id="user1"
     )
 
@@ -86,7 +85,7 @@ async def test_fifo_consume_buy_amount_irt_uses_original_quantity():
     RED: formula divides by already-reduced qty=2 → 10 - 3*(10/2) = max(-5,0) = 0.
     GREEN: remaining cost = 4.0.
     """
-    from src.gold_desk.portfolio import _consume_lots_by_symbol, _QTY_EPS
+    from src.gold_desk.portfolio import _consume_lots_by_symbol
 
     h1 = _holding(1, qty=5.0, cost=10.0)
 

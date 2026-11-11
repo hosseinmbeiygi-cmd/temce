@@ -166,6 +166,7 @@ def test_phase2_xauusd_uses_to_rial_false():
     GREEN: source confirms add("xau_usd", ..., to_rial=False).
     """
     import inspect
+
     from src.gold_desk import phase2
 
     src = inspect.getsource(phase2)
@@ -182,6 +183,7 @@ def test_phase2_domestic_prices_use_to_rial_true():
     GREEN: source confirms add("coin_emami", ..., to_rial=True).
     """
     import inspect
+
     from src.gold_desk import phase2
 
     src = inspect.getsource(phase2)

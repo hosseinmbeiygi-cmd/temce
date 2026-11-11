@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 class SignalAsset(BaseModel):
@@ -59,7 +59,9 @@ class AntigravitySignal(BaseModel):
     rationale: str
     kill_switch_status: Literal["NORMAL", "WARNING", "ACTIVE"] = "NORMAL"
 
-    model_config = {"json_encoders": {datetime: lambda v: v.isoformat()}}
+    @field_serializer("timestamp")
+    def _serialize_timestamp(self, v: datetime) -> str:
+        return v.isoformat()
 
 
 # ── Helper: محاسبه R/R و سطوح ────────────────────────────────────

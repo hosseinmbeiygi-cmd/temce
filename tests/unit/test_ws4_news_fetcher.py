@@ -27,10 +27,9 @@ GREEN (after fixes):
 from __future__ import annotations
 
 import asyncio
-import logging
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -131,9 +130,9 @@ def test_fetch_from_rss_logs_warning_when_feedparser_missing():
            see in live logs that every RSS fetch attempt is degraded.
     Note: uses patch.object(logger, 'warning') because structlog bypasses caplog.
     """
+
     import services.chat.news_fetcher as nf_mod
     from services.chat.news_fetcher import NewsFetcher
-    from unittest.mock import call
 
     fetcher = NewsFetcher()
     warn_calls: list = []

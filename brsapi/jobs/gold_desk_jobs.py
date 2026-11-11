@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -37,7 +36,7 @@ from src.gold_desk.schemas import SnapshotResponse
 logger = get_logger(__name__)
 
 
-async def _load_snapshot(session: AsyncSession) -> "SnapshotResponse":
+async def _load_snapshot(session: AsyncSession) -> SnapshotResponse:
     """Load snapshot from Redis cache; fall back to building a fresh one."""
     cache = get_cache()
     try:

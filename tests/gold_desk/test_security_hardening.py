@@ -26,8 +26,10 @@ if str(ROOT) not in sys.path:
 def _make_register_app(registration_open: bool, mock_svc=None):
     """Return a FastAPI test app with the register route and all dependencies mocked."""
     from fastapi import FastAPI
+
+    from apps.api.endpoints.auth import register_rate_limit
+    from apps.api.endpoints.auth import router as auth_router
     from core.database import get_session
-    from apps.api.endpoints.auth import router as auth_router, register_rate_limit
 
     app = FastAPI()
     app.include_router(auth_router, prefix="/auth")
@@ -115,6 +117,7 @@ def _capture_create_app_fastapi_kwargs(is_production: bool) -> dict:
     were passed to FastAPI(). Stops early once kwargs are captured to avoid
     needing a full settings mock for all routes."""
     import fastapi as _fastapi_module
+
     from apps.api import app as app_module  # noqa: F401
 
     captured: dict = {}
@@ -130,14 +133,13 @@ def _capture_create_app_fastapi_kwargs(is_production: bool) -> dict:
     mock_settings = MagicMock()
     mock_settings.is_production = is_production
 
-    with patch("apps.api.app.FastAPI", _Capture):
-        with patch("apps.api.app.settings", mock_settings):
-            try:
-                from apps.api.app import create_app
-                create_app()
-            except RuntimeError as exc:
-                if "__captured__" not in str(exc):
-                    raise
+    with patch("apps.api.app.FastAPI", _Capture), patch("apps.api.app.settings", mock_settings):
+        try:
+            from apps.api.app import create_app
+            create_app()
+        except RuntimeError as exc:
+            if "__captured__" not in str(exc):
+                raise
 
     return captured
 

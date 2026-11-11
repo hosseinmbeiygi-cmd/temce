@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-
 # ── Sample payloads ───────────────────────────────────────────────────────────
 
 _SAMPLE_NEWS = [
@@ -82,18 +81,18 @@ def _mock_client(payload) -> MagicMock:
 def test_importable():
     from providers.macro_sources.finnhub import (  # noqa: F401
         FINNHUB_BASE_URL,
+        NEWS_CATEGORIES,
         FinnhubClient,
+        FinnhubEarning,
+        FinnhubEarningsProvider,
         FinnhubNewsItem,
         FinnhubNewsProvider,
-        FinnhubEarningsProvider,
-        FinnhubEarning,
-        FinnhubProvider,          # backward-compat alias
-        NEWS_CATEGORIES,
+        FinnhubProvider,  # backward-compat alias
     )
 
 
 def test_finnhub_provider_is_alias_for_news_provider():
-    from providers.macro_sources.finnhub import FinnhubProvider, FinnhubNewsProvider
+    from providers.macro_sources.finnhub import FinnhubNewsProvider, FinnhubProvider
     assert FinnhubProvider is FinnhubNewsProvider
 
 
@@ -136,8 +135,8 @@ async def test_fetch_news_datetime_converted_to_iso():
 
 @pytest.mark.asyncio
 async def test_fetch_news_invalid_category_raises():
-    from providers.macro_sources.finnhub import FinnhubClient
     from providers.macro_sources.base import MacroSourceError
+    from providers.macro_sources.finnhub import FinnhubClient
 
     client = FinnhubClient(api_key="test-key", client=_mock_client(_SAMPLE_NEWS))
     with pytest.raises(MacroSourceError, match="Invalid category"):
@@ -148,8 +147,8 @@ async def test_fetch_news_invalid_category_raises():
 
 @pytest.mark.asyncio
 async def test_missing_api_key_raises():
-    from providers.macro_sources.finnhub import FinnhubClient
     from providers.macro_sources.base import MacroSourceError
+    from providers.macro_sources.finnhub import FinnhubClient
 
     client = FinnhubClient(api_key="", client=_mock_client(_SAMPLE_NEWS))
     with pytest.raises(MacroSourceError, match="FINNHUB_API_KEY"):
@@ -173,9 +172,8 @@ async def test_network_error_returns_empty():
 
 @pytest.mark.asyncio
 async def test_news_provider_fetch_returns_result_ok():
-    from providers.macro_sources.finnhub import FinnhubNewsProvider
-
     import providers.macro_sources.finnhub as mod
+    from providers.macro_sources.finnhub import FinnhubNewsProvider
     orig = mod._get_finnhub_key
     mod._get_finnhub_key = lambda: "test-key"
     try:
@@ -191,9 +189,8 @@ async def test_news_provider_fetch_returns_result_ok():
 
 @pytest.mark.asyncio
 async def test_news_provider_respects_limit():
-    from providers.macro_sources.finnhub import FinnhubNewsProvider
-
     import providers.macro_sources.finnhub as mod
+    from providers.macro_sources.finnhub import FinnhubNewsProvider
     orig = mod._get_finnhub_key
     mod._get_finnhub_key = lambda: "test-key"
     try:
@@ -207,9 +204,8 @@ async def test_news_provider_respects_limit():
 
 @pytest.mark.asyncio
 async def test_news_provider_returns_fail_on_missing_key():
-    from providers.macro_sources.finnhub import FinnhubNewsProvider
-
     import providers.macro_sources.finnhub as mod
+    from providers.macro_sources.finnhub import FinnhubNewsProvider
     orig = mod._get_finnhub_key
     mod._get_finnhub_key = lambda: ""
     try:
@@ -266,9 +262,8 @@ async def test_earnings_actual_values_populated():
 
 @pytest.mark.asyncio
 async def test_earnings_provider_fetch_returns_result_ok():
-    from providers.macro_sources.finnhub import FinnhubEarningsProvider
-
     import providers.macro_sources.finnhub as mod
+    from providers.macro_sources.finnhub import FinnhubEarningsProvider
     orig = mod._get_finnhub_key
     mod._get_finnhub_key = lambda: "test-key"
     try:
@@ -284,9 +279,8 @@ async def test_earnings_provider_fetch_returns_result_ok():
 
 @pytest.mark.asyncio
 async def test_earnings_provider_returns_fail_on_missing_key():
-    from providers.macro_sources.finnhub import FinnhubEarningsProvider
-
     import providers.macro_sources.finnhub as mod
+    from providers.macro_sources.finnhub import FinnhubEarningsProvider
     orig = mod._get_finnhub_key
     mod._get_finnhub_key = lambda: ""
     try:

@@ -15,10 +15,9 @@ GREEN phase:
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ─── 1. FRED_SERIES_META import ──────────────────────────────────────────────
 
@@ -43,8 +42,8 @@ def test_new_series_constants_importable():
     """
     from providers.macro_sources.fred import (  # noqa: F401
         FRED_CPI_SERIES,
-        FRED_DGS10_SERIES,
         FRED_DGS2_SERIES,
+        FRED_DGS10_SERIES,
         FRED_DGS30_SERIES,
         FRED_FEDERAL_DEBT_SERIES,
         FRED_FEDFUNDS_SERIES,
@@ -68,8 +67,8 @@ def test_new_series_constants_have_correct_values():
     """
     from providers.macro_sources.fred import (
         FRED_CPI_SERIES,
-        FRED_DGS10_SERIES,
         FRED_DGS2_SERIES,
+        FRED_DGS10_SERIES,
         FRED_DGS30_SERIES,
         FRED_FEDERAL_DEBT_SERIES,
         FRED_FEDFUNDS_SERIES,

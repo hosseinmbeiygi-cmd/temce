@@ -212,8 +212,8 @@ async def load_daily_candles(
 async def load_daily_candles_range(
     session: AsyncSession,
     symbol: str,
-    start: "str | date",
-    end: "str | date",
+    start: str | date,
+    end: str | date,
     *,
     adjusted: bool | None = None,
 ) -> list[dict[str, Any]]:
@@ -231,7 +231,7 @@ async def load_daily_candles_range(
     """
     from datetime import date as _date
 
-    def _to_date(v: "str | _date") -> "_date":
+    def _to_date(v: str | _date) -> _date:
         if isinstance(v, _date):
             return v
         return _date.fromisoformat(str(v))
