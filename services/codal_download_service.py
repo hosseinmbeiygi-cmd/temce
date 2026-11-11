@@ -196,7 +196,7 @@ class CodalDownloadService:
             # C2 (audit): several announcements of one symbol share a publish
             # date — a filename of symbol+date silently overwrote/skipped them.
             # Add a short hash of the link so every announcement is distinct.
-            link_digest = hashlib.sha1(dl_link.encode("utf-8")).hexdigest()[:8]
+            link_digest = hashlib.sha1(dl_link.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
             filename = f"{safe_symbol}_codal_{date_publish}_{link_digest}{ext}"
             filepath = os.path.join(sym_dir, filename)
 

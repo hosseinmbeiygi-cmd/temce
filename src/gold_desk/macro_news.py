@@ -71,7 +71,7 @@ class MacroEvent:
         نسازد.
         """
         normalized = re.sub(r"\s+", " ", self.title.strip().lower())
-        digest = hashlib.sha1(f"{self.source}:{normalized}".encode()).hexdigest()[:16]
+        digest = hashlib.sha1(f"{self.source}:{normalized}".encode(), usedforsecurity=False).hexdigest()[:16]
         return f"golddesk:macro:{digest}"
 
 

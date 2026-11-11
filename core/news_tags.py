@@ -29,7 +29,7 @@ _CHAR_RE = re.compile("[" + "".join(_CHAR_MAP) + "]")
 # Zero-width joiners fold to a space (نیم‌فاصله ≡ فاصله for matching:
 # ``سرمايه‌گذاري`` must equal ``سرمایه گذاری``); the rest are pure noise.
 _ZWNJ_RE = re.compile("[‌‍]")
-_STRIP_RE = re.compile("[‏‎‪-‮﻿ ]")
+_STRIP_RE = re.compile("[‏‎‪-‮﻿ ]")  # nosec B613
 
 
 def normalize_persian(value: str | None) -> str:
