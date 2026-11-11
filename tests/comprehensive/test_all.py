@@ -87,7 +87,7 @@ class TestHealth:
 
     @pytest.mark.asyncio
     async def test_cors_headers(self, client):
-        resp = await client.options("/api/v1/health", headers={"Origin": "http://example.com"})
+        resp = await client.options("/api/v1/health", headers={"Origin": "http://localhost:3000"})
         assert "access-control-allow-origin" in resp.headers
 
     @pytest.mark.asyncio

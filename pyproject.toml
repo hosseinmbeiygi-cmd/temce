@@ -64,7 +64,7 @@ exclude = ["code_dump", "*.sh", "*.bat", ".workbuddy-ai"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "C4"]
-ignore = ["E501", "B008", "B027", "ARG", "N803", "N805", "N806", "N818", "B904", "SIM102", "E402", "B017"]
+ignore = ["E501", "B008", "B027", "ARG", "N803", "N805", "N806", "N817", "N818", "B904", "SIM102", "E402", "B017"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG", "N803", "N805", "N806", "B017"]

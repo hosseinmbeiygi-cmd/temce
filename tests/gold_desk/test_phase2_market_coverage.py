@@ -144,8 +144,8 @@ class TestTehranBoard:
         intrinsic = {row.key: row.intrinsic for row in board.rows}
 
         assert intrinsic["tehran_gold_18"] is not None
-        assert intrinsic["tehran_gold_18"] < intrinsic["tehran_gold_20"] < intrinsic["tehran_gold_21"]
-        assert intrinsic["tehran_gold_21"] < intrinsic["tehran_gold_24"]
+        assert intrinsic["tehran_gold_18"] < intrinsic["tehran_gold_20"] < intrinsic["tehran_gold_21"]  # type: ignore[operator]
+        assert intrinsic["tehran_gold_21"] < intrinsic["tehran_gold_24"]  # type: ignore[operator]
 
     def test_partial_feed_reports_partial_status(self) -> None:
         official, refs = _sources()
@@ -223,7 +223,7 @@ class TestPlatforms:
 
         assert phase2_paths <= set(mounted)
         for path in phase2_paths:
-            assert mounted[path].methods == {"GET"}
+            assert mounted[path].methods == {"GET"}  # type: ignore[attr-defined]
         for path in mounted:
             assert not forbidden & set(path.strip("/").split("/"))
 

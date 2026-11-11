@@ -100,7 +100,7 @@ async def test_sell_on_soft_deleted_holding_is_rejected() -> None:
 
     with pytest.raises(HoldingDeletedError):
         await record_trade(
-            session,
+            session,  # type: ignore[arg-type]
             symbol="IR_COIN_EMAMI",
             action="sell",
             quantity=1.0,
@@ -118,7 +118,7 @@ async def test_missing_holding_is_rejected() -> None:
 
     with pytest.raises(HoldingNotFoundError):
         await record_trade(
-            session,
+            session,  # type: ignore[arg-type]
             symbol="IR_COIN_EMAMI",
             action="buy",
             quantity=1.0,
@@ -134,7 +134,7 @@ async def test_active_holding_still_records_the_trade() -> None:
     session = FakeSession(_holding())
 
     trade = await record_trade(
-        session,
+        session,  # type: ignore[arg-type]
         symbol="IR_COIN_EMAMI",
         action="sell",
         quantity=2.0,

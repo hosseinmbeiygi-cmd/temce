@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
-import defusedxml.ElementTree as ET
 from datetime import UTC
 from typing import Any
+
+import defusedxml.ElementTree as ET
 
 from core.logging import get_logger
 

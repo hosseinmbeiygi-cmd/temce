@@ -373,8 +373,8 @@ class TestWhatIf:
         monkeypatch.setattr(phase1, "build_terminal", _fake_terminal)
 
     async def test_two_input_pairs_produce_two_different_previews(self, frozen_terminal) -> None:
-        first = await phase1.build_what_if(None, 4000.0, 1_000_000.0, now=NOW)
-        second = await phase1.build_what_if(None, 4000.0, 2_000_000.0, now=NOW)
+        first = await phase1.build_what_if(None, 4000.0, 1_000_000.0, now=NOW)  # type: ignore[arg-type]
+        second = await phase1.build_what_if(None, 4000.0, 2_000_000.0, now=NOW)  # type: ignore[arg-type]
 
         row_first = first.physical[0]
         row_second = second.physical[0]
@@ -388,14 +388,14 @@ class TestWhatIf:
 
     async def test_market_price_and_live_quality_are_not_rewritten(self, frozen_terminal) -> None:
         base = _terminal_fixture()
-        preview = await phase1.build_what_if(None, 5000.0, 1_500_000.0, now=NOW)
+        preview = await phase1.build_what_if(None, 5000.0, 1_500_000.0, now=NOW)  # type: ignore[arg-type]
 
         assert preview.physical[0].market_price == base.physical[0].price
         assert preview.physical[0].quality == base.physical[0].quality == "LIVE"
         assert preview.physical[0].base_intrinsic == base.physical[0].intrinsic
 
     async def test_fund_nominal_bubble_is_nav_based_and_unchanged(self, frozen_terminal) -> None:
-        preview = await phase1.build_what_if(None, 5000.0, 1_500_000.0, now=NOW)
+        preview = await phase1.build_what_if(None, 5000.0, 1_500_000.0, now=NOW)  # type: ignore[arg-type]
 
         fund = preview.funds[0]
         assert fund.nominal_bubble_pct_before == pytest.approx(10.0)
@@ -430,7 +430,7 @@ class TestWhatIf:
                 self.writes.append("commit")
 
         session = _ReadOnlySession()
-        preview = await phase1.build_what_if(session, 4000.0, 1_000_000.0, now=NOW)
+        preview = await phase1.build_what_if(session, 4000.0, 1_000_000.0, now=NOW)  # type: ignore[arg-type]
 
         assert session.writes == []
         assert preview.capabilities.preview_only is True

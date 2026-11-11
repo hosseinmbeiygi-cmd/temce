@@ -9,11 +9,11 @@ directly drive gold price movements.
 
 from __future__ import annotations
 
-import defusedxml.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+import defusedxml.ElementTree as ET
 import httpx
 
 from core.logging import get_logger
