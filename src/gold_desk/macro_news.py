@@ -347,12 +347,20 @@ async def scrape_cbi_news() -> list[MacroEvent]:
                 for t in titles[:10]:
                     clean = re.sub(r"<[^>]+>", "", t).strip()
                     if 10 < len(clean) < 200:
-                        score, conf = estimate_impact(clean, "rate")
+                        if any(w in clean for w in ("نرخ", "بهره", "ربا")):
+                            detected_category = "rate"
+                        elif any(w in clean for w in ("تورم", "قیمت", "CPI")):
+                            detected_category = "inflation"
+                        elif any(w in clean for w in ("ارز", "دلار", "ریال")):
+                            detected_category = "fx"
+                        else:
+                            detected_category = "cbi"
+                        score, conf = estimate_impact(clean, detected_category)
                         events.append(
                             MacroEvent(
                                 title=clean,
                                 source="cbi",
-                                category="rate",
+                                category=detected_category,
                                 impact_score=score,
                                 confidence=conf,
                                 explanation="استخراج خودکار از cbi.ir",

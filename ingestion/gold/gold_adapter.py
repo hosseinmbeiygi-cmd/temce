@@ -98,6 +98,7 @@ class GoldAdapter:
         last_known = last_known or {}
 
         for row in raw:
+            row = dict(row)
             symbol = row.get("symbol", "")
             price = row.get("price")
             fetched_at = row.get("fetched_at")
@@ -112,12 +113,12 @@ class GoldAdapter:
             if not fetched_at:
                 row["fetched_at"] = datetime.now(UTC).isoformat()
 
-            # Price reasonableness check (gold prices should be > 1000 IRR)
-            if price < 1000:
+            # Price reasonableness check (gold prices should be > 1,000,000,000 IRR)
+            if price < 1_000_000_000:
                 row["quality_flag"] = 2  # suspicious
                 result.suspicious_count += 1
                 logger.warning(
-                    "Gold suspicious low price: %s = %.0f (expected > 1000)",
+                    "Gold suspicious low price: %s = %.0f (expected > 1,000,000,000)",
                     symbol,
                     price,
                 )

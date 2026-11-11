@@ -890,7 +890,7 @@ _INDEX_SQL = text(
     """
     SELECT gregorian_date, MAX(index_value) AS value
     FROM brsapi_index_values
-    WHERE (name = '' OR name = 'شاخص کل')
+    WHERE (name IS NULL OR name = '' OR name = 'شاخص کل')
       AND index_value > 0
       AND gregorian_date IS NOT NULL
       AND gregorian_date >= :cutoff
@@ -928,7 +928,7 @@ async def _load_gold_fund_index(
     per-fund daily returns from a base of 100 between consecutive IME snapshot
     dates. It is labelled as an approximation wherever it is used.
     """
-    cutoff = (now - timedelta(days=days)).date().isoformat()
+    cutoff = (now - timedelta(days=days)).date()
     try:
         rows = (
             await session.execute(

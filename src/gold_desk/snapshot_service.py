@@ -170,7 +170,7 @@ async def _overlay_goldapi_xau_usd(book: PriceBook) -> None:
         xau = await get_international_xau_usd()
         if xau and xau > 0:
             book["XAUUSD"] = xau
-            book.as_of_by_symbol["XAUUSD"] = datetime.now(UTC).replace(tzinfo=None)
+            book.as_of_by_symbol["XAUUSD"] = datetime.now(UTC)
             logger.info("international XAUUSD=%.2f", xau)
     except Exception as exc:  # noqa: BLE001
         logger.warning("international XAU overlay failed: %s", exc)

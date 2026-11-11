@@ -18,6 +18,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -69,7 +70,7 @@ class GoldFundNAVModel(GoldDeskBase):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     fund_name: Mapped[str] = mapped_column(String(64), nullable=False)
-    date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
     nav_per_unit: Mapped[float] = mapped_column(Float, nullable=False)
     market_price: Mapped[float] = mapped_column(Float, nullable=False)
     bubble_abs: Mapped[float] = mapped_column(Float, default=0)

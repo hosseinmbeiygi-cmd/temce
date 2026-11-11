@@ -521,6 +521,8 @@ def build_fund_row(
         gaps.append("زمان NAV قابل تبدیل نبود؛ زمان دریافت منبع نمایش داده می‌شود")
         nav_as_of = _as_of_fetched(nav_row)
     if nav_issue is not None and nav_redemption is not None and nav_redemption > 0:
+        if nav_redemption > nav_issue:
+            gaps.append("NAV ابطال از NAV صدور بیشتر است — داده مشکوک")
         divergence = abs(nav_issue - nav_redemption) / nav_redemption * 100.0
         if divergence >= 1.0:
             gaps.append("اختلاف NAV صدور و ابطال بیش از ۱٪ است")

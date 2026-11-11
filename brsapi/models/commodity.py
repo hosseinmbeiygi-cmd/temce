@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Float, Index, String, Text, func
+from sqlalchemy import BigInteger, DateTime, Float, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from brsapi.models.base import BrsApiBase, InstrumentRefMixin
@@ -72,6 +72,7 @@ class GoldCoinHistoryModel(InstrumentRefMixin, BrsApiBase):
 
     __table_args__ = (
         Index("idx_gold_hist_symbol_date", "symbol", "date"),
+        UniqueConstraint("symbol", "date", name="uq_gold_coin_hist_sym_date"),
     )
 
 

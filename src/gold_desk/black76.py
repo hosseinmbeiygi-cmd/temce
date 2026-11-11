@@ -75,7 +75,7 @@ def years_to_expiry(expiry: date) -> float:
     delta_days = (expiry - today).days
     if delta_days < 0:
         raise ValueError(f"expiry is in the past: {expiry} < {today}")
-    return max(delta_days / 365.0, 1e-6)  # حداقل 1 روز
+    return max(delta_days / 365.0, 1e-6)  # حداقل ~31 ثانیه (1e-6 سال)
 
 
 def black76_price(
@@ -279,10 +279,13 @@ def protective_collar(
     بستن کریدور سود/زیان با هزینه خالص نزدیک صفر.
     """
     t = years_to_expiry(expiry)
-    # فرض F ≈ spot (shorter expiry, no div)
+    # Black-76 is defined on the forward price, not spot.  F = spot * e^(r*t).
+    # With Iran's ~30% risk-free rate, F/spot ≈ 1.16 at T=0.5 → ~16% mispricing
+    # if spot were passed directly (confirmed in GS-B76 audit).
+    F = spot * math.exp(rate * t)
     # black76_price returns (call, put, d1, d2) — unpack accordingly
-    _, put_price, _, _ = black76_price(spot, put_strike, t, iv, rate)
-    call_price, _, _, _ = black76_price(spot, call_strike, t, iv, rate)
+    _, put_price, _, _ = black76_price(F, put_strike, t, iv, rate)
+    call_price, _, _, _ = black76_price(F, call_strike, t, iv, rate)
     return CollarResult(
         cost=put_price - call_price,
         floor=put_strike,

@@ -22,6 +22,7 @@ from brsapi.jobs.registry import BrsApiSyncJob
 from core.cache import get_cache
 from core.database import get_session
 from core.logging import get_logger
+from core.time import utc_to_tehran
 from src.gold_desk import snapshot_service
 from src.gold_desk.alert_engine import evaluate_rules
 from src.gold_desk.constants import REDIS_KEY_SNAPSHOT
@@ -34,6 +35,18 @@ from src.gold_desk.models import (
 from src.gold_desk.schemas import SnapshotResponse
 
 logger = get_logger(__name__)
+
+
+async def _load_snapshot(session: AsyncSession) -> "SnapshotResponse":
+    """Load snapshot from Redis cache; fall back to building a fresh one."""
+    cache = get_cache()
+    try:
+        cached = await cache.get(REDIS_KEY_SNAPSHOT)
+        if cached:
+            return SnapshotResponse.model_validate_json(cached)
+    except Exception as exc:
+        logger.debug("snapshot cache miss or stale: %s", exc)
+    return await snapshot_service.build_snapshot(session)
 
 
 # ── Job 1: Snapshot ────────────────────────────────────────────
@@ -117,7 +130,6 @@ async def job_gold_snapshot(force: bool = False) -> None:
                             asset.symbol,
                             {
                                 "price": asset.market_price,
-                                "change_percent": asset.bubble_pct or 0,
                                 "bubble_pct": asset.bubble_pct,
                                 "fair_value": asset.fair_value,
                                 "timestamp": snap.snapshot_at.isoformat(),
@@ -148,7 +160,7 @@ async def job_gold_score_persist(force: bool = False) -> None:
     """ذخیره امتیاز فعلی در gold_score_history."""
     try:
         async for session in get_session():
-            snap = await snapshot_service.build_snapshot(session)
+            snap = await _load_snapshot(session)
             components_json = json.dumps(
                 {
                     "bubble": snap.score.components.bubble,
@@ -198,7 +210,7 @@ async def job_gold_alert_evaluate(force: bool = False) -> None:
     """بررسی قوانین + dispatch (شامل قوانین مبتنی بر معیارهای ریسک پرتفوی)."""
     try:
         async for session in get_session():
-            snap = await snapshot_service.build_snapshot(session)
+            snap = await _load_snapshot(session)
             metrics = await _portfolio_risk_metrics(session)
             events = await evaluate_rules(session, snap, portfolio_metrics=metrics)
             if events:
@@ -219,8 +231,8 @@ async def _persist_fund_nav(session: AsyncSession, snap: SnapshotResponse) -> in
     funds = list(snap.funds or [])
     if not funds:
         return 0
-    when = snap.snapshot_at
-    day = datetime(when.year, when.month, when.day)
+    when_teh = utc_to_tehran(snap.snapshot_at)
+    day = when_teh.date()
     written = 0
     for f in funds:
         market_price = (
@@ -265,7 +277,7 @@ async def job_gold_fund_nav(force: bool = False) -> None:
     """ذخیره NAV/حباب صندوق‌های طلا برای امروز."""
     try:
         async for session in get_session():
-            snap = await snapshot_service.build_snapshot(session)
+            snap = await _load_snapshot(session)
             written = await _persist_fund_nav(session, snap)
             logger.info("gold_fund_nav: persisted %d fund rows", written)
             break
@@ -283,7 +295,7 @@ async def job_gold_portfolio_value(force: bool = False) -> None:
         from src.gold_desk.portfolio_history import capture_portfolio_value
 
         async for session in get_session():
-            snap = await snapshot_service.build_snapshot(session)
+            snap = await _load_snapshot(session)
             owners = list(
                 (
                     await session.execute(

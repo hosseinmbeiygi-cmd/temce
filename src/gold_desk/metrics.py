@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections import deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -31,9 +32,9 @@ api_errors_total = 0
 
 # ── Histograms (seconds) ───────────────────────────────────
 
-_snapshot_durations: list[float] = []
-_backtest_durations: list[float] = []
-_dca_durations: list[float] = []
+_snapshot_durations: deque[float] = deque(maxlen=1000)
+_backtest_durations: deque[float] = deque(maxlen=1000)
+_dca_durations: deque[float] = deque(maxlen=1000)
 
 
 def incr(name: str, amount: int = 1) -> None:
@@ -54,7 +55,7 @@ def incr(name: str, amount: int = 1) -> None:
             raise KeyError(f"unknown counter: {name}")
 
 
-def _record(bucket: list[float], duration: float) -> None:
+def _record(bucket: deque[float], duration: float) -> None:
     with _LOCK:
         bucket.append(duration)
 
@@ -142,7 +143,7 @@ def render_prometheus() -> str:
         if not values:
             continue
         lines.append(f"# HELP golddesk_{name}_seconds Duration of {name} operation")
-        lines.append(f"# TYPE golddesk_{name}_seconds histogram")
+        lines.append(f"# TYPE golddesk_{name}_seconds summary")
         for p in [0.5, 0.9, 0.95, 0.99]:
             lines.append(f'golddesk_{name}_seconds{{quantile="{p}"}} {_percentile(values, p):.6f}')
         lines.append(f"golddesk_{name}_seconds_sum {sum(values):.2f}")

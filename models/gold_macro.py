@@ -18,7 +18,7 @@ from datetime import date, datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import Base, TimestampMixin
@@ -52,6 +52,8 @@ class GoldMacroIndicatorModel(TimestampMixin, Base):
     unit: Mapped[str | None] = mapped_column(String(50))
     frequency: Mapped[str | None] = mapped_column(String(20))
 
+    __table_args__ = (UniqueConstraint("indicator", "as_of", name="uq_macro_ind_indicator_as_of"),)
+
 
 class GoldCotPositionModel(TimestampMixin, Base):
     """One row per weekly CFTC COT gold futures report."""
@@ -80,6 +82,8 @@ class GoldCotPositionModel(TimestampMixin, Base):
         String(64), nullable=False, server_default="CFTC"
     )
     provenance: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (UniqueConstraint("report_date", "cftc_contract_market_code", name="uq_cot_date_code"),)
 
 
 class GoldEconomicCalendarEventModel(TimestampMixin, Base):

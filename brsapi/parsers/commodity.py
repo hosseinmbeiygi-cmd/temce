@@ -331,6 +331,8 @@ class GoldCoinParser:
                 code="unexpected_shape",
             )
 
+        _date_fallback = data.get("date", "") if isinstance(data, dict) else ""
+        _time_fallback = data.get("time", "") if isinstance(data, dict) else ""
         for symbol, info in items.items():
             if not isinstance(info, dict):
                 continue
@@ -341,8 +343,8 @@ class GoldCoinParser:
                 "change_value": cls._float(info.get("change_value", 0)),
                 "change_percent": cls._float(info.get("change_percent", 0)),
                 "unit": info.get("unit", "IRR"),
-                "date": info.get("date", data.get("date", "")),
-                "time": info.get("time", data.get("time", "")),
+                "date": info.get("date", _date_fallback),
+                "time": info.get("time", _time_fallback),
                 "time_unix": cls._int(info.get("time_unix", 0)),
                 "fetched_at": now,
                 "raw_json": json.dumps(info, ensure_ascii=False),
@@ -422,6 +424,8 @@ class CurrencyParser:
                 code="unexpected_shape",
             )
 
+        _date_fallback = data.get("date", "") if isinstance(data, dict) else ""
+        _time_fallback = data.get("time", "") if isinstance(data, dict) else ""
         for symbol, info in items.items():
             if not isinstance(info, dict):
                 continue
@@ -432,8 +436,8 @@ class CurrencyParser:
                 "change_value": cls._float(info.get("change_value", 0)),
                 "change_percent": cls._float(info.get("change_percent", 0)),
                 "unit": info.get("unit", "IRR"),
-                "date": info.get("date", data.get("date", "")),
-                "time": info.get("time", data.get("time", "")),
+                "date": info.get("date", _date_fallback),
+                "time": info.get("time", _time_fallback),
                 "time_unix": cls._int(info.get("time_unix", 0)),
                 "fetched_at": now,
                 "raw_json": json.dumps(info, ensure_ascii=False),
@@ -467,6 +471,8 @@ class CurrencyParser:
                 code="unexpected_shape",
             )
 
+        _date_fallback = data.get("date", "") if isinstance(data, dict) else ""
+        _time_fallback = data.get("time", "") if isinstance(data, dict) else ""
         for symbol, info in items.items():
             if not isinstance(info, dict):
                 continue
@@ -479,8 +485,8 @@ class CurrencyParser:
                 "change_percent": cls._float(info.get("change_percent", 0)),
                 "high_24h": cls._float(info.get("high_24h", 0)),
                 "low_24h": cls._float(info.get("low_24h", 0)),
-                "date": info.get("date", data.get("date", "")),
-                "time": info.get("time", data.get("time", "")),
+                "date": info.get("date", _date_fallback),
+                "time": info.get("time", _time_fallback),
                 "fetched_at": now,
             })
         return records
