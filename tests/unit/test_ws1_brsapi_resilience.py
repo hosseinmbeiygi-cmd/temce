@@ -15,9 +15,13 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from brsapi.services.sync_service import BrsApiSyncService
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -224,22 +228,24 @@ async def test_retry_delays_have_jitter():
     client_b._backoff_base = 2.0
     client_b._backoff_max = 60.0
 
-    with patch.object(client_mod.brsapi_settings, "enabled", True):
-        with patch.object(client_mod.brsapi_settings, "fail_fast_on_daily_exhausted", False):
-            with patch("brsapi.client.asyncio.sleep", side_effect=_capture_sleep):
-                from brsapi.config import BrsApiEndpoints
+    with (
+        patch.object(client_mod.brsapi_settings, "enabled", True),
+        patch.object(client_mod.brsapi_settings, "fail_fast_on_daily_exhausted", False),
+        patch("brsapi.client.asyncio.sleep", side_effect=_capture_sleep),
+    ):
+        from brsapi.config import BrsApiEndpoints
 
-                ep = BrsApiEndpoints.ALL_SYMBOLS
-                await client_a._do_fetch(
-                    f"http://localhost{ep.path}", {"key": "k"}, "tsetmc", ep
-                )
-                run_a_sleeps = list(recorded_sleeps)
-                recorded_sleeps.clear()
+        ep = BrsApiEndpoints.ALL_SYMBOLS
+        await client_a._do_fetch(
+            f"http://localhost{ep.path}", {"key": "k"}, "tsetmc", ep
+        )
+        run_a_sleeps = list(recorded_sleeps)
+        recorded_sleeps.clear()
 
-                await client_b._do_fetch(
-                    f"http://localhost{ep.path}", {"key": "k"}, "tsetmc", ep
-                )
-                run_b_sleeps = list(recorded_sleeps)
+        await client_b._do_fetch(
+            f"http://localhost{ep.path}", {"key": "k"}, "tsetmc", ep
+        )
+        run_b_sleeps = list(recorded_sleeps)
 
     if not run_a_sleeps or not run_b_sleeps:
         pytest.skip("No retries triggered — cannot verify jitter")

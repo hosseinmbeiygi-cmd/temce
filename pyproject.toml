@@ -60,7 +60,7 @@ dev = [
 target-version = "py311"
 line-length = 120
 indent-width = 4
-exclude = ["code_dump", "*.sh", "*.bat"]
+exclude = ["code_dump", "*.sh", "*.bat", ".workbuddy-ai"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "C4"]

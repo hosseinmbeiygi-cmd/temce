@@ -19,6 +19,7 @@ GREEN (after fixes):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -112,12 +113,12 @@ async def test_tgju_fallback_calls_fetch_prices_without_pre_check():
         fetch_called["n"] += 1
         return []  # empty → _complete → False → RuntimeError
 
-    with patch.object(svc_mod, "_read_brsapi_prices", _mock_brsapi), \
-         patch.object(svc_mod, "fetch_tgju_prices", _mock_fetch):
-        try:
-            await svc_mod._read_references()
-        except RuntimeError:
-            pass  # expected
+    with (
+        patch.object(svc_mod, "_read_brsapi_prices", _mock_brsapi),
+        patch.object(svc_mod, "fetch_tgju_prices", _mock_fetch),
+        contextlib.suppress(RuntimeError),
+    ):
+        await svc_mod._read_references()
 
     assert fetch_called["n"] >= 1, (
         "fetch_tgju_prices() was never called after BrsApi returned incomplete data. "
@@ -169,14 +170,14 @@ async def test_tgju_fallback_does_not_hang_on_slow_provider():
         return []
 
     async def _run():
-        with patch.object(svc_mod, "_read_brsapi_prices", _mock_brsapi), \
-             patch.object(svc_mod, "fetch_tgju_prices", _hang_forever):
+        with (
+            patch.object(svc_mod, "_read_brsapi_prices", _mock_brsapi),
+            patch.object(svc_mod, "fetch_tgju_prices", _hang_forever),
             # Patch the timeout constant to a tiny value so the test is fast
-            with patch.object(svc_mod, "TGJU_FALLBACK_TIMEOUT_SECONDS", 0.1):
-                try:
-                    await svc_mod._read_references()
-                except RuntimeError:
-                    pass  # expected — timed-out fallback → no complete source
+            patch.object(svc_mod, "TGJU_FALLBACK_TIMEOUT_SECONDS", 0.1),
+            contextlib.suppress(RuntimeError),
+        ):
+            await svc_mod._read_references()
 
     # The whole thing must finish in under 5s even though the fetch hangs
     await asyncio.wait_for(_run(), timeout=5.0)

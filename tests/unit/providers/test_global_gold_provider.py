@@ -70,12 +70,14 @@ async def test_fetch_xau_usd_via_goldapi():
     from providers.macro.gold.global_gold_provider import GlobalGoldProvider
 
     http_client = _mock_goldapi_response(2683.5)
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value="test-key"):
-        with patch("providers.macro.gold.global_gold_provider.fetch_xau_usd", new_callable=AsyncMock, return_value=2683.5):
-            with patch("providers.macro.gold.global_gold_provider._fetch_xag_goldapi", new_callable=AsyncMock, return_value=31.5):
-                with patch("providers.macro.gold.global_gold_provider._fetch_xpt_goldapi", new_callable=AsyncMock, return_value=950.0):
-                    provider = GlobalGoldProvider(http_client=http_client)
-                    result = await provider.fetch()
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value="test-key"),
+        patch("providers.macro.gold.global_gold_provider.fetch_xau_usd", new_callable=AsyncMock, return_value=2683.5),
+        patch("providers.macro.gold.global_gold_provider._fetch_xag_goldapi", new_callable=AsyncMock, return_value=31.5),
+        patch("providers.macro.gold.global_gold_provider._fetch_xpt_goldapi", new_callable=AsyncMock, return_value=950.0),
+    ):
+        provider = GlobalGoldProvider(http_client=http_client)
+        result = await provider.fetch()
 
     assert result.success
     data = result.value
@@ -87,9 +89,11 @@ async def test_fetch_xau_usd_via_goldapi():
 async def test_fetch_xau_fallback_to_paxg_when_no_key():
     from providers.macro.gold.global_gold_provider import GlobalGoldProvider
 
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None):
-        with patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=2680.0):
-            result = await GlobalGoldProvider().fetch()
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None),
+        patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=2680.0),
+    ):
+        result = await GlobalGoldProvider().fetch()
 
     assert result.success
     xau = next(item for item in result.value if item["benchmark"] == "XAU_USD")
@@ -101,10 +105,12 @@ async def test_fetch_xau_fallback_to_yahoo_when_paxg_fails():
     from providers.macro.gold.global_gold_provider import GlobalGoldProvider
 
     http_client = _mock_yahoo_response(2675.0)
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None):
-        with patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=None):
-            provider = GlobalGoldProvider(http_client=http_client)
-            result = await provider.fetch()
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None),
+        patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=None),
+    ):
+        provider = GlobalGoldProvider(http_client=http_client)
+        result = await provider.fetch()
 
     assert result.success
     xau = next(item for item in result.value if item["benchmark"] == "XAU_USD")
@@ -119,9 +125,11 @@ async def test_fetch_returns_fail_when_all_sources_unavailable():
     bad.get = AsyncMock(side_effect=Exception("network error"))
     bad.aclose = AsyncMock()
 
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None):
-        with patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=None):
-            result = await GlobalGoldProvider(http_client=bad).fetch()
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None),
+        patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=None),
+    ):
+        result = await GlobalGoldProvider(http_client=bad).fetch()
 
     assert not result.success
     assert "unavailable" in result.error.lower()
@@ -133,9 +141,11 @@ async def test_fetch_returns_fail_when_all_sources_unavailable():
 async def test_fetch_benchmark_xau_only():
     from providers.macro.gold.global_gold_provider import GlobalGoldProvider
 
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None):
-        with patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=2680.0):
-            result = await GlobalGoldProvider().fetch(benchmark="XAU_USD")
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None),
+        patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=2680.0),
+    ):
+        result = await GlobalGoldProvider().fetch(benchmark="XAU_USD")
 
     assert result.success
     assert len(result.value) == 1
@@ -148,9 +158,11 @@ async def test_fetch_benchmark_xau_only():
 async def test_health_returns_healthy():
     from providers.macro.gold.global_gold_provider import GlobalGoldProvider
 
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None):
-        with patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=2680.0):
-            result = await GlobalGoldProvider().health()
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None),
+        patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=2680.0),
+    ):
+        result = await GlobalGoldProvider().health()
 
     assert result["healthy"] is True
     assert "XAU/USD" in result["message"] or "2680" in result["message"]
@@ -164,8 +176,10 @@ async def test_health_returns_unhealthy_when_no_sources():
     bad.get = AsyncMock(side_effect=Exception("timeout"))
     bad.aclose = AsyncMock()
 
-    with patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None):
-        with patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=None):
-            result = await GlobalGoldProvider(http_client=bad).health()
+    with (
+        patch("providers.macro.gold.global_gold_provider.get_goldapi_key", return_value=None),
+        patch("providers.macro.gold.global_gold_provider.fetch_paxg_binance", new_callable=AsyncMock, return_value=None),
+    ):
+        result = await GlobalGoldProvider(http_client=bad).health()
 
     assert result["healthy"] is False

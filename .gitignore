@@ -1,3 +1,6 @@
+# External tool scratch directories
+.workbuddy-ai/
+
 # Python
 __pycache__/
 *.py[cod]

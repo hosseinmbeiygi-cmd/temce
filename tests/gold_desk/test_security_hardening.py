@@ -58,13 +58,15 @@ async def test_register_returns_403_when_registration_closed():
     mock_settings.registration_open = False
     mock_settings.auth_cookie_name = "refresh_token"
 
-    with patch("apps.api.endpoints.auth.settings", mock_settings):
-        with TestClient(app, raise_server_exceptions=False) as client:
-            resp = client.post("/auth/register", json={
-                "username": "attacker",
-                "email": "a@a.com",
-                "password": "P@ssw0rd123",
-            })
+    with (
+        patch("apps.api.endpoints.auth.settings", mock_settings),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        resp = client.post("/auth/register", json={
+            "username": "attacker",
+            "email": "a@a.com",
+            "password": "P@ssw0rd123",
+        })
 
     assert resp.status_code == 403, (
         f"Expected 403 when registration_open=False but got {resp.status_code}. "
@@ -96,14 +98,16 @@ async def test_register_proceeds_when_registration_open():
     mock_settings.auth_cookie_domain = ""
     mock_settings.refresh_token_expire_days = 30
 
-    with patch("apps.api.endpoints.auth.settings", mock_settings):
-        with patch("apps.api.endpoints.auth.UserService", lambda *a, **kw: mock_svc):
-            with TestClient(app, raise_server_exceptions=False) as client:
-                resp = client.post("/auth/register", json={
-                    "username": "user1",
-                    "email": "user1@test.com",
-                    "password": "P@ssw0rd123",
-                })
+    with (
+        patch("apps.api.endpoints.auth.settings", mock_settings),
+        patch("apps.api.endpoints.auth.UserService", lambda *a, **kw: mock_svc),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        resp = client.post("/auth/register", json={
+            "username": "user1",
+            "email": "user1@test.com",
+            "password": "P@ssw0rd123",
+        })
 
     assert resp.status_code == 200, (
         f"Expected 200 when registration_open=True but got {resp.status_code}."

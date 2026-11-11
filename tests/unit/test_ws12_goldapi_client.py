@@ -303,10 +303,12 @@ async def test_get_international_uses_goldapi_when_key_set():
     from src.gold_desk import goldapi_client
 
     env = {**os.environ, "GOLDAPI_KEY": "test-key"}
-    with patch.dict(os.environ, env):
-        with patch.object(goldapi_client, "fetch_xau_usd", new=AsyncMock(return_value=2700.0)) as mock_gold, \
-             patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2690.0)) as mock_paxg:
-            result = await goldapi_client.get_international_xau_usd()
+    with (
+        patch.dict(os.environ, env),
+        patch.object(goldapi_client, "fetch_xau_usd", new=AsyncMock(return_value=2700.0)) as mock_gold,
+        patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2690.0)) as mock_paxg,
+    ):
+        result = await goldapi_client.get_international_xau_usd()
 
     assert result == pytest.approx(2700.0)
     mock_gold.assert_awaited_once()
@@ -323,10 +325,12 @@ async def test_get_international_falls_back_to_paxg_when_goldapi_fails():
     from src.gold_desk import goldapi_client
 
     env = {**os.environ, "GOLDAPI_KEY": "test-key"}
-    with patch.dict(os.environ, env):
-        with patch.object(goldapi_client, "fetch_xau_usd", new=AsyncMock(return_value=None)), \
-             patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2680.0)) as mock_paxg:
-            result = await goldapi_client.get_international_xau_usd()
+    with (
+        patch.dict(os.environ, env),
+        patch.object(goldapi_client, "fetch_xau_usd", new=AsyncMock(return_value=None)),
+        patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2680.0)) as mock_paxg,
+    ):
+        result = await goldapi_client.get_international_xau_usd()
 
     assert result == pytest.approx(2680.0)
     mock_paxg.assert_awaited_once()
@@ -342,9 +346,11 @@ async def test_get_international_uses_paxg_when_no_key():
     from src.gold_desk import goldapi_client
 
     env = {k: v for k, v in os.environ.items() if k != "GOLDAPI_KEY"}
-    with patch.dict(os.environ, env, clear=True):
-        with patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2675.0)) as mock_paxg:
-            result = await goldapi_client.get_international_xau_usd()
+    with (
+        patch.dict(os.environ, env, clear=True),
+        patch.object(goldapi_client, "fetch_paxg_binance", new=AsyncMock(return_value=2675.0)) as mock_paxg,
+    ):
+        result = await goldapi_client.get_international_xau_usd()
 
     assert result == pytest.approx(2675.0)
     mock_paxg.assert_awaited_once()

@@ -62,20 +62,22 @@ async def test_sell_trade_inherits_holding_user_id_when_allow_any_owner():
         def add(self, obj):
             created_trades.append(obj)
 
-    with patch.object(_p, "get_active_holding", AsyncMock(return_value=holding)):
-        with patch.object(_p, "_consume_lots", AsyncMock(return_value={"realized_cost_irt": 100.0})):
-            trade = await _p._record_sell(
-                _TrackingSession(),
-                symbol="GOLD_GRAM_18K",
-                quantity=1.0,
-                price=5_000_000.0,
-                amount_irt=5_000_000.0,
-                fee_irt=0.0,
-                holding_id=42,
-                note=None,
-                user_id="admin_id",
-                allow_any_owner=True,
-            )
+    with (
+        patch.object(_p, "get_active_holding", AsyncMock(return_value=holding)),
+        patch.object(_p, "_consume_lots", AsyncMock(return_value={"realized_cost_irt": 100.0})),
+    ):
+        trade = await _p._record_sell(
+            _TrackingSession(),
+            symbol="GOLD_GRAM_18K",
+            quantity=1.0,
+            price=5_000_000.0,
+            amount_irt=5_000_000.0,
+            fee_irt=0.0,
+            holding_id=42,
+            note=None,
+            user_id="admin_id",
+            allow_any_owner=True,
+        )
 
     assert trade.user_id == "user123", (
         f"Expected trade.user_id='user123' (holding owner) but got {trade.user_id!r}. "
@@ -90,21 +92,23 @@ async def test_sell_trade_keeps_caller_user_id_when_not_allow_any_owner():
 
     holding = _make_holding(42, "GOLD_GRAM_18K", "user123")
 
-    with patch.object(_p, "get_active_holding", AsyncMock(return_value=holding)):
-        with patch.object(_p, "_consume_lots", AsyncMock(return_value={"realized_cost_irt": 100.0})):
-            trade = await _p._record_sell(
-                MagicMock(**{"execute": AsyncMock(), "get": AsyncMock(return_value=holding),
-                             "flush": AsyncMock(), "add": MagicMock()}),
-                symbol="GOLD_GRAM_18K",
-                quantity=1.0,
-                price=5_000_000.0,
-                amount_irt=5_000_000.0,
-                fee_irt=0.0,
-                holding_id=42,
-                note=None,
-                user_id="user123",
-                allow_any_owner=False,
-            )
+    with (
+        patch.object(_p, "get_active_holding", AsyncMock(return_value=holding)),
+        patch.object(_p, "_consume_lots", AsyncMock(return_value={"realized_cost_irt": 100.0})),
+    ):
+        trade = await _p._record_sell(
+            MagicMock(**{"execute": AsyncMock(), "get": AsyncMock(return_value=holding),
+                         "flush": AsyncMock(), "add": MagicMock()}),
+            symbol="GOLD_GRAM_18K",
+            quantity=1.0,
+            price=5_000_000.0,
+            amount_irt=5_000_000.0,
+            fee_irt=0.0,
+            holding_id=42,
+            note=None,
+            user_id="user123",
+            allow_any_owner=False,
+        )
 
     assert trade.user_id == "user123"
 

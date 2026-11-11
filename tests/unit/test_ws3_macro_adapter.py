@@ -182,9 +182,11 @@ async def test_refresh_macro_events_cache_does_not_hang_on_slow_scraper():
             pass
 
     async def _run():
-        with patch("core.cache.get_cache", return_value=_MockCache()):
-            with patch.object(macro_mod, "SCRAPE_TIMEOUT_SECONDS", 0.1):
-                await macro_mod.refresh_macro_events_cache(scraper=_hang_forever)
+        with (
+            patch("core.cache.get_cache", return_value=_MockCache()),
+            patch.object(macro_mod, "SCRAPE_TIMEOUT_SECONDS", 0.1),
+        ):
+            await macro_mod.refresh_macro_events_cache(scraper=_hang_forever)
 
     # Must complete in under 5 s even though the scraper hangs
     await asyncio.wait_for(_run(), timeout=5.0)
