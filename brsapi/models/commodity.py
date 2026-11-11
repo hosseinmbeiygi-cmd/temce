@@ -255,6 +255,7 @@ class GoldCurrencyProDailyHistoryModel(InstrumentRefMixin, BrsApiBase):
     __table_args__ = (
         Index("idx_pro_daily_symbol_date", "symbol", "date"),
         Index("idx_pro_daily_fetched", "fetched_at"),
+        UniqueConstraint("symbol", "date", name="uq_pro_daily_sym_date"),
     )
 
 

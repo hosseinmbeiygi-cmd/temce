@@ -71,13 +71,26 @@ BrsApiErrorCode = Literal[
     "budget_soft_limit",  # soft ceiling rejected a non-critical call
     "timeout",  # request timed out after retries
     "network_error",  # connection/protocol failure
-    "http_error",  # explicit non-200 HTTP status
+    "http_error",  # explicit non-200 HTTP status (5xx / retries exhausted)
+    "invalid_param",  # HTTP 4xx client error — bad symbol name / no data; never trips circuit breaker
     "retries_exhausted",  # retryable statuses exhausted
     "circuit_open",  # breaker tripped; the request was never sent
     "disabled",  # BRSAPI_ENABLED=false
     "not_started",  # client used before ``start()``
     "source_error",  # anything unclassified
 ]
+
+# Error codes that represent client-side problems (bad params, no data) — these
+# must NOT count as circuit-breaker failures because the server responded fine.
+_CB_IGNORE_CODES: frozenset[BrsApiErrorCode] = frozenset({
+    "invalid_param",
+    "circuit_open",
+    "disabled",
+    "not_started",
+    "budget_soft_limit",
+    "quota_exhausted",
+    "provider_blocked",
+})
 
 # BrsApi never serves a 3xx we should follow: the anti-abuse redirect points at
 # a multi-gigabyte file. Every redirect is treated as a block signal, without
@@ -388,7 +401,10 @@ class BrsApiClient:
 
         if result.success:
             cb.record_success()
-        else:
+        elif result.code not in _CB_IGNORE_CODES:
+            # Only genuine server-side failures (timeouts, 5xx, network errors)
+            # should trip the circuit breaker.  Client errors (bad params, quota,
+            # already-open breaker) must never count as failures.
             cb.record_failure()
         return result
 
@@ -529,7 +545,13 @@ class BrsApiClient:
                     )
                     break
 
-                # Other HTTP error
+                # 4xx client error (bad symbol name, no data, etc.) — not a server
+                # failure, so the circuit breaker must not count it.
+                if 400 <= resp.status_code < 500:
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                    return Result.fail(last_error, code="invalid_param")
+
+                # Other HTTP error (unexpected 5xx not in _RETRYABLE_STATUSES)
                 last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
                 return Result.fail(last_error, code="http_error")
 
