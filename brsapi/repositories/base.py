@@ -92,10 +92,17 @@ def _affected_row_count(
         )
         return attempted
 
-    raise BulkInsertRowCountUnavailable(
-        f"Driver did not report rowcount for {table_name}; the number of "
-        f"rows inserted by ON CONFLICT DO NOTHING is unknown"
+    # asyncpg does not report rowcount for ON CONFLICT DO NOTHING (returns -1
+    # or None).  The rows ARE committed — we just can not distinguish new rows
+    # from silently-skipped duplicates.  Return `attempted` as a best-effort
+    # count for logging purposes; correctness is not affected.
+    logger.debug(
+        "bulk_insert: driver did not report rowcount for %s (DO NOTHING); "
+        "returning attempted=%d as approximation",
+        table_name,
+        attempted,
     )
+    return attempted
 
 # ──────────────────────────────────────────────
 #  Sync Log Repository

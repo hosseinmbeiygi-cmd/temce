@@ -43,7 +43,8 @@ MIN_SIMULATION_DAYS: int = 10
 # سهم پایانی دوره که به‌عنوان نمونهٔ خارج از نمونه گزارش می‌شود.
 OOS_FRACTION: float = 0.30
 # تعداد روز معاملاتی در سال برای سالانه‌سازی شارپ.
-TRADING_DAYS_PER_YEAR: int = 252
+# بورس تهران (TSE) ~۲۵۰ روز معاملاتی دارد (نه ۲۵۲ NYSE).
+TRADING_DAYS_PER_YEAR: int = 250
 
 
 @dataclass(frozen=True)

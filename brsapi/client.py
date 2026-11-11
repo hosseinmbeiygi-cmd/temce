@@ -401,7 +401,7 @@ class BrsApiClient:
 
         if result.success:
             cb.record_success()
-        elif result.code not in _CB_IGNORE_CODES:
+        elif result.error_code not in _CB_IGNORE_CODES:
             # Only genuine server-side failures (timeouts, 5xx, network errors)
             # should trip the circuit breaker.  Client errors (bad params, quota,
             # already-open breaker) must never count as failures.

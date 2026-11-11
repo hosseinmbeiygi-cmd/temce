@@ -16,16 +16,23 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+import jdatetime
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utc_now_naive
+from core.time import now_tehran
 
 from .signal_engine import fetch_closes
 
 logger = logging.getLogger(__name__)
 
 FloatArray = np.ndarray[Any, Any]
+
+
+def _tehran_jalali_today() -> str:
+    """تاریخ شمسی امروز (تهران) — بازار ایران."""
+    dt = now_tehran()
+    return jdatetime.datetime.fromgregorian(datetime=dt).strftime("%Y-%m-%d")
 
 
 @dataclass(frozen=True)
@@ -125,8 +132,8 @@ def _forecast_drift(closes: list[float], horizon: int) -> float:
     arr = np.array(closes, dtype=float)
     rets = np.diff(arr) / arr[:-1]
     drift = float(np.mean(rets))
-    # clip drift to ±2% per day to avoid explosion
-    drift = max(-0.02, min(0.02, drift))
+    # بازار ایران می‌تواند ۳-۵٪ در روز حرکت کند؛ ±۵٪ به جای ±۲٪
+    drift = max(-0.05, min(0.05, drift))
     return float(closes[-1] * ((1 + drift) ** horizon))
 
 
@@ -149,7 +156,7 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
         return ForecastResult(
             symbol=symbol,
             last_price=0,
-            last_date=utc_now_naive().strftime("%Y-%m-%d"),
+            last_date=_tehran_jalali_today(),
             lookback_days=0,
             volatility_daily_pct=0,
             trend_daily_pct=0,
@@ -183,8 +190,9 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
         pred, model = _ensemble(closes, h, w)
         ret_pct = (pred - last) / last * 100 if last else 0
         # باند اطمینان: ± 1.96 * vol * sqrt(h) * pred (95%). کران‌دار است تا در
-        # سری پرنوسان قیمت منفی تولید نشود (GS-19).
-        band_pct = min(1.96 * vol * math.sqrt(h), 1.0)
+        # سری پرنوسان قیمت منفی تولید نشود. سقف ۲۰۰٪ برای بازار ایران (۱۰۰٪ قبلی
+        # با نوسانات طلا در شوک ارزی کافی نبود).
+        band_pct = min(1.96 * vol * math.sqrt(h), 2.0)
         lower = max(0.0, pred * (1 - band_pct))
         upper = pred * (1 + band_pct)
         # اطمینان: R2 * (1 - vol*10) clipped
@@ -201,8 +209,9 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
 
     # confidence کلی
     conf = max(0.2, min(0.9, r2 * 0.8 + 0.2 * (1 - min(1, vol * 20))))
-    # guard high volatility
-    if vol > 0.03:
+    # guard high volatility — آستانه ۴٪ روزانه برای بازار ایران (۳٪ قبلی
+    # با نوسانات عادی طلا در دوره‌های بحران ارزی trigger می‌شد).
+    if vol > 0.04:
         conf *= 0.7
 
     if trend_daily > 0.3 and r2 > 0.5:
@@ -211,7 +220,7 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
     elif trend_daily < -0.3 and r2 > 0.5:
         summary = f"روند نزولی {trend_daily:.2f}٪ روزانه (R²={r2:.2f})"
         rec = "صبر کنید — فشار فروش ادامه‌دار"
-    elif vol > 2.5 / 100:
+    elif vol > 4.0 / 100:
         summary = f"رژیم پرنوسان (vol {vol*100:.1f}٪ روزانه) — پیش‌بینی کم‌اعتبار"
         rec = "صبر — ریسک بالا"
     else:
@@ -221,7 +230,7 @@ def build_forecast(closes: list[float], symbol: str = "IR_COIN_EMAMI") -> Foreca
     return ForecastResult(
         symbol=symbol,
         last_price=round(float(last), 0),
-        last_date=utc_now_naive().strftime("%Y-%m-%d"),
+        last_date=_tehran_jalali_today(),
         lookback_days=n,
         volatility_daily_pct=round(float(vol * 100), 2),
         trend_daily_pct=round(float(trend_daily), 3),

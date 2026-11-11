@@ -158,22 +158,23 @@ def generate_antigravity_signal(
     action = _decide_action(nav_res.signal, bubble_res.signal, kill_switch_status.status)
     confidence = _confidence_from_signals(nav_res.signal, bubble_res.signal, arb_action, kill_switch_status.status)
 
-    # 8. سطوح معاملاتی (بر اساس ATR ساده 1.5% و R/R 2:1)
-    # BUY: SL -3%, TP1 +3%, TP2 +6%  |  SELL: SL +3%, TP1 -3%, TP2 -5%
+    # 8. سطوح معاملاتی بهینه‌شده برای بازار ایران (ATR روزانه ۲-۵٪)
+    # BUY: SL -5%, TP1 +5%, TP2 +10%  |  SELL: SL +5%, TP1 -5%, TP2 -8%
+    # (قبلاً ۳٪/۶٪ بود که در شوک‌های ارزی روزانه trigger می‌شد)
     if action == "BUY":
-        sl = market_price * 0.97
-        tp1 = market_price * 1.03
-        tp2 = market_price * 1.06
+        sl = market_price * 0.95
+        tp1 = market_price * 1.05
+        tp2 = market_price * 1.10
         timeframe: Literal["SCALP", "INTRADAY", "SWING", "LONG_TERM"] = "SWING"
     elif action == "SELL":
-        sl = market_price * 1.03
-        tp1 = market_price * 0.97
-        tp2 = market_price * 0.94
+        sl = market_price * 1.05
+        tp1 = market_price * 0.95
+        tp2 = market_price * 0.92
         timeframe = "INTRADAY"
     else:  # HOLD/CLOSE
-        sl = market_price * 0.97
-        tp1 = market_price * 1.02
-        tp2 = market_price * 1.04
+        sl = market_price * 0.95
+        tp1 = market_price * 1.04
+        tp2 = market_price * 1.08
         timeframe = "SWING"
         if action == "CLOSE":
             confidence = 0.95  # خروج اضطراری با اطمینان بالا
