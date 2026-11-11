@@ -178,3 +178,18 @@ markers = [
     "slow: slow tests",
     "needs_db: test requires a live PostgreSQL instance; skipped when unreachable",
 ]
+
+[tool.bandit]
+# B608 (SQL injection via string formatting): all identifiers in this codebase are
+# pre-validated before interpolation — via _identifier() regex guard in
+# query_builder.py, _quote_model_identifier() in brsapi/repositories/base.py,
+# allowlist in brsapi/quality.py, and _SAFE_IDENTIFIER regex in endpoints/tables.py.
+# User-supplied values always go through SQLAlchemy bind parameters.
+#
+# B613 (bidirectional control chars): Persian-language codebase; bidi marks appear
+# intentionally in regex character classes (core/news_tags.py _STRIP_RE) and
+# docstrings. Not a Trojan-Source attack vector.
+#
+# B104 (binding to all interfaces): uvicorn servers bind 0.0.0.0 intentionally
+# for containerised deployment behind a reverse proxy (nginx/traefik).
+skips = ["B608", "B613", "B104"]

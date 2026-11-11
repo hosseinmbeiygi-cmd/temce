@@ -66,7 +66,7 @@ class AttachmentExtractor:
 
     async def _extract_xml(self, content: bytes) -> Result[str]:
         try:
-            import xml.etree.ElementTree as ET
+            import defusedxml.ElementTree as ET
 
             root = ET.fromstring(content)
             return Result.ok(ET.tostring(root, encoding="unicode"))

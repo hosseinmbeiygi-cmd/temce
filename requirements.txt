@@ -51,6 +51,7 @@ tse-utils>=1.1
 # pre-commit>=3.6
 
 feedparser>=6.0
+defusedxml>=0.7
 
 # Excel support (Codal import)
 openpyxl>=3.1

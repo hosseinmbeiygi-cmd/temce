@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 
 try:
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     HAS_XML = True
 except ImportError:
