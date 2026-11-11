@@ -300,7 +300,7 @@ class CacheManager:
             )
             return
         try:
-            await self._redis.setex(self._namespaced(key), ttl, payload)
+            await self._redis.set(self._namespaced(key), payload, ex=ttl)
             self._keys.add(key)
         except Exception:
             logger.warning("CacheManager L2 write failed for %s", key, exc_info=True)

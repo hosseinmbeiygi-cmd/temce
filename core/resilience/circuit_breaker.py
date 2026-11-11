@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from collections.abc import Callable, Coroutine
 from enum import Enum
@@ -109,7 +110,7 @@ def circuit_breaker(
 ) -> Callable:
     def decorator(func: Callable) -> Callable:
         cb = CircuitBreaker(name, failure_threshold, recovery_timeout, half_open_max_calls)
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 async def call_func() -> Any:

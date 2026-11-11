@@ -38,6 +38,7 @@ because a constant per-day factor cancels out of an intra-day ratio.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
 from core.config import settings

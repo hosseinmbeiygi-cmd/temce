@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import inspect
 import random
 from collections.abc import Callable, Coroutine
 from typing import Any, TypeVar
@@ -81,7 +82,7 @@ def retry(
     )
 
     def decorator(func: F) -> F:
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
