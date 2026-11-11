@@ -19,16 +19,16 @@ Data Sources (all real, no synthetic/mock data):
 from __future__ import annotations
 
 import contextlib
-import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.db_utils import safe_row_float
+from core.logging import get_logger
 from services.smart_money.scoring_engine import ScoringEngine
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +496,8 @@ def _get_filter_value(item: ScreenedSymbol, watch: dict[str, Any], field: str) -
                 return numeric
             return val
 
+    return None
+
 
 def _get_sort_value(item: ScreenedSymbol, field: str) -> float:
     """Safe sort-key helper: returns the numeric value or 0.0 if None.
@@ -707,7 +709,7 @@ class ScreenerService:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Fetch daily OHLCV from daily_history (via symbols FK)
         daily_q = text("""
@@ -773,7 +775,7 @@ class ScreenerService:
         if self._session is None or not symbols:
             return {}
 
-        from sqlalchemy import text
+        from core.database import text
 
         placeholders = ", ".join([f":sym{i}" for i in range(len(symbols))])
         params = {f"sym{i}": sym for i, sym in enumerate(symbols)}
@@ -1044,7 +1046,7 @@ class ScreenerService:
         for r in results:
             if r.industry:
                 industries[r.industry] = industries.get(r.industry, 0) + 1
-        top_ind = max(industries, key=industries.get) if industries else ""
+        top_ind = max(industries, key=lambda k: industries[k]) if industries else ""
         top_ind_count = industries.get(top_ind, 0)
 
         return {

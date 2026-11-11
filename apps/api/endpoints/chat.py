@@ -181,7 +181,7 @@ async def chat_feedback(
     response_text: str,
     rating: int = 3,
     feedback_text: str = "",
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[ChatResponse]:
     """Submit feedback for learning (Level 19)."""
     try:
         if _engine:

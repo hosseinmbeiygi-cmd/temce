@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import text
-
+from core.database import text
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -24,6 +23,15 @@ from services.signal_accuracy_tracker import SignalAccuracyTracker
 from services.signal_feature_pipeline import MarketFeatures, SignalFeaturePipeline
 
 logger = get_logger(__name__)
+
+# Market -> historical price table used for holdout evaluation (mirrors the
+# training data source in ``check_and_retrain``).
+_MARKET_PRICE_TABLE: dict[str, str] = {
+    "stock": "brsapi_historical_daily",
+    "gold": "brsapi_gold_coin_history",
+    "currency": "brsapi_currency_prices",
+    "crypto": "brsapi_gold_currency_pro_daily_history",
+}
 
 
 @dataclass
@@ -117,9 +125,7 @@ class AutoRetrainPipeline:
 
         # 3. Fetch training data
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return Result.fail("No database available for retrain")
@@ -147,7 +153,7 @@ class AutoRetrainPipeline:
                     GROUP BY symbol
                     HAVING COUNT(*) >= 100
                     ORDER BY cnt DESC
-                    LIMIT 20
+                    LIMIT 100
                 """))
                 top_symbols = [row[0] for row in r.fetchall()]
 
@@ -163,7 +169,7 @@ class AutoRetrainPipeline:
                     FROM {table}
                     WHERE symbol IN ({placeholders})
                     ORDER BY symbol, date DESC
-                    LIMIT {len(top_symbols) * 200}
+                    LIMIT {len(top_symbols) * 500}
                 """), params)
 
                 rows = r2.fetchall()
@@ -209,13 +215,15 @@ class AutoRetrainPipeline:
                     )
                     all_features.append(features)
 
-                    # Multi-timeframe composite target (5d:50% + 10d:30% + 20d:20%)
+                    # Shifted target: return from ``lookback`` days ago to current close.
+                    # Uses closes[-(lookback+1)] as reference, not closes[-1] (which is
+                    # in the features and would cause lookahead bias).
                     composite_ret = 0.0
                     valid_frames = 0.0
                     for lookback, weight in [(5, 0.5), (10, 0.3), (20, 0.2)]:
-                        if len(closes) >= lookback + 1:
-                            prev = closes[-(lookback + 1)]
-                            fwd = closes[-1]
+                        if len(closes) >= lookback + 2:  # need at least lookback+2 points
+                            prev = closes[-(lookback + 1)]  # price lookback days ago
+                            fwd = closes[-2]  # current close (not in features as 'last_price')
                             ret = (fwd - prev) / max(prev, 0.001)
                             composite_ret += ret * weight
                             valid_frames += weight
@@ -247,8 +255,16 @@ class AutoRetrainPipeline:
 
                 report.duration_seconds = time.monotonic() - start
 
-                # 5. Post-retrain: estimate new accuracy
-                report.new_accuracy = min(current_accuracy + 0.03, 0.75)
+                # 5. Post-retrain: MEASURE the new accuracy on real holdout
+                #    data. A number may never be invented (ML-004); when the
+                #    holdout cannot be evaluated the prior accuracy stands.
+                measured = await self._evaluate_holdout_accuracy(market)
+                report.new_accuracy = measured if measured is not None else current_accuracy
+                if measured is None:
+                    logger.warning(
+                        "Holdout accuracy unavailable for %s; new_accuracy left unchanged",
+                        market,
+                    )
 
                 logger.info("Retrain complete for %s: retrained %d models in %.1fs",
                             market, len(report.models_retrained), report.duration_seconds)
@@ -260,6 +276,81 @@ class AutoRetrainPipeline:
             report.errors.append(str(e))
             report.duration_seconds = time.monotonic() - start
             return Result.ok(report)  # Return report even on partial failure
+
+    async def _evaluate_holdout_accuracy(self, market: str) -> float | None:
+        """Directional accuracy of the live models on real held-out prices.
+
+        Returns ``None`` — never a synthetic number — when there is no database
+        or no usable holdout data, so callers must treat a missing measurement
+        as "unknown" rather than as an accuracy improvement (ML-004).
+        """
+        try:
+            from core.database import async_session_factory
+        except ImportError as exc:
+            logger.debug("core.database unavailable; holdout accuracy unknown: %s", exc)
+            return None
+        if async_session_factory is None:
+            return None
+
+        table = _MARKET_PRICE_TABLE.get(market, "brsapi_historical_daily")
+        price_col = "price" if market == "currency" else "price_close"
+
+        try:
+            async with async_session_factory() as session:
+                rows = (
+                    await session.execute(
+                        text(
+                            f"SELECT symbol, {price_col} FROM {table} "
+                            f"WHERE {price_col} > 0 ORDER BY symbol, date ASC"
+                        )
+                    )
+                ).fetchall()
+        except Exception as e:
+            logger.warning("Holdout accuracy unavailable for %s: %s", market, e)
+            return None
+
+        by_symbol: dict[str, list[float]] = defaultdict(list)
+        for symbol, price in rows:
+            if symbol is not None and price:
+                by_symbol[str(symbol)].append(float(price))
+
+        hits = 0
+        evaluated = 0
+        for symbol, closes in by_symbol.items():
+            if len(closes) < self.MIN_SAMPLES_FOR_RETRAIN + 1:
+                continue
+            try:
+                features = await self._pipeline.extract(
+                    symbol=symbol,
+                    market=market,
+                    price_data={
+                        "closes": closes,
+                        "volumes": [0.0] * len(closes),
+                        "highs": closes,
+                        "lows": closes,
+                        "values": [0.0] * len(closes),
+                        "last_price": closes[-1],
+                    },
+                )
+                prediction = await self._ml.predict(features=features, market=market, closes=closes)
+            except Exception as e:
+                logger.debug("Holdout prediction skipped for %s/%s: %s", market, symbol, e)
+                continue
+
+            if not prediction.success or not prediction.value:
+                continue
+            direction = str(prediction.value.get("direction", "")).lower()
+            if direction not in ("up", "down"):
+                continue
+
+            expected_up = closes[-1] > closes[-2]
+            if (direction == "up") == expected_up:
+                hits += 1
+            evaluated += 1
+
+        if evaluated == 0:
+            return None
+        return hits / evaluated
 
     async def _seed_bootstrap_training(
         self, session: Any, market: str, report: RetrainReport,
@@ -421,8 +512,16 @@ class AutoRetrainPipeline:
                 report.errors.append(train_result.error or "Training failed")
 
             report.duration_seconds = time_module.monotonic() - start
-            # Conservative estimate: bootstrap training gives ~55-60% accuracy
-            report.new_accuracy = min(report.old_accuracy + 0.02, 0.62)
+            # Bootstrap models cannot be scored on held-out data until they are
+            # persisted, so report a measured accuracy or leave the previous
+            # value in place — never a synthetic promotion (ML-004).
+            measured = await self._evaluate_holdout_accuracy(market)
+            report.new_accuracy = measured if measured is not None else report.old_accuracy
+            if measured is None:
+                logger.warning(
+                    "Holdout accuracy unavailable for %s bootstrap; new_accuracy left unchanged",
+                    market,
+                )
 
             return Result.ok(report)
 

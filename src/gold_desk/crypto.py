@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 import httpx
 
@@ -163,7 +165,13 @@ def calc_bubble_from_history(prices: list[float]) -> float | None:
 # ── Cache layer ──────────────────────────────────────────
 
 
-async def get_cached_or_fetch(fetcher, *args, cache_key: str, ttl: int = CACHE_TTL, **kwargs):
+async def get_cached_or_fetch(
+    fetcher: Callable[..., Awaitable[Any]],
+    *args: Any,
+    cache_key: str,
+    ttl: int = CACHE_TTL,
+    **kwargs: Any,
+) -> Any:
     """اجرای fetcher با cache در Redis."""
     with contextlib.suppress(Exception):
         from core.cache import get_cache

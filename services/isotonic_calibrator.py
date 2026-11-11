@@ -37,9 +37,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
+from core.database import AsyncEngine, create_async_engine, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)

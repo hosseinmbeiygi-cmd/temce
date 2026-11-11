@@ -337,7 +337,7 @@ class MassScannerService:
 
             # 2. Store all relations
             async with async_session_factory() as session:
-                from sqlalchemy import text
+                from core.database import text
 
                 for rel in corr_relations:
                     rid = new_id("srel")
@@ -377,9 +377,7 @@ class MassScannerService:
 
     async def _load_symbols(self) -> list[str]:
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
             if async_session_factory is None:
                 return ["فولاد", "شپنا", "فملی", "وبملت", "خودرو"]
             async with async_session_factory() as session:
@@ -502,10 +500,10 @@ class MassScannerService:
                     sizing_method="fixed",
                     sizing_value=capital * 0.1,
                 )
-                result = BacktestSimulator().run(strategy, initial_capital=capital, data=ohlcv)
-                if not result.success:
+                bt_result = BacktestSimulator().run(strategy, initial_capital=capital, data=ohlcv)
+                if not bt_result.success:
                     continue
-                bt = result.value
+                bt = bt_result.unwrap()
                 metrics = _compute_metrics(
                     [ep.nav for ep in bt.equity_curve],
                     [getattr(t, "pnl", 0) for t in bt.trades],
@@ -596,7 +594,7 @@ class MassScannerService:
             logger.warning("No DB — skip persisting %d results", len(self._results))
             return
 
-        from sqlalchemy import text
+        from core.database import text
         inserted = 0
         try:
             async with async_session_factory() as session:

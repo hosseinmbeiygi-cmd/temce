@@ -12,9 +12,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from models.screener import ScreenerProfile
 
@@ -126,7 +124,7 @@ class PopulateProfilesService:
         Returns:
             "created" | "updated"
         """
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from core.database import pg_insert
 
         # ═══════════════════════════════════════════════════════
         # 1. BrsApi symbol_snapshots (latest snapshot)
@@ -208,12 +206,14 @@ class PopulateProfilesService:
         net_operating_profit = None
 
         with contextlib.suppress(Exception):
+            # DB-04: read the corrected view — raw ``daily_history.trade_date``
+            # is the FETCH date, so "last 60 rows" would be an arbitrary slice
+            # of one or two ingestion days instead of 60 trading days.
             q = text("""
                 SELECT dh.price_close, dh.trade_volume, dh.trade_value,
                        dh.price_last_change_pct, dh.trade_date
-                FROM daily_history dh
-                JOIN symbols s ON s.id = dh.symbol_id
-                WHERE s.symbol = :sym
+                FROM vw_daily_history_adjusted dh
+                WHERE dh.symbol = :sym
                 ORDER BY dh.trade_date DESC LIMIT 60
             """)
             daily_rows = [

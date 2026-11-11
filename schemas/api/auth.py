@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
     email: str = Field(..., max_length=255)
-    password: str = Field(..., min_length=8, max_length=128)
+    # SCH-006: a plain ``str`` password lands in every traceback, log line and
+    # ``repr()`` of the request object. ``SecretStr`` keeps the value out of
+    # all of them; callers unwrap explicitly with ``get_secret_value()``.
+    password: SecretStr = Field(..., min_length=8, max_length=128)
     full_name: str = Field(default="", max_length=100)
     phone: str = Field(default="", max_length=20)
 
 
 class LoginRequest(BaseModel):
     username: str = Field(..., min_length=1)
-    password: str = Field(..., min_length=1)
+    password: SecretStr = Field(..., min_length=1)
 
 
 class TokenResponse(BaseModel):
@@ -105,13 +109,96 @@ class MFALoginRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
 
 
+class MFARecoveryRequest(BaseModel):
+    """Second step of a two-factor login using a one-time recovery code."""
+
+    mfa_token: str = Field(..., min_length=8)
+    code: str = Field(..., min_length=8, max_length=32, pattern=r"^[A-Za-z0-9 -]+$")
+
+
+class MFAEnrollStartRequest(BaseModel):
+    """Begin MFA enrollment for an account that is required to use MFA."""
+
+    mfa_token: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=1)
+
+
+class MFAEnrollFinishRequest(BaseModel):
+    """Finish enforced MFA enrollment: proves possession of the new secret."""
+
+    mfa_token: str = Field(..., min_length=8)
+    code: str = Field(..., min_length=6, max_length=8, pattern=r"^\d+$")
+
+
+class MFARegenerateRecoveryRequest(BaseModel):
+    """Replace the recovery-code set (requires the current password)."""
+
+    password: str = Field(..., min_length=1)
+
+
 class MFAStatusResponse(BaseModel):
+    """MFA state for the current user.
+
+    SCH-009: the shared TOTP secret (and its otpauth URI) may only ever leave
+    the API while an enrollment is still *pending* — i.e. exactly once, in the
+    response that also shows the QR code. Everything else is scrubbed in
+    :meth:`model_dump`, so a caller that flips ``pending`` back to ``False``
+    (or the plain status endpoint) cannot leak the secret by accident.
+    """
+
     enabled: bool = False
     pending: bool = False
     method: str | None = None
     secret: str | None = None
     uri: str | None = None
     telegram_chat_id: str | None = None
+    recovery_codes_remaining: int = 0
+
+    @classmethod
+    def for_status(
+        cls,
+        *,
+        enabled: bool,
+        method: str | None = None,
+        telegram_chat_id: str | None = None,
+        recovery_codes_remaining: int = 0,
+    ) -> MFAStatusResponse:
+        """Status view — never carries secret material."""
+        return cls(
+            enabled=enabled,
+            pending=False,
+            method=method,
+            secret=None,
+            uri=None,
+            telegram_chat_id=telegram_chat_id,
+            recovery_codes_remaining=recovery_codes_remaining,
+        )
+
+    @classmethod
+    def for_enrollment(
+        cls,
+        *,
+        method: str,
+        secret: str | None = None,
+        uri: str | None = None,
+        telegram_chat_id: str | None = None,
+    ) -> MFAStatusResponse:
+        """Enrollment view — the one response allowed to carry the secret."""
+        return cls(
+            enabled=False,
+            pending=True,
+            method=method,
+            secret=secret,
+            uri=uri,
+            telegram_chat_id=telegram_chat_id,
+        )
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        data = super().model_dump(**kwargs)
+        if not self.pending:
+            data.pop("secret", None)
+            data.pop("uri", None)
+        return data
 
 
 class ForgotPasswordRequest(BaseModel):

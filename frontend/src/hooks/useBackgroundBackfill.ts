@@ -85,7 +85,7 @@ export function useBackgroundBackfill(startUrl: string, statusUrl: string, cance
   // Re-sync with the server when the page mounts (a backfill may already
   // be running — resume live polling in that case).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time mount sync with the running backfill task
+     
     fetchStatus().then(data => {
       if (data?.status === "running") startPoll();
     });

@@ -1,0 +1,14 @@
+docs/fixes/frontend_CHANGELOG_4.md
+docs/fixes/frontend_paths_4.txt
+frontend/src/__tests__/GoldApiLayer.test.ts
+frontend/src/__tests__/GoldBacktestPage.test.tsx
+frontend/src/__tests__/GoldFrontendSurfaces.test.tsx
+frontend/src/__tests__/GoldFundsPage.test.tsx
+frontend/src/__tests__/GoldPortfolioSafety.test.tsx
+frontend/src/__tests__/GoldWebSocket.test.tsx
+frontend/src/app/gold/backtest/page.tsx
+frontend/src/app/gold/funds/page.tsx
+frontend/src/app/gold/layout.tsx
+frontend/src/app/gold/portfolio/page.tsx
+frontend/src/hooks/useGoldWS.ts
+frontend/src/lib/goldApi.ts

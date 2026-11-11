@@ -20,8 +20,6 @@ from __future__ import annotations
 import random
 import re
 
-import pytest
-
 from integrations.observability.prometheus_exporter import (
     _HISTOGRAM_BUCKETS,
     PrometheusExporter,

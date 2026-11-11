@@ -1,0 +1,25 @@
+# فایل‌های تغییر‌یافته — backend batch 3
+# منبع: git status --porcelain (شاخه integration/golddesk-fixes)
+# مسیرها نسبت به ریشهٔ ریپو هستند، همان‌طور که git status چاپ می‌کند.
+# ریشهٔ محلی: C:/Users/Iran/Desktop/temce
+
+ M src/gold_desk/api.py
+ M src/gold_desk/api_token.py
+ M src/gold_desk/portfolio.py
+ M src/gold_desk/schemas.py
+ M src/gold_desk/snapshot_service.py
+ M src/gold_desk/ws_hub.py
+ M tests/gold_desk/test_holding_soft_delete.py
+?? tests/gold_desk/test_api_contract_fields.py
+?? tests/gold_desk/test_api_token_salt.py
+?? tests/gold_desk/test_holding_soft_delete_reject.py
+?? tests/gold_desk/test_metrics_scope.py
+?? tests/gold_desk/test_snapshot_score_fields.py
+?? tests/gold_desk/test_ws_hub.py
+?? docs/fixes/backend_CHANGELOG_3.md
+?? docs/fixes/backend_paths_3.txt
+
+# خارج از محدودهٔ این batch — دست نخورده:
+#   frontend/، migrations/ (به‌ویژه 0043)، Docker/nginx، docs/analysis/،
+#   موتور (scorer.py, bubbler.py, signal_engine.py, pricer.py, nav_checker.py,
+#   hard_stops.py, parity.py)، brsapi/jobs/، scripts/، apps/api/router.py

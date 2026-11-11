@@ -7,9 +7,12 @@ import { fmtBillion, fmtInt, fmtNum } from "@/lib/market-format";
 import { MiniMetric, SectionHeader } from "./primitives";
 
 export default function MarketOverview() {
-  const { data: live, isLive, isError, isLoading } = useMarketOverview();
+  const { data: live, isLive, hasData, isFresh, isStale, isError, isLoading } = useMarketOverview();
   const { data: quotes } = useQuoteCards();
   const flow = useFlowSummary();
+  // Audit FE-02: a failed flow request is not a measured zero. The sentence is
+  // only rendered when the number exists; otherwise it says so explicitly.
+  const realNetB = flow.summary?.realNetB ?? null;
   // No silent mock substitution: values render an em-dash when the backend
   // has no live data — the LiveDataBanner below explains why.
   const breadth = live?.breadth ?? { up: 0, down: 0, flat: 0 };
@@ -28,7 +31,7 @@ export default function MarketOverview() {
   return (
     <section data-widget="MarketOverview" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader icon={Eye} title="نگاه کلی به بازار" subtitle="وضعیت امروز بازار سهام" />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError: isError || flow.isError, isLoading }} />
 
       {/* Total market cap — hero metric (needs the live USD quote) */}
       <div className="relative mt-4 overflow-hidden rounded-2xl border border-primary-600/25 bg-gradient-to-bl from-primary-600/10 via-soft/40 to-soft/10 p-4 dark:border-brand-300/25">
@@ -76,12 +79,12 @@ export default function MarketOverview() {
         />
         <MiniMetric
           label="ورود پول حقیقی"
-          value={flow?.realNetB != null ? (flow.realNetB >= 0 ? `+${fmtBillion(flow.realNetB)}` : fmtBillion(flow.realNetB)) : "—"}
-          tone={flow?.realNetB != null && flow.realNetB >= 0 ? "up" : "down"}
+          value={realNetB != null ? (realNetB >= 0 ? `+${fmtBillion(realNetB)}` : fmtBillion(realNetB)) : "—"}
+          tone={realNetB != null && realNetB >= 0 ? "up" : "down"}
           hint="میلیارد تومان"
         />
-        <MiniMetric label="صف خرید" value={flow?.queueBuy != null ? fmtInt(flow.queueBuy) : "—"} tone="up" hint="نماد" />
-        <MiniMetric label="صف فروش" value={flow?.queueSell != null ? fmtInt(flow.queueSell) : "—"} tone="down" hint="نماد" />
+        <MiniMetric label="صف خرید" value={flow.summary?.queueBuy != null ? fmtInt(flow.summary.queueBuy) : "—"} tone="up" hint="نماد" />
+        <MiniMetric label="صف فروش" value={flow.summary?.queueSell != null ? fmtInt(flow.summary.queueSell) : "—"} tone="down" hint="نماد" />
       </div>
 
       <div className="mt-2.5 grid grid-cols-2 gap-2.5">
@@ -92,15 +95,23 @@ export default function MarketOverview() {
       {tradeValueB != null && (
         <div className="mt-3 rounded-xl border border-line bg-soft/60 p-3">
           <p className="text-[11px] font-bold text-ink-2">متن بازار</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
-            ارزش معاملات خرد امروز به{" "}
-            <span dir="ltr" className="font-mono font-bold text-ink">{fmtBillion(tradeValueB)}</span>{" "}
-            میلیارد تومان رسید؛ حقیقی‌ها{" "}
-            <span className="font-bold text-up">
-              {(flow?.realNetB ?? 0) >= 0 ? "+" : ""}{fmtBillion(flow?.realNetB ?? 0)}
-            </span>{" "}
-            میلیارد تومان وارد بازار کردند.
-          </p>
+          {realNetB != null ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
+              ارزش معاملات خرد امروز به{" "}
+              <span dir="ltr" className="font-mono font-bold text-ink">{fmtBillion(tradeValueB)}</span>{" "}
+              میلیارد تومان رسید؛ حقیقی‌ها{" "}
+              <span className="font-bold text-up">
+                {realNetB >= 0 ? "+" : ""}{fmtBillion(realNetB)}
+              </span>{" "}
+              میلیارد تومان وارد بازار کردند.
+            </p>
+          ) : (
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
+              ارزش معاملات خرد امروز{" "}
+              <span dir="ltr" className="font-mono font-bold text-ink">{fmtBillion(tradeValueB)}</span>{" "}
+              میلیارد تومان بود؛ جریان پول حقیقی در دسترس نیست.
+            </p>
+          )}
         </div>
       )}
     </section>

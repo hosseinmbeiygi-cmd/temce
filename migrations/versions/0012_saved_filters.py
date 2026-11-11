@@ -34,11 +34,12 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_saved_filters_user_id", "saved_filters", ["user_id"])
+    # user_id is declared with index=True above; SQLAlchemy already creates
+    # ix_saved_filters_user_id, so creating it again here raised DuplicateTable
+    # on a fresh database (DB-02 follow-up, 2026-10-30).
     op.create_index("ix_saved_filters_user_default", "saved_filters", ["user_id", "is_default"])
 
 
 def downgrade() -> None:
     op.drop_index("ix_saved_filters_user_default", "saved_filters")
-    op.drop_index("ix_saved_filters_user_id", "saved_filters")
     op.drop_table("saved_filters")

@@ -13,6 +13,8 @@ import-time goal (see ``apps/api/router.py``).
 
 from __future__ import annotations
 
+from typing import Any
+
 # Maps public name → module that defines it.
 _LAZY_IMPORTS: dict[str, str] = {
     "BaseRepository": "repositories.base_repository",
@@ -45,7 +47,7 @@ _LAZY_IMPORTS: dict[str, str] = {
 __all__ = list(_LAZY_IMPORTS)
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     module_name = _LAZY_IMPORTS.get(name)
     if module_name is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

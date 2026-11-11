@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from core.logging import get_logger
 
@@ -50,7 +51,7 @@ class AdaptiveRateLimiter:
     def record_failure(self) -> None:
         self._failure_count += 1
 
-    async def limit(self, coro: Callable) -> any:
+    async def limit(self, coro: Callable[[], Awaitable[Any]]) -> Any:
         await self.acquire()
         try:
             result = await coro()

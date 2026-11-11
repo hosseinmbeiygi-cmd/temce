@@ -5,8 +5,58 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# ── Sanctioned SQL surface for the service layer ────────────────────────────
+# import-linter contract: services may not import sqlalchemy directly; the
+# allowed doors are ``repositories`` and this module. ``X as X`` marks each
+# name as a deliberate re-export for both mypy and ruff.
+from sqlalchemy import (
+    DateTime as DateTime,
+)
+from sqlalchemy import (
+    Integer as Integer,
+)
+from sqlalchemy import (
+    Select as Select,
+)
+from sqlalchemy import (
+    String as String,
+)
+from sqlalchemy import (
+    Table as Table,
+)
+from sqlalchemy import (
+    Text as Text,
+)
+from sqlalchemy import (
+    and_ as and_,
+)
+from sqlalchemy import (
+    bindparam as bindparam,
+)
+from sqlalchemy import (
+    desc as desc,
+)
+from sqlalchemy import (
+    func as func,
+)
+from sqlalchemy import (
+    or_ as or_,
+)
+from sqlalchemy import (
+    select as select,
+)
+from sqlalchemy import (
+    text as text,
+)
+from sqlalchemy.dialects.postgresql import insert as pg_insert  # noqa: F401 — re-export
+from sqlalchemy.engine import CursorResult as CursorResult
+from sqlalchemy.exc import SQLAlchemyError as SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncEngine as AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncSession as AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker as async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine as create_async_engine
+from sqlalchemy.orm import Mapped as Mapped
+from sqlalchemy.orm import mapped_column as mapped_column
 
 from core.config import settings
 from core.logging import get_logger
@@ -19,6 +69,89 @@ async_session_factory: async_sessionmaker[AsyncSession] | None = None
 # Read-replica (Q2 P1) — optional, used by read-only endpoints
 replica_engine: Any = None
 replica_session_factory: async_sessionmaker[AsyncSession] | None = None
+
+# Marker set on the ``Session.info`` of replica-backed sessions.
+READONLY_FLAG = "_readonly"
+
+_READONLY_MESSAGE = (
+    "write attempted on a read-only (replica) session — route writes to the primary session"
+)
+
+# First keyword of a raw SQL string that means "this mutates data".
+_WRITE_KEYWORDS = frozenset(
+    {
+        "insert",
+        "update",
+        "delete",
+        "merge",
+        "replace",
+        "upsert",
+        "truncate",
+        "alter",
+        "create",
+        "drop",
+        "grant",
+        "revoke",
+        "comment",
+        "copy",
+        "refresh",
+    }
+)
+
+
+def _statement_is_write(statement: Any) -> bool:
+    """True when a statement handed to ``Session.execute`` mutates data.
+
+    ORM statements carry ``is_insert``/``is_update``/``is_delete`` flags, but a
+    Core ``text()`` statement reaches the ORM executor with every flag set to
+    ``False``, so the rendered SQL has to be inspected as well.
+    """
+    if getattr(statement, "is_insert", False):
+        return True
+    if getattr(statement, "is_update", False):
+        return True
+    if getattr(statement, "is_delete", False):
+        return True
+
+    if isinstance(statement, str):
+        sql = statement
+    else:
+        try:
+            sql = str(statement)
+        except Exception:  # noqa: BLE001 — an unrenderable statement is not a write
+            return False
+    head = sql.lstrip().split(None, 1)[0].lower() if sql.strip() else ""
+    return head in _WRITE_KEYWORDS
+
+
+def _install_readonly_session_guard() -> None:
+    """Refuse writes on sessions marked with ``READONLY_FLAG`` (CFG-05).
+
+    A read replica that silently accepts a write is worse than no replica at
+    all: the change either fails inside the replica or is discarded later,
+    while the caller has already been told it succeeded. Attaching the guard to
+    the ``Session`` class means every session created after this import is
+    covered, including ones built directly by background jobs.
+    """
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+
+    @event.listens_for(Session, "before_flush")
+    def _block_flush(session: Any, _flush_context: Any, _instances: Any) -> None:
+        if not session.info.get(READONLY_FLAG):
+            return
+        if session.new or session.dirty or session.deleted:
+            raise RuntimeError(_READONLY_MESSAGE)
+
+    @event.listens_for(Session, "do_orm_execute")
+    def _block_raw_write(state: Any) -> None:
+        if not state.session.info.get(READONLY_FLAG):
+            return
+        if _statement_is_write(state.statement):
+            raise RuntimeError(_READONLY_MESSAGE)
+
+
+_install_readonly_session_guard()
 
 
 def _get_pool_config(url: str | None = None) -> dict[str, Any]:
@@ -141,6 +274,10 @@ async def get_replica_session() -> AsyncGenerator[AsyncSession, None]:
     if factory is None:
         raise RuntimeError("Database not initialized")
     async with factory() as session:
+        # Marked so the session-level guard rejects any write that reaches this
+        # session — a read handler must never mutate data, and silently
+        # discarding the write would be the worst possible outcome.
+        session.info[READONLY_FLAG] = True
         yield session
 
 
@@ -159,6 +296,7 @@ async def close_database() -> None:
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     if async_session_factory is None:
         await init_database()
+    assert async_session_factory is not None
     async with async_session_factory() as session:
         try:
             yield session

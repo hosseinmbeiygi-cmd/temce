@@ -54,7 +54,7 @@ class HistoricalLevelAnalyzer:
         if self._session is None:
             return None
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Fetch all historical data
         result = await self._session.execute(text("""

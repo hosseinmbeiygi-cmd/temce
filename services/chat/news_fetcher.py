@@ -19,6 +19,10 @@ from core.time import utc_now_naive
 
 logger = get_logger(__name__)
 
+# WS4: wall-clock guard on RSS + BrsApi fetch (7 sources × up to 10s each = 70s worst case).
+# Patched to a small value in tests to exercise the timeout path without real HTTP.
+NEWS_FETCH_TIMEOUT_SECONDS: float = 30.0
+
 # Try to import feedparser once
 try:
     import feedparser as _feedparser
@@ -72,8 +76,18 @@ class NewsFetcher:
         if cached and time.time() - cached[1] < self._cache_ttl:
             return cached[0]
 
-        # Run blocking I/O in thread pool to avoid blocking event loop
-        all_news = await asyncio.to_thread(self._fetch_all, symbol, days_back)
+        # Run blocking I/O in thread pool; guard against stalled RSS sources (WS4).
+        try:
+            all_news = await asyncio.wait_for(
+                asyncio.to_thread(self._fetch_all, symbol, days_back),
+                timeout=NEWS_FETCH_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            logger.warning(
+                "fetch_news_for_symbol timed out after %.0fs; returning empty list",
+                NEWS_FETCH_TIMEOUT_SECONDS,
+            )
+            all_news = []
 
         result = all_news[:20]
         if len(self._cache) >= self._cache_max:
@@ -91,7 +105,17 @@ class NewsFetcher:
         if cached and time.time() - cached[1] < self._cache_ttl:
             return cached[0]
 
-        all_news = await asyncio.to_thread(self._fetch_market_news_sync, days_back)
+        try:
+            all_news = await asyncio.wait_for(
+                asyncio.to_thread(self._fetch_market_news_sync, days_back),
+                timeout=NEWS_FETCH_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            logger.warning(
+                "fetch_market_news timed out after %.0fs; returning empty list",
+                NEWS_FETCH_TIMEOUT_SECONDS,
+            )
+            all_news = []
 
         result = all_news[:30]
         self._cache[cache_key] = (result, time.time())
@@ -107,6 +131,11 @@ class NewsFetcher:
     def _fetch_from_rss(self, symbol: str, days_back: int) -> list[dict[str, Any]]:
         """Fetch news from RSS feeds."""
         if not HAS_FEEDPARSER:
+            logger.warning(
+                "feedparser not available — RSS fetch disabled for symbol=%s; "
+                "add `feedparser>=6.0,<7` to requirements.txt",
+                symbol,
+            )
             return []
 
         news_list = []
@@ -141,6 +170,10 @@ class NewsFetcher:
     def _fetch_market_news_sync(self, days_back: int) -> list[dict[str, Any]]:
         """Synchronous market news fetch."""
         if not HAS_FEEDPARSER:
+            logger.warning(
+                "feedparser not available — RSS market-news fetch disabled; "
+                "add `feedparser>=6.0,<7` to requirements.txt",
+            )
             return []
 
         all_news = []

@@ -13,7 +13,7 @@ from repositories.db_base import DbRepository
 class SignalRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Signal] | None = None if session else InMemoryRepository(Signal)
+        self._mem: InMemoryRepository[Signal] = InMemoryRepository(Signal)
         self._db: _SignalDbRepo | None = None if not session else _SignalDbRepo(session)
 
     async def get(self, id: str) -> Result[Signal]:

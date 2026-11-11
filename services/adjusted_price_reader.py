@@ -13,10 +13,14 @@ Gregorian ``date`` used by the maths **and** ``date_shamsi`` for display.
 
 Two safety properties:
 
-* **Fallback, never a hard failure.** If the view is missing (migration not
-  applied yet) or ``INDICATOR_ADJUSTED_PRICES=false``, the reader falls back
-  to the raw ``daily_history`` columns. Indicator output is then identical to
-  the pre-0108 behaviour (``date_shamsi`` is ``None`` in that mode).
+* **The corrected view is mandatory (audit DB-04).** The raw fallback used to
+  read ``daily_history.trade_date``, which is the **fetch** date: thousands of
+  rows share one date and only ~17 distinct dates existed for 5.45M rows, so
+  an "RSI(14)" over that axis was not a daily series at all. When the dial is
+  on (the default) and the view is missing, the reader raises
+  :class:`AdjustedPriceSourceUnavailable` instead of silently returning a
+  wrong series; callers degrade to "no indicators" (explicitly) and log.
+  ``adjusted=False`` remains the deliberate raw mode for parity/backtests.
 * **Cheap.** The view is not materialised and the query orders by
   ``trade_date_shamsi``, which is the leading edge of
   ``idx_hist_symbol_date`` — so the planner stops the index scan after
@@ -36,16 +40,24 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.config import settings
+from core.database import AsyncSession, text
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
 ADJUSTED_VIEW = "vw_daily_history_adjusted"
 RAW_SOURCE = "daily_history"
+
+
+class AdjustedPriceSourceUnavailable(RuntimeError):
+    """The corrected price view is missing; indicators must not guess.
+
+    Raw ``daily_history.trade_date`` is the fetch date, not the trading day
+    (audit DB-04), so falling back to it produces indicators over hundreds of
+    duplicate "days". Failing here is the honest option; callers turn it into
+    an explicit "no indicators" result.
+    """
 
 # Process-level cache of the view-existence probe (one catalog lookup per
 # process instead of one per symbol) — mirrors the restart-to-flip behaviour
@@ -135,13 +147,14 @@ async def adjusted_view_available(session: AsyncSession) -> bool:
                 await session.execute(text(f"SELECT to_regclass('public.{ADJUSTED_VIEW}')"))
             ).scalar()
             _view_available = found is not None
-        except Exception as exc:  # noqa: BLE001 — never block indicator reads
-            logger.warning("adjusted-price view probe failed (%s); using raw prices", exc)
+        except Exception as exc:  # noqa: BLE001 — probe failure is "not available"
+            logger.warning("adjusted-price view probe failed (%s)", exc)
             return False
         if not _view_available:
-            logger.warning(
-                "%s not found — indicators fall back to RAW prices until "
-                "migration 0108 is applied and the process restarts",
+            logger.error(
+                "%s not found — indicators cannot be computed on the raw "
+                "daily_history axis (its trade_date is the FETCH date, audit "
+                "DB-04). Apply migrations through 0109 and restart.",
                 ADJUSTED_VIEW,
             )
     return _view_available
@@ -154,9 +167,21 @@ def reset_adjusted_source_cache() -> None:
 
 
 async def resolve_price_source(session: AsyncSession) -> tuple[str, bool]:
-    """Return ``(source_table_or_view, adjusted)`` for the indicator read path."""
-    if adjustment_enabled() and await adjusted_view_available(session):
+    """Return ``(source_table_or_view, adjusted)`` for the indicator read path.
+
+    Falls back to the raw table when the adjusted view is missing (returns
+    ``(RAW_SOURCE, False)``) so callers can surface the degraded basis instead
+    of failing the whole read path. Callers that require adjustment must check
+    the boolean.
+    """
+    if not adjustment_enabled():
+        return RAW_SOURCE, False
+    if await adjusted_view_available(session):
         return ADJUSTED_VIEW, True
+    logger.warning(
+        "%s is missing (migrations < 0108?); falling back to raw daily data.",
+        ADJUSTED_VIEW,
+    )
     return RAW_SOURCE, False
 
 
@@ -183,14 +208,83 @@ async def load_daily_candles(
     return build_candles(rows)
 
 
+async def load_daily_candles_range(
+    session: AsyncSession,
+    symbol: str,
+    start: "str | date",
+    end: "str | date",
+    *,
+    adjusted: bool | None = None,
+) -> list[dict[str, Any]]:
+    """OHLCV candles for one symbol over a date range, corporate-action adjusted by default.
+
+    Args:
+        session: Async DB session
+        symbol: Symbol/ticker to load
+        start: Start date (inclusive) as 'YYYY-MM-DD' string or datetime.date
+        end: End date (inclusive) as 'YYYY-MM-DD' string or datetime.date
+        adjusted: Override the adjustment dial. None = use dial.
+
+    Returns:
+        List of candle dicts with keys: date, date_shamsi, open, high, low, close, volume, value
+    """
+    from datetime import date as _date
+
+    def _to_date(v: "str | _date") -> "_date":
+        if isinstance(v, _date):
+            return v
+        return _date.fromisoformat(str(v))
+
+    if adjusted is None:
+        source, use_adjusted = await resolve_price_source(session)
+    else:
+        use_adjusted = bool(adjusted)
+        source = ADJUSTED_VIEW if use_adjusted else RAW_SOURCE
+
+    sql = build_range_query(source, use_adjusted)
+    rows = (await session.execute(text(sql), {"sym": symbol, "start": _to_date(start), "end": _to_date(end)})).fetchall()
+    return build_candles(rows)
+
+
+def build_range_query(source: str, adjusted: bool) -> str:
+    """Render the candle SQL for a source (view/table) and adjustment mode with date range."""
+    if adjusted and source == ADJUSTED_VIEW:
+        return """
+        SELECT d.trade_date, d.trade_date_shamsi,
+               d.price_first_adj, d.price_max_adj, d.price_min_adj, d.price_last_adj,
+               d.trade_volume, d.trade_value
+        FROM vw_daily_history_adjusted d
+        WHERE d.symbol = :sym
+          AND d.price_last IS NOT NULL
+          AND d.trade_date_shamsi IS NOT NULL
+          AND d.trade_date >= :start AND d.trade_date <= :end
+        ORDER BY d.trade_date ASC
+        """
+    elif not adjusted and source == RAW_SOURCE:
+        return """
+        SELECT d.trade_date, NULL AS trade_date_shamsi,
+               d.price_first, d.price_max, d.price_min, d.price_last,
+               d.trade_volume, d.trade_value
+        FROM daily_history d
+        WHERE d.symbol = :sym AND d.price_last IS NOT NULL
+          AND d.trade_date >= :start AND d.trade_date <= :end
+        ORDER BY d.trade_date ASC
+        """
+    else:
+        raise ValueError(f"no candle query for source={source!r} adjusted={adjusted}")
+
+
 __all__ = [
     "ADJUSTED_VIEW",
     "RAW_SOURCE",
+    "AdjustedPriceSourceUnavailable",
     "adjusted_view_available",
     "adjustment_enabled",
     "build_candle_query",
+    "build_range_query",
     "build_candles",
     "load_daily_candles",
+    "load_daily_candles_range",
     "reset_adjusted_source_cache",
     "resolve_price_source",
 ]

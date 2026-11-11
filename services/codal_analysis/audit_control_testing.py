@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from core.logging import get_logger
 
@@ -181,7 +181,6 @@ class ControlTester:
 
     def __init__(self, risk_of_overreliance: float = 0.05):
         self.risk_of_overreliance = risk_of_overreliance
-
     def test_cycle_controls(
         self,
         cycle_name: str,
@@ -189,26 +188,22 @@ class ControlTester:
     ) -> ControlCycleAssessment:
         cycle_config = CONTROL_CYCLES.get(cycle_name)
         if not cycle_config:
-            return ControlCycleAssessment(cycle_name=cycle_name, cycle_title=cycle_name)
+            return ControlCycleAssessment(cycle_name=cycle_name, cycle_title=str(cycle_name))
 
         deviations = deviations or {}
         assessment = ControlCycleAssessment(
             cycle_name=cycle_name,
-            cycle_title=cycle_config["title"],
+            cycle_title=str(cycle_config["title"]),
         )
-
-        for ctrl in cycle_config["controls"]:
+        for ctrl in cast(list[dict], cycle_config["controls"]):
             code = ctrl["code"]
             deviation_count = deviations.get(code, 0)
-
             tolerable_rate = 0.03 if ctrl["control_type"] == "preventive" else 0.05
             expected_rate = 0.01
-
             sample_size = _attribute_sampling_sample_size(
                 expected_rate, tolerable_rate, self.risk_of_overreliance
             )
             deviation_rate = deviation_count / sample_size if sample_size > 0 else 0
-
             if deviation_rate <= expected_rate:
                 result = "effective"
                 severity = "none"
@@ -221,7 +216,6 @@ class ControlTester:
                 result = "ineffective"
                 severity = "significant_deficiency" if deviation_rate > tolerable_rate * 1.5 else "deficiency"
                 conclusion = "Control not operating effectively"
-
             test = ControlTestResult(
                 control_code=code,
                 control_description=ctrl["description"],

@@ -23,10 +23,13 @@ If the variable is unset, compose aborts with a clear error.
 kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/latest/download/controller.yaml
 
 # Encrypt a plain secret
+# ⚠️ این سه مقدار صرفاً placeholder دستورند. مقدار واقعی هرگز در یک فایل
+# commit‌شده (اینجا یا در manifest) نوشته نمی‌شود — راهنمای چرخش:
+# docs/security/secret_rotation.md
 kubectl create secret generic decision-engine-secret \
-  --from-literal=DATABASE_PASSWORD='real-password' \
-  --from-literal=REDIS_PASSWORD='real-redis-pass' \
-  --from-literal=SECRET_KEY='random-32-chars' \
+  --from-literal=DATABASE_PASSWORD='change-me-from-password-manager' \
+  --from-literal=REDIS_PASSWORD='change-me-from-password-manager' \
+  --from-literal=SECRET_KEY='change-me-openssl-rand-hex-32' \
   --dry-run=client -o yaml | \
   kubeseal --format yaml > k8s/decision-engine-sealed.yaml
 

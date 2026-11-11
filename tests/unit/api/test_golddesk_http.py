@@ -160,11 +160,15 @@ class TestTierMiddlewareIntegration:
 
     @pytest.fixture()
     def _fresh_limiters(self):
-        with (
-            patch("apps.api.middleware.get_rate_limiter", return_value=RateLimiter()),
-            patch("apps.api.middleware.get_tier_limiter", return_value=TieredTokenBucketLimiter()),
-            patch.object(app_settings, "environment", "development"),
-        ):
+        # The unconfigured-path cap (``PROVIDER_RATE_LIMIT_PER_MINUTE``) is read
+        # from the developer's ``.env``, which locally sets 60 — well below the
+        # pro tier's 120 burst, so the coarse IP window would fire first and
+        # this suite could not assert anything about the tier layer. Pin the
+        # shipped default so the tier bucket is genuinely the binding limit.
+        with patch.object(app_settings, "provider_rate_limit_per_minute", 300), \
+            patch("apps.api.middleware.get_rate_limiter", return_value=RateLimiter()), \
+            patch("apps.api.middleware.get_tier_limiter", return_value=TieredTokenBucketLimiter()), \
+            patch.object(app_settings, "environment", "development"):
             yield
 
     def test_free_jwt_exhausts_tier_bucket_then_429(self, _fresh_limiters) -> None:

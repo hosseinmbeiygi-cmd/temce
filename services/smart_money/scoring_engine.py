@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from core.logging import get_logger
 from services.smart_money.confidence import ConfidenceEstimator
 from services.smart_money.config_loader import (
     SmartMoneyConfig,
@@ -18,6 +19,8 @@ from services.smart_money.layer3_ownership import OwnershipLayer
 from services.smart_money.layer4_compression import CompressionLayer
 from services.smart_money.layer5_relative_strength import RelativeStrengthLayer
 from services.smart_money.layer6_breakout import BreakoutLayer
+
+logger = get_logger(__name__)
 from services.smart_money.layer7_buyer_power import BuyerPowerLayer
 from services.smart_money.layer8_microstructure import MicrostructureLayer
 from services.smart_money.layer9_breakout_quality import BreakoutQualityLayer
@@ -223,7 +226,8 @@ class ScoringEngine:
                 ahm_vals.append(
                     self.layer2.compute(q, history, index_return=index_ret).get("abs", 0.0)
                 )
-            except Exception:
+            except (ValueError, TypeError, KeyError, ZeroDivisionError) as exc:
+                logger.debug("AHM quarter skipped (absorb layer failed): %s", exc)
                 ahm_vals.append(0.5)
         return sum(ahm_vals) / len(ahm_vals) if ahm_vals else 0.5
 

@@ -23,7 +23,10 @@ class ProviderHealthCheck:
             message=message or f"Provider {provider_name} is {status.value}",
             details={"latency_ms": latency_ms},
         )
-        self._registry.register(f"provider_{provider_name}", lambda: hs)
+        async def _probe() -> HealthStatus:
+            return hs
+
+        self._registry.register(f"provider_{provider_name}", _probe)
         return hs
 
     async def check_all(self) -> dict[str, HealthStatus]:

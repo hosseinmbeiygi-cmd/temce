@@ -1,0 +1,39 @@
+{
+ "cases": [
+  {
+   "case": "ArtifactManager -> ModelLoader round-trip",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "case": "predictions match the trained model",
+   "ok": true,
+   "detail": "max|Δ| = 0.000e+00"
+  },
+  {
+   "case": "tampered artifact is refused (audit ML-007)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "case": "decode_artifact_bytes inflates a zlib artifact",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "case": "zlib artifact predicts identically",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "case": "bare pickle still loads (regression guard)",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "summary": {
+  "passed": 6,
+  "total": 6,
+  "all_ok": true
+ }
+}

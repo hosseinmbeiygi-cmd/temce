@@ -28,8 +28,8 @@ def test_historical_simulation_basic() -> None:
     # CVaR >= VaR at same confidence.
     assert result.cvar_95 >= result.var_95
     assert result.cvar_99 >= result.var_99
-    # pcts match absolute values.
-    assert result.var_95 == pytest.approx(result.var_95_pct * 1_000_000, rel=1e-9)
+    # pcts are true percentages of the portfolio (FIN-11: 2.5 == 2.5%).
+    assert result.var_95 == pytest.approx(result.var_95_pct / 100.0 * 1_000_000, rel=1e-9)
 
 
 def test_historical_simulation_too_few_returns_raises() -> None:

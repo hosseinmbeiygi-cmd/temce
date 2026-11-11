@@ -167,15 +167,15 @@ export default function BrsapiHistoryPage() {
 
   // Reset page when filters change
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional synchronous state reset on mount/filter change
+     
     setPage(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [decodedSymbol, range, dateStart, dateEnd]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional synchronous state reset on mount/filter change
+     
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [fetchData]);
 
   // Derived data for chart

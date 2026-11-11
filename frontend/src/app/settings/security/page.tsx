@@ -95,7 +95,7 @@ export default function SecuritySettingsPage() {
   const savedTelegramChatId = status?.telegram_chat_id;
   useEffect(() => {
     if (savedTelegramChatId && !telegramChatId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setTelegramChatId(savedTelegramChatId);
     }
   }, [savedTelegramChatId, telegramChatId]);

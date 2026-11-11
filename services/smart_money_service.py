@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.logging import get_logger
 from core.result import Result
 from services.smart_money.scoring_engine import ScoringEngine
@@ -54,7 +53,7 @@ class SmartMoneyService:
         # Fallback: query directly from session
         if self._session:
             try:
-                from sqlalchemy import text
+                from core.database import text
                 result = await self._session.execute(
                     text("SELECT * FROM brsapi_symbol_snapshots WHERE symbol = :sym ORDER BY created_at DESC LIMIT 1"),
                     {"sym": symbol},
@@ -126,7 +125,7 @@ class SmartMoneyService:
         if not self._session:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         try:
             q = text("""

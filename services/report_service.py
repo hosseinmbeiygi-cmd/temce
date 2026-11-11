@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession
 from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
@@ -60,7 +59,7 @@ class ReportService:
     async def generate_market_report(self, date: str | None = None) -> Result[dict[str, Any]]:
         logger.info("Generating market report for date=%s", date)
         result = await self._market_builder.build(date=date)
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"Failed to generate market report: {result.error}")
         data = result.value
         report_id = new_id("rpt")
@@ -76,7 +75,7 @@ class ReportService:
         if date_range and "timeframe" in date_range:
             timeframe = date_range["timeframe"]
         result = await self._symbol_builder.build(symbol=symbol_id, timeframe=timeframe)
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"Failed to generate symbol report: {result.error}")
         data = result.value
         report_id = new_id("rpt")
@@ -89,18 +88,24 @@ class ReportService:
     async def generate_portfolio_report(self, portfolio_id: str) -> Result[dict[str, Any]]:
         logger.info("Generating portfolio report for portfolio=%s", portfolio_id)
         try:
+            from core.database import async_session_factory
             from repositories.portfolio_repository import PortfolioRepository
 
-            repo = PortfolioRepository()
-            portfolio_result = await repo.get(portfolio_id)
-            if portfolio_result is None:
-                return Result.fail(f"Portfolio not found: {portfolio_id}")
-            result = await self._portfolio_builder.build(portfolio_result)
-        except ImportError:
-            result = await self._portfolio_builder.build(portfolio_id)
+            if async_session_factory is None:
+                return Result.fail("Database is not initialized")
+            async with async_session_factory() as session:
+                repo = PortfolioRepository(session=session)
+                portfolio_result = await repo.get(portfolio_id)
+                portfolio = portfolio_result.value
+                if not portfolio_result.success or portfolio is None:
+                    return Result.fail(f"Portfolio not found: {portfolio_id}")
+            result = await self._portfolio_builder.build(portfolio)
+        except ImportError as exc:
+            logger.warning("Portfolio repository unavailable: %s", exc)
+            return Result.fail(f"Failed to generate portfolio report: {exc}")
         except Exception as e:
             return Result.fail(f"Failed to generate portfolio report: {e}")
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"Failed to generate portfolio report: {result.error}")
         data = result.value
         report_id = new_id("rpt")
@@ -112,9 +117,15 @@ class ReportService:
         logger.info("Generating backtest report for backtest=%s", backtest_id)
         try:
             result = await self._backtest_builder.build({"backtest_id": backtest_id})
-        except Exception:
+        except (OSError, ValueError, KeyError, RuntimeError) as exc:
+            logger.warning(
+                "backtest report build failed for %s; retrying once: %s",
+                backtest_id,
+                exc,
+                exc_info=True,
+            )
             result = await self._backtest_builder.build({"backtest_id": backtest_id})
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"Failed to generate backtest report: {result.error}")
         data = result.value
         report_id = new_id("rpt")
@@ -127,7 +138,7 @@ class ReportService:
             return Result.fail("No data to export")
         output_path = filename or f"{new_id('csv')}.csv"
         result = await self._csv_exporter.export(data, output_path=output_path)
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"CSV export failed: {result.error}")
         logger.info("CSV exported to %s", result.value)
         return Result.ok(result.value)
@@ -135,7 +146,7 @@ class ReportService:
     async def export_json(self, data: Any, filename: str | None = None) -> Result[str]:
         output_path = filename or f"{new_id('json')}.json"
         result = await self._json_exporter.export(data, output_path=output_path)
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"JSON export failed: {result.error}")
         logger.info("JSON exported to %s", result.value)
         return Result.ok(result.value)
@@ -143,7 +154,7 @@ class ReportService:
     async def export_html(self, data: dict[str, Any], template_name: str | None = None) -> Result[str]:
         output_path = data.get("output_path") or f"{new_id('html')}.html"
         result = await self._html_exporter.export(data, output_path=output_path)
-        if not result.success:
+        if not result.success or result.value is None:
             return Result.fail(f"HTML export failed: {result.error}")
         logger.info("HTML exported to %s", result.value)
         return Result.ok(result.value)

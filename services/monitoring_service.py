@@ -92,6 +92,10 @@ class MonitoringService:
                 return entry
 
             instrument = inst_result.value
+            if instrument is None:
+                entry["step"] = "resolve_instrument"
+                entry["error"] = f"Instrument {symbol} not found"
+                return entry
             entry["instrument_id"] = instrument.id
 
             # ── 2. Validate ins_code ───────────────────────────────────────
@@ -188,9 +192,9 @@ class MonitoringService:
                         "timestamp": datetime.now(UTC).isoformat(),
                     })
             return Result.ok(alerts)
-        except Exception:
+        except Exception as exc:
             logger.exception("Alerts check failed")
-            return Result.ok([])
+            return Result.fail(f"Failed to read alerts: {exc}", code="source_error")
 
     async def get_dashboard(self) -> Result[dict[str, Any]]:
         """Dashboard data combining health, metrics, and status."""
@@ -198,6 +202,21 @@ class MonitoringService:
             health = await self.get_health()
             metrics = await self.get_metrics()
             alerts = await self.get_alerts()
+            if not alerts.success:
+                # Never present a failed alert source as a healthy system.
+                return Result(
+                    value={
+                        "timestamp": datetime.now(UTC).isoformat(),
+                        "health": health.value if health.success else {},
+                        "metrics": metrics.value if metrics.success else {},
+                        "alerts": [],
+                        "status": "degraded",
+                        "error": alerts.error,
+                    },
+                    error=alerts.error,
+                    success=False,
+                    error_code="source_error",
+                )
             return Result.ok({
                 "timestamp": datetime.now(UTC).isoformat(),
                 "health": health.value if health.success else {},

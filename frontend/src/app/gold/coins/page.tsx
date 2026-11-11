@@ -13,10 +13,17 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { getSnapshot, subscribeGoldWS } from "@/lib/goldApi";
+import {
+  getSnapshot,
+  subscribeGoldWS,
+  putWatchlist,
+} from "@/lib/goldApi";
+import { decisionView } from "@/lib/gold-decision";
+import { GOLD_FALLBACK_POLL_MS, useGoldWS } from "@/hooks/useGoldWS";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AssetBlock, Decision, Snapshot } from "@/types/gold";
 
-// ── Helpers (kept local — no shared utils to avoid coupling) ──────────────
+// ── Helpers ───────────────────────────────────────────────────────────────
 
 const FA = "fa-IR";
 
@@ -139,7 +146,11 @@ function CoinsTable({ rows }: { rows: AssetBlock[] }) {
 function CoinsSummary({ snap }: { snap: Snapshot }) {
   const coins = Object.values(snap.coins);
   const n = coins.length;
-  const avgBubble = n > 0 ? coins.reduce((s, c) => s + (c.bubble_pct ?? 0), 0) / n : 0;
+  const bubbles = coins
+    .map((c) => c.bubble_pct)
+    .filter((v): v is number => v !== null && Number.isFinite(v));
+  // Missing bubbles are ignored, not treated as zero.
+  const avgBubble = bubbles.length > 0 ? bubbles.reduce((sum, v) => sum + v, 0) / bubbles.length : null;
   const healthy = coins.filter((c) => c.bubble_pct !== null && c.bubble_pct < 5).length;
   const overheated = coins.filter((c) => c.bubble_pct !== null && c.bubble_pct >= 22).length;
   return (
@@ -149,7 +160,7 @@ function CoinsSummary({ snap }: { snap: Snapshot }) {
         icon={Sparkles}
         label="میانگین حباب"
         value={fmtPct(avgBubble)}
-        tone={avgBubble < 5 ? "good" : avgBubble < 12 ? "warn" : "bad"}
+        tone={avgBubble === null ? "neutral" : avgBubble < 5 ? "good" : avgBubble < 12 ? "warn" : "bad"}
       />
       <SummaryTile icon={TrendingUp} label="بدون حباب" value={fmt(healthy)} tone="good" />
       <SummaryTile icon={TrendingDown} label="حباب شدید" value={fmt(overheated)} tone={overheated > 0 ? "bad" : "neutral"} />
@@ -186,22 +197,26 @@ function SummaryTile({
 }
 
 function DecisionBadge({ decision }: { decision: Decision }) {
-  const map: Record<Decision, { label: string; cls: string }> = {
-    GREEN: { label: "سبز — ورود", cls: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" },
-    YELLOW: { label: "زرد — احتیاط", cls: "bg-amber-500/15 text-amber-300 ring-amber-500/30" },
-    RED: { label: "قرمز — صبر", cls: "bg-rose-500/15 text-rose-300 ring-rose-500/30" },
-  };
-  const m = map[decision];
-  return <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ring-1 ${m.cls}`}>{m.label}</span>;
+  // از منبع مشترک: مقدار ناشناخته/NO_DATA دیگر نه TypeError می‌سازد نه رنگ داوری.
+  const view = decisionView(decision);
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ring-1 ${view.cls}`}>
+      {view.label}
+    </span>
+  );
 }
 
 // ── Page ───────────────────────────────────────────────────────────────
 
 export default function GoldCoinsPage() {
-  const { data, isLoading, refetch } = useQuery({
+  const qc = useQueryClient();
+  const ws = useGoldWS();
+  const { data, isLoading } = useQuery({
     queryKey: ["gold", "snapshot"],
     queryFn: getSnapshot,
-    refetchInterval: 60_000,
+    // F6: همان دروازهٔ صفحهٔ فرماندهی — سوکت وصل باشد polling خاموش است.
+    refetchInterval: ws.connected ? false : GOLD_FALLBACK_POLL_MS,
+    refetchOnWindowFocus: false,
     staleTime: 55_000,
   });
 
@@ -211,10 +226,38 @@ export default function GoldCoinsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("bubble");
   const [sortDesc, setSortDesc] = useState(false);
 
-  useEffect(() => {
-    const unsub = subscribeGoldWS(() => refetch());
-    return unsub;
-  }, [refetch]);
+  // قبلاً `subscribeGoldWS(() => refetch(), …)` بود؛ چون manager وضعیت "open"
+  // را با هر پیام دوباره publish می‌کند، هر frame یک refetch کامل می‌ساخت.
+  // دادهٔ پیام حالا مستقیم در همان cache نوشته می‌شود.
+  useEffect(
+    () =>
+      subscribeGoldWS(undefined, undefined, (snap) => {
+        qc.setQueryData(["gold", "snapshot"], snap);
+      }),
+    [qc],
+  );
+
+  const [newSymbol, setNewSymbol] = useState("");
+
+  const [watchlistEditing, setWatchlistEditing] = useState(false);
+
+  const onAddSymbol = async () => {
+    if (!newSymbol) return;
+    const wl = await qc.fetchQuery({
+      queryKey: ["gold", "watchlist"],
+      queryFn: async () => {
+        const { symbols } = await (await import("@/lib/goldApi")).getWatchlist();
+        return { symbols };
+      },
+      staleTime: Infinity,
+    });
+    const updated: string[] = [...(wl?.symbols ?? []), newSymbol];
+    await putWatchlist({ symbols: updated });
+    qc.invalidateQueries({ queryKey: ["gold", "watchlist"] });
+    setNewSymbol("");
+  };
+
+
 
   const rows = useMemo(() => {
     if (!data) return [] as AssetBlock[];

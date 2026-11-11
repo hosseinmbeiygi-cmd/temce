@@ -12,7 +12,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +25,8 @@ def _is_production(meta_path: Path) -> bool:
     try:
         data = json.loads(meta_path.read_text(encoding="utf-8"))
         return data.get("stage") == "production"
-    except Exception:
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        logger.debug("ML artifact metadata unreadable at %s: %s", meta_path, exc)
         return False
 
 
@@ -36,7 +36,14 @@ def prune_ml_artifacts(
     max_age_days: int = MAX_AGE_DAYS,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    base = Path(base_dir or settings.ml_model_dir).resolve()
+    if base_dir:
+        base = Path(base_dir).resolve()
+    else:
+        # Same root resolution as the loaders (audit F-01): pruning must walk
+        # the directory the artifacts actually live in, not an empty default.
+        from ml.artifacts import resolve_artifact_root
+
+        base = resolve_artifact_root()
     if not base.exists():
         return {"deleted": 0, "kept": 0, "skipped_prod": 0}
 

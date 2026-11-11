@@ -30,7 +30,7 @@ class FundRepository:
 
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Fund] | None = None if session else InMemoryRepository(Fund)
+        self._mem: InMemoryRepository[Fund] = InMemoryRepository(Fund)
         self._db: _FundDbRepo | None = None if not session else _FundDbRepo(session)
 
     # ── CRUD ──────────────────────────────────────────────────────
@@ -38,22 +38,22 @@ class FundRepository:
     async def get(self, id: str) -> Result[Fund]:
         if self._db:
             return await self._db.get(id)
-        return await self._mem.get(id)  # type: ignore
+        return await self._mem.get(id)
 
     async def save(self, entity: Fund) -> Result[Fund]:
         if self._db:
             return await self._db.save(entity)
-        return await self._mem.save(entity)  # type: ignore
+        return await self._mem.save(entity)
 
     async def delete(self, id: str) -> Result[bool]:
         if self._db:
             return await self._db.delete(id)
-        return await self._mem.delete(id)  # type: ignore
+        return await self._mem.delete(id)
 
     async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[Fund]]:
         if self._db:
             return await self._db.list(page, page_size)
-        return await self._mem.list(page, page_size)  # type: ignore
+        return await self._mem.list(page, page_size)
 
     # ── Domain-specific ───────────────────────────────────────────
 
@@ -61,7 +61,7 @@ class FundRepository:
         """Find a fund by its trading symbol."""
         if self._db:
             return await self._db.get_by_symbol(symbol)
-        for fund in self._mem._store.values():  # type: ignore
+        for fund in self._mem._store.values():
             if fund.symbol == symbol:
                 return Result.ok(fund)
         return Result.fail(f"Fund not found with symbol: {symbol}")
@@ -70,7 +70,7 @@ class FundRepository:
         """Find a fund by its ISIN code."""
         if self._db:
             return await self._db.get_by_isin(isin)
-        for fund in self._mem._store.values():  # type: ignore
+        for fund in self._mem._store.values():
             if fund.isin == isin:
                 return Result.ok(fund)
         return Result.fail(f"Fund not found with ISIN: {isin}")
@@ -79,7 +79,7 @@ class FundRepository:
         """List funds filtered by type."""
         if self._db:
             return await self._db.get_by_fund_type(fund_type, page, page_size)
-        matches = [f for f in self._mem._store.values() if f.fund_type == fund_type]  # type: ignore
+        matches = [f for f in self._mem._store.values() if f.fund_type == fund_type]
         total = len(matches)
         start = (page - 1) * page_size
         return Result.ok(
@@ -98,7 +98,7 @@ class FundRepository:
             return await self._db.search(query, page, page_size)
         q = query.strip().lower()
         matches = [
-            f for f in self._mem._store.values()  # type: ignore
+            f for f in self._mem._store.values()
             if q in f.name.lower() or q in f.symbol.lower() or q in f.isin.lower()
         ]
         total = len(matches)
@@ -119,7 +119,7 @@ class FundRepository:
         if self._db:
             return await self._db.count_by_type()
         counts: dict[str, int] = {}
-        for f in self._mem._store.values():  # type: ignore
+        for f in self._mem._store.values():
             ft = f.fund_type or "ساير"
             counts[ft] = counts.get(ft, 0) + 1
         return counts
@@ -128,7 +128,7 @@ class FundRepository:
         """Total number of funds."""
         if self._db:
             return await self._db.count()
-        return len(self._mem._store)  # type: ignore
+        return len(self._mem._store)
 
 
 class _FundDbRepo(DbRepository[Fund, FundModel]):

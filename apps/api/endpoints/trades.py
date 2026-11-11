@@ -20,7 +20,7 @@ async def get_trades(
     service: TradeService = Depends(get_trade_service),
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
     result = await service.get_trades(symbol, limit + offset)
-    all_items = result.value if result.success else []
+    all_items = result.unwrap() if result.success else []
     items = all_items[offset:offset + limit]
     total = len(all_items)
     total_pages = max(1, (total + limit - 1) // limit) if total else 1
@@ -37,7 +37,7 @@ async def get_recent_trades(
     service: TradeService = Depends(get_trade_service),
 ) -> ApiResponse[PaginatedResult[dict[str, Any]]]:
     result = await service.get_recent(symbol)
-    items = result.value if result.success else []
+    items = result.unwrap() if result.success else []
     return ApiResponse[PaginatedResult[dict[str, Any]]](
         success=result.success,
         data=PaginatedResult(items=items, total=len(items), page=1, page_size=20, total_pages=1),

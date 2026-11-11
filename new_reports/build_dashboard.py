@@ -26,7 +26,8 @@ def fmt(x, nd=2):
         return str(x)
 
 def main():
-    meta = json.load(open(os.path.join(OUT, '_pages_meta.json'), encoding='utf-8'))
+    with open(os.path.join(OUT, '_pages_meta.json'), encoding='utf-8') as fh:
+        meta = json.load(fh)
     # dedupe by symbol: prefer history_data > t.bin > codal (funds unique)
     pri = {'history_data': 0, 't.bin': 1, 'top50_funds_intraday': 2, 'codal': 3}
     best = {}
@@ -58,7 +59,7 @@ def main():
     for x in rows:
         price = fmt(x['last'], 0) if x['last'] else UNK
         rsi = fmt(x['rsi']) if x['rsi'] is not None else UNK
-        L.append(f"| {x['sym']} | {price} ({x['unit']}) | {CANT} | {CANT} | {CANT if x['cat'] != 'سهام بازار سرمایه ایران' else UNK} | {rsi} | {CANT if x['cat'] == 'سهام بازار سرمایه ایران' else NA_MARK(x)} | {CANT} | {CANT} | رد شد — دلیل: داده ناکافی |")
+        L.append(f"| {x['sym']} | {price} ({x['unit']}) | {CANT} | {CANT} | {CANT if x['cat'] != 'سهام بازار سرمایه ایران' else UNK} | {rsi} | {CANT if x['cat'] == 'سهام بازار سرمایه ایران' else na_mark(x)} | {CANT} | {CANT} | رد شد — دلیل: داده ناکافی |")
     L.append('')
     L.append('## ۴.۲ فیلترهای غربالگری پیش‌فرض')
     L.append('- شرط P/E < میانگین صنعت: قابل ارزیابی نیست (P/E برای هیچ نماد داده‌ای ندارد)')
@@ -155,7 +156,7 @@ def main():
         f.write('\n'.join(S))
     print('dashboard + summary done:', n, 'symbols')
 
-def NA_MARK(x):
+def na_mark(x):
     return 'فاقد موضوعیت'
 
 if __name__ == '__main__':

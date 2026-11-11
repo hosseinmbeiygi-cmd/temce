@@ -17,9 +17,12 @@ build/
 *.whl
 
 # ── Local development ────────────────────
+# `.env.*` is deliberately broad: the build context is what Docker can copy,
+# so every local secret variant must be excluded here even though the current
+# Dockerfiles copy explicit paths. The narrower `.env` / `.env.*.local` pair
+# left real local files such as `.env.production` and `.env.bak.*` exposed.
 .env
-.env.local
-.env.*.local
+.env.*
 *.env
 data/
 logs/
@@ -82,6 +85,20 @@ secrets/
 config/local.yaml
 *.pem
 *.key
+
+# ── Dev artifacts & runtime state ────────
+# Not needed by any image; kept out of the context so an accidental
+# wholesale copy cannot ship test suites or local databases.
+tests/
+precompute/tests/
+test_results/
+unit_scan_logs/
+audit_out/
+code_dump/
+_FRONTEND_BACKEND_COPY/
+ML_ALL_CODE.txt
+*.db
+*.rdb
 
 # ── Backups & artifacts ──────────────────
 backups/

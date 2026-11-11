@@ -16,7 +16,24 @@ from datetime import UTC, datetime
 from logging import getLogger
 from typing import Any
 
+from brsapi.parsers.errors import BrsApiParseError, ensure_payload, is_no_data
+
 logger = getLogger(__name__)
+
+# Fields that mark a dict as one contract rather than a provider envelope.
+_IME_RECORD_KEYS = frozenset(
+    {
+        "contract_code",
+        "contract_category",
+        "call_contract_code",
+        "put_contract_code",
+        "commodity",
+        "l18",
+        "code_offer",
+        "symbol",
+        "name",
+    }
+)
 
 
 class ImeParser:
@@ -362,16 +379,33 @@ class ImeParser:
 
     @classmethod
     def _ensure_list(cls, data: Any) -> list[Any]:
+        """Return the contract list, or ``[]`` for a no-data answer.
+
+        A provider envelope (``{"code_http": 200, "successful": true, …}``)
+        must not become a single all-default contract: it carries no contract
+        fields, so it is an unreadable envelope and raises.
+        """
+        ensure_payload(data, "IME")
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
+            if is_no_data(data):
+                return []
             # Some endpoints wrap data in a "data" or "items" key
             for key in ("data", "items", "records", "result"):
                 if key in data and isinstance(data[key], list):
                     return data[key]
-            return [data]
-        logger.warning("IME: unexpected data type %s", type(data).__name__)
-        return []
+            if _IME_RECORD_KEYS.intersection(data):
+                # A single contract returned as one object.
+                return [data]
+            raise BrsApiParseError(
+                f"IME: unrecognised envelope keys {sorted(data)[:5]}",
+                code="unrecognised_envelope",
+            )
+        raise BrsApiParseError(
+            f"IME: unexpected data type {type(data).__name__}",
+            code="unexpected_shape",
+        )
 
     @staticmethod
     def _str(v: Any) -> str:

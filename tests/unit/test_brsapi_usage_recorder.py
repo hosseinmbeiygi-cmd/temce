@@ -196,7 +196,11 @@ def _usage_row(**over: Any) -> SimpleNamespace:
     return SimpleNamespace(**vals)
 
 
-async def test_daily_usage_endpoint_contract(app, client: AsyncClient) -> None:
+async def test_daily_usage_endpoint_contract(app, admin_client: AsyncClient) -> None:
+    # ``/brsapi/manage/*`` burns the daily quota, so every route on it carries
+    # ``_manage_admin = [Depends(require_roles("admin"))]`` (apps/api/endpoints/
+    # brsapi.py). This test drives the response contract, so it authenticates as
+    # an admin instead of expecting the old anonymous 200.
     from datetime import datetime
 
     from apps.api.dependencies import get_db_session
@@ -219,7 +223,7 @@ async def test_daily_usage_endpoint_contract(app, client: AsyncClient) -> None:
     original = budget_mod.get_budget_governor
     budget_mod.get_budget_governor = Mock(return_value=fake_governor)
     try:
-        resp = await client.get("/api/v1/brsapi/manage/usage", params={"days": 30})
+        resp = await admin_client.get("/api/v1/brsapi/manage/usage", params={"days": 30})
     finally:
         budget_mod.get_budget_governor = original
         app.dependency_overrides.clear()
@@ -245,7 +249,7 @@ async def test_daily_usage_endpoint_contract(app, client: AsyncClient) -> None:
     assert data["live"] == {"global": {"daily_count": 5}}
 
 
-async def test_daily_usage_endpoint_handles_empty_table(app, client: AsyncClient) -> None:
+async def test_daily_usage_endpoint_handles_empty_table(app, admin_client: AsyncClient) -> None:
     from apps.api.dependencies import get_db_session
 
     session = _FakeSession([])
@@ -259,7 +263,7 @@ async def test_daily_usage_endpoint_handles_empty_table(app, client: AsyncClient
     original = budget_mod.get_budget_governor
     budget_mod.get_budget_governor = Mock(return_value=Mock(stats=AsyncMock(return_value={})))
     try:
-        resp = await client.get("/api/v1/brsapi/manage/usage")
+        resp = await admin_client.get("/api/v1/brsapi/manage/usage")
     finally:
         budget_mod.get_budget_governor = original
         app.dependency_overrides.clear()
@@ -276,10 +280,19 @@ async def test_flush_endpoint() -> None:
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
+    from apps.api.dependencies import get_current_user
     from apps.api.endpoints.brsapi import router as brsapi_router
 
     app = FastAPI()
     app.include_router(brsapi_router, prefix="/api/v1/brsapi")
+
+    # The probe app mounts the real router, so it inherits the admin gate on
+    # /manage/*; authenticate the way tests/unit/conftest.py does for admin_client.
+    async def _mock_admin(authorization: str = "") -> dict[str, Any]:
+        _ = authorization
+        return {"username": "test_admin", "roles": ["admin"], "user_id": 1}
+
+    app.dependency_overrides[get_current_user] = _mock_admin
 
     import brsapi.usage_recorder as ur_mod
     fake_rec = Mock(spec=BrsApiUsageRecorder)

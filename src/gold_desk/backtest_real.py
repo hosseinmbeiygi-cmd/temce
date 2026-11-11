@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utc_now_naive
+from .dates import jalali_days_ago
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,8 @@ async def _fetch_daily_data(session: AsyncSession, symbol: str, days: int) -> li
     try:
         from brsapi.models.commodity import GoldCoinHistoryModel
 
-        cutoff = (utc_now_naive() - timedelta(days=days)).strftime("%Y-%m-%d")
+        # ستون date شمسی است؛ cutoff میلادی همیشه صفر ردیف مطابقت می‌داد (GS-03).
+        cutoff = jalali_days_ago(days)
         stmt = (
             select(GoldCoinHistoryModel.date, GoldCoinHistoryModel.price_close)
             .where(
@@ -106,9 +107,9 @@ def _rsi(prices: list[float], period: int = 14) -> list[float]:
 
     for i in range(period + 1, len(prices)):
         g = gains[i - 1] if i - 1 < len(gains) else 0
-        l = losses[i - 1] if i - 1 < len(losses) else 0
+        loss_val = losses[i - 1] if i - 1 < len(losses) else 0
         avg_gain = (avg_gain * (period - 1) + g) / period
-        avg_loss = (avg_loss * (period - 1) + l) / period
+        avg_loss = (avg_loss * (period - 1) + loss_val) / period
         if avg_loss == 0:
             rsis[i] = 100
         else:
@@ -230,17 +231,16 @@ def _compute_metrics(
 
     # Sharpe (ساده)
     rets = [r for _, _, r in strategy_trades]
+    sharpe: float = 0.0
     if len(rets) > 1:
         mean_r = np.mean(rets)
         std_r = np.std(rets)
-        sharpe = mean_r / std_r if std_r > 0 else 0
-    else:
-        sharpe = 0
+        sharpe = float(mean_r / std_r) if std_r > 0 else 0.0
 
     # max drawdown
     cum = 1.0
     peak = 1.0
-    max_dd = 0
+    max_dd: float = 0.0
     for _, _, r in strategy_trades:
         cum *= 1 + r / 100
         peak = max(peak, cum)
@@ -248,7 +248,7 @@ def _compute_metrics(
         max_dd = max(max_dd, dd)
 
     # avg hold days
-    avg_days = np.mean([e - s for s, e, _ in strategy_trades])
+    avg_days = float(np.mean([e - s for s, e, _ in strategy_trades]))
 
     return StrategyResult(
         name="",

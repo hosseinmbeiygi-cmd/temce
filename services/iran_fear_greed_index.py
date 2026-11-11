@@ -122,7 +122,7 @@ class IranFearGreedIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Only today's rows, and only the LATEST snapshot per symbol: the
         # snapshots table keeps one row per symbol per 2-minute sync cycle
@@ -182,7 +182,7 @@ class IranFearGreedIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Current activity (today's total value)
         # Only today's rows and only the latest snapshot per symbol
@@ -242,7 +242,7 @@ class IranFearGreedIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get current index level (use top 30 stocks as proxy)
         # Only today's rows and only the latest snapshot per symbol
@@ -307,7 +307,7 @@ class IranFearGreedIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Current ATR (14-day)
         cutoff_14d = (jdatetime.date.today() - timedelta(days=14)).strftime("%Y-%m-%d")
@@ -366,7 +366,7 @@ class IranFearGreedIndex:
         if self._session is None:
             return 50.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT

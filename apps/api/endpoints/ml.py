@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session, get_inference_service
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from repositories.instrument_repository import InstrumentRepository
 from schemas.api.ml import MlTrainRequest, MlTrainResponse
@@ -275,6 +276,8 @@ def _map_real_prediction(
             "batch_id": batch_id,
             "predicted_change_pct": pred_result.get("predicted_change_pct"),
             "last_price": pred_result.get("last_price"),
+            "last_price_toman": rial_to_toman_float(pred_result.get("last_price"), default=None),
+            "currency": "TMN",
             "feature_importance": pred_result.get("feature_importance", {}),
             "model_loaded_from": pred_result.get("model_loaded_from", "real"),
             "model_id": pred_result.get("model_id", model_type),

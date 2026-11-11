@@ -83,9 +83,20 @@ def data_path(subdir: str = "") -> Path:
 
 
 def models_path(subdir: str = "") -> Path:
+    """Directory holding trained model artifacts.
+
+    Resolved through ``ml.artifacts.resolve_artifact_root`` (audit F-01) so a
+    configured ``ML_MODEL_DIR`` that holds no model folders cannot silently
+    point every caller at an empty directory.
+    """
     from core.config import settings
 
-    base = Path(settings.ml_model_dir)
+    try:
+        from ml.artifacts import resolve_artifact_root
+
+        base = resolve_artifact_root()
+    except Exception:  # pragma: no cover — ml package unavailable
+        base = Path(settings.ml_model_dir)
     return safe_ensure_dir(base, subdir) if subdir else ensure_dir(base)
 
 

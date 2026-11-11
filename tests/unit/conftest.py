@@ -17,6 +17,25 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 
+@pytest.fixture(autouse=True)
+def _reset_redis_singleton():
+    """Never carry a Redis client across tests.
+
+    ``redis.asyncio`` transports are bound to the event loop that created
+    them, and pytest-asyncio gives every test a fresh loop. A singleton client
+    reused on the next loop raises ``RuntimeError: Event loop is closed`` —
+    after a multi-second stall inside ``_wait_for_data`` — which is what made
+    the 500-request burst test take ~24 minutes.
+    """
+    from core.cache import reset_cache
+
+    reset_cache()
+    try:
+        yield
+    finally:
+        reset_cache()
+
+
 @pytest.fixture(scope="session")
 def app() -> FastAPI:
     """Return the fully configured FastAPI application.

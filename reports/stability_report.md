@@ -1,0 +1,7 @@
+# Stability Report (math sanity)
+
+- bull: mdd=0.0000 sharpe=78.9990 -> PASS
+- bear: mdd=-0.4950 sharpe=-80.1631 -> PASS
+- flat_zero_var: mdd=0.0000 sharpe=0.0000 -> PASS
+- single: mdd=0.0000 sharpe=0.0000 -> PASS
+- empty-ui: handled empty -> PASS

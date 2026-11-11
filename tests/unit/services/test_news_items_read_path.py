@@ -22,8 +22,6 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import text
 
-from core.result import Result
-
 _MARK = "test_rd"  # row marker for cleanup
 
 
@@ -59,8 +57,8 @@ class TestFlagDefaults:
         from unittest.mock import MagicMock
 
         from core.config import settings as real_settings
-        from repositories.news_repository import NewsRepository
         from repositories.news_items_read_repo import NewsItemsReadRepo
+        from repositories.news_repository import NewsRepository
 
         # flag explicitly False
         monkeypatch.setattr(real_settings, "news_read_from_items", False, raising=False)
@@ -72,6 +70,7 @@ class TestFlagDefaults:
 # ── DB-backed routing + behavior ─────────────────────────────────────────
 
 
+@pytest.mark.needs_db
 class TestItemsReadPath:
     @pytest.fixture()
     def db_env(self):
@@ -94,7 +93,6 @@ class TestItemsReadPath:
         url = os.environ.get("DATABASE_URL") or ""
         if not url:
             pytest.skip("DATABASE_URL not set")
-        from unittest.mock import MagicMock
 
         from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -113,24 +111,24 @@ class TestItemsReadPath:
                         "INSERT INTO news_articles (id, title, source, url, category, published_at, published_at_ts, created_at) "
                         "VALUES (:i, :t, :s, :u, 'market', :p, :pts, now())"
                     ),
-                    dict(i=f"{marker}_leg", t=f"{marker} legacy row", s=f"{marker}src",
-                         u=f"https://x.test/{marker}_leg", p="2026-09-10T08:00:00+00:00",
-                         pts=datetime(2026, 9, 10, 8, 0)),
+                    {"i": f"{marker}_leg", "t": f"{marker} legacy row", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}_leg", "p": "2026-09-10T08:00:00+00:00",
+                         "pts": datetime(2026, 9, 10, 8, 0)},
                 )
                 res = await session.execute(
                     text(
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, is_breaking, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, :p, 'market', FALSE, :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} items row", b=f"{marker} body", s=f"{marker}src",
-                         u=f"https://x.test/{marker}_it", p=datetime(2026, 9, 10, 9, 0),
-                         h=f"hash_{marker}"),
+                    {"t": f"{marker} items row", "b": f"{marker} body", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}_it", "p": datetime(2026, 9, 10, 9, 0),
+                         "h": f"hash_{marker}"},
                 )
                 item_id = res.scalar_one()
                 await session.execute(
                     text("INSERT INTO news_tags (news_id, tag_type, tag_value, confidence) "
                          "VALUES (:n, 'stock_symbol', :v, 1.0)"),
-                    dict(n=item_id, v="فولاد"),
+                    {"n": item_id, "v": "فولاد"},
                 )
                 await session.commit()
 

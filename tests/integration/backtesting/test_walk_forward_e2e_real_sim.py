@@ -261,7 +261,7 @@ async def test_walk_forward_e2e_real_simulator_and_db(seeded_gold_db):
     # Deflated Sharpe block (TD-01 guard now permits the single-trial fold).
     dsr = out["deflated_sharpe"]
     assert isinstance(dsr, dict)
-    assert N_COMBOS * WINDOWS == dsr["n_trials"]
+    assert dsr["n_trials"] == N_COMBOS * WINDOWS
     assert 0.0 <= dsr["deflated_sharpe"] <= 1.0
     assert 0.0 <= dsr["p_value"] <= 1.0
     assert math.isfinite(dsr["expected_max_sharpe"])

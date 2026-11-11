@@ -110,7 +110,7 @@ class AuditRiskAssessor:
         else:
             risks["improper_asset_valuation"] = 0.3
 
-        related_party_indicators = 0
+        related_party_indicators = 0.0
         raw_data = getattr(snap, "raw_data", {}) or {}
         other_receivables = raw_data.get("OTHER_RECEIVABLES") or raw_data.get("other_receivables") or 0
         other_payables = raw_data.get("OTHER_PAYABLES") or raw_data.get("other_payables") or 0

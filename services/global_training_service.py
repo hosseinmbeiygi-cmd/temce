@@ -42,7 +42,7 @@ def _create_seeded_service() -> TrainingService:
         },
     ]
     for run in demo_runs:
-        service._runs[run["id"]] = run
+        service._runs[str(run["id"])] = run
 
     return service
 

@@ -35,10 +35,13 @@ class AlertHistory(BaseEntity):
         self.delivered = delivered
 
 
+AlertList = list[Alert]
+AlertHistoryList = list[AlertHistory]
+
 class AlertRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Alert] | None = None if session else InMemoryRepository(Alert)
+        self._mem: InMemoryRepository[Alert] = InMemoryRepository(Alert)
         self._db: _AlertDbRepo | None = None if not session else _AlertDbRepo(session)
 
     async def get(self, id: str) -> Result[Alert]:
@@ -61,25 +64,25 @@ class AlertRepository:
             return await self._db.list(page, page_size)
         return await self._mem.list(page, page_size)
 
-    async def get_by_instrument(self, instrument_id: str) -> Result[list[Alert]]:
+    async def get_by_instrument(self, instrument_id: str) -> Result[AlertList]:
         if self._db:
             return await self._db.get_by_instrument(instrument_id)
         matches = [a for a in self._mem._store.values() if a.instrument_id == instrument_id]
         return Result.ok(matches)
 
-    async def get_by_symbol(self, symbol: str) -> Result[list[Alert]]:
+    async def get_by_symbol(self, symbol: str) -> Result[AlertList]:
         if self._db:
             return await self._db.get_by_symbol(symbol)
         matches = [a for a in self._mem._store.values() if a.symbol == symbol]
         return Result.ok(matches)
 
-    async def get_by_type(self, alert_type: str) -> Result[list[Alert]]:
+    async def get_by_type(self, alert_type: str) -> Result[AlertList]:
         if self._db:
             return await self._db.get_by_type(alert_type)
         matches = [a for a in self._mem._store.values() if a.alert_type == alert_type]
         return Result.ok(matches)
 
-    async def get_triggered(self) -> Result[list[Alert]]:
+    async def get_triggered(self) -> Result[AlertList]:
         if self._db:
             return await self._db.get_triggered()
         matches = [a for a in self._mem._store.values() if a.is_triggered]
@@ -95,7 +98,7 @@ class AlertRepository:
             return await self._db.save_history(entity)
         return Result.ok(entity)
 
-    async def get_history(self, alert_id: str) -> Result[list[AlertHistory]]:
+    async def get_history(self, alert_id: str) -> Result[AlertHistoryList]:
         if self._db:
             return await self._db.get_history(alert_id)
         return Result.ok([])
@@ -109,25 +112,25 @@ class AlertRepository:
 class _AlertDbRepo(DbRepository[Alert, AlertModel]):
     model_class = AlertModel
 
-    async def get_by_instrument(self, instrument_id: str) -> Result[list[Alert]]:
+    async def get_by_instrument(self, instrument_id: str) -> Result[AlertList]:
         stmt = select(AlertModel).where(AlertModel.instrument_id == instrument_id)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
-    async def get_by_symbol(self, symbol: str) -> Result[list[Alert]]:
+    async def get_by_symbol(self, symbol: str) -> Result[AlertList]:
         stmt = select(AlertModel).where(AlertModel.symbol == symbol)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
-    async def get_by_type(self, alert_type: str) -> Result[list[Alert]]:
+    async def get_by_type(self, alert_type: str) -> Result[AlertList]:
         stmt = select(AlertModel).where(AlertModel.alert_type == alert_type)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
-    async def get_triggered(self) -> Result[list[Alert]]:
+    async def get_triggered(self) -> Result[AlertList]:
         stmt = select(AlertModel).where(AlertModel.last_triggered.isnot(None)).order_by(desc(AlertModel.last_triggered))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
@@ -162,7 +165,7 @@ class _AlertDbRepo(DbRepository[Alert, AlertModel]):
             )
         )
 
-    async def get_history(self, alert_id: str) -> Result[list[AlertHistory]]:
+    async def get_history(self, alert_id: str) -> Result[AlertHistoryList]:
         stmt = select(AlertHistoryModel).where(AlertHistoryModel.alert_id == alert_id).order_by(desc(AlertHistoryModel.triggered_at))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()

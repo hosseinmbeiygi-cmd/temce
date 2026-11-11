@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from core.currency import rial_to_toman_float
 from schemas.api.options import PayoffCalculatorRequest
 from schemas.common.responses import ApiResponse
 from services.options_analytics import get_arbitrage_detector, get_portfolio_analyzer, get_volatility_analyzer
@@ -167,6 +168,7 @@ async def calculate_greeks(
     missing = _missing_inputs(S, K, T, r, sigma)
     if missing:
         return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
+    assert r is not None and sigma is not None
     from domain.options.higher_order_greeks import charm, vanna
     from domain.options.pricing import black_scholes_price
     result = black_scholes_price(S, K, T, float(r), float(sigma), option_type)
@@ -197,6 +199,7 @@ async def pricing(
     missing = _missing_inputs(S, K, T, r, sigma)
     if missing:
         return ApiResponse[dict[str, Any]](success=False, error={"message": _need_inputs(missing)})
+    assert r is not None and sigma is not None
     from domain.options.pricing import black_scholes_call, black_scholes_put
     call_price = black_scholes_call(S, K, T, float(r), float(sigma))
     put_price = black_scholes_put(S, K, T, float(r), float(sigma))
@@ -303,7 +306,12 @@ async def check_parity(
     strike: float, time_to_expiry: float = 0.25
 ) -> ApiResponse[dict[str, Any]]:
     detector = get_arbitrage_detector()
-    result = detector.check_put_call_parity(call_price, put_price, stock_price, strike, time_to_expiry)
+    try:
+        result = detector.check_put_call_parity(
+            call_price, put_price, stock_price, strike, time_to_expiry
+        )
+    except ValueError as exc:
+        return ApiResponse(success=False, data=None, error={"message": str(exc)})
     return ApiResponse(success=True, data=result)
 
 
@@ -456,6 +464,12 @@ async def live_options_chain(underlying: str, limit: int = 50) -> ApiResponse[di
             "high": row[10], "low": row[11],
             "bid": row[12], "ask": row[13],
             "trades": row[14], "value": row[15],
+            # User-facing unit: toman (TMN). Raw columns stay rial.
+            "strike_toman": rial_to_toman_float(row[3], default=None),
+            "price_toman": rial_to_toman_float(row[4], default=None),
+            "underlying_price_toman": rial_to_toman_float(row[8], default=None),
+            "value_toman": rial_to_toman_float(row[15], default=None),
+            "currency": "TMN",
         }
         if not underlying_price and row[8]:
             underlying_price = row[8]
@@ -514,6 +528,8 @@ async def live_symbols() -> ApiResponse[list[dict[str, Any]]]:
             "contracts": row[1],
             "volume": row[2],
             "price": row[3],
+            "price_toman": rial_to_toman_float(row[3], default=None),
+            "currency": "TMN",
         })
 
     return ApiResponse(success=True, data=symbols)
@@ -630,6 +646,9 @@ async def live_commodity_chain(
         return {
             "symbol": row[base], "type": side, "strike": k,
             "price": row[base + 1], "volume": row[base + 2], "oi": row[base + 3],
+            "strike_toman": rial_to_toman_float(k, default=None),
+            "price_toman": rial_to_toman_float(row[base + 1], default=None),
+            "currency": "TMN",
             "days_to_expiry": days, "bid": row[base + 5], "ask": row[base + 6],
             "theoretical": round(theo, 1), "delta": round(delta, 4),
         }
@@ -658,18 +677,18 @@ async def position_margin(body: MarginRequest) -> ApiResponse[dict[str, Any]]:
     try:
         legs = [
             OptionLeg(
-                leg_type=LegType(l.leg_type),
-                direction=Direction.LONG if l.direction == "long" else Direction.SHORT,
-                strike=l.strike,
-                premium=l.premium,
-                underlying_price=l.underlying_price,
-                days_to_expiry=l.days_to_expiry,
-                implied_volatility=l.implied_volatility,
-                contract_size=l.contract_size,
-                quantity=l.quantity,
-                underlying_group=l.underlying_group,
+                leg_type=LegType(leg.leg_type),
+                direction=Direction.LONG if leg.direction == "long" else Direction.SHORT,
+                strike=leg.strike,
+                premium=leg.premium,
+                underlying_price=leg.underlying_price,
+                days_to_expiry=leg.days_to_expiry,
+                implied_volatility=leg.implied_volatility,
+                contract_size=leg.contract_size,
+                quantity=leg.quantity,
+                underlying_group=leg.underlying_group,
             )
-            for l in body.legs
+            for leg in body.legs
         ]
         result = UniversalMarginEngine().calculate_margin(legs)
     except (ValueError, KeyError) as exc:

@@ -1,11 +1,16 @@
 # ── Development Override ───────────────────────────────
 # Automatically loaded by `docker compose up`.
-# Adds hot-reload, volume mounts, and relaxed settings.
+# Adds hot-reload and source mounts for the services we iterate on.
+#
+# Every service listed here MUST exist in docker-compose.yml. An override entry
+# with neither `image` nor `build` makes the whole project invalid, so the
+# previous `api` / `admin` / `scheduler` / `postgres` stanzas — which belong to
+# docker-compose.production.yml — are gone (audit DEP-01: `docker compose config`
+# failed with `service "scheduler" has neither an image nor a build context`).
+# Ports stay in the base file; repeating them here appends duplicate mappings.
 
 services:
-  api:
-    ports:
-      - "8000:8000"
+  backend:
     volumes:
       - .:/app
     command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --reload
@@ -14,40 +19,20 @@ services:
     build:
       context: frontend
       dockerfile: Dockerfile.dev
-    ports:
-      - "3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
     environment:
-      API_URL: http://api:8000
+      API_URL: http://backend:8000
       API_PREFIX: /api/v1
       NODE_ENV: development
     command: npx next dev --webpack -p 3000
-    depends_on:
-      - api
-
-  admin:
-    ports:
-      - "8001:8001"
-    volumes:
-      - .:/app
-    command: uvicorn apps.admin.app:admin_app --host 0.0.0.0 --port 8001 --reload
 
   worker:
     volumes:
       - .:/app
 
-  scheduler:
-    command: ["python", "-m", "apps.scheduler"]
+  ingestion:
     volumes:
       - .:/app
-
-  postgres:
-    ports:
-      - "5432:5432"
-
-  redis:
-    ports:
-      - "6379:6379"

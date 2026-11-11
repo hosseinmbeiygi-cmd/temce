@@ -25,7 +25,6 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from core.ids import new_id
 from core.logging import get_logger
@@ -36,7 +35,7 @@ logger = get_logger(__name__)
 # legacy ``report_type`` values, so both flows land on the same taxonomy).
 _LETTER_TYPE_RE = re.compile(r"\b(ن-۱۰|ن-۳۰|ن-۳۱|ن-۱۵)\b")
 
-_TITLE_CATEGORY: list[tuple[str, str]] = [
+_TITLE_CATEGORY: list[tuple[str, list[str]]] = [
     ("monthly_activity", ["فعالیت ماهانه", "عملکرد ماهانه", "گزارش فعالیت"]),
     ("financial_statements", ["صورت‌های مالی", "ترازنامه", "سود و زیان", "صورت جریان وجوه نقد"]),
     ("dividend", ["سود نقدی", "تقسیم سود", "سود سهام"]),
@@ -97,9 +96,7 @@ async def import_statement_record(
     report_type = classify_report_type(title)
     report_date = (published_at or datetime.now()).strftime("%Y-%m-%d")
 
-    from sqlalchemy import select
-
-    from core.database import get_session
+    from core.database import get_session, select
     from models.codal_financial import CodalFinancialStatementModel
 
     async for session in get_session():

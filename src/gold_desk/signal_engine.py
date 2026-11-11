@@ -5,27 +5,78 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 import numpy as np
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+logger = logging.getLogger(__name__)
+
+FloatArray = np.ndarray[Any, Any]
+
+
+def _newest_window_ascending(desc_closes: list[float], days: int) -> list[float]:
+    """آخرین ``days`` مقدار را از سریِ نزولی بردار و صعودی (قدیم→جدید) برگردان.
+
+    پیش‌تر ``reversed(closes[-days:])`` نوشته شده بود که قدیمی‌ترین بخش پنجره را
+    نگه می‌داشت و جدیدترین `days` ردیف را دور می‌ریخت؛ نتیجه: RSI/EMA حدود ۱۰ سشن
+    کهنه و «تغییر روزانهٔ دلار/DXY» برای hard stop هم بی‌اعتبار (E-H1).
+    """
+    return list(reversed(desc_closes[:days]))
+
+
+async def _fetch_gold_coin_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
+    """close روزانه از ``brsapi_gold_coin_history`` (شمسی)."""
+    from brsapi.models.commodity import GoldCoinHistoryModel
+
+    stmt = (
+        select(GoldCoinHistoryModel.price_close)
+        .where(GoldCoinHistoryModel.symbol == symbol)
+        .order_by(desc(GoldCoinHistoryModel.date))
+        .limit(days + 10)
+    )
+    result = await session.execute(stmt)
+    closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
+    return _newest_window_ascending(closes, days)
+
+
+async def _fetch_pro_daily_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
+    """close روزانه از ``brsapi_gold_currency_pro_daily_history``.
+
+    XAUUSD و USD تاریخچه‌ای در ``brsapi_gold_coin_history`` ندارند (صفر ردیف) و
+    همین باعث می‌شد RSI/تغییرات روزانه همیشه None بمانند (GS-06).
+    """
+    from brsapi.models.commodity import GoldCurrencyProDailyHistoryModel
+
+    stmt = (
+        select(GoldCurrencyProDailyHistoryModel.price_close)
+        .where(GoldCurrencyProDailyHistoryModel.symbol == symbol)
+        .order_by(desc(GoldCurrencyProDailyHistoryModel.date))
+        .limit(days + 10)
+    )
+    result = await session.execute(stmt)
+    closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
+    return _newest_window_ascending(closes, days)
+
 
 async def fetch_closes(session: AsyncSession, symbol: str, days: int) -> list[float]:
-    """آخرین N روز close prices."""
+    """آخرین N روز close prices — با انتخاب منبع درست."""
     try:
-        from brsapi.models.commodity import GoldCoinHistoryModel
-
-        stmt = (
-            select(GoldCoinHistoryModel.price_close)
-            .where(GoldCoinHistoryModel.symbol == symbol)
-            .order_by(desc(GoldCoinHistoryModel.date))
-            .limit(days + 10)
-        )
-        result = await session.execute(stmt)
-        closes = [float(r[0]) for r in result.all() if r[0] and r[0] > 0]
-        return list(reversed(closes[-days:]))
-    except Exception:
-        return []
+        closes = await _fetch_gold_coin_closes(session, symbol, days)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("gold_coin_history fetch failed for %s: %s", symbol, exc)
+        closes = []
+    if len(closes) < days:
+        try:
+            pro = await _fetch_pro_daily_closes(session, symbol, days)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("pro_daily_history fetch failed for %s: %s", symbol, exc)
+            pro = []
+        if len(pro) > len(closes):
+            closes = pro
+    return closes
 
 
 def calc_rsi(closes: list[float], period: int = 14) -> float | None:
@@ -41,6 +92,10 @@ def calc_rsi(closes: list[float], period: int = 14) -> float | None:
     for i in range(period, len(gains)):
         avg_gain = (avg_gain * (period - 1) + gains[i]) / period
         avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+    # سری بدون تغییر: نه avg_gain و نه avg_loss حرکت نداشته‌اند. RSI=۱۰۰ در این
+    # حالت «اشباع خرید» کاذب می‌سازد و امتیاز صفر می‌دهد؛ خنثی (۵۰) درست است (E-L5).
+    if avg_loss == 0 and avg_gain == 0:
+        return 50.0
     if avg_loss == 0:
         return 100.0
     rs = avg_gain / avg_loss
@@ -66,7 +121,9 @@ def calc_sma(closes: list[float], period: int = 20) -> float | None:
     return float(np.mean(closes[-period:]))
 
 
-def calc_bollinger(closes: list[float], period: int = 20, k: float = 2.0) -> dict | None:
+def calc_bollinger(
+    closes: list[float], period: int = 20, k: float = 2.0
+) -> dict[str, Any] | None:
     """Bollinger Bands: middle=SMA, upper/lower = SMA ± k*std."""
     if len(closes) < period:
         return None
@@ -76,13 +133,15 @@ def calc_bollinger(closes: list[float], period: int = 20, k: float = 2.0) -> dic
     return {"middle": sma, "upper": sma + k * std, "lower": sma - k * std, "width_pct": (2 * k * std / sma * 100) if sma else 0}
 
 
-def calc_macd(closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9) -> dict | None:
+def calc_macd(
+    closes: list[float], fast: int = 12, slow: int = 26, signal: int = 9
+) -> dict[str, Any] | None:
     """MACD line = EMA12 - EMA26, signal = EMA9(MACD)."""
     if len(closes) < slow + signal:
         return None
     arr = np.array(closes, dtype=float)
 
-    def _ema(a: np.ndarray, p: int) -> np.ndarray:
+    def _ema(a: FloatArray, p: int) -> FloatArray:
         alpha = 2.0 / (p + 1)
         out = np.empty_like(a, dtype=float)
         out[0] = a[0]
@@ -113,19 +172,7 @@ def calc_ema_bubble(closes: list[float], period: int = 20) -> float | None:
     return float((closes[-1] - ema) / ema * 100.0)
 
 
-async def get_xau_rsi(session: AsyncSession, days: int = 30) -> float | None:
-    """RSI 14 روزه XAUUSD."""
-    closes = await fetch_closes(session, "XAUUSD", days)
-    return calc_rsi(closes, 14) if closes else None
-
-
-async def get_xau_ema(session: AsyncSession, days: int = 30) -> float | None:
-    """EMA 14 روزه XAUUSD."""
-    closes = await fetch_closes(session, "XAUUSD", days)
-    return calc_ema(closes, 14) if closes else None
-
-
-async def get_xau_indicators(session: AsyncSession, days: int = 40) -> dict:
+async def get_xau_indicators(session: AsyncSession, days: int = 40) -> dict[str, Any]:
     """همه اندیکاتورهای XAUUSD به‌صورت یکجا."""
     closes = await fetch_closes(session, "XAUUSD", days)
     if not closes:

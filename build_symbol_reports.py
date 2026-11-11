@@ -269,8 +269,8 @@ def detect_columns(df: pd.DataFrame, source_name: str, sample_desc: str = ""):
         c = match_role(role)
         if c is not None:
             mapping[role] = c
-            log_rows.append(dict(نام_فایل=source_name, ستون_انتخابی=c, نوع_محتوای_تشخیص_داده_شده=role,
-                                 مسیر_تشخیص="نام‌محور", درجه_اطمینان="بالا", توضیح=sample_desc))
+            log_rows.append({"نام_فایل": source_name, "ستون_انتخابی": c, "نوع_محتوای_تشخیص_داده_شده": role,
+                                 "مسیر_تشخیص": "نام‌محور", "درجه_اطمینان": "بالا", "توضیح": sample_desc})
     # مسیر آماری برای نقش‌های نیافته
     num_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
 
@@ -291,8 +291,8 @@ def detect_columns(df: pd.DataFrame, source_name: str, sample_desc: str = ""):
         if best_c is not None and best_rate >= 0.6:
             mapping["date"] = best_c
             conf = "متوسط" if best_rate >= 0.9 else "پایین"
-            log_rows.append(dict(نام_فایل=source_name, ستون_انتخابی=best_c, نوع_محتوای_تشخیص_داده_شده="date",
-                                 مسیر_تشخیص="آماری", درجه_اطمینان=conf, توضیح=f"نرخ تبدیل {best_rate:.2f}"))
+            log_rows.append({"نام_فایل": source_name, "ستون_انتخابی": best_c, "نوع_محتوای_تشخیص_داده_شده": "date",
+                                 "مسیر_تشخیص": "آماری", "درجه_اطمینان": conf, "توضیح": f"نرخ تبدیل {best_rate:.2f}"})
 
     numeric_candidates = [c for c in num_cols if c != mapping.get("date")]
     if any(r not in mapping for r in ["close", "open", "high", "low"]) and len(numeric_candidates) >= 2:
@@ -319,9 +319,9 @@ def detect_columns(df: pd.DataFrame, source_name: str, sample_desc: str = ""):
             roles = [r for r in ["high", "close", "open", "low"] if r not in mapping]
             for role, col in zip(roles, ordered, strict=False):
                 mapping[role] = col
-                log_rows.append(dict(نام_فایل=source_name, ستون_انتخابی=col, نوع_محتوای_تشخیص_داده_شده=role,
-                                     مسیر_تشخیص="آماری", درجه_اطمینان="متوسط",
-                                     توضیح=f"خوشه قیمتی همبستگی>{0.85}"))
+                log_rows.append({"نام_فایل": source_name, "ستون_انتخابی": col, "نوع_محتوای_تشخیص_داده_شده": role,
+                                     "مسیر_تشخیص": "آماری", "درجه_اطمینان": "متوسط",
+                                     "توضیح": f"خوشه قیمتی همبستگی>{0.85}"})
         if "volume" not in mapping:
             remaining = [c for c in numeric_candidates if c not in mapping.values()]
             if remaining:
@@ -329,8 +329,8 @@ def detect_columns(df: pd.DataFrame, source_name: str, sample_desc: str = ""):
                 volc = max(remaining, key=lambda c: means[c] if pd.notna(means[c]) else -np.inf)
                 if pd.notna(means[volc]) and means[volc] > 0:
                     mapping["volume"] = volc
-                    log_rows.append(dict(نام_فایل=source_name, ستون_انتخابی=volc, نوع_محتوای_تشخیص_داده_شده="volume",
-                                         مسیر_تشخیص="آماری", درجه_اطمینان="پایین", توضیح="بزرگ‌ترین مقیاس میانگین"))
+                    log_rows.append({"نام_فایل": source_name, "ستون_انتخابی": volc, "نوع_محتوای_تشخیص_داده_شده": "volume",
+                                         "مسیر_تشخیص": "آماری", "درجه_اطمینان": "پایین", "توضیح": "بزرگ‌ترین مقیاس میانگین"})
     if "symbol" not in mapping:
         for c in cols:
             if c in num_cols:
@@ -340,9 +340,9 @@ def detect_columns(df: pd.DataFrame, source_name: str, sample_desc: str = ""):
                 ratio = v.nunique() / max(1, len(v.dropna()))
                 if ratio < 0.5 and len(v.dropna()) > 0:
                     mapping["symbol"] = c
-                    log_rows.append(dict(نام_فایل=source_name, ستون_انتخابی=c, نوع_محتوای_تشخیص_داده_شده="symbol",
-                                         مسیر_تشخیص="آماری", درجه_اطمینان="متوسط",
-                                         توضیح=f"نسبت یکتا {ratio:.2f}"))
+                    log_rows.append({"نام_فایل": source_name, "ستون_انتخابی": c, "نوع_محتوای_تشخیص_داده_شده": "symbol",
+                                         "مسیر_تشخیص": "آماری", "درجه_اطمینان": "متوسط",
+                                         "توضیح": f"نسبت یکتا {ratio:.2f}"})
                     break
             except Exception:
                 continue
@@ -436,7 +436,6 @@ def compute_technical(df: pd.DataFrame) -> dict:
     dd = (peak - close) / peak
     res["max_dd_hist"] = float(dd.max() * 100) if len(dd) else None
     if "volume" in d and d["volume"].notna().any():
-        v = d["volume"].astype(float)
         tail = d.tail(30)
         res["avg_vol30"] = float(tail["volume"].mean())
         res["avg_val30"] = float((tail["volume"] * tail["close"]).mean())
@@ -596,7 +595,7 @@ def ml_train(df: pd.DataFrame) -> dict:
     n_tr = int(n * 0.7)
     n_val = int(n * 0.15)
     Xtr, ytr = X[:n_tr], y[:n_tr]
-    Xval, yval = X[n_tr:n_tr + n_val], y[n_tr:n_tr + n_val]
+    Xval, _ = X[n_tr:n_tr + n_val], y[n_tr:n_tr + n_val]
     Xte, yte = X[n_tr + n_val:], y[n_tr + n_val:]
     if len(Xte) < 20:
         return {"status": "داده ناکافی", "n": n, "n_total": n_total, "vol_ok": vol_ok}
@@ -605,7 +604,7 @@ def ml_train(df: pd.DataFrame) -> dict:
                 "note": "کلاس هدف در بازه آموزش یا آزمون تک‌مقداری است"}
     mu, sd = Xtr.mean(axis=0), Xtr.std(axis=0)
     sd[sd == 0] = 1.0
-    Xtr_s, Xval_s, Xte_s = (Xtr - mu) / sd, (Xval - mu) / sd, (Xte - mu) / sd
+    Xtr_s, _, Xte_s = (Xtr - mu) / sd, (Xval - mu) / sd, (Xte - mu) / sd
 
     def met(model, Xt, yt):
         pred = model.predict(Xt)
@@ -650,9 +649,9 @@ def load_history_file(path: Path):
             if gd is None:
                 continue
             try:
-                rows.append(dict(date=pd.Timestamp(gd), open=float(r.get("open")), high=float(r.get("high")),
-                                 low=float(r.get("low")), close=float(r.get("close")),
-                                 volume=float(r["volume"]) if r.get("volume") is not None else np.nan))
+                rows.append({"date": pd.Timestamp(gd), "open": float(r.get("open")), "high": float(r.get("high")),
+                                 "low": float(r.get("low")), "close": float(r.get("close")),
+                                 "volume": float(r["volume"]) if r.get("volume") is not None else np.nan})
             except Exception:
                 continue
         df = pd.DataFrame(rows).drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
@@ -1025,8 +1024,6 @@ def compose_page(symbol, hub: DataHub, sources: list, data: dict, detection_note
     scr = data.get("screener", {})
     audit = data.get("audit", {})
     snap = data.get("snapshot", {}) or {}
-    series = data.get("series")
-    raw_series = data.get("raw_series")
     ticks = data.get("ticks")
     tech = data.get("technical", {})
     bt = data.get("backtest", {})
@@ -1035,7 +1032,6 @@ def compose_page(symbol, hub: DataHub, sources: list, data: dict, detection_note
     is_fund = data.get("is_fund", False)
 
     name = det.get("name") or scr.get("name") or symbol
-    name_en = det.get("name_en")
     isin = det.get("isin") or scr.get("isin")
     sector = det.get("sector") or scr.get("industry")
     sub_sector = det.get("sub_sector") or scr.get("sub_industry")
@@ -1217,10 +1213,7 @@ def compose_page(symbol, hub: DataHub, sources: list, data: dict, detection_note
             eps = audit.get("eps")
             gm = audit.get("gross_margin") if (rev is not None and audit.get("gross_margin") is not None) else p.u()
             om = p.n("حاشیه عملیاتی (سود عملیاتی در داده نیست)")
-            if rev and npf is not None and rev != 0:
-                nm = npf / rev * 100
-            else:
-                nm = p.u()
+            nm = npf / rev * 100 if rev and npf is not None and rev != 0 else p.u()
             roe = audit.get("roe") if (npf is not None and te) else p.u()
             roa = audit.get("roa") if (npf is not None and ta) else p.u()
             d2e = audit.get("debt_to_equity")
@@ -1660,7 +1653,7 @@ def main():
         try:
             with conn.cursor() as c2:
                 c2.execute(sql)
-                table_syms[name] = set(r[0] for r in c2.fetchall() if r[0])
+                table_syms[name] = {r[0] for r in c2.fetchall() if r[0]}
             print(f"[init] {name}: {len(table_syms[name])} نماد ({time.time()-t0:.0f}s)", flush=True)
         except Exception as e:
             table_syms[name] = set()
@@ -1850,7 +1843,7 @@ def main():
         if page_path.exists() and not args.force:
             continue
         try:
-            data = hub.fetch("core", sym, variants[key] | {v for v in variants[key]})
+            data = hub.fetch("core", sym, variants[key] | set(variants[key]))
             details = hub.latest_details_row(sym)
             if not details:
                 for v in variants[key]:
@@ -1894,48 +1887,48 @@ def main():
             else:
                 note = NO_DATA
             user_row = hub.user_system_row(sym, variants[key])
-            payload = dict(details=details, screener=screener, audit=audit, snapshot=data.get("snapshot") or {},
-                           series=series, raw_series=raw_series, ticks=ticks, technical=technical,
-                           backtest=backtest, ml=ml_res, real_legal=data.get("real_legal"),
-                           shareholders=data.get("shareholders"), announcements=data.get("announcements"),
-                           nav_rows=nav_rows, category=category, is_fund=is_fund, is_bank=is_bank,
-                           price_note=note, user_row=user_row,
-                           halt_note=(f"حجم صفر: {zero_vol} ردیف | قیمت ثابت طولانی‌مدت: {n_const} ردیف (حذف از محاسبات تکنیکال)"
+            payload = {"details": details, "screener": screener, "audit": audit, "snapshot": data.get("snapshot") or {},
+                           "series": series, "raw_series": raw_series, "ticks": ticks, "technical": technical,
+                           "backtest": backtest, "ml": ml_res, "real_legal": data.get("real_legal"),
+                           "shareholders": data.get("shareholders"), "announcements": data.get("announcements"),
+                           "nav_rows": nav_rows, "category": category, "is_fund": is_fund, "is_bank": is_bank,
+                           "price_note": note, "user_row": user_row,
+                           "halt_note": (f"حجم صفر: {zero_vol} ردیف | قیمت ثابت طولانی‌مدت: {n_const} ردیف (حذف از محاسبات تکنیکال)"
                                       if (series is not None and len(series)) else UNKNOWN),
-                           tick_date=tick_dates.get(key, ""))
+                           "tick_date": tick_dates.get(key, "")}
             page_md, page_stats = compose_page(sym, hub, sorted(symbol_sources[key].keys()), payload, detection_note_short)
             with open(page_path, "w", encoding="utf-8") as fh:
                 fh.write(page_md)
             shares = details.get("shares_count")
             pe = details.get("pe_ratio")
             ind_pe = screener.get("industry_pe")
-            stat = dict(symbol=sym, category=category, rows=int(len(series)) if series is not None else 0,
-                        unknown=page_stats["unknown"], fill_pct=round(page_stats["fill_pct"], 1),
-                        has_technical=bool(technical), has_backtest=bool(backtest and backtest.get("status") != "داده ناکافی"),
-                        has_ml=bool(ml_res and ml_res.get("status") == "ok"),
-                        missing=page_stats["missing"][:12],
-                        file=str(page_path.relative_to(OUT_DIR)),
-                        name=details.get("name"), sector=details.get("sector") or screener.get("industry"),
-                        sub_sector=details.get("sub_sector") or screener.get("sub_industry"),
-                        market=details.get("market"), board=details.get("board"), state=details.get("state"),
-                        shares=shares,
-                        capital_btom=(round(float(shares) * 1000 / 1e10, 2) if shares else None),
-                        price=technical.get("close") if technical else None,
-                        daily_change_pct=technical.get("chg_pct") if technical else None,
-                        pe=pe, industry_pe=ind_pe,
-                        pe_vs_industry=((float(pe) / float(ind_pe) - 1) * 100 if (pe and ind_pe) else None),
-                        net_profit_growth=audit.get("net_profit_growth"),
-                        revenue_growth=audit.get("revenue_growth"),
-                        net_margin=audit.get("net_margin"),
-                        rsi14=technical.get("rsi14") if technical else None,
-                        avg_val30=technical.get("avg_val30") if technical else None,
-                        ret12=technical.get("ret_12m") if technical else None,
-                        max_dd_hist=technical.get("max_dd_hist") if technical else None,
-                        annual_vol=technical.get("annual_vol") if technical else None,
-                        tech_signal=page_stats.get("tech_signal"), flow_signal=page_stats.get("flow_signal"),
-                        peer_signal=page_stats.get("peer_signal"), contradictions=page_stats.get("contradictions"),
-                        user_daily=jsonable(user_row.get("daily") or {}),
-                        user_signal=jsonable(user_row.get("signal") or {}))
+            stat = {"symbol": sym, "category": category, "rows": int(len(series)) if series is not None else 0,
+                        "unknown": page_stats["unknown"], "fill_pct": round(page_stats["fill_pct"], 1),
+                        "has_technical": bool(technical), "has_backtest": bool(backtest and backtest.get("status") != "داده ناکافی"),
+                        "has_ml": bool(ml_res and ml_res.get("status") == "ok"),
+                        "missing": page_stats["missing"][:12],
+                        "file": str(page_path.relative_to(OUT_DIR)),
+                        "name": details.get("name"), "sector": details.get("sector") or screener.get("industry"),
+                        "sub_sector": details.get("sub_sector") or screener.get("sub_industry"),
+                        "market": details.get("market"), "board": details.get("board"), "state": details.get("state"),
+                        "shares": shares,
+                        "capital_btom": (round(float(shares) * 1000 / 1e10, 2) if shares else None),
+                        "price": technical.get("close") if technical else None,
+                        "daily_change_pct": technical.get("chg_pct") if technical else None,
+                        "pe": pe, "industry_pe": ind_pe,
+                        "pe_vs_industry": ((float(pe) / float(ind_pe) - 1) * 100 if (pe and ind_pe) else None),
+                        "net_profit_growth": audit.get("net_profit_growth"),
+                        "revenue_growth": audit.get("revenue_growth"),
+                        "net_margin": audit.get("net_margin"),
+                        "rsi14": technical.get("rsi14") if technical else None,
+                        "avg_val30": technical.get("avg_val30") if technical else None,
+                        "ret12": technical.get("ret_12m") if technical else None,
+                        "max_dd_hist": technical.get("max_dd_hist") if technical else None,
+                        "annual_vol": technical.get("annual_vol") if technical else None,
+                        "tech_signal": page_stats.get("tech_signal"), "flow_signal": page_stats.get("flow_signal"),
+                        "peer_signal": page_stats.get("peer_signal"), "contradictions": page_stats.get("contradictions"),
+                        "user_daily": jsonable(user_row.get("daily") or {}),
+                        "user_signal": jsonable(user_row.get("signal") or {})}
             with open(stats_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(jsonable(stat), ensure_ascii=False) + "\n")
             done += 1

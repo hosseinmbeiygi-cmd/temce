@@ -5,12 +5,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-
-from apps.api.dependencies import require_roles
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.dependencies import get_db_session, get_news_service
+from apps.api.dependencies import get_db_session, get_news_service, require_roles
 from core.logging import get_logger
 from core.result import PaginatedResult
 from domain.news.news_item import NewsItem
@@ -33,6 +31,11 @@ VALID_CATEGORIES = {"market", "companies", "company", "economic", "political", "
 # Canonical output category for each accepted alias (used to normalize before
 # comparing against stored items, so both spellings return the same rows).
 _CATEGORY_ALIASES = {"company": "companies", "stock_market": "market"}
+
+
+def _latest_published_at(items: list[NewsResponse]) -> str | None:
+    values = [item.published_at for item in items if getattr(item, "published_at", None)]
+    return max(values) if values else None
 
 
 def normalize_news_category(category: str) -> str:
@@ -203,6 +206,7 @@ async def list_news(
                 page_size=page_size,
                 total_pages=total_pages,
             ),
+            data_as_of=_latest_published_at(items),
         )
     # Fallback: return market news from symbol snapshots
     if page > 1:
@@ -222,10 +226,13 @@ async def list_news(
             page_size=page_size,
             total_pages=1,
         ),
+        data_as_of=_latest_published_at(market_news),
     )
 
 
-@router.post("")
+# Audit API-06: publishing market-wide news is an editorial action, not a
+# read — any self-registered account must not be able to inject it.
+@router.post("", dependencies=[Depends(require_roles("admin"))])
 async def create_news(
     body: NewsRequest,
     service: NewsService = Depends(get_news_service),
@@ -426,7 +433,7 @@ async def trending_news(
     return ApiResponse[list[NewsResponse]](success=True, data=[])
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(require_roles("admin"))])
 async def refresh_news() -> ApiResponse[dict[str, Any]]:
     """Trigger background news ingestion from RSS feeds."""
     if _refresh_status["running"]:
@@ -537,7 +544,7 @@ async def news_read_path_status() -> ApiResponse[dict[str, Any]]:
     parity window (served / compared / parity % / items share) and the
     halt state. Public read — no sensitive data.
     """
-    from services.news_read_canary import halt_status
+    from core.news_read_canary import halt_status
 
     return ApiResponse[dict[str, Any]](success=True, data=await halt_status())
 
@@ -553,7 +560,7 @@ async def news_read_path_set_mode(
     deploy; moving to a non-``off`` mode clears any auto-halt. Response
     includes the actor for the operations trail.
     """
-    from services.news_read_canary import MODES, set_runtime_mode
+    from core.news_read_canary import MODES, set_runtime_mode
 
     normalized = mode.strip().lower()
     if normalized not in MODES:
@@ -563,7 +570,7 @@ async def news_read_path_set_mode(
             error={"message": f"mode must be one of {', '.join(MODES)}"},
         )
     await set_runtime_mode(normalized)
-    from services.news_read_canary import halt_status
+    from core.news_read_canary import halt_status
 
     status = await halt_status()
     return ApiResponse[dict[str, Any]](

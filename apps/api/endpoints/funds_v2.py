@@ -29,10 +29,11 @@ Endpoints:
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.dependencies import get_db_session
@@ -112,9 +113,9 @@ async def _load_nav_points(
     # dedupe + sort
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
-    for p in sorted(points, key=lambda x: x["date"]):
+    for p in sorted(points, key=lambda x: str(x["date"])):
         if p["date"] not in seen:
-            seen.add(p["date"])
+            seen.add(str(p["date"]))
             deduped.append(p)
     return deduped
 
@@ -674,5 +675,5 @@ async def review_quarantine(
     await service.session.commit()
     return {
         "success": True,
-        "data": {"id": qid, "reviewed": True, "updated": result.rowcount or 0},
+        "data": {"id": qid, "reviewed": True, "updated": cast(CursorResult[Any], result).rowcount or 0},
     }

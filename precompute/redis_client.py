@@ -87,9 +87,7 @@ def get_redis(config: PrecomputeConfig | None = None) -> aioredis.Redis:
 
 async def _breaker_open() -> bool:
     global _open_until
-    if time.monotonic() < _open_until:
-        return True
-    return False
+    return time.monotonic() < _open_until
 
 
 def _record_failure() -> None:

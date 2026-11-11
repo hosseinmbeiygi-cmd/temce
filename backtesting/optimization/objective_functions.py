@@ -12,7 +12,9 @@ class ObjectiveFunctions:
         if len(navs) < 2:
             return -1e9
         returns = np.diff(navs) / navs[:-1]
-        vol = np.std(returns)
+        # OPT-001: sample standard deviation (ddof=1). The population form
+        # understates risk on the short return series a backtest produces.
+        vol = np.std(returns, ddof=1)
         if vol == 0:
             return 0.0
         return float(np.mean(returns) / vol * np.sqrt(252))
@@ -48,7 +50,8 @@ class ObjectiveFunctions:
             return -1e9
         returns = np.diff(navs) / navs[:-1]
         downside = returns[returns < 0]
-        downside_vol = np.std(downside) if len(downside) > 1 else 1.0
+        # OPT-001: ddof=1 to match the Sharpe convention.
+        downside_vol = np.std(downside, ddof=1) if len(downside) > 1 else 1.0
         if downside_vol == 0:
             return 0.0
         return float(np.mean(returns) / downside_vol * np.sqrt(252))

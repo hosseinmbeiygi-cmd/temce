@@ -1,33 +1,114 @@
-import os
-import re
-import time
+import argparse
 import json
 import logging
+import os
+import re
 import threading
-import sqlite3
-from datetime import datetime, timedelta
+import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta, timezone
+from logging.handlers import RotatingFileHandler
+
+try:
+    from zoneinfo import ZoneInfo
+
+    TEHRAN_TZ = ZoneInfo("Asia/Tehran")
+except Exception:  # pragma: no cover - ویندوز بدون tzdata
+    TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
+
 import jdatetime
+import psycopg2
 import requests
+from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+
+# متغیرهای .env (DB_HOST/DB_PASSWORD/...) را قبل از ساخت PG_CONFIG بارگذاری کن
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 # ============================ تنظیمات ============================
-API_KEY = "Bk7JvdJZBHJ9DMhzeuTfWjwqYy1wMsif"  # کلید BrsApi خود را وارد کنید
+# کلید BrsApi فقط از محیط خوانده می‌شود (هرگز در کد هاردکد نمی‌شود).
+# مقدار را در .env یا متغیر محیطی BRSAPI_KEY بگذارید.
+API_KEY = (os.environ.get("BRSAPI_API_KEY") or os.environ.get("BRSAPI_KEY") or "").strip()
+if not API_KEY:
+    raise SystemExit(
+        "BRSAPI_KEY تنظیم نشده است. کلید را در .env (یا متغیر محیطی) قرار دهید — "
+        "هاردکد کردن کلید در سورس ممنوع است."
+    )
 
 DAILY_LIMIT = 10000          # سقف روزانه قطعی
-MAX_PER_BURST = 2            # سقف ریکوئست در هر بازه (محدودیت رسمی BrsApi: Transaction = 2 ریکوئست/۱۰ ثانیه)
+# محدودیت نرخ: هدف ≈۱۰۰۰ ریکوئست در ۵ دقیقه (≈۳٫۳ ریکوئست/ثانیه).
+# نرخ مؤثر = max(1/MIN_DELAY_PER_REQ , MAX_PER_BURST/BURST_WINDOW) ⇒ اینجا ۳٫۳۳/ثانیه.
+MAX_PER_BURST = 40           # سقف ریکوئست در هر بازه ۱۰ ثانیه‌ای (سقف پشتیبان ۴/ثانیه)
 BURST_WINDOW = 10            # بازه ۱۰ ثانیه‌ای
-MIN_DELAY_PER_REQ = 5.0      # تأخیر ۵ ثانیه بین ریکوئست‌ها (معادل 2 req/10s)
-MAX_WORKERS = 4              # تعداد ترد پایدار در ویندوز
+MIN_DELAY_PER_REQ = 0.3      # حداقل فاصله بین دو ریکوئست (ثانیه) — عامل تعیین‌کننده نرخ
+MAX_WORKERS = 16             # تعداد ترد پایدار (نرخ را در صورت تأخیر بالای پاسخ حفظ می‌کند؛ خود محدودکننده فراتر نمی‌رود)
+MAX_ATTEMPTS = 3             # تلاش برای خطاهای گذرا (شبکه/5xx) — هر تلاش سهمیه می‌خورد
+TRANSIENT_HTTP = (500, 502, 503, 504)
 
-DATA_DIR = "transactions_data"
-STATE_FILE = "crawler_state.json"
-SYMBOLS_CACHE_FILE = "all_symbols.json"
-DB_FILE = "transactions.db"     # پایگاه داده SQLite برای تحلیل (علاوه بر فایل JSON)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "transactions_data")
+QUOTA_STATE_DIR = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "temce")
+STATE_FILE = os.path.join(QUOTA_STATE_DIR, "crawler_state.json")
+QUOTA_JOURNAL = os.path.join(QUOTA_STATE_DIR, "crawler_quota.jsonl")
+SYMBOLS_CACHE_FILE = os.path.join(BASE_DIR, "all_symbols.json")
+
+# ── مقصد اصلی ریز معاملات: پستگرس (همان جدولی که سرویس BrsApi می‌نویسد) ──
+def _resolve_pg_config():
+    url = (os.environ.get("DATABASE_URL") or "").strip()
+    if url:
+        return {
+            "dsn": re.sub(r"^postgresql\+[^:]+://", "postgresql://", url),
+            "connect_timeout": 15,
+        }
+    dbname = os.environ.get("PG_DATABASE") or os.environ.get("DB_NAME")
+    user = os.environ.get("PG_USER") or os.environ.get("DB_USER")
+    if not dbname or not user:
+        raise SystemExit(
+            "تنظیمات پستگرس ناقص است. یکی از این دو را در .env بگذارید: "
+            "DATABASE_URL، یا DB_NAME/DB_USER/DB_PASSWORD (DB_HOST/DB_PORT اختیاری)."
+        )
+    return {
+        "host": os.environ.get("PG_HOST") or os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("PG_PORT") or os.environ.get("DB_PORT", "5432")),
+        "dbname": dbname,
+        "user": user,
+        "password": os.environ.get("PG_PASSWORD") or os.environ.get("DB_PASSWORD", ""),
+        "connect_timeout": 15,
+    }
+
+
+PG_CONFIG = _resolve_pg_config()
+TRADES_TABLE = "brsapi_intraday_trades"
 
 START_DATE_SHAMSI = "1390-01-01"
+
+# ── تقویم معاملاتی ──
+# بورس تهران شنبه تا چهارشنبه باز است. تأیید تجربی: در ۳۲٫۷ میلیون ردیف دیتابیس
+# (۳٬۵۲۸ تاریخ متمایز، ۱۳۹۰ تا ۱۴۰۵) هیچ معامله‌ای در پنجشنبه/جمعه ثبت نشده است.
+# jdatetime: شنبه=0، یکشنبه=1، ... پنجشنبه=5، جمعه=6
+WEEKLY_CLOSED_WEEKDAYS = (5, 6)
+
+# تعطیلات رسمی با تاریخ شمسی ثابت (هر سال تکرار می‌شوند)
+FIXED_SHAMSI_HOLIDAYS = (
+    (1, 1), (1, 2), (1, 3), (1, 4),   # نوروز
+    (1, 12),                          # روز جمهوری اسلامی
+    (1, 13),                          # سیزده‌بدر
+    (3, 14),                          # رحلت امام خمینی
+    (3, 15),                          # قیام ۱۵ خرداد
+    (11, 22),                         # پیروزی انقلاب اسلامی
+    (12, 29),                         # ملی شدن صنعت نفت
+)
+
+# تعطیلات متغیر (قمری) خودکار از پاسخ صریح API یاد گرفته و برای همه نمادها کش می‌شوند
+HOLIDAYS_FILE = os.path.join(BASE_DIR, "market_holidays.json")
+
+# دفتر مشترک «این تاریخ داده ندارد»: اگر آستانه‌ای نماد پشت‌سرهم ۴۲۴ بگیرند و
+# هیچ نمادی داده نداشته باشد، تاریخ برای بقیه نمادها رد می‌شود (صرفه‌جویی سهمیه).
+MARKET_NO_DATA_FILE = os.path.join(BASE_DIR, "market_no_data.json")
+MARKET_NO_DATA_THRESHOLD = 20
 
 # User-Agent استاندارد مرورگر — BrsApi ریکوئست‌های با UA پیش‌فرض پایتون را 403 می‌کند
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
@@ -39,81 +120,295 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("collector.log", encoding="utf-8"),
+        RotatingFileHandler(
+            os.path.join(BASE_DIR, "collector.log"),
+            maxBytes=20 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        ),
         logging.StreamHandler()
     ]
 )
 
 # ============================ مدیریت سهمیه ============================
+@contextmanager
+def _state_file_lock():
+    os.makedirs(os.path.dirname(os.path.abspath(STATE_FILE)), exist_ok=True)
+    with open(STATE_FILE + ".lock", "a+b") as lock_file:
+        if os.name == "nt":
+            import msvcrt
+
+            lock_file.seek(0, os.SEEK_END)
+            if lock_file.tell() == 0:
+                lock_file.write(b"\0")
+                lock_file.flush()
+            lock_file.seek(0)
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+QUOTA_WINDOW = 24 * 60 * 60          # پنجره غلتان سهمیه (ثانیه)
+CLOCK_SKEW_TOLERANCE = 60            # عقب‌رفتن مجاز ساعت سیستم (ثانیه)
+JOURNAL_RELOAD_EVERY = 200           # هر چند درخواست، ژورنال دوباره خوانده شود
+JOURNAL_COMPACT_MIN_LINES = 15000    # آستانه فشرده‌سازی ژورنال
+
+
+def _journal_key(entry):
+    return (round(entry["ts"], 3), round(entry["mono"], 3), entry["day"])
+
+
+def _read_journal():
+    """خواندن ژورنال پیوسته؛ خط خراب ⇒ توقف (fail-closed) تا شمارش تحریف نشود."""
+    if not os.path.exists(QUOTA_JOURNAL):
+        return []
+    entries = []
+    try:
+        with open(QUOTA_JOURNAL, encoding="utf-8") as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    entries.append({
+                        "ts": float(rec["ts"]),
+                        "mono": float(rec["mono"]),
+                        "day": str(rec["day"]),
+                    })
+                except (KeyError, TypeError, ValueError) as e:
+                    raise RuntimeError(
+                        f"ژورنال سهمیه معتبر نیست (خط {lineno}): {e} — "
+                        "برای جلوگیری از عبور از سقف اجرا متوقف شد."
+                    ) from e
+    except OSError as e:
+        raise RuntimeError(f"خواندن ژورنال سهمیه ناموفق: {e}") from e
+    return entries
+
+
+def _write_journal(entries):
+    tmp = f"{QUOTA_JOURNAL}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            for entry in entries:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, QUOTA_JOURNAL)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _append_journal(entry):
+    with open(QUOTA_JOURNAL, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _entry_age(entry, now, mono):
+    """سن ورودی؛ تا وقتی مونوتونیک جلوتر رفته، min(دیواری، مونوتونیک) ملاک است.
+
+    جلو بردن ساعت سیستم نمی‌تواند ورودی‌های پنجره ۲۴ ساعته را زودتر حذف کند؛
+    فقط وقتی مونوتونیک ری‌ست شده باشد (ری‌استارت) از ساعت دیواری استفاده می‌شود.
+    """
+    if entry["mono"] <= mono:
+        return min(now - entry["ts"], mono - entry["mono"])
+    return now - entry["ts"]
+
+
 class RateLimiter:
-    def __init__(self, daily_limit=DAILY_LIMIT, burst_limit=MAX_PER_BURST, burst_window=BURST_WINDOW):
+    """سهمیه سخت‌گیرانه با ژورنال پیوسته (ضد ری‌استارت/ساعت/چندپروسه).
+
+    قیدهای هم‌زمان:
+      * سقف DAILY_LIMIT درخواست در هر روز تقویمی
+      * سقف DAILY_LIMIT درخواست در هر پنجره غلتان ۲۴ ساعته
+        (قید روزانه در چندپروسه دقیق است؛ پنجره غلتان هر JOURNAL_RELOAD_EVERY
+        درخواست با ژورنال سایر پروسه‌ها هم‌تراز می‌شود)
+      * عقب‌رفتن ساعت سیستم ⇒ توقف کامل (جلوگیری از ریست شمارنده)
+    شمارنده روز از «حداکثرِ» فایل state و ژورنال بازسازی می‌شود؛ حذف یکی
+    از دو فایل شمارنده را صفر نمی‌کند.
+    """
+
+    def __init__(self, daily_limit=DAILY_LIMIT, burst_limit=MAX_PER_BURST, burst_window=BURST_WINDOW,
+                 now_fn=time.time, mono_fn=time.monotonic, run_budget=None):
         self.daily_limit = daily_limit
         self.burst_limit = burst_limit
         self.burst_window = burst_window
+        self._now_fn = now_fn
+        self._mono_fn = mono_fn
+        self.run_budget = run_budget
+        self.run_slots = 0
         self.lock = threading.Lock()
-        self.recent_requests = deque()
-        self.last_req_time = 0
-        self.state = self.load_state()
+        self._window = deque()
+        self._day_counts = {}
+        self._since_reload = 0
+        with self.lock, _state_file_lock():
+            self.state = self._bootstrap_unlocked()
 
-    def load_state(self):
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        default_state = {"current_day": today_str, "requests_today": 0}
-        if os.path.exists(STATE_FILE):
-            try:
-                with open(STATE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if data.get("current_day") == today_str:
-                        return data
-            except Exception as e:
-                logging.error(f"خطا در بارگذاری فایل وضعیت: {e}")
-        return default_state
+    def _times(self):
+        return self._now_fn(), self._mono_fn()
 
-    def save_state(self):
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.state, f, ensure_ascii=False, indent=2)
+    @staticmethod
+    def _today(now):
+        return datetime.fromtimestamp(now, tz=TEHRAN_TZ).strftime("%Y-%m-%d")
+
+    def _read_state(self, today):
+        """Counter و last_req_time امروز؛ None یعنی فایل نیست یا مال روز دیگری است."""
+        if not os.path.exists(STATE_FILE):
+            return None
+        try:
+            with open(STATE_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"خطا در بارگذاری فایل وضعیت سهمیه: {e}") from e
+        if not isinstance(data, dict):
+            raise RuntimeError("ساختار فایل وضعیت سهمیه نامعتبر است.")
+        if data.get("current_day") != today:
+            return None
+        count = data.get("requests_today")
+        if not isinstance(count, int) or count < 0:
+            raise RuntimeError("شمارنده درخواست روزانه در فایل وضعیت نامعتبر است.")
+        try:
+            last_req_time = float(data.get("last_req_time", 0))
+        except (TypeError, ValueError) as e:
+            raise RuntimeError("زمان آخرین درخواست در فایل وضعیت نامعتبر است.") from e
+        return {"requests_today": count, "last_req_time": last_req_time}
+
+    def _write_state_unlocked(self, state):
+        temp_path = f"{STATE_FILE}.{os.getpid()}.tmp"
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, STATE_FILE)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @staticmethod
+    def _prune(entries, now, mono):
+        return [e for e in entries if _entry_age(e, now, mono) < QUOTA_WINDOW]
+
+    def _reset_window_locked(self, entries, now, mono, today):
+        live = self._prune(entries, now, mono)
+        live.sort(key=lambda e: e["ts"])
+        self._window = deque(live)
+        self._day_counts = {}
+        for entry in self._window:
+            day = entry["day"]
+            self._day_counts[day] = self._day_counts.get(day, 0) + 1
+        return self._day_counts.get(today, 0)
+
+    def _expire_locked(self, now, mono):
+        while self._window:
+            entry = self._window[0]
+            if _entry_age(entry, now, mono) < QUOTA_WINDOW:
+                break
+            self._window.popleft()
+            day = entry["day"]
+            remaining = self._day_counts.get(day, 0) - 1
+            if remaining > 0:
+                self._day_counts[day] = remaining
+            else:
+                self._day_counts.pop(day, None)
+
+    def _bootstrap_unlocked(self):
+        now, mono = self._times()
+        today = self._today(now)
+        journal_day = self._reset_window_locked(_read_journal(), now, mono, today)
+        state = self._read_state(today)
+        journal_last = self._window[-1]["ts"] if self._window else 0.0
+        if state is None:
+            count = journal_day
+            last_req = journal_last
+        else:
+            count = max(state["requests_today"], journal_day)
+            last_req = max(state["last_req_time"], journal_last)
+        return {"current_day": today, "requests_today": count, "last_req_time": last_req}
+
+    def _reload_unlocked(self, now, mono):
+        self._since_reload = 0
+        raw = _read_journal()
+        merged = {_journal_key(e): e for e in raw}
+        for entry in self._window:
+            merged.setdefault(_journal_key(entry), entry)
+        entries = list(merged.values())
+        if len(raw) > JOURNAL_COMPACT_MIN_LINES:
+            _write_journal(self._prune(entries, now, mono))
+        self._reset_window_locked(entries, now, mono, self._today(now))
 
     def acquire_slot(self):
         while True:
-            with self.lock:
-                now = time.time()
-                today_str = datetime.now().strftime("%Y-%m-%d")
+            sleep_time = 0.0
+            with self.lock, _state_file_lock():
+                if self.run_budget is not None and self.run_slots >= self.run_budget:
+                    return False, "RUN_BUDGET_EXCEEDED"
+                now, mono = self._times()
+                self._since_reload += 1
+                if self._since_reload >= JOURNAL_RELOAD_EVERY:
+                    self._reload_unlocked(now, mono)
 
-                if self.state["current_day"] != today_str:
-                    self.state["current_day"] = today_str
-                    self.state["requests_today"] = 0
-                    self.recent_requests.clear()
-                    self.save_state()
+                self._expire_locked(now, mono)
+                today = self._today(now)
+                state = self._read_state(today)
+                last_ts = self._window[-1]["ts"] if self._window else 0.0
+                if state is not None:
+                    last_ts = max(last_ts, state["last_req_time"])
 
-                if self.state["requests_today"] >= self.daily_limit:
+                if now < last_ts - CLOCK_SKEW_TOLERANCE:
+                    logging.error(
+                        "ساعت سیستم به عقب برگشته است؛ برای جلوگیری از عبور از سهمیه متوقف شد."
+                    )
+                    return False, "CLOCK_ROLLBACK"
+
+                journal_day = self._day_counts.get(today, 0)
+                requests_today = max(state["requests_today"] if state else 0, journal_day)
+                if requests_today >= self.daily_limit:
                     return False, "DAILY_LIMIT_EXCEEDED"
+                if len(self._window) >= self.daily_limit:
+                    return False, "ROLLING_LIMIT_EXCEEDED"
 
-                while self.recent_requests and self.recent_requests[0] <= now - self.burst_window:
-                    self.recent_requests.popleft()
-
-                sleep_time = 0
-                if len(self.recent_requests) >= self.burst_limit:
-                    sleep_time = (self.recent_requests[0] + self.burst_window) - now + 0.5
-                else:
-                    elapsed = now - self.last_req_time
-                    if elapsed < MIN_DELAY_PER_REQ:
-                        sleep_time = MIN_DELAY_PER_REQ - elapsed
+                recent = []
+                for entry in reversed(self._window):
+                    if entry["ts"] <= now - self.burst_window:
+                        break
+                    recent.append(entry["ts"])
+                if len(recent) >= self.burst_limit:
+                    sleep_time = max(
+                        sleep_time,
+                        min(recent) + self.burst_window - now + 0.5,
+                    )
+                sleep_time = max(sleep_time, MIN_DELAY_PER_REQ - (now - last_ts))
 
                 if sleep_time <= 0:
-                    self.recent_requests.append(time.time())
-                    self.last_req_time = time.time()
-                    self.state["requests_today"] += 1
-                    current_count = self.state["requests_today"]
-                    self.save_state()
-                    return True, current_count
+                    entry = {"ts": now, "mono": mono, "day": today}
+                    _append_journal(entry)
+                    self._window.append(entry)
+                    self._day_counts[today] = journal_day + 1
+                    self.state = {
+                        "current_day": today,
+                        "requests_today": requests_today + 1,
+                        "last_req_time": now,
+                    }
+                    self._write_state_unlocked(self.state)
+                    self.run_slots += 1
+                    return True, requests_today + 1
 
-            time.sleep(sleep_time)
-
-    def refund_slot(self):
-        with self.lock:
-            if self.state["requests_today"] > 0:
-                self.state["requests_today"] -= 1
-                self.save_state()
-
+            time.sleep(max(sleep_time, 0.05))
 
 # ============================ فیلتر و پالایش نام نمادها ============================
 def is_valid_symbol_name(sym: str) -> bool:
@@ -125,9 +420,116 @@ def is_valid_symbol_name(sym: str) -> bool:
     if any(c in sym for c in r'/\:*?"<>|@;,'):
         return False
     # نماد نباید صرفاً عدد یا خیلی طولانی باشد
-    if sym.isdigit() or len(sym) > 30 or len(sym) < 2:
-        return False
-    return True
+    return not (sym.isdigit() or len(sym) > 30 or len(sym) < 2)
+
+
+# ── مدیریت تقویم تعطیلات بازار ──
+_HOLIDAYS_LOCK = threading.Lock()
+_HOLIDAYS = set()   # تاریخ‌های تعطیل رسمی شمسی (YYYY-MM-DD) که بازار در آن‌ها بسته بوده
+
+
+def _load_holidays():
+    """بارگذاری تعطیلات یادگرفته‌شده از فایل (در صورت وجود)"""
+    if not os.path.exists(HOLIDAYS_FILE):
+        return
+    try:
+        with open(HOLIDAYS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            _HOLIDAYS.update(str(x) for x in data)
+        logging.info(f"تقویم تعطیلات: {len(_HOLIDAYS)} روز تعطیل رسمی بارگذاری شد.")
+    except Exception as e:
+        logging.error(f"بارگذاری تقویم تعطیلات ناموفق: {e}")
+
+
+def _save_holidays():
+    """ذخیره اتمیک تعطیلات یادگرفته‌شده"""
+    tmp = HOLIDAYS_FILE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(sorted(_HOLIDAYS), f, ensure_ascii=False, indent=2)
+        os.replace(tmp, HOLIDAYS_FILE)
+    except Exception as e:
+        logging.error(f"ذخیره تقویم تعطیلات ناموفق: {e}")
+
+
+def _mark_holiday(date_str):
+    """ثبت یک تاریخ به‌عنوان تعطیل رسمی بازار (سراسری، نه مخصوص یک نماد)"""
+    with _HOLIDAYS_LOCK:
+        if not date_str or date_str in _HOLIDAYS:
+            return
+        _HOLIDAYS.add(date_str)
+        _save_holidays()
+
+
+# ── دفتر مشترک تاریخ‌های بدون داده ──
+_NO_DATA_LOCK = threading.Lock()
+_NO_DATA = {}   # {"YYYY-MM-DD": [تعداد نمادِ بدون‌داده, تعداد نمادِ داده‌دار]}
+
+
+def _load_no_data_ledger():
+    """بارگذاری (و ادغام) دفتر تاریخ‌های بدون داده؛ خطای فایل فقط یعنی «رد نکن»."""
+    with _NO_DATA_LOCK:
+        if not os.path.exists(MARKET_NO_DATA_FILE):
+            return
+        try:
+            with open(MARKET_NO_DATA_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            logging.warning(f"دفتر تاریخ‌های بدون داده خوانده نشد (رد نخواهد شد): {e}")
+            return
+        if not isinstance(data, dict):
+            return
+        for day, counts in data.items():
+            if not (isinstance(counts, list) and len(counts) == 2):
+                continue
+            if not all(isinstance(x, int) and x >= 0 for x in counts):
+                continue
+            current = _NO_DATA.get(str(day), [0, 0])
+            _NO_DATA[str(day)] = [max(current[0], counts[0]), max(current[1], counts[1])]
+
+
+def _save_no_data_ledger():
+    tmp = f"{MARKET_NO_DATA_FILE}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_NO_DATA, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, MARKET_NO_DATA_FILE)
+    except OSError as e:
+        logging.warning(f"ذخیره دفتر تاریخ‌های بدون داده ناموفق: {e}")
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _record_date_status(date_str, has_data):
+    """ثبت نتیجه یک (نماد، تاریخ) در دفتر مشترک."""
+    if not date_str:
+        return
+    with _NO_DATA_LOCK:
+        entry = _NO_DATA.setdefault(date_str, [0, 0])
+        entry[1 if has_data else 0] += 1
+        _save_no_data_ledger()
+
+
+def _is_market_no_data(date_str):
+    """تاریخ برای بازار «بدون داده» است؟ فقط وقتی هیچ نمادی داده نداشته باشد."""
+    with _NO_DATA_LOCK:
+        entry = _NO_DATA.get(date_str)
+        if not entry:
+            return False
+        return entry[1] == 0 and entry[0] >= MARKET_NO_DATA_THRESHOLD
+
+
+def is_market_closed(jd) -> bool:
+    """آیا بازار در این تاریخ (jdatetime.date) تعطیل است؟"""
+    if jd.weekday() in WEEKLY_CLOSED_WEEKDAYS:
+        return True
+    if (jd.month, jd.day) in FIXED_SHAMSI_HOLIDAYS:
+        return True
+    return jd.strftime("%Y-%m-%d") in _HOLIDAYS
 
 
 # ── فیلتر بازار بر اساس پیشوند ISIN (استاندارد بورس ایران) ──
@@ -153,10 +555,10 @@ def _isin_allowed(isin: str) -> bool:
     return any(isin.startswith(p) for p in prefixes)
 
 
-def extract_all_symbols():
+def extract_all_symbols(limiter):
     if os.path.exists(SYMBOLS_CACHE_FILE):
         try:
-            with open(SYMBOLS_CACHE_FILE, "r", encoding="utf-8") as f:
+            with open(SYMBOLS_CACHE_FILE, encoding="utf-8") as f:
                 syms = json.load(f)
                 valid_syms = [s for s in syms if is_valid_symbol_name(s)]
                 if len(valid_syms) > 10:
@@ -169,9 +571,18 @@ def extract_all_symbols():
     symbols = set()
 
     # ۱. اولویت اول: از وب‌سرویس خود BrsApi
+    allowed, count_or_reason = limiter.acquire_slot()
+    if not allowed:
+        raise RuntimeError(f"سقف درخواست پیش از دریافت فهرست نمادها تکمیل شده است ({count_or_reason}).")
     try:
         url = f"{BASE_URL}/Tsetmc/AllSymbols.php"
-        resp = requests.get(url, params={"key": API_KEY, "type": "1"}, headers=HEADERS, timeout=20)
+        resp = requests.get(
+            url,
+            params={"key": API_KEY, "type": "1"},
+            headers=HEADERS,
+            timeout=20,
+            allow_redirects=False,
+        )
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, list):
@@ -186,8 +597,12 @@ def extract_all_symbols():
     except Exception as e:
         logging.warning(f"عدم دریافت از BrsApi: {e}")
 
-    # ۲. فال‌بک دقیق و پالایش‌شده از TSETMC
+    # ۲. فال‌بک دقیق و پالایش‌شده از TSETMC (این درخواست هم از سقف کم می‌شود تا
+    # جمع درخواست‌های HTTP از سقف روزانه عبور نکند)
     if not symbols:
+        allowed, count_or_reason = limiter.acquire_slot()
+        if not allowed:
+            raise RuntimeError(f"سقف درخواست پیش از دریافت فهرست نمادها تکمیل شده است ({count_or_reason}).")
         try:
             url = "http://old.tsetmc.com/tsev2/data/MarketWatchPlus.aspx"
             r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
@@ -203,7 +618,7 @@ def extract_all_symbols():
         except Exception as e:
             logging.error(f"خطا در ارتباط با TSETMC: {e}")
 
-    clean_list = sorted(list(symbols))
+    clean_list = sorted(symbols)
     if clean_list:
         with open(SYMBOLS_CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(clean_list, f, ensure_ascii=False, indent=2)
@@ -213,36 +628,54 @@ def extract_all_symbols():
     raise RuntimeError("هیچ نماد معتبری یافت نشد. اتصال اینترنت را چک کنید.")
 
 
-# ============================ ذخیره در پایگاه داده (SQLite) ============================
-_DB_LOCK = threading.Lock()
-
-
-def _init_db():
-    """ایجاد جدول تراکنش‌ها در SQLite (در صورت عدم وجود)"""
-    conn = sqlite3.connect(DB_FILE)
+# ============================ آرشیو خام JSON (منبع Resume) ============================
+def _write_json_atomic(path, payload):
+    """نوشتن اتمیک آرشیو خام؛ فایل نیمه‌کاره نباید «انجام‌شده» تلقی شود."""
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS transactions (
-                symbol      TEXT NOT NULL,
-                trade_date  TEXT NOT NULL,   -- تاریخ شمسی YYYY-MM-DD
-                seq_no      INTEGER NOT NULL,
-                time        TEXT,
-                volume      INTEGER,
-                price       REAL,
-                is_canceled INTEGER DEFAULT 0,
-                PRIMARY KEY (symbol, trade_date, seq_no)
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_symbol_date ON transactions(symbol, trade_date)")
-        conn.commit()
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+        os.replace(tmp, path)
     finally:
-        conn.close()
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _as_int(value, default=0):
+    try:
+        return int(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_int(value):
+    """تبدیل سخت‌گیرانه؛ مقدار نامعتبر ⇒ None (نه صفر)."""
+    try:
+        text = str(value).replace(",", "").strip()
+        if not text:
+            return None
+        number = float(text)
+        return int(number) if number.is_integer() else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _to_float(value):
+    try:
+        text = str(value).replace(",", "").strip()
+        return float(text) if text else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _as_bool(value):
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes")
+    return bool(value)
 
 
 def _extract_trade_rows(data):
-    """تبدیل پاسخ Transaction.php به لیست ردیف‌های تراکنش (حالت تخت یا پاکت تودرتو)"""
+    """ردیف‌های معتبر تراکنش؛ ردیف با فیلد کلیدی نامعتبر ⇒ ValueError (بدون صفرسازی)."""
     if isinstance(data, dict):
         inner = data.get("data")
         if isinstance(inner, dict) and isinstance(inner.get("transaction"), list):
@@ -252,123 +685,443 @@ def _extract_trade_rows(data):
     if not isinstance(data, list):
         return []
     rows = []
-    for item in data:
+    for index, item in enumerate(data):
         if not isinstance(item, dict):
             continue
+        seq_no = _to_int(item.get("row") if item.get("row") is not None else item.get("id"))
+        volume = _to_int(item.get("volume") if item.get("volume") is not None else item.get("qTitTran"))
+        price = _to_float(item.get("price") if item.get("price") is not None else item.get("pTran"))
+        if seq_no is None or volume is None or price is None:
+            raise ValueError(
+                f"ردیف {index} نامعتبر است "
+                f"(row={item.get('row')!r}, volume={item.get('volume')!r}, price={item.get('price')!r})"
+            )
         rows.append({
-            "seq_no": int(item.get("row") or item.get("id") or 0),
-            "time": item.get("time") or item.get("hEven") or "",
-            "volume": int(item.get("volume") or item.get("qTitTran") or 0),
-            "price": float(item.get("price") or item.get("pTran") or 0),
-            "is_canceled": 1 if (item.get("canceled") or item.get("cCanceled")) else 0,
+            "seq_no": seq_no,
+            "time": str(item.get("time") or item.get("hEven") or ""),
+            "volume": volume,
+            "price": price,
+            "is_canceled": 1 if _as_bool(
+                item.get("canceled") if item.get("canceled") is not None else item.get("cCanceled")
+            ) else 0,
         })
     return rows
 
 
-def _save_trades_db(symbol, date_str, rows):
-    """ذخیره تراکنش‌ها در SQLite (INSERT OR IGNORE برای جلوگیری از تکراری)"""
-    if not rows:
-        return 0
-    with _DB_LOCK:
-        conn = sqlite3.connect(DB_FILE)
-        try:
-            conn.executemany(
-                """INSERT OR IGNORE INTO transactions
-                   (symbol, trade_date, seq_no, time, volume, price, is_canceled)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                [(symbol, date_str, r["seq_no"], r["time"], r["volume"], r["price"], r["is_canceled"]) for r in rows],
+# ============================ ذخیره در پستگرس (PostgreSQL) ============================
+_PG_LOCAL = threading.local()
+_PG_INSERT_SQL = None
+
+REQUIRED_TRADE_COLUMNS = ("symbol", "row", "time", "volume", "price", "canceled", "trade_date")
+OPTIONAL_TRADE_COLUMNS = ("ins_id", "shamsi_date", "gregorian_date", "trade_date_utc")
+
+
+def _pg_target():
+    if "dsn" in PG_CONFIG:
+        return re.sub(r"//[^@/]+@", "//***@", PG_CONFIG["dsn"])
+    return f"{PG_CONFIG['host']}:{PG_CONFIG['port']}/{PG_CONFIG['dbname']}"
+
+
+def _pg_conn():
+    """اتصال پستگرس پایدار برای هر ترد؛ Commit/Rollback صریح است."""
+    conn = getattr(_PG_LOCAL, "conn", None)
+    if conn is not None and conn.closed == 0:
+        return conn
+    conn = psycopg2.connect(**PG_CONFIG)
+    conn.autocommit = False
+    _PG_LOCAL.conn = conn
+    return conn
+
+
+def _pg_columns(cur):
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = %s",
+        (TRADES_TABLE,),
+    )
+    return {r[0] for r in cur.fetchall()}
+
+
+def _shamsi_to_gregorian(date_str):
+    """تاریخ شمسی YYYY-MM-DD → date میلادی (نبودِ مقدار → None)"""
+    try:
+        y, m, d = map(int, str(date_str).split("-"))
+        return jdatetime.date(y, m, d).togregorian()
+    except Exception:
+        return None
+
+
+def _shamsi_to_utc(date_str):
+    """تاریخ شمسی YYYY-MM-DD → datetime آگاه از UTC (برای ستون trade_date_utc)"""
+    gregorian = _shamsi_to_gregorian(date_str)
+    if gregorian is None:
+        return None
+    return datetime(gregorian.year, gregorian.month, gregorian.day, tzinfo=UTC)
+
+
+def _tehran_today_jalali():
+    return jdatetime.date.fromgregorian(date=datetime.now(TEHRAN_TZ).date())
+
+
+def _parse_jalali(value):
+    y, m, d = map(int, str(value).split("-"))
+    return jdatetime.date(y, m, d)
+
+
+def _insert_sql(cols):
+    """ستون‌های INSERT از اسکیمای واقعی جدول ساخته می‌شود تا drift جدول را نشکند."""
+    missing = [c for c in REQUIRED_TRADE_COLUMNS if c not in cols]
+    if missing:
+        raise RuntimeError(f"ستون‌های لازم در {TRADES_TABLE} نیست: {', '.join(missing)}")
+    optional = [c for c in OPTIONAL_TRADE_COLUMNS if c in cols]
+    names = ['symbol', '"row"', 'time', 'volume', 'price', 'canceled', 'trade_date', *optional]
+    return (
+        f"INSERT INTO {TRADES_TABLE} ({', '.join(names)}) VALUES %s "
+        "ON CONFLICT DO NOTHING RETURNING 1",
+        tuple(optional),
+    )
+
+
+def _load_ins_id_map(symbols):
+    """{symbol: ins_id} فقط برای نمادهای هدف (بدون اسکن کل جدول snapshots)."""
+    conn = None
+    try:
+        conn = _pg_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT ON (symbol) symbol, ins_id "
+                "FROM brsapi_symbol_snapshots "
+                "WHERE symbol = ANY(%s) AND ins_id IS NOT NULL "
+                "ORDER BY symbol, fetched_at DESC",
+                (list(symbols),),
             )
-            conn.commit()
-            return len(rows)
-        finally:
-            conn.close()
+            mapping = {s: str(i) for s, i in cur.fetchall() if s and i}
+        conn.commit()
+        return mapping
+    except Exception as e:
+        if conn is not None:
+            conn.rollback()
+        logging.warning(f"نگاشت ins_id در دسترس نیست: {e}")
+        return {}
+
+
+def _load_existing_dates(symbol):
+    """تاریخ‌هایی که ریز معاملاتشان از قبل در PG هست (برای دانلود فقط باقی‌مانده)."""
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT trade_date FROM " + TRADES_TABLE + " WHERE symbol=%s",
+                (symbol,),
+            )
+            dates = {row[0] for row in cur.fetchall() if row[0]}
+        conn.commit()
+        return dates
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _insert_trades(symbol, date_str, rows, ins_map):
+    """درج دسته‌ای ریز معاملات در PG. خروجی: (تعداد درج‌شده، تعداد تکراری)"""
+    global _PG_INSERT_SQL
+    if not rows:
+        return (0, 0)
+
+    conn = _pg_conn()
+    try:
+        with conn.cursor() as cur:
+            if _PG_INSERT_SQL is None:
+                _PG_INSERT_SQL = _insert_sql(_pg_columns(cur))
+
+            sql, optional = _PG_INSERT_SQL
+            cur.execute(
+                'SELECT "row" FROM ' + TRADES_TABLE + " WHERE symbol=%s AND trade_date=%s",
+                (symbol, date_str),
+            )
+            existing = {rn for (rn,) in cur.fetchall()}
+
+            fresh, seen = [], set()
+            for r in rows:
+                seq_no = r["seq_no"]
+                if seq_no in existing or seq_no in seen:
+                    continue
+                seen.add(seq_no)
+                fresh.append(r)
+            if not fresh:
+                conn.commit()
+                return (0, len(rows))
+
+            gregorian = _shamsi_to_gregorian(date_str)
+            utc = _shamsi_to_utc(date_str)
+            values = []
+            for r in fresh:
+                value = [
+                    symbol, r["seq_no"], r["time"], r["volume"],
+                    r["price"], bool(r["is_canceled"]), date_str,
+                ]
+                for column in optional:
+                    if column == "ins_id":
+                        value.append(ins_map.get(symbol))
+                    elif column == "shamsi_date":
+                        value.append(date_str)
+                    elif column == "gregorian_date":
+                        value.append(gregorian)
+                    else:
+                        value.append(utc)
+                values.append(tuple(value))
+
+            inserted = len(execute_values(cur, sql, values, page_size=2000, fetch=True))
+        conn.commit()
+        return (inserted, len(rows) - len(fresh))
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def _check_pg():
+    """بررسی زودهنگام (fail-fast) اتصال، اسکیما و ایندکس یکتای ریز معاملات"""
+    try:
+        conn = psycopg2.connect(**PG_CONFIG)
+    except Exception as e:
+        raise RuntimeError(f"اتصال به پستگرس ({_pg_target()}) برقرار نشد: {e}")
+    try:
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM " + TRADES_TABLE + " LIMIT 1")
+            _insert_sql(_pg_columns(cur))
+    except Exception as e:
+        raise RuntimeError(f"جدول {TRADES_TABLE} در {_pg_target()} آماده نیست: {e}")
+    finally:
+        conn.close()
+
+    logging.info(f"مقصد ذخیره ریز معاملات: {_pg_target()} :: {TRADES_TABLE}")
 
 
 # ============================ دانلودر ============================
 class SmartCollector:
-    def __init__(self, symbols):
+    def __init__(self, symbols, limiter, start_date=None, end_date=None, db_resume=False,
+                 market_skip=True):
         self.symbols = symbols
-        self.limiter = RateLimiter()
+        self.skipped_closed = 0   # تعداد روزهای تعطیلی که بدون ریکوئست رد شدند
+        self.skipped_no_data = 0  # تعداد (نماد، تاریخ)هایی که دفتر مشترک رد کرد
+        self.data_errors = 0      # تعداد (نماد، تاریخ)هایی که داده نامعتبر داشتند
+        self.limiter = limiter
+        self.stop_event = threading.Event()
+        self._http_local = threading.local()
+        self.start_date = start_date or _parse_jalali(START_DATE_SHAMSI)
+        self.end_date = end_date or _tehran_today_jalali()
+        self.db_resume = db_resume
+        self.market_skip = market_skip
         os.makedirs(DATA_DIR, exist_ok=True)
-        _init_db()
-        self.session = requests.Session()
-        retries = Retry(total=3, backoff_factor=1)
-        adapter = HTTPAdapter(max_retries=retries, pool_connections=MAX_WORKERS, pool_maxsize=MAX_WORKERS)
-        self.session.mount("https://", adapter)
-        self.session.mount("http://", adapter)
+        self.ins_map = _load_ins_id_map(symbols)
+        if self.ins_map:
+            logging.info(f"نگاشت ins_id: {len(self.ins_map)} نماد")
+
+    def _session(self):
+        """Session مستقل برای هر ترد (requests.Session اشتراکی thread-safe نیست)."""
+        session = getattr(self._http_local, "session", None)
+        if session is None:
+            session = requests.Session()
+            adapter = HTTPAdapter(pool_connections=MAX_WORKERS, pool_maxsize=MAX_WORKERS)
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
+            self._http_local.session = session
+        return session
 
     def fetch_transaction(self, task):
         symbol, date_str, out_path = task
 
-        allowed, count_or_reason = self.limiter.acquire_slot()
-        if not allowed:
-            return "DAILY_STOP"
+        if self.stop_event.is_set():
+            return "API_STOP"
 
-        url = f"{BASE_URL}/Tsetmc/Transaction.php"
-        params = {
-            "key": API_KEY,
-            "l18": symbol,
-            "date": date_str
-        }
+        resp = None
+        count_or_reason = 0
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            if self.stop_event.is_set():
+                return "API_STOP"
+            try:
+                allowed, count_or_reason = self.limiter.acquire_slot()
+            except Exception as e:
+                self.stop_event.set()
+                logging.error(f"خطای سامانه سهمیه: {type(e).__name__}: {e}; دانلودگر متوقف شد.")
+                return "API_STOP"
+            if not allowed:
+                if count_or_reason in ("DAILY_LIMIT_EXCEEDED", "ROLLING_LIMIT_EXCEEDED"):
+                    return "DAILY_STOP"
+                if count_or_reason == "RUN_BUDGET_EXCEEDED":
+                    return "RUN_STOP"
+                logging.error(f"سهمیه متوقف شد: {count_or_reason}")
+                return "API_STOP"
+            if self.stop_event.is_set():
+                return "API_STOP"
+
+            try:
+                resp = self._session().get(
+                    f"{BASE_URL}/Tsetmc/Transaction.php",
+                    params={"key": API_KEY, "l18": symbol, "date": date_str},
+                    headers=HEADERS,
+                    timeout=15,
+                    allow_redirects=False,
+                )
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt == MAX_ATTEMPTS:
+                    self.stop_event.set()
+                    logging.error(
+                        f"خطای شبکه برای {symbol} در {date_str} پس از {attempt} تلاش: "
+                        f"{type(e).__name__}; دانلودگر متوقف شد."
+                    )
+                    return "API_STOP"
+                time.sleep(2 ** attempt)
+                continue
+
+            if resp.status_code == 429:
+                if attempt < MAX_ATTEMPTS:
+                    retry_after = _as_int(getattr(resp, "headers", {}).get("Retry-After"), 0)
+                    wait_seconds = max(retry_after, 30 * attempt)
+                    logging.warning(
+                        f"محدودیت نرخ (429) برای {symbol} در {date_str}; "
+                        f"{wait_seconds} ثانیه صبر و تلاش {attempt + 1}/{MAX_ATTEMPTS}."
+                    )
+                    time.sleep(wait_seconds)
+                    continue
+                break
+
+            if resp.status_code == 403:
+                break
+
+            if resp.status_code in TRANSIENT_HTTP and attempt < MAX_ATTEMPTS:
+                time.sleep(2 ** attempt)
+                continue
+            break
+
+        if resp is None:
+            return "API_STOP"
+
+        if resp.status_code == 429:
+            self.stop_event.set()
+            logging.error(f"محدودیت نرخ (429) برای {symbol} در {date_str}; دانلودگر متوقف شد.")
+            return "API_STOP"
+
+        if resp.status_code == 403:
+            self.stop_event.set()
+            logging.error(
+                f"کد HTTP 403 برای {symbol} در {date_str}; "
+                "دانلودگر برای جلوگیری از درخواست بیشتر متوقف شد."
+            )
+            return "API_STOP"
+
+        if resp.status_code == 424:
+            # منبع برای این (نماد، تاریخ) ریز معامله‌ای ندارد (نماد در آن روز معامله نشده)
+            _record_date_status(date_str, has_data=False)
+            _write_json_atomic(out_path, {"status": "no_data", "http": 424, "symbol": symbol, "date": date_str})
+            logging.info(f"بدون داده (424): {symbol} | {date_str}")
+            return "EMPTY"
+
+        if resp.status_code != 200:
+            # تشخیص روز تعطیل/آخر هفته (بدون تراکنش) تا دوباره retry نشود و سهمیه هدر نرود
+            try:
+                _err = resp.json()
+            except Exception:
+                _err = None
+            detail = ""
+            if isinstance(_err, dict) and isinstance(_err.get("message_error"), str):
+                _msg = _err["message_error"].lower()
+                detail = _err["message_error"][:160]
+                # فقط پیام صریح تعطیلی سراسری بازار؛ «تعطیل» تنها کافی نیست
+                market_wide = (
+                    "falls on a weekend" in _msg
+                    or "weekend" in _msg
+                    or "holiday" in _msg
+                    or ("تعطیل" in _msg and ("بازار" in _msg or "بورس" in _msg))
+                )
+                if market_wide:
+                    # این تاریخ برای کل بازار تعطیل است ⇒ برای نمادهای بعدی بدون ریکوئست رد شود
+                    _mark_holiday(date_str)
+                    _write_json_atomic(out_path, [])
+                    logging.info(f"تعطیل (ثبت در تقویم تعطیلات): {symbol} | {date_str}")
+                    return "EMPTY"
+            self.stop_event.set()
+            logging.error(
+                f"پاسخ HTTP {resp.status_code} برای {symbol} در {date_str}: {detail}; دانلودگر متوقف شد."
+            )
+            return "API_STOP"
 
         try:
-            resp = self.session.get(url, params=params, headers=HEADERS, timeout=15)
-            
-            if resp.status_code in (429, 403):
-                logging.warning(f"کد {resp.status_code} برای {symbol} در {date_str} - برگشت سهمیه و استراحت.")
-                self.limiter.refund_slot()
-                time.sleep(3)
-                return "RETRY"
+            data = resp.json()
+        except ValueError:
+            self.stop_event.set()
+            logging.error(f"پاسخ غیر-JSON برای {symbol} در {date_str}; دانلودگر متوقف شد.")
+            return "API_STOP"
 
-            if resp.status_code == 200:
-                data = resp.json()
-                # پاسخ خطا (پاکت {"error": ...} / {"success": false})
-                if isinstance(data, dict) and (data.get("error") or data.get("successful") is False):
-                    logging.warning(f"پاسخ خطا برای {symbol} در {date_str}: {str(data)[:120]}")
-                    return "FAIL"
-                # پاکت تودرتو {"data": {"transaction": [...]}} — اگر خالی بود ذخیره نکن
-                if isinstance(data, dict) and isinstance(data.get("data"), dict):
-                    if not data["data"].get("transaction"):
-                        logging.info(f"بدون تراکنش: {symbol} | {date_str}")
-                        return "EMPTY"
-                with open(out_path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False)
-                # ذخیره همزمان در پایگاه داده SQLite (علاوه بر فایل JSON)
-                _rows = _extract_trade_rows(data)
-                _db_count = _save_trades_db(symbol, date_str, _rows) if _rows else 0
-                logging.info(
-                    f"[{count_or_reason}/{DAILY_LIMIT}] ذخیره شد: {symbol} | {date_str} | دیتابیس: {_db_count} ردیف"
+        # پاکت خطا با HTTP 200 (هم success و هم successful بررسی می‌شوند)
+        if isinstance(data, dict) and (
+            data.get("error") or data.get("success") is False or data.get("successful") is False
+        ):
+            self.stop_event.set()
+            logging.error(f"پاسخ خطای API برای {symbol} در {date_str}; دانلودگر متوقف شد.")
+            return "API_STOP"
+
+        # پاکت تودرتو {"data": {"transaction": [...]}} — آرشیو خام نوشته می‌شود تا
+        # این (نماد، تاریخ) در اجراهای بعدی دوباره درخواست نشود.
+        inner = data.get("data") if isinstance(data, dict) else None
+        if isinstance(data, dict) and not isinstance(inner, dict):
+            self.stop_event.set()
+            logging.error(f"پاکت ناشناخته برای {symbol} در {date_str}; دانلودگر متوقف شد.")
+            return "API_STOP"
+        if isinstance(inner, dict) and not inner.get("transaction"):
+            _record_date_status(date_str, has_data=False)
+            _write_json_atomic(out_path, data)
+            logging.info(f"بدون تراکنش: {symbol} | {date_str}")
+            return "EMPTY"
+
+        try:
+            rows = _extract_trade_rows(data)
+        except ValueError as e:
+            self.data_errors += 1
+            logging.error(f"داده نامعتبر ({symbol} | {date_str}): {e}; بدون درج و بدون marker رها شد.")
+            return "DATA_ERROR"
+
+        inserted = skipped = 0
+        if rows:
+            _record_date_status(date_str, has_data=True)
+            try:
+                inserted, skipped = _insert_trades(symbol, date_str, rows, self.ins_map)
+            except Exception as e:
+                self.stop_event.set()
+                logging.error(
+                    f"درج در پستگرس ناموفق ({symbol} | {date_str}): "
+                    f"{type(e).__name__}: {e}; دانلودگر متوقف شد."
                 )
-                return "OK"
-            else:
-                # تشخیص روز تعطیل/آخر هفته (بدون تراکنش) تا دوباره retry نشود و سهمیه هدر نرود
-                try:
-                    _err = resp.json()
-                except Exception:
-                    _err = None
-                if isinstance(_err, dict) and isinstance(_err.get("message_error"), str):
-                    _msg = _err["message_error"].lower()
-                    if "holiday" in _msg or "weekend" in _msg or "تعطیل" in _msg:
-                        with open(out_path, "w", encoding="utf-8") as f:
-                            json.dump([], f)
-                        logging.info(f"تعطیل (بدون تراکنش): {symbol} | {date_str}")
-                        return "EMPTY"
-                return "FAIL"
+                return "API_STOP"
+        else:
+            _record_date_status(date_str, has_data=False)
 
-        except Exception as e:
-            logging.error(f"خطای شبکه: {e}")
-            self.limiter.refund_slot()
-            return "RETRY"
+        try:
+            _write_json_atomic(out_path, data)
+        except OSError as e:
+            self.stop_event.set()
+            logging.error(f"نوشتن آرشیو {symbol} | {date_str} ناموفق: {e}; دانلودگر متوقف شد.")
+            return "API_STOP"
 
-    def run(self):
-        start_y, start_m, start_d = map(int, START_DATE_SHAMSI.split("-"))
-        start_date = jdatetime.date(start_y, start_m, start_d)
-        today = jdatetime.date.today()
+        logging.info(
+            f"[{count_or_reason}/{DAILY_LIMIT}] ذخیره شد: {symbol} | {date_str} | "
+            f"PG: {inserted} ردیف (+{skipped} تکراری)"
+        )
+        return "OK"
 
-        tasks = []
-        logging.info("آماده‌سازی صف کارها و تطبیق فایل‌های قبلی (Resume)...")
+    def _iter_tasks(self):
+        """تولید تنبل (lazy) تسک‌های باقیمانده برای دانلود.
+
+        تاریخ‌های موجود هر نماد با یک بار os.listdir خوانده می‌شود (به‌جای میلیون‌ها
+        فراخوانی os.path.exists) و صف به‌صورت جریان تولید می‌شود تا کل میلیون‌ها تسک
+        در حافظه نگه داشته نشود.
+        """
+        start_date = self.start_date
+        today = self.end_date
 
         for sym in self.symbols:
+            _load_no_data_ledger()   # هم‌ترازی با پروسه‌های دیگر
             # جلوگیری مجدد از کاراکترهای غیرمجاز در نام فولدر ویندوز
             safe_sym = re.sub(r'[\\/*?:"<>|]', "", sym).strip()
             if not safe_sym:
@@ -376,41 +1129,161 @@ class SmartCollector:
 
             sym_dir = os.path.join(DATA_DIR, safe_sym)
             os.makedirs(sym_dir, exist_ok=True)
+            try:
+                existing = {n[:-5] for n in os.listdir(sym_dir) if n.endswith(".json")}
+            except OSError as e:
+                logging.warning(f"خواندن پوشه {safe_sym} ناموفق: {e}")
+                existing = set()
+            if self.db_resume:
+                existing |= _load_existing_dates(sym)
 
             curr = start_date
             while curr <= today:
-                date_str = curr.strftime("%Y-%m-%d")
-                out_path = os.path.join(sym_dir, f"{date_str}.json")
+                # روزهای تعطیل (هفتگی/رسمی) اصلاً در صف قرار نمی‌گیرند تا سهمیه هدر نرود
+                if is_market_closed(curr):
+                    self.skipped_closed += 1
+                    curr += timedelta(days=1)
+                    continue
 
-                if not os.path.exists(out_path):
-                    tasks.append((sym, date_str, out_path))
+                date_str = curr.strftime("%Y-%m-%d")
+                if self.market_skip and _is_market_no_data(date_str):
+                    self.skipped_no_data += 1
+                elif date_str not in existing:
+                    yield (sym, date_str, os.path.join(sym_dir, f"{date_str}.json"))
 
                 curr += timedelta(days=1)
 
-        logging.info(f"تعداد تسک‌های باقیمانده برای دانلود: {len(tasks)}")
+    def run(self):
+        logging.info(
+            f"آماده‌سازی صف کارها: {len(self.symbols)} نماد | "
+            f"{self.start_date.strftime('%Y-%m-%d')} تا {self.end_date.strftime('%Y-%m-%d')} | "
+            f"db_resume={self.db_resume} | run_budget={self.limiter.run_budget or 'نامحدود (تا سقف روزانه)'}"
+        )
+        max_pending = MAX_WORKERS * 8   # پنجره محدود ⇒ حافظه ثابت و شروع فوری دانلود
+        queued = 0
+        daily_stop = False
+        api_stop = False
+        run_stop = False
+
+        def _classify(futures):
+            nonlocal daily_stop, api_stop, run_stop
+            for future in futures:
+                try:
+                    result = future.result()
+                except Exception as e:
+                    logging.error(f"خطای اجرای تسک: {type(e).__name__}: {e}")
+                    api_stop = True
+                    self.stop_event.set()
+                    continue
+                if result == "DAILY_STOP":
+                    daily_stop = True
+                elif result == "RUN_STOP":
+                    run_stop = True
+                elif result == "API_STOP":
+                    api_stop = True
+                    self.stop_event.set()
+
+        def _finish(message, level):
+            logging.log(level, message)
+            executor.shutdown(wait=False, cancel_futures=True)
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            future_to_task = {executor.submit(self.fetch_transaction, task): task for task in tasks}
-
-            for future in as_completed(future_to_task):
-                res = future.result()
-                if res == "DAILY_STOP":
-                    logging.info("سقف ۱۰,۰۰۰ ریکوئست امروز پر شد. کار تا فردا متوقف می‌شود.")
-                    executor.shutdown(wait=False, cancel_futures=True)
+            pending = set()
+            for task in self._iter_tasks():
+                pending.add(executor.submit(self.fetch_transaction, task))
+                queued += 1
+                if len(pending) < max_pending:
+                    continue
+                done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                _classify(done)
+                if daily_stop or api_stop or run_stop:
                     break
+
+            if daily_stop or api_stop or run_stop:
+                if run_stop and not (daily_stop or api_stop):
+                    _finish(
+                        f"بودجه درخواست این اجرا ({self.limiter.run_budget}) تکمیل شد.",
+                        logging.INFO,
+                    )
+                elif daily_stop:
+                    _finish("سقف ۱۰,۰۰۰ درخواست (روزانه/۲۴ ساعته) پر شد. کار تا آزادشدن ظرفیت متوقف می‌شود.", logging.INFO)
+                else:
+                    _finish("دانلودگر پس از خطای API متوقف شد؛ اجرای مجدد خودکار انجام نمی‌شود.", logging.ERROR)
+                return
+
+            _classify(as_completed(pending))
+
+            if api_stop:
+                self.stop_event.set()
+                _finish("دانلودگر پس از خطای API متوقف شد؛ اجرای مجدد خودکار انجام نمی‌شود.", logging.ERROR)
+                return
+            if daily_stop:
+                _finish("سقف ۱۰,۰۰۰ درخواست (روزانه/۲۴ ساعته) پر شد. کار تا آزادشدن ظرفیت متوقف می‌شود.", logging.INFO)
+                return
+            if run_stop:
+                _finish(
+                    f"بودجه درخواست این اجرا ({self.limiter.run_budget}) تکمیل شد.",
+                    logging.INFO,
+                )
+                return
+
+        logging.info(
+            f"صف تسک‌ها تمام شد (ارسال‌شده: {queued} | روز تعطیل رد‌شده: {self.skipped_closed} | "
+            f"تاریخ بدون‌داده رد‌شده: {self.skipped_no_data} | داده نامعتبر: {self.data_errors})."
+        )
 
 
 if __name__ == "__main__":
-    # اگر فایل کش قدیمی وجود دارد حذف شود تا دیتای خراب پاک شود
-    if os.path.exists(SYMBOLS_CACHE_FILE):
+    def _jalali_arg(value):
         try:
-            with open(SYMBOLS_CACHE_FILE, "r", encoding="utf-8") as f:
-                test_data = json.load(f)
-                if any(any(c in s for c in r'/\:*?"<>|@;,') for s in test_data if isinstance(s, str)):
-                    os.remove(SYMBOLS_CACHE_FILE)
-        except Exception:
-            pass
+            return _parse_jalali(value)
+        except Exception as exc:
+            raise argparse.ArgumentTypeError(f"تاریخ شمسی نامعتبر: {value}") from exc
 
-    symbols = extract_all_symbols()
-    collector = SmartCollector(symbols)
-    collector.run()
+    parser = argparse.ArgumentParser(description="دانلود ریز معاملات BrsApi و ذخیره مستقیم در پستگرس")
+    parser.add_argument("--symbols", help="نمادها با کاما (پیش‌فرض: کش/کشف خودکار)")
+    parser.add_argument("--start", type=_jalali_arg, default=_parse_jalali(START_DATE_SHAMSI),
+                        help=f"تاریخ شروع شمسی (پیش‌فرض {START_DATE_SHAMSI})")
+    parser.add_argument("--end", type=_jalali_arg, default=None, help="تاریخ پایان شمسی (پیش‌فرض: امروز)")
+    parser.add_argument("--db-resume", action="store_true",
+                        help="تاریخ‌هایی که از قبل در جدول ریز معاملات هستند دوباره دانلود نشوند")
+    parser.add_argument("--no-market-skip", action="store_true",
+                        help="رد کردن تاریخ‌های «بدون داده در کل بازار» را غیرفعال کن")
+    parser.add_argument("--max-requests", type=int, default=None,
+                        help=f"بودجه کل درخواست HTTP این اجرا شامل retryها (حداکثر {DAILY_LIMIT})")
+    args = parser.parse_args()
+
+    try:
+        run_budget = min(args.max_requests, DAILY_LIMIT) if args.max_requests else None
+        if run_budget is not None and run_budget < 1:
+            raise ValueError("--max-requests باید حداقل ۱ باشد.")
+
+        # اگر فایل کش قدیمی وجود دارد حذف شود تا دیتای خراب پاک شود
+        if os.path.exists(SYMBOLS_CACHE_FILE):
+            try:
+                with open(SYMBOLS_CACHE_FILE, encoding="utf-8") as f:
+                    test_data = json.load(f)
+                    if any(any(c in s for c in r'/\:*?"<>|@;,') for s in test_data if isinstance(s, str)):
+                        os.remove(SYMBOLS_CACHE_FILE)
+            except Exception:
+                pass
+
+        _load_holidays()   # تقویم تعطیلات یادگرفته‌شده از اجراهای قبلی
+        _load_no_data_ledger()   # دفتر تاریخ‌های بدون داده از اجراهای قبلی
+        _check_pg()        # fail-fast پیش از مصرف سهمیه
+        limiter = RateLimiter(run_budget=run_budget)
+        if args.symbols:
+            symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+        else:
+            symbols = extract_all_symbols(limiter)
+        collector = SmartCollector(
+            symbols,
+            limiter,
+            start_date=args.start,
+            end_date=args.end,
+            db_resume=args.db_resume,
+            market_skip=not args.no_market_skip,
+        )
+        collector.run()
+    except (RuntimeError, ValueError) as e:
+        raise SystemExit(str(e))

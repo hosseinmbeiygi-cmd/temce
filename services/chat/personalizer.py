@@ -13,6 +13,10 @@ import contextlib
 import json
 import os
 import tempfile
+
+from core.logging import get_logger
+
+logger = get_logger(__name__)
 import threading
 import time
 from typing import Any
@@ -36,7 +40,8 @@ class ProfileStore:
             if os.path.exists(self._storage_path):
                 with open(self._storage_path, encoding="utf-8") as f:
                     self._profiles = json.load(f)
-        except Exception:
+        except (OSError, ValueError, TypeError) as exc:
+            logger.debug("personalizer profiles unreadable at %s: %s", self._storage_path, exc)
             self._profiles = {}
 
     def _save(self) -> None:

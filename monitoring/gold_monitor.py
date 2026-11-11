@@ -158,7 +158,7 @@ class GoldMonitor:
         self.metrics.record_failure()
         logger.warning("Gold sync failure recorded: %s", error)
 
-    async def check_and_alert(self, session: Any = None) -> dict[str, Any]:
+    async def check_and_alert(self) -> dict[str, Any]:
         """Check gold health and fire alerts if needed.
 
         Returns a status dict with:
@@ -170,7 +170,17 @@ class GoldMonitor:
 
         # Check staleness
         staleness = self.metrics.staleness_seconds
-        if staleness is not None:
+        if staleness is None:
+            if self._alert_state.can_fire_staleness():
+                await self._send_telegram_alert(
+                    title="⚠️ Gold Data Never Synced",
+                    message="Gold data has never synced — no data available.",
+                    severity="warning",
+                )
+                self._alert_state.mark_staleness_fired()
+                alerts_fired.append("staleness_never_synced")
+            self._was_unhealthy = True
+        else:
             staleness_minutes = staleness / 60
 
             # Staleness alert
@@ -190,7 +200,7 @@ class GoldMonitor:
                 self._was_unhealthy = True
 
         # Recovery alert
-        if self._was_unhealthy and staleness is not None and staleness < 300:
+        if self._was_unhealthy and staleness is not None and staleness < GOLD_STALENESS_ALERT_MINUTES * 60:
             if self._alert_state.can_fire_recovery():
                 await self._send_telegram_alert(
                     title="✅ Gold Sync Recovered",

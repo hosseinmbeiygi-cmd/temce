@@ -59,6 +59,9 @@ export default function TripleChartsGroup() {
 
   const bannerState = {
     isLive: cashflow.isLive || value.isLive || ownership.isLive,
+    hasData: cashflow.hasData || value.hasData || ownership.hasData,
+    isFresh: cashflow.isFresh && value.isFresh && ownership.isFresh,
+    isStale: cashflow.isStale || value.isStale || ownership.isStale,
     isError: cashflow.isError || value.isError || ownership.isError,
     isLoading: cashflow.isLoading || value.isLoading || ownership.isLoading,
   };

@@ -63,8 +63,9 @@ class IndicatorPipeline:
         signal: list[float | None] = []
         histogram: list[float | None] = []
         for i in range(len(prices)):
-            if ema12[i] is not None and ema26[i] is not None:
-                macd_line.append(ema12[i] - ema26[i])  # type: ignore
+            e12, e26 = ema12[i], ema26[i]
+            if e12 is not None and e26 is not None:
+                macd_line.append(e12 - e26)
             else:
                 macd_line.append(None)
             signal.append(None)
@@ -77,8 +78,9 @@ class IndicatorPipeline:
                 if len(signal_values) >= 9:
                     sig = sum(signal_values[-9:]) / 9
                     signal[i] = sig
-                    if macd_line[i] is not None:
-                        histogram[i] = macd_line[i] - sig  # type: ignore
+                    macd_value = macd_line[i]
+                    if macd_value is not None:
+                        histogram[i] = macd_value - sig
         return macd_line, signal, histogram
 
     def bollinger_bands(
@@ -88,7 +90,8 @@ class IndicatorPipeline:
         upper: list[float | None] = []
         lower: list[float | None] = []
         for i in range(len(prices)):
-            if middle[i] is None or i < period - 1:
+            mid = middle[i]
+            if mid is None or i < period - 1:
                 upper.append(None)
                 lower.append(None)
             else:
@@ -96,6 +99,6 @@ class IndicatorPipeline:
                 mean = sum(window) / period
                 variance = sum((x - mean) ** 2 for x in window) / period
                 std = math.sqrt(variance)
-                upper.append(middle[i] + num_std * std)  # type: ignore
-                lower.append(middle[i] - num_std * std)  # type: ignore
+                upper.append(mid + num_std * std)
+                lower.append(mid - num_std * std)
         return upper, middle, lower

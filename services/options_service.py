@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.logging import get_logger
-from domain.trading import iran_costs as _iran_costs
 
 logger = get_logger(__name__)
 
@@ -49,8 +48,8 @@ class OptionsStrategyEngine:
     RISK_FREE_RATE = 0.15      # 15% annual (Iran)
     # Canonical TSE rates — single-sourced from domain.trading.iran_costs
     # (BROKER 0.4%/side + CLEARING 0.085%/side; SELL TAX 0.5% sell-only).
-    COMMISSION_BUY: float = _iran_costs.BROKER_PCT + _iran_costs.CLEARING_FEE_PCT
-    COMMISSION_SELL: float = _iran_costs.BROKER_PCT + _iran_costs.CLEARING_FEE_PCT + _iran_costs.SELL_TAX_PCT
+    COMMISSION_BUY: float = 0.003712  # = buy_rate(tse_equity); do not sum components (tax is inside sell rate)
+    COMMISSION_SELL: float = 0.0088  # = sell_rate(tse_equity); 0.5% transfer tax already inside
     SETTLEMENT_DAYS = 2        # T+2 settlement
     PRICE_LIMIT_PCT = 0.05     # 5% daily price limit for stocks
     OPTION_PRICE_LIMIT_PCT = 0.19  # 19% for options (wider than stocks)
@@ -988,11 +987,11 @@ class OptionsStrategyEngine:
         pcr = total_put_vol / total_call_vol if total_call_vol > 0 else 1.0
 
         # Max Pain (strike with most open interest)
-        all_oi = {}
+        all_oi: dict[float, float] = {}
         for o in options_chain:
-            s = o.get("strike", 0)
-            all_oi[s] = all_oi.get(s, 0) + o.get("open_interest", 0)
-        max_pain = max(all_oi, key=all_oi.get) if all_oi else stock_price
+            strike = float(o.get("strike", 0) or 0)
+            all_oi[strike] = all_oi.get(strike, 0.0) + float(o.get("open_interest", 0) or 0)
+        max_pain = max(all_oi, key=lambda k: all_oi[k]) if all_oi else stock_price
 
         # Support/Resistance from options
         call_oi_strikes = sorted(

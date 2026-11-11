@@ -44,7 +44,7 @@ class TechnicalFeatures(BaseFeatureBuilder):
         # ── ATR ──────────────────────────────────────────────────────
         if high is not None and low is not None:
             df["atr"] = (high - low).rolling(14).mean()
-            df["atr"] = df["atr"].fillna(method='ffill').fillna(0)
+            df["atr"] = df["atr"].ffill().fillna(0)
 
         # ── Volume ───────────────────────────────────────────────────
         if volume is not None:
@@ -152,6 +152,12 @@ class TechnicalFeatures(BaseFeatureBuilder):
             df["sr_break_signal"] = sr_break
 
         df = df.fillna(0)
+
+        # ANTI-INTRABAR-LEAK: computed indicators must not use the current
+        # bar's OHLCV (signal is formed BEFORE bar close in live trading).
+        # Shift computed columns by 1 so feature[i] uses data up to i-1 only.
+        computed = [c for c in self.get_feature_names() if c in df.columns]
+        df[computed] = df[computed].shift(1).fillna(0)
 
         return FeatureMatrix(
             data=df,

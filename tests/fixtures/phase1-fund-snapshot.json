@@ -1,0 +1,25 @@
+{
+  "symbol": "عيار",
+  "name": "عيار",
+  "price": 399800000,
+  "changePct": 0.8,
+  "changeAmt": 3200000,
+  "lastTradeAt": "2026-10-25T14:30:00+03:30",
+  "volume": 5000,
+  "turnover": 2000000000,
+  "marketCap": 150000000000,
+  "nav": 400000000,
+  "bubbleNominalPct": 0.5,
+  "bubbleNominalAmt": 2000000,
+  "bubbleIntrinsicPct": null,
+  "bubbleRealPct": null,
+  "weights": {
+    "coin": 0.5,
+    "bar": 0.3,
+    "cash": 0.2
+  },
+  "impliedUsd": 239.7,
+  "asOf": "2026-10-25T14:30:00+03:30",
+  "source": "brsapi",
+  "quality": "LIVE"
+}

@@ -30,6 +30,7 @@ from sqlalchemy import text
 from core.config import settings
 from services import adjusted_price_reader as reader
 
+pytestmark = pytest.mark.needs_db
 
 def _python_convert(jalali: str) -> str | None:
     """Reference conversion through jdatetime (the project's library)."""
@@ -177,10 +178,13 @@ class TestSourceResolution:
         assert await reader.resolve_price_source(session) == (reader.RAW_SOURCE, False)
         assert session.calls == 0
 
-    async def test_missing_view_falls_back_to_raw(self, monkeypatch):
+    async def test_missing_view_refuses_the_raw_fetch_date_axis(self, monkeypatch):
+        """DB-04: raw daily_history.trade_date is the FETCH date, not a daily
+        series; the indicator path must fail loudly instead of using it."""
         monkeypatch.setattr(settings, "indicator_adjusted_prices", True, raising=False)
         session = _RecordingSession(None)
-        assert await reader.resolve_price_source(session) == (reader.RAW_SOURCE, False)
+        with pytest.raises(reader.AdjustedPriceSourceUnavailable):
+            await reader.resolve_price_source(session)
         assert session.calls == 1
 
     async def test_present_view_selects_adjusted(self, monkeypatch):
@@ -199,12 +203,10 @@ class TestSourceResolution:
         await reader.resolve_price_source(session)
         assert session.calls == 2
 
-    async def test_probe_failure_degrades_to_raw(self, monkeypatch):
+    async def test_probe_failure_does_not_silently_use_raw(self, monkeypatch):
         monkeypatch.setattr(settings, "indicator_adjusted_prices", True, raising=False)
-        assert await reader.resolve_price_source(_RecordingSession(raises=True)) == (
-            reader.RAW_SOURCE,
-            False,
-        )
+        with pytest.raises(reader.AdjustedPriceSourceUnavailable):
+            await reader.resolve_price_source(_RecordingSession(raises=True))
 
     async def test_explicit_override_bypasses_the_dial(self):
         session = _RecordingSession(None)
@@ -385,9 +387,22 @@ class TestReadPath:
                     before = await reader.load_daily_candles(conn, sym, 60, adjusted=True)
                     if not before:
                         pytest.skip("no adjusted candles for the picked symbol")
-                    assert (await conn.execute(text("SELECT count(*) FROM daily_adjust_factors"))).scalar() == 0
-
                     target = before[-1]["date"]  # newest true trade date (ISO string)
+                    # A dev DB already carries real factors for other
+                    # (symbol, date) pairs, so only *this* pair has to be
+                    # empty: then the synthetic 0.5 is the sole cause of
+                    # any change between the two reads.
+                    if (
+                        await conn.execute(
+                            text(
+                                "SELECT count(*) FROM daily_adjust_factors "
+                                "WHERE symbol_id = :sid AND trade_date = :d"
+                            ),
+                            {"sid": sid, "d": date.fromisoformat(target)},
+                        )
+                    ).scalar():
+                        pytest.skip("the picked trade date already has a factor row")
+
                     await conn.execute(
                         text(
                             "INSERT INTO daily_adjust_factors "
@@ -417,7 +432,13 @@ class TestReadPath:
                         assert a["date_shamsi"] == b["date_shamsi"]
 
                 assert (
-                    await conn.execute(text("SELECT count(*) FROM daily_adjust_factors"))
+                    await conn.execute(
+                        text(
+                            "SELECT count(*) FROM daily_adjust_factors "
+                            "WHERE symbol_id = :sid AND trade_date = :d"
+                        ),
+                        {"sid": sid, "d": date.fromisoformat(target)},
+                    )
                 ).scalar() == 0, "rollback must clean up the synthetic factor"
         finally:
             await eng.dispose()

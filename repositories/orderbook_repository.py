@@ -12,11 +12,12 @@ from models.orderbook import OrderbookModel
 from repositories.base_repository import InMemoryRepository
 from repositories.db_base import DbRepository
 
+OrderBookSnapshotList = list[OrderBookSnapshot]
 
 class OrderBookRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[OrderBookSnapshot] | None = None if session else InMemoryRepository(OrderBookSnapshot)
+        self._mem: InMemoryRepository[OrderBookSnapshot] = InMemoryRepository(OrderBookSnapshot)
         self._db: _OrderBookDbRepo | None = None if not session else _OrderBookDbRepo(session)
 
     async def get(self, id: str) -> Result[OrderBookSnapshot]:
@@ -39,7 +40,7 @@ class OrderBookRepository:
             return await self._db.list(page, page_size)
         return await self._mem.list(page, page_size)
 
-    async def get_by_instrument(self, instrument_id: str) -> Result[list[OrderBookSnapshot]]:
+    async def get_by_instrument(self, instrument_id: str) -> Result[OrderBookSnapshotList]:
         if self._db:
             return await self._db.get_by_instrument(instrument_id)
         matches = [o for o in self._mem._store.values() if o.instrument_id == instrument_id]
@@ -62,7 +63,7 @@ class OrderBookRepository:
 class _OrderBookDbRepo(DbRepository[OrderBookSnapshot, OrderbookModel]):
     model_class = OrderbookModel
 
-    async def get_by_instrument(self, instrument_id: str) -> Result[list[OrderBookSnapshot]]:
+    async def get_by_instrument(self, instrument_id: str) -> Result[OrderBookSnapshotList]:
         stmt = select(OrderbookModel).where(OrderbookModel.instrument_id == instrument_id).order_by(desc(OrderbookModel.date), desc(OrderbookModel.time))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()

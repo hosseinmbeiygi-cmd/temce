@@ -27,7 +27,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from apps.api.endpoints import news as news_endpoint
 from apps.api.endpoints.news import (
     list_news,
     news_by_category,
@@ -300,13 +299,13 @@ class TestPublishedRangeClauses:
 
     def test_clauses_reference_coalesce(self):
         from sqlalchemy import func
-        from models.news import NewsArticleModel
+
         from repositories.news_repository import _NewsDbRepo
 
         clauses = _NewsDbRepo._published_range(datetime(2026, 1, 1), datetime(2026, 9, 1))
         assert len(clauses) == 2
         # each clause compares COALESCE(published_at_ts, created_at) to a bound
-        for clause, bound in zip(clauses, (datetime(2026, 1, 1), datetime(2026, 9, 1))):
+        for clause, _bound in zip(clauses, (datetime(2026, 1, 1), datetime(2026, 9, 1)), strict=False):
             compiled = str(
                 clause.compile(compile_kwargs={"literal_binds": True})
             )
@@ -316,6 +315,7 @@ class TestPublishedRangeClauses:
         _ = func  # imported for readability symmetry
 
 
+@pytest.mark.needs_db
 class TestDbRepoDateFilter:
     """End-to-end against real Postgres (skipped offline), marked rows only."""
 
@@ -343,12 +343,12 @@ class TestDbRepoDateFilter:
                             # naive UTC values — the column is
                             # ``timestamp without time zone`` (UTC by
                             # convention), mirroring the production rows.
-                            dict(i=f"{marker}_old", t=f"{marker} old", s=f"{marker}src",
-                                 u=f"https://x.test/{marker}_old", p="2026-01-01T00:00:00+00:00",
-                                 pts=datetime(2026, 1, 1)),
-                            dict(i=f"{marker}_in", t=f"{marker} in", s=f"{marker}src",
-                                 u=f"https://x.test/{marker}_in", p="2026-09-10T00:00:00+00:00",
-                                 pts=datetime(2026, 9, 10)),
+                            {"i": f"{marker}_old", "t": f"{marker} old", "s": f"{marker}src",
+                                 "u": f"https://x.test/{marker}_old", "p": "2026-01-01T00:00:00+00:00",
+                                 "pts": datetime(2026, 1, 1)},
+                            {"i": f"{marker}_in", "t": f"{marker} in", "s": f"{marker}src",
+                                 "u": f"https://x.test/{marker}_in", "p": "2026-09-10T00:00:00+00:00",
+                                 "pts": datetime(2026, 9, 10)},
                         ],
                     )
                     await session.commit()

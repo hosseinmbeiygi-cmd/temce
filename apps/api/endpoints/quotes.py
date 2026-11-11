@@ -7,31 +7,12 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, File, Query, UploadFile
 
 from apps.api.dependencies import get_quote_service
+from core.currency import rial_to_toman_float
 from schemas.common.responses import ApiResponse
 from services.quote_import_service import QuoteImportService
 from services.quote_service import QuoteService
 
 router = APIRouter(tags=["quotes"])
-
-
-@router.post(
-    "/{instrument_id}",
-    summary="Create quote",
-    description="Create a new quote for an instrument",
-)
-async def create_quote(
-    instrument_id: str,
-    body: dict[str, Any] = Body(...),
-    service: QuoteService = Depends(get_quote_service),
-) -> ApiResponse[Any]:
-
-    result = await service.create(instrument_id=instrument_id, **body)
-
-    return ApiResponse[Any](
-        success=result.success,
-        data=result.value if result.success else None,
-        error={"message": result.error} if not result.success and result.error else None,
-    )
 
 
 @router.get(
@@ -115,7 +96,9 @@ async def bulk_import_quotes(
     all_errors: list[str] = []
 
     async def process_one(file: UploadFile) -> None:
-        symbol = (file.filename or "").rsplit(".", 1)[0] if file.filename else ""
+        # Never trust the client-supplied path: keep only the final component.
+        raw_name = (file.filename or "").replace("\\", "/").rsplit("/", 1)[-1]
+        symbol = raw_name.rsplit(".", 1)[0] if raw_name else ""
         if not symbol:
             all_errors.append(f"{file.filename}: could not determine symbol from filename")
             return
@@ -144,6 +127,9 @@ async def bulk_import_quotes(
             return
 
         r = result.value
+        if r is None:
+            all_errors.append(f"{file.filename}: import returned no summary")
+            return
         per_file[file.filename or symbol] = {
             "symbol": symbol,
             "rows": r.get("total_rows", 0),
@@ -191,17 +177,44 @@ async def test_quote_direct(instrument_id: str):
     """
     اندپوینت تست مستقل که مستقیماً از SQLite استفاده می‌کند.
     """
-    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
     from services.quote_service import QuoteService
 
     engine = create_async_engine("sqlite+aiosqlite:///data/market.db")
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
         service = QuoteService(session=session)
         result = await service.get_latest(instrument_id)
-        if result.success:
-            return {"success": True, "price": result.value.price_close}
+        if result.success and result.value is not None:
+            return {
+                "success": True,
+                "price": result.value.price_close,
+                "price_toman": rial_to_toman_float(result.value.price_close, default=None),
+                "currency": "TMN",
+            }
         return {"success": False, "error": result.error}
+
+
+# ── Dynamic single-segment route (kept LAST so it cannot shadow
+#    /import-bulk and /test/... above) ──────────────────────────────
+
+@router.post(
+    "/{instrument_id}",
+    summary="Create quote",
+    description="Create a new quote for an instrument",
+)
+async def create_quote(
+    instrument_id: str,
+    body: dict[str, Any] = Body(...),
+    service: QuoteService = Depends(get_quote_service),
+) -> ApiResponse[Any]:
+
+    result = await service.create(instrument_id=instrument_id, **body)
+
+    return ApiResponse[Any](
+        success=result.success,
+        data=result.value if result.success else None,
+        error={"message": result.error} if not result.success and result.error else None,
+    )

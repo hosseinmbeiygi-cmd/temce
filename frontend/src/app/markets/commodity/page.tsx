@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
-import { apiGet } from "@/lib/api";
+import { apiGet, extractArray } from "@/lib/api";
 import {
   TrendingUp,
   TrendingDown,
@@ -16,6 +16,21 @@ import {
 } from "lucide-react";
 
 /* -- Shared Types -- */
+
+interface ImeFuturesRow {
+  contract_code: string;
+  contract_description?: string | null;
+  date_end?: string | null;
+  date_end_text?: string | null;
+  days_remaining?: number | null;
+  price_last?: number | null;
+  price_last_change?: number | null;
+  price_last_change_pct?: number | null;
+  price_last_settlement?: number | null;
+  trade_volume?: number | null;
+  open_interest?: number | null;
+  date_update?: string | null;
+}
 
 interface SpotCommodity {
   symbol: string;
@@ -65,36 +80,6 @@ const CATEGORY_MAP: Record<string, string> = {
   metal: "فلزات",
   mineral: "معدنی",
 };
-
-/* -- Mock Spot Data -- */
-
-const MOCK_COMMODITIES: SpotCommodity[] = [
-  { symbol: "ZRS1", name: "زعفران نگین", price: 185000000, change: 2500000, changePercent: 1.37, high: 187000000, low: 182000000, open: 183000000, close: 185000000, volume: 12500, unit: "ریال", market: "agriculture", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۲۵" },
-  { symbol: "ZRS2", name: "زعفران پوشال", price: 142000000, change: -1200000, changePercent: -0.84, high: 144500000, low: 141000000, open: 143200000, close: 142000000, volume: 8900, unit: "ریال", market: "agriculture", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۲۵" },
-  { symbol: "PCC", name: "پلی‌اتیلن سنگین", price: 48500000, change: 850000, changePercent: 1.78, high: 49000000, low: 47800000, open: 47800000, close: 48500000, volume: 45200, unit: "ریال", market: "petrochemical", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۲۰" },
-  { symbol: "PP", name: "پلی‌پروپیلن", price: 52300000, change: -350000, changePercent: -0.66, high: 52800000, low: 51900000, open: 52650000, close: 52300000, volume: 28700, unit: "ریال", market: "petrochemical", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۲۰" },
-  { symbol: "SB", name: "شمش فولاد", price: 22800000, change: 420000, changePercent: 1.88, high: 23100000, low: 22400000, open: 22400000, close: 22800000, volume: 120000, unit: "ریال", market: "metal", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۱۵" },
-  { symbol: "CU", name: "کاتد مس", price: 95200000, change: 1600000, changePercent: 1.71, high: 96000000, low: 93500000, open: 93600000, close: 95200000, volume: 32000, unit: "ریال", market: "metal", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۱۵" },
-  { symbol: "AL", name: "شمش آلومینیوم", price: 38600000, change: -500000, changePercent: -1.28, high: 39200000, low: 38300000, open: 39100000, close: 38600000, volume: 18500, unit: "ریال", market: "metal", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۱۵" },
-  { symbol: "CEM", name: "سکنه", price: 2850000, change: 45000, changePercent: 1.60, high: 2890000, low: 2810000, open: 2810000, close: 2850000, volume: 210000, unit: "ریال", market: "mineral", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۱۰" },
-  { symbol: "ZC1", name: "ذرت دانه‌ای", price: 9200000, change: -120000, changePercent: -1.29, high: 9350000, low: 9150000, open: 9320000, close: 9200000, volume: 67000, unit: "ریال", market: "agriculture", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۲۵" },
-  { symbol: "BR", name: "برنج طارم", price: 156000000, change: 3800000, changePercent: 2.50, high: 158000000, low: 152000000, open: 152200000, close: 156000000, volume: 5200, unit: "ریال", market: "agriculture", updatedAt: "۱۴۰۵/۰۶/۱۱ ۱۰:۲۵" },
-];
-
-/* -- Mock Derivatives Data -- */
-
-const MOCK_DERIVATIVES: DerivativeContract[] = [
-  { id: "d1", symbol: "ZRSF-1405-09", name: "آتی زعفران نگین - آذر ۱۴۰۵", underlying: "زعفران نگین", contractType: "futures", maturityDate: "۱۴۰۵/۰۹/۱۵", settlementPrice: 192000000, change: 3200000, changePercent: 1.69, volume: 4200, openInterest: 15800, lastPrice: 192000000, status: "active" },
-  { id: "d2", symbol: "ZRSF-1405-12", name: "آتی زعفران نگین - اسفند ۱۴۰۵", underlying: "زعفران نگین", contractType: "futures", maturityDate: "۱۴۰۵/۱۲/۲۰", settlementPrice: 198000000, change: -1100000, changePercent: -0.55, volume: 2800, openInterest: 11200, lastPrice: 198000000, status: "active" },
-  { id: "d3", symbol: "SBF-1405-08", name: "آتی شمش فولاد - آبان ۱۴۰۵", underlying: "شمش فولاد", contractType: "futures", maturityDate: "۱۴۰۵/۰۸/۳۰", settlementPrice: 24100000, change: 520000, changePercent: 2.20, volume: 18500, openInterest: 62000, lastPrice: 24100000, status: "active" },
-  { id: "d4", symbol: "SBF-1405-10", name: "آتی شمش فولاد - دی ۱۴۰۵", underlying: "شمش فولاد", contractType: "futures", maturityDate: "۱۴۰۵/۱۰/۱۵", settlementPrice: 24800000, change: 380000, changePercent: 1.56, volume: 12100, openInterest: 41500, lastPrice: 24800000, status: "active" },
-  { id: "d5", symbol: "CUF-1405-09", name: "آتی کاتد مس - آذر ۱۴۰۵", underlying: "کاتد مس", contractType: "futures", maturityDate: "۱۴۰۵/۰۹/۲۲", settlementPrice: 98500000, change: 2100000, changePercent: 2.18, volume: 8300, openInterest: 28700, lastPrice: 98500000, status: "active" },
-  { id: "d6", symbol: "PCCF-1405-08", name: "آتی پلی‌اتیلن - آبان ۱۴۰۵", underlying: "پلی‌اتیلن سنگین", contractType: "futures", maturityDate: "۱۴۰۵/۰۸/۲۵", settlementPrice: 50200000, change: 950000, changePercent: 1.93, volume: 6700, openInterest: 19200, lastPrice: 50200000, status: "active" },
-  { id: "d7", symbol: "ZRSO-1405-09", name: "اختیار خرید زعفران - آذر", underlying: "زعفران نگین", contractType: "option", maturityDate: "۱۴۰۵/۰۹/۱۵", settlementPrice: 6500000, change: 450000, changePercent: 7.44, volume: 1200, openInterest: 4800, lastPrice: 6500000, status: "active" },
-  { id: "d8", symbol: "ZRSO-1405-09-P", name: "اختیار فروش زعفران - آذر", underlying: "زعفران نگین", contractType: "option", maturityDate: "۱۴۰۵/۰۹/۱۵", settlementPrice: 4200000, change: -280000, changePercent: -6.25, volume: 950, openInterest: 3600, lastPrice: 4200000, status: "active" },
-  { id: "d9", symbol: "SBSL-1405-08", name: "سلف شمش فولاد - آبان", underlying: "شمش فولاد", contractType: "salaf", maturityDate: "۱۴۰۵/۰۸/۳۰", settlementPrice: 22100000, change: 310000, changePercent: 1.42, volume: 25000, openInterest: 85000, lastPrice: 22100000, status: "active" },
-  { id: "d10", symbol: "ZRSF-1405-06", name: "آتی زعفران نگین - شهریور ۱۴۰۵", underlying: "زعفران نگین", contractType: "futures", maturityDate: "۱۴۰۵/۰۶/۳۱", settlementPrice: 186000000, change: 0, changePercent: 0, volume: 0, openInterest: 0, lastPrice: 186000000, status: "settled" },
-];
 
 /* -- Format helpers -- */
 
@@ -203,32 +188,60 @@ export default function CommodityMarketPage() {
   const [category, setCategory] = useState("all");
   const [view, setView] = useState<"spot" | "derivatives">("spot");
 
-  /* API fetch with fallback to mock */
-  const { data: commodities, isLoading } = useQuery({
-    queryKey: ["commodity-market", category],
+  /* Real feeds only — an outage or an empty list renders an explicit state. */
+  const { data: commodities, isLoading, isError } = useQuery({
+    queryKey: ["commodity-market"],
     queryFn: async () => {
-      try {
-        const res = await apiGet<unknown>("/commodities");
-        const arr = Array.isArray(res) ? res : (res as { data?: unknown })?.data ?? [];
-        if (Array.isArray(arr)) return arr as SpotCommodity[];
-      } catch {
-        /* fall through to mock */
-      }
-      if (category === "all") return MOCK_COMMODITIES;
-      return MOCK_COMMODITIES.filter((c) => c.market === category);
+      const res = await apiGet<unknown>("/commodities?latest_only=true");
+      const arr = Array.isArray(res) ? res : (res as { data?: unknown })?.data ?? [];
+      return (Array.isArray(arr) ? arr : []) as SpotCommodity[];
     },
     refetchInterval: 60_000,
   });
 
-  const gainers = commodities?.filter((c) => c.changePercent >= 0).length ?? 0;
-  const losers = commodities?.filter((c) => c.changePercent < 0).length ?? 0;
-  const sorted = (commodities ?? []).toSorted((a, b) => b.changePercent - a.changePercent);
+  // Futures come from the public IME endpoint (no derivatives mock table).
+  const { data: derivatives, isLoading: derivativesLoading, isError: derivativesError } = useQuery({
+    queryKey: ["commodity-derivatives"],
+    queryFn: async () => {
+      const r = await apiGet<{ success?: boolean; data?: ImeFuturesRow[] }>("/gold/ime/futures");
+      const rows = extractArray<ImeFuturesRow>(r?.data ?? r);
+      const byCode = new Map<string, ImeFuturesRow>();
+      for (const row of rows) {
+        if (!row?.contract_code || !(row.price_last ?? 0)) continue;
+        const prev = byCode.get(row.contract_code);
+        if (!prev || (row.date_update ?? "") > (prev.date_update ?? "")) byCode.set(row.contract_code, row);
+      }
+      return [...byCode.values()].map<DerivativeContract>((row) => ({
+        id: row.contract_code,
+        symbol: row.contract_code,
+        name: row.contract_description || row.contract_code,
+        underlying: row.contract_description || "—",
+        contractType: "futures",
+        maturityDate: row.date_end_text || row.date_end || "—",
+        settlementPrice: row.price_last_settlement ?? 0,
+        change: row.price_last_change ?? 0,
+        changePercent: row.price_last_change_pct ?? 0,
+        volume: row.trade_volume ?? 0,
+        openInterest: row.open_interest ?? 0,
+        lastPrice: row.price_last ?? 0,
+        status: row.days_remaining != null && row.days_remaining < 0 ? "settled" : "active",
+      }));
+    },
+    refetchInterval: 60_000,
+  });
+
+  const filteredCommodities = useMemo(() => {
+    const rows = commodities ?? [];
+    return category === "all" ? rows : rows.filter((c) => c.market === category);
+  }, [commodities, category]);
+
+  const gainers = filteredCommodities.filter((c) => c.changePercent >= 0).length;
+  const losers = filteredCommodities.filter((c) => c.changePercent < 0).length;
+  const sorted = filteredCommodities.toSorted((a, b) => b.changePercent - a.changePercent);
   const topGainer = sorted[0];
   const topLoser = sorted[sorted.length - 1];
 
-  const filteredDerivatives = useMemo(() => {
-    return MOCK_DERIVATIVES.filter((d) => d.status === "active");
-  }, []);
+  const filteredDerivatives = derivatives ?? [];
 
   return (
     <AppLayout
@@ -315,14 +328,20 @@ export default function CommodityMarketPage() {
           </div>
 
           {/* -- Commodity Grid -- */}
+          {isError && (
+            <div role="alert" aria-live="polite" className="mb-5 flex items-center gap-2 rounded-xl border border-accent-rose/30 bg-accent-rose/10 px-4 py-2.5 text-xs text-accent-rose">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              {"دریافت قیمت‌های بازار کالایی ناموفق بود — داده‌ای برای نمایش وجود ندارد."}
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {isLoading
               ? Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)
-              : commodities?.map((item) => <SpotCard key={item.symbol} item={item} />)
+              : filteredCommodities.map((item) => <SpotCard key={item.symbol} item={item} />)
             }
           </div>
 
-          {!isLoading && commodities?.length === 0 && (
+          {!isLoading && !isError && filteredCommodities.length === 0 && (
             <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 text-surface-600">
               <Package className="size-12" />
               <p className="text-sm">{"محصولی برای نمایش وجود ندارد"}</p>
@@ -338,7 +357,7 @@ export default function CommodityMarketPage() {
               {"قراردادهای مشتقه کالایی"}
             </div>
             <p className="mt-1 text-[11px] text-surface-400">
-              {"فهرست قراردادهای آتی، اختیار معامله و سلف فعال در بورس کالای ایران"}
+              {"قراردادهای آتی فعال بورس کالای ایران (منبع: BrsApi)"}
             </p>
           </div>
 
@@ -368,6 +387,12 @@ export default function CommodityMarketPage() {
           </div>
 
           {/* -- Derivatives Table -- */}
+          {derivativesError && (
+            <div role="alert" aria-live="polite" className="mb-4 flex items-center gap-2 rounded-xl border border-accent-rose/30 bg-accent-rose/10 px-4 py-2.5 text-xs text-accent-rose">
+              <AlertTriangle className="size-3.5 shrink-0" />
+              {"دریافت قراردادهای آتی ناموفق بود — داده‌ای برای نمایش وجود ندارد."}
+            </div>
+          )}
           <div className="glass-card overflow-x-auto">
             <table className="w-full text-right text-sm">
               <thead>
@@ -382,16 +407,31 @@ export default function CommodityMarketPage() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK_DERIVATIVES.map((contract) => (
-                  <DerivativeRow key={contract.id} contract={contract} />
-                ))}
+                {derivativesLoading
+                  ? Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="border-b border-surface-800/50">
+                        <td colSpan={7} className="px-3 py-3">
+                          <div className="h-4 w-full animate-pulse rounded bg-surface-800" />
+                        </td>
+                      </tr>
+                    ))
+                  : filteredDerivatives.map((contract) => (
+                      <DerivativeRow key={contract.id} contract={contract} />
+                    ))}
               </tbody>
             </table>
           </div>
 
+          {!derivativesLoading && !derivativesError && filteredDerivatives.length === 0 && (
+            <div className="mt-4 flex min-h-[20vh] flex-col items-center justify-center gap-2 text-surface-600">
+              <Calendar className="size-10" />
+              <p className="text-sm">{"قرارداد آتی فعالی برای نمایش وجود ندارد"}</p>
+            </div>
+          )}
+
           <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface-800/50 px-4 py-2.5 text-[10px] text-surface-500">
             <AlertTriangle className="size-3 text-accent-amber" />
-            {"موقعیت‌های باز و حجم معاملات به‌صورت شبیه‌سازی نمایش داده شده‌اند. در نسخه نهایی از داده‌های واقعی بورس کالا استفاده خواهد شد."}
+            {"قراردادهای اختیار معامله و سلف در این نمای فرانت‌اند منابع داده‌ای مجزا ندارند و نمایش داده نمی‌شوند."}
           </div>
         </>
       )}

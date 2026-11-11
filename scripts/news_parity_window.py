@@ -17,7 +17,7 @@ import json
 import random
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -27,7 +27,7 @@ SYMBOLS = ["وبانك", "وبانک", "فولاد", "فملي", "فملی", "ش
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def main() -> int:
@@ -40,7 +40,7 @@ def main() -> int:
     base = f"http://127.0.0.1:{args.port}"
     out = Path(
         args.out
-        or f"reports/parity_window_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.jsonl"
+        or f"reports/parity_window_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.jsonl"
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     fh = out.open("a", encoding="utf-8")

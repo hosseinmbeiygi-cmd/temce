@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { getStoredAuth } from '@/lib/api';
+import { withCsrf } from '@/lib/csrf';
 
 interface UseFileUploadOptions<T> {
   path: string;
@@ -38,10 +39,11 @@ export function useFileUpload<T = unknown>(options: UseFileUploadOptions<T>) {
       const auth = getStoredAuth();
       const token = auth?.access_token;
 
-      const headers: HeadersInit = {};
+      const headers: Record<string, string> = {};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
+      Object.assign(headers, withCsrf(headers, 'POST') as Record<string, string>);
 
       const xhr = new XMLHttpRequest();
 

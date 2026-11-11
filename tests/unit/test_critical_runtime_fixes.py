@@ -105,13 +105,29 @@ class TestNewsIngestionRollback:
 
         session = MagicMock()
         session.rollback = AsyncMock()
+        # The dual-write mirror (added after this test) awaits ``session.execute``
+        # and asks the result for ``scalar_one_or_none()``. A plain MagicMock is
+        # not awaitable, so the mirror blew up and took the save loop with it.
+        # Report a dedup hit so the mirror steps aside: it has its own tests, and
+        # this one is about the legacy save/rollback loop.
+        already_mirrored = MagicMock()
+        already_mirrored.scalar_one_or_none.return_value = 1
+        session.execute = AsyncMock(return_value=already_mirrored)
 
         news_service = MagicMock()
-        # First save fails (e.g. StringDataRightTruncationError), rest succeed.
-        news_service.save = AsyncMock(side_effect=[
-            Exception("value too long for type character varying(30)"),
-            MagicMock(), MagicMock(),
-        ])
+        # First save fails (e.g. StringDataRightTruncationError), the rest succeed.
+        # A side-effect function rather than a fixed list: ``safe_mirror`` may
+        # re-issue the legacy save, and an exhausted list would raise
+        # StopIteration instead of testing what we came for.
+        save_calls = {"n": 0}
+
+        async def _save(_item):
+            save_calls["n"] += 1
+            if save_calls["n"] == 1:
+                raise Exception("value too long for type character varying(30)")
+            return MagicMock(success=True, value=None)
+
+        news_service.save = AsyncMock(side_effect=_save)
         news_service.repo.exists_by_url_or_title = AsyncMock(return_value=False)
 
         svc = NewsIngestionService(news_service=news_service, session=session)

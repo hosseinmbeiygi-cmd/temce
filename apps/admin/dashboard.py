@@ -132,12 +132,12 @@ async def dashboard_overview(
         users_data: dict[str, Any] = {"total_users": 0, "active_users": 0, "weekly_active": 0}
         try:
             r = await session.execute(text(USER_STATS_QUERY))
-            row = r.one_or_none()
-            if row:
+            users_row = r.one_or_none()
+            if users_row:
                 users_data = {
-                    "total_users": row[0] or 0,
-                    "active_users": row[1] or 0,
-                    "weekly_active": row[2] or 0,
+                    "total_users": users_row[0] or 0,
+                    "active_users": users_row[1] or 0,
+                    "weekly_active": users_row[2] or 0,
                 }
         except Exception:
             logger.warning("Could not fetch user stats")
@@ -146,17 +146,17 @@ async def dashboard_overview(
         daily: dict[str, int] = {}
         try:
             r = await session.execute(text(DAILY_RECORDS_QUERY))
-            row = r.one_or_none()
-            if row:
+            daily_row = r.one_or_none()
+            if daily_row:
                 daily = {
-                    "quotes_today": row[0] or 0,
-                    "trades_today": row[1] or 0,
-                    "orderbooks_today": row[2] or 0,
-                    "news_today": row[3] or 0,
-                    "signals_today": row[4] or 0,
-                    "recommendations_today": row[5] or 0,
-                    "codal_today": row[6] or 0,
-                    "job_runs_today": row[7] or 0,
+                    "quotes_today": daily_row[0] or 0,
+                    "trades_today": daily_row[1] or 0,
+                    "orderbooks_today": daily_row[2] or 0,
+                    "news_today": daily_row[3] or 0,
+                    "signals_today": daily_row[4] or 0,
+                    "recommendations_today": daily_row[5] or 0,
+                    "codal_today": daily_row[6] or 0,
+                    "job_runs_today": daily_row[7] or 0,
                 }
         except Exception:
             logger.warning("Could not fetch daily records")
@@ -165,14 +165,14 @@ async def dashboard_overview(
         job_stats: dict[str, Any] = {"total_runs": 0, "successful": 0, "failed": 0, "running": 0, "avg_duration": 0}
         try:
             r = await session.execute(text(JOBS_STATS_QUERY))
-            row = r.one_or_none()
-            if row:
+            jobs_row = r.one_or_none()
+            if jobs_row:
                 job_stats = {
-                    "total_runs": row[0] or 0,
-                    "successful": row[1] or 0,
-                    "failed": row[2] or 0,
-                    "running": row[3] or 0,
-                    "avg_duration": round(row[4], 2) if row[4] else 0,
+                    "total_runs": jobs_row[0] or 0,
+                    "successful": jobs_row[1] or 0,
+                    "failed": jobs_row[2] or 0,
+                    "running": jobs_row[3] or 0,
+                    "avg_duration": round(jobs_row[4], 2) if jobs_row[4] else 0,
                 }
         except Exception:
             logger.warning("Could not fetch job stats")

@@ -4,16 +4,19 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
 import { Card, CardAction } from "@/components/ui/Card";
 import Skeleton from "@/components/Skeleton";
 import { apiGet, apiPost } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import {
   saveSyncSettings, resetSyncSettings,
   DEFAULT_SYNC_SETTINGS, ALL_SECTION_KEYS, type SyncSettingsMap,
 } from "@/lib/sync-settings";
 import { useSyncSettings } from "@/hooks/useSyncSettings";
 import DeadLetterWidget from "@/components/admin/DeadLetterWidget";
+import ParseErrorCodeBadge, { stripParseErrorPrefix } from "@/components/ParseErrorCodeBadge";
 
 const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"), {
   ssr: false, loading: () => <div className="animate-pulse bg-surface-800/50 rounded-2xl h-[200px]" />,
@@ -22,7 +25,7 @@ const AreaChartCard = dynamic(() => import("@/components/charts/AreaChartCard"),
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface TableSyncInfo { last_fetched: string | null; record_count: number; age_minutes: number; status: "ok"|"stale"|"outdated"|"missing"|"unknown"|"error"; max_age_minutes: number; error?: string; }
-interface SyncLogEntry { time: string; endpoint: string; category: string; status: string; items_count: number; duration_ms: number; completed_at: string | null; }
+interface SyncLogEntry { time: string; endpoint: string; category: string; status: string; outcome?: string; error_message?: string | null; items_count: number; duration_ms: number; completed_at: string | null; }
 interface SchedulerJob { name: string; enabled: boolean; cron: string; description: string; endpoint: string; category: string; next_run_time: string | null; }
 interface SchedulerResponse { jobs: SchedulerJob[]; total: number; enabled: number; disabled: number; }
 interface ImportJob { id: string; job_type: string; status: string; started_at: string | null; completed_at: string | null; duration_seconds: number; error_message: string | null; }
@@ -118,7 +121,50 @@ function Toast({ message, type, onClose }: { message: string; type: "success" | 
 
 // ── MAIN PAGE ─────────────────────────────────────────────────────────────────
 
-export default function AdminUnifiedPage() {
+// W5-01: پنل مدیریت قبلاً هیچ gate نقشی نداشت و هر کاربر احرازشده پوسته را
+// می‌دید (APIها ۴۰۳ می‌دادند، UI نه). gate قبل از mount شدن کوئری‌های ادمین است.
+export default function AdminPage() {
+  const router = useRouter();
+  const { isLoading, isAuthenticated, hasRole } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/auth/login?redirect=%2Fadmin");
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading) {
+    return (
+      <div className="p-8 space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) return null;
+  if (!hasRole("admin")) {
+    return (
+      <div className="p-8" dir="rtl">
+        <div
+          role="alert"
+          className="mx-auto max-w-md rounded-xl border px-5 py-4 text-sm"
+          style={{ borderColor: "var(--color-danger, #f87171)" }}
+        >
+          <div className="font-bold mb-1">دسترسی غیرمجاز</div>
+          <div>پنل مدیریت فقط برای نقش «ادمین» در دسترس است.</div>
+          <Link href="/" className="inline-block mt-3 underline">
+            بازگشت به داشبورد
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  return <AdminUnifiedPage />;
+}
+
+// named export برای تست‌های محتوای تب‌ها؛ دسترسی از مسیر واقعی فقط از default
+// (با gate نقش) می‌گذرد.
+export function AdminUnifiedPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<TabKey>("overview");
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "warning" } | null>(null);
@@ -218,7 +264,7 @@ export default function AdminUnifiedPage() {
         <Card title="فعالیت امروز">{dailyEntries.length > 0 ? (<div className="flex flex-wrap gap-x-4 gap-y-1.5">{dailyEntries.map(([k, v]) => (<div key={k} className="flex items-center gap-1.5"><span className="text-xs font-mono text-surface-200 font-bold">{fmt(v)}</span><span className="text-[9px] text-surface-500">{k.replace("_today", "").replace("_", " ")}</span></div>))}</div>) : <p className="text-xs text-surface-600">هیچ رکوردی امروز ثبت نشده</p>}</Card>
       </div>
       {/* Recent Jobs */}
-      {recentJobs.length > 0 && (<Card title="آخرین Job‌ها"><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-surface-500 border-b border-surface-700"><th className="text-right py-2 px-2">نوع</th><th className="text-right py-2 px-2">وضعیت</th><th className="text-right py-2 px-2">مدت</th><th className="text-right py-2 px-2">زمان</th><th className="text-right py-2 px-2">خطا</th></tr></thead><tbody>{recentJobs.slice(0, 8).map(job => (<tr key={job.id} className="border-b border-surface-800/50 hover:bg-surface-800/30"><td className="py-2 px-2 font-mono text-surface-300">{job.job_type}</td><td className="py-2 px-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusBadge(job.status)}`}>{statusLbl(job.status)}</span></td><td className="py-2 px-2 text-surface-400">{job.duration_seconds > 0 ? fmtDurSec(job.duration_seconds) : "—"}</td><td className="py-2 px-2 text-surface-500">{fmtTime(job.completed_at || job.started_at)}</td><td className="py-2 px-2 text-accent-rose max-w-[120px] truncate" title={job.error_message || ""}>{job.error_message || "—"}</td></tr>))}</tbody></table></div></Card>)}
+      {recentJobs.length > 0 && (<Card title="آخرین Job‌ها"><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-surface-500 border-b border-surface-700"><th className="text-right py-2 px-2">نوع</th><th className="text-right py-2 px-2">وضعیت</th><th className="text-right py-2 px-2">مدت</th><th className="text-right py-2 px-2">زمان</th><th className="text-right py-2 px-2">خطا</th></tr></thead><tbody>{recentJobs.slice(0, 8).map(job => (<tr key={job.id} className="border-b border-surface-800/50 hover:bg-surface-800/30"><td className="py-2 px-2 font-mono text-surface-300">{job.job_type}</td><td className="py-2 px-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusBadge(job.status)}`}>{statusLbl(job.status)}</span></td><td className="py-2 px-2 text-surface-400">{job.duration_seconds > 0 ? fmtDurSec(job.duration_seconds) : "—"}</td><td className="py-2 px-2 text-surface-500">{fmtTime(job.completed_at || job.started_at)}</td><td className="py-2 px-2 text-accent-rose max-w-[160px]" title={job.error_message || ""}>{job.error_message ? (<div className="flex items-center gap-1.5 min-w-0"><ParseErrorCodeBadge message={job.error_message} /><span className="truncate">{stripParseErrorPrefix(job.error_message)}</span></div>) : "—"}</td></tr>))}</tbody></table></div></Card>)}
       {/* Data Freshness */}
       <Card title="وضعیت جداول"><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-surface-500 border-b border-surface-700"><th className="pb-2 text-right">بخش</th><th className="pb-2 text-center">وضعیت</th><th className="pb-2 text-center">رکوردها</th><th className="pb-2 text-center">سن</th><th className="pb-2 text-center">عملیات</th></tr></thead><tbody>{overviewEntries.slice(0, 10).map(([key, info]) => { const cfg = TABLE_CONFIG[key] || { label: key, icon: "📦" }; const meta = STATUS_META[info.status] || STATUS_META.unknown; return (<tr key={key} className="border-b border-surface-800/30 hover:bg-surface-800/20"><td className="py-2 px-2"><div className="flex items-center gap-2"><span>{cfg.icon}</span><span className="font-semibold text-surface-200">{cfg.label}</span></div></td><td className="py-2 px-2 text-center"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.bg} ${meta.color}`}>{meta.label}</span></td><td className="py-2 px-2 text-center font-mono text-surface-300">{fmt(info.record_count)}</td><td className="py-2 px-2 text-center"><span className={`font-mono ${info.status === "ok" ? "text-accent-emerald" : info.status === "stale" ? "text-accent-amber" : info.status === "outdated" ? "text-accent-rose" : "text-surface-500"}`}>{info.age_minutes != null ? `${info.age_minutes.toFixed(0)} دقیقه` : "—"}</span></td><td className="py-2 px-2 text-center"><button onClick={() => handleSyncNow(key)} className={`px-2 py-1 rounded-lg text-[10px] font-medium border transition-all ${info.status === "outdated" ? "bg-accent-rose/15 text-accent-rose border-accent-rose/30 animate-pulse" : info.status === "stale" ? "bg-accent-amber/15 text-accent-amber border-accent-amber/30" : "bg-surface-800 text-surface-400 hover:text-primary-300 border-surface-700"}`}>Sync</button></td></tr>); })}</tbody></table></div></Card>
       {/* Quick Actions */}
@@ -375,7 +421,7 @@ function SyncChart() {
 function SyncEvents() {
   const { data: hist, isLoading } = useQuery({ queryKey: ["admin-sync-events"], queryFn: async (): Promise<SyncLogEntry[]> => { const r = await apiGet<{ success: boolean; data: SyncLogEntry[] }>(`/brsapi/sync-history?hours=48&limit=20`); return r?.data ?? []; }, refetchInterval: 120_000 });
   return (<Card title="آخرین رویدادهای Sync" actions={<span className="text-[10px] text-surface-600">{hist?.length ?? 0} رویداد</span>}>
-    {isLoading ? <Skeleton className="h-40 w-full" /> : hist && hist.length > 0 ? (<div className="space-y-1 max-h-[300px] overflow-y-auto">{hist.map((ev, i) => (<div key={i} className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-surface-800/20"><div className="flex items-center gap-2.5 min-w-0"><span className={`w-2 h-2 rounded-full shrink-0 ${ev.status === "success" ? "bg-accent-emerald" : "bg-accent-rose"}`} /><span className="text-[10px] text-surface-400 font-mono truncate max-w-[180px]">{ev.endpoint}</span></div><div className="flex items-center gap-2 shrink-0 text-[9px]"><span className="text-surface-600">{ev.items_count} آیتم</span><span className="text-surface-600">{fmtDur(ev.duration_ms)}</span><span className="text-surface-500">{fmtRel(ev.time)}</span></div></div>))}</div>) : <p className="text-surface-500 text-sm text-center py-6">رویدادی ثبت نشده</p>}
+    {isLoading ? <Skeleton className="h-40 w-full" /> : hist && hist.length > 0 ? (<div className="space-y-1 max-h-[300px] overflow-y-auto">{hist.map((ev, i) => (<div key={i} className="flex items-center justify-between py-1.5 px-3 rounded-lg hover:bg-surface-800/20"><div className="flex items-center gap-2.5 min-w-0" title={ev.status === "success" ? undefined : ev.error_message ?? undefined}><span className={`w-2 h-2 rounded-full shrink-0 ${ev.status === "success" ? "bg-accent-emerald" : "bg-accent-rose"}`} /><span className="text-[10px] text-surface-400 font-mono truncate max-w-[180px]">{ev.endpoint}</span>{ev.status !== "success" && ev.outcome && ev.outcome !== "unknown" && (<span className="text-[9px] font-mono text-accent-rose/80">{ev.outcome}</span>)}{ev.status !== "success" && (<ParseErrorCodeBadge message={ev.error_message} />)}</div><div className="flex items-center gap-2 shrink-0 text-[9px]"><span className="text-surface-600">{ev.items_count} آیتم</span><span className="text-surface-600">{fmtDur(ev.duration_ms)}</span><span className="text-surface-500">{fmtRel(ev.time)}</span></div></div>))}</div>) : <p className="text-surface-500 text-sm text-center py-6">رویدادی ثبت نشده</p>}
   </Card>);
 }
 

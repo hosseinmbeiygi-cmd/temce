@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from apps.scheduler.app import SchedulerApp
+from core.config import settings
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -17,6 +18,7 @@ def main() -> None:
     Starts APScheduler with predefined jobs (sync_instruments,
     sync_quotes, sync_codal, sync_news) and runs forever.
     """
+    settings.validate_production()
     app = SchedulerApp()
     try:
         asyncio.run(app.run_forever())

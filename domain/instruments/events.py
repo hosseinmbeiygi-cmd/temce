@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from domain.common.events import DomainEvent
 
@@ -15,7 +15,7 @@ class InstrumentCreated(DomainEvent):
 @dataclass
 class InstrumentUpdated(DomainEvent):
     instrument_id: str = ""
-    changes: list[str] = None
+    changes: list[str] = field(default_factory=list)
 
 
 @dataclass

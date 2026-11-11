@@ -1,0 +1,8 @@
+Dockerfile|EXITED_1|state=exited|exit=1
+Dockerfile.api|UP|state=running|exit=0
+Dockerfile.worker|EXITED_0|state=exited|exit=0
+Dockerfile.scheduler|UP|state=running|exit=0
+Dockerfile.admin|EXITED_3|state=exited|exit=3
+Dockerfile.currency|EXITED_3|state=exited|exit=3
+Dockerfile.golddesk|EXITED_0|state=exited|exit=0
+Dockerfile.decision-engine|UP|state=running|exit=0

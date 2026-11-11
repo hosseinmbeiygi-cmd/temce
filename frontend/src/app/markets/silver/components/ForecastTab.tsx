@@ -3,6 +3,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, extractArray } from "@/lib/api";
+import { useAssistantRules } from "@/hooks/useAssistantRules";
+import {
+  SIGNAL_VERDICT_LABEL,
+  evaluateTrade,
+  minimumTargetForFilter,
+  roundTripFeePct,
+  type TradeDirection,
+} from "@/lib/gold-silver-spec";
 import { fa, faDate, faPct } from "./helpers";
 
 interface ForecastPoint {
@@ -78,11 +86,13 @@ function BandChart({ points, anchor, height = 260 }: { points: ForecastPoint[]; 
   );
 }
 
-function bridge(direction: string, probUp: number): { text: string; tone: string } {
-  if (direction === "up" && probUp >= 0.55) return { text: "سوگیری صعودی — خرید Call / فروش Put / Bull Call Spread", tone: "text-up" };
-  if (direction === "down" && probUp <= 0.45) return { text: "سوگیری نزولی — خرید Put / فروش Call / Bear Put Spread", tone: "text-down" };
-  if (direction === "neutral") return { text: "بازار خنثی — Iron Condor / Short Straddle برای فروش نوسان", tone: "text-warn" };
-  return { text: "جهت‌گیری ضعیف — پوشش ریسک با Covered Call یا Protective Put", tone: "text-ink-2" };
+function bridge(direction: string, probUp: number | null): { text: string; tone: string } {
+  // No probability ⇒ no directional claim and no instrument recommendation.
+  if (probUp === null) return { text: "احتمال جهت از مدل نرسیده — فقط فیلتر هزینه و ریسک بررسی می‌شود", tone: "text-ink-2" };
+  if (direction === "up" && probUp >= 0.55) return { text: "سوگیری صعودی — بررسی خرید نقره با فیلتر هزینه و ریسک", tone: "text-up" };
+  if (direction === "down" && probUp <= 0.45) return { text: "سوگیری نزولی — احتیاط در خرید و پوشش ریسک", tone: "text-down" };
+  if (direction === "neutral") return { text: "بازار خنثی — بدون سیگنال جهت‌دار", tone: "text-warn" };
+  return { text: "جهت‌گیری ضعیف — صبر تا تأیید", tone: "text-ink-2" };
 }
 
 export default function ForecastTab() {
@@ -132,8 +142,54 @@ export default function ForecastTab() {
   const last = active && active.forecast.length > 0 ? active.forecast[active.forecast.length - 1] : null;
   const expected = last && anchor ? ((last.p50 - anchor) / anchor) * 100 : null;
   const direction = expected == null ? "neutral" : expected > 0.5 ? "up" : expected < -0.5 ? "down" : "neutral";
-  const probUp = last?.direction_probability_up ?? 0.5;
+  const probUp = last?.direction_probability_up ?? null;
   const advice = bridge(direction, probUp);
+
+  // §۲۶ — همان دو کفی که گیت `signal_decision_engine` اجرا می‌کند، از همان پاسخ
+  // API که کارت قواعد سرو می‌کند (`acceptance.yaml` تنها منبع). پیش‌بینی مدل یک
+  // *برنامهٔ نامزد* است: ورود = قیمت پایه، هدف = میانهٔ پیش‌بینی، حد ضرر = کف بازه
+  // (برای سوگیری نزولی، آینه‌اش). تا وقتی این برنامه از فیلتر نگذرد «سیگنال» نیست
+  // و صفحه هم آن را سیگنال نمی‌نامد.
+  const { rules, error: rulesError } = useAssistantRules();
+  const tripPct = rules ? roundTripFeePct(rules, "commodity_fund") : null;
+
+  const filterCheck = useMemo(() => {
+    if (!rules || tripPct === null || anchor === null || anchor <= 0 || !last) return null;
+    const planDirection: TradeDirection = (expected ?? 0) >= 0 ? "long" : "short";
+    const target = last.p50;
+    const stop = planDirection === "long" ? last.p_lower : last.p_upper;
+    const riskPct = (Math.abs(anchor - stop) / anchor) * 100;
+    const requirement = minimumTargetForFilter({
+      entry: anchor,
+      riskPct,
+      costPct: tripPct,
+      filter: rules.signal_filter,
+      direction: planDirection,
+    });
+    // `p` = احتمال سود همین برنامه؛ برای پوزیشن فروش، آینهٔ احتمال رشد.
+    // Missing probability stays null so the gate cannot claim an opportunity.
+    const probability = probUp === null ? null : planDirection === "long" ? probUp : 1 - probUp;
+    const evaluation = evaluateTrade({
+      entry: anchor,
+      target,
+      stop,
+      costPct: tripPct,
+      direction: planDirection,
+      probability,
+      filter: rules.signal_filter,
+    });
+    return {
+      planDirection,
+      entry: anchor,
+      target,
+      stop,
+      requirement,
+      evaluation,
+      filter: rules.signal_filter,
+    };
+  }, [rules, tripPct, anchor, last, expected, probUp]);
+
+  const filterRejected = filterCheck?.evaluation.verdict === "reject";
 
   return (
     <div className="space-y-4">
@@ -142,7 +198,7 @@ export default function ForecastTab() {
           <div>
             <h3 className="text-sm font-black text-ink">پیش‌بینی انس جهانی نقره (XAG/USD)</h3>
             <p className="mt-1 text-[11px] text-ink-3">
-              مدل {active?.model?.name ?? "xgboost_ensemble"} · بازه اطمینان ۸۰٪ · داده تا {active?.data_as_of ? faDate(active.data_as_of) : "—"}
+              مدل {active?.model?.name ?? "—"} · بازه اطمینان ۸۰٪ · داده تا {active?.data_as_of ? faDate(active.data_as_of) : "—"}
             </p>
           </div>
           <div className="flex flex-wrap gap-1 rounded-xl bg-soft p-1">
@@ -187,7 +243,7 @@ export default function ForecastTab() {
               </div>
               <div className="rounded-xl bg-soft px-3 py-3 text-center">
                 <p className="text-[10px] text-ink-3">احتمال رشد</p>
-                <p className="mt-1 font-mono text-sm font-black text-ink" dir="ltr">{Math.round(probUp * 100)}%</p>
+                <p className="mt-1 font-mono text-sm font-black text-ink" dir="ltr">{probUp === null ? "—" : `${Math.round(probUp * 100)}%`}</p>
               </div>
             </div>
 
@@ -207,7 +263,129 @@ export default function ForecastTab() {
             </div>
             {active.meta?.note && <p className="mt-2 text-[10px] text-warn">{active.meta.note}</p>}
 
-            <div className={`mt-3 rounded-xl border border-line px-3 py-2.5 text-[11px] font-bold ${advice.tone}`}>{advice.text}</div>
+            <div
+              data-testid="silver-forecast-advice"
+              className={`mt-3 rounded-xl border border-line px-3 py-2.5 text-[11px] font-bold ${
+                filterRejected ? "text-down" : advice.tone
+              }`}
+            >
+              {filterRejected
+                ? `سیگنال صادر نشد (§۲۶) — خوانش مدل: ${advice.text}`
+                : advice.text}
+            </div>
+
+            {/* §۲۶ — فیلتر ارزش معامله روی همین برنامهٔ پیش‌بینی‌شده */}
+            <div
+              data-testid="silver-forecast-filter"
+              className="mt-3 rounded-xl border border-line bg-soft/60 p-3 text-[11px] leading-5"
+            >
+              {filterCheck === null ? (
+                <p data-testid="silver-forecast-filter-unavailable" className="text-ink-3">
+                  {rules
+                    ? "قواعد بازار از API ناقص رسید؛ هزینهٔ رفت‌وبرگشت قابل‌اتکا نیست"
+                    : `آستانه‌های فیلتر §۲۶ در دسترس نیست${rulesError ? ` (${rulesError})` : ""}`}{" "}
+                  — تا دریافت آن، هیچ حکم یا عدد آستانه‌ای به این پیش‌بینی نمی‌چسبد (§۱۳ و §۲۸.۲).
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-black text-ink">فیلتر ارزش معامله (§۲۶)</span>
+                    <span
+                      data-testid="silver-forecast-filter-thresholds"
+                      className="rounded-md bg-card px-1.5 py-0.5 text-[10px] text-ink-3"
+                    >
+                      سود خالص ≥ {fa(filterCheck.filter.min_net_profit_pct)}٪ · RR ≥{" "}
+                      {fa(filterCheck.filter.min_risk_reward)}
+                    </span>
+                    <span
+                      data-testid="silver-forecast-filter-verdict"
+                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                        filterRejected ? "bg-down/15 text-down" : "bg-warn/15 text-warn"
+                      }`}
+                    >
+                      {SIGNAL_VERDICT_LABEL[filterCheck.evaluation.verdict]}
+                    </span>
+                    <span className="rounded-md bg-card px-1.5 py-0.5 text-[10px] text-ink-3">
+                      برنامهٔ {filterCheck.planDirection === "long" ? "خرید" : "فروش"}: ورود{" "}
+                      <b data-testid="silver-forecast-entry" className="font-mono" dir="ltr">
+                        {filterCheck.entry.toFixed(2)}
+                      </b>{" "}
+                      هدف{" "}
+                      <b data-testid="silver-forecast-target" className="font-mono" dir="ltr">
+                        {filterCheck.target.toFixed(2)}
+                      </b>{" "}
+                      حد ضرر{" "}
+                      <b data-testid="silver-forecast-stop" className="font-mono" dir="ltr">
+                        {filterCheck.stop.toFixed(2)}
+                      </b>
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-ink-3">
+                    سود خالص{" "}
+                    <b
+                      data-testid="silver-forecast-net-profit"
+                      className="font-mono text-ink"
+                      dir="ltr"
+                    >
+                      {fa(filterCheck.evaluation.netProfitPct)}
+                    </b>
+                    ٪ · ریسک خالص{" "}
+                    <b
+                      data-testid="silver-forecast-net-risk"
+                      className="font-mono text-ink"
+                      dir="ltr"
+                    >
+                      {fa(filterCheck.evaluation.netRiskPct)}
+                    </b>
+                    ٪ · RR{" "}
+                    <b data-testid="silver-forecast-rr" className="font-mono text-ink" dir="ltr">
+                      {fa(filterCheck.evaluation.riskReward)}
+                    </b>
+                    {filterCheck.evaluation.expectedValuePct !== null && (
+                      <>
+                        {" "}
+                        · EV{" "}
+                        <b
+                          data-testid="silver-forecast-ev"
+                          className="font-mono text-ink"
+                          dir="ltr"
+                        >
+                          {fa(filterCheck.evaluation.expectedValuePct)}
+                        </b>
+                        ٪
+                      </>
+                    )}
+                  </p>
+                  {filterCheck.requirement && (
+                    <p className="mt-1 text-ink-3">
+                      حداقل هدفی که هر دو کف را رد می‌کند:{" "}
+                      <b
+                        data-testid="silver-forecast-required-target"
+                        className="font-mono text-ink"
+                        dir="ltr"
+                      >
+                        {filterCheck.requirement.target.toFixed(2)}
+                      </b>{" "}
+                      (حرکت ناخالص {fa(filterCheck.requirement.grossPct)}٪ — قید غالب:{" "}
+                      {filterCheck.requirement.binding === "risk_reward"
+                        ? "نسبت ریسک/ریوارد"
+                        : "سود خالص"}
+                      ).
+                    </p>
+                  )}
+                  {filterCheck.evaluation.reasons.length > 0 && (
+                    <ul
+                      data-testid="silver-forecast-filter-reasons"
+                      className="mt-1 space-y-0.5 text-ink-3"
+                    >
+                      {filterCheck.evaluation.reasons.map((reason) => (
+                        <li key={reason}>• {reason}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
             {active.model?.note && <p className="mt-2 text-[10px] text-ink-3">{active.model.note}</p>}
             {active.meta?.disclaimer && <p className="mt-1 text-[10px] text-warn">{active.meta.disclaimer}</p>}
           </>

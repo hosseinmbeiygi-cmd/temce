@@ -43,7 +43,10 @@ from services.instrument_import_service import InstrumentImportService
 # it, which made every request 401: the symbols router is mounted with
 # ``require_user_for_writes``, so POST /import needs a real user.
 
+pytestmark = pytest.mark.needs_db
+
 @pytest.fixture(autouse=True)
+
 def _stub_db_save(monkeypatch: pytest.MonkeyPatch):
     """Stub ``InstrumentRepository.save`` so the import endpoint can parse
     and "commit" rows without the test harness needing a multi-connection

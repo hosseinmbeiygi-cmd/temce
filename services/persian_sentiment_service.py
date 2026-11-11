@@ -170,10 +170,10 @@ class PersianSentimentService:
     # ── ML scoring ────────────────────────────────────────────────────────────
 
     def _ml_score(self, text: str) -> dict[str, Any] | None:
-        if not self._model_loaded or self._model is None or self._vectorizer is None:
+        if self._model is None or self._vectorizer is None:
             self._load_model()
 
-        if not self._model_loaded:
+        if not self._model_loaded or self._model is None or self._vectorizer is None:
             return None
 
         cleaned = self._clean_text(text)

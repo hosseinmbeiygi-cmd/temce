@@ -27,7 +27,7 @@ function classify(ev: CalendarEvent): EventKind {
 const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
 
 export default function EventCalendar() {
-  const { data: events, isLive, isError, isLoading } = useMarketEvents();
+  const { data: events, isLive, hasData, isFresh, isStale, isError, isLoading } = useMarketEvents();
   return (
     <section data-widget="EventCalendar" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
@@ -35,7 +35,7 @@ export default function EventCalendar() {
         title="تقویم بازار"
         subtitle="رویدادهای اقتصادی پیش‌رو — از تقویم اقتصادی"
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
         {events.map((ev) => {
           const kind = classify(ev);

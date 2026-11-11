@@ -6,9 +6,13 @@ from typing import Any
 class AppError(Exception):
     """Base exception for all application errors."""
 
+    status_code: int = 500
+    message: str = "An error occurred"
+
     def __init__(
         self, message: str = "An error occurred", code: str = "UNKNOWN", details: dict[str, Any] | None = None
     ) -> None:
+        self.message = message
         self.code = code
         self.details = details or {}
         super().__init__(message)

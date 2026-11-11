@@ -14,7 +14,7 @@ const SENTIMENT_DOT: Record<string, string> = {
 };
 
 export default function NewsStrip() {
-  const { data: NEWS, isLive, isError, isLoading } = useNewsItems();
+  const { data: NEWS, isLive, hasData, isFresh, isStale, isError, isLoading } = useNewsItems();
   return (
     <section data-widget="NewsStrip" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
       <SectionHeader
@@ -31,7 +31,7 @@ export default function NewsStrip() {
           </Link>
         }
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="mt-4 grid gap-2.5 md:grid-cols-3">
         {NEWS.map((item) => (
           <Link

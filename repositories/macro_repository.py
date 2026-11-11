@@ -12,11 +12,12 @@ from models.macro import MacroIndicatorModel
 from repositories.base_repository import InMemoryRepository
 from repositories.db_base import DbRepository
 
+MacroEntityList = list[MacroEntity]
 
 class MacroRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[MacroEntity] | None = None if session else InMemoryRepository(MacroEntity)
+        self._mem: InMemoryRepository[MacroEntity] = InMemoryRepository(MacroEntity)
         self._db: _MacroDbRepo | None = None if not session else _MacroDbRepo(session)
 
     async def get(self, id: str) -> Result[MacroEntity]:
@@ -39,13 +40,13 @@ class MacroRepository:
             return await self._db.list(page, page_size)
         return await self._mem.list(page, page_size)
 
-    async def get_by_indicator(self, indicator: str) -> Result[list[MacroEntity]]:
+    async def get_by_indicator(self, indicator: str) -> Result[MacroEntityList]:
         if self._db:
             return await self._db.get_by_indicator(indicator)
         matches = [m for m in self._mem._store.values() if m.name == indicator]
         return Result.ok(sorted(matches, key=lambda x: x.date or date.min, reverse=True))
 
-    async def get_by_country(self, country: str) -> Result[list[MacroEntity]]:
+    async def get_by_country(self, country: str) -> Result[MacroEntityList]:
         if self._db:
             return await self._db.get_by_country(country)
         matches = [m for m in self._mem._store.values() if m.category == country]
@@ -68,13 +69,13 @@ class MacroRepository:
 class _MacroDbRepo(DbRepository[MacroEntity, MacroIndicatorModel]):
     model_class = MacroIndicatorModel
 
-    async def get_by_indicator(self, indicator: str) -> Result[list[MacroEntity]]:
+    async def get_by_indicator(self, indicator: str) -> Result[MacroEntityList]:
         stmt = select(MacroIndicatorModel).where(MacroIndicatorModel.indicator == indicator).order_by(desc(MacroIndicatorModel.date))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
         return Result.ok([self._to_domain(r) for r in rows])
 
-    async def get_by_country(self, country: str) -> Result[list[MacroEntity]]:
+    async def get_by_country(self, country: str) -> Result[MacroEntityList]:
         stmt = select(MacroIndicatorModel).where(MacroIndicatorModel.country == country).order_by(desc(MacroIndicatorModel.date))
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
@@ -117,7 +118,9 @@ class _MacroDbRepo(DbRepository[MacroEntity, MacroIndicatorModel]):
             source=orm.source or "",
             category=orm.country or "iran",
             created_at=orm.created_at,
-            updated_at=orm.updated_at,
+            # The table has no updated_at column (TimestampMixin defines only
+            # created_at); leave it unset instead of inventing a timestamp.
+            updated_at=None,
         )
 
     def _to_orm(self, domain: MacroEntity) -> MacroIndicatorModel:

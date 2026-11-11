@@ -2,7 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getSnapshot } from "@/lib/goldApi";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { DataTrustBadge, normalizeQuality } from "@/components/gold/DataTrustBadge";
+import { GoldDisclaimer } from "@/components/gold/GoldDisclaimer";
 
 // ── Helpers ──────────────────────────────────────────────────────
 function fmt(n: number | null | undefined, d = 0): string {
@@ -13,8 +15,19 @@ function fmtPct(n: number | null | undefined, d = 2): string {
   if (n === null || n === undefined || isNaN(n)) return "—";
   return (n > 0 ? "+" : "") + n.toFixed(d) + "٪";
 }
+/** Educational calculators divide by these inputs; 0 would create Infinity/NaN. */
+function positive(value: string): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
 
 // ── Pure calculations — مطابق spec Python ────────────────────────
+// مقادیر از موتور کانونیکال (pricer.py): 31.1034768g، عیار 900/999.9، کارمزد ضرب.
+const TROY_OUNCE_GRAMS = 31.1034768;
+const COIN_WEIGHT_GRAMS = 8.133;
+const COIN_PURITY = 900 / 999.9;
+const COIN_MINTING_TOMAN = 80_000;
+
 function calcNavPremium(market: number, nav: number) {
   const pct = ((market - nav) / nav) * 100;
   let signal: "BUY" | "SELL" | "NEUTRAL" = "NEUTRAL";
@@ -24,8 +37,16 @@ function calcNavPremium(market: number, nav: number) {
   else reason = `محدوده منطقی (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}٪)`;
   return { premium_pct: pct, signal, reason };
 }
-function calcCoinBubble(coinPrice: number, goldOzUsd: number, usdRate: number) {
-  const intrinsic = goldOzUsd * (8.133 / 31.1035) * 0.915 * usdRate;
+function calcCoinBubble(
+  coinPrice: number,
+  goldOzUsd: number | null,
+  usdRate: number | null,
+  mintingCost = COIN_MINTING_TOMAN,
+) {
+  if (goldOzUsd === null || usdRate === null) return null;
+  const intrinsic =
+    goldOzUsd * (COIN_WEIGHT_GRAMS / TROY_OUNCE_GRAMS) * COIN_PURITY * usdRate +
+    mintingCost;
   const pct = ((coinPrice - intrinsic) / intrinsic) * 100;
   let signal: "BUY" | "SELL" | "NEUTRAL" = "NEUTRAL";
   let reason = "";
@@ -73,22 +94,33 @@ const PHYS = [
 
 export default function AntigravityPage() {
   const { data: snap } = useQuery({ queryKey: ["gold", "snapshot"], queryFn: getSnapshot, refetchInterval: 30_000 });
-  const xau = snap?.references.xau_usd ?? 2650;
-  const usd = snap?.references.usd_irt ?? 85000;
+  // هیچ عدد ساختگی جای داده‌ی غایب نمی‌نشیند؛ نبودِ snapshot یعنی NO_DATA.
+  const xau = snap?.references.xau_usd ?? null;
+  const usd = snap?.references.usd_irt ?? null;
+  const dxy = snap?.references.dxy_index ?? null;
+  const refQuality = normalizeQuality(snap?.references.quality);
+  const refSource = snap?.references.source ?? null;
+  const refAsOf = snap?.references.asOf ?? null;
+  const refAge = snap?.references.age_seconds ?? null;
+  const refUnit = snap?.references.unit ?? null;
+  const usdUnit = refUnit === "rial" ? "ریال" : refUnit === "toman" ? "تومان" : "واحد نامشخص";
+  // The minting fee is defined in toman; convert it when the reference unit is rial.
+  const mintingCost = refUnit === "rial" ? COIN_MINTING_TOMAN * 10 : COIN_MINTING_TOMAN;
 
-  // NAV inputs
+  // NAV inputs — educational defaults, always labelled as such.
   const [navMarket, setNavMarket] = useState(36500);
   const [navNav, setNavNav] = useState(36000);
   const navRes = useMemo(() => calcNavPremium(navMarket, navNav), [navMarket, navNav]);
 
   // Coin bubble
   const [coinPrice, setCoinPrice] = useState(45000000);
-  const bubbleRes = useMemo(() => calcCoinBubble(coinPrice, xau, usd), [coinPrice, xau, usd]);
+  const bubbleRes = useMemo(() => calcCoinBubble(coinPrice, xau, usd, mintingCost), [coinPrice, xau, usd, mintingCost]);
 
   // Futures
   const [futEntry, setFutEntry] = useState(45000000);
   const [futType, setFutType] = useState<"LONG" | "SHORT">("LONG");
   const [futEquity, setFutEquity] = useState(150000000);
+  const [confirmedInputs, setConfirmedInputs] = useState(false);
   const fut = useMemo(() => {
     const c = new FuturesCalc();
     const liq = c.liq(futEntry, futType);
@@ -128,7 +160,13 @@ export default function AntigravityPage() {
   // Signal generator
   const [sigEtf, setSigEtf] = useState("زرافشان");
   const [sigLev, setSigLev] = useState(1);
-  const sigNav = navRes; const sigBubble = bubbleRes;
+  const sigNav = navRes;
+  const sigBubble = bubbleRes ?? {
+    coin_intrinsic: null,
+    bubble_pct: null,
+    signal: "NEUTRAL" as const,
+    reason: "دادهٔ مرجع بازار در دسترس نیست",
+  };
   const sigAction = useMemo(() => {
     if (ksStatus === "ACTIVE") return "CLOSE";
     if (sigNav.signal === "BUY" && sigBubble.signal !== "SELL") return "BUY";
@@ -150,19 +188,26 @@ export default function AntigravityPage() {
     return Math.max(0, Math.min(1, +s.toFixed(2)));
   }, [sigNav.signal, sigBubble.signal, arbRes.action, ksStatus]);
 
-  const chosenEtf = ETF.find(e => e.fa === sigEtf)!;
+  const chosenEtf = ETF.find(e => e.fa === sigEtf) ?? ETF[0];
   const entryMid = navMarket;
   const sl = sigAction === "BUY" ? entryMid * 0.97 : sigAction === "SELL" ? entryMid * 1.03 : entryMid * 0.97;
   const tp1 = sigAction === "BUY" ? entryMid * 1.03 : sigAction === "SELL" ? entryMid * 0.97 : entryMid * 1.02;
   const tp2 = sigAction === "BUY" ? entryMid * 1.06 : sigAction === "SELL" ? entryMid * 0.94 : entryMid * 1.04;
   const rr = Math.abs(tp1 - entryMid) / Math.abs(entryMid - sl);
 
+  // Generated after mount: a timestamp baked into the SSR HTML can never match
+  // the client render, which made this page fail hydration on every load.
+  const [generatedAt, setGeneratedAt] = useState("");
+  useEffect(() => {
+    setGeneratedAt(new Date().toISOString());
+  }, []);
+
   const outputJson = {
-    timestamp: new Date().toISOString(),
+    timestamp: generatedAt,
     asset: { symbol: chosenEtf.sym, market: "TSE", current_price: entryMid },
     signal: { action: sigAction, confidence_score: sigConf, timeframe: sigAction === "CLOSE" ? "SCALP" : sigAction === "BUY" ? "SWING" : sigAction === "SELL" ? "INTRADAY" : "SWING" },
     trade_parameters: { entry_range: [+(entryMid * 0.995).toFixed(0), +(entryMid * 1.005).toFixed(0)], stop_loss: +sl.toFixed(0), target_1: +tp1.toFixed(0), target_2: +tp2.toFixed(0), risk_reward_ratio: +rr.toFixed(2) },
-    metrics: { nav_premium_pct: +sigNav.premium_pct.toFixed(2), coin_bubble_pct: +sigBubble.bubble_pct.toFixed(2), dollar_adjusted_expected_roi: dRes.dollar_roi_pct, gross_spread_pct: arbRes.gross_spread_pct, net_spread_pct: arbRes.net_spread_pct },
+    metrics: { nav_premium_pct: +sigNav.premium_pct.toFixed(2), coin_bubble_pct: bubbleRes ? +bubbleRes.bubble_pct.toFixed(2) : null, dollar_adjusted_expected_roi: dRes.dollar_roi_pct, gross_spread_pct: arbRes.gross_spread_pct, net_spread_pct: arbRes.net_spread_pct },
     leverage_and_margin: { leverage: sigLev, liquidation_price: sigLev > 1 ? +(new FuturesCalc().liq(entryMid, "LONG")).toFixed(0) : null, health_ratio: sigLev > 1 ? +fut.hl.toFixed(2) : null, risk_level: sigLev > 1 ? (fut.level === "SAFE" ? "LOW" : fut.level === "WARNING" ? "MEDIUM" : fut.level === "CRITICAL" ? "EXTREME" : "HIGH") : "LOW" },
     rationale: `NAV: ${sigNav.reason} | حباب: ${sigBubble.reason} | آربیتراژ: ${arbRes.strategy} | Kill-Switch: ${ksStatus}`,
     kill_switch_status: ksStatus,
@@ -177,17 +222,30 @@ export default function AntigravityPage() {
             <h1 className="text-xl font-black text-zinc-100">🚀 Antigravity — ماژول طلا</h1>
             <p className="text-xs text-zinc-400 mt-1">KPI: بازده دلاری (Dollar-Adjusted) • Manual Decision Support • بدون اجرای خودکار</p>
           </div>
-          <div className="flex gap-2 text-xs">
-            <span className="bg-zinc-800/60 ring-1 ring-zinc-700/50 rounded-lg px-3 py-1.5">اونس: <b className="text-amber-300">${fmt(xau)}</b></span>
-            <span className="bg-zinc-800/60 ring-1 ring-zinc-700/50 rounded-lg px-3 py-1.5">دلار: <b className="text-emerald-300">{fmt(usd)} ت</b></span>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="bg-zinc-800/60 ring-1 ring-zinc-700/50 rounded-lg px-3 py-1.5">اونس: <b className="text-amber-300">{xau !== null ? `$${fmt(xau, 2)}` : "NO_DATA"}</b></span>
+            <span className="bg-zinc-800/60 ring-1 ring-zinc-700/50 rounded-lg px-3 py-1.5">دلار: <b className="text-emerald-300">{usd !== null ? `${fmt(usd)} ${usdUnit}` : "NO_DATA"}</b></span>
+            <span className="bg-zinc-800/60 ring-1 ring-zinc-700/50 rounded-lg px-3 py-1.5">شاخص دلار (DXY): <b className="text-lime-300">{dxy !== null ? fmt(dxy, 2) : "—"}</b></span>
             <span className={`rounded-lg px-3 py-1.5 ring-1 ${ksStatus === "ACTIVE" ? "bg-rose-500/20 text-rose-300 ring-rose-500/30" : ksStatus === "WARNING" ? "bg-amber-500/20 text-amber-300 ring-amber-500/30" : "bg-emerald-500/10 text-emerald-300 ring-emerald-500/20"}`}>Kill: {ksStatus}</span>
+            {snap ? (
+              <DataTrustBadge quality={refQuality} source={refSource} asOf={refAsOf} ageSeconds={refAge} />
+            ) : (
+              <span data-testid="quality-badge" data-quality="DELAYED" className="rounded bg-rose-600 px-2 py-1 text-[10px] font-bold text-white ring-2 ring-rose-300">NO_DATA</span>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* ورودی‌های دستی این صفحه نمونه‌اند و خروجی آن‌ها قیمت زنده نیست. */}
+      <div role="alert" className="rounded-xl border border-violet-500/50 bg-violet-950/30 px-4 py-3 text-xs font-semibold leading-5 text-violet-200">
+        این صفحه یک ماشین‌حساب آموزشی است: ورودی‌های دستی و مقادیر پیش‌فرض نمونه (EDUCATIONAL) هستند،
+        خروجی‌ها قیمت زنده نیستند و توصیهٔ معاملاتی محسوب نمی‌شوند.
       </div>
 
       {/* ETF Registry */}
       <section>
         <h2 className="text-sm font-bold text-zinc-200 mb-3">📊 صندوق‌های ETF طلا</h2>
+        <p className="mb-2 text-[11px] text-zinc-500">رجیستری ثابت (ISIN/کارمزد/نقدشوندگی) — قیمت زنده نیست و از بازار خوانده نمی‌شود.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {ETF.map(e => (
             <div key={e.sym} className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 p-4">
@@ -212,7 +270,7 @@ export default function AntigravityPage() {
         <div className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 overflow-hidden">
           <table className="w-full text-xs">
             <thead className="bg-zinc-900/60 text-[10px] text-zinc-500 border-b border-zinc-800/60"><tr><th className="text-right p-2.5">دارایی</th><th className="text-right p-2.5">وزن</th><th className="text-right p-2.5">عیار</th><th className="text-right p-2.5">منبع</th></tr></thead>
-            <tbody>{PHYS.map(r => <tr key={r.fa} className="border-b border-zinc-800/30"><td className="p-2.5 text-zinc-200">{r.fa}</td><td className="p-2.5 text-zinc-400">{r.w}</td><td className="p-2.5 text-zinc-400">{r.p}</td><td className="p-2.5 text-zinc-500">BrsApi.ir</td></tr>)}</tbody>
+            <tbody>{PHYS.map(r => <tr key={r.fa} className="border-b border-zinc-800/30"><td className="p-2.5 text-zinc-200">{r.fa}</td><td className="p-2.5 text-zinc-400">{r.w}</td><td className="p-2.5 text-zinc-400">{r.p}</td><td className="p-2.5 text-zinc-500">تعریف استاندارد</td></tr>)}</tbody>
           </table>
         </div>
         <div className="mt-2 text-[11px] text-zinc-500">اونس جهانی: XAU/USD • 31.1035g • COMEX/LBMA • 23/5</div>
@@ -224,8 +282,8 @@ export default function AntigravityPage() {
         <div className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 p-4">
           <h3 className="text-sm font-bold text-zinc-100 mb-3">🧮 NAV Premium/Discount</h3>
           <div className="grid grid-cols-2 gap-2 mb-3">
-            <label className="text-xs text-zinc-400">قیمت بازار<input type="number" value={navMarket} onChange={e => setNavMarket(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
-            <label className="text-xs text-zinc-400">NAV<input type="number" value={navNav} onChange={e => setNavNav(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">قیمت بازار<input type="number" value={navMarket} onChange={e => setNavMarket(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">NAV<input type="number" value={navNav} onChange={e => setNavNav(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
           </div>
           <div className={`rounded-lg p-3 ring-1 ${navRes.signal === "BUY" ? "bg-emerald-500/10 ring-emerald-500/30 text-emerald-300" : navRes.signal === "SELL" ? "bg-rose-500/10 ring-rose-500/30 text-rose-300" : "bg-zinc-800/40 ring-zinc-700/40 text-zinc-300"}`}>
             <div className="flex justify-between"><span className="text-xs">پرمیوم</span><b className="tabular-nums">{fmtPct(navRes.premium_pct)}</b></div>
@@ -236,23 +294,38 @@ export default function AntigravityPage() {
 
         {/* Coin Bubble */}
         <div className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 p-4">
-          <h3 className="text-sm font-bold text-zinc-100 mb-3">🪙 حباب سکه</h3>
-          <label className="text-xs text-zinc-400">قیمت سکه (تومان)<input type="number" value={coinPrice} onChange={e => setCoinPrice(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
-          <div className="grid grid-cols-3 gap-2 mt-2 text-[11px] text-zinc-500"><span>اونس: ${fmt(xau)}</span><span>دلار: {fmt(usd)}</span><span>وزن: 8.133g • 0.915</span></div>
-          <div className={`mt-3 rounded-lg p-3 ring-1 ${bubbleRes.signal === "BUY" ? "bg-emerald-500/10 ring-emerald-500/30 text-emerald-300" : bubbleRes.signal === "SELL" ? "bg-rose-500/10 ring-rose-500/30 text-rose-300" : "bg-zinc-800/40 ring-zinc-700/40 text-zinc-300"}`}>
-            <div className="flex justify-between"><span className="text-xs">حباب</span><b>{fmtPct(bubbleRes.bubble_pct)}</b></div>
-            <div className="text-xs mt-1">ذاتی: {fmt(bubbleRes.coin_intrinsic)} ت • {bubbleRes.reason}</div>
-            <div className="text-[11px] mt-1 opacity-70">فرمول: (XAU/31.1035)*8.133*0.915*USD • &gt;5% SELL • &lt;-3% BUY</div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-bold text-zinc-100">🪙 حباب سکه</h3>
+            <DataTrustBadge quality="EDUCATIONAL" source="manual" showMeta={false} />
           </div>
+          <label className="text-xs text-zinc-400">قیمت سکه (تومان — ورودی دستی)<input type="number" value={coinPrice} onChange={e => setCoinPrice(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
+          <div className="grid grid-cols-3 gap-2 mt-2 text-[11px] text-zinc-500">
+            <span>اونس: {xau !== null ? `$${fmt(xau, 2)}` : "NO_DATA"}</span>
+            <span>دلار: {usd !== null ? `${fmt(usd)} تومان` : "NO_DATA"}</span>
+            <span>DXY: {dxy !== null ? fmt(dxy, 2) : "—"}</span>
+            <span>وزن: 8.133g • 900/999.9</span>
+            <span>کارمزد ضرب: ۸۰٬۰۰۰ تومان</span>
+          </div>
+          {bubbleRes ? (
+            <div className={`mt-3 rounded-lg p-3 ring-1 ${bubbleRes.signal === "BUY" ? "bg-emerald-500/10 ring-emerald-500/30 text-emerald-300" : bubbleRes.signal === "SELL" ? "bg-rose-500/10 ring-rose-500/30 text-rose-300" : "bg-zinc-800/40 ring-zinc-700/40 text-zinc-300"}`}>
+              <div className="flex justify-between"><span className="text-xs">حباب</span><b>{fmtPct(bubbleRes.bubble_pct)}</b></div>
+              <div className="text-xs mt-1">ذاتی: {fmt(bubbleRes.coin_intrinsic)} تومان • {bubbleRes.reason}</div>
+              <div className="text-[11px] mt-1 opacity-70">فرمول: (XAU/31.1034768)×8.133×(900/999.9)×USD + ۸۰٬۰۰۰ • &gt;5% SELL • &lt;-3% BUY</div>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-lg p-3 text-xs ring-1 bg-zinc-800/40 ring-zinc-700/40 text-zinc-400">
+              NO_DATA — اونس و دلار مرجع در دسترس نیست؛ محاسبهٔ حباب ممکن نیست.
+            </div>
+          )}
         </div>
 
         {/* Futures Risk */}
         <div className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 p-4">
           <h3 className="text-sm font-bold text-zinc-100 mb-3">⚡ مارجین آتی (IME • 10x)</h3>
           <div className="grid grid-cols-3 gap-2">
-            <label className="text-xs text-zinc-400">ورود<input type="number" value={futEntry} onChange={e => setFutEntry(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">ورود<input type="number" value={futEntry} onChange={e => setFutEntry(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
             <label className="text-xs text-zinc-400">جهت<select value={futType} onChange={e => setFutType(e.target.value as "LONG" | "SHORT")} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select></label>
-            <label className="text-xs text-zinc-400">موجودی<input type="number" value={futEquity} onChange={e => setFutEquity(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">موجودی<input type="number" value={futEquity} onChange={e => setFutEquity(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
           </div>
           <div className="mt-3 space-y-2 text-xs">
             <div className="flex justify-between bg-zinc-800/40 rounded-lg p-2"><span className="text-zinc-500">لیکوئید</span><b className="text-zinc-100">{fmt(fut.liq)}</b></div>
@@ -266,10 +339,10 @@ export default function AntigravityPage() {
         <div className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 p-4">
           <h3 className="text-sm font-bold text-zinc-100 mb-3">💵 بازده دلاری (KPI)</h3>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-zinc-400">ارزش ورود (ریال)<input type="number" value={dEntryIrr} onChange={e => setDEntryIrr(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
-            <label className="text-xs text-zinc-400">ارزش فعلی (ریال)<input type="number" value={dCurIrr} onChange={e => setDCurIrr(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
-            <label className="text-xs text-zinc-400">دلار ورود<input type="number" value={dEntryUsd} onChange={e => setDEntryUsd(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
-            <label className="text-xs text-zinc-400">دلار فعلی<input type="number" value={dCurUsd} onChange={e => setDCurUsd(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">ارزش ورود (ریال)<input type="number" value={dEntryIrr} onChange={e => setDEntryIrr(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">ارزش فعلی (ریال)<input type="number" value={dCurIrr} onChange={e => setDCurIrr(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">دلار ورود<input type="number" value={dEntryUsd} onChange={e => setDEntryUsd(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
+            <label className="text-xs text-zinc-400">دلار فعلی<input type="number" value={dCurUsd} onChange={e => setDCurUsd(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded px-2 py-1.5 text-xs text-zinc-100" /></label>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
             <div className="bg-zinc-800/40 rounded-lg p-2 text-center"><div className="text-[10px] text-zinc-500">بازده ریالی</div><b className="text-zinc-100">{fmtPct(dRes.irr_roi_pct)}</b></div>
@@ -284,8 +357,8 @@ export default function AntigravityPage() {
       <div className="rounded-xl bg-zinc-900/40 ring-1 ring-zinc-800/60 p-4">
         <h3 className="text-sm font-bold text-zinc-100 mb-3">⚡ موتور آربیتراژ (ETF ↔ فیزیکی)</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="text-xs text-zinc-400">قیمت هر گرم ETF<input type="number" value={arbEtf} onChange={e => setArbEtf(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
-          <label className="text-xs text-zinc-400">قیمت هر گرم فیزیکی<input type="number" value={arbPhys} onChange={e => setArbPhys(+e.target.value)} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
+          <label className="text-xs text-zinc-400">قیمت هر گرم ETF<input type="number" value={arbEtf} onChange={e => setArbEtf(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
+          <label className="text-xs text-zinc-400">قیمت هر گرم فیزیکی<input type="number" value={arbPhys} onChange={e => setArbPhys(positive(e.target.value))} className="mt-1 w-full bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-2 py-1.5 text-sm text-zinc-100" /></label>
           <div className="flex flex-col justify-end"><div className={`rounded-lg p-3 ring-1 text-xs ${arbRes.action === "NO_ARBITRAGE" ? "bg-zinc-800/40 ring-zinc-700/40 text-zinc-400" : "bg-emerald-500/10 ring-emerald-500/30 text-emerald-300"}`}><div>ناخالص: {fmtPct(arbRes.gross_spread_pct)} • خالص: {fmtPct(arbRes.net_spread_pct)}</div><div className="font-bold mt-1">{arbRes.action}</div><div className="text-[11px] opacity-70">{arbRes.strategy}</div></div></div>
         </div>
         <div className="text-[11px] text-zinc-500 mt-2">هزینه 0.3% • آستانه خالص ±1.5%</div>
@@ -301,7 +374,7 @@ export default function AntigravityPage() {
           <label className="flex items-center gap-2 text-xs text-zinc-400 mt-6"><input type="checkbox" checked={ksFreeze} onChange={e => setKsFreeze(e.target.checked)} /> توقف نمادها</label>
         </div>
         <div className={`mt-3 rounded-lg p-3 text-xs font-bold ring-1 ${ksStatus === "ACTIVE" ? "bg-rose-500/20 text-rose-300 ring-rose-500/30" : ksStatus === "WARNING" ? "bg-amber-500/20 text-amber-300 ring-amber-500/30" : "bg-emerald-500/10 text-emerald-300 ring-emerald-500/20"}`}>
-          {ksStatus === "ACTIVE" ? "🔴 KILL_SWITCH_ACTIVE — لغو سفارش‌ها، خروج از آتی، حفظ ETF بدون اهرم" : ksStatus === "WARNING" ? "🟡 WARNING — کاهش اهرم، عدم ورود جدید" : "🟢 NORMAL — شرایط عادی"}
+          {ksStatus === "ACTIVE" ? "🔴 KILL_SWITCH_ACTIVE — وضعیت پرریسک؛ بازبینی دستی و توقف تحلیل" : ksStatus === "WARNING" ? "🟡 WARNING — ریسک بالا؛ بازبینی دستی" : "🟢 NORMAL — شرایط عادی"}
           <div className="font-normal opacity-70 mt-1">منابع: cbi.ir • tsetmc.ir/News • ime.co.ir/News • tasnimnews.com • isna.ir</div>
         </div>
       </div>
@@ -309,11 +382,27 @@ export default function AntigravityPage() {
       {/* Signal Output — Standard Schema */}
       <section className="rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-amber-950/20 ring-1 ring-amber-500/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-base font-black text-zinc-100">📋 سیگنال استاندارد (Output Schema)</h2>
-          <div className="flex gap-2">
+          <h2 className="flex items-center gap-2 text-base font-black text-zinc-100">
+            سیگنال استاندارد (خروجی آموزشی)
+            <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-300 ring-1 ring-violet-500/30">
+              EDUCATIONAL
+            </span>
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
             <select value={sigEtf} onChange={e => setSigEtf(e.target.value)} className="bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-1.5 text-xs text-zinc-100">{ETF.map(e => <option key={e.fa} value={e.fa}>{e.fa} ({e.sym})</option>)}</select>
             <select value={sigLev} onChange={e => setSigLev(+e.target.value)} className="bg-zinc-800/60 border border-zinc-700/60 rounded-lg px-3 py-1.5 text-xs text-zinc-100"><option value={1}>1x (ETF)</option><option value={10}>10x (آتی)</option></select>
-            <button onClick={() => navigator.clipboard.writeText(JSON.stringify(outputJson, null, 2))} className="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 ring-1 ring-amber-500/30 rounded-lg px-3 py-1.5">📋 کپی JSON</button>
+            <label className="flex items-center gap-2 rounded-lg border border-zinc-700/60 px-2 py-1.5 text-[10px] text-zinc-300">
+              <input type="checkbox" checked={confirmedInputs} onChange={e => setConfirmedInputs(e.target.checked)} />
+              ورودی‌ها را خودم وارد کرده‌ام (داده زنده نیست)
+            </label>
+            <button
+              disabled={!confirmedInputs}
+              title={!confirmedInputs ? "ابتدا تأیید کنید که ورودی‌ها را خودتان وارد کرده‌اید" : undefined}
+              onClick={() => {
+                void navigator.clipboard.writeText(JSON.stringify(outputJson, null, 2)).catch(() => {});
+              }}
+              className="text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 ring-1 ring-amber-500/30 rounded-lg px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+            >کپی JSON</button>
           </div>
         </div>
 
@@ -340,6 +429,9 @@ export default function AntigravityPage() {
         </div>
 
         <div className="rounded-xl bg-zinc-950/60 ring-1 ring-zinc-800/60 p-3">
+          <div className="mb-1 rounded-md bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-300">
+            EDUCATIONAL — این خروجی از ورودی دستی/نمونه ساخته شده و قیمت بازار زنده نیست؛ توصیه معاملاتی نیست.
+          </div>
           <div className="text-[11px] text-zinc-500 mb-1">rationale</div>
           <div className="text-xs text-zinc-300 leading-relaxed">{outputJson.rationale}</div>
           <div className="text-[11px] text-zinc-500 mt-2">Kill-Switch: {outputJson.kill_switch_status} • بدون اجرای خودکار — Manual Decision Support</div>
@@ -367,7 +459,10 @@ export default function AntigravityPage() {
         </div>
       </div>
 
-      <div className="text-center text-[11px] text-zinc-500 py-2">⚠️ صرفاً تحلیل شخصی — سیگنال مالی محسوب نمی‌شود • KPI: Dollar-Adjusted Return</div>
+      <div className="space-y-1 py-2 text-center">
+        <GoldDisclaimer />
+        <div className="text-[11px] text-zinc-500">خروجی این ماشین‌حساب آموزشی است • KPI: Dollar-Adjusted Return</div>
+      </div>
     </div>
   );
 }

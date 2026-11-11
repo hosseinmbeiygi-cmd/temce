@@ -15,6 +15,11 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
+# These exercise GET /api/v1/instruments, which reads through a DB session;
+# they hung for 14 minutes against an unreachable DSN when unmarked. The
+# conftest skips needs_db locally and the CI needs_db job runs them with PG.
+pytestmark = pytest.mark.needs_db
+
 
 @pytest.mark.asyncio
 async def test_instruments_page_size_10000_accepted(client: AsyncClient):

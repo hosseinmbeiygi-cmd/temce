@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends
 
-from apps.api.dependencies import get_analytics_service
+from apps.api.dependencies import get_analytics_service, get_replica_analytics_service
 from schemas.common.responses import ApiResponse
 from services.analytics_service import AnalyticsService
 
@@ -17,9 +17,9 @@ async def create_indicator(
     name: str,
     body: dict[str, Any] = Body(...),
     service: AnalyticsService = Depends(get_analytics_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[Any]:
     result = await service.create(instrument_id=instrument_id, name=name, **body)
-    return ApiResponse[dict[str, Any]](
+    return ApiResponse[Any](
         success=result.success,
         data=result.value,
         error={"message": result.error} if not result.success and result.error else None,
@@ -31,7 +31,7 @@ async def get_indicator(
     instrument_id: str,
     name: str,
     timeframe: str = "1d",
-    service: AnalyticsService = Depends(get_analytics_service),
-) -> ApiResponse[dict[str, Any]]:
+    service: AnalyticsService = Depends(get_replica_analytics_service),
+) -> ApiResponse[Any]:
     result = await service.get_indicator(instrument_id, name, timeframe)
-    return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
+    return ApiResponse[Any](success=result.success, data=result.value)

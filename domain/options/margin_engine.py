@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from domain.options.entities import DEFAULT_OPTION_CONTRACT_SIZE
+
 
 class LegType(Enum):
     STOCK = "stock"
@@ -39,7 +41,11 @@ class OptionLeg:
     underlying_price: float = 0.0
     days_to_expiry: int = 0
     implied_volatility: float = 0.0
-    contract_size: int = 1000
+    # Equity options are quoted per 1,000-share contract (audit FIN-09: the old
+    # default of 1 under-computed margin by three orders of magnitude).
+    # This multiplier applies to OPTION legs only: a STOCK leg's ``quantity``
+    # is a share count and its ``contract_size`` is ignored (ISSUE-101).
+    contract_size: int = DEFAULT_OPTION_CONTRACT_SIZE
     quantity: int = 1
     underlying_group: str = "default"
 
@@ -112,9 +118,11 @@ class UniversalMarginEngine:
         shorts = [idx for idx in options if idx.direction == Direction.SHORT]
         longs = [idx for idx in options if idx.direction == Direction.LONG]
 
-        # Net premium
+        # Net premium — option legs only. A stock leg's ``premium`` field is not
+        # an option premium, and multiplying share quantity by the contract
+        # multiplier here inflated the reported cash flow by 1,000x.
         net_premium = 0.0
-        for leg in legs:
+        for leg in options:
             sign = leg.direction.value
             net_premium += leg.premium * leg.quantity * leg.contract_size * sign
 
@@ -124,13 +132,15 @@ class UniversalMarginEngine:
 
         # ── Strategy Detection ──
 
-        # 1. Covered Call — quantity is shares, so compare shares vs contracts*size
-        long_stock_qty = sum(idx.quantity * idx.contract_size for idx in stocks if idx.direction == Direction.LONG)
+        # 1. Covered Call — stock quantity is a SHARE count, option quantity is
+        #    a CONTRACT count. Comparing the two through the same multiplier
+        #    reported a naked short call as covered (margin 0) whenever the
+        #    stock leg carried the default contract_size (ISSUE-101).
+        long_stock_qty = sum(idx.quantity for idx in stocks if idx.direction == Direction.LONG)
         short_calls = [idx for idx in shorts if idx.leg_type == LegType.CALL]
         if long_stock_qty > 0 and short_calls:
-            total_contracts = sum(idx.quantity for idx in short_calls)
-            contract_multiplier = short_calls[0].contract_size
-            if long_stock_qty >= total_contracts * contract_multiplier:
+            short_call_shares = sum(idx.quantity * idx.contract_size for idx in short_calls)
+            if long_stock_qty >= short_call_shares:
                 return MarginResult(0.0, 0.0, net_premium, "covered_call")
 
         # 2. Protective Put (long stock + long put) -> just premium paid
@@ -172,10 +182,32 @@ class UniversalMarginEngine:
                     stype,
                 )
 
-        # 4. Vertical Spread (2 legs, same type, opposite direction, different strikes)
+        # 4. Vertical Spread (2 legs, same type, same expiry, opposite
+        #    direction, different strikes). A pair with different expiries is a
+        #    DIAGONAL, not a vertical: its legs do not cap each other at one
+        #    expiry, so it must not get the width-based margin of a vertical
+        #    (audit FIN-10).
         if len(options) == 2 and options[0].leg_type == options[1].leg_type:
-            sorted_opts = sorted(options, key=lambda x: x.strike)
-            if sorted_opts[0].direction != sorted_opts[1].direction:
+            same_expiry = options[0].days_to_expiry == options[1].days_to_expiry
+            same_strike = options[0].strike == options[1].strike
+            opposite = options[0].direction != options[1].direction
+
+            if opposite and not same_expiry and not same_strike:
+                # Diagonal: keep full naked margin on the short leg.
+                short_leg = next(
+                    (lg for lg in options if lg.direction == Direction.SHORT), None
+                )
+                if short_leg is not None:
+                    margin = self._naked_short_margin(short_leg)
+                    return MarginResult(
+                        margin,
+                        margin * float(self.config["maintenance_ratio"]),
+                        net_premium,
+                        "diagonal_spread",
+                    )
+
+            if opposite and same_expiry:
+                sorted_opts = sorted(options, key=lambda x: x.strike)
                 short_leg = sorted_opts[0] if sorted_opts[0].direction == Direction.SHORT else sorted_opts[1]
                 long_leg = sorted_opts[1] if sorted_opts[0].direction == Direction.SHORT else sorted_opts[0]
                 spread_width = abs(long_leg.strike - short_leg.strike)

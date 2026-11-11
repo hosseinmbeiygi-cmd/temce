@@ -20,13 +20,14 @@ rel=1e-12.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from operator import itemgetter
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
 
-def zscore(vals: "list[float] | np.ndarray") -> tuple[float, float]:
+def zscore(vals: list[float] | np.ndarray) -> tuple[float, float]:
     """Sample mean and std (ddof=1) with legacy edge semantics.
 
     Returns:
@@ -40,7 +41,7 @@ def zscore(vals: "list[float] | np.ndarray") -> tuple[float, float]:
     return mu, (std or 1.0)
 
 
-def _single_getter(key: str) -> "Callable[[dict[str, Any]], Any]":
+def _single_getter(key: str) -> Callable[[dict[str, Any]], Any]:
     """itemgetter equivalent for a single key (itemgetter('k') returns the value itself)."""
     def _get(q: dict[str, Any]) -> tuple[Any]:
         return (q[key],)

@@ -28,11 +28,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import text
-
 from brsapi.client import get_client
 from brsapi.services.sync_service import BrsApiSyncService
-from core.database import async_session_factory
+from core.database import async_session_factory, text
 from core.db_utils import safe_row_str
 from core.logging import get_logger
 from jobs.base_job import BaseJob
@@ -265,7 +263,7 @@ async def execute_backfill_phase(
         stats_before.get("total_instruments", 0),
     )
 
-    symbols = await get_symbols_needing_backfill(session, phase)
+    symbols = await get_symbols_needing_backfill(session, phase=phase)
     if not symbols:
         logger.info("Backfill phase %s: no symbols need backfill", phase.data_type)
         return {

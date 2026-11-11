@@ -1,0 +1,450 @@
+diff --git a/src/gold_desk/api.py b/src/gold_desk/api.py
+index 62a71d19..45b60525 100644
+--- a/src/gold_desk/api.py
++++ b/src/gold_desk/api.py
+@@ -11,7 +11,7 @@ import logging
+ from datetime import datetime, timedelta
+ from typing import Literal
+ 
+-from fastapi import APIRouter, Depends, HTTPException, Query, Response, WebSocket
++from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, WebSocket
+ from pydantic import BaseModel, Field
+ from sqlalchemy import desc, func, select
+ from sqlalchemy.ext.asyncio import AsyncSession
+@@ -100,7 +100,7 @@ async def get_snapshot(session: AsyncSession = Depends(get_db_session)) -> dict:
+         return {"success": True, "data": snap.model_dump(mode="json")}
+     except Exception as exc:
+         logger.exception("snapshot failed")
+-        return {"success": False, "data": None, "error": {"message": str(exc)}}
++        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
+ 
+ 
+ # ── 2. Score فقط ────────────────────────────────────────────────
+@@ -113,7 +113,7 @@ async def get_score(session: AsyncSession = Depends(get_db_session)) -> dict:
+         return {"success": True, "data": snap.score.model_dump(mode="json")}
+     except Exception as exc:
+         logger.exception("score failed")
+-        return {"success": False, "error": {"message": str(exc)}}
++        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
+ 
+ 
+ # ── 2b. قواعد دستیار طلا و نقره (منبع واحد: ``acceptance.yaml``) ──
+@@ -136,7 +136,7 @@ async def get_gold_assistant_rules() -> dict:
+         return {"success": True, "data": get_assistant_rules()}
+     except Exception as exc:  # noqa: BLE001 — شکل پاسخ، مطابق بقیهٔ این ماژول
+         logger.exception("assistant rules failed")
+-        return {"success": False, "data": None, "error": {"message": str(exc)}}
++        raise HTTPException(503, {"success": False, "error": "snapshot_unavailable"})
+ 
+ 
+ # ── 3. History ────────────────────────────────────────────────────
+@@ -380,6 +380,15 @@ async def test_telegram(chat_id: str | None = None) -> dict:
+     cfg = TelegramConfig.from_env()
+     if not cfg.is_configured():
+         return {"success": False, "error": {"message": "Telegram not configured"}}
++    # Accept chat_id from JSON body for frontend compatibility, keep query param for backward compat
++    import json
++    # If chat_id is not in query, try to get from JSON body
++    if not chat_id:
++        try:
++            body = await request.json()
++            chat_id = body.get("chat_id") if body else None
++        except Exception:
++            pass
+     ok = await send_message(
+         "✅ Temce GoldDesk test message",
+         chat_id=chat_id,
+@@ -410,9 +419,10 @@ async def health(session: AsyncSession = Depends(get_db_session)):
+     """
+     Health check برای Docker/K8s.
+     - 200 OK: سرویس سالم
+-    - 503: مشکل (DB یا Redis)
++    - 503: مشکل (DB یا Redis یا BRSApi)
+     """
+     from fastapi import Response
++    import contextlib
+ 
+     from core.cache import get_cache
+ 
+@@ -420,6 +430,16 @@ async def health(session: AsyncSession = Depends(get_db_session)):
+     with contextlib.suppress(Exception):
+         redis_ok = await get_cache().ping()
+ 
++    # Use freshness report to determine BRS API status
++    brsapi_ok_real = False
++    try:
++        from .freshness import build_freshness_report
++        freshness = await build_freshness_report(session)
++        # BRS API is OK if overall status is ok and there are ok sources
++        brsapi_ok_real = freshness["overall"] == "ok" and freshness["counts"]["ok"] > 0
++    except Exception:
++        logger.warning("Failed to build freshness report for health check")
++
+     db_ok = True
+     try:
+         await session.execute(select(func.count(AlertRuleModel.id)))
+@@ -448,15 +468,15 @@ async def health(session: AsyncSession = Depends(get_db_session)):
+         await session.execute(select(func.count(AlertEventModel.id)).where(AlertEventModel.read_at.is_(None)))
+     ).scalar() or 0
+ 
+-    if not db_ok:
++    if not db_ok or not redis_ok:
+         return Response(
+             status_code=503,
+-            content='{"status":"unhealthy","reason":"db"}',
++            content='{"status":"unhealthy","reason":"redis_or_db"}',
+             media_type="application/json",
+         )
+ 
+     return HealthResponse(
+-        brsapi_ok=db_ok,
++        brsapi_ok=brsapi_ok_real,
+         redis_ok=redis_ok,
+         db_ok=db_ok,
+         last_snapshot_at=last_snap,
+@@ -1383,6 +1403,7 @@ async def get_macro_events(limit: int = Query(20, ge=1, le=100)) -> dict:
+                 "dataAvailable": False,
+                 "missingBecause": "هیچ رویداد کلانی از منبع واقعی ثبت نشده است؛ scrape CBI/مرکز آمار هنوز داده‌ای ننوشته است.",
+                 "count": 0,
++                "affects_score": False,
+                 "macro_multiplier": None,
+                 "interpretation": None,
+                 "events": [],
+diff --git a/src/gold_desk/api_token.py b/src/gold_desk/api_token.py
+index 1bde9478..f5371638 100644
+--- a/src/gold_desk/api_token.py
++++ b/src/gold_desk/api_token.py
+@@ -25,10 +25,12 @@ from core.time import utc_now_naive
+ 
+ logger = logging.getLogger(__name__)
+ 
+-SALT = os.getenv("GOLD_API_TOKEN_SALT", "temce-golddesk-default-salt")
++salt_value = os.getenv("GOLD_API_TOKEN_SALT")
++if not salt_value and os.getenv("ENV") == "production":
++    raise RuntimeError("GOLD_API_TOKEN_SALT must be set in production (fail-fast)")
++SALT = salt_value or "temce-golddesk-default-salt"
+ STORAGE_KEY = "golddesk:api_tokens"
+-
+-Scope = Literal["read", "write", "admin"]
++Scope = Literal["read", "write", "admin", "metrics"]
+ 
+ 
+ @dataclass(frozen=True)
+diff --git a/src/gold_desk/schemas.py b/src/gold_desk/schemas.py
+index ec9ff73d..6da1c4fd 100644
+--- a/src/gold_desk/schemas.py
++++ b/src/gold_desk/schemas.py
+@@ -38,7 +38,6 @@ class AssetBlock(BaseModel):
+     implied_usd: float | None
+     quality_flag: str = "clean"
+ 
+-
+ class FundBlock(BaseModel):
+     """یک صندوق طلا."""
+ 
+@@ -47,11 +46,12 @@ class FundBlock(BaseModel):
+     nav_per_unit: float
+     market_price: float | None
+     bubble_pct: float | None
+-    bpr: float
++    bpr: float | None
+     real_buy_value: int
+     real_sell_value: int
+     net_inflow: int
+     nav_change_7d_pct: float | None = None
++    
+ 
+ 
+ class ScoreComponents(BaseModel):
+@@ -69,14 +69,16 @@ class ScoreComponents(BaseModel):
+     parity_reason: str
+     fund_flow: int = Field(..., description="NAV 7d trend (0-14)")
+     fund_flow_reason: str
+-
+-
+ class ScoreBlock(BaseModel):
+     total: int
+-    decision: Literal["GREEN", "YELLOW", "RED"]
++    decision: Literal["GREEN", "YELLOW", "RED", "NO_DATA"]
+     components: ScoreComponents
+     hard_stop_active: bool = False
+     hard_stop_reason: str | None = None
++    raw_total: int = 0
++    available_weight: int = 100
++    data_coverage_pct: float = 100.0
++    
+ 
+ 
+ class SnapshotResponse(BaseModel):
+@@ -107,14 +109,12 @@ class ScoreHistoryPoint(BaseModel):
+     hard_stop_active: bool
+ 
+ 
+-# ── DCA ───────────────────────────────────────────────────────────
+-
+-
+-class DCARequest(BaseModel):
++# ── DCA ───────────────────────────────────────────────────────────class DCARequest(BaseModel):
+     total_capital_irt: float = Field(..., gt=0)
+     risk_profile: Literal["conservative", "balanced", "aggressive"] = "balanced"
+-    current_score: int = Field(..., ge=0, le=100)
++    current_score: int | None = Field(None, ge=0, le=100)
+     preferred_vehicle: Literal["etf", "cert", "melted", "coin", "jewelry"] | None = None
++    
+ 
+ 
+ class DCATranche(BaseModel):
+diff --git a/src/gold_desk/snapshot_service.py b/src/gold_desk/snapshot_service.py
+index 36e461cf..0ea79f6f 100644
+--- a/src/gold_desk/snapshot_service.py
++++ b/src/gold_desk/snapshot_service.py
+@@ -185,7 +185,9 @@ async def _calc_daily_changes(session: AsyncSession, brsapi_prices: dict[str, fl
+     return changes
+ 
+ 
+-def _soft_check(value: float, valid_range: tuple[float, float], name: str) -> bool:
++def _soft_check(value: float | None, valid_range: tuple[float, float], name: str) -> bool:
++    if value is None:
++        return False  # check impossible; no warning needed
+     lo, hi = valid_range
+     if not (lo <= value <= hi):
+         logger.warning("%s out of range: %s not in [%s, %s]", name, value, lo, hi)
+@@ -325,6 +327,9 @@ async def build_snapshot(session: AsyncSession) -> SnapshotResponse:
+     score_block = ScoreBlock(
+         total=score_result.total,
+         decision=score_result.decision,
++        raw_total=score_result.raw_total if hasattr(score_result, 'raw_total') else 0,
++        available_weight=score_result.available_weight if hasattr(score_result, 'available_weight') else 100,
++        data_coverage_pct=score_result.data_coverage_pct if hasattr(score_result, 'data_coverage_pct') else 100.0,
+         components=ScoreComponents(
+             bubble=components_dict["bubble"].value,
+             bubble_reason=components_dict["bubble"].reason,
+diff --git a/src/gold_desk/ws_hub.py b/src/gold_desk/ws_hub.py
+index 1ab0191d..5aaa0e10 100644
+--- a/src/gold_desk/ws_hub.py
++++ b/src/gold_desk/ws_hub.py
+@@ -1,87 +1,98 @@
+-"""WebSocket Hub — پخش زنده snapshot.
+-
+-هر 5 ثانیه (FE درخواست) snapshot جدید می‌سازد و به همه subscribers push می‌کند.
+-"""
+-
+-from __future__ import annotations
+-
+-import asyncio
+-import contextlib
+-import logging
+-from typing import Any
+-
+-from fastapi import WebSocket, WebSocketDisconnect
+-
+-logger = logging.getLogger(__name__)
+-
+-
+-class GoldWebSocketHub:
+-    """Hub برای پخش زنده gold snapshot."""
+-
+-    def __init__(self) -> None:
+-        self._clients: set[WebSocket] = set()
+-        self._lock = asyncio.Lock()
+-        self._last_snapshot: dict[str, Any] | None = None
+-        self._task: asyncio.Task | None = None
+-
+-    async def register(self, ws: WebSocket) -> None:
+-        async with self._lock:
+-            self._clients.add(ws)
+-        logger.info("GoldDesk WS client connected (total: %d)", len(self._clients))
+-        if self._last_snapshot:
+-            with contextlib.suppress(Exception):
+-                await ws.send_json({"type": "snapshot", "data": self._last_snapshot})
+-
+-    async def unregister(self, ws: WebSocket) -> None:
+-        async with self._lock:
+-            self._clients.discard(ws)
+-        logger.info("GoldDesk WS client disconnected (total: %d)", len(self._clients))
+-
+-    async def broadcast(self, payload: dict[str, Any]) -> None:
+-        """پخش پیام به همه subscribers."""
+-        async with self._lock:
+-            stale: list[WebSocket] = []
+-            for ws in self._clients:
+-                try:
+-                    await ws.send_json(payload)
+-                except Exception:
+-                    stale.append(ws)
+-            for ws in stale:
+-                self._clients.discard(ws)
+-
+-    def cache_snapshot(self, snap_dict: dict[str, Any]) -> None:
+-        """cache آخرین snapshot برای client‌های جدید."""
+-        self._last_snapshot = snap_dict
+-
+-    def client_count(self) -> int:
+-        return len(self._clients)
+-
+-
+-# Singleton
+-_hub: GoldWebSocketHub | None = None
+-
+-
+-def get_hub() -> GoldWebSocketHub:
+-    global _hub
+-    if _hub is None:
+-        _hub = GoldWebSocketHub()
+-    return _hub
+-
+-
+-async def ws_endpoint(websocket: WebSocket) -> None:
+-    """WebSocket endpoint — پخش زنده snapshot."""
+-    await websocket.accept()
+-    hub = get_hub()
+-    await hub.register(websocket)
+-
+-    try:
+-        while True:
+-            # منتظر پیام از client (ping/pong)
+-            msg = await websocket.receive_text()
+-            if msg == "ping":
+-                await websocket.send_text("pong")
+-    except WebSocketDisconnect:
+-        await hub.unregister(websocket)
+-    except Exception as exc:
+-        logger.warning("GoldDesk WS error: %s", exc)
+-        await hub.unregister(websocket)
++"""WebSocket Hub — پخش زنده snapshot.
++ارسال hot هر 10 ثانیه و snapshot هر 30 ثانیه به کلاینت‌های فعال.
++"""
++
++from __future__ import annotations
++
++import asyncio
++import contextlib
++import logging
++from typing import Any
++
++from fastapi import WebSocket, WebSocketDisconnect
++
++logger = logging.getLogger(__name__)
++
++
++class GoldWebSocketHub:
++    """Hub برای پخش زنده gold snapshot."""
++
++    def __init__(self) -> None:
++        self._clients: set[WebSocket] = set()
++        self._lock = asyncio.Lock()
++        self._last_snapshot: dict[str, Any] | None = None
++        self._last_snapshot_ts: float | None = None
++        self._last_hot_ts: float | None = None
++
++    async def register(self, ws: WebSocket) -> None:
++        async with self._lock:
++            self._clients.add(ws)
++        logger.info("GoldDesk WS client connected (total: %d)", len(self._clients))
++        if self._last_snapshot:
++            with contextlib.suppress(Exception):
++                await ws.send_json({"type": "snapshot", "data": self._last_snapshot})
++
++    async def unregister(self, ws: WebSocket) -> None:
++        async with self._lock:
++            self._clients.discard(ws)
++        logger.info("GoldDesk WS client disconnected (total: %d)", len(self._clients))
++
++    async def broadcast(self, payload: dict[str, Any]) -> None:
++        """پخش پیام به همه subscribers."""
++        async with self._lock:
++            stale: list[WebSocket] = []
++            for ws in self._clients:
++                try:
++                    await ws.send_json(payload)
++                except Exception:
++                    stale.append(ws)
++            for ws in stale:
++                self._clients.discard(ws)
++
++    def cache_snapshot(self, snap_dict: dict[str, Any]) -> None:
++        """cache آخرین snapshot برای client‌های جدید."""
++        self._last_snapshot = snap_dict
++
++    def client_count(self) -> int:
++        return len(self._clients)
++
++    async def start_broadcast_task(self) -> None:
++        """هر 10 ثانیه一次 broadcast hot، هر 30 ثانیه一次 broadcast snapshot."""
++        while True:
++            await asyncio.sleep(10)
++            if self.client_count() > 0:
++                await self.broadcast({"type": "hot", "data": self._last_snapshot or {}})
++            await asyncio.sleep(20)  # total 30s cycle: 10s hot + 20s wait
++            if self.client_count() > 0:
++                await self.broadcast({"type": "snapshot", "data": self._last_snapshot or {}})
++
++
++# Singleton
++_hub: GoldWebSocketHub | None = None
++
++
++def get_hub() -> GoldWebSocketHub:
++    global _hub
++    if _hub is None:
++        _hub = GoldWebSocketHub()
++        _hub._task = asyncio.create_task(_hub.start_broadcast_task())
++    return _hub
++
++
++async def ws_endpoint(websocket: WebSocket) -> None:
++    """WebSocket endpoint — پخش زنده snapshot."""
++    await websocket.accept()
++    hub = get_hub()
++    await hub.register(websocket)
++
++    try:
++        while True:
++            # Produkt پیام از client (ping/pong)
++            msg = await websocket.receive_text()
++            if msg == "ping":
++                await websocket.send_text("pong")
++    except WebSocketDisconnect:
++        await hub.unregister(websocket)
++    except Exception as exc:
++        logger.warning("GoldDesk WS error: %s", exc)
++        await hub.unregister(websocket)
+\ No newline at end of file
+diff --git a/tests/conftest.py b/tests/conftest.py
+index 501f5277..96f38d53 100644
+--- a/tests/conftest.py
++++ b/tests/conftest.py
+@@ -76,6 +76,9 @@ def _db_url() -> str:
+     except Exception:
+         return "postgresql+asyncpg://market:market@localhost:5432/market_test"
+ 
++# Test SALT for api_token when GOLD_API_TOKEN_SALT not set
++os.environ.setdefault("GOLD_API_TOKEN_SALT", "test-salt-for-pytest")
++
+ 
+ def _is_postgres_reachable() -> bool:
+     """Return ``True`` iff PostgreSQL responds to ``SELECT 1``.
+diff --git a/tests/gold_desk/test_holding_soft_delete.py b/tests/gold_desk/test_holding_soft_delete.py
+index 24686ad6..d9c30da2 100644
+--- a/tests/gold_desk/test_holding_soft_delete.py
++++ b/tests/gold_desk/test_holding_soft_delete.py
+@@ -116,10 +116,16 @@ async def test_soft_delete_preserves_trades_and_tax():
+         assert summary_after["realized_pnl_irt"] == summary_before_val
+         assert summary_after["sold_quantity"] == summary_before["sold_quantity"]
+ 
+-        # holdings آزمایشی حذف‌شده از نمای پورتفوی حذف می‌شوند
++        # holdings_after only contains non-deleted rows (filtered by deleted_at IS NULL)
+         from src.gold_desk.portfolio import load_holdings_and_trades
+         holdings_after, _ = await load_holdings_and_trades(s)
++        # holdings_after only contains non-deleted rows (filtered by deleted_at IS NULL)
+         assert all(h.symbol == SYM_B for h in holdings_after)
+-        assert all(h.deleted_at is not None for h in holdings_after)
++        # Row A still exists in DB (soft-deleted); verify directly
++        row_a = (await s.execute(
++            select(GoldHoldingModel).where(GoldHoldingModel.symbol == SYM_A)
++        )).scalars().first()
++        assert row_a is not None
++        assert row_a.deleted_at is not None
+     
+     await engine.dispose()
+\ No newline at end of file

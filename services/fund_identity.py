@@ -17,9 +17,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from core.time import utc_now_naive
 

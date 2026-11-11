@@ -18,7 +18,7 @@ import time
 from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TypeVar
 
 from .constants import (
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class CircuitState(str, Enum):
+class CircuitState(StrEnum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -129,7 +129,7 @@ def retry(
     base_delay: float = 1.0,
     max_delay: float = 30.0,
     exceptions: tuple[type[BaseException], ...] = (Exception,),
-) -> Awaitable[T]:
+) -> Callable[..., Awaitable[T]]:
     """دکوراتور retry ساده برای adapter callها.
 
     استفاده:

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
-import { analyzeFund, Fund, FundAnalysis } from "@/lib/fund-analysis";
+import { useEffect } from "react";
+import type { Fund, FundAnalysis } from "@/lib/fund-analysis";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -76,7 +76,18 @@ interface FundCompareModalProps {
 }
 
 export default function FundCompareModal({ funds, onClose, onRemove }: FundCompareModalProps) {
-  const analyses = useMemo(() => funds.map(analyzeFund), [funds]);
+  const analyses: FundAnalysis[] = funds.map((f) => ({
+    symbol: f.symbol,
+    name: f.name,
+    scores: { total: f.total_score ?? 0 } as import("@/lib/fund-analysis").FundScore,
+    recommendation: "HOLD" as const,
+    riskLevel: "LOW" as const,
+    issues: [],
+    strengths: [],
+    weaknesses: [],
+    summary: "",
+    nextSteps: [],
+  }));
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

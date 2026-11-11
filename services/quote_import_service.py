@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -115,7 +116,7 @@ parse_persian_csv = parse_csv  # renamed in v2; keep alias for CLI
 
 
 def _clean_raw_row(
-    raw: dict[str, str | None],
+    raw: Mapping[str, str | None],
 ) -> dict[str, str]:
     """Strip whitespace from keys and values, drop None keys, normalise Arabic->Persian."""
     row: dict[str, str] = {}
@@ -445,6 +446,9 @@ class QuoteImportService:
             )
             return result
         instrument = inst_result.value
+        if instrument is None:
+            result["errors"].append(f"Symbol '{actual_symbol}' not found in instruments DB")
+            return result
 
         # Fill in instrument_id for all rows
         for kw in kwargs_list:

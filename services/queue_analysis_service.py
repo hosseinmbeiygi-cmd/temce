@@ -272,7 +272,8 @@ class QueueAnalysisService:
                     "price_change_pct": snap.get("price_last_change_pct", 0),
                 })
 
-            except Exception:
+            except (AttributeError, KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+                logger.debug("queue analysis skipped for %s: %s", symbol, exc)
                 continue
 
         return {

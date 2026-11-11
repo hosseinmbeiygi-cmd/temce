@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 """
 IME (Iran Mercantile Exchange / بازار کالایی) endpoints.
@@ -8,7 +8,7 @@ funds, and physical trades — presented as a unified dashboard for the
 "بازار کالایی" page.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query
 
@@ -186,9 +186,9 @@ async def _fetch_all_ime_data(
 
     def safe(idx: int) -> list[dict[str, Any]]:
         r = results[idx]
-        if isinstance(r, Exception):
+        if isinstance(r, BaseException):
             logger.warning("IME sub-market fetch failed at index %d: %s", idx, r)
             return []
-        return r or []
+        return cast("list[dict[str, Any]]", r or [])
 
     return safe(0), safe(1), safe(2), safe(3), safe(4)

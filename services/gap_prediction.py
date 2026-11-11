@@ -51,7 +51,7 @@ class GapPredictor:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT symbol, name, price_last, price_close,
@@ -83,7 +83,7 @@ class GapPredictor:
         if self._session is None:
             return None
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT symbol, name, price_last, price_close,
@@ -180,7 +180,7 @@ class GapPredictor:
         if self._session is None:
             return 0.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT price FROM brsapi_gold_currency_pro_prices
@@ -201,7 +201,7 @@ class GapPredictor:
         if self._session is None:
             return 0.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT price FROM brsapi_gold_currency_pro_prices
@@ -222,7 +222,7 @@ class GapPredictor:
         if self._session is None:
             return 0.0
 
-        from sqlalchemy import text
+        from core.database import text
 
         result = await self._session.execute(text("""
             SELECT price FROM brsapi_commodity_prices

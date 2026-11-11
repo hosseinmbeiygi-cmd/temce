@@ -49,7 +49,7 @@ class BlockTradeDetector:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get top symbols by trade value
         result = await self._session.execute(text("""
@@ -79,7 +79,7 @@ class BlockTradeDetector:
         if self._session is None:
             return []
 
-        from sqlalchemy import text
+        from core.database import text
 
         # Get recent trades (last trading day)
         result = await self._session.execute(text("""

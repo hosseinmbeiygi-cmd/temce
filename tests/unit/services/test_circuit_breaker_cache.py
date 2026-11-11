@@ -30,16 +30,16 @@ from services.signal_circuit_breaker import (
 
 
 def _state(**overrides: Any) -> BreakerState:
-    base = dict(
-        tripped=True,
-        accuracy_pct=42.5,
-        sample_size=100,
-        window_days=3,
-        threshold_pct=50.0,
-        reason="test reason",
-        evaluated_at=datetime(2026, 8, 1, 12, 0, 0),
-        per_market={"stock": 50.0, "crypto": 30.0},
-    )
+    base = {
+        "tripped": True,
+        "accuracy_pct": 42.5,
+        "sample_size": 100,
+        "window_days": 3,
+        "threshold_pct": 50.0,
+        "reason": "test reason",
+        "evaluated_at": datetime(2026, 8, 1, 12, 0, 0),
+        "per_market": {"stock": 50.0, "crypto": 30.0},
+    }
     base.update(overrides)
     return BreakerState(**base)
 

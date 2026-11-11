@@ -13,13 +13,11 @@ from httpx import ASGITransport, AsyncClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from apps.api.endpoints.funds_regulator import (  # noqa: E402
+from apps.api.endpoints.funds_regulator import (  # noqa: E402  # noqa: E402
     _get_compliance,
     _get_engine,
     _get_ledger,
     _get_recon,
-)
-from apps.api.endpoints.funds_regulator import (  # noqa: E402
     require_regulator_admin,
 )
 from apps.api.endpoints.funds_regulator import router as funds_regulator_router  # noqa: E402

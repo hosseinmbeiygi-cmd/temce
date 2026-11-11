@@ -6,7 +6,12 @@ import asyncio
 import logging
 from typing import Any
 
-from contracts.events import PRECOMPUTATION_GROUP_COMPLETED, PRECOMPUTATION_COMPLETED, PRECOMPUTATION_PROGRESS, SYMBOL_RESULT_UPDATED
+from contracts.events import (
+    PRECOMPUTATION_COMPLETED,
+    PRECOMPUTATION_GROUP_COMPLETED,
+    PRECOMPUTATION_PROGRESS,
+    SYMBOL_RESULT_UPDATED,
+)
 
 logger = logging.getLogger(__name__)
 

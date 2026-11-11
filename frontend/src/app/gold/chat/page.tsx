@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { apiPost } from "@/lib/api";
+import { GoldDisclaimer } from "@/components/gold/GoldDisclaimer";
 
 interface Message {
   id: number;
@@ -59,7 +60,7 @@ export default function GoldChatPage() {
     setLoading(true);
 
     try {
-      const r = await apiPost<{ success: boolean; data: { answer: string } }>("/api/gold/chat", { message: msg });
+      const r = await apiPost<{ success: boolean; data: { answer: string } }>("/gold/chat", { message: msg });
       const ans = r.data?.answer ?? "خطا در دریافت پاسخ.";
       setMessages((prev) => [...prev, { id: ++idRef.current, role: "assistant", text: ans, ts: Date.now() }]);
     } catch {
@@ -142,6 +143,9 @@ export default function GoldChatPage() {
           ارسال
         </button>
       </form>
+
+      {/* D: سلب مسئولیت در پایین پاسخ دستیار */}
+      <GoldDisclaimer className="mt-2 shrink-0 text-center" />
     </div>
   );
 }
@@ -150,19 +154,22 @@ function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-start" : "justify-end"}`}>
-      <div
-        className="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
-        style={{
-          background: isUser ? "var(--gd-bg-3)" : "var(--gd-accent)",
-          color: isUser ? "var(--gd-text)" : "#0f0a05",
-        }}
-      >
-        <div className="whitespace-pre-wrap">{msg.text}</div>
+      <div className="max-w-[85%]">
         <div
-          className={`text-[10px] mt-1 ${isUser ? "text-zinc-500" : "text-zinc-700"}`}
+          className="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+          style={{
+            background: isUser ? "var(--gd-bg-3)" : "var(--gd-accent)",
+            color: isUser ? "var(--gd-text)" : "#0f0a05",
+          }}
         >
-          {new Date(msg.ts).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })}
+          <div className="whitespace-pre-wrap">{msg.text}</div>
+          <div
+            className={`text-[10px] mt-1 ${isUser ? "text-zinc-500" : "text-zinc-700"}`}
+          >
+            {new Date(msg.ts).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })}
+          </div>
         </div>
+        {!isUser && <GoldDisclaimer className="mt-1 px-1 text-[9px]" />}
       </div>
     </div>
   );

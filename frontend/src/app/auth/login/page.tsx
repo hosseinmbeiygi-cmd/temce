@@ -10,6 +10,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
+  const sessionExpired = searchParams.get("reason") === "session_expired";
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +35,14 @@ function LoginForm() {
     <div className="w-full max-w-md">
       <div className="glass-card p-8">
         <h1 className="text-2xl font-bold mb-6 text-center gradient-text">ورود به سامانه</h1>
+        {sessionExpired && !error && (
+          <div
+            role="status"
+            className="bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-2 rounded-lg mb-4 text-sm"
+          >
+            نشست شما منقضی شده است — لطفاً دوباره وارد شوید.
+          </div>
+        )}
         {error && (
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-4 py-2 rounded-lg mb-4 text-sm">
             {error}

@@ -88,10 +88,11 @@ class GoldLiveService:
         # همه منابع را موازی بگیر
         commodities_task = self.brsapi.get_commodity_prices(category="precious_metal")
         currency_task = self.brsapi.get_commodity_prices(category="currency")
-        commodities, currencies = await asyncio.gather(commodities_task, currency_task, return_exceptions=True)
-        if isinstance(commodities, Exception):
+        gathered = await asyncio.gather(commodities_task, currency_task, return_exceptions=True)
+        commodities, currencies = gathered
+        if isinstance(commodities, BaseException):
             raise commodities
-        if isinstance(currencies, Exception):
+        if isinstance(currencies, BaseException):
             raise currencies
 
         out: dict[str, float] = {

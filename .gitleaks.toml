@@ -1,0 +1,111 @@
+# ── پیکربندی gitleaks برای repo temce (S3) ──────────────────────────────
+#
+# چرا این فایل لازم شد:
+#   * `.github/workflows/secrets-scan.yml` از قبل gitleaks را اجرا می‌کند، اما
+#     gitleaks-action پیش‌فرض **کامیت‌های تازهٔ یک push** را می‌بیند. secretهایی
+#     که پیش از وجود آن workflow commit شده‌اند هرگز گزارش نمی‌شوند — دقیقاً همان
+#     اتفاقی که برای رمز Redis و توکن صف job افتاد (این رفع آن‌ها را از
+#     `docker-compose.yml` حذف کرد، ولی در تاریخچه و روی origin باقی‌اند).
+#   * این config قواعد ویژهٔ شکل‌های secretِ همین repo را اضافه می‌کند تا یک
+#     پیش‌فرضِ تازه در compose یا یک manifest رازِ k8s، دوباره بی‌صدا نرود.
+#
+# ⚠️ allowlist **فقط برای placeholder و fixture تستی** است. هیچ مقدار واقعی
+# اینجا اجازه ندارد. اگر چیزی را اینجا allowlist کردید و بعداً معلوم شد واقعی
+# بوده، آن چیزی یک نشتِ تأییدشده است.
+
+title = "temce / GoldDesk gitleaks config"
+
+# قوانین builtin gitleaks (AWS, Stripe, JWT, private keys, …) حفظ می‌شوند.
+[extend]
+useDefault = true
+
+# ══════════════════════════════════════════════════════════════════════════
+# قواعد repo-محور
+# ══════════════════════════════════════════════════════════════════════════
+
+# ⚠️ موتور gitleaks = Go RE2: lookahead/lookbehind و flag `x` **پشتیبانی ندارد**.
+# همهٔ regexهای زیر بدون `(?!`/`(?=` و بدون verbose flag نوشته شده‌اند؛ اضافه
+# کردنشان config را در CI می‌شکند.
+
+[[rules]]
+id = "golddesk-token-salt-default"
+description = "salt توکن طلا باید از env بیاید؛ پیش‌فرض hard-code نشت است"
+# دو شکلی که در کد واقعی دیده می‌شود:
+#   1) NAME = "literal"  /  NAME: "literal"
+#   2) os.getenv("NAME", "literal")  /  os.environ.get("NAME", "literal")
+# توجه: شکل ۲ در `src/gold_desk/api_token.py:28` است و نسخهٔ اول این قانون آن را
+# نمی‌گرفت (با اسکریپت تست شد و نگرفت؛ سپس اصلاح شد).
+regex = '''(?i)(?:GOLD_API_TOKEN_SALT|api_token_salt)\s*(?:[:=]|,\s*default=)\s*["']([A-Za-z0-9_\-/+]{8,})["']'''
+
+[[rules]]
+id = "env-getenv-hardcoded-default"
+description = "os.getenv/environ.get با پیش‌فرضِ literal برای نام‌های حساس"
+regex = '''(?i)(?:getenv|environ\.get)\s*\(\s*["'][A-Z0-9_]*(?:SALT|SECRET|TOKEN|KEY|PASSWORD)[A-Z0-9_]*["']\s*,\s*["'][^"'\s]{6,}["']'''
+keywords = ["getenv", "environ"]
+
+[[rules]]
+id = "compose-default-credential"
+description = "پیش‌فرضِ credential در docker-compose (شکل ${VAR:-literal})"
+regex = '''\$\{[A-Z0-9_]*(?:PASSWORD|TOKEN|SECRET|SALT|KEY)[A-Z0-9_]*:-([^}]{6,})\}'''
+
+[[rules]]
+id = "url-with-inline-password"
+description = "URL دیتابیس/Redis با رمز inline"
+# username اختیاری است: `redis://:pass@host` هم یک credential inline است
+# (نسخهٔ اول این قانون به‌خاطر `{1,64}` آن را نمی‌گرفت).
+regex = '''(?i)\b(?:postgres(?:ql)?|rediss?|mysql|mongodb)(?:\+\w+)?://[^\s:@/]{0,64}:([^\s@/]{6,})@[^\s/]+'''
+keywords = ["postgres", "postgresql", "redis", "mysql", "mongodb"]
+
+[[rules]]
+id = "k8s-secret-plainvalue"
+description = "مقدار base64 داخل manifest راز (k8s Secret) commit نشود"
+regex = '''(?m)^\s*(?:SECRET_KEY|DATABASE_URL|REDIS_URL|API_KEY|BOT_TOKEN)\s*:\s*[A-Za-z0-9+/=]{24,}\s*$'''
+path = '''(^|/)(?:k8s|deploy|manifests)/.*\.ya?ml$'''
+keywords = ["SECRET_KEY", "kind: Secret"]
+
+[[rules]]
+id = "telegram-bot-token"
+description = "توکن ربات تلگرام"
+regex = '''\b\d{8,10}:[A-Za-z0-9_-]{35}\b'''
+keywords = ["telegram", "bot", "GOLD_TELEGRAM"]
+
+# ══════════════════════════════════════════════════════════════════════════
+# allowlist — فقط placeholder و fixture
+# ══════════════════════════════════════════════════════════════════════════
+
+[allowlist]
+description = "placeholderها و fixtureهای تستی"
+regexes = [
+  '''^your[-_][a-z0-9-]+$''',
+  '''^change[-_]me\S*$''',
+  '''^changeme$''',
+  '''^replace[-_]me$''',
+  '''^x{6,}$''',
+  '''^\*{6,}$''',
+  '''^<[^>]+>$''',
+  '''^\$\{[^}]+\}''',
+  '''^\{\{[^}]+\}\}''',
+  '''^sk-(?:test|proj-test)''',
+  '''^dummy[-_].+$''',
+  '''^test[-_](?:token|key|secret|password)''',
+  '''^fake[-_].+$''',
+  '''^ci-only-salt''',
+  '''^ci-test-key-with-32''',
+]
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)yarn\.lock$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+  '''(^|/)poetry\.lock$''',
+  '''(^|/)requirements\.lock$''',
+  '''\.min\.js$''',
+  '''(^|/)\.agents/''',
+  '''(^|/)_FRONTEND_BACKEND_COPY/''',
+  '''(^|/)codal_data/.*\.json$''',
+  # fixtureهای تستی: tokenهای ساختگی. **فقط مسیرهای تست**؛ مسیرهای کد اپ
+  # (src/gold_desk, core, apps) اینجا نیامده‌اند، پس همان رشته در کد اپ می‌گیرد.
+  '''(^|/)frontend/src/__tests__/.*$''',
+  '''(^|/)tests/.*test.*\.py$''',
+  '''(^|/)tests/test_.*\.bat$''',
+]

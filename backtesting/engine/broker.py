@@ -38,9 +38,9 @@ class TransactionCostConfig:
     ``Broker.cost_model`` which also includes the CSD clearing fee; the
     fields below mirror the same rates for inspection/compat.
     """
-    # Commission (Iranian market: 0.4% buy + 0.4% sell + 0.5% tax on sell)
+    # Commission (1405 all-in: 0.3712% buy / 0.88% sell, tax inside sell rate)
     commission_pct: float = BROKER_PCT  # 0.4% per side (canonical)
-    # Tax on sell (Iranian market: 0.5% on sell proceeds)
+    # Transfer tax 0.5% is INSIDE the 0.88% sell rate (do not add on top)
     sell_tax_pct: float = SELL_TAX_PCT
     # CSD clearing fee per side
     clearing_fee_pct: float = CLEARING_FEE_PCT
@@ -52,6 +52,10 @@ class TransactionCostConfig:
     min_slippage_bps: float = 2.0
     # Maximum slippage cap
     max_slippage_bps: float = 100.0  # 1% max
+    # Maximum share of ADV taken in one fill; larger orders are partial-filled
+    # (or skipped when allow_partial_fill=False). From config/backtest_costs.yaml.
+    max_participation: float = 0.05
+    allow_partial_fill: bool = True
 
 
 # Iranian market specific cost tiers
@@ -184,9 +188,9 @@ class Broker:
     ) -> float:
         """Compute total commission including fees and taxes.
 
-        Iranian market structure (canonical — audit F1/F3):
-        - Buy:  0.4% broker + 0.085% clearing
-        - Sell: 0.4% broker + 0.085% clearing + 0.5% tax on proceeds
+        1405 all-in schedule (canonical):
+        - Buy:  0.3712% (tse_equity)
+        - Sell: 0.88% (transfer tax already inside)
 
         Returns:
             Total commission in currency units
@@ -194,11 +198,29 @@ class Broker:
         return self.cost_model.compute(side, exec_price, quantity)
 
     def submit_order_sync(self, order: OrderEvent) -> FillEvent | None:
-        """Synchronous version of submit_order — for use in deterministic sync backtests."""
+        """Synchronous version of submit_order — for use in deterministic sync backtests.
+
+        SINGLE-CHARGE RULE (anti double-count): this Broker is the ONLY layer
+        that computes commission/tax/slippage. Portfolio/Ledger must persist
+        ``FillEvent.commission`` as-is and never recompute it.
+        """
         if order.price <= 0 or order.quantity <= 0:
             return None
 
         daily_volume = self._resolve_daily_volume(order)
+        adv = daily_volume or self.average_daily_volume
+        # Participation cap from config: skip or partial-fill oversized orders.
+        if adv and adv > 0:
+            cap_qty = int(adv * self.config.max_participation)
+            if order.quantity > cap_qty:
+                if not self.config.allow_partial_fill:
+                    logger.warning(
+                        "Order %s skipped: qty %d > %.0f%% of ADV %d",
+                        order.order_id, order.quantity,
+                        self.config.max_participation * 100, adv,
+                    )
+                    return None
+                order = __import__("dataclasses").replace(order, quantity=max(cap_qty, 1))
         if daily_volume is None and order.instrument_id not in self._warned_fallback:
             self._warned_fallback.add(order.instrument_id)
             logger.warning(

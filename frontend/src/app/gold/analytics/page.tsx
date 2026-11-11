@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { getScoreHistory, getSnapshotHistory } from "@/lib/goldApi";
+import { decisionView } from "@/lib/gold-decision";
 
 const SYMBOLS = [
   { value: "IR_COIN_EMAMI", label: "سکه امامی", color: "#f59e0b" },
@@ -15,7 +16,7 @@ export default function GoldAnalyticsPage() {
   const [days, setDays] = useState(7);
   const [compareSymbols, setCompareSymbols] = useState<string[]>(["IR_COIN_EMAMI"]);
 
-  const { data: scoreHist } = useQuery({
+  const { data: scoreHist, isError: scoreError } = useQuery({
     queryKey: ["gold", "analytics", "score", days],
     queryFn: () => getScoreHistory(days),
     refetchInterval: 60_000,
@@ -48,10 +49,16 @@ export default function GoldAnalyticsPage() {
         </div>
       </div>
 
+      {scoreError && (
+        <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          دریافت تاریخچهٔ امتیاز ناموفق بود؛ نمودار خالی به‌معنای «امتیاز صفر» نیست.
+        </div>
+      )}
+
       {/* Score over time */}
       <section className="rounded-2xl ring-1 ring-zinc-800/60 bg-zinc-900/40 backdrop-blur p-6">
         <h3 className="text-sm font-semibold text-zinc-300 mb-3">نمودار امتیاز در زمان</h3>
-        <ScoreChart points={scoreHist?.data?.items ?? []} />
+        <ScoreChart points={scoreHist ?? []} />
       </section>
 
       {/* Compare assets */}
@@ -115,8 +122,10 @@ function ScoreChart({ points }: { points: Array<{ score_at: string; total: numbe
   const path = points.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.total)}`).join(" ");
 
   // color per point
+  // F3: قبلاً ternary سه‌تایی هر decision ناشناخته‌ای (از جمله NO_DATA) را قرمز
+  // می‌کرد — یعنی «داده نداریم» مثل «توقف قرمز» دیده می‌شد.
   const dots = points.map((p, i) => {
-    const color = p.decision === "GREEN" ? "#10b981" : p.decision === "YELLOW" ? "#f59e0b" : "#f43f5e";
+    const color = decisionView(p.decision).dot;
     return <circle key={i} cx={x(i)} cy={y(p.total)} r="3.5" fill={color} />;
   });
 
@@ -164,17 +173,24 @@ function ScoreChart({ points }: { points: Array<{ score_at: string; total: numbe
 }
 
 function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: number; color: string }) {
-  const { data: hist } = useQuery({
+  const { data: hist, isError } = useQuery({
     queryKey: ["gold", "analytics", "bubble", symbol, days],
     queryFn: () => getSnapshotHistory(symbol, days),
     refetchInterval: 60_000,
   });
 
-  const points = (hist?.data?.items ?? []).map((p) => ({
-    date: (p.snapshot_at || "").slice(0, 16).replace("T", " "),
-    value: p.bubble_pct ?? 0,
-  }));
+  // C2: حبابِ گم‌شده هرگز صفرِ جعلی نمی‌شود — نقطه‌های بدون داده از سری حذف
+  // می‌شوند، وگرنه نمودار یک افت/صعود کاذب به سمت صفر نشان می‌دهد.
+  const points = (hist ?? [])
+    .map((p) => ({
+      date: (p.snapshot_at || "").slice(0, 16).replace("T", " "),
+      value: p.bubble_pct,
+    }))
+    .filter((p): p is { date: string; value: number } => p.value !== null && p.value !== undefined);
 
+  if (isError) {
+    return <div className="text-xs text-rose-300">{symbol}: دریافت تاریخچه ناموفق بود</div>;
+  }
   if (points.length < 2) {
     return <div className="text-xs text-zinc-500">{symbol}: داده کافی نیست</div>;
   }
@@ -195,7 +211,8 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
   return (
     <div>
       <div className="text-xs text-zinc-400 mb-1">
-        حباب امروز: <span className="font-mono text-zinc-100">{points[points.length - 1].value.toFixed(2)}٪</span>
+        آخرین حباب ثبت‌شده ({points[points.length - 1].date}):{" "}
+        <span className="font-mono text-zinc-100">{points[points.length - 1].value.toFixed(2)}٪</span>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         <defs>
@@ -212,23 +229,30 @@ function AssetBubbleChart({ symbol, days, color }: { symbol: string; days: numbe
 }
 
 function FundsHeatmap() {
-  const { data: snap } = useQuery({
+  const { data: snap, isError } = useQuery({
     queryKey: ["gold", "snapshot"],
     queryFn: async () => (await import("@/lib/goldApi")).getSnapshot(),
     refetchInterval: 60_000,
   });
 
+  if (isError) return <div className="text-rose-300 text-sm">دریافت اسنپ‌شات صندوق‌ها ناموفق بود.</div>;
   if (!snap) return <div className="text-zinc-500 text-sm">در حال بارگذاری...</div>;
   if (snap.funds.length === 0) {
     return <div className="text-zinc-500 text-sm text-center py-4">صندوقی موجود نیست</div>;
   }
 
-  // محاسبه heat: bubble + BPR
+  // محاسبه heat: bubble + BPR — STEP 8: a missing bubble is "بدون داده",
+  // never folded into a heat bucket as if it were 0٪.
   const funds = snap.funds.map((f) => {
-    let heat: "hot" | "warm" | "cold" = "cold";
-    if (f.bubble_pct > 3 || f.bpr < 1) heat = "hot"; // اشباع خرید یا فروش
-    else if (f.bubble_pct > 1.5 || f.bpr < 1.5) heat = "warm";
-    return { ...f, heat };
+    const bubble = f.bubble_pct;
+    const bpr = f.bpr;
+    const heat = (() => {
+      if (bubble === null || bubble === undefined) return "nodata";
+      if (bubble > 3 || (bpr !== null && bpr < 1)) return "hot"; // اشباع خرید یا فروش
+      if (bubble > 1.5 || (bpr !== null && bpr < 1.5)) return "warm";
+      return "cold";
+    })();
+    return { ...f, heat, bubble, bpr };
   });
 
   return (
@@ -238,14 +262,17 @@ function FundsHeatmap() {
           hot: "from-rose-500/30 to-rose-600/10 ring-rose-500/40 text-rose-200",
           warm: "from-amber-500/30 to-amber-600/10 ring-amber-500/40 text-amber-200",
           cold: "from-emerald-500/30 to-emerald-600/10 ring-emerald-500/40 text-emerald-200",
+          nodata: "from-zinc-600/20 to-zinc-700/10 ring-zinc-600/40 text-zinc-300",
         }[f.heat];
-        const label = { hot: "پرریسک", warm: "محتاط", cold: "فرصت" }[f.heat];
+        const label = { hot: "پرریسک", warm: "محتاط", cold: "فرصت", nodata: "بدون داده" }[f.heat];
         return (
           <div key={f.symbol} className={`rounded-lg bg-gradient-to-br ${colors} ring-1 p-3 text-center`}>
             <div className="text-xs font-semibold mb-1">{f.fund_name}</div>
-            <div className="text-2xl font-bold tabular-nums">{f.bubble_pct.toFixed(1)}٪</div>
+            <div className="text-2xl font-bold tabular-nums">
+              {f.bubble === null || f.bubble === undefined ? "—" : `${f.bubble.toFixed(1)}٪`}
+            </div>
             <div className="text-[10px] opacity-70 mt-1">{label}</div>
-            <div className="text-[10px] opacity-60 mt-0.5">BPR {f.bpr.toFixed(2)}</div>
+            <div className="text-[10px] opacity-60 mt-0.5">BPR {f.bpr == null ? "—" : f.bpr.toFixed(2)}</div>
           </div>
         );
       })}

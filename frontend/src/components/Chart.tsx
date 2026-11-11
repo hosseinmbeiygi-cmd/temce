@@ -8,34 +8,15 @@ interface ChartProps {
   symbol?: string;
 }
 
-function generateMockOhlcv(count: number): { time: string; open: number; high: number; low: number; close: number }[] {
-  const data: { time: string; open: number; high: number; low: number; close: number }[] = [];
-  let price = 35000;
-  const now = new Date();
-  for (let i = count; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    if (d.getDay() === 5 || d.getDay() === 6) continue;
-    const r = Math.random();
-    const change = price * (r - 0.48) * 0.02;
-    const open = price;
-    const close = price + change;
-    const high = Math.max(open, close) * (1 + Math.random() * 0.01);
-    const low = Math.min(open, close) * (1 - Math.random() * 0.01);
-    data.push({ time: d.toISOString().split("T")[0], open, high, low, close });
-    price = close;
-  }
-  return data;
-}
-
 export default function Chart({ data, height = 400, symbol = "" }: ChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const chartData = data.length > 0 ? data : generateMockOhlcv(60);
+  // No synthetic candles: an empty input renders an explicit empty state.
+  const chartData = data;
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || chartData.length === 0) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -123,7 +104,16 @@ export default function Chart({ data, height = 400, symbol = "" }: ChartProps) {
     // LTR canvas container — price axis and time axis must not mirror in the RTL shell.
     <div className="glass-card p-3" dir="ltr">
       {symbol && <p className="text-sm text-gray-400 mb-2 px-1">{symbol}</p>}
-      <canvas ref={canvasRef} className="w-full" style={{ height: `${height}px` }} />
+      {chartData.length === 0 ? (
+        <div
+          className="flex items-center justify-center text-xs text-gray-500"
+          style={{ height: `${height}px` }}
+        >
+          No price series available — no chart is drawn.
+        </div>
+      ) : (
+        <canvas ref={canvasRef} className="w-full" style={{ height: `${height}px` }} />
+      )}
     </div>
   );
 }

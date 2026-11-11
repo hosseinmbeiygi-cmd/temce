@@ -24,16 +24,45 @@ from typing import Any
 
 from backtesting.engine.simulator import BacktestSimulator
 from backtesting.metrics.deflated_sharpe import deflated_sharpe_ratio
+from backtesting.metrics.trade_metrics import round_trip_pnls
 from backtesting.strategies.registry import get_strategy_registry
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def _compute_metrics(equity: list[float], trades: list[Any]) -> dict[str, float]:
-    """Compute performance metrics for a single window."""
+def _resolve_trade_pnls(trades: list[Any]) -> list[float]:
+    """Per-trade PnL sample for the walk-forward metrics.
+
+    Strategy-level trade records expose a ``pnl`` attribute and are read
+    directly — the contract this module has always used. Engine ``FillEvent``
+    fills carry no per-fill PnL, so the canonical FIFO round-trip matcher in
+    :mod:`backtesting.metrics.trade_metrics` is used instead of scoring every
+    such trade as a non-win.
+    """
+    if trades and all(hasattr(t, "pnl") for t in trades):
+        return [float(getattr(t, "pnl", 0) or 0) for t in trades]
+    return round_trip_pnls(trades)
+
+
+def _compute_metrics(equity: list[float], trades: list[Any]) -> dict[str, Any]:
+    """Compute performance metrics for a single window.
+
+    Every value is a finite number: the per-window ``gross_profit`` /
+    ``gross_loss`` pair aggregates into the profit factor reported for the whole
+    walk-forward run (a single window with no losing round trip has no finite
+    ratio of its own, so no ``Infinity`` is ever produced here).
+    """
     if len(equity) < 2 or not trades:
-        return {"return_pct": 0, "sharpe": 0, "max_dd": 100, "win_rate": 0, "trades": 0}
+        return {
+            "return_pct": 0,
+            "sharpe": 0,
+            "max_dd": 100,
+            "win_rate": 0,
+            "trades": 0,
+            "gross_profit": 0.0,
+            "gross_loss": 0.0,
+        }
 
     total_return = ((equity[-1] / equity[0]) - 1) * 100
     returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]
@@ -49,8 +78,12 @@ def _compute_metrics(equity: list[float], trades: list[Any]) -> dict[str, float]
         dd = (peak - nav) / peak if peak > 0 else 0
         max_dd = max(max_dd, dd)
 
-    wins = sum(1 for t in trades if getattr(t, "pnl", 0) > 0)
-    win_rate = (wins / len(trades) * 100) if trades else 0
+    pnls = _resolve_trade_pnls(trades)
+    winning = [p for p in pnls if p > 0]
+    losing = [p for p in pnls if p < 0]
+    gross_profit = sum(winning)
+    gross_loss = -sum(losing)
+    win_rate = (len(winning) / len(pnls) * 100) if pnls else 0
 
     return {
         "return_pct": round(total_return, 2),
@@ -58,6 +91,8 @@ def _compute_metrics(equity: list[float], trades: list[Any]) -> dict[str, float]
         "max_dd": round(max_dd * 100, 2),
         "win_rate": round(win_rate, 1),
         "trades": len(trades),
+        "gross_profit": round(gross_profit, 6),
+        "gross_loss": round(gross_loss, 6),
     }
 
 
@@ -400,6 +435,14 @@ class WalkForwardOptimizer:
             n_observations=max(total_oos_observations, 1),
         )
 
+        # Profit factor over the out-of-sample folds (plan.md §7 / acceptance
+        # gate): aggregate gross profit and gross loss across folds rather than
+        # averaging per-fold ratios. ``None`` when no fold recorded a losing
+        # round trip — never the non-standard JSON value ``Infinity``.
+        gross_profit = sum(r.get("gross_profit", 0.0) for r in oos_results)
+        gross_loss = sum(r.get("gross_loss", 0.0) for r in oos_results)
+        profit_factor = round(gross_profit / gross_loss, 4) if gross_loss > 0 else None
+
         return {
             "strategy": strategy_name,
             "best_params": best_params,
@@ -417,6 +460,7 @@ class WalkForwardOptimizer:
             "is_sharpes": all_is_sharpes,
             "oos_sharpes": all_oos_sharpes,
             "deflated_sharpe": dsr,
+            "profit_factor": profit_factor,
             "recommendation": self._generate_recommendation(
                 consistency, param_stability, wf_efficiency, overfitting_score
             ),

@@ -12,6 +12,18 @@ type FxItem = { symbol: string; name?: string; price?: number; change_percent?: 
 type ForecastRes = { symbol: string; horizon_days: number; forecast: { date: string; p50: number; p_lower: number; p_upper: number; direction_probability_up: number }[]; model: { name: string; version: string }; quality: { status: string } };
 type ForecastDetail = ForecastRes & { meta?: { disclaimer?: string; fair_value_irr?: number; premium_log?: number } };
 
+function fmtMoney(value: number | null | undefined, digits = 0): string {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "—"
+    : value.toLocaleString("fa-IR", { maximumFractionDigits: digits });
+}
+
+function fmtPct(value: number | null | undefined): string {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "—"
+    : `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
 export default function GoldDollarPage() {
   const [tab, setTab] = useState<"live" | "forecast">("live");
   const [subTab, setSubTab] = useState<"gold" | "fx">("gold");
@@ -29,22 +41,31 @@ export default function GoldDollarPage() {
     queryFn: async () => (await apiGet<{ data?: FxItem[] }>("/brsapi/currency")).data ?? [],
     refetchInterval: 120_000,
   });
+  const forecastAnchor = useMemo(() => {
+    const findGold = (need: string) => goldQ.data?.find((x) => `${x.symbol ?? ""} ${x.name ?? ""} ${x.title ?? ""}`.includes(need));
+    const findFx = (need: string) => fxQ.data?.find((x) => `${x.symbol}`.toLowerCase().includes(need.toLowerCase()));
+    const raw =
+      forecastSymbol === "gold_18k"
+        ? findGold("18")?.price
+        : forecastSymbol === "usd_irr_free"
+          ? findFx("usd")?.price
+          : findFx("xau")?.price;
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }, [forecastSymbol, goldQ.data, fxQ.data]);
+
   const forecastQ = useQuery({
-    queryKey: ["forecast-gold", forecastSymbol, horizon, goldQ.data, fxQ.data],
+    queryKey: ["forecast-gold", forecastSymbol, horizon, forecastAnchor, fxQ.data],
     queryFn: async () => {
-      const findGold = (need: string) => goldQ.data?.find((x) => `${x.symbol ?? ""} ${x.name ?? ""} ${x.title ?? ""}`.includes(need));
-      const findFx = (need: string) => fxQ.data?.find((x) => `${x.symbol}`.toLowerCase().includes(need.toLowerCase()));
-      let lastClose: number;
-      if (forecastSymbol === "gold_18k") lastClose = findGold("18")?.price ?? goldQ.data?.[0]?.price ?? 81200000;
-      else if (forecastSymbol === "usd_irr_free") lastClose = findFx("usd")?.price ?? 850000;
-      else lastClose = findFx("xau")?.price ?? 3350;
-      const usdIrr = findFx("usd")?.price;
-      const qs = new URLSearchParams({ symbol: forecastSymbol, horizon: String(horizon), last_close: String(lastClose) });
+      // No fabricated anchor: without a real last close there is no forecast.
+      if (forecastAnchor === null) throw new Error("قیمت پایه برای پیش‌بینی در دسترس نیست");
+      const usdIrr = fxQ.data?.find((x) => `${x.symbol}`.toLowerCase().includes("usd"))?.price;
+      const qs = new URLSearchParams({ symbol: forecastSymbol, horizon: String(horizon), last_close: String(forecastAnchor) });
       if (usdIrr) qs.set("usd_irr", String(usdIrr));
       const r = await apiGet<{ data?: ForecastDetail }>(`/forecast?${qs.toString()}`);
       return r.data;
     },
-    enabled: tab === "forecast" && !goldQ.isLoading && !fxQ.isLoading,
+    enabled: tab === "forecast" && !goldQ.isLoading && !fxQ.isLoading && forecastAnchor !== null,
     staleTime: 60_000,
   });
 
@@ -60,10 +81,16 @@ export default function GoldDollarPage() {
   }, [goldQ.data, fxQ.data]);
 
   const converter = useMemo(() => {
-    const usd = fxQ.data?.find((x) => x.symbol?.toLowerCase().includes("usd"))?.price ?? 850000;
-    const gold = goldQ.data?.find((x) => (x.symbol ?? x.name ?? "").includes("18"))?.price ?? 81200000;
-    const a = parseFloat(amount) || 0;
-    return { usd, gold, toToman: a * gold, toGoldGram: usd ? (a * usd) / gold : 0 };
+    const usdRaw = fxQ.data?.find((x) => x.symbol?.toLowerCase().includes("usd"))?.price;
+    const goldRaw = goldQ.data?.find((x) => (x.symbol ?? x.name ?? "").includes("18"))?.price;
+    const usd = Number(usdRaw);
+    const gold = Number(goldRaw);
+    const grams = Number.parseFloat(amount);
+    const hasGold = Number.isFinite(gold) && gold > 0;
+    const hasUsd = Number.isFinite(usd) && usd > 0;
+    const toIrr = hasGold && Number.isFinite(grams) && grams >= 0 ? grams * gold : null;
+    const toUsd = toIrr !== null && hasUsd ? toIrr / usd : null;
+    return { usd: hasUsd ? usd : null, gold: hasGold ? gold : null, toIrr, toUsd };
   }, [amount, goldQ.data, fxQ.data]);
 
   return (
@@ -85,7 +112,7 @@ export default function GoldDollarPage() {
 
         <div className="relative p-6 sm:p-8 lg:p-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/20 text-amber-200 text-xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> بازار زنده • به‌روزرسانی هر ۳۰ ثانیه
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> به‌روزرسانی خودکار هر ۳۰ ثانیه
             <span className="opacity-60">•</span> <Clock className="w-3 h-3" /> {new Date().toLocaleDateString("fa-IR")}
           </div>
           <h1 className="mt-4 text-2xl sm:text-3xl font-black tracking-tight text-white">
@@ -120,6 +147,12 @@ export default function GoldDollarPage() {
         </div>
       </div>
 
+      {(goldQ.isError || fxQ.isError) && (
+        <div className="mb-4 rounded-xl border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-300">
+          دریافت قیمت‌های پایه ناموفق بود؛ عدد جایگزین ساخته نمی‌شود.
+        </div>
+      )}
+
       {/* ===== محتوای تب‌ها ===== */}
       <div className="mt-6">
         {tab === "live" && (
@@ -130,26 +163,31 @@ export default function GoldDollarPage() {
                   {k === "gold" ? "💎 طلا و سکه" : "💵 ارزها"}
                 </button>
               ))}
-              <div className="ml-auto hidden sm:flex items-center gap-2 text-xs text-surface-500"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> زنده</div>
+              <div className="ml-auto hidden sm:flex items-center gap-2 text-xs text-surface-500"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> به‌روزرسانی خودکار</div>
             </div>
 
             {subTab === "gold" ? (
               goldQ.isLoading ? (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}</div>
+              ) : goldQ.isError ? (
+                <div className="text-center py-14 text-rose-300">دریافت قیمت طلا و سکه ناموفق بود.</div>
               ) : goldQ.data?.length ? (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {goldQ.data.map((g, i) => {
-                    const up = (g.change_percent ?? 0) >= 0;
+                    const change = g.change_percent;
+                    const up = change !== null && change !== undefined && change >= 0;
                     return (
                       <div key={i} className="relative overflow-hidden rounded-2xl border border-amber-500/15 bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 hover:shadow-xl hover:shadow-amber-500/10 transition">
                         <div className="absolute -right-6 -top-6 w-20 h-20 bg-amber-400/15 rounded-full blur-2xl" />
                         <div className="flex items-start justify-between">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 grid place-items-center text-white shadow"><Gem className="w-5 h-5" /></div>
-                          <span className={`text-xs px-2 py-1 rounded-full font-mono ${up ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>{up ? <TrendingUp className="w-3 h-3 inline" /> : <TrendingDown className="w-3 h-3 inline" />} {up ? "+" : ""}{(g.change_percent ?? 0).toFixed(2)}%</span>
+                          <span className={`text-xs px-2 py-1 rounded-full font-mono ${change == null ? "bg-zinc-700/40 text-zinc-300" : up ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
+                            {change != null && (up ? <TrendingUp className="w-3 h-3 inline" /> : <TrendingDown className="w-3 h-3 inline" />)} {fmtPct(change)}
+                          </span>
                         </div>
-                        <div className="mt-3 text-sm font-bold text-white truncate">{g.name ?? g.title ?? g.symbol}</div>
-                        <div className="text-[11px] text-zinc-400">{g.symbol} • {g.unit ?? "IRR"}</div>
-                        <div className="mt-3 text-2xl font-black font-mono text-amber-300">{(g.price ?? g.price_close ?? 0).toLocaleString("fa-IR")}</div>
+                        <div className="mt-3 text-sm font-bold text-white truncate">{g.name ?? g.title ?? g.symbol ?? "—"}</div>
+                        <div className="text-[11px] text-zinc-400">{g.symbol ?? "—"} • {g.unit ?? "—"}</div>
+                        <div className="mt-3 text-2xl font-black font-mono text-amber-300">{fmtMoney(g.price ?? g.price_close)}</div>
                         <div className="text-[11px] text-zinc-500">{g.date ?? ""} {g.time ?? ""}</div>
                       </div>
                     );
@@ -160,19 +198,22 @@ export default function GoldDollarPage() {
               )
             ) : fxQ.isLoading ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}</div>
+            ) : fxQ.isError ? (
+              <div className="text-center py-14 text-rose-300">دریافت نرخ ارزها ناموفق بود.</div>
             ) : fxQ.data?.length ? (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {fxQ.data.map((c, i) => {
-                  const up = (c.change_percent ?? 0) >= 0;
+                  const change = c.change_percent;
+                  const up = change !== null && change !== undefined && change >= 0;
                   return (
                     <div key={i} className="rounded-2xl border border-emerald-500/15 bg-gradient-to-br from-zinc-900 to-zinc-800 p-4 hover:shadow-xl hover:shadow-emerald-500/10 transition">
                       <div className="flex items-center justify-between">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 grid place-items-center text-white"><DollarSign className="w-5 h-5" /></div>
-                        <span className={`text-xs font-mono ${up ? "text-emerald-400" : "text-rose-400"}`}>{up ? "+" : ""}{(c.change_percent ?? 0).toFixed(2)}%</span>
+                        <span className={`text-xs font-mono ${change == null ? "text-zinc-400" : up ? "text-emerald-400" : "text-rose-400"}`}>{fmtPct(change)}</span>
                       </div>
-                      <div className="mt-3 text-sm font-bold text-white truncate">{c.name ?? c.symbol}</div>
-                      <div className="mt-1 text-xl font-black font-mono text-emerald-300">{(c.price ?? 0).toLocaleString("fa-IR")}</div>
-                      <div className="text-[11px] text-zinc-500">{c.unit ?? "IRR"} • {c.time ?? ""}</div>
+                      <div className="mt-3 text-sm font-bold text-white truncate">{c.name ?? c.symbol ?? "—"}</div>
+                      <div className="mt-1 text-xl font-black font-mono text-emerald-300">{fmtMoney(c.price)}</div>
+                      <div className="text-[11px] text-zinc-500">{c.unit ?? "—"} • {c.time ?? ""}</div>
                     </div>
                   );
                 })}
@@ -186,13 +227,13 @@ export default function GoldDollarPage() {
               <div className="lg:col-span-2 rounded-2xl border border-surface-800 bg-surface-900/40 p-4">
                 <div className="text-sm font-bold flex items-center gap-2"><Coins className="w-4 h-4 text-amber-400" /> مبدل سریع</div>
                 <div className="mt-3 flex flex-wrap gap-3 items-center">
-                  <input value={amount} onChange={(e) => setAmount(e.target.value)} className="w-28 px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-sm font-mono" placeholder="مقدار" />
-                  <span className="text-sm text-surface-400">گرم طلا ≈</span>
-                  <span className="text-sm font-mono font-bold text-amber-300">{converter.toToman.toLocaleString("fa-IR")} ریال</span>
+                  <input value={amount} onChange={(e) => setAmount(e.target.value)} className="w-28 px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-sm font-mono" placeholder="گرم" inputMode="decimal" aria-label="وزن طلا به گرم" />
+                  <span className="text-sm text-surface-400">گرم طلای ۱۸عیار ≈</span>
+                  <span className="text-sm font-mono font-bold text-amber-300" dir="ltr">{converter.toIrr === null ? "—" : `${fmtMoney(converter.toIrr)} ریال`}</span>
                   <span className="text-sm text-surface-400">• معادل</span>
-                  <span className="text-sm font-mono font-bold text-emerald-300">{converter.toGoldGram.toFixed(3)} گرم</span>
+                  <span className="text-sm font-mono font-bold text-emerald-300" dir="ltr">{converter.toUsd === null ? "—" : `${fmtMoney(converter.toUsd, 2)} دلار`}</span>
                 </div>
-                <div className="mt-2 text-[11px] text-surface-500">نرخ‌ها از BrsApi لحظه‌ای (دلار و طلای ۱۸عیار)</div>
+                <div className="mt-2 text-[11px] text-surface-500">نرخ‌ها از BrsApi لحظه‌ای؛ اگر نرخ دلار یا طلا نرسد، «—» نمایش داده می‌شود و عدد جایگزین ساخته نمی‌شود.</div>
               </div>
               <div className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4">
                 <div className="text-sm font-bold text-amber-300">API</div>
@@ -222,8 +263,9 @@ export default function GoldDollarPage() {
                 </select>
               </label>
               <div className="text-xs text-amber-200/70 mr-auto flex flex-col gap-1 text-left">
-                <span>مدل: {forecastQ.data?.model ? `${forecastQ.data.model.name} ${forecastQ.data.model.version}` : "xgboost_ensemble_mock"} • بازه 80% per-day</span>
-                {forecastQ.data?.meta?.disclaimer && <span className="text-amber-300/80">⚠️ {forecastQ.data.meta.disclaimer}</span>}
+                <span>مدل: {forecastQ.data?.model ? `${forecastQ.data.model.name} ${forecastQ.data.model.version}` : "—"} • بازه ۸۰٪ روزانه</span>
+                <span>قیمت پایه: {forecastAnchor === null ? "—" : `${fmtMoney(forecastAnchor)} (${forecastSymbol === "xau_usd" ? "دلار" : "ریال"})`}</span>
+                {forecastQ.data?.meta?.disclaimer && <span className="text-amber-300/80">{forecastQ.data.meta.disclaimer}</span>}
               </div>
             </div>
 
@@ -235,9 +277,10 @@ export default function GoldDollarPage() {
                   <div className="flex items-end gap-1 h-32">
                     {forecastQ.data.forecast.slice(0, 14).map((f) => {
                       const max = Math.max(...forecastQ.data!.forecast.map((x) => x.p_upper));
-                      const h = (f.p50 / max) * 100;
-                      const lo = (f.p_lower / max) * 100;
-                      const hi = (f.p_upper / max) * 100;
+                      const scale = Number.isFinite(max) && max > 0 ? max : null;
+                      const h = scale === null ? 0 : (f.p50 / scale) * 100;
+                      const lo = scale === null ? 0 : (f.p_lower / scale) * 100;
+                      const hi = scale === null ? 0 : (f.p_upper / scale) * 100;
                       return (
                         <div key={f.date} className="flex-1 flex flex-col items-center gap-1">
                           <div className="relative w-full flex justify-center" style={{ height: "96px" }}>
@@ -261,7 +304,7 @@ export default function GoldDollarPage() {
                           <td className="p-3 font-mono font-bold text-amber-300">{f.p50.toLocaleString("fa-IR")}</td>
                           <td className="p-3 font-mono text-zinc-500">{f.p_lower.toLocaleString("fa-IR")}</td>
                           <td className="p-3 font-mono text-zinc-500">{f.p_upper.toLocaleString("fa-IR")}</td>
-                          <td className="p-3 font-mono">{(f.direction_probability_up * 100).toFixed(0)}%</td>
+                          <td className="p-3 font-mono">{Number.isFinite(f.direction_probability_up) ? `${(f.direction_probability_up * 100).toFixed(0)}%` : "—"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -269,7 +312,13 @@ export default function GoldDollarPage() {
                 </div>
               </>
             ) : (
-              <div className="p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-sm text-amber-200">برای دیدن پیش‌بینی، Backend را یک‌بار ری‌استارت کن تا <code className="font-mono">/forecast</code> لود شود</div>
+              <div className="p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-sm text-amber-200">
+                {forecastAnchor === null
+                  ? "قیمت پایه واقعی (طلای ۱۸عیار / دلار / انس) در دسترس نیست؛ پیش‌بینی ساخته نمی‌شود."
+                  : forecastQ.isError
+                    ? "سرویس پیش‌بینی در دسترس نیست؛ عدد جایگزین نمایش داده نمی‌شود."
+                    : "پیش‌بینی‌ای برای این نماد و افق موجود نیست."}
+              </div>
             )}
           </div>
         )}

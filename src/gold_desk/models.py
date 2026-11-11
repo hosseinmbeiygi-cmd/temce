@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -17,6 +18,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -68,7 +70,7 @@ class GoldFundNAVModel(GoldDeskBase):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     fund_name: Mapped[str] = mapped_column(String(64), nullable=False)
-    date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
     nav_per_unit: Mapped[float] = mapped_column(Float, nullable=False)
     market_price: Mapped[float] = mapped_column(Float, nullable=False)
     bubble_abs: Mapped[float] = mapped_column(Float, default=0)
@@ -88,6 +90,7 @@ class AlertRuleModel(GoldDeskBase):
     __tablename__ = "gold_alert_rules"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     rule_type: Mapped[str] = mapped_column(String(32), nullable=False)
     # bubble_above | bubble_below | nav_bubble_above | score_above | score_below
@@ -108,6 +111,7 @@ class AlertEventModel(GoldDeskBase):
     __tablename__ = "gold_alert_events"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     rule_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("gold_alert_rules.id", ondelete="CASCADE"), nullable=False
     )
@@ -141,6 +145,7 @@ class GoldHoldingModel(GoldDeskBase):
     __tablename__ = "gold_holdings"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(64), nullable=False)
     vehicle: Mapped[str] = mapped_column(String(16), default="etf")
@@ -150,6 +155,10 @@ class GoldHoldingModel(GoldDeskBase):
     buy_fee_pct: Mapped[float] = mapped_column(Float, default=0)
     bought_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     note: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="زمان حذف نرم (soft-delete) دارایی؛ معامله‌های وابسته remains سالم می‌مانند",
+    )
 
 
 class GoldDCAPlanModel(GoldDeskBase):
@@ -158,6 +167,7 @@ class GoldDCAPlanModel(GoldDeskBase):
     __tablename__ = "gold_dca_plans"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     total_capital_irt: Mapped[float] = mapped_column(Float, nullable=False)
     risk_profile: Mapped[str] = mapped_column(String(16), default="balanced")
@@ -177,8 +187,9 @@ class GoldTradeModel(GoldDeskBase):
     __tablename__ = "gold_trades"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     holding_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("gold_holdings.id", ondelete="CASCADE"), nullable=True
+        BigInteger, ForeignKey("gold_holdings.id", ondelete="SET NULL"), nullable=True
     )
     plan_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("gold_dca_plans.id", ondelete="SET NULL"), nullable=True
@@ -194,6 +205,29 @@ class GoldTradeModel(GoldDeskBase):
     traded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
+class GoldPortfolioValueModel(GoldDeskBase):
+    """ارزش روزانهٔ پرتفوی — یک ردیف برای هر روز (کلید = as_of).
+
+    ستون ``net_flow_irt`` جریان نقدی بیرونی همان روز است (واریز مثبت، برداشت
+    منفی) و به TWR اجازه می‌دهد مستقل از زمان‌بندی واریز/برداشت زنجیره شود.
+    """
+
+    __tablename__ = "gold_portfolio_values"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    as_of: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    total_value_irt: Mapped[float] = mapped_column(Float, nullable=False)
+    total_cost_irt: Mapped[float] = mapped_column(Float, default=0.0)
+    net_flow_irt: Mapped[float] = mapped_column(Float, default=0.0)
+    unpriced_holdings: Mapped[int] = mapped_column(Integer, default=0)
+    snapshot_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (Index("uq_gold_portfolio_user_day", "user_id", "as_of", unique=True),)
+
+
 # ── Helper: تشخیص اینکه آیا جداول در Base هستند (برای Alembic) ──
 __all__ = [
     "GoldDeskBase",
@@ -205,4 +239,5 @@ __all__ = [
     "GoldHoldingModel",
     "GoldDCAPlanModel",
     "GoldTradeModel",
+    "GoldPortfolioValueModel",
 ]

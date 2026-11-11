@@ -203,9 +203,29 @@ export default function BacktestTab() {
       const r = await apiGet<ApiEnvelope<BacktestResult | null>>(`/backtests/runs/${runId}/result`);
       return r.data ?? null;
     },
+    // The run is async; poll until a result (or a terminal status) arrives.
+    refetchInterval: (query) => {
+      if (!runId) return false;
+      const data = query.state.data as BacktestResult | null | undefined;
+      if (!data) return 2000;
+      const status = String(data.status ?? "").toLowerCase();
+      return status && status !== "completed" && status !== "failed" && status !== "cancelled" ? 2000 : false;
+    },
   });
 
   const result = resultQ.data;
+  // The DB-backed result persists only ``metrics`` (not equity/trades), so read
+  // both shapes and render "—" when a field genuinely is not in the payload.
+  const metrics = result?.metrics ?? {};
+  const annualized = result?.annualized_return_pct ?? metrics.annualized_return_pct ?? null;
+  const sharpe = result?.sharpe_ratio ?? metrics.sharpe_ratio ?? null;
+  const maxDrawdown = result?.max_drawdown_pct ?? metrics.max_drawdown_pct ?? null;
+  const winRate = result?.win_rate ?? metrics.win_rate ?? null;
+  const totalTrades =
+    result?.total_trades ?? metrics.total_trades ?? (Array.isArray(result?.trades) ? result.trades.length : null);
+  const totalReturn = result?.total_return_pct ?? metrics.total_return_pct ?? null;
+  const hasTradesPayload = Array.isArray(result?.trades);
+  const pendingResult = Boolean(runId) && !result && !resultQ.isError;
 
   return (
     <div className="space-y-4">
@@ -297,7 +317,11 @@ export default function BacktestTab() {
         </button>
       </section>
 
-      {resultQ.isLoading && <div className="h-40 animate-pulse rounded-2xl bg-soft" />}
+      {(resultQ.isLoading || pendingResult) && (
+        <div className="rounded-2xl border border-line bg-card p-6 text-center text-xs text-ink-3">
+          {pendingResult ? "بک‌تست در حال محاسبه است؛ نتیجه به‌صورت خودکار بارگذاری می‌شود…" : "در حال دریافت نتیجه…"}
+        </div>
+      )}
 
       {resultQ.isError && (
         <p className="rounded-xl border border-warn/25 bg-warn/5 px-3 py-2 text-[11px] text-warn">
@@ -313,12 +337,12 @@ export default function BacktestTab() {
 
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {[
-              { l: "بازده کل", v: faPct(result.total_return_pct), tone: result.total_return_pct >= 0 ? "text-up" : "text-down" },
-              { l: "بازده سالانه", v: faPct(result.annualized_return_pct), tone: result.annualized_return_pct >= 0 ? "text-up" : "text-down" },
-              { l: "شارپ", v: Number(result.sharpe_ratio).toFixed(2), tone: "text-ink" },
-              { l: "حداکثر افت", v: faPct(-Math.abs(result.max_drawdown_pct)), tone: "text-down" },
-              { l: "نرخ برد", v: `${fa(result.win_rate)}%`, tone: "text-ink" },
-              { l: "تعداد معاملات", v: fa(result.total_trades), tone: "text-ink" },
+              { l: "بازده کل", v: faPct(totalReturn), tone: totalReturn !== null && totalReturn >= 0 ? "text-up" : "text-down" },
+              { l: "بازده سالانه", v: faPct(annualized), tone: annualized !== null && annualized >= 0 ? "text-up" : "text-down" },
+              { l: "شارپ", v: sharpe === null ? "—" : sharpe.toFixed(2), tone: "text-ink" },
+              { l: "حداکثر افت", v: maxDrawdown === null ? "—" : faPct(-Math.abs(maxDrawdown)), tone: "text-down" },
+              { l: "نرخ برد", v: winRate === null ? "—" : `${fa(winRate)}%`, tone: "text-ink" },
+              { l: "تعداد معاملات", v: totalTrades === null ? "—" : fa(totalTrades), tone: "text-ink" },
             ].map((m) => (
               <div key={m.l} className="rounded-2xl border border-line bg-card p-3 text-center">
                 <p className="text-[10px] text-ink-3">{m.l}</p>
@@ -346,8 +370,8 @@ export default function BacktestTab() {
           </section>
 
           <section className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] lg:p-5">
-            <h3 className="mb-3 text-sm font-black text-ink">آخرین معاملات ({fa(result.total_trades)})</h3>
-            {result.trades?.length ? (
+            <h3 className="mb-3 text-sm font-black text-ink">آخرین معاملات ({totalTrades === null ? "—" : fa(totalTrades)})</h3>
+            {hasTradesPayload && result.trades?.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -373,7 +397,11 @@ export default function BacktestTab() {
                 </table>
               </div>
             ) : (
-              <p className="py-4 text-center text-xs text-ink-3">معامله‌ای در این بازه ثبت نشد.</p>
+              <p className="py-4 text-center text-xs text-ink-3">
+                {hasTradesPayload
+                  ? "معامله‌ای در این بازه ثبت نشد."
+                  : "ریز معاملات در این پاسخ ذخیره نشده است؛ فقط شاخص‌های تجمیعی در دسترس‌اند."}
+              </p>
             )}
           </section>
         </>

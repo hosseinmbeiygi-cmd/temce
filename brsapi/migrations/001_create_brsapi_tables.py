@@ -2,9 +2,16 @@
 BrsApi — Initial Table Creation
 ================================
 
-Migration version: 0022_create_brsapi_tables
-Revision ID:      ``0022``
-Revises:          ``0021`` (the last existing migration)
+Migration version: brsapi_0001_create_brsapi_tables
+Revision ID:      ``brsapi_0001``
+Revises:          None (standalone tree)
+
+This directory is **not** part of the Alembic chain configured in
+``alembic.ini`` (``script_location = migrations``); it is kept only as the
+historical DDL for the ``brsapi_*`` tables. It used to reuse revision id
+``0022`` from ``migrations/versions/0022_add_user_mfa_columns.py``, so adding
+this directory to ``version_locations`` would fork the heads instantly (audit
+DB-01). The id is namespaced now.
 
 Creates all BrsApi integration tables:
 - Raw payloads & sync log
@@ -19,8 +26,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0022"
-down_revision: str | None = "0021"
+revision: str = "brsapi_0001"
+down_revision: str | None = None
 branch_labels: str | None = None
 depends_on: str | None = None
 

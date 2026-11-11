@@ -5,9 +5,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, select
 from core.ids import new_id
 from core.logging import get_logger
 from models.codal_financial import CodalFinancialStatementModel

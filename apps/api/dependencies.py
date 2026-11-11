@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
-from core.security.tokens import decode_access_token, is_token_revoked
+from core.security.tokens import (
+    decode_access_token,
+    is_token_revoked,
+    is_user_session_revoked,
+)
 
 logger = get_logger(__name__)
 
@@ -18,10 +22,19 @@ S = TypeVar("S")
 # This is now using settings.database_url from core.config
 
 
-async def _reject_if_revoked(payload: dict) -> dict:
-    """Reject a decoded token if its jti is in the revocation blacklist."""
+async def _reject_if_revoked(payload: dict[str, Any]) -> dict[str, Any]:
+    """Reject a decoded token if its jti is revoked or a password change ended it.
+
+    The second check (SEC-07) covers *all* sessions of the user: a password
+    change writes a cutoff, so every access token issued before it is rejected
+    even though only the current request's token was blacklisted by jti.
+    """
     if await is_token_revoked(payload.get("jti")):
         raise HTTPException(status_code=401, detail="Token has been revoked")
+    if await is_user_session_revoked(payload.get("sub"), payload.get("iat")):
+        raise HTTPException(
+            status_code=401, detail="Session ended by a password change — sign in again"
+        )
     return payload
 
 
@@ -38,6 +51,31 @@ async def get_replica_session() -> AsyncGenerator[AsyncSession, None]:
 
     async for session in _get_replica():
         yield session
+
+
+# ── Read-only (replica-backed) service factories ───────────────────────────
+# Audit CFG-05: the replica was configured but never injected, so read-only
+# handlers silently kept using the primary. Every service a GET handler in a
+# read-only router resolves must come from here; the write path keeps the
+# ``get_*_service`` primary factories above.
+
+
+def get_replica_brsapi_query_service(session: AsyncSession = Depends(get_replica_session)) -> Any:
+    from brsapi.services.query_service import BrsApiQueryService
+
+    return BrsApiQueryService(session=session)
+
+
+def get_replica_analytics_service(session: AsyncSession = Depends(get_replica_session)) -> Any:
+    from services.analytics_service import AnalyticsService
+
+    return AnalyticsService(session=session)
+
+
+def get_replica_screener_service(session: AsyncSession = Depends(get_replica_session)) -> Any:
+    from services.screener_service import ScreenerService
+
+    return ScreenerService(session=session)
 
 
 def get_service(service_factory: Callable[..., S]) -> Callable[..., S]:
@@ -76,32 +114,32 @@ def get_service(service_factory: Callable[..., S]) -> Callable[..., S]:
     return _dep
 
 
-def get_symbol_service(session: AsyncSession = Depends(get_db_session)):
+def get_symbol_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.symbol_service import SymbolService
 
     return SymbolService(session=session)
 
 
-def get_instrument_import_service(session: AsyncSession = Depends(get_db_session)):
+def get_instrument_import_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from repositories.instrument_repository import InstrumentRepository
     from services.instrument_import_service import InstrumentImportService
 
     return InstrumentImportService(repo=InstrumentRepository(session=session))
 
 
-def get_quote_service(session: AsyncSession = Depends(get_db_session)):
+def get_quote_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.quote_service import QuoteService
 
     return QuoteService(session=session)
 
 
-def get_brsapi_query_service(session: AsyncSession = Depends(get_db_session)):
+def get_brsapi_query_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from brsapi.services.query_service import BrsApiQueryService
 
     return BrsApiQueryService(session=session)
 
 
-async def get_brsapi_client():
+async def get_brsapi_client() -> Any:
     """Lazily resolve the BrsApi HTTP client singleton."""
     from brsapi.client import get_client
 
@@ -110,64 +148,64 @@ async def get_brsapi_client():
 
 def get_market_service(
     session: AsyncSession = Depends(get_db_session),
-    brsapi=Depends(get_brsapi_query_service),
-    client=Depends(get_brsapi_client),
-):
+    brsapi: Any = Depends(get_brsapi_query_service),
+    client: Any = Depends(get_brsapi_client),
+) -> Any:
     from services.market_service import MarketService
 
     return MarketService(session=session, brsapi_query_service=brsapi, brsapi_client=client)
 
 
-def get_analytics_service(session: AsyncSession = Depends(get_db_session)):
+def get_analytics_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.analytics_service import AnalyticsService
 
     return AnalyticsService(session=session)
 
 
-def get_signal_service(session: AsyncSession = Depends(get_db_session)):
+def get_signal_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.signal_service import SignalService
 
     return SignalService(session=session)
 
 
-def get_recommendation_service(session: AsyncSession = Depends(get_db_session)):
+def get_recommendation_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.recommendation_service import RecommendationService
 
     return RecommendationService(session=session)
 
 
-def get_codal_service(session: AsyncSession = Depends(get_db_session)):
+def get_codal_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.codal_service import CodalService
 
     return CodalService(session=session)
 
 
-def get_codal_financial_service(session: AsyncSession = Depends(get_db_session)):
+def get_codal_financial_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.codal_financial_service import CodalFinancialService
 
     return CodalFinancialService(session=session)
 
 
-def get_codal_financial_import_service(session: AsyncSession = Depends(get_db_session)):
+def get_codal_financial_import_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.codal_financial_import_service import CodalFinancialImportService
 
     return CodalFinancialImportService(session=session)
 
 
-def get_news_service(session: AsyncSession = Depends(get_db_session)):
+def get_news_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.news_service import NewsService
 
     return NewsService(session=session)
 
 
-def get_backtest_service(session: AsyncSession = Depends(get_db_session)):
+def get_backtest_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from repositories.backtest_repository import BacktestRepository
     from services.backtest_service import BacktestService
 
     return BacktestService(repository=BacktestRepository(session=session))
 
 
-def get_inference_service(session: AsyncSession = Depends(get_db_session)):
+def get_inference_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from repositories.ml_repository import MlRepository
     from repositories.quote_repository import QuoteRepository
     from services.inference_service import InferenceService
@@ -178,16 +216,16 @@ def get_inference_service(session: AsyncSession = Depends(get_db_session)):
     )
 
 
-def get_smart_money_service(session: AsyncSession = Depends(get_db_session)):
+def get_smart_money_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.smart_money_service import SmartMoneyService
 
     return SmartMoneyService(session=session)
 
 
 def get_trade_service(
-    brsapi=Depends(get_brsapi_query_service),
-    client=Depends(get_brsapi_client),
-):
+    brsapi: Any = Depends(get_brsapi_query_service),
+    client: Any = Depends(get_brsapi_client),
+) -> Any:
     from services.trade_service import TradeService
 
     return TradeService(brsapi_query_service=brsapi, brsapi_client=client)
@@ -195,30 +233,42 @@ def get_trade_service(
 
 def get_orderbook_service(
     session: AsyncSession = Depends(get_db_session),
-    brsapi=Depends(get_brsapi_query_service),
-    client=Depends(get_brsapi_client),
-):
+    brsapi: Any = Depends(get_brsapi_query_service),
+    client: Any = Depends(get_brsapi_client),
+) -> Any:
     from services.orderbook_service import OrderBookService
 
     return OrderBookService(session=session, brsapi_query_service=brsapi, brsapi_client=client)
 
 
 def get_macro_service(
-    brsapi=Depends(get_brsapi_query_service),
-    client=Depends(get_brsapi_client),
-):
+    brsapi: Any = Depends(get_brsapi_query_service),
+    client: Any = Depends(get_brsapi_client),
+) -> Any:
     from services.macro_service import MacroService
 
     return MacroService(brsapi_query_service=brsapi, brsapi_client=client)
 
 
-def get_report_service(session: AsyncSession = Depends(get_db_session)):
+def get_report_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.report_service import ReportService
 
     return ReportService(session=session)
 
 
-async def get_current_user(authorization: str = Header("")) -> dict:
+async def get_current_user(authorization: str = Header("")) -> dict[str, Any]:
+    from apps.api.auth import _auth_required
+    from core.logging import get_logger
+    logger = get_logger(__name__)
+
+    # The flag's polarity lives in apps.api.auth so this helper, the API-key
+    # check and the WebSocket handshake cannot disagree (audit SEC-01). The
+    # old inline test treated *falsy* values as "disabled", which made the
+    # documented AUTH_DISABLED=false a fail-open bypass.
+    if not _auth_required():
+        logger.debug("AUTH_DISABLED is enabled, returning anonymous user")
+        return {"anonymous": True, "roles": []}
+
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -234,7 +284,7 @@ async def get_current_user(authorization: str = Header("")) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-async def get_optional_user(authorization: str = Header("")) -> dict | None:
+async def get_optional_user(authorization: str = Header("")) -> dict[str, Any] | None:
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         return None
@@ -244,6 +294,8 @@ async def get_optional_user(authorization: str = Header("")) -> dict | None:
         if payload.get("type") == "refresh":
             return None
         if await is_token_revoked(payload.get("jti")):
+            return None
+        if await is_user_session_revoked(payload.get("sub"), payload.get("iat")):
             return None
         return payload
     except Exception as e:
@@ -256,7 +308,26 @@ async def get_optional_user(authorization: str = Header("")) -> dict | None:
 get_current_active_user = get_current_user
 
 
-async def require_user_for_writes(request: Request, authorization: str = Header("")) -> dict | None:
+def current_user_id(current_user: dict[str, Any]) -> str:
+    """Stable identity for ownership checks.
+
+    Access tokens carry ``sub``; the test fixtures and a few legacy payloads
+    use ``user_id``. Both are accepted so a missing field cannot quietly widen
+    an owner filter to the empty string.
+    """
+    return str(current_user.get("sub") or current_user.get("user_id") or "")
+
+
+def owned_scope(current_user: dict[str, Any]) -> str | None:
+    """Owner filter for a request: ``None`` means "no filter" (admin only)."""
+    from core.enums.rbac import has_role
+
+    if has_role(current_user.get("roles", []), "admin"):
+        return None
+    return current_user_id(current_user)
+
+
+async def require_user_for_writes(request: Request, authorization: str = Header("")) -> dict[str, Any] | None:
     """Public reference market data is readable anonymously; mutating it is not.
 
     Applied at mount time to read-only data routers so the unauthenticated
@@ -268,7 +339,7 @@ async def require_user_for_writes(request: Request, authorization: str = Header(
     return await get_current_user(authorization)
 
 
-async def require_role(role: str, current_user: dict = Depends(get_current_user)) -> dict:
+async def require_role(role: str, current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     """Require user to have at least the specified role.
 
     Admin always has access to everything.
@@ -281,7 +352,7 @@ async def require_role(role: str, current_user: dict = Depends(get_current_user)
     return current_user
 
 
-def require_roles(*roles: str):
+def require_roles(*roles: str) -> Callable[..., Any]:
     """Dependency factory: require user to have ANY of the listed roles.
 
     Usage:
@@ -295,16 +366,19 @@ def require_roles(*roles: str):
     """
     from core.enums.rbac import has_any_role
 
-    async def _check(current_user: dict = Depends(get_current_user)) -> dict:
+    async def _check(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
         user_roles = current_user.get("roles", [])
         if not has_any_role(user_roles, list(roles)):
             raise HTTPException(status_code=403, detail=f"Insufficient permissions: requires one of {list(roles)}")
         return current_user
 
+    # Marker consumed by scripts/auth_policy.py. The closure name ``_check`` is
+    # too generic to match safely.
+    _check.__auth_guard__ = True  # type: ignore[attr-defined]
     return _check
 
 
-def get_portfolio_service(session: AsyncSession = Depends(get_db_session)):
+def get_portfolio_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.portfolio_service import PortfolioService
 
     return PortfolioService(session=session)
@@ -312,80 +386,80 @@ def get_portfolio_service(session: AsyncSession = Depends(get_db_session)):
 
 def get_watchlist_service(
     session: AsyncSession = Depends(get_db_session),
-    brsapi=Depends(get_brsapi_query_service),
-):
+    brsapi: Any = Depends(get_brsapi_query_service),
+) -> Any:
     from services.watchlist_service import WatchlistService
 
     return WatchlistService(session=session, brsapi=brsapi)
 
 
-def get_multi_market_signal_service(session: AsyncSession = Depends(get_db_session)):
+def get_multi_market_signal_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.multi_market_signal_engine import MultiMarketSignalEngine
 
     return MultiMarketSignalEngine(session=session)
 
 
-def get_screener_service(session: AsyncSession = Depends(get_db_session)):
+def get_screener_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.screener_service import ScreenerService
 
     return ScreenerService(session=session)
 
 
-def get_fake_queue_detector_service(session: AsyncSession = Depends(get_db_session)):
+def get_fake_queue_detector_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.fake_queue_detector import FakeQueueDetector
 
     return FakeQueueDetector(session=session)
 
 
-def get_hidden_accumulation_service(session: AsyncSession = Depends(get_db_session)):
+def get_hidden_accumulation_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.hidden_accumulation import HiddenAccumulationDetector
 
     return HiddenAccumulationDetector(session=session)
 
 
-def get_signal_performance_tracker_service(session: AsyncSession = Depends(get_db_session)):
+def get_signal_performance_tracker_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.signal_performance_tracker import SignalPerformanceTracker
 
     return SignalPerformanceTracker(session=session)
 
 
-def get_manipulation_detector_service(session: AsyncSession = Depends(get_db_session)):
+def get_manipulation_detector_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.manipulation_detector import ManipulationDetector
 
     return ManipulationDetector(session=session)
 
 
-def get_real_return_calculator_service(session: AsyncSession = Depends(get_db_session)):
+def get_real_return_calculator_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.real_return_calculator import RealReturnCalculator
 
     return RealReturnCalculator(session=session)
 
 
-def get_iran_fear_greed_service(session: AsyncSession = Depends(get_db_session)):
+def get_iran_fear_greed_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.iran_fear_greed_index import IranFearGreedIndex
 
     return IranFearGreedIndex(session=session)
 
 
-def get_historical_level_analyzer_service(session: AsyncSession = Depends(get_db_session)):
+def get_historical_level_analyzer_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.historical_level_analyzer import HistoricalLevelAnalyzer
 
     return HistoricalLevelAnalyzer(session=session)
 
 
-def get_block_trade_detector_service(session: AsyncSession = Depends(get_db_session)):
+def get_block_trade_detector_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.block_trade_detector import BlockTradeDetector
 
     return BlockTradeDetector(session=session)
 
 
-def get_market_health_index_service(session: AsyncSession = Depends(get_db_session)):
+def get_market_health_index_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.market_health_index import MarketHealthIndex
 
     return MarketHealthIndex(session=session)
 
 
-def get_gap_prediction_service(session: AsyncSession = Depends(get_db_session)):
+def get_gap_prediction_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.gap_prediction import GapPredictor
 
     return GapPredictor(session=session)
@@ -395,14 +469,68 @@ def get_gap_prediction_service(session: AsyncSession = Depends(get_db_session)):
 
 
 def get_gold_live_service(
-    brsapi=Depends(get_brsapi_query_service),
-):
+    brsapi: Any = Depends(get_brsapi_query_service),
+) -> Any:
     from services.gold.live_service import GoldLiveService
 
     return GoldLiveService(brsapi=brsapi)
 
 
-def get_gold_position_service(session: AsyncSession = Depends(get_db_session)):
+def get_gold_position_service(session: AsyncSession = Depends(get_db_session)) -> Any:
     from services.gold.position_service import GoldFuturesPositionService
 
     return GoldFuturesPositionService(session=session)
+
+
+def get_domestic_gold_provider() -> Any:
+    from providers.macro.gold.domestic_gold_provider import DomesticGoldProvider
+
+    return DomesticGoldProvider()
+
+
+def get_domestic_fx_provider() -> Any:
+    from providers.macro.fx.domestic_fx_provider import DomesticFXProvider
+
+    return DomesticFXProvider()
+
+
+def get_global_gold_provider() -> Any:
+    from providers.macro.gold.global_gold_provider import GlobalGoldProvider
+
+    return GlobalGoldProvider()
+
+
+def get_forex_factory_provider() -> Any:
+    from providers.macro_sources.forex_factory import ForexFactoryProvider
+
+    return ForexFactoryProvider()
+
+
+def get_finnhub_provider() -> Any:
+    from providers.macro_sources.finnhub import FinnhubNewsProvider
+
+    return FinnhubNewsProvider()
+
+
+def get_finnhub_earnings_provider() -> Any:
+    from providers.macro_sources.finnhub import FinnhubEarningsProvider
+
+    return FinnhubEarningsProvider()
+
+
+def get_fmp_provider() -> Any:
+    from providers.macro_sources.fmp import FMPProvider
+
+    return FMPProvider()
+
+
+def get_alpha_vantage_provider() -> Any:
+    from providers.macro_sources.alpha_vantage import AlphaVantageNewsProvider
+
+    return AlphaVantageNewsProvider()
+
+
+def get_gold_news_rss_provider() -> Any:
+    from providers.macro_sources.news_rss import GoldNewsRSSProvider
+
+    return GoldNewsRSSProvider()

@@ -24,7 +24,7 @@ function FlowBar({ value, max, align }: { value: number; max: number; align: "re
 }
 
 export default function OwnershipChange() {
-  const { data: rows, isLive, isError, isLoading } = useOwnershipFlows();
+  const { data: rows, isLive, hasData, isFresh, isStale, isError, isLoading } = useOwnershipFlows();
   const max = Math.max(1e-9, ...rows.map((r) => Math.max(Math.abs(r.realNet), Math.abs(r.legalNet))));
   return (
     <section data-widget="OwnershipChange" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
@@ -33,7 +33,7 @@ export default function OwnershipChange() {
         title="تغییر مالکیت حقوقی و حقیقی"
         subtitle="خالص جریان پول هر نماد — میلیارد تومان"
       />
-      <LiveDataBanner state={{ isLive, isError, isLoading }} />
+      <LiveDataBanner state={{ isLive, hasData, isFresh, isStale, isError, isLoading }} />
       <div className="mt-4 flex items-center gap-4 text-[10.5px] font-bold">
         <span className="flex items-center gap-1.5 text-up">
           <span className="size-2 rounded-full bg-up" /> حقیقی (خرید خالص)

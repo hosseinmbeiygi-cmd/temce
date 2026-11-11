@@ -19,36 +19,39 @@ def _finglish_candidates(query: str) -> list[str]:
     return finglish_symbol_candidates(_CATALOG, _TRANSLIT_REGEXES, query)
 
 
+InstrumentList = list[Instrument]
+StrList = list[str]
+
 class InstrumentRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
-        self._mem: InMemoryRepository[Instrument] | None = None if session else InMemoryRepository(Instrument)
+        self._mem: InMemoryRepository[Instrument] = InMemoryRepository(Instrument)
         self._db: _InstrumentDbRepo | None = None if not session else _InstrumentDbRepo(session)
 
     async def get(self, id: str) -> Result[Instrument]:
         if self._db:
             return await self._db.get(id)
-        return await self._mem.get(id)  # type: ignore
+        return await self._mem.get(id)
 
     async def save(self, entity: Instrument) -> Result[Instrument]:
         if self._db:
             return await self._db.save(entity)
-        return await self._mem.save(entity)  # type: ignore
+        return await self._mem.save(entity)
 
     async def delete(self, id: str) -> Result[bool]:
         if self._db:
             return await self._db.delete(id)
-        return await self._mem.delete(id)  # type: ignore
+        return await self._mem.delete(id)
 
     async def list(self, page: int = 1, page_size: int = 100) -> Result[PaginatedResult[Instrument]]:
         if self._db:
             return await self._db.list(page, page_size)
-        return await self._mem.list(page, page_size)  # type: ignore
+        return await self._mem.list(page, page_size)
 
     async def get_by_symbol(self, symbol: str) -> Result[Instrument]:
         if self._db:
             return await self._db.get_by_symbol(symbol)
-        for inst in self._mem._store.values():  # type: ignore
+        for inst in self._mem._store.values():
             if inst.symbol == symbol:
                 return Result.ok(inst)
         return Result.fail(f"Instrument {symbol} not found")
@@ -56,7 +59,7 @@ class InstrumentRepository:
     async def get_by_isin(self, isin: str) -> Result[Instrument]:
         if self._db:
             return await self._db.get_by_isin(isin)
-        for inst in self._mem._store.values():  # type: ignore
+        for inst in self._mem._store.values():
             if inst.isin == isin:
                 return Result.ok(inst)
         return Result.fail(f"Instrument with ISIN {isin} not found")
@@ -66,11 +69,11 @@ class InstrumentRepository:
             return await self._db.search(query, page, page_size)
         # In-memory fallback (no session): plain substring + Finglish match.
         q = query.lower()
-        matches = [inst for inst in self._mem._store.values() if q in inst.symbol.lower() or q in inst.name.lower()]  # type: ignore
+        matches = [inst for inst in self._mem._store.values() if q in inst.symbol.lower() or q in inst.name.lower()]
         extra = _finglish_candidates(query)
         if extra:
             known = {m.symbol for m in matches}
-            for inst in self._mem._store.values():  # type: ignore
+            for inst in self._mem._store.values():
                 if inst.symbol in extra and inst.symbol not in known:
                     matches.append(inst)
         total = len(matches)
@@ -85,13 +88,13 @@ class InstrumentRepository:
             )
         )
 
-    async def get_by_market(self, market_type: str) -> Result[list[Instrument]]:
+    async def get_by_market(self, market_type: str) -> Result[InstrumentList]:
         if self._db:
             return await self._db.get_by_market(market_type)
-        matches = [inst for inst in self._mem._store.values() if inst.market_type.value == market_type]  # type: ignore
+        matches = [inst for inst in self._mem._store.values() if inst.market_type.value == market_type]
         return Result.ok(matches)
 
-    async def get_market_types_by_symbols(self, symbols: list[str]) -> Result[dict[str, str]]:
+    async def get_market_types_by_symbols(self, symbols: StrList) -> Result[dict[str, str]]:
         """Batch-fetch market_type for many symbols in ONE query (N+1 fix for market watch).
 
         Returns ``{symbol: market_type_value}`` for symbols that resolved; symbols
@@ -103,7 +106,7 @@ class InstrumentRepository:
         if self._db:
             return await self._db.get_market_types_by_symbols(symbols)
         found: dict[str, str] = {}
-        for inst in self._mem._store.values():  # type: ignore
+        for inst in self._mem._store.values():
             if inst.symbol in symbols:
                 mt = getattr(inst, "market_type", None)
                 found[inst.symbol] = getattr(mt, "value", str(mt)) if mt is not None else "Unknown"
@@ -156,7 +159,7 @@ class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
             )
         )
 
-    async def get_by_market(self, market_type: str) -> Result[list[Instrument]]:
+    async def get_by_market(self, market_type: str) -> Result[InstrumentList]:
         stmt = select(InstrumentModel).where(InstrumentModel.market_type == market_type)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
@@ -169,7 +172,7 @@ class _InstrumentDbRepo(DbRepository[Instrument, InstrumentModel]):
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
-    async def get_market_types_by_symbols(self, symbols: list[str]) -> Result[dict[str, str]]:
+    async def get_market_types_by_symbols(self, symbols: StrList) -> Result[dict[str, str]]:
         """One-query batch lookup: ``symbol -> market_type`` for market-watch enrichment."""
         stmt = select(InstrumentModel.symbol, InstrumentModel.market_type).where(
             InstrumentModel.symbol.in_(symbols)

@@ -180,7 +180,7 @@ class GeneticOptimizer:
 
             gen_results = []
             for r in results:
-                if isinstance(r, Exception) or r is None:
+                if isinstance(r, BaseException) or r is None:
                     continue
                 metrics, params = r
                 passed, _ = _apply_6stage_filter(metrics, DEFAULT_FILTERS)
@@ -235,8 +235,9 @@ class GeneticOptimizer:
     def _evaluate_sync(self, cls, params: dict, data: list, capital: float):
         try:
             strategy = cls(**{k: int(v) if isinstance(v, float) and v == int(v) else v for k, v in params.items()})
-            result = self._simulator.run(strategy, initial_capital=capital, data=data)
-            if not result.success:
+            sim = self._simulator if self._simulator is not None else BacktestSimulator()
+            result = sim.run(strategy, initial_capital=capital, data=data)
+            if not result.success or result.value is None:
                 return None
             metrics = _compute_enhanced_metrics(result.value, capital)
             return metrics, params
@@ -288,9 +289,7 @@ class StrategyGenerator:
     async def _load_all_symbols(self) -> list[str]:
         """Load all symbols with available data from the database."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return ["فولاد"]
@@ -435,10 +434,10 @@ class StrategyGenerator:
 
             executor.shutdown(wait=False)
             results = all_task_results
-            for r in results:
-                if isinstance(r, Exception) or r is None:
+            for res in results:
+                if isinstance(res, BaseException) or res is None:
                     continue
-                metrics, strategy_name, params, sym = r
+                metrics, strategy_name, params, sym = res
                 passed, _ = _apply_6stage_filter(metrics, filters)
                 if passed:
                     self._results.append({
@@ -487,17 +486,17 @@ class StrategyGenerator:
                 async def _run_ga(item):
                     strategy_name, bounds, data, cap, sym = item
                     ga_results = await ga.optimize(strategy_name, bounds, data, cap, self.simulator)
-                    for r in ga_results:
-                        r["symbol"] = sym
-                        r["method"] = "genetic"
+                    for ga_row in ga_results:
+                        ga_row["symbol"] = sym
+                        ga_row["method"] = "genetic"
                     return ga_results
 
                 ga_tasks = [_run_ga(item) for item in ga_work]
                 ga_all = await asyncio.gather(*ga_tasks, return_exceptions=True)
-                for r in ga_all:
-                    if isinstance(r, Exception) or not isinstance(r, list):
+                for ga_batch in ga_all:
+                    if isinstance(ga_batch, BaseException) or not isinstance(ga_batch, list):
                         continue
-                    self._results.extend(r)
+                    self._results.extend(ga_batch)
 
             # Deduplicate and sort
             seen = set()
@@ -553,7 +552,7 @@ class StrategyGenerator:
                 cls = registry.get(strategy_name)
                 if cls is None:
                     return None
-                clean_params = {}
+                clean_params: dict[str, Any] = {}
                 for k, v in params.items():
                     if isinstance(v, float) and v == int(v):
                         clean_params[k] = int(v)
@@ -563,7 +562,7 @@ class StrategyGenerator:
                 strategy = cls(**clean_params)
                 sim = BacktestSimulator()
                 result = sim.run(strategy, initial_capital=capital, data=data)
-                if not result.success:
+                if not result.success or result.value is None:
                     return None
                 metrics = _compute_enhanced_metrics(result.value, capital)
                 return metrics, strategy_name, clean_params, sym
@@ -588,15 +587,16 @@ class StrategyGenerator:
             if cls is None:
                 return None
             # Convert float params to int where needed
-            clean_params = {}
+            clean_params: dict[str, Any] = {}
             for k, v in params.items():
                 if isinstance(v, float) and v == int(v):
                     clean_params[k] = int(v)
                 else:
                     clean_params[k] = v
             strategy = cls(**clean_params)
-            result = self.simulator.run(strategy, initial_capital=capital, data=data)
-            if not result.success:
+            sim = self.simulator if self.simulator is not None else BacktestSimulator()
+            result = sim.run(strategy, initial_capital=capital, data=data)
+            if not result.success or result.value is None:
                 return None
             metrics = _compute_enhanced_metrics(result.value, capital)
             return metrics, strategy_name, clean_params

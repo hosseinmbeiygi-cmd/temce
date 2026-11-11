@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import jdatetime
+
 from core.time import utc_now_naive
 from src.gold_desk.macro_news import (
     MacroEvent,
+    _dedupe,
+    _extract_published_at,
     compute_macro_multiplier,
     estimate_impact,
     fetch_macro_events,
@@ -48,6 +52,91 @@ def test_estimate_impact_fx_strong():
 def test_estimate_impact_demand_high():
     score, _ = estimate_impact("تقاضا افزایش یافت", "demand")
     assert score > 0
+
+
+# ── E-M9: تطبیق عددی به‌جای زیررشتهٔ + / − ──────────���────
+
+
+def test_neutral_title_with_dash_scores_zero():
+    """خط تیرهٔ عنوان نباید «کاهش» تفسیر شود."""
+    score, conf = estimate_impact("گزارش-تیر-ماه منتشر شد", "rate")
+    assert score == 0
+    assert conf == 0.0
+
+
+def test_numeric_sign_drives_the_score():
+    assert estimate_impact("نرخ بهره ۲+ درصد", "rate")[0] < 0
+    assert estimate_impact("نرخ بهره ۲- درصد", "rate")[0] > 0
+
+
+def test_confidence_is_not_a_constant():
+    """اطمینان باید از شواهد بیاید: عدد+کلمه > فقط کلمه > هیچ."""
+    _, both = estimate_impact("نرخ بهره ۲+ درصد افزایش یافت", "rate")
+    _, word_only = estimate_impact("نرخ بهره افزایش یافت", "rate")
+    _, none = estimate_impact("خبر عمومی", "rate")
+    assert both > word_only > none
+    assert 0 < both <= 0.9
+    assert none == 0.0
+
+
+# ── E-M11: تاریخ انتشار و کلید dedupe ─────────────────────
+
+
+def _event(title: str, source: str = "cbi") -> MacroEvent:
+    return MacroEvent(
+        title=title,
+        source=source,
+        category="rate",
+        impact_score=0,
+        confidence=0.5,
+        explanation="",
+        published_at=utc_now_naive(),
+    )
+
+
+def test_dedupe_key_is_stable_and_source_scoped():
+    a1 = _event("نرخ بهره ثابت ماند")
+    a2 = _event("نرخ  بهره   ثابت ماند")  # فاصلهٔ اضافی
+    b = _event("نرخ بهره ثابت ماند", source="wgc")
+    c = _event("تورم بالا رفت")
+    assert a1.dedupe_key() == a2.dedupe_key()
+    assert a1.dedupe_key() != b.dedupe_key()
+    assert a1.dedupe_key() != c.dedupe_key()
+
+
+def test_extract_published_at_parses_jalali_date():
+    fallback = utc_now_naive()
+    parsed = _extract_published_at("خبر ۱۴۰۵/۰۵/۱۲ : نرخ بهره", fallback)
+    assert parsed.date() == jdatetime.date(1405, 5, 12).togregorian()
+    assert parsed.date() != fallback.date()
+
+
+def test_extract_published_at_falls_back_without_date():
+    fallback = utc_now_naive()
+    assert _extract_published_at("خبر بدون تاریخ", fallback) == fallback
+
+
+def test_dedupe_removes_repeated_events():
+    events = [_event("تورم ۳۰ درصد"), _event("تورم  ۳۰ درصد"), _event("نرخ بهره ۲۰ درصد")]
+    assert len(_dedupe(events)) == 2
+
+
+# ── E-M10 / C6: کلان فقط اطلاعاتی است ─────────────────────
+
+
+def test_scorer_does_not_consume_macro_news():
+    import inspect
+
+    import src.gold_desk.scorer as scorer_mod
+
+    source = inspect.getsource(scorer_mod)
+    assert "macro" not in source.lower()
+
+
+def test_macro_module_is_documented_as_informational():
+    import src.gold_desk.macro_news as macro_mod
+
+    assert "اطلاعاتی" in (macro_mod.__doc__ or "")
 
 
 def test_compute_macro_multiplier_empty():

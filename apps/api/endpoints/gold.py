@@ -21,8 +21,17 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from apps.api.dependencies import (
+    get_alpha_vantage_provider,
     get_brsapi_query_service,
+    get_domestic_fx_provider,
+    get_domestic_gold_provider,
+    get_finnhub_provider,
+    get_fmp_provider,
+    get_finnhub_earnings_provider,
+    get_forex_factory_provider,
+    get_global_gold_provider,
     get_gold_live_service,
+    get_gold_news_rss_provider,
     get_gold_position_service,
 )
 from core.logging import get_logger
@@ -47,7 +56,6 @@ from services.gold import (
     GoldLiveService,
     calculate_coin_bubble,
     evaluate_kill_switch,
-    scan_gold_arbitrage,
 )
 
 logger = get_logger(__name__)
@@ -65,9 +73,9 @@ router = APIRouter()
 async def get_live_prices(
     refresh: bool = Query(False, description="اجبار به بازخوانی از BrsApi"),
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldLivePrices]:
     data = await service.get_live_prices(force_refresh=refresh)
-    return ApiResponse[GoldLivePrices](success=True, data=data)
+    return ApiResponse[GoldLivePrices](success=True, data=GoldLivePrices(**data))
 
 
 @router.post(
@@ -78,9 +86,9 @@ async def get_live_prices(
 async def post_live_prices(
     body: GoldLivePricesRequest = Body(default_factory=GoldLivePricesRequest),
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldLivePrices]:
     data = await service.get_live_prices(force_refresh=body.refresh)
-    return ApiResponse[GoldLivePrices](success=True, data=data)
+    return ApiResponse[GoldLivePrices](success=True, data=GoldLivePrices(**data))
 
 
 # ── 2. Coin Bubble ─────────────────────────────────────────────
@@ -91,7 +99,7 @@ async def post_live_prices(
     summary="محاسبه حباب/تخفیف سکه بهار آزادی",
     response_model=ApiResponse[CoinBubbleResponse],
 )
-async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any]]:
+async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[CoinBubbleResponse]:
     try:
         result = calculate_coin_bubble(
             coin_price_irr=body.coin_price_irr,
@@ -126,7 +134,7 @@ async def post_coin_bubble(body: CoinBubbleRequest) -> ApiResponse[dict[str, Any
 )
 async def get_etf_nav_premium(
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[ETFNavPremiumResponse]:
     """NAV ذاتی از انس و دلار محاسبه می‌شود؛ پرمیوم فقط وقتی اعلام می‌شود که قیمت
     معاملاتی واقعی آن صندوق در دسترس باشد (وگرنه NO_DATA برمی‌گردد، نه عدد نمونه)."""
     from core.time import utc_now_iso
@@ -152,7 +160,8 @@ async def get_etf_nav_premium(
             premium_pct=None,
             signal="NO_DATA",
             reason="قیمت معاملاتی این صندوق به دادهٔ بازار متصل نیست؛ پرمیوم اندازه‌گیری نمی‌شود.",
-            liquidity="high" if symbol in ("ZARFSHANG", "LOTUS") else "medium",
+            # Liquidity is not measured yet; do not invent high/medium tiers.
+            liquidity="UNKNOWN",
             management_fee=info["management_fee"],
         )
         items.append(row)
@@ -189,17 +198,18 @@ async def get_arbitrage(
             error={"message": "داده‌های بازار برای محاسبه آربیتراژ کافی نیست"},
         )
 
-    # صندوق طلا در بورس ≈ قیمت گرم طلا + 0.5% کارمزد مدیریت
-    etf_per_gram = gold_18k * 1.005
-    # طلای فیزیکی (آب‌شده) ≈ قیمت ۱۸ عیار - 2% تخفیف عیار
-    physical_per_gram = gold_18k * 0.98
-
-    result = scan_gold_arbitrage(
-        etf_price_per_gram=etf_per_gram,
-        physical_gold_price_per_gram=physical_per_gram,
-        pair_label="ETF طلا (میانگین) ↔ طلای آب‌شده بازار",
+    # Both legs must be observed prices. Only the 18k gram price is wired today;
+    # an ETF traded price and a physical (melted) price are not, so the spread
+    # would be a constructed constant. Report "unavailable" instead.
+    return ApiResponse[dict[str, Any]](
+        success=True,
+        data={
+            "available": False,
+            "reason": "قیمت معاملاتی ETF و طلای آب‌شده به داده بازار متصل نیست؛ اسپرد ساخته نمی‌شود.",
+            "missing_symbols": ["ETF_GOLD", "GOLD_MELTED"],
+            "gold_18k_irr": gold_18k,
+        },
     )
-    return ApiResponse[dict[str, Any]](success=True, data=result.__dict__)
 
 
 # ── 5. Futures Margin Calculator ──────────────────────────────
@@ -210,7 +220,7 @@ async def get_arbitrage(
     summary="محاسبه مارجین، لیکوئیدیشن و Health Ratio (آتی سکه IME)",
     response_model=ApiResponse[FuturesMarginResponse],
 )
-async def post_margin_calculator(body: FuturesMarginRequest) -> ApiResponse[dict[str, Any]]:
+async def post_margin_calculator(body: FuturesMarginRequest) -> ApiResponse[FuturesMarginResponse]:
     try:
         calc = FuturesRiskCalculator(leverage=body.leverage)
         result = calc.calculate(
@@ -313,7 +323,7 @@ async def close_futures_position(
 )
 async def get_futures_health(
     service: GoldFuturesPositionService = Depends(get_gold_position_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[FuturesHealthResponse]:
     rows = await service.list_open_positions()
     positions: list[FuturesPosition] = []
     total_used = 0.0
@@ -349,7 +359,7 @@ async def get_futures_health(
         data=FuturesHealthResponse(
             positions=positions,
             total_used_margin=round(total_used, 2),
-            total_equity=0.0,  # TODO: زمانی که account snapshot اضافه شد
+            total_equity=None,  # Account equity is not wired yet; 0 would be a fake value.
             aggregate_health_ratio=None,
             critical_count=crit,
             warning_count=warn,
@@ -367,7 +377,7 @@ async def get_futures_health(
 )
 async def get_kill_switch(
     service: GoldLiveService = Depends(get_gold_live_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[GoldKillSwitchStatus]:
     # TODO: oz_history / usd_history از TimescaleDB (در phase بعدی)
     live = await service.get_live_prices()
     eval_result = evaluate_kill_switch(
@@ -389,7 +399,61 @@ async def get_kill_switch(
     )
 
 
-# ── 8. IME Futures Catalog (proxy) ────────────────────────────
+# ── 8. Live domestic gold prices (TGJU) ───────────────────────
+
+
+@router.get(
+    "/domestic-prices",
+    summary="قیمت لحظه‌ای طلا و سکه (TGJU)",
+    description="قیمت‌های 18 عیار، 24 عیار، امامی، بهار، نیم سکه و ربع سکه از call3.tgju.org",
+)
+async def get_domestic_gold_prices(
+    gold_type: str | None = Query(None, description="bahar_azadi | nim_azadi | rob_azadi | gerami | geram18 | geram24"),
+    provider=Depends(get_domestic_gold_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(gold_type=gold_type)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False, data=[], error={"message": result.error, "code": "SOURCE_UNAVAILABLE"}
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/fx-rates",
+    summary="نرخ ارز (TGJU)",
+    description="نرخ دلار و درهم در برابر تومان از call3.tgju.org",
+)
+async def get_domestic_fx_rates(
+    pair: str | None = Query(None, description="USD_IRR | AED_IRR"),
+    provider=Depends(get_domestic_fx_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(pair=pair)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False, data=[], error={"message": result.error, "code": "SOURCE_UNAVAILABLE"}
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/global-prices",
+    summary="قیمت بین‌المللی طلا و فلزات گران‌بها",
+    description="XAU/USD از goldapi.io یا OKX PAXG (رایگان)؛ XAG/USD و XPT/USD با کلید goldapi",
+)
+async def get_global_gold_prices(
+    benchmark: str | None = Query(None, description="XAU_USD | XAG_USD | XPT_USD"),
+    provider=Depends(get_global_gold_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(benchmark=benchmark)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False, data=[], error={"message": result.error, "code": "SOURCE_UNAVAILABLE"}
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+# ── 9. IME Futures Catalog (proxy) ────────────────────────────
 
 
 @router.get(
@@ -401,9 +465,13 @@ async def get_ime_futures(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         rows = await brsapi.get_ime_futures()
-    except Exception as exc:
+    except Exception:
         logger.exception("IME futures fetch failed")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
+        )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
 
 
@@ -416,7 +484,165 @@ async def get_ime_physical_trades(
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
         rows = await brsapi.get_ime_physical_trades()
-    except Exception as exc:
+    except Exception:
         logger.exception("IME physical trades fetch failed")
-        return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": "IME market data is temporarily unavailable", "code": "SOURCE_UNAVAILABLE"},
+        )
     return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+
+
+# ── Economic Calendar ─────────────────────────────────────────────────────────
+
+@router.get(
+    "/calendar/forex-factory",
+    summary="تقویم اقتصادی Forex Factory",
+)
+async def get_forex_factory_calendar(
+    country: str | None = Query(None, description="کد کشور (مثلاً US یا EUR)"),
+    min_impact: str = Query("High", description="حداقل اهمیت: High | Medium | Low"),
+    provider=Depends(get_forex_factory_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(country=country, min_impact=min_impact)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/finnhub",
+    summary="اخبار بازار Finnhub (رایگان — GET /news)",
+)
+async def get_finnhub_news(
+    category: str = Query("general", description="general | forex | crypto | merger"),
+    limit: int = Query(50, ge=1, le=200, description="تعداد مقالات"),
+    provider=Depends(get_finnhub_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category=category, limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/calendar/earnings",
+    summary="تقویم درآمد شرکت‌ها Finnhub (رایگان — 1 ماه)",
+)
+async def get_finnhub_earnings(
+    from_date: str | None = Query(None, description="تاریخ شروع YYYY-MM-DD"),
+    to_date: str | None = Query(None, description="تاریخ پایان YYYY-MM-DD"),
+    symbol: str | None = Query(None, description="نماد سهام (مثلاً AAPL)"),
+    provider=Depends(get_finnhub_earnings_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(from_date=from_date, to_date=to_date, symbol=symbol)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/calendar/fmp",
+    summary="تقویم اقتصادی Financial Modeling Prep",
+)
+async def get_fmp_calendar(
+    from_date: str | None = Query(None, description="تاریخ شروع YYYY-MM-DD"),
+    to_date: str | None = Query(None, description="تاریخ پایان YYYY-MM-DD"),
+    country: str | None = Query(None, description="کد کشور (مثلاً US)"),
+    provider=Depends(get_fmp_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(from_date=from_date, to_date=to_date, country=country)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/gold-sentiment",
+    summary="شاخص‌های کلان اقتصاد آمریکا (Alpha Vantage — رایگان)",
+)
+async def get_gold_news_sentiment(
+    limit: int = Query(3, ge=1, le=12, description="تعداد نقاط داده برای هر شاخص"),
+    provider=Depends(get_alpha_vantage_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(limit_per_series=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/rss",
+    summary="اخبار RSS طلا — بین‌المللی و داخلی",
+)
+async def get_gold_news_rss(
+    category: str | None = Query(None, description="international | domestic"),
+    language: str | None = Query(None, description="en | fa"),
+    limit: int = Query(50, ge=1, le=200, description="تعداد اخبار"),
+    provider=Depends(get_gold_news_rss_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category=category, language=language, limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/rss/domestic",
+    summary="اخبار داخلی طلا و ارز (سنا، ایبنا، tgju)",
+)
+async def get_gold_news_rss_domestic(
+    limit: int = Query(30, ge=1, le=100, description="تعداد اخبار"),
+    provider=Depends(get_gold_news_rss_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category="domestic", limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)
+
+
+@router.get(
+    "/news/rss/international",
+    summary="اخبار بین‌المللی طلا (Kitco، FXStreet، Reuters)",
+)
+async def get_gold_news_rss_international(
+    limit: int = Query(30, ge=1, le=100, description="تعداد اخبار"),
+    provider=Depends(get_gold_news_rss_provider),
+) -> ApiResponse[list[dict[str, Any]]]:
+    result = await provider.fetch(category="international", limit=limit)
+    if not result.success:
+        return ApiResponse[list[dict[str, Any]]](
+            success=False,
+            data=[],
+            error={"message": result.error, "code": "SOURCE_UNAVAILABLE"},
+        )
+    return ApiResponse[list[dict[str, Any]]](success=True, data=result.value)

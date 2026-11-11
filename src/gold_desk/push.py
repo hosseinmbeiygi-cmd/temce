@@ -16,6 +16,7 @@ import json
 import logging
 import os
 from dataclasses import asdict, dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PushSubscription:
     p256dh: str
     auth: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -45,7 +46,7 @@ class PushMessage:
     icon: str = "/icons/golddesk-192.png"
     tag: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -59,7 +60,6 @@ def _generate_vapid_keys() -> tuple[str, str]:
 
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
-        from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
         private_key = ec.generate_private_key(ec.SECP256R1())
         public_key = private_key.public_key()
@@ -120,7 +120,7 @@ async def add_subscriber(sub: PushSubscription) -> int:
 
         cache = get_cache()
         raw = await cache.get(REDIS_KEY_SUBSCRIBERS) or []
-        subs: list[dict] = json.loads(raw) if isinstance(raw, str) else raw
+        subs: list[dict[str, Any]] = json.loads(raw) if isinstance(raw, str) else raw
 
         # dedup by endpoint
         if not any(s.get("endpoint") == sub.endpoint for s in subs):
@@ -139,7 +139,7 @@ async def remove_subscriber(endpoint: str) -> int:
 
         cache = get_cache()
         raw = await cache.get(REDIS_KEY_SUBSCRIBERS) or []
-        subs: list[dict] = json.loads(raw) if isinstance(raw, str) else raw
+        subs: list[dict[str, Any]] = json.loads(raw) if isinstance(raw, str) else raw
         subs = [s for s in subs if s.get("endpoint") != endpoint]
         await cache.set(REDIS_KEY_SUBSCRIBERS, json.dumps(subs), ttl=None)
         return len(subs)
@@ -154,7 +154,7 @@ async def list_subscribers() -> list[PushSubscription]:
 
         cache = get_cache()
         raw = await cache.get(REDIS_KEY_SUBSCRIBERS) or []
-        subs: list[dict] = json.loads(raw) if isinstance(raw, str) else raw
+        subs: list[dict[str, Any]] = json.loads(raw) if isinstance(raw, str) else raw
         return [PushSubscription(**s) for s in subs]
     except Exception:
         return []

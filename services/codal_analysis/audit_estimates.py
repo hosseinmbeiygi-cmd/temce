@@ -137,7 +137,7 @@ class EstimatesAuditor:
     ) -> ProvisionTestResult:
         if aging_factors:
             expected = sum(
-                amount * rate for amount, rate in aging_factors.items()
+                amount * historical_default_rate for amount in aging_factors.values()
             )
         else:
             expected = receivables * historical_default_rate

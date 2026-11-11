@@ -1,0 +1,5 @@
+startup wall-time measurements (2026-10-26, Python 3.11.9):
+cold first import: 60.4 s (714 routes)
+warm run 1: 24.87 s
+warm run 2: 23.64 s
+modules imported: 2982

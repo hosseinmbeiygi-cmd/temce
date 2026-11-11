@@ -131,6 +131,9 @@ export default function FundScorecardPanel({ fund, scores, issues }: FundScoreca
     ];
     for (const d of dims) {
       const v = scores[d.key];
+      // The six-dimension engine was removed; skip a dimension instead of
+      // emitting a threshold reason for a missing score.
+      if (v == null) continue;
       if (v >= 70) {
         out.push({ text: `${d.pos} — امتیاز ${d.label} بالای آستانه ۷۰.`, badges: [`${d.label}: ${v}`], tone: "pos" });
       } else if (v < 40) {

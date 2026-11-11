@@ -100,5 +100,6 @@ def get_recent_queries(limit: int = 50) -> list[dict[str, Any]]:
 
         return queries[-limit:]
 
-    except Exception:
+    except (OSError, ValueError, TypeError) as exc:
+        logger.debug("query log unreadable at %s: %s", _LOG_FILE, exc)
         return []

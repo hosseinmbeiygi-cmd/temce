@@ -10,7 +10,15 @@ from fastapi import FastAPI
 from starlette.testclient import TestClient
 
 from apps.api.middleware import RateLimitMiddleware
+from core.config import settings as app_settings
 from core.rate_limit.limiter import RateLimiter
+
+
+@pytest.fixture(autouse=True)
+def _enforce_rate_limit(monkeypatch):
+    # CI sets ENV=test, where the middleware bypasses rate limiting; these
+    # tests exercise the enforcing path.
+    monkeypatch.setattr(app_settings, "environment", "development")
 
 # ── App factory ──────────────────────────────────────────────────
 
@@ -68,11 +76,19 @@ def _create_app() -> FastAPI:
 
 
 @pytest.fixture(autouse=True)
-def _reset_limiter():
-    """Reset the global rate limiter state between tests."""
-    limiter = RateLimitMiddleware.__new__(RateLimitMiddleware)
-    limiter._limiter = RateLimiter()
-    with patch("apps.api.middleware.get_rate_limiter", return_value=limiter._limiter):
+def _reset_limiter(monkeypatch: pytest.MonkeyPatch):
+    """Reset the global rate limiter state between tests.
+
+    The unconfigured-path limit is read from ``PROVIDER_RATE_LIMIT_PER_MINUTE``,
+    which a developer's ``.env`` may lower (60 locally). This file's
+    expectations are written against the shipped default of 300, so pin it
+    here instead of letting the local environment decide the outcome.
+    """
+    from core.config import settings as app_settings
+
+    limiter = RateLimiter()
+    monkeypatch.setattr(app_settings, "provider_rate_limit_per_minute", 300, raising=False)
+    with patch("apps.api.middleware.get_rate_limiter", return_value=limiter):
         yield
 
 

@@ -43,17 +43,18 @@ async def get_signal_accuracy(
             market=market_filter, days=days, page=page, page_size=page_size
         )
 
-        if not result.success:
+        if not result.success or result.value is None:
             return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Unknown error")})
 
+        accuracy_page = result.value
         return ApiResponse(
             success=True,
             data={
-                "items": result.value.items,
-                "total": result.value.total,
-                "page": result.value.page,
-                "page_size": result.value.page_size,
-                "total_pages": result.value.total_pages,
+                "items": accuracy_page.items,
+                "total": accuracy_page.total,
+                "page": accuracy_page.page,
+                "page_size": accuracy_page.page_size,
+                "total_pages": accuracy_page.total_pages,
                 "filters": {"market": market, "days": days},
                 "generated_at": utc_now_naive().isoformat(),
             },
@@ -123,7 +124,7 @@ async def backtest_signals(
             source=None if source == "all" else source,
         )
 
-        if not result.success:
+        if not result.success or result.value is None:
             return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Backtest failed")})
 
         return ApiResponse(
@@ -228,7 +229,7 @@ async def get_walk_forward(
                 num_windows=num_windows,
             )
 
-            if not result.success:
+            if not result.success or result.value is None:
                 return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Validation failed")})
 
             return ApiResponse(
@@ -256,26 +257,26 @@ async def get_ensemble_optimization(
         optimizer = EnsembleOptimizer()
 
         if market == "all":
-            result = await optimizer.optimize_all_markets()
-            if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Optimization failed")})
+            all_result = await optimizer.optimize_all_markets()
+            if not all_result.success or all_result.value is None:
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(all_result.error, default_message="Optimization failed")})
             return ApiResponse(
                 success=True,
                 data={
                     "markets": {
-                        m: e.to_dict() for m, e in result.value.items()
+                        m: e.to_dict() for m, e in all_result.value.items()
                     },
                     "generated_at": utc_now_naive().isoformat(),
                 },
             )
         else:
-            result = await optimizer.optimize(market)
-            if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Optimization failed")})
+            single_result = await optimizer.optimize(market)
+            if not single_result.success or single_result.value is None:
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(single_result.error, default_message="Optimization failed")})
             return ApiResponse(
                 success=True,
                 data={
-                    **result.value.to_dict(),
+                    **single_result.value.to_dict(),
                     "generated_at": utc_now_naive().isoformat(),
                 },
             )
@@ -332,25 +333,26 @@ async def trigger_retrain(
         pipeline = AutoRetrainPipeline()
 
         if market == "all":
-            result = await pipeline.retrain_all_markets(force=force)
-            if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Retrain failed")})
+            all_result = await pipeline.retrain_all_markets(force=force)
+            if not all_result.success or all_result.value is None:
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(all_result.error, default_message="Retrain failed")})
+            reports = all_result.value
             return ApiResponse(
                 success=True,
                 data={
-                    "reports": [r.to_dict() for r in result.value],
-                    "total_retrained": sum(len(r.models_retrained) for r in result.value),
+                    "reports": [r.to_dict() for r in reports],
+                    "total_retrained": len([m for r in reports for m in r.models_retrained]),
                     "generated_at": utc_now_naive().isoformat(),
                 },
             )
         else:
-            result = await pipeline.check_and_retrain(market=market, force=force)
-            if not result.success:
-                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(result.error, default_message="Retrain failed")})
+            single_result = await pipeline.check_and_retrain(market=market, force=force)
+            if not single_result.success or single_result.value is None:
+                return ApiResponse(success=False, data=None, error={"message": safe_error_detail(single_result.error, default_message="Retrain failed")})
             return ApiResponse(
                 success=True,
                 data={
-                    **result.value.to_dict(),
+                    **single_result.value.to_dict(),
                     "generated_at": utc_now_naive().isoformat(),
                 },
             )

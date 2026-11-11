@@ -23,9 +23,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, select
 from core.question_bank.engine import Evaluation
 from core.question_bank.registry import ResolvedBank, resolve
 from core.question_bank.schema import (

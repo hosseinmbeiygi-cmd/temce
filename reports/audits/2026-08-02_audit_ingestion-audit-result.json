@@ -1,0 +1,245 @@
+{
+  "db_stats": {
+    "brsapi_symbol_snapshots": 1326,
+    "brsapi_index_values": 2093,
+    "brsapi_codal_announcements": 100,
+    "brsapi_commodity_prices": 3178,
+    "brsapi_crypto_prices": 19,
+    "brsapi_gold_coin_prices": 9,
+    "brsapi_currency_prices": 28,
+    "brsapi_intraday_trades": 18,
+    "brsapi_historical_daily": 8220775,
+    "brsapi_historical_real_legal": 655158,
+    "brsapi_candlesticks": 553,
+    "brsapi_shareholder_records": 770726,
+    "brsapi_ime_futures": 4237,
+    "brsapi_ime_options": 26928,
+    "brsapi_ime_certificates": 2090,
+    "brsapi_ime_funds": 11538,
+    "brsapi_ime_physical_trades": 687,
+    "brsapi_nav_records": 1,
+    "brsapi_option_snapshots": 195146,
+    "quotes": 3354957,
+    "news_articles": 767,
+    "codal_reports": 226818,
+    "sync_logs_today": [
+      [
+        "/Codal/Announcement.php",
+        "success",
+        4
+      ],
+      [
+        "/Tsetmc/Nav.php",
+        "error",
+        1
+      ],
+      [
+        "/Tsetmc/Nav.php",
+        "success",
+        1
+      ]
+    ],
+    "latest_sync_logs": [
+      [
+        "/Codal/Announcement.php",
+        "success",
+        0,
+        null,
+        "2026-07-27 16:50:26.129406"
+      ],
+      [
+        "/IME/Certificate.php",
+        "success",
+        10,
+        null,
+        "2026-07-26 18:26:29.424575"
+      ],
+      [
+        "/IME/Fund.php",
+        "success",
+        59,
+        null,
+        "2026-07-26 18:26:32.404761"
+      ],
+      [
+        "/IME/Futures.php",
+        "success",
+        19,
+        null,
+        "2026-07-26 18:26:21.897313"
+      ],
+      [
+        "/IME/Option.php",
+        "success",
+        124,
+        null,
+        "2026-07-26 18:26:26.582434"
+      ],
+      [
+        "/IME/Physical.php",
+        "success",
+        0,
+        null,
+        "2026-07-23 10:14:35.229362"
+      ],
+      [
+        "/Market/Coin.php",
+        "error",
+        0,
+        "HTTP 404: <!DOCTYPE html>\n<html style=\"height:100%\">\n<head>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\" />\n<title> 404 Not Found\r\n</title><style>@media (prefers-color-s",
+        "2026-07-23 10:14:36.925649"
+      ],
+      [
+        "/Market/CoinHistory.php",
+        "error",
+        0,
+        "HTTP 404: <!DOCTYPE html>\n<html style=\"height:100%\">\n<head>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\" />\n<title> 404 Not Found\r\n</title><style>@media (prefers-color-s",
+        "2026-07-23 20:46:27.586616"
+      ],
+      [
+        "/Market/Commodity.php",
+        "success",
+        14,
+        null,
+        "2026-07-26 18:26:34.817329"
+      ],
+      [
+        "/Market/Cryptocurrency.php",
+        "success",
+        2588,
+        null,
+        "2026-07-26 18:26:39.259722"
+      ],
+      [
+        "/Market/Currency.php",
+        "error",
+        0,
+        "HTTP 404: <!DOCTYPE html>\n<html style=\"height:100%\">\n<head>\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\" />\n<title> 404 Not Found\r\n</title><style>@media (prefers-color-s",
+        "2026-07-23 20:46:26.000880"
+      ],
+      [
+        "/Market/CurrencyHistory.php",
+        "error",
+        0,
+        "RequestError: ",
+        "2026-07-23 20:52:34.784363"
+      ],
+      [
+        "/Market/Gold_Currency.php",
+        "success",
+        28,
+        null,
+        "2026-07-21 23:39:19.909936"
+      ],
+      [
+        "/Tsetmc/AllSymbols.php",
+        "success",
+        1326,
+        null,
+        "2026-07-26 20:32:00.500194"
+      ],
+      [
+        "/Tsetmc/Candlestick.php",
+        "error",
+        0,
+        "HTTP 400: {\n    \"code_http\": 400,\n    \"successful\": false,\n    \"status\": \"missing_param\",\n    \"message_error\": \"Required parameter 'l18' was not sent.\",\n    \"account\": {\n        \"type\": \"خرید شده\",\n        \"exp",
+        "2026-07-23 10:14:31.233203"
+      ],
+      [
+        "/Tsetmc/History.php",
+        "error",
+        0,
+        "HTTP 400: {\n    \"code_http\": 400,\n    \"successful\": false,\n    \"status\": \"missing_param\",\n    \"message_error\": \"Required parameter 'l18' was not sent.\",\n    \"account\": {\n        \"type\": \"خرید شده\",\n        \"exp",
+        "2026-07-23 20:46:48.718163"
+      ],
+      [
+        "/Tsetmc/Index.php",
+        "success",
+        1,
+        null,
+        "2026-07-26 20:32:00.686197"
+      ],
+      [
+        "/Tsetmc/Nav.php",
+        "success",
+        1,
+        null,
+        "2026-07-27 16:58:05.923750"
+      ],
+      [
+        "/Tsetmc/Option.php",
+        "success",
+        1055,
+        null,
+        "2026-07-26 18:26:17.805926"
+      ],
+      [
+        "/Tsetmc/Shareholder.php",
+        "error",
+        0,
+        "HTTP 400: {\n    \"code_http\": 400,\n    \"successful\": false,\n    \"status\": \"missing_param\",\n    \"message_error\": \"Required parameter 'l18' was not sent.\",\n    \"account\": {\n        \"type\": \"خرید شده\",\n        \"exp",
+        "2026-07-23 10:14:32.491391"
+      ],
+      [
+        "/Tsetmc/Symbol.php",
+        "error",
+        0,
+        "HTTP 400: {\n    \"code_http\": 400,\n    \"successful\": false,\n    \"status\": \"missing_param\",\n    \"message_error\": \"Required parameter 'l18' was not sent.\",\n    \"account\": {\n        \"type\": \"خرید شده\",\n        \"exp",
+        "2026-07-23 20:46:42.870612"
+      ],
+      [
+        "/Tsetmc/Transaction.php",
+        "error",
+        0,
+        "HTTP 400: {\n    \"code_http\": 400,\n    \"successful\": false,\n    \"status\": \"missing_param\",\n    \"message_error\": \"Required parameter 'l18' was not sent.\",\n    \"account\": {\n        \"type\": \"خرید شده\",\n        \"exp",
+        "2026-07-23 10:14:28.389548"
+      ],
+      [
+        "Gold_Currency/cryptocurrency",
+        "success",
+        19,
+        null,
+        "2026-07-26 18:26:42.258577"
+      ],
+      [
+        "Gold_Currency/currency",
+        "success",
+        28,
+        null,
+        "2026-07-26 18:26:42.224579"
+      ],
+      [
+        "Gold_Currency/gold",
+        "success",
+        9,
+        null,
+        "2026-07-26 18:26:42.186582"
+      ],
+      [
+        "Gold_Currency_Pro/cryptocurrency",
+        "success",
+        19,
+        null,
+        "2026-07-23 22:11:36.617179"
+      ],
+      [
+        "Gold_Currency_Pro/currency",
+        "success",
+        71,
+        null,
+        "2026-07-23 22:11:36.484032"
+      ],
+      [
+        "Gold_Currency_Pro/gold",
+        "success",
+        24,
+        null,
+        "2026-07-23 22:11:36.407301"
+      ]
+    ],
+    "latest_snapshot_time": "2026-07-26 17:01:59.081909+00:00"
+  },
+  "brsapi_health": {
+    "error": ""
+  }
+}

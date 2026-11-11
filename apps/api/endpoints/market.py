@@ -5,6 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Path, Query
 
 from apps.api.dependencies import get_brsapi_query_service, get_market_service
+from core.agg_invalidation import AGG_TOKEN_KEY as _AGG_TOKEN_KEY
+from core.agg_invalidation import AGG_TOKEN_TTL as _AGG_TOKEN_TTL  # noqa: F401 — re-exported for the TTL invariant test
+from core.agg_invalidation import new_agg_token, publish_agg_token
+from core.currency import rial_to_toman_float
 from core.logging import get_logger
 from core.result import PaginatedResult
 from schemas.common.responses import ApiResponse
@@ -18,13 +22,30 @@ router = APIRouter()
 @router.get("/overview", summary="Market overview", description="Get overall market summary including indices and sector performance")
 async def market_overview(service: MarketService = Depends(get_market_service)) -> ApiResponse[dict[str, Any]]:
     result = await service.get_overview()
-    return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
+    data = result.value
+    data_as_of: str | None = None
+    if isinstance(data, dict):
+        # The service carries the snapshot timestamp inside the payload; the
+        # envelope is the contract consumers read (audit API-04).
+        data_as_of = data.pop("data_as_of", None)
+    return ApiResponse[dict[str, Any]](
+        success=result.success,
+        data=data,
+        data_as_of=data_as_of,
+        error={"message": result.error or "داده در دسترس نیست"} if not result.success else None,
+    )
 
 
 @router.get("/indices", summary="Market indices", description="Get latest index values (TSE, FaraBourse, etc.)")
 async def market_indices(service: MarketService = Depends(get_market_service)) -> ApiResponse[list[dict[str, Any]]]:
     result = await service.get_index_values()
-    return ApiResponse[list[dict[str, Any]]](success=result.success, data=result.value)
+    rows = result.value or []
+    return ApiResponse[list[dict[str, Any]]](
+        success=result.success,
+        data=rows,
+        data_as_of=_rows_data_as_of(rows) if result.success else None,
+        error={"message": result.error or "داده در دسترس نیست"} if not result.success else None,
+    )
 
 
 @router.get("/gainers", summary="Top gainers", description="Get top gaining symbols")
@@ -33,7 +54,11 @@ async def top_gainers(
     service: MarketService = Depends(get_market_service),
 ) -> ApiResponse[Any]:
     result = await service.get_top_gainers(limit)
-    return ApiResponse[Any](success=result.success, data=result.value)
+    return ApiResponse[Any](
+        success=result.success,
+        data=result.value,
+        error={"message": result.error or "داده در دسترس نیست"} if not result.success else None,
+    )
 
 
 @router.get("/losers", summary="Top losers", description="Get top losing symbols")
@@ -42,7 +67,11 @@ async def top_losers(
     service: MarketService = Depends(get_market_service),
 ) -> ApiResponse[Any]:
     result = await service.get_top_losers(limit)
-    return ApiResponse[Any](success=result.success, data=result.value)
+    return ApiResponse[Any](
+        success=result.success,
+        data=result.value,
+        error={"message": result.error or "داده در دسترس نیست"} if not result.success else None,
+    )
 
 
 @router.get("/active", summary="Most active", description="Get most actively traded symbols")
@@ -51,7 +80,11 @@ async def most_active(
     service: MarketService = Depends(get_market_service),
 ) -> ApiResponse[Any]:
     result = await service.get_most_active(limit)
-    return ApiResponse[Any](success=result.success, data=result.value)
+    return ApiResponse[Any](
+        success=result.success,
+        data=result.value,
+        error={"message": result.error or "داده در دسترس نیست"} if not result.success else None,
+    )
 
 
 @router.get("/watch", summary="Market watch", description="Get market watch list")
@@ -63,7 +96,11 @@ async def market_watch(
     # after building the whole table: fetching every row cost >10 minutes.
     result = await service.get_market_watch(limit=limit)
     if not result.success:
-        return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
+        return ApiResponse[PaginatedResult[Any]](
+            success=False,
+            data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),
+            error={"message": result.error or "داده در دسترس نیست"},
+        )
 
     items = result.value or []
     # Audit API-005: the full market-watch table used to be serialized on
@@ -77,7 +114,8 @@ async def market_watch(
             page=1,
             page_size=len(items),
             total_pages=1,
-        )
+        ),
+        data_as_of=_rows_data_as_of(items),
     )
 
 
@@ -85,8 +123,12 @@ async def market_watch(
 async def get_bourse(service: MarketService = Depends(get_market_service)) -> ApiResponse[PaginatedResult[Any]]:
     result = await service.get_instruments_by_market("BOURS")
     if not result.success:
-        return ApiResponse[PaginatedResult[Any]](success=False, data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1))
-    items = result.value
+        return ApiResponse[PaginatedResult[Any]](
+            success=False,
+            data=PaginatedResult(items=[], total=0, page=1, page_size=50, total_pages=1),
+            error={"message": result.error or "داده در دسترس نیست"},
+        )
+    items = result.value or []
     items.sort(key=lambda x: x.symbol or "")
     return ApiResponse[PaginatedResult[Any]](
         success=True,
@@ -103,7 +145,11 @@ async def get_bourse(service: MarketService = Depends(get_market_service)) -> Ap
 @router.get("/energy-commodity", summary="Energy & Commodity", description="List energy and commodity instruments")
 async def get_energy_commodity(service: MarketService = Depends(get_market_service)) -> ApiResponse[dict[str, Any]]:
     result = await service.get_energy_commodity_summary()
-    return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
+    return ApiResponse[dict[str, Any]](
+        success=result.success,
+        data=result.value,
+        error={"message": result.error or "داده در دسترس نیست"} if not result.success else None,
+    )
 
 
 @router.get("/heatmap", summary="Market heatmap", description="Symbol heatmap data for visualisation")
@@ -111,20 +157,30 @@ async def market_heatmap(
     brsapi=Depends(get_brsapi_query_service),
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
+        # Freshness is derived from the rows actually returned, not from a
+        # second raw query: the envelope must describe *this* payload.
         snapshots = await brsapi.get_latest_snapshots(limit=100)
+        data_as_of = _rows_data_as_of(snapshots)
         cells = [
             {
                 "symbol": s.get("symbol", ""),
                 "name": s.get("name", ""),
                 "change": s.get("price_last_change_pct", 0) or 0,
                 "value": s.get("trade_value", 0) or 0,
+                "value_toman": rial_to_toman_float(s.get("trade_value") or 0),
                 "volume": s.get("trade_volume", 0) or 0,
                 "price": s.get("price_last", 0) or 0,
+                "price_toman": rial_to_toman_float(s.get("price_last") or 0),
+                "currency": "TMN",
             }
             for s in snapshots if s.get("symbol")
         ]
         cells.sort(key=lambda x: abs(x["change"]), reverse=True)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
+        if not cells:
+            return ApiResponse[list[dict[str, Any]]](
+                success=False, data=[], error={"message": "No snapshot data available"}, data_as_of=data_as_of
+            )
+        return ApiResponse[list[dict[str, Any]]](success=True, data=cells, data_as_of=data_as_of, cache_hit=False)
     except Exception as exc:
         logger.exception("Market heatmap failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -223,9 +279,11 @@ async def market_sparklines(
     try:
         sym_list = [s.strip() for s in symbols.split(",") if s.strip()]
         result = await service.get_batch_sparklines(sym_list, limit)
+        # Fix: success must match result.success, not always True
         return ApiResponse[dict[str, list[float]]](
-            success=True,
+            success=result.success,
             data=result.value if result.success else {},
+            error={"message": result.error} if not result.success else None,
         )
     except Exception as exc:
         logger.exception("Market sparklines failed")
@@ -238,23 +296,30 @@ async def market_sparklines(
 
 @router.get("/enriched-heatmap", summary="Enriched market heatmap", description="Symbol heatmap data enriched with price thresholds, free float, sector info")
 async def market_enriched_heatmap(
+    limit: int = Query(500, ge=50, le=5000),
     brsapi=Depends(get_brsapi_query_service),
 ) -> ApiResponse[list[dict[str, Any]]]:
     try:
-        cached = _agg_cache_get("enriched-heatmap:500")
+        cache_key = f"enriched-heatmap:{limit}"
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
-            return ApiResponse[list[dict[str, Any]]](success=True, data=cached)
-        enriched = await brsapi.get_enriched_snapshots(limit=500)
+            return ApiResponse[list[dict[str, Any]]](success=True, data=cached, data_as_of=cached_as_of, cache_hit=True)
+        enriched = await brsapi.get_enriched_snapshots(limit=limit)
         cells = [
             {
                 "symbol": s.get("symbol", ""),
                 "name": s.get("name", ""),
                 "change": s.get("price_last_change_pct", 0) or 0,
                 "value": s.get("trade_value", 0) or 0,
+                "value_toman": rial_to_toman_float(s.get("trade_value") or 0),
                 "volume": s.get("trade_volume", 0) or 0,
                 "price": s.get("price_last", 0) or 0,
+                "price_toman": rial_to_toman_float(s.get("price_last") or 0),
                 "priceLowestAllowed": s.get("price_lowest_allowed", 0) or 0,
+                "priceLowestAllowedToman": rial_to_toman_float(s.get("price_lowest_allowed") or 0),
                 "priceHighestAllowed": s.get("price_highest_allowed", 0) or 0,
+                "priceHighestAllowedToman": rial_to_toman_float(s.get("price_highest_allowed") or 0),
+                "currency": "TMN",
                 "freeFloatPct": s.get("free_float_pct", 0) or 0,
                 "eps": s.get("eps", 0) or 0,
                 "peRatio": s.get("pe_ratio", 0) or 0,
@@ -262,11 +327,13 @@ async def market_enriched_heatmap(
                 "sector": s.get("sector", ""),
                 "market": s.get("market", ""),
                 "board": s.get("board", ""),
+                "fetched_at": s.get("fetched_at"),
             }
             for s in enriched if s.get("symbol")
         ]
-        _agg_cache_set("enriched-heatmap:500", cells)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=cells)
+        as_of = _rows_data_as_of(enriched)
+        _agg_cache_set(cache_key, cells, as_of=as_of)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=cells, data_as_of=as_of, cache_hit=False)
     except Exception as exc:
         logger.exception("Enriched heatmap failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -282,9 +349,11 @@ async def market_treemap(
         from collections import defaultdict
 
         cache_key = f"treemap:{limit}"
-        cached = _agg_cache_get(cache_key)
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
-            return ApiResponse[dict[str, Any]](success=True, data={"children": cached})
+            return ApiResponse[dict[str, Any]](
+                success=True, data={"children": cached}, data_as_of=cached_as_of, cache_hit=True
+            )
         enriched = await brsapi.get_enriched_snapshots(limit=limit)
 
         # Group by sector
@@ -301,12 +370,14 @@ async def market_treemap(
                 "size": max(trade_value, 1),  # Minimum size for dormant symbols
                 "change": round(s.get("price_last_change_pct", 0) or 0, 2),
                 "price": s.get("price_last", 0) or 0,
+                "price_toman": rial_to_toman_float(s.get("price_last") or 0),
                 "volume": s.get("trade_volume", 0) or 0,
                 "eps": s.get("eps", 0) or 0,
                 "peRatio": s.get("pe_ratio", 0) or 0,
                 "freeFloatPct": s.get("free_float_pct", 0) or 0,
                 "state": s.get("state", ""),
                 "sector": sector,
+                "fetched_at": s.get("fetched_at"),
             })
 
         # Sort sectors by total trade value
@@ -320,10 +391,13 @@ async def market_treemap(
                 "children": symbols,
             })
 
-        _agg_cache_set(cache_key, children)
+        as_of = _rows_data_as_of(enriched)
+        _agg_cache_set(cache_key, children, as_of=as_of)
         return ApiResponse[dict[str, Any]](
             success=True,
             data={"children": children},
+            data_as_of=as_of,
+            cache_hit=False,
         )
     except Exception as exc:
         logger.exception("Market treemap failed")
@@ -354,6 +428,13 @@ async def market_flow_summary(
         # Plain snapshots (no heavy detail JOIN) — flow math only needs
         # fields that already live on SymbolSnapshotModel.
         snapshots = await brsapi.get_latest_snapshots(limit=limit)
+        if not snapshots:
+            return ApiResponse[dict[str, Any]](
+                success=False,
+                data={},
+                error={"message": "No snapshot data available"},
+            )
+        data_as_of = _rows_data_as_of(snapshots)
         real_net = 0.0
         legal_net = 0.0
         queue_buy = 0
@@ -381,6 +462,7 @@ async def market_flow_summary(
                 "queue_buy": queue_buy,
                 "queue_sell": queue_sell,
             },
+            data_as_of=data_as_of,
         )
     except Exception as exc:
         logger.exception("Market flow summary failed")
@@ -411,7 +493,7 @@ async def market_flow_history(
             await brsapi.session.execute(select(func.max(HistoricalRealLegalModel.date)))
         ).scalar_one_or_none()
         if not latest_date:
-            return ApiResponse[dict[str, Any] | list[dict[str, Any]]](success=True, data=[])  # type: ignore[arg-type]
+            return ApiResponse[list[dict[str, Any]]](success=True, data=[])
 
         stmt = (
             select(HistoricalRealLegalModel)
@@ -431,7 +513,11 @@ async def market_flow_history(
                 "legal_net_b": round(legal_net / 1e9, 1),
             })
         flows.sort(key=lambda x: abs(x["real_net_b"]), reverse=True)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=flows[:limit])
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=flows[:limit],
+            data_as_of=_newest_created_at(r.created_at for r in rows),
+        )
     except Exception as exc:
         logger.exception("Market flow history failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -451,7 +537,11 @@ async def market_index_history(
     try:
         rows = await brsapi.get_index_history(name, limit=limit)
         rows.reverse()  # oldest-first for charting
-        return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=rows,
+            data_as_of=_rows_data_as_of(rows),
+        )
     except Exception as exc:
         logger.exception("Index history failed for %s", name)
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -494,27 +584,150 @@ def _classify_asset(name: str) -> str | None:
 # aggregates below cache their result briefly: a 5-minute TTL keeps
 # numbers fresh without re-running the aggregation on every widget poll
 # (and shields the DB when several clients hit the widgets at once).
-_AGG_CACHE: dict[str, tuple[float, Any]] = {}
+_AGG_CACHE: dict[str, tuple[float, Any, str | None]] = {}
 _AGG_TTL = 300.0  # seconds
 
+# Cross-process invalidation (audit API-03). The sync worker runs in its own
+# container, so clearing this process's dict never reached the API workers:
+# their copies survived the whole TTL after a fresh snapshot landed. Instead,
+# an invalidation publishes a generation token to L2 (Redis); each API process
+# drops its local entries as soon as it observes a different token. When Redis
+# is unavailable the cache degrades to the local TTL — never to an error.
+# The token key/TTL and publication helper live in core.agg_invalidation so the
+# sync worker can invalidate without importing the API (AUD-ARCH-01).
+# One L2 read per process per interval: polling widgets must not pay a Redis
+# round-trip on every request, and a 5s propagation delay is well below the
+# 5-minute TTL it protects.
+_AGG_TOKEN_CHECK_INTERVAL = 5.0
+_agg_local_token: str | None = None
+_agg_token_checked_at: float = 0.0
+_agg_publish_tasks: set[Any] = set()
 
-def _agg_cache_get(key: str) -> Any | None:
+
+async def _read_shared_token() -> str | None:
+    """Current L2 generation token, or ``None`` when Redis cannot answer."""
+    from core.cache_manager import get_cache_manager
+
+    try:
+        token = await get_cache_manager().get(_AGG_TOKEN_KEY)
+    except Exception:  # noqa: BLE001 — the cache must never fail a request
+        logger.debug("aggregate-cache token read failed", exc_info=True)
+        return None
+    return token if isinstance(token, str) else None
+
+
+async def _refresh_shared_token(*, force: bool = False) -> None:
+    """Adopt a newer generation token, dropping entries another process killed."""
+    global _agg_local_token, _agg_token_checked_at
     import time
 
+    now = time.monotonic()
+    if not force and now - _agg_token_checked_at < _AGG_TOKEN_CHECK_INTERVAL:
+        return
+    token = await _read_shared_token()
+    # Throttle even a failed read: a dead Redis must not add latency (or a
+    # retry storm) to every widget poll.
+    _agg_token_checked_at = now
+    if token is not None and token != _agg_local_token:
+        _AGG_CACHE.clear()
+        _agg_local_token = token
+
+
+async def publish_agg_invalidation(token: str | None = None) -> str:
+    """Publish a generation token to L2 so every API process drops its cache."""
+    global _agg_local_token, _agg_token_checked_at
+    import time
+
+    token = token or new_agg_token()
+    _agg_local_token = token
+    _agg_token_checked_at = time.monotonic()
+    try:
+        await publish_agg_token(token)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "aggregate-cache token publish failed — other workers keep their "
+            "cached aggregates until the L2 TTL (audit API-03)",
+            exc_info=True,
+        )
+    return token
+
+
+def _rows_data_as_of(rows: list[dict[str, Any]] | None) -> str | None:
+    """Return the newest ``fetched_at`` carried by *rows* (ISO-8601), if any.
+
+    This is the source-data timestamp, not the response build time: serving a
+    cached snapshot must not make it look freshly fetched.
+    """
+    from core.freshness import newest_fetched_at
+
+    return newest_fetched_at(rows)
+
+
+def _newest_created_at(values: Any) -> str | None:
+    """Newest DB write time among *values* (ORM columns), as ISO-8601 text.
+
+    Daily-history tables carry a Jalali market ``date`` (not an instant) and a
+    ``created_at`` stamp; the latter is the only honest source timestamp the
+    envelope can publish for them.
+    """
+    latest: str | None = None
+    for value in values:
+        if value is None:
+            continue
+        text = value.isoformat() if hasattr(value, "isoformat") else str(value)
+        if latest is None or text > latest:
+            latest = text
+    return latest
+
+
+async def _agg_cache_get(key: str) -> tuple[Any | None, str | None]:
+    """Return ``(value, data_as_of)`` for a fresh hit, else ``(None, None)``."""
+    import time
+
+    await _refresh_shared_token()
     hit = _AGG_CACHE.get(key)
     if hit and (time.monotonic() - hit[0]) < _AGG_TTL:
-        return hit[1]
-    return None
+        return hit[1], hit[2]
+    return None, None
 
 
-def _agg_cache_set(key: str, val: Any) -> None:
+def _agg_cache_set(key: str, val: Any, as_of: str | None = None) -> None:
     import time
 
-    _AGG_CACHE[key] = (time.monotonic(), val)
+    _AGG_CACHE[key] = (time.monotonic(), val, as_of)
     # Bound the cache (only a few keys exist, but stay defensive).
     while len(_AGG_CACHE) > 8:
         oldest = min(_AGG_CACHE, key=lambda k: _AGG_CACHE[k][0])
         del _AGG_CACHE[oldest]
+
+
+def invalidate_agg_cache() -> None:
+    """Drop every cached aggregate here and tell the other processes to do the same.
+
+    A local ``clear()`` alone only reached the process that ran the sync; the
+    generation token in L2 is what reaches the other API containers (API-03).
+    """
+    import asyncio
+
+    global _agg_local_token
+
+    _AGG_CACHE.clear()
+    token = new_agg_token()
+    _agg_local_token = token
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop (CLI/test/direct call): the local clear is all that can
+        # be done synchronously; there is no loop to publish the token on.
+        logger.debug(
+            "aggregate cache cleared outside an event loop — L2 token not published"
+        )
+        return
+    task = loop.create_task(publish_agg_invalidation(token))
+    # Keep a strong reference until the task finishes: a fire-and-forget task
+    # may otherwise be garbage-collected before it writes to Redis.
+    _agg_publish_tasks.add(task)
+    task.add_done_callback(_agg_publish_tasks.discard)
 
 
 def _fa_weekday(date_str: str) -> str:
@@ -561,12 +774,14 @@ async def market_asset_allocation(
     computed server-side; the frontend renders the donut directly.
     """
     try:
-        cached = _agg_cache_get("asset-allocation")
+        cache_key = f"asset-allocation:{limit}"
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
-            return ApiResponse[list[dict[str, Any]]](success=True, data=cached)
+            return ApiResponse[list[dict[str, Any]]](success=True, data=cached, data_as_of=cached_as_of, cache_hit=True)
         # Plain snapshots (no heavy detail JOIN) — classification and
         # market_value both come from SymbolSnapshotModel itself.
         snapshots = await brsapi.get_latest_snapshots(limit=limit)
+        as_of = _rows_data_as_of(snapshots)
         buckets: dict[str, float] = {}
         for s in snapshots:
             mv = s.get("market_value") or 0
@@ -576,8 +791,8 @@ async def market_asset_allocation(
             buckets[cls] = buckets.get(cls, 0.0) + mv
         total = sum(buckets.values())
         if total <= 0:
-            return ApiResponse[list[dict[str, Any]]](success=True, data=[])
-        rows = [
+            return ApiResponse[list[dict[str, Any]]](success=True, data=[], data_as_of=as_of, cache_hit=False)
+        rows: list[dict[str, Any]] = [
             {
                 "label": label,
                 "value_b": round(net / 1e12, 0),  # هزار میلیارد تومان
@@ -586,8 +801,8 @@ async def market_asset_allocation(
             for label, net in buckets.items()
         ]
         rows.sort(key=lambda x: x["value_b"], reverse=True)
-        _agg_cache_set("asset-allocation", rows)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+        _agg_cache_set(cache_key, rows, as_of=as_of)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=rows, data_as_of=as_of, cache_hit=False)
     except Exception as exc:
         logger.exception("Asset allocation failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -605,12 +820,14 @@ async def market_cashflow_by_sector(
 ) -> ApiResponse[list[dict[str, Any]]]:
     """Per-sector net real flow: (buy_real_volume − sell_real_volume) × price_last."""
     try:
-        cached = _agg_cache_get("cashflow-by-sector")
+        cache_key = f"cashflow-by-sector:{limit}"
+        cached, cached_as_of = await _agg_cache_get(cache_key)
         if cached is not None:
-            return ApiResponse[list[dict[str, Any]]](success=True, data=cached)
+            return ApiResponse[list[dict[str, Any]]](success=True, data=cached, data_as_of=cached_as_of, cache_hit=True)
         # Plain snapshots (no heavy detail JOIN) — sector/flow fields are
         # already on SymbolSnapshotModel.
         snapshots = await brsapi.get_latest_snapshots(limit=limit)
+        as_of = _rows_data_as_of(snapshots)
         sectors: dict[str, float] = {}
         for s in snapshots:
             price = s.get("price_last") or 0
@@ -620,14 +837,14 @@ async def market_cashflow_by_sector(
                 continue
             sector = (s.get("sector") or "").strip() or "سایر"
             sectors[sector] = sectors.get(sector, 0.0) + (brv - srv) * price
-        rows = [
+        rows: list[dict[str, Any]] = [
             {"name": name, "value_b": round(net / 1e9, 1)}
             for name, net in sectors.items()
         ]
         rows.sort(key=lambda x: x["value_b"], reverse=True)
         rows = rows[:20]
-        _agg_cache_set("cashflow-by-sector", rows)
-        return ApiResponse[list[dict[str, Any]]](success=True, data=rows)
+        _agg_cache_set(cache_key, rows, as_of=as_of)
+        return ApiResponse[list[dict[str, Any]]](success=True, data=rows, data_as_of=as_of, cache_hit=False)
     except Exception as exc:
         logger.exception("Cashflow by sector failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -664,6 +881,7 @@ async def market_value_history(
             select(
                 HistoricalDailyModel.date,
                 func.sum(HistoricalDailyModel.trade_value).label("total_value"),
+                func.max(HistoricalDailyModel.created_at).label("created_at"),
             )
             .where(HistoricalDailyModel.date.in_(latest_dates))
             .group_by(HistoricalDailyModel.date)
@@ -678,7 +896,11 @@ async def market_value_history(
                 "day": _fa_weekday(r.date),
                 "value_b": round((r.total_value or 0) / 1e9, 0),
             })
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=data,
+            data_as_of=_newest_created_at(r.created_at for r in rows),
+        )
     except Exception as exc:
         logger.exception("Market value history failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})
@@ -717,6 +939,7 @@ async def market_ownership_history(
                 func.sum(HistoricalRealLegalModel.sell_real_value).label("real_sell"),
                 func.sum(HistoricalRealLegalModel.buy_legal_value).label("legal_buy"),
                 func.sum(HistoricalRealLegalModel.sell_legal_value).label("legal_sell"),
+                func.max(HistoricalRealLegalModel.created_at).label("created_at"),
             )
             .where(HistoricalRealLegalModel.date.in_(latest_dates))
             .group_by(HistoricalRealLegalModel.date)
@@ -732,7 +955,11 @@ async def market_ownership_history(
                 "real_b": round(((r.real_buy or 0) - (r.real_sell or 0)) / 1e9, 1),
                 "legal_b": round(((r.legal_buy or 0) - (r.legal_sell or 0)) / 1e9, 1),
             })
-        return ApiResponse[list[dict[str, Any]]](success=True, data=data)
+        return ApiResponse[list[dict[str, Any]]](
+            success=True,
+            data=data,
+            data_as_of=_newest_created_at(r.created_at for r in rows),
+        )
     except Exception as exc:
         logger.exception("Market ownership history failed")
         return ApiResponse[list[dict[str, Any]]](success=False, data=[], error={"message": str(exc)})

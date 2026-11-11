@@ -54,7 +54,7 @@ class ProfessionalAuditWorkflow:
     ISA 570: Going Concern
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.analytical_thresholds = {
             "revenue_growth": {"expected": 0.10, "threshold": 0.05},
             "gross_margin": {"expected": 0.25, "threshold": 0.08},
@@ -237,7 +237,7 @@ class AnalyticalReview:
         )
 
     def substantive_analytical_procedure(self, snap: FinancialSnapshot, prev: FinancialSnapshot | None) -> list[AnalyticalProcedureResult]:
-        results = []
+        results: list[AnalyticalProcedureResult] = []
         if not prev:
             return results
         for line_item, field_name in [

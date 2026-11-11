@@ -15,11 +15,28 @@
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as funds_api_router
 from .constants import DISCLAIMER_API
+
+_ENV = os.environ.get("SANDOOGHYAR_ENV", "development").strip().lower()
+if _ENV in {"production", "staging"} and not os.environ.get("SANDOOGHYAR_JWT_SECRET", "").strip():
+    raise RuntimeError(
+        "SANDOOGHYAR_JWT_SECRET must be set in production/staging — "
+        "auth.py otherwise generates a random per-process signing key"
+    )
+
+_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("SANDOOGHYAR_CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if _ENV in {"production", "staging"} and not _ORIGINS:
+    raise RuntimeError("SANDOOGHYAR_CORS_ORIGINS must list the allowed origins")
 
 app = FastAPI(
     title="Sandooghyar — پایش هوشمند صندوق‌های سرمایه‌گذاری ایران",
@@ -31,8 +48,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_ORIGINS or ["*"],
+    allow_credentials=bool(_ORIGINS),
     allow_methods=["*"],
     allow_headers=["*"],
 )

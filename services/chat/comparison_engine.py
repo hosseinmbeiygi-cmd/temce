@@ -12,7 +12,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.logging import get_logger
 from services.chat.chart_generator import ChartGenerator
+
+logger = get_logger(__name__)
 from services.chat.news_integration import NewsIntegration
 
 
@@ -258,7 +261,8 @@ class ComparisonEngine:
                     result[sym] = analysis.get("summary", "اخباری موجود نیست")[:150]
                 else:
                     result[sym] = "بدون خبر جدید"
-            except Exception:
+            except Exception as exc:  # boundary: news service failure degrades one symbol
+                logger.warning("news context unavailable for %s: %s", sym, exc)
                 result[sym] = "خطا در دریافت خبر"
         return result
 
@@ -280,7 +284,8 @@ class ComparisonEngine:
                 }
 
             return self._chart_gen.generate_comparison_chart(symbols, scores_dict)
-        except Exception:
+        except (KeyError, TypeError, ValueError, ZeroDivisionError, RuntimeError) as exc:
+            logger.debug("comparison chart generation failed: %s", exc)
             return None
 
     @staticmethod

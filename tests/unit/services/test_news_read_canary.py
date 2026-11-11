@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 from sqlalchemy import text
@@ -44,14 +44,14 @@ def _engine():
 
 class TestDecisions:
     def test_normalize_mode(self):
-        from services.news_read_canary import normalize_mode
+        from core.news_read_canary import normalize_mode
 
         assert normalize_mode("SHADOW") == "shadow"
         assert normalize_mode("junk") == "off"
         assert normalize_mode(None) == "off"
 
     def test_off_and_full(self):
-        from services.news_read_canary import decide
+        from core.news_read_canary import decide
 
         off = decide("off", "k")
         assert off.serve_legacy and not off.serve_items and not off.shadow
@@ -59,13 +59,13 @@ class TestDecisions:
         assert full.serve_items and not full.serve_legacy and not full.shadow
 
     def test_shadow_probes(self):
-        from services.news_read_canary import decide
+        from core.news_read_canary import decide
 
         d = decide("shadow", "k")
         assert d.serve_legacy and d.shadow and not d.serve_items
 
     def test_canary_slice_deterministic(self):
-        from services.news_read_canary import _canary_bucket, decide
+        from core.news_read_canary import _canary_bucket, decide
 
         assert all(_canary_bucket(f"r{i}", 100) for i in range(50))
         assert not any(_canary_bucket(f"r{i}", 0) for i in range(50))
@@ -76,7 +76,7 @@ class TestDecisions:
         assert a.serve_items == b.serve_items
 
     def test_canary_fraction_roughly_honored(self):
-        from services.news_read_canary import _canary_bucket
+        from core.news_read_canary import _canary_bucket
 
         inside = sum(_canary_bucket(f"r{i}", 25) for i in range(1000))
         assert 150 < inside < 350  # ~25% ± noise
@@ -103,7 +103,7 @@ class _Page:
 class TestParity:
     @pytest.mark.asyncio
     async def test_prefix_insensitive_match(self):
-        from services.news_read_canary import compare_page
+        from core.news_read_canary import compare_page
 
         legacy = _Page(["news_a", "news_b"], 2)
         items = _Page(["ni_a", "ni_b"], 2)
@@ -111,19 +111,19 @@ class TestParity:
 
     @pytest.mark.asyncio
     async def test_total_mismatch_diverges(self):
-        from services.news_read_canary import compare_page
+        from core.news_read_canary import compare_page
 
         assert not await compare_page(_Page(["news_a"], 1), _Page(["ni_a"], 2))
 
     @pytest.mark.asyncio
     async def test_order_mismatch_diverges(self):
-        from services.news_read_canary import compare_page
+        from core.news_read_canary import compare_page
 
         assert not await compare_page(_Page(["news_a", "news_b"], 2), _Page(["ni_b", "ni_a"], 2))
 
     @pytest.mark.asyncio
     async def test_none_probed_diverges(self):
-        from services.news_read_canary import compare_page
+        from core.news_read_canary import compare_page
 
         assert not await compare_page(_Page(["news_a"], 1), None)
 
@@ -131,15 +131,16 @@ class TestParity:
 # ── DB-backed shadow routing ─────────────────────────────────────────────
 
 
+@pytest.mark.needs_db
 class TestShadowRouting:
     @pytest.mark.asyncio
     async def test_shadow_serves_legacy_and_counts(self, monkeypatch):
         eng = _engine()
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
+        from core import news_read_canary as canary
         from core.config import settings as real_settings
         from repositories.news_repository import NewsRepository
-        from services import news_read_canary as canary
 
         marker = f"{_MARK}_{uuid.uuid4().hex[:8]}"
         maker = async_sessionmaker(eng, expire_on_commit=False)
@@ -153,20 +154,20 @@ class TestShadowRouting:
                         "INSERT INTO news_articles (id, title, source, url, category, published_at, published_at_ts, created_at) "
                         "VALUES (:i, :t, :s, :u, 'market', :p, :pts, now())"
                     ),
-                    dict(i=f"news_{marker}", t=f"{marker} legacy", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", p="2026-09-10T08:00:00+00:00",
-                         pts=datetime(2026, 9, 10, 8, 0)),
+                    {"i": f"news_{marker}", "t": f"{marker} legacy", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "p": "2026-09-10T08:00:00+00:00",
+                         "pts": datetime(2026, 9, 10, 8, 0)},
                 )
                 res = await session.execute(
                     text(
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, :p, 'market', :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} legacy", b="b", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", p=datetime(2026, 9, 10, 8, 0),
-                         h=f"hash_{marker}"),
+                    {"t": f"{marker} legacy", "b": "b", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "p": datetime(2026, 9, 10, 8, 0),
+                         "h": f"hash_{marker}"},
                 )
-                item_id = res.scalar_one()
+                res.scalar_one()
                 await session.commit()
 
                 monkeypatch.setattr(real_settings, "news_read_mode", "shadow", raising=False)
@@ -221,9 +222,9 @@ class TestShadowRouting:
                         "INSERT INTO news_items (title, body, source, source_url, published_at, category, dedup_hash) "
                         "VALUES (:t, :b, :s, :u, :p, 'market', :h) RETURNING id"
                     ),
-                    dict(t=f"{marker} t", b="b", s=f"{marker}src",
-                         u=f"https://x.test/{marker}", p=datetime(2026, 9, 10, 8, 0),
-                         h=f"hash_{marker}"),
+                    {"t": f"{marker} t", "b": "b", "s": f"{marker}src",
+                         "u": f"https://x.test/{marker}", "p": datetime(2026, 9, 10, 8, 0),
+                         "h": f"hash_{marker}"},
                 )
                 item_id = res.scalar_one()
                 await session.commit()
@@ -248,7 +249,7 @@ class TestShadowRouting:
 class TestAutoHalt:
     @pytest.mark.asyncio
     async def test_below_floor_halts(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
         # 20 true divergences (regressions) — regression parity = 80% < 99% floor.
@@ -272,7 +273,7 @@ class TestAutoHalt:
 
     @pytest.mark.asyncio
     async def test_disabled_halter_never_halts(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         canary._mem_counters.update({"compared": 100, "parity_ok": 10, "parity_divergent": 90})
         from core.config import settings as real_settings
@@ -285,7 +286,7 @@ class TestAutoHalt:
 
     @pytest.mark.asyncio
     async def test_not_enough_samples_no_judgement(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         canary._mem_counters.update({"compared": 10, "parity_ok": 0, "parity_divergent": 10})
         from core.config import settings as real_settings
@@ -304,7 +305,7 @@ class TestAutoHalt:
         requests never produce pages to compare). The halter must trip on
         the HTTP error rate alone, WITHOUT meeting the parity min-samples
         gate."""
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
         # zero parity traffic; 120 http outcomes, 40 of them 5xx (33% > 20%)
@@ -331,7 +332,7 @@ class TestAutoHalt:
 
     @pytest.mark.asyncio
     async def test_http_error_burst_below_threshold_no_halt(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
         # 200 outcomes, 4x 5xx (2% < 20%)
@@ -355,7 +356,7 @@ class TestAutoHalt:
 
     @pytest.mark.asyncio
     async def test_http_error_disabled_never_halts(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         monkeypatch.setattr(canary, "_mem_counters", dict(canary._mem_counters))
         canary._mem_counters.update({"http_total": 500, "http_5xx": 400})
@@ -374,7 +375,7 @@ class TestAutoHalt:
 class TestHttpOutcomeCounting:
     @pytest.mark.asyncio
     async def test_record_http_outcome_counts_news_only(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         # Start from an empty dict, not a copy: the middleware records real HTTP
         # outcomes for every news request the earlier tests in this file make, so a
@@ -394,7 +395,7 @@ class TestHttpOutcomeCounting:
 
     @pytest.mark.asyncio
     async def test_window_stats_exposes_http_fields(self, monkeypatch):
-        from services import news_read_canary as canary
+        from core import news_read_canary as canary
 
         monkeypatch.setattr(canary, "_mem_counters", {})
         await canary.record_http_outcome("/api/v1/news", 200)
@@ -411,9 +412,9 @@ class TestHttpOutcomeCounting:
 class TestJobAndEndpoint:
     @pytest.mark.asyncio
     async def test_halter_job_runs(self):
-        from jobs.job_context import JobContext
+        from core import news_read_canary as canary
         from jobs.definitions.news_jobs import NewsReadPathHalterJob
-        from services import news_read_canary as canary
+        from jobs.job_context import JobContext
 
         canary._mem_counters.clear()
         job = NewsReadPathHalterJob()
@@ -460,6 +461,7 @@ def _ctx_kwargs() -> dict:
     """JobContext kwargs — built dynamically so signature changes surface
     as a clear TypeError instead of a stale fixture."""
     import inspect
+
     from jobs.job_context import JobContext
 
     sig = inspect.signature(JobContext)

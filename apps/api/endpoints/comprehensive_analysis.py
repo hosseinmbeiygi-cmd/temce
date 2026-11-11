@@ -372,7 +372,7 @@ async def comprehensive_analysis(
         }
 
         # ── 6. CATALYSTS & RISKS ──
-        catalysts = {
+        catalysts: dict[str, Any] = {
             "recent_announcements": [
                 {
                     "title": a.get("title", ""),
@@ -416,8 +416,9 @@ async def comprehensive_analysis(
 
         # ── Dashboard Summary ──
         signal = "buy" if rsi and rsi < 30 else "sell" if rsi and rsi > 70 else "hold"
-        if macd.get("signal_type") != "neutral" and rsi and rsi < 50:
-            signal = macd.get("signal_type")
+        macd_signal = macd.get("signal_type")
+        if macd_signal != "neutral" and rsi and rsi < 50:
+            signal = str(macd_signal)
 
         dashboard = {
             "signal": signal,

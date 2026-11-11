@@ -14,8 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select
-
+from core.database import select
 from core.logging import get_logger
 from models.news import NewsArticleModel
 from models.stock_enterprise import StockNewsSentimentModel

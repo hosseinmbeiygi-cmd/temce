@@ -34,24 +34,69 @@ if sys.platform == "win32":
 def app() -> FastAPI:
     """Create the FastAPI application for testing."""
     from apps.api.app import create_app
+    from core.config import settings
+
+    # Set environment to "test" so RateLimitMiddleware skips all rate limiting.
+    # The settings object is mutable; we restore after tests via module-level teardown.
+    _orig_env = settings.environment
+    settings.environment = "test"
 
     application = create_app()
 
-    # Override auth dependency to allow unauthenticated access
-    async def _mock_optional_user(authorization: str = "") -> dict | None:
-        return None
+    # Override get_current_user to return a fully-authenticated user dict so
+    # all role-gated endpoints pass without a real JWT or Redis session check.
+    from apps.api.dependencies import get_current_user
 
-    application.dependency_overrides.clear()
+    async def _mock_authenticated_user():
+        return {"sub": "test-backtest-user", "roles": ["user", "analyst", "admin"]}
 
-    return application
+    application.dependency_overrides[get_current_user] = _mock_authenticated_user
+
+    yield application
+
+    settings.environment = _orig_env
+
+
+@pytest.fixture(scope="module")
+def _integration_token() -> str:
+    """Create a valid JWT for integration tests that need to pass SecurityMiddleware."""
+    from core.security.tokens import create_access_token
+    return create_access_token({"sub": "test-backtest-user", "roles": ["user", "analyst", "admin"]})
 
 
 @pytest.fixture
-async def client(app: FastAPI) -> AsyncClient:
-    """Provide an async test client."""
+async def client(app: FastAPI, _integration_token: str) -> AsyncClient:
+    """Provide an async test client with auth headers."""
+    headers = {"Authorization": f"Bearer {_integration_token}"}
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="http://test", headers=headers) as ac:
         yield ac
+
+
+def _make_synthetic_bars(symbol: str, n: int = 200) -> list[dict]:
+    """Generate synthetic OHLCV bars for integration testing (no real DB needed)."""
+    import math
+    from datetime import date, timedelta
+
+    bars = []
+    today = date.today()
+    price = 1000.0
+    for i in range(n):
+        d = today - timedelta(days=n - i)
+        price *= 1 + 0.001 * math.sin(i * 0.3)
+        bars.append({
+            "date": d.isoformat(),
+            "date_shamsi": None,
+            "timestamp": d.isoformat() + "T09:00:00",
+            "instrument_id": symbol,
+            "open": round(price * 0.998, 2),
+            "high": round(price * 1.005, 2),
+            "low": round(price * 0.995, 2),
+            "close": round(price, 2),
+            "volume": 100_000.0,
+            "value": round(price * 100_000, 2),
+        })
+    return bars
 
 
 @pytest.fixture(autouse=True)
@@ -62,6 +107,8 @@ def _override_backtest_service(app: FastAPI):
     Uses ``app.dependency_overrides`` instead of ``@patch`` to bypass
     the ``@lru_cache`` decorator on ``get_backtest_service()``.
     """
+    from unittest.mock import patch
+
     from apps.api.dependencies import get_backtest_service
     from repositories.backtest_repository import BacktestRepository
     from services.backtest_service import BacktestService
@@ -75,7 +122,14 @@ def _override_backtest_service(app: FastAPI):
 
     svc = BacktestService(repository=mock_repo)
     app.dependency_overrides[get_backtest_service] = lambda: svc
-    yield
+
+    # Patch _load_historical_data so integration tests don't need a real DB
+    async def _synthetic_data(self, symbol: str, start, end, source: str = "auto"):
+        return _make_synthetic_bars(symbol, n=250)
+
+    with patch.object(BacktestService, "_load_historical_data", _synthetic_data):
+        yield
+
     app.dependency_overrides.pop(get_backtest_service, None)
 
 

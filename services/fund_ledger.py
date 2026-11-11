@@ -14,9 +14,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, text
 from core.logging import get_logger
 from services.fund_read_through import StaleResult
 

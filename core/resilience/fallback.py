@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from core.logging import get_logger
 
@@ -9,7 +9,7 @@ T = TypeVar("T")
 logger = get_logger(__name__)
 
 
-class FallbackHandler:
+class FallbackHandler(Generic[T]):
     def __init__(self) -> None:
         self._fallbacks: dict[str, Callable[[], T]] = {}
 
@@ -32,14 +32,14 @@ class FallbackHandler:
 
     async def execute_async(self, name: str, primary: Callable) -> Any:
         try:
-            return await primary()
+            return await cast(Any, primary())
         except Exception as e:
             logger.warning("Primary async failed for %s: %s. Attempting fallback.", name, e)
             fallback = self._fallbacks.get(name)
             if fallback is None:
                 raise
             try:
-                return await fallback()
+                return await cast(Any, fallback())
             except Exception as fbe:
                 logger.error("Fallback async also failed for %s: %s", name, fbe)
                 raise

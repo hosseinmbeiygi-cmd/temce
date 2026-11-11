@@ -2,20 +2,20 @@
 import math
 
 from domain.options.pricing import black_scholes_price
-from services.quant_signal_orchestrator import EnrichedSignal, LEGAL_DISCLAIMER_FA
+from services.quant_signal_orchestrator import LEGAL_DISCLAIMER_FA, EnrichedSignal
 
 
 def _sig(**kw):
-    base = dict(
-        symbol="TEST", name="t", market="stock", direction="buy", timeframe="daily",
-        entry_zone="z", stop_loss="95", targets="110", risk_reward="2",
-        position_sizing="s", confirmation_condition="c", reason="r",
-        invalidation="i", trailing_stop="t", price=100.0, change_pct=1.0,
-        rule_score=70.0, ml_score=0.6, boosted_score=70.0, ml_influence_pct=10.0,
-        confidence=0.7, calibration_level="medium",
-        vote_direction_scores={"buy": 0.7, "sell": 0.2},
-        source="test", created_at="now",
-    )
+    base = {
+        "symbol": "TEST", "name": "t", "market": "stock", "direction": "buy", "timeframe": "daily",
+        "entry_zone": "z", "stop_loss": "95", "targets": "110", "risk_reward": "2",
+        "position_sizing": "s", "confirmation_condition": "c", "reason": "r",
+        "invalidation": "i", "trailing_stop": "t", "price": 100.0, "change_pct": 1.0,
+        "rule_score": 70.0, "ml_score": 0.6, "boosted_score": 70.0, "ml_influence_pct": 10.0,
+        "confidence": 0.7, "calibration_level": "medium",
+        "vote_direction_scores": {"buy": 0.7, "sell": 0.2},
+        "source": "test", "created_at": "now",
+    }
     base.update(kw)
     return EnrichedSignal(**base)
 

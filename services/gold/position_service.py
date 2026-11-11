@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal, cast
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from core.database import AsyncSession, select
 from core.ids import new_id
 from core.logging import get_logger
 from core.time import utc_now_naive
@@ -53,7 +51,9 @@ class GoldFuturesPositionService:
         calc = FuturesRiskCalculator(leverage=leverage)
         init_margin = calc.initial_margin(entry_price, quantity)
         maint_margin = calc.maintenance_margin(entry_price, quantity)
-        liq = calc.liquidation_price(entry_price, position_type.upper())  # type: ignore[arg-type]
+        liq = calc.liquidation_price(
+            entry_price, cast(Literal["LONG", "SHORT"], position_type.upper())
+        )
 
         pos = GoldFuturesPositionModel(
             id=new_id("gpos"),

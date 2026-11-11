@@ -42,27 +42,27 @@ def _get_service(session: AsyncSession) -> TabdealService:
 
 
 @router.get("/ping", summary="Tabdeal server ping")
-async def tabdeal_ping() -> ApiResponse[dict]:
+async def tabdeal_ping() -> ApiResponse[dict[str, Any]]:
     client = _get_client()
     try:
         data = await client.ping()
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal ping failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
 
 @router.get("/time", summary="Tabdeal server time")
-async def tabdeal_time() -> ApiResponse[dict]:
+async def tabdeal_time() -> ApiResponse[dict[str, Any]]:
     client = _get_client()
     try:
         data = await client.server_time()
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal server time failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
@@ -81,31 +81,31 @@ async def tabdeal_markets(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal markets query failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
 
 
 @router.get("/depth/{symbol}", summary="Tabdeal order book")
-async def tabdeal_depth(symbol: str, limit: int = Query(100, ge=1, le=5000)) -> ApiResponse[dict]:
+async def tabdeal_depth(symbol: str, limit: int = Query(100, ge=1, le=5000)) -> ApiResponse[dict[str, Any]]:
     client = _get_client()
     try:
         data = await client.depth(symbol=symbol, limit=limit)
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal depth query failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
 
 @router.get("/trades/{symbol}", summary="Tabdeal public trades")
-async def tabdeal_public_trades(symbol: str, limit: int = Query(50, ge=1, le=1000)) -> ApiResponse[list]:
+async def tabdeal_public_trades(symbol: str, limit: int = Query(50, ge=1, le=1000)) -> ApiResponse[list[Any]]:
     client = _get_client()
     try:
         data = await client.trades(symbol=symbol, limit=limit)
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal public trades failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
@@ -116,14 +116,14 @@ async def tabdeal_public_trades(symbol: str, limit: int = Query(50, ge=1, le=100
 
 
 @router.post("/sync/markets", summary="Sync Tabdeal market info to DB")
-async def sync_tabdeal_markets(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict]:
+async def sync_tabdeal_markets(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict[str, Any]]:
     svc = _get_service(session)
     try:
         count = await svc.sync_markets()
         return ApiResponse(success=True, data={"synced_markets": count})
     except Exception as exc:
         logger.exception("Tabdeal sync markets failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await svc.client.close()
 
@@ -133,14 +133,14 @@ async def sync_tabdeal_orders(
     symbol: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_db_session),
-) -> ApiResponse[dict]:
+) -> ApiResponse[dict[str, Any]]:
     svc = _get_service(session)
     try:
         count = await svc.sync_spot_orders(symbol=symbol, limit=limit)
         return ApiResponse(success=True, data={"synced_orders": count})
     except Exception as exc:
         logger.exception("Tabdeal sync orders failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await svc.client.close()
 
@@ -151,27 +151,27 @@ async def sync_tabdeal_trades(
     start_time: int | None = Query(None),
     end_time: int | None = Query(None),
     session: AsyncSession = Depends(get_db_session),
-) -> ApiResponse[dict]:
+) -> ApiResponse[dict[str, Any]]:
     svc = _get_service(session)
     try:
         count = await svc.sync_spot_trades(symbol=symbol, start_time=start_time, end_time=end_time)
         return ApiResponse(success=True, data={"synced_trades": count})
     except Exception as exc:
         logger.exception("Tabdeal sync trades failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await svc.client.close()
 
 
 @router.post("/sync/account", summary="Sync Tabdeal account to DB")
-async def sync_tabdeal_account(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict]:
+async def sync_tabdeal_account(session: AsyncSession = Depends(get_db_session)) -> ApiResponse[dict[str, Any]]:
     svc = _get_service(session)
     try:
         data = await svc.sync_account()
         return ApiResponse(success=True, data={"status": "synced", "balances": len(data.get("balances", []))})
     except Exception as exc:
         logger.exception("Tabdeal sync account failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await svc.client.close()
 
@@ -181,14 +181,14 @@ async def sync_tabdeal_fapi_orders(
     symbol: str | None = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_db_session),
-) -> ApiResponse[dict]:
+) -> ApiResponse[dict[str, Any]]:
     svc = _get_service(session)
     try:
         count = await svc.sync_fapi_orders(symbol=symbol, limit=limit)
         return ApiResponse(success=True, data={"synced_orders": count})
     except Exception as exc:
         logger.exception("Tabdeal sync fapi orders failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await svc.client.close()
 
@@ -212,7 +212,7 @@ async def get_tabdeal_orders(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get orders failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
 
 
 @router.get("/trades", summary="Tabdeal trades from DB")
@@ -228,7 +228,7 @@ async def get_tabdeal_trades(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get trades failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
 
 
 @router.get("/account", summary="Tabdeal account snapshot from DB")
@@ -241,7 +241,7 @@ async def get_tabdeal_account(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get account failed")
-        return ApiResponse(success=False, data=None, error=safe_error_message(exc))
+        return ApiResponse(success=False, data=None, error={"message": safe_error_message(exc)})
 
 
 @router.get("/balances", summary="Tabdeal balances from DB")
@@ -254,7 +254,7 @@ async def get_tabdeal_balances(
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal get balances failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -263,14 +263,14 @@ async def get_tabdeal_balances(
 
 
 @router.get("/live/account", summary="Live Tabdeal account (passthrough)")
-async def live_tabdeal_account() -> ApiResponse[dict]:
+async def live_tabdeal_account() -> ApiResponse[dict[str, Any]]:
     client = _get_client()
     try:
         data = await client.account()
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live account failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
@@ -278,14 +278,14 @@ async def live_tabdeal_account() -> ApiResponse[dict]:
 @router.get("/live/open-orders", summary="Live Tabdeal open orders")
 async def live_tabdeal_open_orders(
     symbol: str | None = Query(None),
-) -> ApiResponse[list]:
+) -> ApiResponse[list[Any]]:
     client = _get_client()
     try:
         data = await client.get_open_orders(symbol=symbol)
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live open orders failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
@@ -296,14 +296,14 @@ async def live_tabdeal_my_trades(
     start_time: int | None = Query(None),
     end_time: int | None = Query(None),
     limit: int = Query(50, ge=1, le=1000),
-) -> ApiResponse[list]:
+) -> ApiResponse[list[Any]]:
     client = _get_client()
     try:
         data = await client.my_trades(symbol=symbol, start_time=start_time, end_time=end_time, limit=limit)
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live my trades failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
@@ -311,39 +311,39 @@ async def live_tabdeal_my_trades(
 @router.get("/live/fapi/positions", summary="Live Tabdeal futures positions")
 async def live_tabdeal_fapi_positions(
     symbol: str | None = Query(None),
-) -> ApiResponse[list]:
+) -> ApiResponse[list[Any]]:
     client = _get_client()
     try:
         data = await client.fapi_position_risk(symbol=symbol)
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live fapi positions failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
 
 @router.get("/live/fapi/account", summary="Live Tabdeal futures account")
-async def live_tabdeal_fapi_account() -> ApiResponse[dict]:
+async def live_tabdeal_fapi_account() -> ApiResponse[dict[str, Any]]:
     client = _get_client()
     try:
         data = await client.fapi_account()
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live fapi account failed")
-        return ApiResponse(success=False, data={}, error=safe_error_message(exc))
+        return ApiResponse(success=False, data={}, error={"message": safe_error_message(exc)})
     finally:
         await client.close()
 
 
 @router.get("/live/fapi/balance", summary="Live Tabdeal futures balance")
-async def live_tabdeal_fapi_balance() -> ApiResponse[list]:
+async def live_tabdeal_fapi_balance() -> ApiResponse[list[Any]]:
     client = _get_client()
     try:
         data = await client.fapi_balance()
         return ApiResponse(success=True, data=data)
     except Exception as exc:
         logger.exception("Tabdeal live fapi balance failed")
-        return ApiResponse(success=False, data=[], error=safe_error_message(exc))
+        return ApiResponse(success=False, data=[], error={"message": safe_error_message(exc)})
     finally:
         await client.close()

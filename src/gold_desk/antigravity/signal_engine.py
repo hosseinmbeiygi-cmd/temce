@@ -230,5 +230,5 @@ def generate_antigravity_signal(
             risk_level=risk_level,  # type: ignore
         ),
         rationale=rationale,
-        kill_switch_status=kill_switch_status.status,  # type: ignore
+        kill_switch_status=kill_switch_status.status,
     )

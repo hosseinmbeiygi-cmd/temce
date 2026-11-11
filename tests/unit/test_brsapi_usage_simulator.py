@@ -249,11 +249,18 @@ class TestNewScenarios(unittest.TestCase):
         result = self._run("starvation", daily=10000, five_min=1000)
         self.assertTrue(result.ok)
         self.assertEqual(len(result.starvation_stats), 4)
-        for _cat, s in result.starvation_stats.items():
-            # The shared 5-min window caps EVERYONE (incl. the hog) at 1,000.
-            self.assertEqual(s["hog_accepted"], 1001)
-            # Others may be heavily delayed but never push past the cap.
-            self.assertLessEqual(result.max_5min, 1000)
+        # The shared 5-min window caps EVERYONE (incl. the hog) at 1,000.
+        self.assertLessEqual(result.max_5min, 1000)
+        for cat, s in result.starvation_stats.items():
+            # The hog drives the whole 30-minute scenario, so it banks far more
+            # than any other category — that is what "starvation" means here.
+            # (An exact count is not asserted: it depends on the virtual clock's
+            # step arithmetic, and it used to be pinned to the old 5-minute run.)
+            self.assertGreater(s["hog_accepted"], s["accepted"], cat)
+            # The others may be heavily delayed but must still get through:
+            # they queue behind the window instead of being rejected.
+            self.assertEqual(s["rejected"], 0, cat)
+            self.assertGreater(s["accepted"], 0, cat)
 
     def test_starvation_small_daily_budget_others_get_rejected(self):
         # When the hog also eats the daily budget, the others are rejected

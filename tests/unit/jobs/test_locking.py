@@ -9,6 +9,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from unittest.mock import patch
 
@@ -67,6 +68,12 @@ class _RaisingRedis(FakeRedis):
     """Fake redis whose commands raise — simulates a transient Redis error."""
 
     async def set(self, key: str, value: str, nx: bool = False, px: int | None = None) -> bool | None:
+        raise ConnectionError("simulated redis outage")
+
+    async def eval(self, script: str, numkeys: int, *args) -> int:
+        raise ConnectionError("simulated redis outage")
+
+    async def exists(self, key: str) -> int:
         raise ConnectionError("simulated redis outage")
 
 
@@ -276,3 +283,99 @@ async def test_redis_clear_does_not_delete_shared_lock():
         await lock_a.acquire("job:shared", "w1")
         await lock_b.clear()  # must NOT release worker-1's redis lock
         assert await lock_b.is_locked("job:shared") is True
+
+
+@pytest.mark.asyncio
+async def test_release_backend_error_is_not_reported_as_success():
+    """A failed release command must not be mistaken for 'already released'."""
+    from jobs.locking import JobLocking
+
+    locking = JobLocking()
+    with patch("jobs.locking.get_cache", return_value=_StubCache(_RaisingRedis())):
+        assert await locking.release("job:a", "w1") is False
+
+
+# ── Waiter ───────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_acquire_wait_succeeds_after_release(redis_locking):
+    async def release_soon() -> None:
+        await asyncio.sleep(0.12)
+        await redis_locking.release("job:a", "worker-1")
+
+    assert await redis_locking.acquire("job:a", "worker-1") is True
+    releaser = asyncio.create_task(release_soon())
+    try:
+        assert await redis_locking.acquire("job:a", "worker-2", ttl=5.0, wait=2.0) is True
+    finally:
+        await releaser
+
+
+@pytest.mark.asyncio
+async def test_acquire_wait_times_out(redis_locking):
+    assert await redis_locking.acquire("job:a", "worker-1") is True
+    started = time.monotonic()
+    assert await redis_locking.acquire("job:a", "worker-2", wait=0.2) is False
+    assert time.monotonic() - started >= 0.2
+
+
+# ── hold(): guaranteed release + TTL heartbeat ───────────────────────
+
+
+@pytest.mark.asyncio
+async def test_hold_releases_after_success(redis_locking):
+    async with redis_locking.hold("job:a", "w1", renew=False) as acquired:
+        assert acquired is True
+        assert await redis_locking.is_locked("job:a") is True
+    assert await redis_locking.is_locked("job:a") is False
+
+
+@pytest.mark.asyncio
+async def test_hold_releases_on_exception(redis_locking):
+    with pytest.raises(RuntimeError):
+        async with redis_locking.hold("job:a", "w1", renew=False) as acquired:
+            assert acquired is True
+            raise RuntimeError("boom")
+    assert await redis_locking.is_locked("job:a") is False
+
+
+@pytest.mark.asyncio
+async def test_hold_yields_false_when_another_worker_holds(redis_locking):
+    assert await redis_locking.acquire("job:a", "w1") is True
+    async with redis_locking.hold("job:a", "w2", renew=False) as acquired:
+        assert acquired is False
+    # The other worker's lock is untouched.
+    assert await redis_locking.get_owner("job:a") == "w1"
+
+
+@pytest.mark.asyncio
+async def test_hold_heartbeat_keeps_long_job_exclusive(redis_locking):
+    """A job running past its TTL keeps the lock thanks to the heartbeat."""
+    async with redis_locking.hold("job:long", "w1", ttl=0.15, renew_interval=0.05) as acquired:
+        assert acquired is True
+        await asyncio.sleep(0.4)  # > 2x TTL
+        assert await redis_locking.is_locked("job:long") is True
+    assert await redis_locking.is_locked("job:long") is False
+
+
+@pytest.mark.asyncio
+async def test_redis_job_lock_hold_uses_own_owner():
+    from jobs.locking import RedisJobLock
+
+    client = FakeRedis()
+    lock = RedisJobLock(ttl=300)
+    lock._redis = lambda: client  # type: ignore[method-assign]
+
+    async with lock.hold("sync_quotes", renew=False) as acquired:
+        assert acquired is True
+        assert await lock.is_locked("sync_quotes") is True
+    assert await lock.is_locked("sync_quotes") is False
+
+
+def test_make_owner_is_prefixed_and_unique():
+    from jobs.locking import make_owner
+
+    first, second = make_owner("cron"), make_owner("cron")
+    assert first.startswith("cron:")
+    assert first != second

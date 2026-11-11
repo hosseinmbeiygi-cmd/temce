@@ -52,7 +52,7 @@ class RateLimitingSemaphore:
     def __init__(self, rate: float, burst: int = 1) -> None:
         self._rate = rate
         self._burst = burst
-        self._tokens = burst
+        self._tokens: float = float(burst)
         self._last_refill = asyncio.get_event_loop().time()
         self._lock = asyncio.Lock()
 

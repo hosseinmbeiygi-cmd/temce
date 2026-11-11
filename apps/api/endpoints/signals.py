@@ -38,10 +38,10 @@ async def create_signal(
     instrument_id: str,
     body: dict[str, Any] = Body(...),
     service: SignalService = Depends(get_signal_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[Any]:
     try:
         result = await service.create(instrument_id=instrument_id, **body)
-        return ApiResponse[dict[str, Any]](
+        return ApiResponse[Any](
             success=result.success,
             data=result.value,
             error={"message": result.error} if not result.success and result.error else None,
@@ -59,10 +59,10 @@ async def create_signal(
 async def get_latest_signal(
     instrument_id: str,
     service: SignalService = Depends(get_signal_service),
-) -> ApiResponse[dict[str, Any]]:
+) -> ApiResponse[Any]:
     try:
         result = await service.get_latest(instrument_id)
-        return ApiResponse[dict[str, Any]](success=result.success, data=result.value)
+        return ApiResponse[Any](success=result.success, data=result.value)
     except Exception as exc:
         logger.exception("Signal get_latest failed for %s", instrument_id)
         return ApiResponse[dict[str, Any]](success=False, data=None, error={"message": str(exc)})

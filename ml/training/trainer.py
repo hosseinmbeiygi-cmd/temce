@@ -23,9 +23,13 @@ class Trainer:
         y_train: TargetVector,
         X_val: FeatureMatrix | None = None,
         y_val: TargetVector | None = None,
+        seed: int | None = None,
         **kwargs: Any,
     ) -> Result[ModelArtifactMeta]:
         try:
+            from core.seed import set_global_seed
+
+            set_global_seed(seed if seed is not None else self._default_seed(kwargs))
             logger.info("Training %s on %d samples", model.name, X_train.shape[0])
             model.fit(X_train, y_train, **kwargs)
 
@@ -45,6 +49,18 @@ class Trainer:
         except Exception as e:
             logger.error("Training failed for %s: %s", model.name, e)
             return Result.fail(str(e))
+
+    @staticmethod
+    def _default_seed(kwargs: dict) -> int:
+        if "seed" in kwargs and isinstance(kwargs["seed"], int):
+            return int(kwargs["seed"])
+        try:
+            import yaml  # type: ignore
+
+            with open("config/backtest_costs.yaml", encoding="utf-8") as f:
+                return int((yaml.safe_load(f) or {}).get("seed", 42))
+        except Exception:
+            return 42
 
     async def train_from_registry(
         self, model_name: str, X_train: FeatureMatrix, y_train: TargetVector, **kwargs: Any

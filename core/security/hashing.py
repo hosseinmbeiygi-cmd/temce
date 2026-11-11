@@ -23,8 +23,8 @@ def verify_password(password: str, hashed: str) -> bool:
     try:
         parts = hashed.split("$")
         if len(parts) == 3:
-            rounds, salt, pwd_hash = parts
-            rounds = int(rounds)
+            rounds_str, salt, pwd_hash = parts
+            rounds: int = int(rounds_str)
         else:
             # Legacy format: ``{salt}${hash}`` — verify with the default rounds.
             salt, pwd_hash = parts

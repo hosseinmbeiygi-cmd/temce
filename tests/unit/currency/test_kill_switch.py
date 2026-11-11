@@ -7,17 +7,17 @@ from apps.currency_service.domain.kill_switch import check_kill_switch
 
 
 def _mkt(**overrides) -> MarketSummary:
-    base = dict(
-        free_market_usd=615_000,
-        official_cbi_usd=315_000,
-        nima_usd=345_000,
-        usdt_irt=620_000,
-        bubble_index=95.24,
-        daily_volatility=1.2,
-        bid_ask_spread=0.65,
-        tether_arbitrage=0.81,
-        sentiment="NEUTRAL",
-    )
+    base = {
+        "free_market_usd": 615_000,
+        "official_cbi_usd": 315_000,
+        "nima_usd": 345_000,
+        "usdt_irt": 620_000,
+        "bubble_index": 95.24,
+        "daily_volatility": 1.2,
+        "bid_ask_spread": 0.65,
+        "tether_arbitrage": 0.81,
+        "sentiment": "NEUTRAL",
+    }
     base.update(overrides)
     return MarketSummary(**base)
 

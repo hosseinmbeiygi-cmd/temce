@@ -202,8 +202,8 @@ class TSESimulator:
                  slippage: float = 0.001, queue_fill_rate: float = 0.7,
                  cancellation_rate: float = 0.05):
         from domain.trading import iran_costs as _iran
-        self.comm_buy = commission_buy if commission_buy is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT)
-        self.comm_sell = commission_sell if commission_sell is not None else (_iran.BROKER_PCT + _iran.CLEARING_FEE_PCT + _iran.SELL_TAX_PCT)
+        self.comm_buy = commission_buy if commission_buy is not None else _iran.buy_rate()
+        self.comm_sell = commission_sell if commission_sell is not None else _iran.sell_rate()
         self.slippage = slippage
         self.queue_fill_rate = queue_fill_rate
         self.cancellation_rate = cancellation_rate
@@ -410,17 +410,4 @@ CREATE TABLE IF NOT EXISTS strategy_performance (
 );
 
 SELECT create_hypertable('strategy_performance', 'time', chunk_time_interval => INTERVAL '30 days', if_not_exists => TRUE);
-
--- Portfolio positions
-CREATE TABLE IF NOT EXISTS portfolio_positions (
-    time TIMESTAMPTZ NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    qty DOUBLE PRECISION,
-    avg_price DOUBLE PRECISION,
-    market_value DOUBLE PRECISION,
-    unrealized_pnl DOUBLE PRECISION,
-    weight DOUBLE PRECISION
-);
-
-SELECT create_hypertable('portfolio_positions', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE);
 """

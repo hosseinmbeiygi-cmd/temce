@@ -4,9 +4,9 @@ Generic BrsApi repository with bulk-insert / upsert support and sync logging.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
+import os
 import re
 from datetime import datetime, timedelta
 from logging import getLogger
@@ -53,6 +53,50 @@ def _quote_model_identifier(model_class: type[Any], name: str) -> str:
 
 T = TypeVar("T")
 
+
+class BulkInsertRowCountUnavailable(RuntimeError):
+    """The driver did not report how many rows the batch affected.
+
+    Raised instead of guessing: reporting ``len(records)`` after
+    ``ON CONFLICT DO NOTHING`` would claim rows were written when they were
+    skipped.
+    """
+
+
+def _affected_row_count(
+    result: Any,
+    *,
+    attempted: int,
+    on_conflict_update: bool,
+    table_name: str,
+) -> int:
+    """Return the number of rows the batch actually inserted or updated.
+
+    ``ON CONFLICT DO UPDATE`` touches every (deduplicated) row, so the
+    attempted count is exact there.  For ``DO NOTHING`` an unknown count is
+    genuinely unknowable without extra queries, so it fails loudly.
+    """
+    try:
+        rowcount = result.rowcount
+    except (AttributeError, NotImplementedError):
+        rowcount = None
+
+    if isinstance(rowcount, int) and rowcount >= 0:
+        return rowcount
+
+    if on_conflict_update:
+        logger.debug(
+            "bulk_insert: no rowcount for %s; DO UPDATE affects all %d rows",
+            table_name,
+            attempted,
+        )
+        return attempted
+
+    raise BulkInsertRowCountUnavailable(
+        f"Driver did not report rowcount for {table_name}; the number of "
+        f"rows inserted by ON CONFLICT DO NOTHING is unknown"
+    )
+
 # ──────────────────────────────────────────────
 #  Sync Log Repository
 # ──────────────────────────────────────────────
@@ -73,11 +117,13 @@ class SyncLogRepository:
         error_message: str | None = None,
         duration_ms: float = 0.0,
         params: dict[str, str] | None = None,
+        outcome: str = "unknown",
     ) -> SyncLogModel:
         entry = SyncLogModel(
             endpoint=endpoint,
             category=category,
             status=status,
+            outcome=outcome,
             items_count=items_count,
             error_message=error_message,
             duration_ms=duration_ms,
@@ -88,23 +134,40 @@ class SyncLogRepository:
         await self.session.flush()
         return entry
 
-    async def last_sync(self, endpoint: str, max_age_seconds: int = 120) -> SyncLogModel | None:
-        """Return the most recent successful sync for *endpoint*."""
-        stmt = (
-            select(SyncLogModel)
-            .where(SyncLogModel.endpoint == endpoint, SyncLogModel.status == "success")
-            .order_by(SyncLogModel.completed_at.desc())
-            .limit(1)
+    async def last_sync(
+        self,
+        endpoint: str,
+        max_age_seconds: int = 120,
+        params: dict[str, str] | None = None,
+    ) -> SyncLogModel | None:
+        """Return the most recent successful sync for *endpoint*.
+
+        When *params* is supplied the lookup is scoped to that exact
+        (redacted) parameter snapshot.  Without this, syncing one symbol
+        would suppress the next symbol's sync of the same endpoint.
+        """
+        stmt = select(SyncLogModel).where(
+            SyncLogModel.endpoint == endpoint, SyncLogModel.status == "success"
         )
+        if params is not None:
+            stmt = stmt.where(
+                SyncLogModel.params_snapshot == json.dumps(_redact_params(params))
+            )
+        stmt = stmt.order_by(SyncLogModel.completed_at.desc()).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def needs_sync(self, endpoint: str, interval_seconds: int = 60) -> bool:
+    async def needs_sync(
+        self,
+        endpoint: str,
+        interval_seconds: int = 60,
+        params: dict[str, str] | None = None,
+    ) -> bool:
         """
         Return ``True`` if enough time has passed since the last
-        successful sync for *endpoint*.
+        successful sync for *endpoint* (and *params*, when given).
         """
-        last = await self.last_sync(endpoint)
+        last = await self.last_sync(endpoint, params=params)
         if last is None:
             return True
         if last.completed_at is None:
@@ -211,13 +274,20 @@ class RawPayloadRepository:
         schema_version: str | None = None,
         checksum_sha256: str | None = None,
     ) -> RawPayloadModel:
+        # One timestamp for both columns: two separate utc_now_naive() calls
+        # differ by microseconds and the raw-payload contract (and the test)
+        # treats receive_time as the single arrival instant.
+        received_at = receive_time or utc_now_naive()
         entry = RawPayloadModel(
             endpoint=endpoint,
             params=json.dumps(_redact_params(params)) if params else None,
             status_code=status_code,
             payload=payload,
             size_bytes=len(payload),
-            receive_time=receive_time or utc_now_naive(),
+            # Always store an explicit naive-UTC timestamp: the retention job
+            # compares this column against ``utc_now_naive()``.
+            fetched_at=received_at,
+            receive_time=received_at,
             market_time=market_time,
             response_latency_ms=response_latency_ms,
             schema_version=schema_version or self.DEFAULT_SCHEMA_VERSION,
@@ -326,20 +396,73 @@ class BulkUpsertRepository(Generic[T]):
         else:
             conflict_sql = "ON CONFLICT DO NOTHING"
 
+        # PostgreSQL rejects a batch that touches the same conflict key twice
+        # ("ON CONFLICT DO UPDATE command cannot affect row a second time").
+        # Keep the last row per key; rows with NULL keys are left untouched
+        # because NULLs are distinct in a unique index.
+        if on_conflict_update and conflict_target:
+            keys = [tuple(rec.get(c) for c in conflict_target) for rec in records]
+            if all(value is not None for key in keys for value in key):
+                deduped: dict[tuple[Any, ...], dict[str, Any]] = {}
+                for key, rec in zip(keys, records, strict=False):
+                    deduped[key] = rec
+                if len(deduped) != len(records):
+                    logger.warning(
+                        "bulk_insert: collapsed %d duplicate conflict keys for %s",
+                        len(records) - len(deduped),
+                        table_name,
+                    )
+                records = list(deduped.values())
+
         result = await self.session.execute(
             text(f'INSERT INTO "{table_name}" ({cols_str}) VALUES ({placeholders}) {conflict_sql}'),
             records,
         )
         await self.session.flush()
-        # rowcount is driver-dependent (psycopg may return None); fall back to len(records) only if unavailable
-        with contextlib.suppress(Exception):
-            rc = result.rowcount  # type: ignore[attr-defined]
-            if rc is not None and rc >= 0:
-                return int(rc)
-        return len(records)
+        # ``rowcount`` is the number of rows actually inserted/updated. It is
+        # not guessed when the driver omits it — see _affected_row_count.
+        return _affected_row_count(
+            result,
+            attempted=len(records),
+            on_conflict_update=on_conflict_update,
+            table_name=table_name,
+        )
+
+    async def delete_where(self, column: str, value: Any) -> int:
+        """Delete rows whose *column* equals *value* (scoped replace).
+
+        Used instead of :meth:`truncate` when only one logical slice of a
+        table (e.g. one symbol, or one ``section``) may be refreshed. The
+        delete participates in the caller's transaction, so a later insert
+        failure rolls the deletion back.
+        """
+        table_name = self.model_class.__table__.name
+        if not _SAFE_IDENTIFIER.fullmatch(table_name):
+            raise ValueError(f"Invalid model table identifier: {table_name!r}")
+        quoted_column = _quote_model_identifier(self.model_class, column)
+        result = await self.session.execute(
+            text(f'DELETE FROM "{table_name}" WHERE {quoted_column} = :value'),
+            {"value": value},
+        )
+        await self.session.flush()
+        try:
+            rc = result.rowcount  # type: ignore[attr-defined]  # CursorResult only; Result protocol omits it
+        except (AttributeError, NotImplementedError) as exc:
+            logger.debug("delete_where: driver did not report rowcount for %s: %s", table_name, exc)
+            return 0
+        return rc if isinstance(rc, int) and rc >= 0 else 0
 
     async def truncate(self) -> None:
-        """Truncate the table (use with caution — for full-refresh endpoints)."""
+        """Truncate the table (use with caution — for full-refresh endpoints).
+
+        Destructive refreshes require an explicit environment opt-in so a
+        mis-scoped caller cannot wipe a table by accident.
+        """
+        if os.environ.get("ALLOW_TABLE_TRUNCATE") != "1":
+            raise RuntimeError(
+                "TRUNCATE is disabled; set ALLOW_TABLE_TRUNCATE=1 only for an "
+                "intentional full-refresh run"
+            )
         table_name = self.model_class.__table__.name
         if not _SAFE_IDENTIFIER.fullmatch(table_name):
             raise ValueError(f"Invalid model table identifier: {table_name!r}")

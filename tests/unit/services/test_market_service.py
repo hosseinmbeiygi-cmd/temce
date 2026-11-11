@@ -340,8 +340,12 @@ class TestGetIndexValues:
         svc = _make_service()
         svc._brsapi.get_latest_indices = AsyncMock(return_value=[])
         svc._client = MagicMock()
+        # Clean empty payload from the live fallback (API-02: a rejected fetch
+        # is a failure, a clean empty answer is not).
+        svc._client.fetch = AsyncMock(return_value=Result.ok(None))
         result = await svc.get_index_values()
         assert result.success
+        assert result.value == []
 
     async def test_no_sources(self):
         svc = _make_service(brsapi_query_service=None, brsapi_client=None)
@@ -380,7 +384,14 @@ class TestGetHistoricalQuotes:
         assert len(result.value) == 2
 
     async def test_no_sources(self):
-        svc = _make_service(brsapi_query_service=None, brsapi_client=None)
+        # No BrsApi/live sources, and the quotes table cleanly has no symbol.
+        instrument_repo = AsyncMock()
+        instrument_repo.get_by_symbol.return_value = Result.fail("symbol not found")
+        svc = _make_service(
+            brsapi_query_service=None,
+            brsapi_client=None,
+            instrument_repo=instrument_repo,
+        )
         result = await svc.get_historical_quotes("فولاد", "2024-01-01", "2024-12-31")
         assert result.success
         assert result.value == []

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { clearAuth, getStoredAuth, hydrateSession, storeAuth } from "@/lib/api";
+import { withCsrf } from "@/lib/csrf";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (username: string, password: string) => {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
       body: JSON.stringify({ username, password }),
       credentials: "include",
     });
@@ -129,6 +130,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const json = await res.json();
+
+    // The backend reports credential failures as HTTP 200 with success:false.
+    // Reading only res.ok here made every wrong password surface as
+    // "missing access token" instead of the server's message.
+    if (json?.success === false) {
+      const error = json.error;
+      const message =
+        (error &&
+          typeof error === "object" &&
+          typeof error.message === "string" &&
+          error.message) ||
+        (typeof error === "string" && error) ||
+        (typeof json.message === "string" && json.message) ||
+        `Login failed (${res.status})`;
+      throw new Error(message);
+    }
+
     const data = json.data ?? json;
 
     if (data?.mfa_required) {
@@ -172,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }) => {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         body: JSON.stringify(data),
         credentials: "include",
       });
@@ -224,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
-        headers,
+        headers: withCsrf(headers, "POST"),
         credentials: "include",
       });
     } catch {
@@ -241,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrf({ "Content-Type": "application/json" }, "POST"),
         body: JSON.stringify({}),
         credentials: "include",
       });

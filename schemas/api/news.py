@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,7 +19,7 @@ class SymbolMatchMeta(BaseModel):
 
     symbol: str = ""
     matched: list[str] = Field(default_factory=list)
-    maps: list[dict] = Field(default_factory=list)
+    maps: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class NewsRequest(BaseModel):

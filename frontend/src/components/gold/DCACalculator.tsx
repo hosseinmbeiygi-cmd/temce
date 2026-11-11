@@ -6,7 +6,6 @@ import type { DCAPlan, RiskProfile, Vehicle } from "@/types/gold";
 export function DCACalculator({ className = "" }: { className?: string }) {
   const [capital, setCapital] = useState(100_000_000);
   const [risk, setRisk] = useState<RiskProfile>("balanced");
-  const [score, setScore] = useState(65);
   const [vehicle, setVehicle] = useState<Vehicle | "">("");
   const [plan, setPlan] = useState<DCAPlan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -14,10 +13,10 @@ export function DCACalculator({ className = "" }: { className?: string }) {
   const onCalculate = async () => {
     setLoading(true);
     try {
+      // C4: امتیاز دیگر ورودی این فرم نیست — بک‌اند آن را از اسنپ‌شات سرور می‌خواند.
       const r = await planDCA({
         total_capital_irt: capital,
         risk_profile: risk,
-        current_score: score,
         preferred_vehicle: (vehicle || undefined) as Vehicle | undefined,
       });
       setPlan(r);
@@ -52,17 +51,6 @@ export function DCACalculator({ className = "" }: { className?: string }) {
             <option value="balanced">متعادل (30/40/30)</option>
             <option value="aggressive">تهاجمی (50/30/20)</option>
           </select>
-        </div>
-        <div>
-          <label className="text-xs text-zinc-400 block mb-1">امتیاز فعلی</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={score}
-            onChange={(e) => setScore(parseInt(e.target.value) || 0)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm text-zinc-100"
-          />
         </div>
         <div>
           <label className="text-xs text-zinc-400 block mb-1">ابزار (اختیاری)</label>

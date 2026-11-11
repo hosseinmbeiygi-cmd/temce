@@ -15,7 +15,8 @@ export function ParityBadge({ gap, className = "" }: Props) {
     label = "متعادل";
   } else if (abs < 1.5) {
     color = "bg-amber-700 text-amber-100";
-    label = "کمی偏离";
+    // قبلاً برچسب این شاخه دو کاراکتر چینی وسط متن فارسی داشت (غلط املایی F8).
+    label = "کمی انحراف";
   } else if (abs < 3) {
     color = "bg-orange-700 text-orange-100";
     label = "انحراف";

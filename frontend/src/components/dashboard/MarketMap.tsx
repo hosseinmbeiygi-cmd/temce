@@ -34,7 +34,7 @@ function tileStyle(changePct: number) {
 
 export default function MarketMap() {
   const [view, setView] = useState<ViewKey>("stocks");
-  const { data: sectors, isLive, isError, isLoading } = useSectorMap();
+  const { data: sectors, isLive, hasData, isFresh, isStale, isError, isLoading } = useSectorMap();
 
   return (
     <section data-widget="MarketMap" className="rounded-2xl border border-line bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
@@ -60,7 +60,16 @@ export default function MarketMap() {
           </div>
         }
       />
-      <LiveDataBanner state={{ isLive: isLive || view !== "stocks", isError, isLoading: view === "stocks" && isLoading }} />
+      <LiveDataBanner
+        state={{
+          isLive: isLive || view !== "stocks",
+          hasData: view !== "stocks" ? true : hasData,
+          isFresh: view !== "stocks" ? true : isFresh,
+          isStale: view === "stocks" && isStale,
+          isError,
+          isLoading: view === "stocks" && isLoading,
+        }}
+      />
       {view !== "stocks" || sectors.length === 0 ? (
         view === "stocks" ? (
           <div className="mt-4">

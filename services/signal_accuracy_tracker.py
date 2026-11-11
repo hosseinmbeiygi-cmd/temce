@@ -176,9 +176,7 @@ class SignalAccuracyTracker:
     ) -> Result[PaginatedResult[dict[str, Any]]]:
         """Get accuracy metrics grouped by market and source."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 self._count_unavailable_read()
@@ -245,9 +243,7 @@ class SignalAccuracyTracker:
     ) -> Result[dict[str, Any]]:
         """Get accuracy metrics for a specific symbol."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 self._count_unavailable_read()

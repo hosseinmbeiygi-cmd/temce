@@ -52,6 +52,10 @@ class TestNormalizeWeights:
 
 
 class TestWeightOptimizer:
+    # ``train`` reads brsapi_historical_daily; run it only in the migrated
+    # needs_db job instead of failing on the empty CI database.
+    pytestmark = pytest.mark.needs_db
+
     def _make_optimizer(self) -> WeightOptimizer:
         return WeightOptimizer(horizon=2, min_samples=2, alpha=0.5)
 

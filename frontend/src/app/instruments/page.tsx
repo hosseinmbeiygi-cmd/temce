@@ -40,35 +40,19 @@ function mapInstrument(raw: Record<string, unknown>): Instrument {
   };
 }
 
-const FALLBACK_INSTRUMENTS: Instrument[] = [
-  { symbol: "فولاد", name: "فولاد مبارکه اصفهان", industry: "فلزات اساسی", lastPrice: 58920, change: 1.2, volume: 4520000, peRatio: 6.2, eps: 9500, status: "active" },
-  { symbol: "فملی", name: "ملی صنایع مس ایران", industry: "فلزات اساسی", lastPrice: 42500, change: 3.7, volume: 7800000, peRatio: 8.5, eps: 5000, status: "active" },
-  { symbol: "شپنا", name: "پالایش نفت اصفهان", industry: "پالایشی", lastPrice: 42150, change: 0.5, volume: 3100000, peRatio: 4.8, eps: 8780, status: "active" },
-  { symbol: "وبملت", name: "بانک ملت", industry: "بانکی", lastPrice: 12450, change: -0.8, volume: 8900000, peRatio: 7.1, eps: 1750, status: "active" },
-  { symbol: "خودرو", name: "ایران خودرو", industry: "خودرو", lastPrice: 8750, change: 2.5, volume: 12300000, peRatio: 0, eps: -1200, status: "active" },
-  { symbol: "کگل", name: "گل گهر", industry: "فلزات اساسی", lastPrice: 35680, change: -1.1, volume: 5600000, peRatio: 10.4, eps: 3430, status: "active" },
-  { symbol: "شتران", name: "پالایش نفت تهران", industry: "پالایشی", lastPrice: 8950, change: 0.3, volume: 5600000, peRatio: 5.2, eps: 1720, status: "active" },
-  { symbol: "وغدیر", name: "سرمایه گذاری غدیر", industry: "سرمایه‌گذاری", lastPrice: 31200, change: -0.5, volume: 3200000, peRatio: 7.8, eps: 4000, status: "active" },
-  { symbol: "تاپیکو", name: "سرمایه گذاری نفت و گاز تامین", industry: "سرمایه‌گذاری", lastPrice: 18500, change: 1.2, volume: 4500000, peRatio: 9.3, eps: 1990, status: "active" },
-  { symbol: "کچاد", name: "صنعتی و معدنی چادرملو", industry: "معدنی", lastPrice: 27800, change: 1.8, volume: 4100000, peRatio: 10.4, eps: 2670, status: "active" },
-];
 
 export default function InstrumentsPage() {
   const [filter, setFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("");
   const [search, setSearch] = useState("");
 
-  const { data: instruments, isLoading } = useQuery({
+  const { data: instruments, isLoading, isError } = useQuery({
     queryKey: ["instruments"],
     queryFn: async () => {
-      try {
-        const response = await apiGet<Record<string, unknown>>("/market/enriched-heatmap");
-        const items = extractArray<Record<string, unknown>>(response);
-        const mapped = items.length > 0 ? items.map(mapInstrument) : FALLBACK_INSTRUMENTS;
-        return mapped;
-      } catch {
-        return FALLBACK_INSTRUMENTS;
-      }
+      // Real snapshot only: the old hard-coded price/P/E table is gone.
+      const response = await apiGet<Record<string, unknown>>("/market/enriched-heatmap");
+      const items = extractArray<Record<string, unknown>>(response);
+      return items.map(mapInstrument);
     },
   });
 
@@ -198,6 +182,13 @@ export default function InstrumentsPage() {
                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === ind ? "bg-primary-600 text-white" : "bg-surface-800 text-surface-400 hover:text-surface-200"}`}>{String(ind)}</button>
           ))}
         </div>
+
+        {isError && (
+          <div role="alert" aria-live="polite" className="mb-4 flex items-center gap-2 rounded-xl border border-accent-rose/30 bg-accent-rose/10 px-4 py-2.5 text-xs text-accent-rose">
+            <span className="material-icons text-base">wifi_off</span>
+            دریافت فهرست نمادها از سرور ناموفق بود — داده‌ای برای نمایش وجود ندارد.
+          </div>
+        )}
 
         <div className="glass-card overflow-x-auto">
           <table className="w-full text-right text-sm">

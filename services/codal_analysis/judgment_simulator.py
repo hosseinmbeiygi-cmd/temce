@@ -121,8 +121,8 @@ class ProfessionalJudgmentSimulator:
 
         current_tax = taxable_profit * statutory if taxable_profit > 0 else 0
 
-        deferred_tax_liability = 0
-        deferred_tax_asset = 0
+        deferred_tax_liability = 0.0
+        deferred_tax_asset = 0.0
         for _desc, amount, kind in temp_diffs:
             if kind == "taxable":
                 deferred_tax_liability += amount * statutory

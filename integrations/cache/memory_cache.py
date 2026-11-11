@@ -1,7 +1,15 @@
+"""LEGACY process-local TTL cache (deprecated).
+
+Not a cache *system*: values live in this worker only and vanish on restart.
+Shared state must go through :mod:`core.cache` (Redis). Kept for backwards
+compatibility of ``integrations.cache`` imports only.
+"""
+
 from __future__ import annotations
 
 import contextlib
 import time
+import warnings
 from collections import OrderedDict
 from collections.abc import Callable
 from threading import Lock
@@ -19,7 +27,14 @@ class TTLEntry:
 
 
 class MemoryCache:
+    """DEPRECATED worker-local TTL store. Use :func:`core.cache.get_cache`."""
+
     def __init__(self, default_ttl: float = 300.0, max_size: int = 10000):
+        warnings.warn(
+            "integrations.cache.MemoryCache is deprecated; use core.cache.get_cache()",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._store: dict[str, TTLEntry] = OrderedDict()
         self._default_ttl = default_ttl
         self._max_size = max_size

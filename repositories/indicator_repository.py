@@ -6,10 +6,11 @@ from core.result import PaginatedResult, Result
 from domain.analytics.indicator import Indicator
 from repositories.base_repository import InMemoryRepository
 
+IndicatorList = list[Indicator]
 
 class IndicatorRepository:
     def __init__(self, session: AsyncSession | None = None) -> None:
-        self._mem: InMemoryRepository[Indicator] | None = InMemoryRepository(Indicator)
+        self._mem: InMemoryRepository[Indicator] = InMemoryRepository(Indicator)
 
     async def get(self, id: str) -> Result[Indicator]:
         return await self._mem.get(id)
@@ -25,7 +26,7 @@ class IndicatorRepository:
 
     async def get_by_instrument(
         self, instrument_id: str, name: str = "", timeframe: str = "1d"
-    ) -> Result[list[Indicator]]:
+    ) -> Result[IndicatorList]:
         indicators = [
             ind
             for ind in self._mem._store.values()

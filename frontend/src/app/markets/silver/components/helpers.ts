@@ -29,7 +29,9 @@ export function isSilverText(value: unknown): boolean {
 }
 
 export function isGoldText(value: unknown): boolean {
-  return /طلا|زر|سکه|gold|xau/i.test(String(value ?? ""));
+  // «زر» حذف شد: پسوند بسیار رایجی است (زرین/زرفام/…) و در صفحهٔ نقره برای حذف
+  // ردیف استفاده می‌شد و ردیف‌های نقره/کالایی را کاذبانه حذف می‌کرد (GS-25).
+  return /طلا|سکه|gold|xau/i.test(String(value ?? ""));
 }
 
 export function metricEntries(metrics: Record<string, unknown>, limit = 4): [string, string][] {

@@ -80,9 +80,7 @@ class EnsembleOptimizer:
     ) -> Result[OptimizedEnsemble]:
         """Optimize ensemble for a given market using historical accuracy data."""
         try:
-            from sqlalchemy import text
-
-            from core.database import async_session_factory
+            from core.database import async_session_factory, text
 
             if async_session_factory is None:
                 return self._default_ensemble(market, strategy)
@@ -268,7 +266,7 @@ class EnsembleOptimizer:
 
         for market in markets:
             r = await self.optimize(market, strategy=strategy)
-            if r.success:
+            if r.success and r.value is not None:
                 result[market] = r.value
 
         return Result.ok(result)

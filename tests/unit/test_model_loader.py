@@ -6,6 +6,8 @@ the real ``ml_artifacts/`` directory.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import pickle
 import tempfile
 from pathlib import Path
@@ -52,13 +54,32 @@ def artifact_dir():
         for dir_name, file_name in models:
             d = base / dir_name
             d.mkdir(parents=True, exist_ok=True)
+            payload = pickle.dumps(_DummyModel())
             with open(d / file_name, "wb") as f:
-                pickle.dump(_DummyModel(), f)
+                f.write(payload)
+            # Every artifact directory the loaders meet in production carries a
+            # metadata sidecar naming the file digest — the integrity gate
+            # (ML-007) refuses an artifact that cannot prove itself, so the
+            # fixture reproduces the real layout instead of a bare pickle.
+            (d / "metadata.json").write_text(
+                json.dumps({"model_id": dir_name, "checksum": hashlib.md5(payload).hexdigest()}),
+                encoding="utf-8",
+            )
 
         yield str(base)
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
+
+
+def _cached(loader: ModelLoader, model_key: str) -> bool:
+    """True when *model_key* has an entry in ``loader._loaded``.
+
+    Cache keys carry the artifact version (ML-006) so a retrained model cannot
+    be served from a stale entry — e.g. ``xgboost_فولاد@3b5301585939a8f6`` — so
+    membership is checked by prefix rather than by exact name.
+    """
+    return any(key == model_key or key.startswith(f"{model_key}@") for key in loader._loaded)
 
 
 @pytest.mark.asyncio
@@ -104,19 +125,19 @@ async def test_invalidate_evicts_specific_algorithm(artifact_dir):
     # Load once to populate cache.
     m1 = await loader.get_model(symbol="فولاد", algorithm="xgboost")
     assert m1 is not None
-    assert "xgboost_فولاد" in loader._loaded
+    assert _cached(loader, "xgboost_فولاد")
 
     # Invalidate just xgboost for فولاد.
     loader.invalidate(symbol="فولاد", algorithm="xgboost")
-    assert "xgboost_فولاد" not in loader._loaded
+    assert not _cached(loader, "xgboost_فولاد")
 
     # lightgbm for the same symbol should still be cached (if loaded).
     # xgboost_خودرو should still be cached (different symbol).
     await loader.get_model(symbol="خودرو", algorithm="xgboost")
-    assert "xgboost_خودرو" in loader._loaded
+    assert _cached(loader, "xgboost_خودرو")
 
     loader.invalidate(symbol="خودرو", algorithm="xgboost")
-    assert "xgboost_خودرو" not in loader._loaded
+    assert not _cached(loader, "xgboost_خودرو")
 
 
 @pytest.mark.asyncio
@@ -126,12 +147,12 @@ async def test_invalidate_all_clears_symbol(artifact_dir):
     await loader.get_model(symbol="فولاد", algorithm="xgboost")
     await loader.get_model(symbol="فولاد", algorithm="lightgbm")
 
-    assert "xgboost_فولاد" in loader._loaded
-    assert "lightgbm_فولاد" in loader._loaded
+    assert _cached(loader, "xgboost_فولاد")
+    assert _cached(loader, "lightgbm_فولاد")
 
     loader.invalidate(symbol="فولاد")  # no algorithm → all for symbol
-    assert "xgboost_فولاد" not in loader._loaded
-    assert "lightgbm_فولاد" not in loader._loaded
+    assert not _cached(loader, "xgboost_فولاد")
+    assert not _cached(loader, "lightgbm_فولاد")
 
 
 @pytest.mark.asyncio
@@ -205,8 +226,8 @@ async def test_preload_loads_only_existing_symbols(artifact_dir):
 
     assert report["loaded"] == 2
     assert "ناموجود" in report["missing"]
-    assert "xgboost_فولاد" in loader._loaded
-    assert "xgboost_خودرو" in loader._loaded
+    assert _cached(loader, "xgboost_فولاد")
+    assert _cached(loader, "xgboost_خودرو")
     assert "ناموجود" not in loader.list_cached_symbols()
 
 
@@ -223,7 +244,7 @@ async def test_preload_respects_algorithm_whitelist(artifact_dir):
     # Restricting to lightgbm finds the artifact.
     report2 = await loader.preload(symbols=["فولاد"], algorithms=["lightgbm"])
     assert report2["loaded"] == 1
-    assert "lightgbm_فولاد" in loader._loaded
+    assert _cached(loader, "lightgbm_فولاد")
 
 
 @pytest.mark.asyncio
