@@ -127,13 +127,16 @@ def plan_dca(
             )
         )
 
-    # Stop / Take Profit (بر اساس risk profile)
+    # Stop / Take Profit بهینه‌شده برای بازار ایران.
+    # قبلاً ۵٪/۲۰٪ بود؛ نوسان طلا در ایران ۳-۵٪ هفتگی است، SL 5٪ در اولین
+    # اصلاح عادی trigger می‌شد. TP 20٪ هم در بازار ۵۰-۱۰۰٪ سالانه خیلی زود
+    # بسته می‌شد.
     if risk_profile == "conservative":
-        stop_loss, take_profit = 5.0, 20.0
+        stop_loss, take_profit = 8.0, 40.0
     elif risk_profile == "balanced":
-        stop_loss, take_profit = 8.0, 25.0
+        stop_loss, take_profit = 12.0, 60.0
     else:
-        stop_loss, take_profit = 12.0, 35.0
+        stop_loss, take_profit = 20.0, 100.0
 
     return DCAPlan(
         total_capital_irt=total_capital_irt,

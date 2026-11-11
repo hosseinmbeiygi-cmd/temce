@@ -98,7 +98,9 @@ class FuturesRiskCalculator:
     def __init__(self, leverage: int = 10):
         self.leverage = leverage
         self.initial_margin_ratio = 1 / leverage  # 10%
-        self.maintenance_margin_ratio = 0.05  # 5%
+        # بورس کالای ایران (IME): حداقل وجه تضمین ۷٪ (قبلاً ۵٪ بود که برای
+        # محاسبه قیمت لیکوئید خیلی پایین بود و فاصله ایمنی را بیش‌نمایی می‌داد).
+        self.maintenance_margin_ratio = 0.07  # 7% — IME minimum
 
     def calculate_liquidation_price(self, entry_price: float, position_type: str) -> float:
         margin_buffer = self.initial_margin_ratio - self.maintenance_margin_ratio

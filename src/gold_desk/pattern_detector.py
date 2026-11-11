@@ -39,7 +39,8 @@ TREND_MIN_POSITIVE_DAYS: int = 7
 # افق سنجش موفقیت یک الگو: بازده قیمت پس از این تعداد روز.
 FORWARD_HORIZON_DAYS: int = 5
 # آستانهٔ «جهش»: درصد تغییر قیمت در ۳ روز.
-SPIKE_3D_THRESHOLD_PCT: float = 5.0
+# بازار طلای ایران: ۵٪ در ۳ روز در دوره‌های عادی رایج است؛ ۱۰٪ واقعاً غیرعادی است.
+SPIKE_3D_THRESHOLD_PCT: float = 10.0
 # کمتر از این تعداد نمونهٔ تاریخی، نرخ موفقیت «ادعا» نیست؛ صفر با sample می‌آید.
 MIN_HISTORY_SAMPLES: int = 3
 

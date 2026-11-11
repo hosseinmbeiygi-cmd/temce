@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
-DEFAULT_PERIODS_PER_YEAR = 252  # روزهای معاملاتی
+DEFAULT_PERIODS_PER_YEAR = 250  # روزهای معاملاتی بورس تهران (TSE ~250، نه NYSE 252)
 
 
 def simple_returns(prices: Sequence[float]) -> list[float]:
