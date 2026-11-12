@@ -48,10 +48,10 @@ class NewsService:
             page, page_size, **self._window_kwargs(date_from, date_to, category)
         )
         if result.success and result.value and result.value.items:
-            result.value.items.sort(
-                key=lambda x: x.publish_date or x.created_at or "",
-                reverse=True,
-            )
+            def _sort_key(x: Any) -> str:
+                dt = x.publish_date or x.created_at
+                return dt.isoformat() if hasattr(dt, "isoformat") else (str(dt) if dt else "")
+            result.value.items.sort(key=_sort_key, reverse=True)
         return result
 
     async def search(
