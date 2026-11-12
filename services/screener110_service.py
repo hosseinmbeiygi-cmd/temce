@@ -132,20 +132,38 @@ class BatchLoader:
     # ── Parallel load → indexed maps ─────────────────────────────────────
 
     async def load_all(self) -> dict[str, Any]:
-        """Run all 5 queries and index results by symbol.
+        """Run all 5 queries concurrently using separate sessions per query.
 
-        NOTE: Queries run sequentially (not via asyncio.gather) because
-        SQLAlchemy AsyncSession does NOT support concurrent operations on a
-        single session — gather() raised InvalidRequestError:
-        "This session is provisioning a new connection; concurrent operations
-        are not permitted". Sequential execution is still fast (~2-4s).
+        AsyncSession does not allow concurrent operations on a single session,
+        so each query gets its own short-lived session from the module-level
+        factory.  Falls back to sequential execution when the factory is not
+        yet initialised (e.g. during unit tests that pass a mock session).
         """
+        import asyncio
+        from core.database import async_session_factory
+
         t0 = time.perf_counter()
-        syms = await self._load_symbols()
-        daily_raw = await self._load_daily()
-        legal_raw = await self._load_legal()
-        profiles_raw = await self._load_profiles()
-        snaps_raw = await self._load_snapshots()
+
+        if async_session_factory is None:
+            syms = await self._load_symbols()
+            daily_raw = await self._load_daily()
+            legal_raw = await self._load_legal()
+            profiles_raw = await self._load_profiles()
+            snaps_raw = await self._load_snapshots()
+        else:
+            async def _run(method_name: str) -> list[dict[str, Any]]:
+                async with async_session_factory() as s:
+                    loader = BatchLoader(s, self._brsapi)
+                    return await getattr(loader, method_name)()
+
+            syms, daily_raw, legal_raw, profiles_raw, snaps_raw = await asyncio.gather(
+                _run("_load_symbols"),
+                _run("_load_daily"),
+                _run("_load_legal"),
+                _run("_load_profiles"),
+                _run("_load_snapshots"),
+            )
+
         elapsed = time.perf_counter() - t0
 
         # Index daily history by symbol
