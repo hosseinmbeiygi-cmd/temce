@@ -221,19 +221,39 @@ class AdvancedAnalyticsEngine:
         return sum(data[-period:]) / period
 
     def _macd(self, data: list[float]) -> tuple[float, float, float]:
-        ema12 = self._ema(data, 12)
-        ema26 = self._ema(data, min(26, len(data)))
-        macd_line = ema12 - ema26
-        # Simplified signal
-        if len(data) > 35:
-            macd_vals = []
-            for i in range(26, len(data) + 1):
-                e12 = self._ema(data[:i], 12)
-                e26 = self._ema(data[:i], min(26, i))
-                macd_vals.append(e12 - e26)
-            signal = self._ema(macd_vals, 9) if len(macd_vals) >= 9 else macd_line
+        n = len(data)
+        if n < 26:
+            macd_line = self._ema(data, 12) - self._ema(data, min(26, n))
+            return macd_line, macd_line * 0.8, macd_line * 0.2
+
+        k12 = 2.0 / 13  # 2/(12+1)
+        k26 = 2.0 / 27  # 2/(26+1)
+        k9  = 2.0 / 10  # 2/(9+1)
+
+        # Seed ema12 with SMA(data[:12]), then advance it to index 25
+        ema12 = sum(data[:12]) / 12
+        for price in data[12:26]:
+            ema12 = price * k12 + ema12 * (1.0 - k12)
+
+        # Seed ema26 with SMA(data[:26]) — both EMAs now valid at index 25
+        ema26 = sum(data[:26]) / 26
+
+        # Build MACD series in a single O(n) pass
+        macd_vals: list[float] = [ema12 - ema26]
+        for price in data[26:]:
+            ema12 = price * k12 + ema12 * (1.0 - k12)
+            ema26 = price * k26 + ema26 * (1.0 - k26)
+            macd_vals.append(ema12 - ema26)
+
+        macd_line = macd_vals[-1]
+
+        if len(macd_vals) >= 9:
+            signal = sum(macd_vals[:9]) / 9
+            for m in macd_vals[9:]:
+                signal = m * k9 + signal * (1.0 - k9)
         else:
             signal = macd_line * 0.8
+
         return macd_line, signal, macd_line - signal
 
     def _bollinger(self, data: list[float], period: int) -> tuple[float, float, float]:
