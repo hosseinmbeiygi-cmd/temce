@@ -134,12 +134,13 @@ class AdvancedAnalyticsEngine:
             return self._empty_analysis()
 
         closes = [float(h.get("price_close", 0) or 0) for h in history]
+        opens = [float(h.get("price_open", 0) or h.get("price_close", 0) or 0) for h in history]
         highs = [float(h.get("price_high", 0) or 0) for h in history]
         lows = [float(h.get("price_low", 0) or 0) for h in history]
         volumes = [float(h.get("volume", 0) or 0) for h in history]
 
         indicators = self._compute_indicators(closes, highs, lows, volumes)
-        patterns = self._detect_patterns(closes, highs, lows, volumes)
+        patterns = self._detect_patterns(opens, closes, highs, lows, volumes)
         sr_levels = self._find_support_resistance(closes, highs, lows)
         trend = self._analyze_trend(closes)
         volatility = self._analyze_volatility(closes, highs, lows)
@@ -371,14 +372,14 @@ class AdvancedAnalyticsEngine:
 
     # ── Pattern Detection ─────────────────────────────────────────────
 
-    def _detect_patterns(self, closes: list[float], highs: list[float], lows: list[float], volumes: list[float]) -> list[PatternSignal]:
+    def _detect_patterns(self, opens: list[float], closes: list[float], highs: list[float], lows: list[float], volumes: list[float]) -> list[PatternSignal]:
         patterns = []
         n = len(closes)
         if n < 3:
             return patterns
 
         for i in range(2, n):
-            o = closes[i - 1]  # simplified: use close as open
+            o = opens[i]
             h = highs[i]
             lo = lows[i]
             c = closes[i]
@@ -401,7 +402,7 @@ class AdvancedAnalyticsEngine:
 
             # Engulfing
             if i >= 2:
-                prev_o, prev_c = closes[i - 2], closes[i - 1]
+                prev_o, prev_c = opens[i - 1], closes[i - 1]
                 if prev_c < prev_o and c > o and c > prev_o and o < prev_c:
                     patterns.append(PatternSignal("bullish_engulfing", "bullish", 0.75, "الگوی احاطه صعودی", i))
                 elif prev_c > prev_o and c < o and c < prev_o and o > prev_c:
@@ -409,9 +410,9 @@ class AdvancedAnalyticsEngine:
 
             # Morning Star (3-candle)
             if i >= 3:
-                c1_o, c1_c = closes[i - 3], closes[i - 2]
-                c2_o, c2_c = closes[i - 2], closes[i - 1]
-                c3_o, c3_c = closes[i - 1], closes[i]
+                c1_o, c1_c = opens[i - 2], closes[i - 2]
+                c2_o, c2_c = opens[i - 1], closes[i - 1]
+                c3_o, c3_c = opens[i], closes[i]
                 body2 = abs(c2_c - c2_o)
                 body1 = abs(c1_c - c1_o)
                 if c1_c < c1_o and body2 < body1 * 0.3 and c3_c > c3_o and c3_c > (c1_o + c1_c) / 2:
@@ -419,9 +420,9 @@ class AdvancedAnalyticsEngine:
 
             # Evening Star
             if i >= 3:
-                c1_o, c1_c = closes[i - 3], closes[i - 2]
-                c2_o, c2_c = closes[i - 2], closes[i - 1]
-                c3_o, c3_c = closes[i - 1], closes[i]
+                c1_o, c1_c = opens[i - 2], closes[i - 2]
+                c2_o, c2_c = opens[i - 1], closes[i - 1]
+                c3_o, c3_c = opens[i], closes[i]
                 body2 = abs(c2_c - c2_o)
                 body1 = abs(c1_c - c1_o)
                 if c1_c > c1_o and body2 < body1 * 0.3 and c3_c < c3_o and c3_c < (c1_o + c1_c) / 2:
