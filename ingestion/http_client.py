@@ -36,7 +36,6 @@ class HttpClient:
             connector = aiohttp.TCPConnector(
                 limit=self._config.connection_pool_size,
                 ttl_dns_cache=300,
-                force_close=True,
             )
             timeout = aiohttp.ClientTimeout(total=self._config.request_timeout)
             self._session = aiohttp.ClientSession(

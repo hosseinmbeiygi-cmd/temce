@@ -155,10 +155,10 @@ class TsetmcOrderBookParser(Parser):
         return events
 
 
-def _to_decimal(val: Any) -> str | None:
+def _to_decimal(val: Any) -> Decimal | None:
     if val is None:
         return None
     try:
-        return str(Decimal(str(val)))
+        return Decimal(str(val))
     except Exception:
         return None
