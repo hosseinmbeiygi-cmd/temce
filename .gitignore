@@ -129,6 +129,15 @@ mimicode-go/
 # Chrome debug profiles (automation leftovers)
 tmp-chrome-profile*/
 
+# Analysis / audit scratch outputs (session-specific, not part of the codebase)
+analysis_outputs/
+DEEP_REVIEW_PART*.md
+NUMERIC_AUDIT_*.html
+NUMERIC_AUDIT_*.md
+fix_claude.ps1
+scratchpad/
+docs/quant-signal-goal-assessment.zip
+
 # Ad-hoc API response dumps at repo root (c3.json, com.json, f.json, ...)
 /c[0-9].json
 /com.json
