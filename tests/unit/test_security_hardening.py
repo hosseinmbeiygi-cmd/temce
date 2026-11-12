@@ -76,15 +76,19 @@ def _create_csrf_app() -> FastAPI:
 
 @pytest.fixture(autouse=True)
 def _restrict_cors_origins():
-    """Pin CORS origins to a fixed list for deterministic CSRF tests.
+    """Pin CORS origins and enable CSRF for deterministic CSRF tests.
 
-    The real .env uses ["*"] (dev), which makes CSRF a no-op by design —
-    the tests need a concrete origin allowlist instead.
+    The real .env uses cors_origins=["*"] and may have enable_csrf=False (dev
+    defaults), both of which make CSRF a no-op.  Tests need a concrete
+    allowlist AND the middleware active.
     """
-    original = settings.cors_origins
+    original_origins = settings.cors_origins
+    original_csrf = settings.enable_csrf
     settings.cors_origins = ["http://localhost:3000"]
+    settings.enable_csrf = True
     yield
-    settings.cors_origins = original
+    settings.cors_origins = original_origins
+    settings.enable_csrf = original_csrf
 
 
 def _create_metrics_app() -> FastAPI:
