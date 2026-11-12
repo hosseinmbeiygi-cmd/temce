@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -18,6 +19,7 @@ class TsetmcInstrumentSource(DataSource):
         self._http = http
         self._instruments: list[dict[str, Any]] | None = None
         self._rate_limiter = RateLimiter(max_calls=10, period=1.0)
+        self._load_lock = asyncio.Lock()
 
     @property
     def name(self) -> str:
@@ -46,15 +48,18 @@ class TsetmcInstrumentSource(DataSource):
     async def _ensure_loaded(self) -> None:
         if self._instruments is not None:
             return
-        import json
+        async with self._load_lock:
+            if self._instruments is not None:
+                return
+            import json
 
-        try:
-            result = await self.fetch()
-            data = json.loads(result.payloads[0].raw_data)
-            self._instruments = data if isinstance(data, list) else data.get("instrument", [])
-        except Exception:
-            logger.exception("Failed to fetch instrument list")
-            self._instruments = []
+            try:
+                result = await self.fetch()
+                data = json.loads(result.payloads[0].raw_data)
+                self._instruments = data if isinstance(data, list) else data.get("instrument", [])
+            except Exception:
+                logger.exception("Failed to fetch instrument list")
+                self._instruments = []
 
     async def get_instrument_ids(self) -> list[str]:
         await self._ensure_loaded()

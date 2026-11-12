@@ -90,7 +90,7 @@ class IngestionWorker:
         return results
 
     async def _refresh_instruments(self) -> None:
-        now = asyncio.get_event_loop().time()
+        now = asyncio.get_running_loop().time()
         if self._instrument_source and (now - self._last_instrument_refresh > self._instrument_refresh_interval):
             try:
                 self._instrument_ids = await self._instrument_source.get_instrument_ids()

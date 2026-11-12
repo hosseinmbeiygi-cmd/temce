@@ -113,7 +113,7 @@ class RateLimiter:
 
     async def acquire(self) -> None:
         async with self._lock:
-            now = asyncio.get_event_loop().time()
+            now = asyncio.get_running_loop().time()
             elapsed = now - self._last_refill
             self._tokens = min(float(self._max_calls), self._tokens + elapsed * (self._max_calls / self._period))
             self._last_refill = now
@@ -122,6 +122,6 @@ class RateLimiter:
                 wait = (1 - self._tokens) * (self._period / self._max_calls)
                 await asyncio.sleep(wait)
                 self._tokens = 0.0
-                self._last_refill = asyncio.get_event_loop().time()
+                self._last_refill = asyncio.get_running_loop().time()
             else:
                 self._tokens -= 1.0
