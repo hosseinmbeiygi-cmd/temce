@@ -1165,13 +1165,12 @@ class QuantSignalOrchestrator:
             from services.signal_decision_engine import (
                 SignalCandidate,
                 SignalDecisionEngine,
-                SignalPolicy,
             )
 
-            # Load market-specific policy from YAML config
-            policy_path = "config/signal_policy.yaml"
+            # Policy is immutable config — cache it process-wide so the YAML
+            # is parsed only once.  Session must stay per-call (DB scope).
             engine = SignalDecisionEngine(
-                policy=SignalPolicy(json_path=policy_path),
+                policy=_get_signal_policy(),
                 session=self._session,
             )
             released: list[EnrichedSignal] = []
@@ -1221,17 +1220,12 @@ class QuantSignalOrchestrator:
                         available_fields += 1
                     # Gate 1: total_price_points from real candle/history length
                     # when available (threaded from _fetch_symbol_histories via
-                    # generate()); otherwise fall back to the vote-coverage proxy.
+                    # generate()); 0 when history is absent so compute_data_quality_score
+                    # returns a low score and Gate 1 blocks the signal.  Using
+                    # vote-coverage as a proxy (old: max(20, n_votes*10)) gave
+                    # history_score=1.0 on 2 votes, hiding the missing data.
                     _real_len = (history_lengths or {}).get(sig.symbol, 0)
-                    if _real_len and _real_len > 0:
-                        _price_points = int(_real_len)
-                    else:
-                        try:
-                            _n_votes = len(scores) if isinstance(scores, dict) else 0
-                        except TypeError as exc:
-                            logger.debug("vote score is not sized (%s); using 0 votes", exc)
-                            _n_votes = 0
-                        _price_points = max(20, _n_votes * 10)
+                    _price_points = int(_real_len) if _real_len and _real_len > 0 else 0
                     dqs = compute_data_quality_score(
                         total_fields=total_expected,
                         missing_fields=total_expected - available_fields,
@@ -2073,6 +2067,7 @@ class QuantSignalOrchestrator:
 _orchestrator: QuantSignalOrchestrator | None = None
 _ml_connector: Any = None
 _confidence_scorer: Any = None
+_signal_policy: Any = None  # SignalPolicy — parsed once, never mutated
 
 
 def get_orchestrator() -> QuantSignalOrchestrator:
@@ -2096,3 +2091,12 @@ def _get_confidence_scorer(session: Any = None) -> Any:
         from services.confidence_scorer import ConfidenceScorer
         _confidence_scorer = ConfidenceScorer(session=session)
     return _confidence_scorer
+
+
+def _get_signal_policy(policy_path: str = "config/signal_policy.yaml") -> Any:
+    """Return the cached SignalPolicy, parsing the YAML only on the first call."""
+    global _signal_policy
+    if _signal_policy is None:
+        from services.signal_decision_engine import SignalPolicy
+        _signal_policy = SignalPolicy(json_path=policy_path)
+    return _signal_policy
