@@ -136,10 +136,13 @@ class IngestionEngine:
     @property
     def replay(self) -> ReplayEngine:
         assert self._lake is not None
+        from .identity import IdentityResolver
+
         return ReplayEngine(
             lake=self._lake,
             parser_registry=self._parsers,
             storage=StorageLayer(self._db) if self._db else None,
+            identity_resolver=IdentityResolver(self._db) if self._db else None,
         )
 
 

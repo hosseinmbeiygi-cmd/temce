@@ -254,12 +254,10 @@ async def test_replay_counts_parse_error_as_failed_not_replayed():
 
     # The unreadable object must land in ``failed``; counting it in ``replayed``
     # would report a recovery run that never recovered anything.
-    assert result == {
-        "source": "dummy",
-        "total_objects": 2,
-        "replayed": 1,
-        "failed": 1,
-    }
+    assert result["source"] == "dummy"
+    assert result["total_objects"] == 2
+    assert result["objects_replayed"] == 1
+    assert result["objects_failed"] == 1
 
 
 async def test_replay_keeps_valid_empty_payload_as_replayed():
@@ -269,5 +267,5 @@ async def test_replay_keeps_valid_empty_payload_as_replayed():
 
     # A valid response with no records was read successfully, so it is not a
     # failure — the same distinction the parser contract makes.
-    assert result["replayed"] == 2
-    assert result["failed"] == 0
+    assert result["objects_replayed"] == 2
+    assert result["objects_failed"] == 0
