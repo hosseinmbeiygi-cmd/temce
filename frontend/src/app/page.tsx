@@ -60,19 +60,22 @@ function ChartGroupSkeleton() {
 }
 
 function LiveClock() {
-  // Date must not be read during SSR/client hydration; use a stable initial
-  // value and start the live clock after the component mounts.
-  const [now, setNow] = useState(() => new Date(0));
+  // Keep initial state null so SSR and client hydration render the same
+  // placeholder; reading new Date(0) produced "03:30" (epoch in Tehran TZ)
+  // which flashed briefly on every page load.
+  const [time, setTime] = useState<string | null>(null);
   useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 30_000);
+    const fmt = () => {
+      const d = new Date();
+      return faNum(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+    };
+    setTime(fmt());
+    const id = setInterval(() => setTime(fmt()), 30_000);
     return () => clearInterval(id);
   }, []);
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
   return (
     <span dir="ltr" className="font-mono text-[12px] font-bold tabular-nums text-ink">
-      {faNum(`${hh}:${mm}`)}
+      {time ?? "——:——"}
     </span>
   );
 }

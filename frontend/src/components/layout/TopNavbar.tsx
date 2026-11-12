@@ -456,19 +456,14 @@ export default function TopNavbar() {
             <div className="space-y-1 px-4 py-4">
               {NAV_CONFIG.map((item) => (
                 <div key={item.label} className="rounded-xl border border-white/8">
-                  <div
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
                     aria-expanded={mobileGroup === item.label}
                     onClick={() => setMobileGroup(mobileGroup === item.label ? null : item.label)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setMobileGroup(mobileGroup === item.label ? null : item.label);
-                      }
                       if (e.key === "Escape") setMobileGroup(null);
                     }}
-                    className="flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-semibold text-brand-100 hover:bg-white/5"
+                    className="flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-semibold text-brand-100 hover:bg-white/5"
                   >
                     <span className="flex items-center gap-2">
                       <item.icon className="size-4" aria-hidden />
@@ -478,7 +473,7 @@ export default function TopNavbar() {
                       className={cn("size-4 text-brand-300 transition-transform", mobileGroup === item.label && "rotate-180")}
                       aria-hidden
                     />
-                  </div>
+                  </button>
                   <AnimatePresence>
                     {mobileGroup === item.label && (
                       <motion.div

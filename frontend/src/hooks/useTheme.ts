@@ -91,8 +91,9 @@ export function useTheme() {
   useEffect(() => {
     // Keep every mounted instance in sync (e.g. header toggle + settings).
     const refresh = () => {
-      setMode(getStoredMode());
-      setTheme(resolve(getStoredMode()));
+      const m = getStoredMode();
+      setMode(m);
+      setTheme(resolve(m));
     };
     listeners.add(refresh);
 
@@ -102,9 +103,17 @@ export function useTheme() {
     };
     window.addEventListener('storage', onStorage);
 
+    // Respond to OS dark/light preference changes when mode is 'system'.
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onMediaChange = () => {
+      if (getStoredMode() === 'system') refresh();
+    };
+    mq.addEventListener('change', onMediaChange);
+
     return () => {
       listeners.delete(refresh);
       window.removeEventListener('storage', onStorage);
+      mq.removeEventListener('change', onMediaChange);
     };
   }, []);
 
