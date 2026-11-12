@@ -103,7 +103,7 @@ def _rsi(prices: list[float], period: int = 14) -> list[float]:
     if avg_loss == 0:
         rsis[period] = 100.0
     else:
-        rsis[period] = 100 - (100 / (1 + avg_gain / avg_loss))
+        rsis[period] = float(100 - (100 / (1 + avg_gain / avg_loss)))
 
     for i in range(period + 1, len(prices)):
         g = gains[i - 1] if i - 1 < len(gains) else 0
@@ -113,7 +113,7 @@ def _rsi(prices: list[float], period: int = 14) -> list[float]:
         if avg_loss == 0:
             rsis[i] = 100
         else:
-            rsis[i] = 100 - (100 / (1 + avg_gain / avg_loss))
+            rsis[i] = float(100 - (100 / (1 + avg_gain / avg_loss)))
 
     return rsis
 
