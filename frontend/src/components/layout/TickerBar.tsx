@@ -108,7 +108,7 @@ export default function TickerBar() {
           <div className="ticker-track">
             <div className="ticker-track-content flex w-max items-center animate-ticker group-hover:[animation-play-state:paused]">
               {items.map((t, i) => (
-                <TickerChip key={`${t.symbol}-${i}`} {...t} />
+                <TickerChip key={`${i < tickerItems.length ? "a" : "b"}-${t.symbol}`} {...t} />
               ))}
             </div>
           </div>

@@ -74,7 +74,6 @@ export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn 
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastMessageAt, setLastMessageAt] = useState<number | null>(null);
-  const [now, setNow] = useState<number>(() => Date.now());
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,13 +81,24 @@ export function useMarketWebSocket(symbols: string[]): UseMarketWebSocketReturn 
   const symbolsRef = useRef(symbols);
   const prevSymbolsRef = useRef(symbols);
 
+  // Schedule a single re-render exactly when the stale threshold is crossed,
+  // instead of polling every 5 s. The timer only runs while connected; it is
+  // reset each time a fresh message arrives (lastMessageAt changes).
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 5_000);
-    return () => clearInterval(id);
-  }, []);
+    if (!connected) return;
+    const remaining = lastMessageAt === null
+      ? MARKET_WS_STALE_MS
+      : MARKET_WS_STALE_MS - (Date.now() - lastMessageAt);
+    if (remaining <= 0) return; // already stale — no timer needed
+    const id = setTimeout(() => {
+      // Force a re-render so the stale flag reflects the new state.
+      setLastMessageAt((prev) => prev);
+    }, remaining);
+    return () => clearTimeout(id);
+  }, [connected, lastMessageAt]);
 
   const stale =
-    connected && (lastMessageAt === null || now - lastMessageAt > MARKET_WS_STALE_MS);
+    connected && (lastMessageAt === null || Date.now() - lastMessageAt > MARKET_WS_STALE_MS);
 
   // Keep the latest subscribed symbols available to socket handlers and send
   // subscribe/unsubscribe deltas when the caller changes the symbol list.

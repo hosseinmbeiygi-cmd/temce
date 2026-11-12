@@ -290,7 +290,14 @@ class PrecomputeStore {
 let _store: PrecomputeStore | null = null;
 
 export function getPrecomputeStore(): PrecomputeStore {
-  if (!_store) _store = new PrecomputeStore();
+  if (!_store) {
+    _store = new PrecomputeStore();
+    // Clear stale per-user data when the auth session is terminated so a
+    // subsequent login never sees the previous user's armor results.
+    if (typeof window !== "undefined") {
+      window.addEventListener("auth:state-cleared", () => _store?.reset());
+    }
+  }
   return _store;
 }
 
