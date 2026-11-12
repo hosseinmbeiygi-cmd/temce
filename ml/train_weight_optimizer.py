@@ -191,8 +191,8 @@ class WeightOptimizer:
 
             val = (
                 await session.execute(
-                    text("SELECT max(gregorian_date) FROM brsapi_historical_daily "
-                         "WHERE gregorian_date IS NOT NULL")
+                    text("SELECT max(jalali_to_gregorian(date)) FROM brsapi_historical_daily "
+                         "WHERE date IS NOT NULL AND date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'")
                 )
             ).scalar()
             break
@@ -211,22 +211,22 @@ class WeightOptimizer:
         async for session in get_session():
             from sqlalchemy import text
 
-            where = "gregorian_date IS NOT NULL AND price_close > 0"
+            where = "date IS NOT NULL AND date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND price_close > 0"
             params: dict[str, Any] = {}
             if start is not None:
-                where += " AND gregorian_date >= :start"
+                where += " AND jalali_to_gregorian(date) >= :start"
                 params["start"] = start.date()
             if end is not None:
-                where += " AND gregorian_date <= :end"
+                where += " AND jalali_to_gregorian(date) <= :end"
                 params["end"] = end.date()
 
             rows = (
                 await session.execute(
                     text(
-                        "SELECT symbol, gregorian_date, price_close "
+                        "SELECT symbol, jalali_to_gregorian(date) AS gregorian_date, price_close "
                         "FROM brsapi_historical_daily "
                         f"WHERE {where} "
-                        "ORDER BY symbol, gregorian_date"
+                        "ORDER BY symbol, jalali_to_gregorian(date)"
                     ),
                     params,
                 )
