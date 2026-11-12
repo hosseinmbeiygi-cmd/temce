@@ -39,7 +39,8 @@
 
 #### 3. `brsapi/models/commodity.py` — نبود `UniqueConstraint` روی `GoldCurrencyProDailyHistoryModel`
 - **قبل:** `ON CONFLICT DO NOTHING` بدون unique constraint → درج تکراری
-- **بعد:** `UniqueConstraint("date", "currency_pair", name="uq_gold_currency_pro_daily")`
+- **بعد:** `UniqueConstraint("symbol", "date", name="uq_pro_daily_sym_date")`
+  *(گزارش اولیه نام ستون `currency_pair` و نام constraint `uq_gold_currency_pro_daily` ذکر کرده بود — هر دو در کد نهایی تغییر کردند)*
 
 ---
 

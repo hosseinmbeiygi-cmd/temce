@@ -1,3 +1,5 @@
+> ⚠️ **Historical document** — findings reviewed and superseded by `AUDIT_REPORT_2026-11-12.md`.
+
 # Why TEMCE Is Not Reliably Finding Good Signals: Deeper Code Diagnosis
 
 **Reviewed:** September 24, 2026 · **Repository revision:** `bc9fd2070a4003bbe4de8c888cd676563aa01046` · **Scope:** current checkout, not a running production instance. No repository files were changed. Findings below distinguish reproduced behavior, code-level risks, and historical observations.
