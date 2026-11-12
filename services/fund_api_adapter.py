@@ -512,7 +512,7 @@ class FundApiAdapter:
                 # قرنطینه رکورد خراب — ادامه با بقیه holdings
                 import asyncio
 
-                asyncio.get_event_loop().create_task(
+                asyncio.create_task(
                     self.quarantine.quarantine(
                         source_endpoint="Codal/Announcement.php",
                         record=rec,

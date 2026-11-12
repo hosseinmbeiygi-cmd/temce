@@ -640,6 +640,13 @@ class BrsApiClient:
         try:
             return float(header)
         except ValueError:
+            pass
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(header)
+            wait = (dt - datetime.now(UTC)).total_seconds()
+            return max(0.0, wait)
+        except Exception:
             return 5.0
 
     # ── Circuit breaker ──────────────────────────

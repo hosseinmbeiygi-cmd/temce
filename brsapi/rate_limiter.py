@@ -144,10 +144,7 @@ class RateLimiter:
                 )
                 logger.warning(msg)
                 # Fire async notification (best effort, outside lock)
-                asyncio.get_event_loop().call_soon(
-                    asyncio.ensure_future,
-                    self._fire_notification(msg),
-                )
+                asyncio.get_running_loop().create_task(self._fire_notification(msg))
 
     # ── Global limit checks ─────────────────────
 
