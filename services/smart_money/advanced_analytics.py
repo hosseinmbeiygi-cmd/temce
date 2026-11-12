@@ -15,6 +15,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from core.indicators import compute_rsi as _wilder_rsi
+
 #: The shortest window the screener scores with (Bollinger uses 20 bars). Below this the
 #: indicators are not "flat", they are absent — and absent must never be scored.
 MIN_COMPUTED_BARS = 20
@@ -200,19 +202,7 @@ class AdvancedAnalyticsEngine:
         return ind
 
     def _rsi(self, data: list[float], period: int) -> float:
-        if len(data) < period + 1:
-            return 50.0
-        gains, losses = [], []
-        for i in range(1, len(data)):
-            change = data[i] - data[i - 1]
-            gains.append(max(change, 0))
-            losses.append(max(-change, 0))
-        avg_gain = sum(gains[-period:]) / period
-        avg_loss = sum(losses[-period:]) / period
-        if avg_loss == 0:
-            return 100.0
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
+        return _wilder_rsi(data, period)
 
     def _ema(self, data: list[float], period: int) -> float:
         if not data:
