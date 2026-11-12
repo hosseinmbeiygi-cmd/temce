@@ -11,7 +11,6 @@ class CompressionLayer:
     def compute(self, quote: dict[str, Any], history: list[dict[str, Any]]) -> dict[str, float]:
         h = quote.get("price_high", 0.0)
         low = quote.get("price_low", 0.0)
-        quote.get("price_close", 0.0)
         v = quote.get("volume", 0) or 1
 
         ranges = [q.get("price_high", 0.0) - q.get("price_low", 0.0) for q in history[-20:]] or [1]
@@ -22,16 +21,14 @@ class CompressionLayer:
         atr20 = self._atr(history[-20:]) or atr5 or 1.0
         atrc = 1.0 - norm(atr5 / atr20 if atr20 else 1.0, 0.8, 1.3)
 
-        vols_5 = [q.get("volume", 0) or 1 for q in history[-5:]] or [1]
         vols_20 = [q.get("volume", 0) or 1 for q in history[-20:]] or [1]
-        sum(vols_5) / len(vols_5)
         avg_v20 = sum(vols_20) / len(vols_20)
         vtr_n = norm(v / avg_v20 if avg_v20 else 1.0, 0.8, 2.5)
         ipe_n = self._ipe(quote, history)
 
         vvd = (vtr_n + ipe_n + rc) / 3
 
-        ess = 0.22 * rc + 0.22 * atrc + 0.20 * rc + 0.20 * vvd + 0.16 * rc
+        ess = 0.22 * rc + 0.22 * atrc + 0.20 * vvd + 0.20 * vtr_n + 0.16 * ipe_n
 
         return {
             "ess": min(1.0, max(0.0, ess)),

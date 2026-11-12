@@ -18,7 +18,7 @@ class RelativeStrengthLayer:
         c = quote.get("price_close", 0.0)
 
         closes = [q.get("price_close", 0.0) or 0.0 for q in history[-11:]]
-        closes_full = [c] + closes if closes else [c]
+        closes_full = closes + [c] if closes else [c]
 
         rsi3 = self._returns(closes_full, 3)
         rsi5 = self._returns(closes_full, 5)
@@ -41,7 +41,7 @@ class RelativeStrengthLayer:
             rds = self._red_day_strength(closes_full, index_history[: len(closes_full)])
             rds_n = norm(rds, -0.02, 0.03)
 
-        rrs = 0.22 * rsi3_n + 0.22 * rsi5_n + 0.18 * rsi10_n + 0.18 * rss_n + 0.10 * rds_n + 0.10 * rsi3_n
+        rrs = 0.32 * rsi3_n + 0.22 * rsi5_n + 0.18 * rsi10_n + 0.18 * rss_n + 0.10 * rds_n
 
         return {
             "rrs": min(1.0, max(0.0, rrs)),
