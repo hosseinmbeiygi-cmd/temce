@@ -41,6 +41,7 @@ class IngestionWorker:
         self._instrument_source = instrument_source
         self._sources: dict[str, Any] = {}
         self._instrument_ids: list[str] = []
+        self._instrument_symbols: list[str] = []
         self._instrument_refresh_interval = 3600
         self._last_instrument_refresh = 0.0
 
@@ -67,12 +68,11 @@ class IngestionWorker:
                     count_mw = await self._ingest_source(source, ctx_mw)
                     results[name] = count_mw
                 elif isinstance(source, (TsetmcLibSource,)):
-                    # tsetmc lib: fetch a sample instrument if we have any
-                    count = 0
-                    if self._instrument_ids and len(self._instrument_ids) > 0:
-                        symbol = str(self._instrument_ids[0])
+                    total = 0
+                    for symbol in self._instrument_symbols:
                         count = await self._ingest_source(source, {"symbol": symbol, "data_type": "all"})
-                    results[name] = count
+                        total += count
+                    results[name] = total
                 elif isinstance(source, (TehranStocksSource,)):
                     # tehran-stocks: fetch all stocks list
                     count = await self._ingest_source(source, {"data_type": "all_stocks"})
@@ -94,8 +94,13 @@ class IngestionWorker:
         if self._instrument_source and (now - self._last_instrument_refresh > self._instrument_refresh_interval):
             try:
                 self._instrument_ids = await self._instrument_source.get_instrument_ids()
+                self._instrument_symbols = await self._instrument_source.get_instrument_symbols()
                 self._last_instrument_refresh = now
-                logger.info("Loaded %d instruments", len(self._instrument_ids))
+                logger.info(
+                    "Loaded %d instruments (%d with symbols)",
+                    len(self._instrument_ids),
+                    len(self._instrument_symbols),
+                )
             except Exception:
                 logger.exception("Failed to refresh instruments")
 

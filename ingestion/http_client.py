@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 
 from core.logging import get_logger
 
 from .config import IngestionConfig
-from .retry import retry_async
+from .retry import CircuitBreaker, retry_async
 
 logger = get_logger(__name__)
 
@@ -20,6 +21,13 @@ class HttpClient:
         self._session: aiohttp.ClientSession | None = None
         self._lock = asyncio.Lock()
         self._cleanup_callbacks: list[Callable[[], Any]] = []
+        self._circuits: dict[str, CircuitBreaker] = {}
+
+    def _get_circuit(self, url: str) -> CircuitBreaker:
+        host = urlparse(url).netloc
+        if host not in self._circuits:
+            self._circuits[host] = CircuitBreaker(name=host)
+        return self._circuits[host]
 
     async def start(self) -> None:
         async with self._lock:
@@ -62,7 +70,9 @@ class HttpClient:
         if self._session is None:
             raise RuntimeError("HttpClient not started")
 
-        return await retry_async(
+        circuit = self._get_circuit(url)
+        return await circuit.call(
+            retry_async,
             self._do_fetch,
             url,
             method=method,

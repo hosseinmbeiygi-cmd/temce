@@ -43,10 +43,9 @@ class TsetmcInstrumentSource(DataSource):
         except Exception:
             return False
 
-    async def get_instrument_ids(self) -> list[str]:
+    async def _ensure_loaded(self) -> None:
         if self._instruments is not None:
-            return [inst["insCode"] for inst in self._instruments]
-
+            return
         import json
 
         try:
@@ -55,8 +54,19 @@ class TsetmcInstrumentSource(DataSource):
             self._instruments = data if isinstance(data, list) else data.get("instrument", [])
         except Exception:
             logger.exception("Failed to fetch instrument list")
-            return []
-        return [inst["insCode"] for inst in self._instruments]
+            self._instruments = []
+
+    async def get_instrument_ids(self) -> list[str]:
+        await self._ensure_loaded()
+        return [inst["insCode"] for inst in (self._instruments or [])]
+
+    async def get_instrument_symbols(self) -> list[str]:
+        """Return ticker symbols (lVal18AFC) for all instruments, skipping blanks."""
+        await self._ensure_loaded()
+        return [
+            sym for inst in (self._instruments or [])
+            if (sym := str(inst.get("lVal18AFC") or "").strip())
+        ]
 
 
 class TsetmcMarketWatchSource(DataSource):
