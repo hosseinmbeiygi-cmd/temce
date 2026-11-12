@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
@@ -59,12 +60,14 @@ function PriceCard({ crypto, selectedTimeframe }: { crypto: CryptoPrice; selecte
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           {crypto.icon_url ? (
-            <img
+            <Image
               src={crypto.icon_url}
               alt={crypto.symbol}
+              width={40}
+              height={40}
+              unoptimized
               className="w-10 h-10 rounded-full"
-              loading="lazy"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
           ) : (
             <div className="w-10 h-10 rounded-full bg-primary-600/20 flex items-center justify-center text-sm font-bold text-primary-300">
@@ -285,12 +288,14 @@ function CryptoTable({ cryptos, selectedTimeframe }: { cryptos: CryptoPrice[]; s
                   <td className="py-3 px-3">
                     <div className="flex items-center gap-3">
                       {c.icon_url ? (
-                        <img
+                        <Image
                           src={c.icon_url}
                           alt={c.symbol}
+                          width={32}
+                          height={32}
+                          unoptimized
                           className="w-8 h-8 rounded-full"
-                          loading="lazy"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-primary-600/20 flex items-center justify-center text-xs font-bold text-primary-300">

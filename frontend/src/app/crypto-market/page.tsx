@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
@@ -167,8 +168,8 @@ function CoinCard({ coin, tf }: { coin: Coin; tf: Timeframe }) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2.5">
             {coin.icon_url ? (
-              <img src={coin.icon_url} alt={coin.symbol} className="w-9 h-9 rounded-full shadow-lg" loading="lazy"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              <Image src={coin.icon_url} alt={coin.symbol} width={36} height={36} unoptimized className="w-9 h-9 rounded-full shadow-lg"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             ) : (
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500/30 to-primary-700/30 flex items-center justify-center text-xs font-bold text-primary-300 border border-primary-500/20">
                 {coin.symbol?.slice(0, 2)}
@@ -246,8 +247,8 @@ function TopCoinRow({ coin, idx, tf }: { coin: Coin; idx: number; tf: Timeframe 
       <td className="py-3 px-3">
         <div className="flex items-center gap-2.5">
           {coin.icon_url ? (
-            <img src={coin.icon_url} alt={coin.symbol} className="w-7 h-7 rounded-full" loading="lazy"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            <Image src={coin.icon_url} alt={coin.symbol} width={28} height={28} unoptimized className="w-7 h-7 rounded-full"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
           ) : (
             <div className="w-7 h-7 rounded-full bg-primary-600/20 flex items-center justify-center text-[10px] font-bold text-primary-300">
               {coin.symbol?.slice(0, 2)}

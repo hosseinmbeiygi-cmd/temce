@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import AppLayout from "@/components/layout/AppLayout";
 import Skeleton from "@/components/Skeleton";
@@ -131,8 +132,8 @@ function FeaturedCoins({ cryptos }: { cryptos: CryptoPrice[] }) {
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
                   {c.icon_url ? (
-                    <img src={c.icon_url} alt={c.symbol} className="w-8 h-8 rounded-full" loading="lazy"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    <Image src={c.icon_url} alt={c.symbol} width={32} height={32} unoptimized className="w-8 h-8 rounded-full"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500/30 to-accent-violet/30 flex items-center justify-center text-xs font-bold text-primary-300">
@@ -183,8 +184,8 @@ function MoversSection({ cryptos }: { cryptos: CryptoPrice[] }) {
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-mono text-surface-600 w-5">#{i + 1}</span>
                 {c.icon_url ? (
-                  <img src={c.icon_url} alt="" className="w-6 h-6 rounded-full" loading="lazy"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  <Image src={c.icon_url} alt="" width={24} height={24} unoptimized className="w-6 h-6 rounded-full"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-accent-emerald/10 flex items-center justify-center text-[9px] font-bold text-accent-emerald">
@@ -226,8 +227,8 @@ function MoversSection({ cryptos }: { cryptos: CryptoPrice[] }) {
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-mono text-surface-600 w-5">#{i + 1}</span>
                 {c.icon_url ? (
-                  <img src={c.icon_url} alt="" className="w-6 h-6 rounded-full" loading="lazy"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  <Image src={c.icon_url} alt="" width={24} height={24} unoptimized className="w-6 h-6 rounded-full"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-accent-rose/10 flex items-center justify-center text-[9px] font-bold text-accent-rose">
@@ -320,8 +321,8 @@ function CryptoTable({ cryptos }: { cryptos: CryptoPrice[] }) {
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       {c.icon_url ? (
-                        <img src={c.icon_url} alt="" className="w-7 h-7 rounded-full" loading="lazy"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        <Image src={c.icon_url} alt="" width={28} height={28} unoptimized className="w-7 h-7 rounded-full"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-500/20 to-accent-violet/20 flex items-center justify-center text-[10px] font-bold text-primary-300">
