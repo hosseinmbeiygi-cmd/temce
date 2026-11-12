@@ -2046,9 +2046,14 @@ class QuantSignalOrchestrator:
                         market_totals[market] = {"correct": 0, "total": 0}
                     market_totals[market]["correct"] += int(item.get("correct", 0))
                     market_totals[market]["total"] += int(item.get("total", 0))
+                # Only include markets with enough samples to make a statistically
+                # meaningful accuracy judgment; sparse markets would fire false
+                # retrain alerts (e.g. 0% from a single wrong signal).
+                _MIN_SNAPSHOT_SAMPLES = 20  # noqa: N806
                 snapshot: dict[str, float] = {
                     market: round((v["correct"] / max(v["total"], 1)) * 100, 2)
                     for market, v in market_totals.items()
+                    if v["total"] >= _MIN_SNAPSHOT_SAMPLES
                 }
                 # Overall average
                 if snapshot:

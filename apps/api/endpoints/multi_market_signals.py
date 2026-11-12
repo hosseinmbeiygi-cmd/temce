@@ -321,8 +321,19 @@ async def trigger_retrain(
         current_accuracy: dict[str, float] = {}
         if accuracy_result.success and accuracy_result.value:
             items = accuracy_result.value.items if hasattr(accuracy_result.value, "items") else []
+            # get_accuracy_by_market returns (market, source) pairs; aggregate
+            # correct/total by market to avoid last-source-wins.
+            mkt_totals: dict[str, dict[str, int]] = {}
             for item in items:
-                current_accuracy[item.get("market", "?")] = item.get("accuracy_pct", 0.0)
+                mkt = item.get("market", "?")
+                if mkt not in mkt_totals:
+                    mkt_totals[mkt] = {"correct": 0, "total": 0}
+                mkt_totals[mkt]["correct"] += int(item.get("correct", 0))
+                mkt_totals[mkt]["total"] += int(item.get("total", 0))
+            current_accuracy = {
+                mkt: round((v["correct"] / max(v["total"], 1)) * 100, 2)
+                for mkt, v in mkt_totals.items()
+            }
 
         if market != "all":
             # Retrain a single market

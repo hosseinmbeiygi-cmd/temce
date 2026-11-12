@@ -205,7 +205,6 @@ jobs:
 
       - name: ESLint
         run: cd frontend && npm run lint
-        continue-on-error: true
 
   # ── JOB 6: Mermaid docs syntax check ─────────────────────────
   # Validates every ```mermaid block in docs/ with the real Mermaid

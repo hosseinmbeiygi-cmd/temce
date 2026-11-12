@@ -100,21 +100,27 @@ class AutoRetrainPipeline:
         accuracy_result = await self._tracker.get_accuracy_by_market(market=market, days=30)
         current_accuracy = 0.55
 
+        total_signals = 0
         if accuracy_result.success and accuracy_result.value is not None and accuracy_result.value.items:
-            # Average across all sources
-            accuracies = [m.get("accuracy_pct", 50) / 100 for m in accuracy_result.value.items]
-            if accuracies:
-                current_accuracy = sum(accuracies) / len(accuracies)
+            # Weighted sum: sum(correct) / sum(total) across all sources for this
+            # market.  Averaging accuracy_pct values would give equal weight to a
+            # source with 2 signals and one with 200.
+            total_correct = sum(int(m.get("correct", 0)) for m in accuracy_result.value.items)
+            total_signals = sum(int(m.get("total", 0)) for m in accuracy_result.value.items)
+            if total_signals >= self.MIN_SAMPLES_FOR_RETRAIN:
+                current_accuracy = total_correct / total_signals
 
         report.old_accuracy = current_accuracy
 
         # 2. Check if retrain is needed
         should_retrain = force
         if not should_retrain:
-            if trigger == "accuracy_drop" and current_accuracy < self.ACCURACY_THRESHOLD:
+            if (trigger == "accuracy_drop"
+                    and current_accuracy < self.ACCURACY_THRESHOLD
+                    and total_signals >= self.MIN_SAMPLES_FOR_RETRAIN):
                 should_retrain = True
-                logger.info("Accuracy %.1f%% below threshold %.1f%%. Retraining %s.",
-                            current_accuracy * 100, self.ACCURACY_THRESHOLD * 100, market)
+                logger.info("Accuracy %.1f%% below threshold %.1f%% (%d samples). Retraining %s.",
+                            current_accuracy * 100, self.ACCURACY_THRESHOLD * 100, total_signals, market)
 
         if not should_retrain:
             logger.info("Market %s accuracy %.1f%% above threshold. Skipping retrain.",

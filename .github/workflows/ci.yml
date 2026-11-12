@@ -322,13 +322,12 @@ jobs:
 
   # ── Backend Tests — DB-backed paths ───────────────────────
   # The main test job runs with ``-m "not needs_db"`` (pyproject addopts), so
-  # the 16 needs_db modules never execute in CI. This job gives them a real
+  # the 16 needs_db modules never execute there. This job gives them a real
   # PostgreSQL + Redis. Separate on purpose: a DB stall cannot eat the unit
-  # suite results. Advisory until a freshly migrated DB is validated.
+  # suite results.
   needs-db:
     name: Backend Tests (needs_db)
     runs-on: ubuntu-latest
-    continue-on-error: true
     services:
       postgres:
         image: timescale/timescaledb:2.31.0-pg16
