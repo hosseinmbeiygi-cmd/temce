@@ -20,6 +20,7 @@ import random
 from typing import Any, cast
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 logger = get_logger(__name__)
 
@@ -66,7 +67,7 @@ class VectorizedBacktest:
         returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity)) if equity[i - 1] > 0]
         avg_r = sum(returns) / len(returns) if returns else 0
         std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1
-        sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
+        sharpe = (avg_r / std_r) * math.sqrt(_TDAYS) if std_r > 0 else 0
 
         peak = equity[0]
         max_dd = 0.0
@@ -79,13 +80,13 @@ class VectorizedBacktest:
 
         downside = [r for r in returns if r < 0]
         down_std = math.sqrt(sum(r ** 2 for r in downside) / len(downside)) if downside else 1
-        sortino = (avg_r / down_std) * math.sqrt(252) if down_std > 0 else 0
+        sortino = (avg_r / down_std) * math.sqrt(_TDAYS) if down_std > 0 else 0
         calmar = total_return / (max_dd * 100) if max_dd > 0 else 0
 
         return {
             "method": method,
             "total_return_pct": round(total_return, 2),
-            "annualized_return_pct": round(total_return * 252 / len(equity), 2),
+            "annualized_return_pct": round(total_return * _TDAYS / len(equity), 2),
             "sharpe_ratio": round(sharpe, 2),
             "sortino_ratio": round(sortino, 2),
             "calmar_ratio": round(calmar, 2),
@@ -303,7 +304,7 @@ class MonteCarloEngine:
 
         avg = sum(returns) / len(returns)
         std = math.sqrt(sum((r - avg) ** 2 for r in returns) / len(returns))
-        return (avg / std) * math.sqrt(252) if std > 0 else 0
+        return (avg / std) * math.sqrt(_TDAYS) if std > 0 else 0
 
 
 # ── 5. Stress Testing ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -387,7 +388,7 @@ class RegimeEvaluator:
 
             avg = sum(rets) / len(rets)
             std = math.sqrt(sum((r - avg) ** 2 for r in rets) / len(rets))
-            sharpe = (avg / std) * math.sqrt(252) if std > 0 else 0
+            sharpe = (avg / std) * math.sqrt(_TDAYS) if std > 0 else 0
             cum = 1.0
             peak = 1.0
             max_dd = 0.0

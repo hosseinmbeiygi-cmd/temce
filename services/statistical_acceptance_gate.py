@@ -22,6 +22,7 @@ import math
 from dataclasses import dataclass, field
 
 from core.config.ime_engine import load_ime_config
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 # ── Defaults match سند §7.2 + پیوست ه (kept here for callers that don't
 #    want to load YAML every time). The YAML is the single source of truth. ──
@@ -87,7 +88,7 @@ def wilson_ci_lower(p: float, n: int, confidence: float = DEFAULT_CONFIDENCE) ->
     return max(0.0, centre - spread)
 
 
-def annualised_sharpe(trade_pnls_pct: list[float], periods_per_year: int = 252) -> float:
+def annualised_sharpe(trade_pnls_pct: list[float], periods_per_year: int = _TDAYS) -> float:
     """Sharpe ratio from a series of per-trade percentage returns.
 
     Assumes ``periods_per_year`` independent trades per year for

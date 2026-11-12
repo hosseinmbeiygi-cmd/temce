@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Any
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 logger = get_logger(__name__)
 
@@ -499,13 +500,13 @@ class AnalyticsEngine:
 
         navs = [e["nav"] for e in equity]
         total_return = (navs[-1] / navs[0] - 1) * 100
-        years = len(navs) / 252
+        years = len(navs) / _TDAYS
         cagr = ((navs[-1] / navs[0]) ** (1 / max(years, 0.01)) - 1) * 100
 
         returns = [(navs[i] / navs[i - 1]) - 1 for i in range(1, len(navs)) if navs[i - 1] > 0]
         avg_r = sum(returns) / len(returns) if returns else 0
         std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1
-        sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
+        sharpe = (avg_r / std_r) * math.sqrt(_TDAYS) if std_r > 0 else 0
 
         peak = navs[0]
         max_dd = 0.0
@@ -518,7 +519,7 @@ class AnalyticsEngine:
 
         downside = [r for r in returns if r < 0]
         down_std = math.sqrt(sum(r ** 2 for r in downside) / len(downside)) if downside else 1
-        sortino = (avg_r / down_std) * math.sqrt(252) if down_std > 0 else 0
+        sortino = (avg_r / down_std) * math.sqrt(_TDAYS) if down_std > 0 else 0
         calmar = cagr / (max_dd * 100) if max_dd > 0 else 0
 
         wins = [t for t in portfolio.trade_log if t.get("pnl", 0) > 0]
@@ -527,7 +528,7 @@ class AnalyticsEngine:
 
         sorted_losses = sorted(returns)
         cutoff = max(1, int(0.05 * len(sorted_losses)))
-        cvar = -sum(sorted_losses[:cutoff]) / cutoff * math.sqrt(252) if sorted_losses else 0
+        cvar = -sum(sorted_losses[:cutoff]) / cutoff * math.sqrt(_TDAYS) if sorted_losses else 0
 
         exec_stats = execution.get_stats()
 
@@ -543,7 +544,7 @@ class AnalyticsEngine:
                 "calmar": round(calmar, 2),
                 "max_drawdown_pct": round(max_dd * 100, 2),
                 "cvar_95": round(cvar, 2),
-                "volatility": round(std_r * math.sqrt(252) * 100, 2),
+                "volatility": round(std_r * math.sqrt(_TDAYS) * 100, 2),
             },
             "trading": {
                 "total_trades": len(sell_trades),

@@ -19,6 +19,8 @@ from typing import Any
 
 import numpy as np
 
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
+
 
 @dataclass
 class EvaluationResult:
@@ -75,7 +77,7 @@ class EvaluationSuite:
             return EvaluationResult()
         mean = float(np.mean(arr))
         std = float(np.std(arr)) or 1e-9
-        sharpe = mean / std * math.sqrt(252)
+        sharpe = mean / std * math.sqrt(_TDAYS)
         # Max drawdown from cumulative returns
         cum = np.cumsum(arr)
         peak = np.maximum.accumulate(cum)

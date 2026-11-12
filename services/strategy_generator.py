@@ -11,6 +11,7 @@ from backtesting.engine.simulator import BacktestSimulator
 from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
 from core.logging import get_logger
 from core.result import Result
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 logger = get_logger(__name__)
 
@@ -55,13 +56,13 @@ def _compute_enhanced_metrics(result: Any, initial_capital: float) -> dict[str, 
 
     total_return = ((equity[-1] / initial_capital) - 1) * 100
     trading_days = len(equity)
-    years = trading_days / 252
+    years = trading_days / _TDAYS
     ann_return = ((equity[-1] / initial_capital) ** (1 / max(years, 0.01)) - 1) * 100
 
     returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]
     avg_r = sum(returns) / len(returns) if returns else 0
     std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1
-    sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
+    sharpe = (avg_r / std_r) * math.sqrt(_TDAYS) if std_r > 0 else 0
 
     peak = equity[0]
     max_dd = 0.0
@@ -87,7 +88,7 @@ def _compute_enhanced_metrics(result: Any, initial_capital: float) -> dict[str, 
 
     downside_returns = [r for r in returns if r < 0]
     downside_vol = math.sqrt(sum(r ** 2 for r in downside_returns) / len(downside_returns)) if downside_returns else 1
-    sortino = (avg_r / downside_vol) * math.sqrt(252) if downside_vol > 0 else 0
+    sortino = (avg_r / downside_vol) * math.sqrt(_TDAYS) if downside_vol > 0 else 0
     calmar = ann_return / (max_dd * 100) if max_dd > 0 else 0
 
     return {

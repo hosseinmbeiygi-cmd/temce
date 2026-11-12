@@ -15,6 +15,7 @@ from core.ids import new_id
 from core.logging import get_logger
 from core.result import Result
 from core.time import utc_now_naive
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 from ml.features.price_features import PriceFeatures
 from ml.features.technical_features import TechnicalFeatures
 from ml.models.registry import model_registry
@@ -64,7 +65,7 @@ def _compute_metrics(result: BacktestResult, risk_free_rate: float | None = None
 
     # Ensure backward-compatible keys exist
     trading_days = len(result.equity_curve)
-    years = trading_days / 252 if trading_days > 0 else 1
+    years = trading_days / _TDAYS if trading_days > 0 else 1
     all_metrics.setdefault("total_return_pct", result.total_return_pct)
     all_metrics.setdefault("annualized_return_pct",
         round(((1 + result.total_return_pct / 100) ** (1 / years) - 1) * 100, 2) if years > 0 else 0.0)

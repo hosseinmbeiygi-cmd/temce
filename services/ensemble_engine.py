@@ -10,6 +10,7 @@ import math
 from typing import Any
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 logger = get_logger(__name__)
 
@@ -313,7 +314,7 @@ class TSESimulator:
         returns = [(equity_curve[j] / equity_curve[j - 1]) - 1 for j in range(1, len(equity_curve)) if equity_curve[j - 1] > 0]
         avg_r = sum(returns) / len(returns) if returns else 0
         std_r = math.sqrt(sum((r - avg_r) ** 2 for r in returns) / len(returns)) if returns else 1
-        sharpe = (avg_r / std_r) * math.sqrt(252) if std_r > 0 else 0
+        sharpe = (avg_r / std_r) * math.sqrt(_TDAYS) if std_r > 0 else 0
 
         peak = equity_curve[0]
         max_dd = 0.0

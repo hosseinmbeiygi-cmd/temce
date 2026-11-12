@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_TSE as _TDAYS
 
 logger = get_logger(__name__)
 
@@ -240,7 +241,7 @@ class RiskAdjustedFilter:
 
                 # Metrics
                 daily_vol = float(np.std(returns_arr, ddof=1))
-                annual_vol = daily_vol * np.sqrt(252)
+                annual_vol = daily_vol * np.sqrt(_TDAYS)
 
                 # VaR and CVaR at 95%
                 sorted_returns = np.sort(returns_arr)
@@ -256,7 +257,7 @@ class RiskAdjustedFilter:
 
                 # Sharpe
                 mean_ret = float(np.mean(returns_arr))
-                sharpe = mean_ret / max(daily_vol, 0.0001) * np.sqrt(252)
+                sharpe = mean_ret / max(daily_vol, 0.0001) * np.sqrt(_TDAYS)
 
                 # Skewness and Kurtosis
                 n = len(returns_arr)
