@@ -35,6 +35,60 @@ def _as_sort_value(value: Any) -> Any:
         return str(value)
 
 
+# Composite-weight and risk-penalty presets keyed by risk_tolerance value.
+_RISK_CONFIGS: dict[str, dict] = {
+    "low": {
+        "smart_money_weight": 0.3,
+        "technical_weight": 0.3,
+        "fundamental_weight": 0.3,
+        "momentum_weight": 0.1,
+        "risk_multiplier": 0.5,  # higher penalty for risk
+    },
+    "medium": {
+        "smart_money_weight": 0.4,
+        "technical_weight": 0.3,
+        "fundamental_weight": 0.2,
+        "momentum_weight": 0.1,
+        "risk_multiplier": 0.3,
+    },
+    "high": {
+        "smart_money_weight": 0.4,
+        "technical_weight": 0.2,
+        "fundamental_weight": 0.1,
+        "momentum_weight": 0.3,  # more weight on momentum for risk-on traders
+        "risk_multiplier": 0.1,  # lower penalty for risk
+    },
+}
+
+# Resample factor: how many daily bars to collapse into one candle.
+_TIMEFRAME_RESAMPLE: dict[str, int] = {"daily": 1, "weekly": 5, "monthly": 20}
+
+
+def _resample_history(history: list[dict[str, Any]], n: int) -> list[dict[str, Any]]:
+    """Collapse every *n* consecutive daily bars into one aggregated candle.
+
+    Keys produced match what AdvancedAnalyticsEngine.analyze() expects:
+    price_close, price_high, price_low, volume.
+    With only 61 days of history the weekly series has ~12 bars and the
+    monthly series ~3 — AdvancedAnalyticsEngine already returns NOT_MEASURED
+    gracefully when the series is too short for a given indicator.
+    """
+    if n <= 1 or not history:
+        return history
+    result: list[dict[str, Any]] = []
+    for i in range(0, len(history), n):
+        chunk = history[i : i + n]
+        result.append(
+            {
+                "price_close": chunk[-1].get("price_close", 0) or 0,
+                "price_high": max((h.get("price_high", 0) or 0) for h in chunk),
+                "price_low": min((h.get("price_low", 0) or h.get("price_close", 0) or 0) for h in chunk),
+                "volume": sum((h.get("volume", 0) or 0) for h in chunk),
+            }
+        )
+    return result
+
+
 @dataclass
 class ScreenerConfig:
     """Configuration for the enhanced screener."""
@@ -49,8 +103,14 @@ class ScreenerConfig:
     max_risk_score: float = 0.7
     min_liquidity: float = 0.3
     min_volume: int = 100_000
+    # Multiplier applied to risk_score in the composite penalty (1 - risk * risk_multiplier).
+    # low risk_tolerance → 0.5 (bigger penalty), high → 0.1 (smaller penalty).
+    risk_multiplier: float = 0.3
 
-    # Timeframe weights
+    # Timeframe: "daily" (default), "weekly" (5-bar aggregation), "monthly" (20-bar)
+    timeframe: str = "daily"
+
+    # Timeframe weights (retained for backward compat; not used in scoring)
     daily_weight: float = 0.5
     weekly_weight: float = 0.3
     monthly_weight: float = 0.2
@@ -205,16 +265,20 @@ class SmartScreenerV2:
         sector_history: list[float] | None = None,
     ) -> EnhancedScreenedSymbol:
         """Analyze a single symbol with full advanced analytics."""
-        cache_key = f"analysis:{symbol}:{len(history)}"
+        resample_n = _TIMEFRAME_RESAMPLE.get(self.config.timeframe, 1)
+        cache_key = f"analysis:{symbol}:{len(history)}:{self.config.timeframe}:{self.config.risk_multiplier}"
         cached = self._get_cached(cache_key)
         if cached:
             return cached
 
-        # Step 1: Smart Money scoring
+        # Resample daily bars to weekly/monthly if requested.
+        analytics_history = _resample_history(history, resample_n) if resample_n > 1 else history
+
+        # Step 1: Smart Money scoring (always on daily bars — SMC signals are daily)
         smc_result = self._scoring_engine.analyze(quote, history, index_history=sector_history)
 
-        # Step 2: Advanced technical analysis
-        advanced = self._analytics_engine.analyze(history, quote)
+        # Step 2: Advanced technical analysis (on resampled bars for weekly/monthly)
+        advanced = self._analytics_engine.analyze(analytics_history, quote)
 
         # Step 3: Compute enhanced scores
         technical_score = self._compute_technical_score(advanced)
@@ -432,7 +496,7 @@ class SmartScreenerV2:
             return 0.0
         raw = sum(contributions[name] * weights[name] for name in weights) / total_weight
 
-        risk_adjustment = 1.0 if risk_score is None else 1.0 - (risk_score * 0.3)
+        risk_adjustment = 1.0 if risk_score is None else 1.0 - (risk_score * cfg.risk_multiplier)
         return max(-1.0, min(1.0, raw * risk_adjustment))
 
     def _get_best_pattern(self, analysis: AdvancedAnalysis) -> tuple[str, float]:

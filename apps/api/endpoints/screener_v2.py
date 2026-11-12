@@ -328,9 +328,18 @@ async def screener_v2_filter(
                 success=False, data={"items": [], "total": 0}, error={"message": "No market data available"}
             )
 
-        from services.smart_screener_v2 import SmartScreenerV2
+        from services.smart_screener_v2 import ScreenerConfig, SmartScreenerV2, _RISK_CONFIGS
 
-        screener = SmartScreenerV2()
+        risk_overrides = _RISK_CONFIGS.get(body.risk_tolerance, _RISK_CONFIGS["medium"])
+        config = ScreenerConfig(
+            timeframe=body.timeframe,
+            smart_money_weight=risk_overrides["smart_money_weight"],
+            technical_weight=risk_overrides["technical_weight"],
+            fundamental_weight=risk_overrides["fundamental_weight"],
+            momentum_weight=risk_overrides["momentum_weight"],
+            risk_multiplier=risk_overrides["risk_multiplier"],
+        )
+        screener = SmartScreenerV2(config=config)
 
         if body.signal_filter:
             screener.config.min_pattern_confidence = 0.5
