@@ -215,7 +215,7 @@ export default function ProfilePage() {
         <div className="glass-card p-6">
           <h3 className="text-lg font-bold text-surface-200 mb-4">✏️ ویرایش اطلاعات</h3>
           {profileMsg && (
-            <div className={`px-4 py-2 rounded-lg mb-4 text-sm ${profileMsg.startsWith("✅") ? "bg-accent-emerald/10 text-accent-emerald" : "bg-accent-rose/10 text-accent-rose"}`}>
+            <div role="status" aria-live="polite" className={`px-4 py-2 rounded-lg mb-4 text-sm ${profileMsg.startsWith("✅") ? "bg-accent-emerald/10 text-accent-emerald" : "bg-accent-rose/10 text-accent-rose"}`}>
               {profileMsg}
             </div>
           )}
@@ -270,7 +270,7 @@ export default function ProfilePage() {
         <div className="glass-card p-6">
           <h3 className="text-lg font-bold text-surface-200 mb-4">🔒 تغییر رمز عبور</h3>
           {passwordMsg && (
-            <div className={`px-4 py-2 rounded-lg mb-4 text-sm ${passwordMsg.startsWith("✅") ? "bg-accent-emerald/10 text-accent-emerald" : "bg-accent-rose/10 text-accent-rose"}`}>
+            <div role="status" aria-live="polite" className={`px-4 py-2 rounded-lg mb-4 text-sm ${passwordMsg.startsWith("✅") ? "bg-accent-emerald/10 text-accent-emerald" : "bg-accent-rose/10 text-accent-rose"}`}>
               {passwordMsg}
             </div>
           )}

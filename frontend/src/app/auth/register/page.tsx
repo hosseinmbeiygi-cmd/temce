@@ -43,7 +43,7 @@ export default function RegisterPage() {
           <div className="glass-card p-8">
             <h1 className="text-2xl font-bold mb-6 text-center gradient-text">ثبت‌نام در سامانه</h1>
             {error && (
-              <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-4 py-2 rounded-lg mb-4 text-sm">
+              <div role="alert" className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-4 py-2 rounded-lg mb-4 text-sm">
                 {error}
               </div>
             )}
