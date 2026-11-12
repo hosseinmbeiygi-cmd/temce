@@ -27,7 +27,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
+from dotenv import load_dotenv
+
 from core.time import utc_now_naive
+
+load_dotenv()  # ensure .env is loaded before reading GOLD_API_TOKEN_SALT
 
 logger = logging.getLogger(__name__)
 
