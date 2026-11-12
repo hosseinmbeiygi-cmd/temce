@@ -221,9 +221,11 @@ export default function ProfilePage() {
           )}
           <form onSubmit={handleProfileSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-surface-500 mb-1">نام و نام خانوادگی</label>
+              <label htmlFor="profile-fullname" className="block text-sm text-surface-500 mb-1">نام و نام خانوادگی</label>
               <input
+                id="profile-fullname"
                 type="text"
+                autoComplete="name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -231,9 +233,11 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-500 mb-1">تلفن</label>
+              <label htmlFor="profile-phone" className="block text-sm text-surface-500 mb-1">تلفن</label>
               <input
-                type="text"
+                id="profile-phone"
+                type="tel"
+                autoComplete="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -241,9 +245,11 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-500 mb-1">ایمیل</label>
+              <label htmlFor="profile-email" className="block text-sm text-surface-500 mb-1">ایمیل</label>
               <input
+                id="profile-email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -270,9 +276,11 @@ export default function ProfilePage() {
           )}
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-surface-500 mb-1">رمز عبور فعلی</label>
+              <label htmlFor="pwd-current" className="block text-sm text-surface-500 mb-1">رمز عبور فعلی</label>
               <input
+                id="pwd-current"
                 type="password"
+                autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -281,9 +289,11 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-500 mb-1">رمز عبور جدید</label>
+              <label htmlFor="pwd-new" className="block text-sm text-surface-500 mb-1">رمز عبور جدید</label>
               <input
+                id="pwd-new"
                 type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -293,9 +303,11 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-500 mb-1">تکرار رمز عبور جدید</label>
+              <label htmlFor="pwd-confirm" className="block text-sm text-surface-500 mb-1">تکرار رمز عبور جدید</label>
               <input
+                id="pwd-confirm"
                 type="password"
+                autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"

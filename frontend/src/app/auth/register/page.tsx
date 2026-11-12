@@ -49,9 +49,11 @@ export default function RegisterPage() {
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">نام کاربری</label>
+                <label htmlFor="reg-username" className="block text-sm text-gray-400 mb-1">نام کاربری</label>
                 <input
+                  id="reg-username"
                   type="text"
+                  autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -60,9 +62,11 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">ایمیل</label>
+                <label htmlFor="reg-email" className="block text-sm text-gray-400 mb-1">ایمیل</label>
                 <input
+                  id="reg-email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -71,9 +75,11 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">نام و نام خانوادگی</label>
+                <label htmlFor="reg-fullname" className="block text-sm text-gray-400 mb-1">نام و نام خانوادگی</label>
                 <input
+                  id="reg-fullname"
                   type="text"
+                  autoComplete="name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
@@ -81,9 +87,11 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">رمز عبور</label>
+                <label htmlFor="reg-password" className="block text-sm text-gray-400 mb-1">رمز عبور</label>
                 <input
+                  id="reg-password"
                   type="password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary-500 transition"
