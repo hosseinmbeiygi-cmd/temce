@@ -268,7 +268,7 @@ class SignalPolicy:
             },
 
             "probability": {
-                "base_threshold": 0.55,
+                "base_threshold": 0.62,
                 "margin": {
                     "minimum": 0.10,
                     "watchlist": 0.05,

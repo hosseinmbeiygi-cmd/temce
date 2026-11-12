@@ -21,6 +21,7 @@ from brsapi.client import (
 )
 from brsapi.parsers import TsetmcParser
 from brsapi.parsers.errors import BrsApiParseError
+from brsapi.rate_limiter import RateLimiter
 from brsapi.services.sync_service import BrsApiSyncService
 from core.result import Result
 
@@ -31,7 +32,10 @@ ENDPOINT = SimpleNamespace(path="/Test/Endpoint.php", category=SimpleNamespace(v
 
 
 def _client() -> BrsApiClient:
-    return BrsApiClient(api_key="test", base_url="http://test.local")
+    # Pass an isolated RateLimiter so the constructor creates a fresh
+    # non-persistent BrsApiBudgetGovernor instead of the shared singleton,
+    # preventing state bleed-over from earlier tests in the same run.
+    return BrsApiClient(api_key="test", base_url="http://test.local", rate_limiter=RateLimiter())
 
 
 def test_html_body_carries_malformed_code() -> None:

@@ -1921,18 +1921,31 @@ class QuantSignalOrchestrator:
                         # For other markets we fall back to current snapshot price
                         # (historical tables lack a reliable Gregorian date index).
                         exit_price: float | None = None
+                        high_price: float | None = None
+                        low_price: float | None = None
                         if market in ("stock", "option") and due_date is not None:
+                            # Range high/low over the full holding period for accurate
+                            # stop-out and target hit detection.
+                            start_date = generated_at.date() if isinstance(generated_at, datetime) else due_date
                             r2 = await session.execute(text("""
-                                SELECT price_close
+                                SELECT
+                                    MAX(price_high),
+                                    MIN(price_low),
+                                    (SELECT price_close
+                                     FROM brsapi_historical_daily h2
+                                     WHERE h2.symbol = :symbol
+                                       AND h2.gregorian_date >= :due_date
+                                     ORDER BY h2.gregorian_date ASC
+                                     LIMIT 1) AS exit_close
                                 FROM brsapi_historical_daily
                                 WHERE symbol = :symbol
-                                  AND gregorian_date >= :due_date
-                                ORDER BY gregorian_date ASC
-                                LIMIT 1
-                            """), {"symbol": symbol, "due_date": due_date})
+                                  AND gregorian_date BETWEEN :start_date AND :due_date
+                            """), {"symbol": symbol, "due_date": due_date, "start_date": start_date})
                             pr = r2.fetchone()
-                            if pr and pr[0] and float(pr[0]) > 0:
-                                exit_price = float(pr[0])
+                            if pr and pr[2] and float(pr[2]) > 0:
+                                exit_price = float(pr[2])
+                                high_price = float(pr[0]) if pr[0] else None
+                                low_price = float(pr[1]) if pr[1] else None
 
                         if exit_price is None:
                             # Fallback: use latest snapshot (non-stock markets or
@@ -1977,10 +1990,22 @@ class QuantSignalOrchestrator:
                             "ml_score": safe_row_float(row, idx=10),
                             "rule_score": safe_row_float(row, idx=11),
                         }
+                        # Derive numeric target / stop estimates from signal price
+                        # (5% target, 3% stop — conservative defaults when the
+                        # signal_accuracy row stores no explicit price levels).
+                        target1_est = signal_price * 1.05 if direction == "buy" else signal_price * 0.95
+                        target2_est = signal_price * 1.10 if direction == "buy" else signal_price * 0.90
+                        stop_est = signal_price * 0.97 if direction == "buy" else signal_price * 1.03
+
                         outcome = await tracker.evaluate_signal(
                             signal=signal_dict,
                             entry_price=entry_price,
                             exit_price=exit_price,
+                            high_price=high_price,
+                            low_price=low_price,
+                            target1=target1_est,
+                            target2=target2_est,
+                            stop_loss=stop_est,
                         )
 
                         # Update the row with outcome data

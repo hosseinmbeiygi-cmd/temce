@@ -202,7 +202,9 @@ def _composite_buy_score(
         reasons.append(f"مومنتوم {tf_days}d منفی")
 
     if rsi < 35:
-        buy_score += 0.30
+        # RSI oversold is a supporting signal, not a standalone trigger.
+        # Require at least one more confirming factor (momentum or trend).
+        buy_score += 0.20
         reasons.append(f"RSI اشباع فروش ({rsi:.0f})")
     elif rsi > 70:
         buy_score -= 0.25
@@ -227,8 +229,9 @@ def _composite_buy_score(
         buy_score += 0.10
         reasons.append("افزایش حجم/فعالیت")
     elif vol_trend < 0.35:
-        buy_score -= 0.05
-        reasons.append("کاهش حجم/فعالیت")
+        # Low volume: penalise directional signals more aggressively
+        buy_score -= 0.10
+        reasons.append("کاهش حجم/فعالیت — سیگنال ضعیف‌تر")
 
     # Volatility filter: reject trades in extreme-volatility regimes (mean-revert noise)
     if market in ("currency", "gold"):
@@ -578,18 +581,18 @@ class MultiMarketSignalEngine:
         self, sym: str, name: str, price: float, change_pct: float,
         volume: int, value: float,
     ) -> MarketSignal:
-        direction = "buy" if change_pct > 2 else "sell" if change_pct < -2 else "hold"
-        strength = min(1.0, abs(change_pct) / 5)
+        # With only snapshot data (<5 days history) we cannot compute RSI/trend/
+        # momentum reliably — always emit "hold" to avoid high false-positive rate.
         return MarketSignal(
             symbol=sym, name=name, market="stock",
-            direction=direction, timeframe="daily",
+            direction="hold", timeframe="daily",
             entry_zone=f"قیمت فعلی: {_fmt_price(price)}",
             stop_loss=f"{_fmt_price(price * 0.95)} (۵٪ کاهش)",
             targets=f"هدف اول: {_fmt_price(price * 1.05)} | هدف دوم: {_fmt_price(price * 1.10)}",
             risk_reward="۱ به ۱",
-            reason=f"تغییر {change_pct:+.1f}٪ | حجم: {value / 1e9:.1f} میلیارد ریال",
+            reason=f"داده تاریخی ناکافی | تغییر {change_pct:+.1f}٪",
             price=price, change_pct=change_pct,
-            score=max(0, min(100, 50 + change_pct * 5)), strength=strength, confidence=0.3,
+            score=50, strength=0.0, confidence=0.2,
             source="snapshot_analysis", created_at=utc_now_naive().isoformat(),
         )
 
@@ -639,7 +642,9 @@ class MultiMarketSignalEngine:
             reasons.append(f"مومنتوم {tf_name} منفی ({momentum:.0%})")
 
         if rsi < 35:
-            buy_score += 0.30
+            # RSI oversold alone can't cross the new 0.35 threshold — needs
+            # momentum or trend confirmation to generate a directional signal.
+            buy_score += 0.20
             reasons.append(f"RSI اشباع فروش ({rsi:.0f})")
         elif rsi > 70:
             buy_score -= 0.25
@@ -657,6 +662,10 @@ class MultiMarketSignalEngine:
         if vol_trend > 0.6:
             buy_score += 0.10
             reasons.append("افزایش حجم معاملات")
+        elif vol_trend < 0.35:
+            # Penalise signals where volume is drying up — higher false-positive rate
+            buy_score -= 0.10
+            reasons.append("کاهش حجم معاملات")
 
         # ── Fundamental Analysis Factor (from Codal) ──
         if codal:
@@ -691,10 +700,12 @@ class MultiMarketSignalEngine:
                         buy_score -= 0.10
                         reasons.append(f"ریسک تقلب بالا ({risk_val:.0%})")
 
-        # Score to direction
-        if buy_score > 0.15:
+        # Score to direction — higher threshold (0.35) requires at least two
+        # confirming signals (e.g. RSI + momentum or RSI + trend), preventing
+        # single-indicator false triggers that caused the 38% accuracy rate.
+        if buy_score > 0.35:
             direction = "buy"
-        elif buy_score < -0.15:
+        elif buy_score < -0.35:
             direction = "sell"
         else:
             direction = "hold"
@@ -741,7 +752,8 @@ class MultiMarketSignalEngine:
             trailing = ""
             invalidation = "سیگنال فقط مشاهده‌ای است"
 
-        confidence = 0.3 + strength * 0.4 + (0.1 if len(reasons) > 2 else 0)
+        # Confidence proportional to actual buy_score strength; no artificial floor
+        confidence = 0.2 + strength * 0.5 + (0.05 if len(reasons) > 2 else 0)
 
         now = utc_now_naive()
         return MarketSignal(
@@ -1023,10 +1035,10 @@ class MultiMarketSignalEngine:
                                 signals.append(sig)
                         continue
 
-                    # Fallback: no OHLC history → simple 24h change threshold
+                    # Fallback: no OHLC history → 24h change threshold (raised 0.3%→2%)
                     chg_pct = chg_pct or 0.0
                     atr = price * 0.015
-                    direction = "buy" if chg_pct > 0.3 else "sell" if chg_pct < -0.3 else "hold"
+                    direction = "buy" if chg_pct > 2.0 else "sell" if chg_pct < -2.0 else "hold"
                     strength = min(1.0, abs(chg_pct) / 2)
 
                     if direction == "buy":
@@ -1124,7 +1136,8 @@ class MultiMarketSignalEngine:
                     if not closes:
                         chg_pct = chg_pct or 0.0
                         atr_est = price * abs(chg_pct) / 100 * 2 if chg_pct else price * 0.03
-                        direction = "buy" if chg_pct > 1 else "sell" if chg_pct < -1 else "hold"
+                        # Raised threshold (1%→4%) for no-history crypto fallback
+                        direction = "buy" if chg_pct > 4 else "sell" if chg_pct < -4 else "hold"
                         strength = min(1.0, abs(chg_pct) / 5)
                         sl = price - atr_est * 1.5 if direction == "buy" else price + atr_est * 1.5
                         t1 = price + atr_est * 2 if direction == "buy" else price - atr_est * 2
@@ -1402,8 +1415,9 @@ class MultiMarketSignalEngine:
 
                     chg_pct = chg_pct or 0.0
                     atr_est = price * abs(chg_pct) / 100 * 2 if chg_pct else price * 0.02
-                    direction = "buy" if chg_pct > 1 else "sell" if chg_pct < -1 else "hold"
-                    strength = min(1.0, abs(chg_pct) / 5)
+                    # Raised from 1% → 3% to avoid noise-driven signals on commodity prices
+                    direction = "buy" if chg_pct > 3 else "sell" if chg_pct < -3 else "hold"
+                    strength = min(1.0, abs(chg_pct) / 8)
 
                     sl = price - atr_est * 1.5 if direction == "buy" else price + atr_est * 1.5
                     t1 = price + atr_est * 2 if direction == "buy" else price - atr_est * 2
