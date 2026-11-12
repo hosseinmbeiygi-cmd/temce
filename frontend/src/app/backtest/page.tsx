@@ -75,6 +75,19 @@ const ALL_RADAR_COLS = [
   { key: "max_drawdown_pct" as const, label: "Max DD", invert: true },
 ];
 
+const DEFAULT_RADAR_METRICS = ALL_RADAR_COLS.map((c) => c.key);
+
+function getSavedRadarMetrics(): string[] {
+  try {
+    const saved = localStorage.getItem("bt-radar-metrics");
+    if (saved) {
+      const parsed = JSON.parse(saved) as string[];
+      return parsed.filter((k) => (DEFAULT_RADAR_METRICS as string[]).includes(k));
+    }
+  } catch {}
+  return DEFAULT_RADAR_METRICS;
+}
+
 const RADAR_COLORS_BT = [
   { fill: "rgba(0, 200, 255, 0.15)", stroke: "#00C8FF" },
   { fill: "rgba(0, 230, 118, 0.15)", stroke: "#00E676" },
@@ -401,28 +414,13 @@ export default function BacktestPage() {
   const [compareSortDir, setCompareSortDir] = useState<"asc" | "desc">("desc");
   const [highlightedStrategies, setHighlightedStrategies] = useState<string[]>([]);
   const [hoveredStrategy, setHoveredStrategy] = useState<string | null>(null);
-  const defaultMetrics = ALL_RADAR_COLS.map(c => c.key);
-  const getSavedMetrics = (): string[] => {
-    try {
-      const saved = localStorage.getItem("bt-radar-metrics");
-      if (saved) {
-        const parsed = JSON.parse(saved) as string[];
-        // Only keep valid keys
-        return parsed.filter(k => (defaultMetrics as string[]).includes(k));
-      }
-    } catch {}
-    return defaultMetrics;
-  };
-  // SSR-safe initial state: `localStorage` doesn't exist during the server
-  // render, so seeding state from getSavedMetrics() would produce different
-  // HTML than the client → hydration mismatch. Start from deterministic
-  // defaults and adopt the saved selection after mount.
+  // SSR-safe initial state: start from deterministic defaults and adopt the
+  // saved selection after mount to avoid hydration mismatches.
   const [enabledRadarMetrics, setEnabledRadarMetrics] = useState<string[]>(
-    defaultMetrics
+    DEFAULT_RADAR_METRICS
   );
   useEffect(() => {
-    setEnabledRadarMetrics(getSavedMetrics());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setEnabledRadarMetrics(getSavedRadarMetrics());
   }, []);
   // Persist metric selection to localStorage
   useEffect(() => {

@@ -83,12 +83,13 @@ export default function IndicatorsPage() {
 
   const currentDef = INDICATOR_DEFS.find((d) => d.key === indicatorKey)!;
 
-  // Reset params when indicator changes
+  // Reset params when indicator changes. Look up defaults inside the effect
+  // so it only depends on the primitive key, not the derived object reference
+  // (INDICATOR_DEFS.find returns a new object every render — adding it to
+  // deps would trigger a re-run on every render, not just on key change).
   useEffect(() => {
-    // Sync derived form state to the new indicator's defaults.
-     
-    setParams({ ...currentDef.defaults });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const def = INDICATOR_DEFS.find((d) => d.key === indicatorKey);
+    setParams(def ? { ...def.defaults } : { period: 14 });
   }, [indicatorKey]);
 
   const isMultiLine = MULTI_LINE_INDICATORS.has(indicatorKey);

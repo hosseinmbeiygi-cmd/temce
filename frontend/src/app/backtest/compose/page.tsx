@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface StrategyResult {
   id: string;
@@ -38,32 +38,42 @@ export default function ComposePage() {
   const [filterEntry, setFilterEntry] = useState("");
   const [filterExit, setFilterExit] = useState("");
   const [loading, setLoading] = useState(false);
+  // Stable ref so the polling effect does not need results in its dep array —
+  // avoids tearing down and recreating the interval every time results arrive.
+  const resultsRef = useRef(results);
+  useEffect(() => { resultsRef.current = results; }, [results]);
 
   // Load indicators on mount
   useEffect(() => {
-    fetch("/api/compose/indicators")
+    const ctrl = new AbortController();
+    fetch("/api/compose/indicators", { signal: ctrl.signal })
       .then(r => r.json())
       .then(d => setIndicators(d.data || []))
       .catch(() => {});
+    return () => ctrl.abort();
   }, []);
 
-  // Poll progress
+  // Poll progress — interval never restarts; uses ref for stale-results check
   useEffect(() => {
+    let disposed = false;
     const interval = setInterval(() => {
-      fetch("/api/compose/status")
+      const ctrl = new AbortController();
+      fetch("/api/compose/status", { signal: ctrl.signal })
         .then(r => r.json())
         .then(d => {
+          if (disposed) return;
           setProgress(d.data);
-          if (!d.data?.running && results.length === 0) {
+          if (!d.data?.running && resultsRef.current.length === 0) {
             fetch("/api/compose/results?limit=100")
               .then(r => r.json())
-              .then(d => setResults(d.data?.results || []));
+              .then(d => { if (!disposed) setResults(d.data?.results || []); })
+              .catch(() => {});
           }
         })
         .catch(() => {});
     }, 3000);
-    return () => clearInterval(interval);
-  }, [results.length]);
+    return () => { disposed = true; clearInterval(interval); };
+  }, []);
 
   const startGeneration = useCallback(async () => {
     setLoading(true);
@@ -73,8 +83,8 @@ export default function ComposePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symbols, batch_size: batchSize, max_batches: maxBatches }),
       });
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // Errors are transient; progress polling will reflect the actual state.
     }
     setLoading(false);
   }, [symbols, batchSize, maxBatches]);

@@ -73,8 +73,10 @@ export function useDebugLogs(maxLogs: number = MAX_LOGS) {
         return updated.slice(0, maxLogs);
       });
 
-      const emoji = status === 'success' ? '✅' : status === 'error' ? '❌' : status === 'loading' ? '⏳' : 'ℹ️';
-      console.log(`${emoji} [${status.toUpperCase()}] ${endpoint}`, data || error || '');
+      if (process.env.NODE_ENV !== 'production') {
+        const emoji = status === 'success' ? '✅' : status === 'error' ? '❌' : status === 'loading' ? '⏳' : 'ℹ️';
+        console.log(`${emoji} [${status.toUpperCase()}] ${endpoint}`, data || error || '');
+      }
     },
     [isEnabled, maxLogs]
   );
