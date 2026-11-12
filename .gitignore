@@ -226,3 +226,19 @@ json/brsapi/symbol_details.json
 
 # Scratch patch proposals from a superseded worktree
 /proposed_patches/
+
+# One-off scratch scripts, shell-redirect accidents and patch dumps at repo root
+/z.py.bak
+/=2.0
+/%PYFILE%
+/t.txt
+/fix_*.py
+/check_volumes*.py
+/*.patch
+/pytest_output.txt
+
+# Local backup of the pre-squash migration chain (kept on disk, never in git)
+/migrations_backup_*/
+
+# Local AI-assistant workspace state
+/.workbuddy-ai/
