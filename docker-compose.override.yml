@@ -10,7 +10,7 @@
 # Ports stay in the base file; repeating them here appends duplicate mappings.
 
 services:
-  backend:
+  api:
     volumes:
       - .:/app
     command: uvicorn apps.api.app:app --host 0.0.0.0 --port 8000 --reload
@@ -24,7 +24,7 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
-      API_URL: http://backend:8000
+      API_URL: http://api:8000
       API_PREFIX: /api/v1
       NODE_ENV: development
     command: npx next dev --webpack -p 3000

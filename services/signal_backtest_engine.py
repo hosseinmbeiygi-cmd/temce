@@ -24,6 +24,7 @@ from domain.trading.iran_costs import (
     OPTION_BUY_PCT,
     OPTION_SELL_PCT,
 )
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 from services.signal_accuracy_tracker import SignalAccuracyTracker
 
 logger = get_logger(__name__)
@@ -375,12 +376,12 @@ class SignalBacktestEngine:
         # never ``inf``, which serialises as invalid JSON.
         result.profit_factor = profit_factor(wins, losses)
 
-        # Sharpe ratio (annualized for daily returns: multiply by sqrt(252))
+        # Sharpe ratio (annualized for daily returns)
         if len(returns) > 1:
             mean_r = np.mean(returns)
             std_r = np.std(returns, ddof=1)
             period_sharpe = float(mean_r) / max(float(std_r), 0.001)
-            result.sharpe = float(period_sharpe * (252 ** 0.5))
+            result.sharpe = float(period_sharpe * (TRADING_DAYS_PER_YEAR_GLOBAL ** 0.5))
         else:
             result.sharpe = 0.0
 

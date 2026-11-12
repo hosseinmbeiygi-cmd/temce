@@ -10,6 +10,7 @@ from backtesting.composer.strategy_composer import StrategyBlueprint
 from backtesting.engine.simulator import BacktestSimulator
 from backtesting.strategies.registry import get_strategy_registry, register_all_strategies
 from core.logging import get_logger
+from core.trading_constants import TRADING_DAYS_PER_YEAR_GLOBAL
 
 logger = get_logger(__name__)
 
@@ -227,7 +228,7 @@ class PhaseRunner:
         returns = [(equity[i] / equity[i - 1]) - 1 for i in range(1, len(equity))]
         avg_r = sum(returns) / len(returns) if returns else 0
         std_r = (sum((r - avg_r) ** 2 for r in returns) / len(returns)) ** 0.5 if returns else 1
-        sharpe = (avg_r / std_r) * (252 ** 0.5) if std_r > 0 else 0
+        sharpe = (avg_r / std_r) * (TRADING_DAYS_PER_YEAR_GLOBAL ** 0.5) if std_r > 0 else 0
 
         peak = equity[0]
         max_dd = 0.0
@@ -258,7 +259,7 @@ class PhaseRunner:
 
         downside = [r for r in returns if r < 0]
         down_vol = (sum(r ** 2 for r in downside) / len(downside)) ** 0.5 if downside else 1
-        sortino = (avg_r / down_vol) * (252 ** 0.5) if down_vol > 0 else 0
+        sortino = (avg_r / down_vol) * (TRADING_DAYS_PER_YEAR_GLOBAL ** 0.5) if down_vol > 0 else 0
         calmar = ann_return / (max_dd * 100) if max_dd > 0 else 0
 
         return {

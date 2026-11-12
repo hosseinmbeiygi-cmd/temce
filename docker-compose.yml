@@ -37,14 +37,14 @@ services:
       timeout: 5s
       retries: 5
     restart: always
-  backend:
+  api:
     build:
       context: .
       # The API image. The root `Dockerfile` runs `python -m ingestion.main`,
       # a collector with no HTTP surface — that is the `ingestion` service
       # below (audit DEP-01).
       dockerfile: Dockerfile.api
-    container_name: tse_backend
+    container_name: tse_api
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -167,12 +167,12 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: tse_frontend
     depends_on:
-      - backend
+      - api
       - currency
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://api:8000
       - CURRENCY_API_URL=http://currency:8002
       # Optional error tracking — unset/empty ships the bundle Sentry-free.
       # NOTE: NEXT_PUBLIC_* vars are inlined at BUILD time; for the browser

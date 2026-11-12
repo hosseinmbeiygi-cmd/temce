@@ -731,6 +731,7 @@ class QuantSignalOrchestrator:
         rejected: list[EnrichedSignal] = []
         _t5 = time.monotonic()
         if use_decision_engine:
+            _hist_map: dict[str, dict[str, list[float]]] = {}
             try:
                 _hist_map = await self._fetch_symbol_histories(raw_signals)
                 _hist_lens = {
@@ -744,7 +745,9 @@ class QuantSignalOrchestrator:
                     exc_info=True,
                 )
                 _hist_lens = {}
-            enriched, rejected = await self._apply_signal_decision(enriched, _hist_lens)
+            enriched, rejected = await self._apply_signal_decision(
+                enriched, _hist_lens, _hist_map,
+            )
         logger.info("[pipeline] stage4.5 decision: %.2fs, released=%d rejected=%d", time.monotonic() - _t5, len(enriched), len(rejected))
 
         # ── Stage 5: Cross-market correlation (only on released signals) ──
@@ -865,10 +868,9 @@ class QuantSignalOrchestrator:
     ) -> dict[str, dict[str, Any]]:
         """Get ML predictions for all signals, grouped by symbol with real historical data."""
         try:
-            from services.ml_signal_connector import MLSignalConnector
             from services.signal_feature_pipeline import SignalFeaturePipeline
 
-            connector = MLSignalConnector()
+            connector = _get_ml_connector()
             pipeline = SignalFeaturePipeline()
             predictions: dict[str, dict[str, Any]] = {}
 
@@ -993,10 +995,9 @@ class QuantSignalOrchestrator:
         use_smart_money: bool = True,
     ) -> list[EnrichedSignal]:
         """Apply ML voting + Smart Money analysis to each signal."""
-        from services.ml_signal_connector import MLSignalConnector
         from services.signal_voting_system import SignalVotingSystem
 
-        connector = MLSignalConnector()
+        connector = _get_ml_connector()
         voter = SignalVotingSystem(ml_connector=connector)
 
         # Pre-fetch Smart Money analysis for all symbols in parallel
@@ -1067,9 +1068,7 @@ class QuantSignalOrchestrator:
     ) -> list[EnrichedSignal]:
         """Apply calibrated confidence scoring to each signal."""
         try:
-            from services.confidence_scorer import ConfidenceScorer
-
-            scorer = ConfidenceScorer(session=self._session)
+            scorer = _get_confidence_scorer(session=self._session)
             calibrated: list[EnrichedSignal] = []
 
             for sig in signals:
@@ -1155,6 +1154,7 @@ class QuantSignalOrchestrator:
     async def _apply_signal_decision(
         self, signals: list[EnrichedSignal],
         history_lengths: dict[str, int] | None = None,
+        history_map: dict[str, dict[str, list[float]]] | None = None,
     ) -> tuple[list[EnrichedSignal], list[EnrichedSignal]]:
         """Run the 10-gate decision engine on each signal.
 
@@ -1238,10 +1238,25 @@ class QuantSignalOrchestrator:
                         total_price_points=_price_points,
                     )
 
-                    # Compute liquidity score from trading activity proxy
-                    abs_change = abs(sig.change_pct or 0) / 100.0
-                    liq_score = min(1.0, 0.3 + abs_change * 3)
-                    fill_prob = min(1.0, 0.4 + abs_change * 2.5)
+                    # Compute liquidity score from real volume when available;
+                    # fall back to an explicit degraded state (not a proxy calc)
+                    # when no volume history exists for the symbol.
+                    volumes = (history_map or {}).get(sig.symbol, {}).get("volumes", [])
+                    real_volumes = [v for v in (volumes or []) if v and v > 0]
+                    if len(real_volumes) >= 2:
+                        avg_vol = sum(real_volumes[:-1]) / len(real_volumes[:-1])
+                        last_vol = real_volumes[-1]
+                        vol_ratio = last_vol / max(avg_vol, 1.0)
+                        liq_score = min(1.0, 0.2 + vol_ratio * 0.5)
+                        fill_prob = min(1.0, 0.25 + vol_ratio * 0.4)
+                    else:
+                        # No volume data — explicitly degraded, not a fake score
+                        liq_score = 0.3
+                        fill_prob = 0.4
+                        logger.debug(
+                            "No volume history for %s/%s — liquidity score degraded",
+                            sig.symbol, sig.market,
+                        )
 
                     # Gate 9 (audit D-03): the portfolio figures come from the
                     # paper-trading ledger via services.portfolio_risk — never
@@ -1835,15 +1850,13 @@ class QuantSignalOrchestrator:
 
             async with async_session_factory() as session:
                 now = datetime.now(UTC).replace(tzinfo=None)  # DB column is TIMESTAMP WITHOUT TZ
-                # Only evaluate signals whose 5-candle prediction window has fully
-                # elapsed (>= 5 days old). Evaluating younger signals judges them
-                # against an incomplete window and biases accuracy toward zero.
-                cutoff_start = now - timedelta(days=30)  # sweep back up to 30 days
-                cutoff_end = now - timedelta(days=5)     # signal must be 5+ days old
+                # Sweep 90 days back to cover quarterly signals; each row is then
+                # filtered per-timeframe so we only grade once the prediction
+                # window for THAT timeframe has fully elapsed.
+                cutoff_start = now - timedelta(days=90)
 
-                # Find pending signals from 5-30 days ago (oldest first so the
-                # evaluation queue drains FIFO instead of repeatedly picking the
-                # same arbitrary 100 rows and starving the rest)
+                # Horizon-aware cutoff: a daily signal needs 2 days, weekly 8,
+                # monthly 23, quarterly 65. Unknown timeframes get 5 days.
                 r = await session.execute(text("""
                     SELECT sa.id, sa.signal_id, sa.symbol, sa.market,
                            sa.source, sa.direction, sa.timeframe,
@@ -1852,10 +1865,26 @@ class QuantSignalOrchestrator:
                     FROM signal_accuracy sa
                     WHERE sa.outcome_set_at IS NULL
                       AND sa.generated_at >= :cutoff_start
-                      AND sa.generated_at <= :cutoff_end
+                      AND sa.generated_at <= (
+                          :now - (
+                              CASE sa.timeframe
+                                  WHEN 'daily'     THEN INTERVAL '2 days'
+                                  WHEN '1d'        THEN INTERVAL '2 days'
+                                  WHEN '2day'      THEN INTERVAL '3 days'
+                                  WHEN '3day'      THEN INTERVAL '5 days'
+                                  WHEN 'weekly'    THEN INTERVAL '8 days'
+                                  WHEN '1w'        THEN INTERVAL '8 days'
+                                  WHEN 'monthly'   THEN INTERVAL '23 days'
+                                  WHEN '1m'        THEN INTERVAL '23 days'
+                                  WHEN 'quarterly' THEN INTERVAL '65 days'
+                                  WHEN '3m'        THEN INTERVAL '65 days'
+                                  ELSE INTERVAL '5 days'
+                              END
+                          )
+                      )
                     ORDER BY sa.generated_at ASC
                     LIMIT 100
-                """), {"cutoff_start": cutoff_start, "cutoff_end": cutoff_end})
+                """), {"cutoff_start": cutoff_start, "now": now})
                 pending_rows = r.fetchall()
 
                 if not pending_rows:
@@ -1995,9 +2024,14 @@ class QuantSignalOrchestrator:
         return {}
 
 
-# ── Singleton ─────────────────────────────────────────────────────────────────
+# ── Singletons ────────────────────────────────────────────────────────────────
+# MLSignalConnector and ConfidenceScorer are stateless workers; re-instantiating
+# them on every call wastes initialisation overhead and prevents any internal
+# caching they may hold.  One module-level instance per process is enough.
 
 _orchestrator: QuantSignalOrchestrator | None = None
+_ml_connector: Any = None
+_confidence_scorer: Any = None
 
 
 def get_orchestrator() -> QuantSignalOrchestrator:
@@ -2005,3 +2039,19 @@ def get_orchestrator() -> QuantSignalOrchestrator:
     if _orchestrator is None:
         _orchestrator = QuantSignalOrchestrator()
     return _orchestrator
+
+
+def _get_ml_connector() -> Any:
+    global _ml_connector
+    if _ml_connector is None:
+        from services.ml_signal_connector import MLSignalConnector
+        _ml_connector = MLSignalConnector()
+    return _ml_connector
+
+
+def _get_confidence_scorer(session: Any = None) -> Any:
+    global _confidence_scorer
+    if _confidence_scorer is None:
+        from services.confidence_scorer import ConfidenceScorer
+        _confidence_scorer = ConfidenceScorer(session=session)
+    return _confidence_scorer

@@ -632,10 +632,10 @@ class ProbabilityCalibrator:
                 return []
 
             async with async_session_factory() as session:
-                # Build 10 equal-width buckets from 0.5 to 1.0
+                # 20 equal-width buckets from 0.0 to 1.0 (matches DEFAULT_BUCKETS)
                 result = []
-                for i in range(10):
-                    lo = 0.50 + i * 0.05
+                for i in range(20):
+                    lo = 0.0 + i * 0.05
                     hi = lo + 0.05
                     params = {
                         "market": market,

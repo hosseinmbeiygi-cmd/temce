@@ -12,6 +12,7 @@ import math
 import random
 from typing import Any
 
+from core.indicators import compute_rsi
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -368,23 +369,10 @@ class CoEvolutionOptimizer:
         return max(fitness, -10)
 
     def _compute_rsi(self, data: list[dict[str, Any]], idx: int, period: int) -> float:
-        start = max(0, idx - period)
-        prices = [data[i].get("close", 0) for i in range(start, idx + 1)]
-        prices = [p for p in prices if p > 0]
-        if len(prices) < 2:
-            return 50.0
-        gains = []
-        losses = []
-        for i in range(1, len(prices)):
-            diff = prices[i] - prices[i - 1]
-            if diff > 0:
-                gains.append(diff)
-            else:
-                losses.append(abs(diff))
-        avg_gain = sum(gains) / len(gains) if gains else 0.001
-        avg_loss = sum(losses) / len(losses) if losses else 0.001
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
+        start = max(0, idx - period * 3)  # extra history improves Wilder's seed
+        closes = [data[i].get("close", 0) for i in range(start, idx + 1)]
+        closes = [p for p in closes if p > 0]
+        return compute_rsi(closes, period)
 
     def run_generation(self, data: list[dict[str, Any]]) -> dict[str, Any]:
         # Evaluate all pairs

@@ -161,10 +161,19 @@ class PaperTradingService:
         stop = self._parse_price(snap.stop_loss)
         if stop is None or stop <= 0:
             stop = price * 0.95
+            logger.warning(
+                "stop_loss unparseable for %s/%s snap=%s — falling back to 5%% hardcoded",
+                snap.symbol if hasattr(snap, "symbol") else "?",
+                snap.market if hasattr(snap, "market") else "?",
+                snap.id,
+            )
 
         target1, target2 = self._parse_targets(snap.targets, price)
         if target1 is None or target1 <= 0:
             target1 = price * 1.08
+            logger.warning(
+                "target1 unparseable for snap=%s — falling back to 8%% hardcoded", snap.id,
+            )
         if target2 is None or target2 <= 0:
             target2 = target1 * 1.08
 
