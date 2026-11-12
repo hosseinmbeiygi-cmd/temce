@@ -483,7 +483,7 @@ class Settings(BaseSettings):
 
     @property
     def is_development(self) -> bool:
-        return self.environment == "development"
+        return self.environment in ("development", "test")
 
     def validate_production(self) -> None:
         # Staging is reachable from the network too; it must not run with the

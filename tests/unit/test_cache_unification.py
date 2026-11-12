@@ -33,7 +33,7 @@ class FakeRedis:
     async def close(self) -> None:
         self.closed = True
 
-    async def set(self, key: str, value: str, nx: bool = False, px: int | None = None) -> bool | None:
+    async def set(self, key: str, value: str, nx: bool = False, ex: int | None = None, px: int | None = None) -> bool | None:
         if nx and key in self._data:
             return None
         self._data[key] = value

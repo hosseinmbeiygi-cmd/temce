@@ -217,16 +217,35 @@ async def predict(
     features: dict[str, Any],
     service: InferenceService = Depends(get_inference_service),
 ) -> ApiResponse[dict[str, Any]]:
-    # Real prediction only — no mock fallback
+    import numpy as np
+
     symbol = features.get("symbol", "")
     if symbol:
         result = await service.predict_real(model_id, symbol)
         if result.success:
             return ApiResponse[dict[str, Any]](success=True, data=result.value)
 
+    # Feature-based prediction (no live market data needed)
+    feat_result = await service.predict(model_id, features)
+    if feat_result.success and feat_result.value is not None:
+        pr = feat_result.value
+        price = float(features.get("price_close", 0))
+        pred_arr = np.asarray(pr.predictions) if pr.predictions is not None else np.array([0.0])
+        pred_val = float(pred_arr.flat[0])
+        confidence = pr.metadata.get("confidence", 0.5) if pr.metadata else 0.5
+        ts = pr.timestamp.isoformat() if hasattr(pr.timestamp, "isoformat") else str(pr.timestamp)
+        return ApiResponse[dict[str, Any]](success=True, data={
+            "model_id": model_id,
+            "prediction": round(price * (1 + pred_val), 2) if price else round(pred_val, 4),
+            "predicted_change_pct": round(pred_val * 100, 2),
+            "last_price": price,
+            "confidence": round(float(confidence), 3),
+            "timestamp": ts,
+        })
+
     return ApiResponse[dict[str, Any]](
         success=False, data=None,
-        error={"message": f"No trained model available for {model_id}. Train first via /ml/train."},
+        error={"message": f"Prediction failed for {model_id}: {feat_result.error}"},
     )
 
 

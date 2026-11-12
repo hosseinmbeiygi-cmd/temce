@@ -41,6 +41,7 @@ const NAV_ITEMS = [
   { href: "/paper-trading", label: "📒 معاملات آزمایشی", icon: "📒" },
   { href: "/risk", label: "ریسک", icon: "🛡️" },
   { href: "/ml", label: "یادگیری ماشین", icon: "🧠" },
+  { href: "/experiments", label: "آزمایشات", icon: "🔭" },
   { href: "/admin", label: "پنل مدیریت", icon: "🛡️" },
   { href: "/crypto-market", label: "بازار رمز ارز", icon: "🪙" },
   { href: "/crypto-exchange", label: "صرافی ارز دیجیتال", icon: "🔄" },

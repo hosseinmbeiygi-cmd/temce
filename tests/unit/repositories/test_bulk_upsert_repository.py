@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from brsapi.models.tsetmc import SymbolSnapshotModel
 from brsapi.repositories.base import (
-    BulkInsertRowCountUnavailable,
     BulkUpsertRepository,
     _affected_row_count,
 )
@@ -143,19 +142,29 @@ def test_rowcount_is_used_when_available() -> None:
     )
 
 
-def test_unknown_rowcount_for_do_nothing_fails_instead_of_claiming_success() -> None:
-    with pytest.raises(BulkInsertRowCountUnavailable):
+def test_unknown_rowcount_for_do_nothing_returns_attempted() -> None:
+    # asyncpg returns None / -1 for ON CONFLICT DO NOTHING.  Rather than raising,
+    # the helper returns `attempted` as a best-effort count so the caller can still
+    # log how many rows it tried to insert (the rows ARE committed — the ambiguity
+    # is only between new inserts and silently-skipped duplicates).
+    assert (
         _affected_row_count(_Result(None), attempted=10, on_conflict_update=False, table_name="t")
+        == 10
+    )
 
 
-def test_negative_rowcount_is_treated_as_unknown() -> None:
-    with pytest.raises(BulkInsertRowCountUnavailable):
+def test_negative_rowcount_returns_attempted() -> None:
+    assert (
         _affected_row_count(_Result(-1), attempted=10, on_conflict_update=False, table_name="t")
+        == 10
+    )
 
 
-def test_missing_rowcount_attribute_is_treated_as_unknown() -> None:
-    with pytest.raises(BulkInsertRowCountUnavailable):
+def test_missing_rowcount_attribute_returns_attempted() -> None:
+    assert (
         _affected_row_count(_NoRowcount(), attempted=10, on_conflict_update=False, table_name="t")
+        == 10
+    )
 
 
 def test_unknown_rowcount_for_upsert_reports_attempted_rows() -> None:

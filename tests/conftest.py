@@ -16,6 +16,14 @@ import asyncio
 import os
 import sys
 
+# Set ENV=test before any app module is imported so that RateLimitMiddleware's
+# bypass (`app_settings.environment == "test"`) is active during the full test
+# suite.  Using setdefault lets a CI override stay in effect.
+os.environ.setdefault("ENV", "test")
+# Disable CSRF for tests — the httpx test client does not send browser Origin
+# headers, so CSRFMiddleware would 403 every POST/PUT/PATCH/DELETE.
+os.environ.setdefault("ENABLE_CSRF", "false")
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine

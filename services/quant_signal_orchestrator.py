@@ -1971,9 +1971,20 @@ class QuantSignalOrchestrator:
 
             if result.success and result.value:
                 items = result.value.items if hasattr(result.value, "items") else []
-                snapshot: dict[str, float] = {}
+                # get_accuracy_by_market groups by (market, source) so multiple
+                # rows can exist per market.  Aggregate correct/total across all
+                # sources so we get one accuracy figure per market, not last-wins.
+                market_totals: dict[str, dict[str, int]] = {}
                 for item in items:
-                    snapshot[item.get("market", "?")] = item.get("accuracy_pct", 0.0)
+                    market = item.get("market", "?")
+                    if market not in market_totals:
+                        market_totals[market] = {"correct": 0, "total": 0}
+                    market_totals[market]["correct"] += int(item.get("correct", 0))
+                    market_totals[market]["total"] += int(item.get("total", 0))
+                snapshot: dict[str, float] = {
+                    market: round((v["correct"] / max(v["total"], 1)) * 100, 2)
+                    for market, v in market_totals.items()
+                }
                 # Overall average
                 if snapshot:
                     snapshot["overall"] = round(sum(snapshot.values()) / len(snapshot), 2)

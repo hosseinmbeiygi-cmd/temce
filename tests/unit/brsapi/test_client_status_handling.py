@@ -249,13 +249,16 @@ async def test_retry_budget_is_bounded(make_client, sleeps, status) -> None:
 # ── Non-retryable client errors ─────────────────────────────────────────────
 
 
-async def test_404_is_http_error_without_retry(make_client) -> None:
+async def test_404_is_invalid_param_without_retry(make_client) -> None:
+    # 4xx responses are client-side errors (bad symbol / no data).  They must
+    # NOT trip the circuit breaker, so they are classified as "invalid_param"
+    # rather than "http_error".
     transport = sequence(httpx.Response(404, text="not found"))
     client = await make_client(transport, max_retries=3)
 
     result = await _fetch(client)
 
-    assert result.error_code == "http_error"
+    assert result.error_code == "invalid_param"
     assert transport.calls["n"] == 1
 
 
@@ -335,12 +338,15 @@ async def test_governor_fast_path_rejects_before_http(
 
 
 async def test_breaker_opens_after_repeated_failures_and_stops_http(make_client) -> None:
-    transport = sequence(httpx.Response(404, text="not found"))
+    # 5xx responses are server-side failures that DO count against the circuit breaker.
+    # 503 is retryable; with max_retries=0 the budget exhausts on the first attempt →
+    # "retries_exhausted", which is not in _CB_IGNORE_CODES and therefore trips the breaker.
+    transport = sequence(httpx.Response(503, text="service unavailable"))
     client = await make_client(transport, max_retries=0)
 
     for _ in range(5):
         result = await _fetch(client)
-        assert result.error_code == "http_error"
+        assert result.error_code == "retries_exhausted"
     assert transport.calls["n"] == 5
 
     blocked = await _fetch(client)
@@ -350,25 +356,27 @@ async def test_breaker_opens_after_repeated_failures_and_stops_http(make_client)
 
 
 async def test_breaker_does_not_count_successes(make_client) -> None:
-    # Four failures then a success must reset the count: the breaker stays closed.
+    # Four 5xx failures then a success must reset the count: the breaker stays closed.
     transport = sequence(
-        httpx.Response(404),
-        httpx.Response(404),
-        httpx.Response(404),
-        httpx.Response(404),
+        httpx.Response(503),
+        httpx.Response(503),
+        httpx.Response(503),
+        httpx.Response(503),
         httpx.Response(200, json=[]),
     )
     client = await make_client(transport, max_retries=0)
 
     codes = [(await _fetch(client)).error_code for _ in range(5)]
 
-    assert codes[:4] == ["http_error"] * 4
+    # 503 is retryable; with max_retries=0 each attempt returns "retries_exhausted".
+    # "retries_exhausted" is not in _CB_IGNORE_CODES, so it counts as a breaker failure.
+    assert codes[:4] == ["retries_exhausted"] * 4
     assert codes[4] is None
     assert client._circuit_breaker(ENDPOINT.path).state == "closed"
 
 
 async def test_success_after_recovery_window_probes_and_closes(make_client) -> None:
-    transport = sequence(*([httpx.Response(404)] * 5), httpx.Response(200, json=[]))
+    transport = sequence(*([httpx.Response(503)] * 5), httpx.Response(200, json=[]))
     client = await make_client(transport, max_retries=0)
 
     for _ in range(5):

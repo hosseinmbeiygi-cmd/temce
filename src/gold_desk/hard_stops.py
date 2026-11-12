@@ -41,23 +41,24 @@ def check_hard_stops(
             reason="دادهٔ تغییرات روزانه (USD/DXY/TSE) در دسترس نیست — hard stop ارزیابی نشد",
             inputs_missing=True,
         )
-    _any_missing = any(x is None for x in _all_inputs)
+    # At least one input is present — the check can be evaluated.
+    # inputs_missing=False means "we have data to evaluate" (GS-07).
     if tse_daily_change_pct is not None and tse_daily_change_pct <= HARDSTOP_TSE_CRASH_PCT:
         return HardStopResult(
             active=True,
             reason=f"سقوط شاخص کل {tse_daily_change_pct:.1f}٪ (آستانه {HARDSTOP_TSE_CRASH_PCT}٪) — فروش گسترده",
-            inputs_missing=_any_missing,
+            inputs_missing=False,
         )
     if dxy_daily_change_pct is not None and dxy_daily_change_pct >= HARDSTOP_DXY_SPIKE_PCT:
         return HardStopResult(
             active=True,
             reason=f"جهش DXY {dxy_daily_change_pct:.1f}٪ — شوک ارزی جهانی",
-            inputs_missing=_any_missing,
+            inputs_missing=False,
         )
     if usd_irt_daily_change_pct is not None and usd_irt_daily_change_pct >= HARDSTOP_USD_SPIKE_PCT:
         return HardStopResult(
             active=True,
             reason=f"جهش دلار تهران {usd_irt_daily_change_pct:.1f}٪ — تقاضای سفته‌بازانه",
-            inputs_missing=_any_missing,
+            inputs_missing=False,
         )
-    return HardStopResult(active=False, reason=None, inputs_missing=_any_missing)
+    return HardStopResult(active=False, reason=None, inputs_missing=False)

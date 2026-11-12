@@ -161,19 +161,25 @@ def test_implied_volatility_raises_for_invalid_option_type():
 def test_collar_put_premium_equals_true_put():
     """collar.put_premium must equal the PUT price at put_strike, not the call price.
 
-    RED: protective_collar unpacks black76_price() as
-         ``put_price, _, _, _ = black76_price(spot, put_strike, …)``
-         but black76_price returns (call, put, d1, d2), so put_price ← call price.
-    GREEN: unpack order corrected to
-         ``_, put_price, _, _ = black76_price(spot, put_strike, …)``.
+    protective_collar converts spot to the forward price F = spot * exp(r*t) before
+    calling black76_price, so the reference calculation must do the same.
     """
-    from src.gold_desk.black76 import black76_price, protective_collar, years_to_expiry
+    import math
+
+    from src.gold_desk.black76 import (
+        DEFAULT_IV,
+        IRAN_RISK_FREE_RATE,
+        black76_price,
+        protective_collar,
+        years_to_expiry,
+    )
 
     spot, put_strike, call_strike = 100.0, 90.0, 110.0
     expiry = date.today() + timedelta(days=180)
     t = years_to_expiry(expiry)
+    F = spot * math.exp(IRAN_RISK_FREE_RATE * t)
 
-    _, true_put, _, _ = black76_price(spot, put_strike, t)
+    _, true_put, _, _ = black76_price(F, put_strike, t, DEFAULT_IV, IRAN_RISK_FREE_RATE)
     collar = protective_collar(
         spot=spot, put_strike=put_strike, call_strike=call_strike, expiry=expiry
     )
@@ -186,19 +192,25 @@ def test_collar_put_premium_equals_true_put():
 def test_collar_call_premium_equals_true_call():
     """collar.call_premium must equal the CALL price at call_strike, not the put price.
 
-    RED: protective_collar unpacks black76_price() as
-         ``_, call_price, _, _ = black76_price(spot, call_strike, …)``
-         but black76_price returns (call, put, d1, d2), so call_price ← put price.
-    GREEN: unpack order corrected to
-         ``call_price, _, _, _ = black76_price(spot, call_strike, …)``.
+    protective_collar converts spot to the forward price F = spot * exp(r*t) before
+    calling black76_price, so the reference calculation must do the same.
     """
-    from src.gold_desk.black76 import black76_price, protective_collar, years_to_expiry
+    import math
+
+    from src.gold_desk.black76 import (
+        DEFAULT_IV,
+        IRAN_RISK_FREE_RATE,
+        black76_price,
+        protective_collar,
+        years_to_expiry,
+    )
 
     spot, put_strike, call_strike = 100.0, 90.0, 110.0
     expiry = date.today() + timedelta(days=180)
     t = years_to_expiry(expiry)
+    F = spot * math.exp(IRAN_RISK_FREE_RATE * t)
 
-    true_call, _, _, _ = black76_price(spot, call_strike, t)
+    true_call, _, _, _ = black76_price(F, call_strike, t, DEFAULT_IV, IRAN_RISK_FREE_RATE)
     collar = protective_collar(
         spot=spot, put_strike=put_strike, call_strike=call_strike, expiry=expiry
     )
