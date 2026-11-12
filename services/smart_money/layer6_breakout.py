@@ -13,7 +13,6 @@ class BreakoutLayer:
     ) -> dict[str, float]:
         c = quote.get("price_close", 0.0)
         h = quote.get("price_high", 0.0)
-        quote.get("price_low", 0.0)
 
         highs_20 = [q.get("price_high", 0.0) for q in history[-20:]] or [h]
         res20 = max(highs_20)
@@ -33,8 +32,8 @@ class BreakoutLayer:
         ess = layer_scores.get("ess", 0.0)
         rrs = layer_scores.get("rrs", 0.0)
         abs_score = layer_scores.get("abs", 0.0)
-        layer_scores.get("fls", 0.0)
-        bcp = (ess + rrs + abs_score) / 3
+        fls = layer_scores.get("fls", 0.0)
+        bcp = (ess + rrs + abs_score + fls) / 4
 
         brs = 0.20 * rp_n + 0.18 * btf_n + 0.18 * pt + 0.20 * (_ipe_n := self._ipe_n(quote, history)) + 0.24 * bcp
 

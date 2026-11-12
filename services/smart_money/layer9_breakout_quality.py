@@ -33,7 +33,6 @@ class BreakoutQualityLayer:
         z_vol = (v - avg_vol_20) / std_vol if std_vol else 0.0
         z_vol_n = norm(z_vol, 0.5, 3.0)
 
-        [q.get("price_close", 0.0) for q in history[-20:]] + [c]
         highs_20 = [q.get("price_high", 0.0) for q in history[-20:]]
         res20 = max(highs_20) if highs_20 else h
         support20 = min(q.get("price_low", 0.0) for q in history[-20:]) if history[-20:] else low
@@ -84,10 +83,6 @@ class BreakoutQualityLayer:
             + 0.08 * accept_n
             + 0.10 * bcp
         )
-
-        dist_sup = (c - support20) / max(support20, 1) if support20 else 0.0
-        lvr = dist_sup / max(dist_res + 0.001, 0.001)
-        norm(lvr, 1.0, 10.0)
 
         return {
             "bqs": min(1.0, max(0.0, bqs)),
