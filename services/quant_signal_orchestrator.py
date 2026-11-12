@@ -1538,13 +1538,13 @@ class QuantSignalOrchestrator:
                 try:
                     await session.execute(text("""
                         CREATE TABLE IF NOT EXISTS signal_accuracy (
-                            id VARCHAR(100) PRIMARY KEY,
-                            signal_id VARCHAR(100),
+                            id VARCHAR(50) PRIMARY KEY,
+                            signal_id VARCHAR(50),
                             symbol VARCHAR(50),
-                            market VARCHAR(50),
-                            source VARCHAR(50),
+                            market VARCHAR(30),
+                            source VARCHAR(100),
                             direction VARCHAR(10),
-                            timeframe VARCHAR(20),
+                            timeframe VARCHAR(10),
                             regime VARCHAR(50),
                             signal_price FLOAT,
                             signal_strength FLOAT,
@@ -1561,7 +1561,10 @@ class QuantSignalOrchestrator:
                             entry_price FLOAT,
                             exit_price FLOAT,
                             generated_at TIMESTAMP,
-                            outcome_set_at TIMESTAMP
+                            outcome_set_at TIMESTAMP,
+                            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                            updated_at TIMESTAMP,
+                            notes TEXT
                         )
                     """))
                     await session.commit()

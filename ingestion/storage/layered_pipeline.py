@@ -89,26 +89,6 @@ async def store_warm(rows: list[dict[str, Any]]) -> int:
             return 0
 
         async with async_session_factory() as session:  # type: ignore
-            # Best-effort: ensure a generic hypertable exists (or fallback to a plain table)
-            # We do NOT create the full armor schema here — just a raw_ingest table if missing
-            try:
-                await session.execute(
-                    text(
-                        """
-                        CREATE TABLE IF NOT EXISTS armor_raw_ingest (
-                            symbol TEXT NOT NULL,
-                            fetched_at TIMESTAMPTZ NOT NULL,
-                            payload JSONB NOT NULL,
-                            PRIMARY KEY (symbol, fetched_at)
-                        );
-                        """
-                    )
-                )
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                logger.debug("Warm ensure table failed", exc_info=True)
-
             inserted = 0
             # Single multi-row INSERT (executemany) instead of one round-trip
             # per row; ON CONFLICT DO NOTHING keeps the idempotency the old
